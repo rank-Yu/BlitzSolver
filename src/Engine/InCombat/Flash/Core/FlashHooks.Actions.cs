@@ -111,6 +111,28 @@ public static partial class FlashHooks
 
 // Hook invokers. Each is a value type so dispatch is specialized per hook without allocation.
 
+public struct AfterCardDrawnEarlyHook : IFlashActionHook
+{
+    public int DrawnPosition;
+    public bool FromHandDraw;
+
+    public static FlashHookMask Mask => FlashHookMask.AfterCardDrawnEarly;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.AfterCardDrawnEarly(ref x, self, DrawnPosition, FromHandDraw);
+}
+
+public struct AfterCardDrawnHook : IFlashActionHook
+{
+    public int DrawnPosition;
+    public bool FromHandDraw;
+
+    public static FlashHookMask Mask => FlashHookMask.AfterCardDrawn;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.AfterCardDrawn(ref x, self, DrawnPosition, FromHandDraw);
+}
+
 public struct BeforeSideTurnEndVeryEarlyHook : IFlashActionHook
 {
     public FlashSide Side;

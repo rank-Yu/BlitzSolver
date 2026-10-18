@@ -152,6 +152,8 @@ public ref struct FlashExec
         PlayIndex = 0;
         EffectDepth = 0;
         ChoiceTiming = FlashChoiceTiming.Action;
+        DrawnCardPosition = -1;
+        IntrinsicDrawHandled = false;
     }
 
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
@@ -176,6 +178,12 @@ public ref struct FlashExec
 
     /// <summary>Timing stamped on choice requests (<c>SimulatedCombatState.SetActionChoiceTiming</c>).</summary>
     public FlashChoiceTiming ChoiceTiming;
+
+    /// <summary>Absolute position of the card whose <c>AfterCardDrawn</c> is being dispatched, or -1.</summary>
+    public int DrawnCardPosition;
+
+    /// <summary><c>AfterCardDrawnMirrorContext.IntrinsicCardHandled</c> for the current drawn card.</summary>
+    public bool IntrinsicDrawHandled;
 
     /// <summary>
     /// Takes the next carried choice. When none is left, records <paramref name="request"/>, sets

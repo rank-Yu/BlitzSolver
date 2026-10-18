@@ -161,3 +161,26 @@ public sealed class ColossusPower : FlashPowerDef
         return x.R.PowerVar(Id, 0);
     }
 }
+
+/// <summary>
+/// Native <c>IntangiblePower</c>, called through the existing engine's original-method fallback (no mirror is
+/// registered): <c>ModifyHpLostAfterOsty</c> caps its owner's HP loss of at least 1 to 1 and
+/// <c>ModifyDamageCap</c> caps damage to its owner at 1. The native in-progress check reads the live combat,
+/// which is in progress whenever the existing engine predicts, so it is not mirrored. Ticks at the end of the
+/// enemy side (<c>CorePowerSupport.TickDurations</c>); <c>AfterModifyingHpLostAfterOsty</c> only flashes.
+/// </summary>
+[FlashContent("INTANGIBLE_POWER")]
+public sealed class IntangiblePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override bool TicksAtEnemySideEnd => true;
+
+    public override decimal ModifyDamageCap(ref FlashExec x, FlashListener self, in FlashDamageContext damage)
+        => damage.Target == self.Owner ? 1m : decimal.MaxValue;
+
+    public override decimal ModifyHpLostAfterOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss, decimal amount)
+        => loss.Target == self.Owner && amount >= 1m ? 1m : amount;
+}

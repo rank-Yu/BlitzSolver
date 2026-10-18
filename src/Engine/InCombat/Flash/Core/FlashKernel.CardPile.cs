@@ -36,21 +36,91 @@ public static partial class FlashKernel
     /// <summary>Mirrors <c>CombatPredictionSimulator.Draw</c> / <c>DrawCore</c>.</summary>
     public static void Draw(ref FlashExec x, int count, bool fromHandDraw)
     {
-        // ShouldDraw has no supported listeners yet.
-        if (IsOverOrEnding(x.B))
+        if (IsOverOrEnding(x.B) || !ShouldDraw(ref x, fromHandDraw))
             return;
         for (int index = 0; index < count; index++)
         {
             if (IsOverOrEnding(x.B) || x.B.HandCount >= x.B.MaxHandSize)
                 break;
             ShuffleIfNecessary(ref x);
+            if (x.NeedsChoice)
+                return;
             if (x.B.DrawCount == 0 || x.B.HandCount >= x.B.MaxHandSize)
                 break;
             // AddToPile(top draw card, Hand, Bottom): the draw segment directly follows the hand.
             FlashPiles.DrawTopToHand(ref x.B);
-            // History.CardDrawn / RecordCardDrawn / AfterCardDrawn: no tracked counters or
-            // supported listeners yet.
+            int position = x.B.HandCount - 1;
+            RecordCardDrawn(ref x, x.B.Cards[position], fromHandDraw);
+            AfterCardDrawn(ref x, position, fromHandDraw);
+            if (x.NeedsChoice)
+                return;
         }
+    }
+
+    /// <summary>Native <c>Hook.ShouldDraw</c> through <c>HookMirrors.ShouldDraw</c>: any combat listener may prevent the draw.</summary>
+    private static bool ShouldDraw(ref FlashExec x, bool fromHandDraw)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ShouldDraw) == 0 || IsOverOrEnding(x.B))
+            return true;
+        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        int count = FlashHooks.CollectListeners(x.B, FlashHookMask.ShouldDraw, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (!FlashHooks.Definition(x.B, listeners[index]).ShouldDraw(ref x, listeners[index], fromHandDraw))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>Mirrors <c>SimulatedCombatState.RecordCardDrawn</c>.</summary>
+    private static void RecordCardDrawn(ref FlashExec x, in FlashCard card, bool fromHandDraw)
+    {
+        if (!fromHandDraw)
+            x.B.AddCounter(FlashCounter.NonHandDrawsThisTurn, 1);
+        if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Status)
+            x.B.AddCounter(FlashCounter.StatusCardsDrawnThisTurn, 1);
+    }
+
+    /// <summary>
+    /// Mirrors <c>HookMirrors.AfterCardDrawn</c>: the Early and normal passes over the combat listeners (gated by
+    /// combat ending), then the drawn card's own handler when its listener visit did not claim it.
+    /// </summary>
+    private static void AfterCardDrawn(ref FlashExec x, int position, bool fromHandDraw)
+    {
+        int savedPosition = x.DrawnCardPosition;
+        bool savedHandled = x.IntrinsicDrawHandled;
+        x.DrawnCardPosition = position;
+        x.IntrinsicDrawHandled = false;
+        AfterCardDrawnEarlyHook early = new() { DrawnPosition = position, FromHandDraw = fromHandDraw };
+        FlashHooks.Dispatch(ref x, ref early, gatedByEnding: true);
+        if (x.NeedsChoice)
+            return;
+        AfterCardDrawnHook normal = new() { DrawnPosition = position, FromHandDraw = fromHandDraw };
+        FlashHooks.Dispatch(ref x, ref normal, gatedByEnding: true);
+        if (x.NeedsChoice)
+            return;
+        if (!x.IntrinsicDrawHandled)
+        {
+            FlashCardDef def = FlashRegistry.Card(x.B.Cards[position].Id);
+            if ((def.Hooks & FlashHookMask.AfterCardDrawn) != 0)
+                def.AfterCardDrawn(ref x, new FlashListener(FlashListenerKind.Card, (byte)position, FlashLimits.PlayerOwner), position, fromHandDraw);
+            if (x.NeedsChoice)
+                return;
+        }
+        x.DrawnCardPosition = savedPosition;
+        x.IntrinsicDrawHandled = savedHandled;
+    }
+
+    /// <summary>
+    /// For a card listener: whether this visit is the drawn card's own handler, claimed once per draw
+    /// (<c>AfterCardDrawnMirrorContext.IntrinsicCardHandled</c> with <c>Card.References</c>).
+    /// </summary>
+    public static bool TakeIntrinsicDraw(ref FlashExec x, FlashListener self, int drawnPosition)
+    {
+        if (x.IntrinsicDrawHandled || self.Kind != FlashListenerKind.Card || self.Index != drawnPosition)
+            return false;
+        x.IntrinsicDrawHandled = true;
+        return true;
     }
 
     /// <summary>Decimal overload: rounds up like <c>CombatPredictionSimulator.Draw(Player, decimal, bool)</c>.</summary>

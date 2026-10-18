@@ -67,6 +67,30 @@ public readonly struct FlashDamageContext
     public FlashCard CardSource { get; }
 }
 
+/// <summary>Arguments of the HP loss modification hooks (<c>ModifyHpLostMirrorContext</c>).</summary>
+public readonly struct FlashHpLossContext
+{
+    public FlashHpLossContext(byte target, FlashValueProps props, byte dealer, bool hasCardSource, in FlashCard cardSource)
+    {
+        Target = target;
+        Props = props;
+        Dealer = dealer;
+        HasCardSource = hasCardSource;
+        CardSource = cardSource;
+    }
+
+    public byte Target { get; }
+
+    public FlashValueProps Props { get; }
+
+    /// <summary>Dealer owner, or <see cref="FlashLimits.NoOwner"/>.</summary>
+    public byte Dealer { get; }
+
+    public bool HasCardSource { get; }
+
+    public FlashCard CardSource { get; }
+}
+
 /// <summary>Arguments of the block modification hooks.</summary>
 public readonly struct FlashBlockContext
 {
@@ -114,6 +138,22 @@ public enum FlashHookMask : ulong
     BeforeSideTurnEndVeryEarly = 1UL << 19,
     BeforeSideTurnEndEarly = 1UL << 20,
     BeforeSideTurnEnd = 1UL << 21,
+    ShouldDraw = 1UL << 22,
+    AfterCardDrawnEarly = 1UL << 23,
+    AfterCardDrawn = 1UL << 24,
+    ModifyHpLostBeforeOsty = 1UL << 25,
+    ModifyHpLostBeforeOstyLate = 1UL << 26,
+    ModifyHpLostAfterOsty = 1UL << 27,
+    ModifyHpLostAfterOstyLate = 1UL << 28,
+    AfterModifyingHpLostAfterOsty = 1UL << 29,
+
+    /// <summary>
+    /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
+    /// cards outside combat; a root whose deck holds a card implementing one of them is rejected.
+    /// </summary>
+    RunListenerHooks = ModifyDamageAdditive | ModifyDamageMultiplicative | ModifyDamageCap | BeforeDamageReceived
+        | AfterDamageReceived | AfterDamageReceivedLate | AfterDamageGiven | ModifyHpLostBeforeOsty
+        | ModifyHpLostBeforeOstyLate | ModifyHpLostAfterOsty | ModifyHpLostAfterOstyLate,
 }
 
 public abstract class FlashContentDef
@@ -151,6 +191,22 @@ public abstract class FlashListenerDef : FlashContentDef
 
     public virtual decimal ModifyBlockMultiplicative(ref FlashExec x, FlashListener self, in FlashBlockContext block, decimal amount) => 1m;
 
+    // HP loss modification (HookMirrors.ModifyHpLost over the run listeners, no ending gate): before the
+    // Osty redirect, then after it, each with a Late pass. A listener that changes the truncated amount in an
+    // after-Osty pass is notified by AfterModifyingHpLostAfterOsty.
+
+    public virtual decimal ModifyHpLostBeforeOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss, decimal amount) => amount;
+
+    public virtual decimal ModifyHpLostBeforeOstyLate(ref FlashExec x, FlashListener self, in FlashHpLossContext loss, decimal amount) => amount;
+
+    public virtual decimal ModifyHpLostAfterOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss, decimal amount) => amount;
+
+    public virtual decimal ModifyHpLostAfterOstyLate(ref FlashExec x, FlashListener self, in FlashHpLossContext loss, decimal amount) => amount;
+
+    public virtual void AfterModifyingHpLostAfterOsty(ref FlashExec x, FlashListener self)
+    {
+    }
+
     // Action hooks. Each dispatch point in the kernel names the existing-engine call it mirrors.
 
     /// <summary>
@@ -163,6 +219,26 @@ public abstract class FlashListenerDef : FlashContentDef
     }
 
     public virtual void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+    }
+
+    /// <summary>Native <c>ShouldDraw</c> at the start of a draw (gated by combat ending): return false to prevent it.</summary>
+    public virtual bool ShouldDraw(ref FlashExec x, FlashListener self, bool fromHandDraw) => true;
+
+    /// <summary>
+    /// <c>HookMirrors.AfterCardDrawn</c> Early pass for the card just drawn to <paramref name="drawnPosition"/>
+    /// (absolute position in <see cref="FlashBattle.Cards"/>).
+    /// </summary>
+    public virtual void AfterCardDrawnEarly(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
+    {
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.AfterCardDrawn</c> normal pass. A card reacting to being drawn itself (Void and similar)
+    /// claims that once with <see cref="FlashKernel.TakeIntrinsicDraw"/>; the kernel calls it after the pass
+    /// when its listener visit did not (for example while combat is ending).
+    /// </summary>
+    public virtual void AfterCardDrawn(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
     {
     }
 
@@ -627,7 +703,8 @@ public static class FlashRegistry
         MethodInfo[] methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance);
         foreach (FlashHookMask hook in Enum.GetValues<FlashHookMask>())
         {
-            if (hook == FlashHookMask.None)
+            // Composite masks (RunListenerHooks and similar) name no single hook.
+            if (System.Numerics.BitOperations.PopCount((ulong)hook) != 1)
                 continue;
             MethodInfo baseMethod = typeof(FlashListenerDef).GetMethod(hook.ToString(), BindingFlags.Public | BindingFlags.Instance)
                 ?? throw new InvalidOperationException($"FlashListenerDef 没有与 Hook {hook} 同名的方法。");

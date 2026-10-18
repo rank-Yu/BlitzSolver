@@ -113,9 +113,15 @@ public static partial class FlashKernel
             return false;
         byte blockTarget = target == FlashLimits.OstyOwner ? FlashLimits.PlayerOwner : target;
         decimal blocked = DamageBlock(ref x.B.Creature(blockTarget), modified, props);
-        // ModifyHpLost (before and after Osty), the Osty redirect and AfterModifyingHpLostAfterOsty
-        // have no supported listeners yet; Osty itself is rejected at admission.
         decimal unblocked = Math.Max(modified - blocked, 0m);
+        // ModifyHpLost before the Osty redirect (ModifyUnblockedDamageTarget; Osty is rejected at admission),
+        // then after it, then AfterModifyingHpLostAfterOsty for the after-Osty changers.
+        if ((FlashRegistry.AnyHooks & HpLossHooks) != 0)
+        {
+            unblocked = ModifyHpLost(ref x, target, unblocked, props, dealer, hasCardSource, cardSource);
+            if (x.NeedsChoice)
+                return false;
+        }
         ref FlashCreature creature = ref x.B.Creature(target);
         FlashDamageResult result = LoseHp(ref creature, target, unblocked, props);
         result.BlockedDamage = (int)blocked;
@@ -126,6 +132,20 @@ public static partial class FlashKernel
         RecordDamageReceived(ref x.B, target, result);
         results[count++] = result;
         return true;
+    }
+
+    private const FlashHookMask HpLossHooks = FlashHookMask.ModifyHpLostBeforeOsty | FlashHookMask.ModifyHpLostBeforeOstyLate
+        | FlashHookMask.ModifyHpLostAfterOsty | FlashHookMask.ModifyHpLostAfterOstyLate | FlashHookMask.AfterModifyingHpLostAfterOsty;
+
+    private static decimal ModifyHpLost(ref FlashExec x, byte target, decimal unblocked, FlashValueProps props, byte dealer,
+        bool hasCardSource, in FlashCard cardSource)
+    {
+        FlashHpLossContext loss = new(target, props, dealer, hasCardSource, cardSource);
+        Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
+        unblocked = FlashHooks.ModifyHpLost(ref x, loss, unblocked, afterOsty: false, changed, out _);
+        unblocked = FlashHooks.ModifyHpLost(ref x, loss, unblocked, afterOsty: true, changed, out int changedCount);
+        FlashHooks.AfterModifyingHpLostAfterOsty(ref x, changed[..changedCount]);
+        return unblocked;
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.ProcessDamageResults</c>.</summary>

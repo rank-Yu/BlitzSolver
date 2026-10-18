@@ -123,6 +123,62 @@ public static partial class FlashHooks
         return Math.Max(0, Math.Min(damage, cap));
     }
 
+    /// <summary>
+    /// Mirrors one <c>HookMirrors.ModifyHpLost</c> call: the normal then Late pass of the before-Osty
+    /// (<paramref name="afterOsty"/> false) or after-Osty phase. Listeners whose call changed the truncated amount
+    /// are written to <paramref name="changed"/>.
+    /// </summary>
+    public static decimal ModifyHpLost(ref FlashExec x, in FlashHpLossContext loss, decimal amount, bool afterOsty,
+        scoped Span<FlashListener> changed, out int changedCount)
+    {
+        changedCount = 0;
+        FlashHookMask normalMask = afterOsty ? FlashHookMask.ModifyHpLostAfterOsty : FlashHookMask.ModifyHpLostBeforeOsty;
+        FlashHookMask lateMask = afterOsty ? FlashHookMask.ModifyHpLostAfterOstyLate : FlashHookMask.ModifyHpLostBeforeOstyLate;
+        if ((FlashRegistry.AnyHooks & (normalMask | lateMask)) == 0)
+            return amount;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        for (int pass = 0; pass < 2; pass++)
+        {
+            int count = CollectListeners(x.B, pass == 0 ? normalMask : lateMask, listeners);
+            for (int index = 0; index < count; index++)
+            {
+                FlashListenerDef def = Definition(x.B, listeners[index]);
+                decimal previous = amount;
+                amount = (afterOsty, pass) switch
+                {
+                    (false, 0) => def.ModifyHpLostBeforeOsty(ref x, listeners[index], loss, amount),
+                    (false, _) => def.ModifyHpLostBeforeOstyLate(ref x, listeners[index], loss, amount),
+                    (true, 0) => def.ModifyHpLostAfterOsty(ref x, listeners[index], loss, amount),
+                    _ => def.ModifyHpLostAfterOstyLate(ref x, listeners[index], loss, amount),
+                };
+                if (decimal.Truncate(previous) != decimal.Truncate(amount))
+                    changed[changedCount++] = listeners[index];
+            }
+        }
+        return amount;
+    }
+
+    /// <summary>
+    /// Mirrors <c>HookMirrors.AfterModifyingHpLostAfterOsty</c>: the run listeners in order, each notified when it is
+    /// among <paramref name="changed"/>.
+    /// </summary>
+    public static void AfterModifyingHpLostAfterOsty(ref FlashExec x, scoped ReadOnlySpan<FlashListener> changed)
+    {
+        if (changed.IsEmpty)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMask.AfterModifyingHpLostAfterOsty, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (changed.Contains(listeners[index]))
+            {
+                Definition(x.B, listeners[index]).AfterModifyingHpLostAfterOsty(ref x, listeners[index]);
+                if (x.NeedsChoice)
+                    return;
+            }
+        }
+    }
+
     /// <summary>Mirrors <c>HookMirrors.ModifyBlock</c> including the settlement overflow clamp.</summary>
     public static decimal ModifyBlock(ref FlashExec x, byte target, decimal block, FlashValueProps props,
         bool hasCardSource, in FlashCard cardSource, out bool anyModifier)

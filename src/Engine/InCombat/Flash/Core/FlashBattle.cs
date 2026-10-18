@@ -73,6 +73,8 @@ public enum FlashCounter : byte
     CardsExhaustedThisTurn,
     CardsDiscardedThisTurn,
     PlayerAttacksThisTurn,
+    NonHandDrawsThisTurn,
+    StatusCardsDrawnThisTurn,
     EnergySpentThisTurn,
 
     // Combat-long player counters.
