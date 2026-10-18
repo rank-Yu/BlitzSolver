@@ -81,11 +81,14 @@ public sealed class SecondWind : FlashCardDef
                 index++;
                 continue;
             }
-            int handBefore = x.B.HandCount;
+            // Exhausting may also append cards to the hand (BurningSticks copies the first exhausted Skill);
+            // appended cards come after every snapshot card, so the walk still stops before them. The
+            // candidate itself must have reached the exhaust pile.
+            int exhaustBefore = x.B.ExhaustCount;
             remaining--;
             FlashKernel.Exhaust(ref x, FlashPile.Hand, index);
-            if (x.B.HandCount == handBefore)
-                throw new InvalidOperationException("SecondWind 消耗没有移除手牌。");
+            if (x.B.ExhaustCount != exhaustBefore + 1)
+                throw new FlashUnsupportedException("SecondWind 的消耗没有把手牌移入消耗堆。");
             if (x.NeedsChoice)
                 return;
             FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, FlashCardEffects.Var(x, 0),
