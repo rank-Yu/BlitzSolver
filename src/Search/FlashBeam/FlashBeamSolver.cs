@@ -42,6 +42,13 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>The request's minimum explicit potion uses; the primary member passes 0.</summary>
     public int MinimumPotionUses { get; init; }
+
+    /// <summary>
+    /// Actions already executed before the search root (a fixed prefix). They are added to every
+    /// node's action count so <c>Score</c>, the route key and the complete-victory checks see the
+    /// same count as the existing solver, which starts counting at the request root.
+    /// </summary>
+    public int InitialActionCount { get; init; }
 }
 
 /// <summary>
@@ -133,7 +140,7 @@ internal sealed class FlashBeamSolver
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
         _nodes.Clear();
-        _nodes.Add((-1, 0, default));
+        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default));
         int width = Math.Max(1, _options.BeamWidth);
         // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended are bounded
         // by every kept state expanding every legal action, but a layer holds width x (actual legal actions),
@@ -188,7 +195,7 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        (double rootScore, double rootRank, int rootPotionCost) = Score(root, 0);
+        (double rootScore, double rootRank, int rootPotionCost) = Score(root, _options.InitialActionCount);
         turnFrontier.Add(root, 0, rootScore, rootRank, rootPotionCost);
         int turns = 0;
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch) && !hpTargetReached)

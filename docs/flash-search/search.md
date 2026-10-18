@@ -26,6 +26,8 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 1. 从根分叉旧模拟器，逐步回放 Flash 动作。每一步按手牌位置取牌，按旧引擎的规则生成 `PlanAction`（`CardStateKey`、occurrence、`TargetCombatId`、选择令牌），并要求旧引擎这一步的投影与 Flash 逐字节一致。
 2. 把整条已核对路线作为 `fixedPrefixActions` 交给现有 `CombatBeamSolver`，用极小预算求解。现有求解器自己回放并校验前缀（`ApplyFixedPrefix`），按既有终局排序与物化逻辑生成 `SolverResult`。协调器的续用补搜已经使用同一入口，所以不需要提取 `MaterializeSelectedRoute`。
 
+固定前缀续接在导入前先用同一 `ApplyFixedPrefix` 规则回放请求前缀（`CombatBeamSolver.ReplayFixedPrefixForFlash`），把前缀末尾状态作为 Flash 搜索根；步骤 1 从该状态开始核对，步骤 2 的 `fixedPrefixActions` 是“请求前缀 + Flash 路线”，仍由现有求解器从请求根完整回放与物化。
+
 实现在 `src/Search/FlashBeam/Bridge/FlashRouteMaterializer.cs`。
 
 回放中任何一步与 Flash 投影不一致都按 [运行时回放核对](admission-and-verification.md#4-运行时回放核对) 处理。
@@ -34,7 +36,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 3. 请求参数
 
-协调器宽度组合的成员（`DirectSearchPurpose.PrimaryBeam` 与 `RefinementBeam`）经过 Flash。中途排序的 profile 变体按现有 `BeamRankScore` 移植：仅基础分成员只用基础分，权重扰动对非终局状态把指定项乘以系数；连续致命意图定价与上下文排序仍在准入时拒绝并回落。`BeamSolveRequest` 各字段在 Flash 中的处理：
+协调器宽度组合的成员（`DirectSearchPurpose.PrimaryBeam` 与 `RefinementBeam`）以及“干净”的固定前缀续接请求经过 Flash。中途排序的 profile 变体按现有 `BeamRankScore` 移植：仅基础分成员只用基础分，权重扰动对非终局状态把指定项乘以系数；连续致命意图定价与上下文排序仍在准入时拒绝并回落。`BeamSolveRequest` 各字段在 Flash 中的处理：
 
 | 字段 | 处理 |
 | --- | --- |
@@ -44,13 +46,27 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 | `PrimaryIncumbent` | 支持：作为 FlashBeam 的初始 incumbent，`CombatEndedTurn` 从 `node.Turn` 换算到 Flash 玩家回合；共享的 `PrimaryIncumbents` 表不接入 |
 | `Purpose` | 决定是否查看模式，并作为物化求解器的工作量归因 |
 
-`CombatBeamSolver` 的其余构造参数（`maximumPotionUses`、`minimumPotionUses`、`earliestPotionTurn`、`fixedPrefixActions`、`potionFreePolicyBaseline`、`earlyTurnScout*`、`planCommitment`）在主搜索成员中不使用；用到它们的调用点不经过分发，仍用旧后端。
+`CombatBeamSolver` 的其余构造参数（`maximumPotionUses`、`minimumPotionUses`、`earliestPotionTurn`、`fixedPrefixActions`、`potionFreePolicyBaseline`、`earlyTurnScout*`、`planCommitment`）在主搜索成员中不使用。固定前缀续接通过第二个分发入口 `BeamSolveDispatch.SolveContinuation` 走同一 `FlashMode`；只有下列全部成立的“干净”请求才交给 Flash，其余直接调用现有求解器，不进入 Flash，也不记 `FLASH_FALLBACK`：
+
+- `PotionPolicyOverride == Disabled`，或请求的有效药水政策（`PolicyOverride ?? Context.Policy` 的 `PotionPolicy` 与 `PotionStrategy`）等价于不用药；`RequireAtLeastOne` 或存在强制用药指令的请求不算。
+- `MaximumPotionUses` 为 null 或 0，`MinimumPotionUses` 为 null 或 0。
+- `PotionFreePolicyBaseline == null`、`Commitment == null`。
+- `EarlyTurnScoutDepth == 0`、`EarlyTurnScoutObserver == null`、`EarliestPotionTurn == null`。
+
+`PolicyOverride` 作为求解政策使用；`PrimaryIncumbent` 按 SB 的口径传入。`ProgressCallbackOverride` 与 `ResetFixedPrefixSchedulingBaseline` 只影响现有求解器的进度报告与固定前缀调度，Flash 不读取：Flash 搜索期间不报告进度，物化求解器也不使用该调度重置。profile 中 Flash 不建模的开关（连续致命意图、上下文排序等）仍由准入拒绝并回落。
+
+固定前缀续接的搜索口径：
+
+1. 现有引擎从请求根按 `CombatBeamSolver.ApplyFixedPrefix` 的同一规则回放 `ContinuationSearchRequest.Prefix`，得到前缀末尾的 `SimulationSnapshot`（`CombatBeamSolver.ReplayFixedPrefixForFlash`）。前缀无法回放按 `UnsupportedRequest` 拒绝并回落。
+2. 前缀末尾状态导入为 FlashBeam 的搜索根，规则表也从该状态编译；评估与下界的根冻结表仍从请求根建立，对应现有求解器的 `_run.Initial*` 来自请求根。
+3. FlashBeam 的节点动作数从 `Prefix.Length` 起算，使 `Score`、`RouteKey`、HP 目标早停中的完整胜利判定与下界剪枝看到与现有求解器相同的动作数。incumbent 和药水最早回合仍按请求根回合换算，不因前缀推进。
+4. 最终路线 = 前缀 + Flash 路线。Flash 路线每一步照常由现有引擎从搜索根回放并与 Flash 投影逐字节核对；物化时把前缀 + 路线整条作为 `fixedPrefixActions` 交给现有求解器，结果形状与现有后端的续接结果相同。
 
 回放与物化求解器照常向 `policy.RequestWorkTotals` 记录工作量，FlashBeam 自身的节点与转移不计入。接管请求只在物化求解器中响应，FlashBeam 搜索期间不响应。
 
 ## 4. BeamSolveDispatch 与模式
 
-`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`。`PrimaryBeam` 与 `RefinementBeam` 用途查看模式；补充审计、计划搜索、固定前缀续接与侦察不经过分发点，仍直接使用 `CombatBeamSolver`。`SecondRankBand`、`AggressivePowerCommitment` 与分支上限只作用于现有搜索的保路泳道与分支截断，FlashBeam 没有这些结构，因此不读取它们（属于已记录的保留结构差异）。
+`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam` 与干净续接查看 `FlashMode`；不干净的续接、补充审计、计划搜索与侦察不经过 Flash，仍直接使用 `CombatBeamSolver`。`SecondRankBand`、`AggressivePowerCommitment` 与分支上限只作用于现有搜索的保路泳道与分支截断，FlashBeam 没有这些结构，因此不读取它们（属于已记录的保留结构差异）。
 
 模式由 `SearchPolicySnapshot.FlashMode` 冻结，主线程从设置 `SolverSettingsData.FlashSearchMode` 读取（设置 > 性能 > 搜索预算 >「Flash 快速搜索（实验）」）。离线宿主可用 `OFFLINE_HARNESS_FLASH_MODE=Off|Shadow|On` 覆盖。
 
@@ -60,9 +76,9 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 | Shadow | 先跑旧后端，再在隔离策略下跑 Flash，返回旧结果并记录 `FLASH_SHADOW` |
 | On | 先跑 Flash；已准入且逐步核对通过则采用并记录 `FLASH_ADOPTED`，否则记录 `FLASH_FALLBACK` 并改跑旧后端 |
 
-Shadow 的隔离策略清空 `RequestWorkTotals`、`PrimaryIncumbents` 与 `Interaction`，求解器诊断写入空接收器，并且不报告进度，因此返回结果、工作量与日志都与 Off 相同，只多一行对照。请求的初始 `PrimaryIncumbent` 是只读输入，Shadow/On 都按同一请求值传给 FlashBeam；两边都不写共享 `PrimaryIncumbents` 表，因此 Flash 的收紧只影响本次 Flash 搜索。
+Shadow 的隔离策略清空 `RequestWorkTotals`、`PrimaryIncumbents` 与 `Interaction`，求解器诊断写入空接收器，并且不报告进度，因此返回结果、工作量与日志都与 Off 相同，只多一行对照。续接请求的前缀回放与物化求解器也使用同一份隔离政策，不向共享账本记录工作量。请求的初始 `PrimaryIncumbent` 是只读输入，Shadow/On 都按同一请求值传给 FlashBeam；两边都不写共享 `PrimaryIncumbents` 表，因此 Flash 的收紧只影响本次 Flash 搜索。
 
-日志行前缀为 `[CombatSolver/Flash]`。Flash 段的 `status` 取 `verified`、`rejected`（带准入拒绝原因）或 `mismatch`（带首个不一致步）；`verified` 段记录耗时、胜负、HP、`hp_lost`、`end_turn`、各阶段耗时以及 FlashBeam 节点与转移数。Shadow 行另有旧后端的同名字段与 `same_route`。
+日志行前缀为 `[CombatSolver/Flash]`。主搜索成员行写 `purpose=<DirectSearchPurpose>`；续接的对照、采用与回落行写 `purpose=<ContinuationPurpose> prefix=<前缀动作数>`。Flash 段的 `status` 取 `verified`、`rejected`（带准入拒绝原因）或 `mismatch`（带首个不一致步）；`verified` 段记录耗时、胜负、HP、`hp_lost`、`end_turn`、各阶段耗时以及 FlashBeam 节点与转移数。Shadow 行另有旧后端的同名字段与 `same_route`。
 
 根上的准入拒绝（`FlashImportException`）以结果形式返回；核对不一致（`FlashVerificationException`，包括路线中途旧引擎状态无法投影）丢弃整条 Flash 路线。其他异常视为 Flash 缺陷，向上抛出并中止本次搜索，Shadow 也一样。
 
