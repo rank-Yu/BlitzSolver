@@ -113,6 +113,8 @@ Shadow 隔离（`NIBBITS_NORMAL`、`SLIMES_NORMAL`、`RUBY_RAIDERS_NORMAL`，FLA
 
 生成牌组差分（DX，2026-10-19）：对准入的 32 个生成牌组跑 48 条游走，固定根回归没有覆盖到的内容组合暴露出 10 个牌组的分歧与 2 处崩溃。逐个按现有引擎修正：`PendingPowerChanges` 嵌套排空（Vicious 抽到 Strike 后 Hellraiser 自动打出，外层用过期计数越界，改为先整批取走再派发，对应 `DrainPowerAmountChanges`）；自动打出攻击中的敌人死亡要在后续自动打出选目标前结算；玩家死亡后 DarkEmbrace、Juggling、Hellraiser、Rupture、CardPlayPair 的退役预测状态只在玩家已死亡时按惰性处理；Discovery/Splash 不再置风险位（现有引擎把它们登记为已补偿）；Pillage 读取刚抽到的那张牌而不是手牌末尾；Razor Tooth 的升级照 `Upgrade` 在战斗结束中不生效；自动打出队列在战斗结束时照现有引擎只写消耗标志；Thunderclap 与注入死亡生成的结算顺序；SecondWind 与 BurningSticks 的消耗核对。牌组收进 `coverage/corpora/flash-decks/`（33 份 spec 与 request），回归脚本对其逐个跑差分。修复后全量回归 238 行零差异，只有含 Thrash 的两个牌组按小数卡牌变量边界记 `unsupported`。
 
+牌组语料上的协调器对照（33 个牌组，Medium 档位、宽度组合、每进程预热 1 次）：Off 总耗时 273.0 s；On 在 DX 修正后为 195.7 s，其中一根因单个分支超出 96 张卡牌容量而整次回落、反比 Off 慢（54.2 s → 77.6 s）。子状态超出容量改为只丢弃该子状态后，On 为 128.1 s（约 2.1 倍），该根 10.7 s。质量按协调器自己的口径（胜负、战略失血差、结束回合）比较：4 好 / 20 同 / 9 差，战略失血差合计 +11（每场约 +0.33）；按原始失血比较会误判，例如 IRONCLAD-15 的 On 路线多失 8 HP，但战斗内回复与燃烧之血使两边战略失血差都是 0。剩余差距来自 FlashBeam 比现有搜索简单的保留结构。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。

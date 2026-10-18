@@ -88,7 +88,11 @@ internal sealed record FlashBeamResult(
     int Duplicates,
     int TurnsSearched,
     int PrunedIncumbents,
-    TimeSpan Elapsed);
+    TimeSpan Elapsed)
+{
+    /// <summary>Children dropped because their state exceeded a Flash capacity (a search boundary).</summary>
+    public int CapacityPruned { get; init; }
+}
 
 /// <summary>
 /// Turn-layered beam search over <see cref="FlashBattle"/>. Within a turn it expands card plays
@@ -117,6 +121,7 @@ internal sealed class FlashBeamSolver
     private int _expanded;
     private int _transitions;
     private int _duplicates;
+    private int _capacityPruned;
     private int _pruned;
 
     public FlashBeamSolver(FlashRules rules, FlashBeamOptions options)
@@ -245,7 +250,7 @@ internal sealed class FlashBeamSolver
             }
         }
         return new FlashBeamResult(Route(bestNode), bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
-            _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed);
+            _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed) { CapacityPruned = _capacityPruned };
     }
 
     private delegate void TerminalSink(in FlashBattle state, int node, double score);
@@ -331,7 +336,21 @@ internal sealed class FlashBeamSolver
         ref FlashBattle child = ref next.Reserve();
         child = parent;
         _transitions++;
-        if (FlashKernel.Step(ref child, action, _rules, out FlashChoiceRequest request) == FlashStepResult.NeedsChoice)
+        FlashStepResult stepResult;
+        FlashChoiceRequest request;
+        try
+        {
+            stepResult = FlashKernel.Step(ref child, action, _rules, out request);
+        }
+        catch (FlashCapacityException)
+        {
+            // A search boundary like the node budget: this child needs more cards, powers or enemies than
+            // FlashBattle holds, so it is dropped (the reserved slot stays free). Every adopted route is
+            // still verified step by step against the existing engine.
+            _capacityPruned++;
+            return;
+        }
+        if (stepResult == FlashStepResult.NeedsChoice)
         {
             // Every executed selection is exact; the cap only bounds how many are explored.
             Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
