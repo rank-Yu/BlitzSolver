@@ -39,6 +39,12 @@ public static partial class FlashKernel
     // CorePowerSupport.TriggerEnemySideTurnEndEffects, per enemy, before TriggerRegular.
     private static readonly string[] EnemySideTurnEndOrder = ["REGEN_POWER", "PLATING_POWER", "DOUBLE_DAMAGE_POWER"];
 
+    // CorePowerSupport.ApplyEnemyDeathPowers: checked on each player creature, in source order.
+    private static readonly string[] ApplierDeathOrder = ["CONSTRICT_POWER", "HEX_POWER", "SHRINK_POWER"];
+
+    private static readonly Lazy<ushort[]> ApplierDeathIds = new(() => Resolve(ApplierDeathOrder));
+    private static readonly Lazy<ushort> MagicBombId = new(() => PowerIdOrMax("MAGIC_BOMB_POWER"));
+
     private static readonly Lazy<ushort[]> OwnerAfterSideTurnStartIds = new(() => Resolve(OwnerAfterSideTurnStartOrder));
     private static readonly Lazy<ushort[]> BaseSideTurnStartIds = new(() => Resolve(BaseSideTurnStartOrder));
     private static readonly Lazy<ushort[]> GlobalAfterSideTurnStartIds = new(() => Resolve(GlobalAfterSideTurnStartOrder));
@@ -214,6 +220,46 @@ public static partial class FlashKernel
                 case RelicPhase.AfterBlockCleared: def.AfterBlockCleared(ref x, self); break;
                 default: throw new ArgumentOutOfRangeException(nameof(phase), phase, null);
             }
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
+    /// The applier cleanup of <c>CorePowerSupport.ApplyEnemyDeathPowers</c> for one newly dead enemy:
+    /// Constrict, Hex and Shrink on the player creature whose applier it was, then every Magic Bomb it
+    /// applied (listener order). Powers are read directly, without the positive-amount filter.
+    /// </summary>
+    private static void ApplierDeath(ref FlashExec x, byte dead)
+    {
+        foreach (ushort id in ApplierDeathIds.Value)
+        {
+            int index = FindPower(x.B, FlashLimits.PlayerOwner, id);
+            if (index < 0 || x.B.Powers[index].Applier != dead)
+                continue;
+            FlashRegistry.Power(id).ApplierDied(ref x, new FlashListener(FlashListenerKind.Power, (byte)index, FlashLimits.PlayerOwner));
+            if (x.NeedsChoice)
+                return;
+        }
+        ushort magicBomb = MagicBombId.Value;
+        if (magicBomb == ushort.MaxValue)
+            return;
+        Span<byte> owners = stackalloc byte[FlashLimits.Powers];
+        int count = 0;
+        Span<byte> creatures = stackalloc byte[FlashLimits.Enemies + 2];
+        int creatureCount = ListenerCreatureOrder(x.B, creatures);
+        for (int creature = 0; creature < creatureCount; creature++)
+        {
+            int index = FindPower(x.B, creatures[creature], magicBomb);
+            if (index >= 0 && x.B.Powers[index].Applier == dead)
+                owners[count++] = creatures[creature];
+        }
+        for (int entry = 0; entry < count; entry++)
+        {
+            int index = FindPower(x.B, owners[entry], magicBomb);
+            if (index < 0)
+                continue;
+            FlashRegistry.Power(magicBomb).ApplierDied(ref x, new FlashListener(FlashListenerKind.Power, (byte)index, owners[entry]));
             if (x.NeedsChoice)
                 return;
         }

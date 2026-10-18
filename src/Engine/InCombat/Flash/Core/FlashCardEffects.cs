@@ -109,4 +109,40 @@ public static class FlashCardEffects
             FlashKernel.ApplyPower(ref x, owner, powerId, amount, FlashLimits.PlayerOwner);
         }
     }
+
+    /// <summary>
+    /// Adds <paramref name="delta"/> to both the current play's card copy and the card in the play
+    /// pile, mirroring a native <c>DynamicVars[...].BaseValue +=</c> on the played card (Rampage).
+    /// Only the two native short-sized variable slots are writable.
+    /// </summary>
+    public static void AddCurrentCardVar(ref FlashExec x, int index, decimal delta)
+    {
+        if (delta == 0m)
+            return;
+        if (delta != decimal.Truncate(delta))
+            throw new ArgumentOutOfRangeException(nameof(delta), delta, "卡牌变量偏移必须是整数。");
+        int position = x.B.PlayCount - 1;
+        if (position < 0)
+            throw new InvalidOperationException("当前没有正在打出的卡。");
+        ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
+        if (played.Id != x.Card.Id || played.Upgrade != x.Card.Upgrade)
+            throw new InvalidOperationException("打出堆顶不是当前卡。");
+        short value = checked((short)(index switch
+        {
+            0 => played.Var0,
+            1 => played.Var1,
+            _ => throw new ArgumentOutOfRangeException(nameof(index), index, "只有前两个卡牌变量可写。"),
+        } + (short)delta));
+        if (index == 0)
+        {
+            played.Var0 = value;
+            x.Card.Var0 = value;
+        }
+        else
+        {
+            played.Var1 = value;
+            x.Card.Var1 = value;
+        }
+    }
+
 }

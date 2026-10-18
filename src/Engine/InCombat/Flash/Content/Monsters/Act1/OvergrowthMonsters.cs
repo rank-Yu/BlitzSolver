@@ -1,0 +1,224 @@
+namespace CombatSolver.Engine.InCombat.Flash.Content.Monsters.Act1;
+
+// First-act (Overgrowth) monsters. Attacks, hit counts and branch weights come from the state machine
+// compiled by the bridge; ApplyMoveEffects mirrors the post-attack part of
+// MonsterMoveEffects.Apply for the same (monster, move) pair. Debuff helper means
+// combat.ApplyFromMonster; combat.Apply is mirrored with ApplyPower.
+
+/// <summary>ShrinkerBeetle: "SHRINKER_MOVE" applies ShrinkPower -1 to the player.</summary>
+[FlashContent("SHRINKER_BEETLE")]
+public sealed class ShrinkerBeetle : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "SHRINKER_MOVE")
+            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.ShrinkPower>(), -1, owner);
+    }
+}
+
+/// <summary>LeafSlimeS: "GOOP_MOVE" adds one Slimed to the discard pile.</summary>
+[FlashContent("LEAF_SLIME_S")]
+public sealed class LeafSlimeS : FlashMonsterDef
+{
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SLIMED", 0)];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "GOOP_MOVE")
+            AddSlimed(ref x, count: 1);
+    }
+
+    internal static void AddSlimed(ref FlashExec x, int count)
+    {
+        for (int index = 0; index < count; index++)
+            FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Slimed>()), FlashPile.Discard);
+    }
+}
+
+/// <summary>LeafSlimeM: "STICKY_SHOT" adds two Slimed to the discard pile.</summary>
+[FlashContent("LEAF_SLIME_M")]
+public sealed class LeafSlimeM : FlashMonsterDef
+{
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SLIMED", 0)];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "STICKY_SHOT")
+            LeafSlimeS.AddSlimed(ref x, count: 2);
+    }
+}
+
+/// <summary>TwigSlimeS: only attacks.</summary>
+[FlashContent("TWIG_SLIME_S")]
+public sealed class TwigSlimeS : FlashMonsterDef;
+
+/// <summary>TwigSlimeM: "STICKY_SHOT_MOVE" adds one Slimed to the discard pile.</summary>
+[FlashContent("TWIG_SLIME_M")]
+public sealed class TwigSlimeM : FlashMonsterDef
+{
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SLIMED", 0)];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "STICKY_SHOT_MOVE")
+            LeafSlimeS.AddSlimed(ref x, count: 1);
+    }
+}
+
+/// <summary>Flyconid: spore moves apply Vulnerable/Frail 2 to the player.</summary>
+[FlashContent("FLYCONID")]
+public sealed class Flyconid : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        {
+            case "VULNERABLE_SPORES_MOVE":
+                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.VulnerablePower>(), 2, owner);
+                break;
+            case "FRAIL_SPORES_MOVE":
+                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.FrailPower>(), 2, owner);
+                break;
+        }
+    }
+}
+
+/// <summary>Mawler: "ROAR_MOVE" applies Vulnerable 3 to the player.</summary>
+[FlashContent("MAWLER")]
+public sealed class Mawler : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
+            FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
+                FlashRegistry.PowerId<Powers.VulnerablePower>(), 3, owner);
+    }
+}
+
+/// <summary>SnappingJaxfruit: "ENERGY_ORB_MOVE" applies Strength 2 to itself.</summary>
+[FlashContent("SNAPPING_JAXFRUIT")]
+public sealed class SnappingJaxfruit : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "ENERGY_ORB_MOVE")
+            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+    }
+}
+
+/// <summary>
+/// AxeRubyRaider: both swings gain <c>SwingBlock</c> move block (static value captured from the
+/// native model; MonsterMoveEffects "AxeRubyRaider", "SWING_1"/"SWING_2").
+/// </summary>
+[FlashContent("AXE_RUBY_RAIDER")]
+public sealed class AxeRubyRaider : FlashMonsterDef
+{
+    private const int SwingBlock = 0;
+
+    public override IReadOnlyList<string> StaticIntNames => ["SwingBlock"];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        FlashMonsterRules rules = x.R.Monster(owner);
+        switch (rules.Nodes[moveNode].NativeId)
+        {
+            case "SWING_1":
+            case "SWING_2":
+                FlashKernel.GainBlock(ref x, owner, rules.StaticInts[SwingBlock], FlashValueProps.Move, fromCard: false);
+                break;
+        }
+    }
+}
+
+/// <summary>AssassinRubyRaider: only "KILLSHOT_MOVE", no non-attack effect.</summary>
+[FlashContent("ASSASSIN_RUBY_RAIDER")]
+public sealed class AssassinRubyRaider : FlashMonsterDef;
+
+/// <summary>BruteRubyRaider: "ROAR_MOVE" applies Strength 3 to itself.</summary>
+[FlashContent("BRUTE_RUBY_RAIDER")]
+public sealed class BruteRubyRaider : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
+            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
+    }
+}
+
+/// <summary>
+/// CrossbowRubyRaider: "RELOAD_MOVE" gains 3 move block. The amount is a literal in
+/// MonsterMoveEffects.Apply ("CrossbowRubyRaider", "RELOAD_MOVE"), not a static model value.
+/// </summary>
+[FlashContent("CROSSBOW_RUBY_RAIDER")]
+public sealed class CrossbowRubyRaider : FlashMonsterDef
+{
+    private const int ReloadBlock = 3;
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "RELOAD_MOVE")
+            FlashKernel.GainBlock(ref x, owner, ReloadBlock, FlashValueProps.Move, fromCard: false);
+    }
+}
+
+/// <summary>TrackerRubyRaider: "TRACK_MOVE" applies Frail 2 to the player.</summary>
+[FlashContent("TRACKER_RUBY_RAIDER")]
+public sealed class TrackerRubyRaider : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "TRACK_MOVE")
+            FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
+                FlashRegistry.PowerId<Powers.FrailPower>(), 2, owner);
+    }
+}
+
+/// <summary>
+/// CubexConstruct: all three of its charging/blasting moves apply Strength 2 to itself. Its starting
+/// 13 block and one Artifact stack exist before the root and are imported, not replayed here.
+/// </summary>
+[FlashContent("CUBEX_CONSTRUCT")]
+public sealed class CubexConstruct : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        {
+            case "CHARGE_UP_MOVE":
+            case "REPEATER_BLAST_MOVE":
+            case "REPEATER_BLAST_MOVE_2":
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                break;
+        }
+    }
+}
+
+/// <summary>
+/// SlitheringStrangler: "CONSTRICT" applies Constrict 3 to the player; "THWACK" gains 5 move block
+/// (literal in MonsterMoveEffects.Apply, "SlitheringStrangler", "THWACK").
+/// </summary>
+[FlashContent("SLITHERING_STRANGLER")]
+public sealed class SlitheringStrangler : FlashMonsterDef
+{
+    private const int ThwackBlock = 5;
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        {
+            case "CONSTRICT":
+                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.ConstrictPower>(), 3, owner);
+                break;
+            case "THWACK":
+                FlashKernel.GainBlock(ref x, owner, ThwackBlock, FlashValueProps.Move, fromCard: false);
+                break;
+        }
+    }
+}
+
+/// <summary>Byrdonis: only "PECK_MOVE" and "SWOOP_MOVE"; its TerritorialPower is a starting power.</summary>
+[FlashContent("BYRDONIS")]
+public sealed class Byrdonis : FlashMonsterDef;

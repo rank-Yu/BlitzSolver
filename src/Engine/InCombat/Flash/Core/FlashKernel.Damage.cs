@@ -287,6 +287,10 @@ public static partial class FlashKernel
             ref FlashEnemy enemy = ref x.B.Enemies[newlyDead[index]];
             if (enemy.DeathPhase != FlashDeathPhase.Reviving)
                 enemy.DeathPhase = FlashDeathPhase.PermanentlyDead;
+            ApplierDeath(ref x, owner);
+            if (x.NeedsChoice)
+                return;
         }
+        // ResolvePowerAmountChanges: no supported amount-change listeners yet.
     }
 }

@@ -275,3 +275,91 @@ public sealed class PactsEnd : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
     }
 }
+
+// P4 batch:
+// - Spite is BespokeCardMirrors.SpiteOnPlay: one or Repeat hits depending on the owner's
+//   LostHpThisTurn flag (flash keeps that flag on the player creature).
+// - Mangle and SetupStrike infer the attack; CardEffectSpecRegistry then applies the temporary-strength
+//   power through ApplyTemporaryStrength (Artifact, BeforeApplied and the stacking Strength change).
+// - Rampage infers the attack; CardEffectSpecRegistry then adds Increase to the played card's Damage
+//   var, which Flash stores as the card's first dynamic-variable delta.
+// - FiendFire is BespokeCardMirrors.FiendFireOnPlay: exhaust a snapshot of the hand, then hit once
+//   per card in that snapshot.
+
+[FlashContent("SPITE")]
+public sealed class Spite : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        bool lostHp = (x.B.Player.Flags & FlashCreatureFlags.LostHpThisTurn) != 0;
+        FlashCardEffects.GeneralAttack(ref x, 0, hitCount: lostHp ? (int)FlashCardEffects.Var(x, 1) : 1);
+    }
+}
+
+[FlashContent("MANGLE")]
+public sealed class Mangle : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage", "StrengthLoss"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice || x.Target == FlashLimits.NoOwner)
+            return;
+        // CardEffectSpecRegistry: ApplyTemporaryStrengthLoss<ManglePower>.
+        FlashKernel.ApplyTemporaryStrength(ref x, x.Target, FlashRegistry.PowerId<Powers.ManglePower>(),
+            (int)FlashCardEffects.Var(x, 1), FlashLimits.PlayerOwner, sign: -1);
+    }
+}
+
+[FlashContent("SETUP_STRIKE")]
+public sealed class SetupStrike : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage", "StrengthPower"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice)
+            return;
+        // CardEffectSpecRegistry: ApplyTemporaryStrengthGain<SetupStrikePower>.
+        FlashKernel.ApplyTemporaryStrength(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.SetupStrikePower>(),
+            (int)FlashCardEffects.Var(x, 1), FlashLimits.PlayerOwner, sign: 1);
+    }
+}
+
+[FlashContent("RAMPAGE")]
+public sealed class Rampage : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage", "Increase"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice)
+            return;
+        FlashCardEffects.AddCurrentCardVar(ref x, 0, FlashCardEffects.Var(x, 1));
+    }
+}
+
+[FlashContent("FIEND_FIRE")]
+public sealed class FiendFire : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        int cardCount = x.B.HandCount;
+        for (int index = 0; index < cardCount; index++)
+        {
+            if (FlashKernel.IsOverOrEnding(x.B))
+                return;
+            FlashKernel.Exhaust(ref x, FlashPile.Hand, 0);
+            if (x.NeedsChoice)
+                return;
+        }
+        FlashCardEffects.GeneralAttack(ref x, 0, hitCount: cardCount);
+    }
+}

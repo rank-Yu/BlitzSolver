@@ -330,6 +330,15 @@ public abstract class FlashPowerDef : FlashListenerDef
     public virtual void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
     {
     }
+
+    /// <summary>
+    /// Case in <c>CorePowerSupport.ApplyEnemyDeathPowers</c> after a newly dead enemy's death powers:
+    /// this power's applier is that enemy (Constrict, Hex and Shrink on player creatures, then Magic
+    /// Bomb). Called whatever the sign of the amount, as the existing engine reads the power directly.
+    /// </summary>
+    public virtual void ApplierDied(ref FlashExec x, FlashListener self)
+    {
+    }
 }
 
 /// <summary>A relic. Turn-phase methods are its cases in the named <c>TurnStartRelicSupport</c>/<c>PersistentRelicSupport</c> batches.</summary>

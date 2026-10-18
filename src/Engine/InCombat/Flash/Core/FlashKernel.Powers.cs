@@ -37,7 +37,58 @@ public static partial class FlashKernel
         // supported yet; admission rejects roots holding them.
         if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref battle, target))
             return 0;
+        return AddPowerAmount(ref battle, target, powerId, def, amount, applier, out _);
+    }
 
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.ApplyTemporaryStrength</c> (<c>ApplyTemporaryStrengthGain</c> with
+    /// <paramref name="sign"/> 1, <c>ApplyTemporaryStrengthLoss</c> with -1): Artifact is checked against
+    /// the temporary power; a first (or instanced) application runs its native <c>BeforeApplied</c>,
+    /// changing Strength by sign × amount before the temporary power is added; afterwards a Strength
+    /// change by sign × amount follows when the requested amount differs from the resulting counter
+    /// (the stacking case, native <c>AfterPowerAmountChanged</c>). Returns the applied delta.
+    /// </summary>
+    public static int ApplyTemporaryStrength(ref FlashExec x, byte target, ushort temporaryId, int amount, byte applier, int sign)
+    {
+        if (amount == 0 || !CanReceivePowers(x.B, target))
+            return 0;
+        FlashPowerDef def = FlashRegistry.Power(temporaryId);
+        if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref x.B, target))
+            return 0;
+        ushort strength = FlashRegistry.TryPower("STRENGTH_POWER", out ushort id)
+            ? id
+            : throw new FlashUnsupportedException("临时力量需要力量的 Flash 定义。");
+        if (def.IsInstanced || GetAmount(x.B, target, temporaryId) == 0)
+            ApplyPower(ref x, target, strength, sign * amount, applier);
+        int applied = AddPowerAmount(ref x.B, target, temporaryId, def, amount, applier, out int resulting);
+        if (amount != resulting)
+            ApplyPower(ref x, target, strength, sign * amount, applier);
+        return applied;
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.RetireTemporaryStat</c> for a temporary Strength power: removes it,
+    /// then changes Strength by -amount for a buff and +amount for a debuff (type for the current amount).
+    /// </summary>
+    public static void RetireTemporaryStrength(ref FlashExec x, FlashListener self)
+    {
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        ushort id = power.Id;
+        int amount = power.Amount;
+        int delta = FlashRegistry.Power(id).TypeForAmount(amount) == FlashPowerType.Buff ? -amount : amount;
+        SetPowerAmount(ref x.B, self.Owner, id, 0);
+        if (delta == 0)
+            return;
+        ushort strength = FlashRegistry.TryPower("STRENGTH_POWER", out ushort strengthId)
+            ? strengthId
+            : throw new FlashUnsupportedException("临时力量需要力量的 Flash 定义。");
+        ApplyPower(ref x, self.Owner, strength, delta, self.Owner);
+    }
+
+    /// <summary>The counter update of <c>ApplyWithBeforeApplied</c> after its guards and Artifact check.</summary>
+    private static int AddPowerAmount(ref FlashBattle battle, byte target, ushort powerId, FlashPowerDef def, int amount,
+        byte applier, out int resulting)
+    {
         int index;
         if (def.IsInstanced)
             index = InsertPower(ref battle, target, powerId, applier);
@@ -54,6 +105,7 @@ public static partial class FlashKernel
         if (previous == 0 && power.Amount != 0 && IsPlayerSide(target) && def.UsesNativeDurationSkip)
             power.Flags |= FlashPowerFlags.SkipNextDurationTick;
         int applied = power.Amount - previous;
+        resulting = power.Amount;
         if (power.Amount == 0)
             RemovePowerAt(ref battle, index);
         // RecordPowerAmountChange only reacts for Shroud, Sleight of Flesh and Vicious, which are
