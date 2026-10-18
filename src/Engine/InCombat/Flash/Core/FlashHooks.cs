@@ -13,6 +13,9 @@ public static partial class FlashHooks
     private const int MaxListeners = FlashLimits.Powers + FlashLimits.Relics + FlashLimits.PotionSlots
         + FlashLimits.Enemies + FlashLimits.Orbs + FlashLimits.Cards * 3;
 
+    /// <summary>Upper bound of <see cref="CollectListeners"/> output, for callers' stack buffers.</summary>
+    public const int MaxListenerCount = MaxListeners;
+
     /// <summary>Collects the listeners whose definition overrides <paramref name="hook"/>, in dispatch order.</summary>
     public static int CollectListeners(in FlashBattle battle, FlashHookMask hook, Span<FlashListener> output)
     {

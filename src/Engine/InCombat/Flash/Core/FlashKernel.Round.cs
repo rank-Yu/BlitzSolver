@@ -16,7 +16,10 @@ public static partial class FlashKernel
 
         // PlayerTurnEndLifecycle.RunPhaseOne.
         x.B.Phase = FlashPlayerPhase.End;
-        // EndTurnPowerSupport.TriggerVeryEarly and relic BeforeSideTurnEnd: no supported sources.
+        // EndTurnPowerSupport.TriggerVeryEarly: no supported sources.
+        RelicPass(ref x, RelicPhase.BeforeSideTurnEnd, FlashSide.Player);
+        if (x.NeedsChoice)
+            return;
         // SimulateEndPlayerTurnBeforeOrbPassives.
         x.B.Phase = FlashPlayerPhase.AutoPostPlay;
         // AfterAutoPostPlayPhaseEntered and BeforeSideTurnEnd: no supported listeners.
@@ -36,7 +39,10 @@ public static partial class FlashKernel
             return;
         FlushPlayerHandAtTurnEnd(ref x);
         int turnEndShuffleEvents = x.B.ShuffleEventCount;
-        // PlayerTurnEndLifecycle.RunPhaseTwo: no supported regular or transient side-turn-end sources.
+        // PlayerTurnEndLifecycle.RunPhaseTwo.
+        PlayerTurnEndPhaseTwo(ref x);
+        if (x.NeedsChoice)
+            return;
         x.B.Phase = FlashPlayerPhase.None;
         x.B.ShufflesCrossed += x.B.ShuffleEventCount - turnEndShuffleEvents;
         ApplyEnemyDeathPowers(ref x);
@@ -62,17 +68,21 @@ public static partial class FlashKernel
         x.B.Side = FlashSide.Enemy;
         for (int position = 0; position < x.B.RosterCount; position++)
             SnapshotPowerAmountsAtTurnStart(ref x.B, EnemyOwner(x.B.Roster[position]));
-        // BeforeSideTurnStart: no supported listeners.
+        // Each phase reads the live enemy list, as the existing engine passes simulatedCombat.Enemies.
+        Span<byte> participants = stackalloc byte[FlashLimits.Enemies];
+        BeforeSideTurnStart(ref x, FlashSide.Enemy, participants[..RosterOwners(x.B, participants)]);
+        if (x.NeedsChoice)
+            return;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            ref FlashCreature enemy = ref x.B.Creature(EnemyOwner(x.B.Roster[position]));
-            // ShouldClearBlock has no supported preventers.
-            if (enemy.Block > 0)
-                DamageBlock(ref enemy, enemy.Block, FlashValueProps.Move);
-            // TriggerAfterBlockCleared: no supported sources.
+            ClearBlockAtSideStart(ref x, EnemyOwner(x.B.Roster[position]));
+            if (x.NeedsChoice)
+                return;
         }
-        // TriggerSideTurnStart (Blur, DrawCardsNextTurn, Plating, Slow, AfterSideTurnStart): no
-        // supported sources. TriggerPoison: Poison is not supported.
+        TriggerSideTurnStart(ref x, FlashSide.Enemy, participants[..RosterOwners(x.B, participants)], decrementPlating: x.B.Round > 1);
+        if (x.NeedsChoice)
+            return;
+        // TriggerPoison: Poison is not supported.
         ApplyEnemyDeathPowers(ref x);
         if (CheckWinCondition(ref x.B))
             return;
@@ -100,7 +110,7 @@ public static partial class FlashKernel
                 return;
         }
 
-        TriggerEnemySideTurnEndEffects(ref x);
+        TriggerEnemySideTurnEndEffects(ref x, participants[..RosterOwners(x.B, participants)]);
         if (x.NeedsChoice)
             return;
         ApplyEnemyDeathPowers(ref x);
@@ -110,15 +120,12 @@ public static partial class FlashKernel
         PrepareMonsterMovesForNextRound(ref x);
     }
 
-    /// <summary>
-    /// Mirrors <c>CorePowerSupport.TriggerEnemySideTurnEndEffects</c>. Only the duration ticks have
-    /// supported sources.
-    /// </summary>
-    private static void TriggerEnemySideTurnEndEffects(ref FlashExec x)
+    /// <summary>Owners of the roster enemies in roster order.</summary>
+    private static int RosterOwners(in FlashBattle battle, Span<byte> owners)
     {
-        // VeryEarly, Doom, Regen, Plating, DoubleDamage, TriggerRegular and transient powers: not supported.
-        TickDurations(ref x.B);
-        // AfterSideTurnEndLate: no supported listeners.
+        for (int position = 0; position < battle.RosterCount; position++)
+            owners[position] = EnemyOwner(battle.Roster[position]);
+        return battle.RosterCount;
     }
 
     /// <summary>
@@ -234,24 +241,38 @@ public static partial class FlashKernel
         x.B.Round++;
         x.B.PlayerTurn++;
         SnapshotPowerAmountsAtTurnStart(ref x.B, FlashLimits.PlayerOwner);
-        // BeforeSideTurnStart: no supported listeners.
-        if (x.B.Player.Block > 0)
-            DamageBlock(ref x.B.Player, x.B.Player.Block, FlashValueProps.Move);
-        // TriggerAfterBlockCleared: no supported sources.
+        ReadOnlySpan<byte> player = [FlashLimits.PlayerOwner];
+        BeforeSideTurnStart(ref x, FlashSide.Player, player);
+        if (x.NeedsChoice)
+            return;
+        ClearBlockAtSideStart(ref x, FlashLimits.PlayerOwner);
+        if (x.NeedsChoice)
+            return;
 
-        // Energy reset (Ice Cream not supported) plus modified max energy (no supported modifiers)
-        // and energy next turn (not supported).
+        // Energy reset (Ice Cream not supported) plus modified max energy and energy next turn (not supported).
         x.B.Energy = 0;
-        x.B.Energy = (int)Math.Clamp((long)x.B.Energy + Math.Max(0, x.R.BaseMaxEnergy), 0, FlashLimits.ValueClamp);
-        // AfterEnergyReset (powers, relics, late): no supported listeners.
+        x.B.Energy = (int)Math.Clamp((long)x.B.Energy + Math.Max(0, ModifiedMaxEnergy(ref x)), 0, FlashLimits.ValueClamp);
+        PowersAfterEnergyReset(ref x);
+        if (x.NeedsChoice)
+            return;
+        RelicPass(ref x, RelicPhase.AfterEnergyReset, FlashSide.Player);
+        if (x.NeedsChoice)
+            return;
+        RelicPass(ref x, RelicPhase.AfterEnergyResetLate, FlashSide.Player);
+        if (x.NeedsChoice)
+            return;
 
+        // ContinuePlayerStart. A turn-start choice taken before the side starts would start it first
+        // (TurnStartChoiceCursor.BeforeNextTake); turn-start choices are not supported yet.
         int beforeHandShuffles = x.B.ShuffleEventCount;
-        // PrepareBeforeHandDraw.
         x.B.Phase = FlashPlayerPhase.Start;
-        // BeforeHandDraw: no supported listeners.
+        BeforeHandDraw(ref x);
+        if (x.NeedsChoice)
+            return;
+        // ResolvePowerAmountChanges: no supported amount-change listeners yet.
         x.B.ShufflesCrossed += x.B.ShuffleEventCount - beforeHandShuffles;
-        // ConsumeModifiedHandDraw: no supported modifiers.
-        int drawCount = BaseHandDrawCount;
+        // ConsumeModifiedHandDraw: draw-next-turn sources are not supported yet.
+        int drawCount = ModifiedHandDraw(ref x, BaseHandDrawCount);
         int effectiveDraw = Math.Min(drawCount, x.B.MaxHandSize - x.B.HandCount);
         bool willShuffle = effectiveDraw > x.B.DrawCount && x.B.DiscardCount != 0;
         Draw(ref x, drawCount, fromHandDraw: true);
@@ -259,8 +280,13 @@ public static partial class FlashKernel
             x.B.ShufflesCrossed++;
         if (x.NeedsChoice)
             return;
-        // Draw compensation and AfterPlayerTurnStart: no supported sources.
-        // TriggerSideTurnStart(Player): no supported sources.
+        // Draw history compensation: no supported sources.
+        AfterPlayerTurnStart(ref x);
+        if (x.NeedsChoice)
+            return;
+        TriggerSideTurnStart(ref x, FlashSide.Player, player, decrementPlating: x.B.PlayerTurn != 1);
+        if (x.NeedsChoice)
+            return;
         ApplyEnemyDeathPowers(ref x);
         // Enchantment orb hooks and auto pre-play: no supported sources.
         x.B.Phase = FlashPlayerPhase.AutoPrePlay;

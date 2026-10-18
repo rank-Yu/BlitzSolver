@@ -106,6 +106,10 @@ public enum FlashHookMask : ulong
     AfterCardExhausted = 1UL << 11,
     AfterBlockGained = 1UL << 12,
     AfterAttack = 1UL << 13,
+    ShouldClearBlock = 1UL << 14,
+    ModifyMaxEnergy = 1UL << 15,
+    ModifyHandDraw = 1UL << 16,
+    ModifyHandDrawLate = 1UL << 17,
 }
 
 public abstract class FlashContentDef
@@ -180,6 +184,21 @@ public abstract class FlashListenerDef : FlashContentDef
     public virtual void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
     {
     }
+
+    /// <summary>Native <c>ShouldClearBlock</c>: return false to keep the owner's block at its side start.</summary>
+    public virtual bool ShouldClearBlock(ref FlashExec x, FlashListener self, byte owner) => true;
+
+    /// <summary>
+    /// Block kept after this listener prevented the clear (<c>PersistentRelicSupport.BlockAfterPreventingClear</c>);
+    /// the excess is removed as unpowered block damage.
+    /// </summary>
+    public virtual int BlockAfterPreventingClear(ref FlashExec x, FlashListener self, byte owner, int block) => block;
+
+    public virtual decimal ModifyMaxEnergy(ref FlashExec x, FlashListener self, decimal amount) => amount;
+
+    public virtual decimal ModifyHandDraw(ref FlashExec x, FlashListener self, decimal amount) => amount;
+
+    public virtual decimal ModifyHandDrawLate(ref FlashExec x, FlashListener self, decimal amount) => amount;
 }
 
 public abstract class FlashCardDef : FlashListenerDef
@@ -239,9 +258,106 @@ public abstract class FlashPowerDef : FlashListenerDef
 
     /// <summary>Native <c>PowerModel.OwnerIsSecondaryEnemy</c>: a positive amount makes its owner a secondary enemy.</summary>
     public virtual bool OwnerIsSecondaryEnemy => false;
+
+    // Turn phases. Each method is the power's case in the named existing-engine pass; the kernel
+    // visits only powers with a positive amount, in the pass's order (FlashKernel.TurnPhases).
+
+    /// <summary>Case in <c>TurnStartPowerSupport.ApplyBeforeSideTurnStartPower</c>.</summary>
+    public virtual void BeforeSideTurnStart(ref FlashExec x, FlashListener self, bool participates)
+    {
+    }
+
+    /// <summary>Case in <c>SimulatedCombatState.TriggerBaseSideTurnStart</c>.</summary>
+    public virtual void BaseSideTurnStart(ref FlashExec x, FlashListener self, bool decrementPlating)
+    {
+    }
+
+    /// <summary>Case in <c>PersistentPowerSupport.TriggerOwnerAfterSideTurnStart</c>.</summary>
+    public virtual void OwnerAfterSideTurnStart(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>Case in <c>TurnStartPowerSupport.TriggerAfterSideTurnStart</c>.</summary>
+    public virtual void GlobalAfterSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+    }
+
+    /// <summary>Case in <c>CorePowerSupport.TriggerAfterBlockCleared</c>.</summary>
+    public virtual void AfterBlockCleared(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>Case in <c>EndTurnPowerSupport.TriggerRegular</c>.</summary>
+    public virtual void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+    }
+
+    /// <summary>Case in <c>EndTurnPowerSupport.TriggerBatch048</c>.</summary>
+    public virtual void EndTurnBatch048(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+    }
+
+    /// <summary>Case in <c>CorePowerSupport.TriggerPlayerRegularSideTurnEndEffects</c> before <c>TriggerRegular</c>.</summary>
+    public virtual void PlayerSideTurnEnd(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>Per-enemy case in <c>CorePowerSupport.TriggerEnemySideTurnEndEffects</c> before <c>TriggerRegular</c>.</summary>
+    public virtual void EnemySideTurnEnd(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>Case in <c>PersistentPowerSupport.TriggerAfterEnergyReset</c>.</summary>
+    public virtual void AfterEnergyReset(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>Case in <c>TurnStartPowerSupport.ContinueBeforeHandDraw</c>.</summary>
+    public virtual void BeforeHandDraw(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>Case in <c>TurnStartPowerSupport.ContinueAfterPlayerTurnStart</c>.</summary>
+    public virtual void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
+    {
+    }
 }
 
-public abstract class FlashRelicDef : FlashListenerDef;
+/// <summary>A relic. Turn-phase methods are its cases in the named <c>TurnStartRelicSupport</c>/<c>PersistentRelicSupport</c> batches.</summary>
+public abstract class FlashRelicDef : FlashListenerDef
+{
+    public virtual void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    {
+    }
+
+    public virtual void AfterEnergyReset(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    public virtual void AfterEnergyResetLate(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    public virtual void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    public virtual void AfterSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    {
+    }
+
+    public virtual void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side)
+    {
+    }
+
+    public virtual void AfterSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side)
+    {
+    }
+
+    public virtual void AfterBlockCleared(ref FlashExec x, FlashListener self)
+    {
+    }
+}
 
 public abstract class FlashPotionDef : FlashListenerDef;
 
