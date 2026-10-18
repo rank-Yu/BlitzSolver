@@ -40,8 +40,11 @@ public static partial class FlashKernel
                 }
             }
         AttackDone:
-            // EndAttackContext: AfterAttack has no supported listeners yet.
-            ;
+            // EndAttackContext(completed): AfterAttack iterates the combat listeners without the ending gate.
+            AfterAttackHook after = new() { Attacker = owner };
+            FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
+            if (x.NeedsChoice)
+                return x.B.Player.IsDead;
         }
         if (playerDied)
             return true;

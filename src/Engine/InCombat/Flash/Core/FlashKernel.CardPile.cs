@@ -99,11 +99,14 @@ public static partial class FlashKernel
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.Exhaust</c>.</summary>
-    public static void Exhaust(ref FlashExec x, FlashPile from, int index)
+    public static void Exhaust(ref FlashExec x, FlashPile from, int index, bool causedByEthereal = false)
     {
         if (IsOverOrEnding(x.B))
             return;
+        FlashCard card = FlashPiles.At(ref x.B, from, index);
         MoveCard(ref x.B, from, index, FlashPile.Exhaust);
-        // RecordCardExhausted and AfterCardExhausted: no tracked counters or listeners yet.
+        // RecordCardExhausted: no tracked counter yet.
+        AfterCardExhaustedHook after = new() { Card = card, CausedByEthereal = causedByEthereal };
+        FlashHooks.Dispatch(ref x, ref after, gatedByEnding: true);
     }
 }

@@ -16,7 +16,8 @@ public static partial class FlashKernel
             ref FlashCreature creature = ref x.B.Creature(owner);
             creature.Block = (int)Math.Min(creature.Block + modified, FlashLimits.ValueClamp);
         }
-        // AfterBlockGained has no supported listeners yet.
+        AfterBlockGainedHook after = new() { Owner = owner, Amount = modified, Props = props, FromCard = fromCard };
+        FlashHooks.Dispatch(ref x, ref after, gatedByEnding: true);
         return modified;
     }
 }

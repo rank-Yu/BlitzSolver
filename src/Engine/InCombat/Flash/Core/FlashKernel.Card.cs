@@ -101,7 +101,14 @@ public static partial class FlashKernel
             if (IsOverOrEnding(x.B))
                 break;
             x.PlayIndex = index;
-            // BeforeCardPlayed has no supported listeners yet.
+            FlashCardPlayInfo play = new(card, target, index, playCount, removeFromCombat ? FlashPile.Play : result);
+            BeforeCardPlayedHook before = new() { Play = play };
+            FlashHooks.Dispatch(ref x, ref before, gatedByEnding: true);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
             def.OnPlay(ref x);
             if (x.NeedsChoice)
             {
@@ -114,8 +121,23 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
-            // CardPlayFinished, AfterCardPlayed and CompleteCardPlayEffects have no tracked
-            // counters or supported listeners yet.
+            // CardPlayFinished: no tracked counter yet. AfterCardPlayed runs its normal pass, then
+            // re-reads the listeners for the late pass, without the ending gate.
+            AfterCardPlayedHook after = new() { Play = play };
+            FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
+            AfterCardPlayedLateHook afterLate = new() { Play = play };
+            FlashHooks.Dispatch(ref x, ref afterLate, gatedByEnding: false);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
+            // CompleteCardPlayEffects: no tracked counters yet.
         }
         x.EffectDepth--;
         if (x.NeedsChoice || !completed)

@@ -69,7 +69,9 @@ public static partial class FlashKernel
             if (x.NeedsChoice)
                 return;
         }
-        // EndAttackContext: AfterAttack has no supported listeners yet.
+        // EndAttackContext(completed): AfterAttack iterates the combat listeners without the ending gate.
+        AfterAttackHook after = new() { Attacker = attacker };
+        FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.Damage</c>.</summary>
@@ -122,10 +124,26 @@ public static partial class FlashKernel
         int killedCount = 0;
         foreach (FlashDamageResult result in results)
         {
-            // AfterBlockBroken, AfterCurrentHpChanged, AfterDamageGiven and AfterDamageReceived have
-            // no supported listeners yet.
-            if (result.WasTargetKilled && x.B.Creature(result.Receiver).IsDead)
+            // AfterBlockBroken and AfterCurrentHpChanged have no supported listeners yet.
+            AfterDamageGivenHook given = new() { Result = result, Dealer = dealer };
+            FlashHooks.Dispatch(ref x, ref given, gatedByEnding: false);
+            if (x.NeedsChoice)
+                return;
+            if (!result.WasTargetKilled || !x.B.Creature(result.Receiver).IsDead)
+            {
+                AfterDamageReceivedHook received = new() { Result = result, Dealer = dealer };
+                FlashHooks.Dispatch(ref x, ref received, gatedByEnding: false);
+                if (x.NeedsChoice)
+                    return;
+                AfterDamageReceivedLateHook late = new() { Result = result, Dealer = dealer };
+                FlashHooks.Dispatch(ref x, ref late, gatedByEnding: false);
+                if (x.NeedsChoice)
+                    return;
+            }
+            else
+            {
                 killed[killedCount++] = result.Receiver;
+            }
         }
         if (killedCount > 0)
             Kill(ref x, killed[..killedCount], force: false);

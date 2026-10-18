@@ -162,7 +162,9 @@ public static partial class FlashKernel
             if (card.HasKeyword(FlashKeywords.Ethereal))
             {
                 // ShouldEtherealTrigger has no supported listeners.
-                Exhaust(ref x, FlashPile.Hand, index);
+                Exhaust(ref x, FlashPile.Hand, index, causedByEthereal: true);
+                if (x.NeedsChoice)
+                    return;
                 continue;
             }
             index++;

@@ -8,7 +8,7 @@ namespace CombatSolver.Engine.InCombat.Flash;
 /// Play order, each followed by its affliction and enchantment.
 /// </summary>
 [System.Runtime.CompilerServices.SkipLocalsInit]
-public static class FlashHooks
+public static partial class FlashHooks
 {
     private const int MaxListeners = FlashLimits.Powers + FlashLimits.Relics + FlashLimits.PotionSlots
         + FlashLimits.Enemies + FlashLimits.Orbs + FlashLimits.Cards * 3;
@@ -16,6 +16,8 @@ public static class FlashHooks
     /// <summary>Collects the listeners whose definition overrides <paramref name="hook"/>, in dispatch order.</summary>
     public static int CollectListeners(in FlashBattle battle, FlashHookMask hook, Span<FlashListener> output)
     {
+        if ((FlashRegistry.AnyHooks & hook) == 0)
+            return 0;
         int count = 0;
         bool playerHooks = (battle.Flags & FlashBattleFlags.PlayerHooksActive) != 0;
         int nextPower = 0;

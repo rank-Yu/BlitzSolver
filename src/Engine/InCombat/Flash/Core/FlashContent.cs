@@ -97,6 +97,15 @@ public enum FlashHookMask : ulong
     ModifyDamageCap = 1UL << 2,
     ModifyBlockAdditive = 1UL << 3,
     ModifyBlockMultiplicative = 1UL << 4,
+    AfterDamageReceived = 1UL << 5,
+    AfterDamageReceivedLate = 1UL << 6,
+    AfterDamageGiven = 1UL << 7,
+    BeforeCardPlayed = 1UL << 8,
+    AfterCardPlayed = 1UL << 9,
+    AfterCardPlayedLate = 1UL << 10,
+    AfterCardExhausted = 1UL << 11,
+    AfterBlockGained = 1UL << 12,
+    AfterAttack = 1UL << 13,
 }
 
 public abstract class FlashContentDef
@@ -109,6 +118,12 @@ public abstract class FlashContentDef
 
     /// <summary>Native dynamic-variable names compiled into the rule table, in order.</summary>
     public virtual IReadOnlyList<string> VarNames => [];
+
+    /// <summary>
+    /// Native card ids (with upgrade level) this content can put into combat. The rule compiler adds
+    /// their canonical stats, and admission rejects the root when any of them has no Flash definition.
+    /// </summary>
+    public virtual IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [];
 }
 
 /// <summary>
@@ -127,6 +142,44 @@ public abstract class FlashListenerDef : FlashContentDef
     public virtual decimal ModifyBlockAdditive(ref FlashExec x, FlashListener self, in FlashBlockContext block, decimal amount) => 0m;
 
     public virtual decimal ModifyBlockMultiplicative(ref FlashExec x, FlashListener self, in FlashBlockContext block, decimal amount) => 1m;
+
+    // Action hooks. Each dispatch point in the kernel names the existing-engine call it mirrors.
+
+    public virtual void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+    }
+
+    public virtual void AfterDamageReceivedLate(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+    }
+
+    public virtual void AfterDamageGiven(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+    }
+
+    public virtual void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+    }
+
+    public virtual void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+    }
+
+    public virtual void AfterCardPlayedLate(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+    }
+
+    public virtual void AfterCardExhausted(ref FlashExec x, FlashListener self, in FlashCard card, bool causedByEthereal)
+    {
+    }
+
+    public virtual void AfterBlockGained(ref FlashExec x, FlashListener self, byte owner, decimal amount, FlashValueProps props, bool fromCard)
+    {
+    }
+
+    public virtual void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
+    {
+    }
 }
 
 public abstract class FlashCardDef : FlashListenerDef
@@ -139,6 +192,14 @@ public abstract class FlashCardDef : FlashListenerDef
 
     /// <summary>Card-specific playability (<c>CardIsPlayableMirrors</c>); most cards are always playable.</summary>
     public virtual bool IsPlayable(in FlashBattle battle, FlashRules rules, in FlashCard card) => true;
+
+    /// <summary>
+    /// Card-specific adjustment when this card enters combat from outside the combat piles
+    /// (<c>SimulatedCombatState.AfterCardEnteredCombat</c>, for example Stomp or Pinpoint cost changes).
+    /// </summary>
+    public virtual void AfterEnteredCombat(ref FlashExec x, FlashPile pile, int index)
+    {
+    }
 }
 
 public enum FlashPowerType : byte
@@ -227,7 +288,14 @@ public static class FlashRegistry
 
     public static int CardCount => Data.Value.Cards.Length;
 
+    /// <summary>Union of the hooks any registered definition overrides; dispatch skips the rest outright.</summary>
+    public static FlashHookMask AnyHooks => Data.Value.AnyHooks;
+
     public static int PowerCount => Data.Value.Powers.Length;
+
+    public static int RelicCount => Data.Value.Relics.Length;
+
+    public static int MonsterCount => Data.Value.Monsters.Length;
 
     public static FlashCardDef Card(ushort id) => Data.Value.Cards[id];
 
@@ -288,7 +356,10 @@ public static class FlashRegistry
         FlashOrbDef[] Orbs, Dictionary<string, ushort> OrbIds,
         FlashEnchantmentDef[] Enchantments, Dictionary<string, ushort> EnchantmentIds,
         FlashAfflictionDef[] Afflictions, Dictionary<string, ushort> AfflictionIds,
-        Dictionary<Type, FlashContentDef> ByType);
+        Dictionary<Type, FlashContentDef> ByType)
+    {
+        public FlashHookMask AnyHooks { get; } = ByType.Values.Aggregate(FlashHookMask.None, (mask, def) => mask | def.Hooks);
+    }
 
     private static Tables Build()
     {
