@@ -210,6 +210,21 @@ public enum FlashEnemyFlags : byte
 
     /// <summary>Its death was handled by the deferred enemy-death pass (solver <c>processedEnemyDeaths</c>).</summary>
     DeathProcessed = 1 << 5,
+
+    /// <summary>
+    /// A forced must-perform-once node replaced the current move after this enemy already performed this
+    /// round (<c>SimulatedCombatState.MonsterAi.cs:122-126</c>: <c>performedMove</c> is the old move, so
+    /// the machine must not advance). Consumed and cleared by
+    /// <see cref="FlashKernel.PrepareMonsterMovesForNextRound"/>; zero at every stable boundary.
+    /// </summary>
+    ForcedMustPerformAfterMove = 1 << 6,
+
+    /// <summary>
+    /// <see cref="FlashKernel.ExecuteMonsterMove"/> is running. A forced must-perform node set while this
+    /// is on replaced the move currently being performed; the external performed flag is only set after
+    /// the action returns (<c>CombatBeamSolver.Expansion.Replay.cs:1164</c>). Zero at every stable boundary.
+    /// </summary>
+    ActingThisRound = 1 << 7,
 }
 
 [InlineArray(FlashLimits.EnemyRecentMoves)]
@@ -245,7 +260,11 @@ public struct FlashEnemy
     /// <summary>Total moves logged, saturating at 255.</summary>
     public byte LoggedMoves;
 
-    /// <summary>Forced move node, or 255 for none.</summary>
+    /// <summary>
+    /// Dynamic follow-up of the synthetic STUNNED node (the <c>FollowUpStateId</c> of the native
+    /// <c>MoveState("STUNNED")</c> created by <c>SimulatedCombatState.ForceStunnedMove</c>), or 255 when
+    /// <see cref="Move"/> is not the STUNNED node. Reusing this slot keeps the layout unchanged.
+    /// </summary>
     public byte ForcedMove;
 
     private int _padding;

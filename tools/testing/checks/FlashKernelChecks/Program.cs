@@ -19,6 +19,7 @@ FlashRules rules = SliceRules();
 CheckIntroSort(rules);
 CheckCapacity();
 CheckPiles();
+CheckMonsterForcedMoves(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -121,6 +122,53 @@ static void CheckPiles()
     Check(FlashFingerprint.Equal(copy, battle) && FlashFingerprint.Hash(copy) == FlashFingerprint.Hash(battle), "复制后应字节相同");
 }
 
+// Forced moves and the synthetic STUNNED node (SimulatedCombatState.MonsterAi.cs:58-128).
+static void CheckMonsterForcedMoves(FlashRules rules)
+{
+    byte owner = FlashKernel.EnemyOwner(0);
+    FlashBattle battle = SliceBattle();
+    FlashAction action = default;
+    FlashExec x = new(ref battle, rules, action);
+    FlashKernel.ForceStunnedMove(ref x, owner, -1);
+    Check(battle.Enemies[0].Move == 4 && battle.Enemies[0].ForcedMove == 1,
+        "STUNNED 缺省后继应取 StateLog 最后一条");
+    Check(battle.Enemies[0].LoggedMoves == 1, "强制行动不应写入行动日志");
+    battle.Enemies[0].Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+    FlashKernel.PrepareMonsterMovesForNextRound(ref x);
+    Check(battle.Enemies[0].Move == 1 && battle.Enemies[0].ForcedMove == byte.MaxValue,
+        "执行 STUNNED 后应推进到动态后继并清空 ForcedMove");
+    Check(battle.Enemies[0].LoggedMoves == 2, "推进后的后继应写入行动日志");
+
+    battle = SliceBattle();
+    x = new FlashExec(ref battle, rules, action);
+    battle.Enemies[0].Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+    FlashKernel.ForceStunnedMove(ref x, owner, 2);
+    Check((battle.Enemies[0].Flags & FlashEnemyFlags.ForcedMustPerformAfterMove) != 0,
+        "本轮已行动后强制 STUNNED 应记下 must-perform-once 未满足");
+    FlashKernel.PrepareMonsterMovesForNextRound(ref x);
+    Check(battle.Enemies[0].Move == 4 && battle.Enemies[0].ForcedMove == 2,
+        "本轮已行动后强制 STUNNED 不应推进");
+    Check((battle.Enemies[0].Flags & FlashEnemyFlags.ForcedMustPerformAfterMove) == 0,
+        "权威边界上不得残留 ForcedMustPerformAfterMove");
+    battle.Enemies[0].Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+    FlashKernel.PrepareMonsterMovesForNextRound(ref x);
+    Check(battle.Enemies[0].Move == 2, "STUNNED 在下一轮执行后应推进到后继");
+
+    battle = SliceBattle();
+    x = new FlashExec(ref battle, rules, action);
+    battle.Enemies[0].Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+    FlashKernel.ForceMonsterMove(ref x, owner, 3);
+    FlashKernel.PrepareMonsterMovesForNextRound(ref x);
+    Check(battle.Enemies[0].Move == 1 && battle.Enemies[0].ForcedMove == byte.MaxValue,
+        "普通强制行动在本轮已行动后应直接推进");
+
+    battle = SliceBattle();
+    x = new FlashExec(ref battle, rules, action);
+    FlashKernel.ForceStunnedMove(ref x, owner, 2);
+    Check(battle.Enemies[0].ForcedMove == 2, "显式后继应写入 ForcedMove");
+    Check(battle.Enemies[0].Move == 4, "强制 STUNNED 应指向合成节点");
+}
+
 // Rules for the slice content: Ironclad starter cards and one Nibbit.
 static FlashRules SliceRules()
 {
@@ -141,8 +189,13 @@ static FlashRules SliceRules()
             new FlashMonsterNode { NativeId = "BUTT_MOVE", Kind = FlashMonsterNodeKind.Move, FollowUp = 2, Attacks = [new(12, 1)] },
             new FlashMonsterNode { NativeId = "SLICE_MOVE", Kind = FlashMonsterNodeKind.Move, FollowUp = 3, Attacks = [new(6, 1)] },
             new FlashMonsterNode { NativeId = "HISS_MOVE", Kind = FlashMonsterNodeKind.Move, FollowUp = 1 },
+            new FlashMonsterNode
+            {
+                NativeId = "STUNNED", Kind = FlashMonsterNodeKind.Move, MustPerformOnceBeforeTransitioning = true,
+            },
         ],
         InitialNode = 0,
+        StunnedNode = 4,
         StaticInts = [5, 2],
     });
     return builder.Build();

@@ -132,3 +132,53 @@ public sealed class PhantasmalGardener : FlashMonsterDef
         return rules.NodeIndex(move);
     }
 }
+
+/// <summary>
+/// LagavulinMatriarch: "SLASH2_MOVE" gains <c>Slash2Block</c> Unpowered... move block; "SOUL_SIPHON_MOVE"
+/// applies Strength -2 and Dexterity -2 to the player and Strength +2 to itself (all through
+/// <c>combat.Apply</c>, not <c>ApplyFromMonster</c>); "STUNNED" clears Plating
+/// (<c>MonsterMoveEffects.Apply</c> "LagavulinMatriarch"). The private <c>_isAwake</c> flag is
+/// animation-only in the existing engine: no prediction branch reads it.
+///
+/// The native SLEEP_MOVE follows a ConditionalBranchState SLEEP_BRANCH; the existing engine resolves
+/// it dynamically from the AsleepPower amount (<c>BranchMonsterAi.ResolveConditional</c>) rather than
+/// the root-frozen selection, so the definition overrides ResolveConditional.
+/// </summary>
+[FlashContent("LAGAVULIN_MATRIARCH")]
+public sealed class LagavulinMatriarch : FlashMonsterDef
+{
+    private const int Slash2Block = 0;
+
+    public override IReadOnlyList<string> StaticIntNames => ["Slash2Block"];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        FlashMonsterRules rules = x.R.Monster(owner);
+        switch (rules.Nodes[moveNode].NativeId)
+        {
+            case "SLASH2_MOVE":
+                FlashKernel.GainBlock(ref x, owner, rules.StaticInts[Slash2Block], FlashValueProps.Move, fromCard: false);
+                break;
+            case "SOUL_SIPHON_MOVE":
+                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.StrengthPower>(), -2, owner);
+                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.DexterityPower>(), -2, owner);
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                break;
+            case "STUNNED":
+                FlashKernel.SetPowerAmount(ref x.B, owner, FlashRegistry.PowerId<Powers.PlatingPower>(), 0);
+                break;
+        }
+    }
+
+    public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
+    {
+        FlashMonsterRules rules = x.R.Monster(owner);
+        if (rules.Nodes[branchNode].NativeId != "SLEEP_BRANCH")
+            return -1;
+        return FlashKernel.GetAmount(x.B, owner, FlashRegistry.PowerId<Powers.AsleepPower>()) > 0
+            ? rules.NodeIndex("SLEEP_MOVE")
+            : rules.NodeIndex("SLASH_MOVE");
+    }
+}

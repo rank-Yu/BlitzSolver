@@ -93,3 +93,31 @@ public sealed class SkulkingColony : FlashMonsterDef
                 rules.StaticInts[InertiaStrengthGain], owner);
     }
 }
+
+/// <summary>
+/// TerrorEel: "TERROR_MOVE" applies Vulnerable 99 and "THRASH_MOVE" applies Vigor 6 to itself
+/// (<c>MonsterMoveEffects.Apply</c> "TerrorEel"; both amounts are literals there). CRASH is a compiled
+/// attack. Its ShriekPower starts in the root; STUN_MOVE is a native state the existing engine never
+/// reaches (Shriek uses <c>CreatureCmd.Stun</c> with TERROR_MOVE as the follow-up).
+/// </summary>
+[FlashContent("TERROR_EEL")]
+public sealed class TerrorEel : FlashMonsterDef
+{
+    private const int TerrorVulnerable = 99;
+    private const int ThrashVigor = 6;
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        {
+            case "TERROR_MOVE":
+                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.VulnerablePower>(), TerrorVulnerable, owner);
+                break;
+            case "THRASH_MOVE":
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.VigorPower>(),
+                    ThrashVigor, owner);
+                break;
+        }
+    }
+}

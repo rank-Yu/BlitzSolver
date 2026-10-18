@@ -63,6 +63,15 @@ public sealed class PlatingPower : FlashPowerDef
 
     public override void EnemySideTurnEnd(ref FlashExec x, FlashListener self)
     {
+        // EndTurnPowerSupport.TriggerVeryEarly runs before the per-enemy Plating block gain and removes
+        // Plating when an enemy's AsleepPower amount is already <= 1 (its last decrement happens later,
+        // in TriggerRegular). This is that removal at the same point in the sequence.
+        if (FlashRegistry.TryPower("ASLEEP_POWER", out ushort asleep)
+            && FlashKernel.GetAmount(x.B, self.Owner, asleep) is > 0 and <= 1)
+        {
+            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+            return;
+        }
         int amount = x.B.Powers[self.Index].Amount;
         if (amount <= 0)
             return;

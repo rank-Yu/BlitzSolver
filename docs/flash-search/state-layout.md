@@ -54,7 +54,8 @@
 
 - 药水槽、附魔、苦难存"内部 Id + 1"，0 表示空。卡牌、Power、遗物、怪物直接存内部 Id。
 - 敌人是否为主要敌人不存标志，与旧引擎一样由其持有的 Power 推出（`OwnerIsSecondaryEnemy`）。
-- `FlashEnemyFlags.PerformedMoveThisRound` 只在敌方回合内部使用，任何稳定边界上都为 0。
+- `FlashEnemyFlags.PerformedMoveThisRound`、`ForcedMustPerformAfterMove` 与 `ActingThisRound` 只在敌方回合内部使用，任何稳定边界上都为 0。
+- `FlashEnemy.ForcedMove` 是合成 STUNNED 节点的动态后继（原版 `MoveState("STUNNED").FollowUpStateId`），当前节点不是 STUNNED 时恒为 255。布局不因此改变。
 - 怪物行动日志存"曾经用过的行动位集"加最近 8 条；原版重复规则只读这两部分。冷却或连续次数超出 8 的状态机在运行时抛 `FlashUnsupportedException`。
 
 ## 3. 规范化

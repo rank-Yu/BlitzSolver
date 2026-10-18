@@ -108,6 +108,13 @@ public sealed class FlashMonsterNode
     /// <summary>Follow-up node of a move node.</summary>
     public int FollowUp { get; init; } = -1;
 
+    /// <summary>
+    /// Native <c>MoveState.MustPerformOnceBeforeTransitioning</c>: the machine does not advance while
+    /// the round ended without this move being performed (<c>SimulatedCombatState.MonsterAi.cs:122</c>).
+    /// The synthetic STUNNED node carries it too; its follow-up lives in <see cref="FlashEnemy.ForcedMove"/>.
+    /// </summary>
+    public bool MustPerformOnceBeforeTransitioning { get; init; }
+
     public FlashMonsterAttack[] Attacks { get; init; } = [];
     public FlashRandomBranchOption[] Options { get; init; } = [];
 
@@ -120,6 +127,13 @@ public sealed class FlashMonsterRules
 {
     public required FlashMonsterNode[] Nodes { get; init; }
     public required int InitialNode { get; init; }
+
+    /// <summary>
+    /// The synthetic STUNNED node appended after every native state (and the unregistered initial
+    /// branch). It has no attacks or effects, is must-perform-once, and its follow-up is the dynamic
+    /// <see cref="FlashEnemy.ForcedMove"/> (<c>SimulatedCombatState.MonsterAi.cs:76-86,102-128</c>).
+    /// </summary>
+    public required int StunnedNode { get; init; }
 
     /// <summary>Static integers named by the monster definition, in order.</summary>
     public required int[] StaticInts { get; init; }

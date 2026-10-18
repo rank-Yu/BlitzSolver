@@ -241,3 +241,133 @@ public sealed class SlowPower : FlashPowerDef
     public override void BaseSideTurnStart(ref FlashExec x, FlashListener self, bool decrementPlating)
         => x.B.Powers[self.Index].Aux0 = 0;
 }
+
+/// <summary>
+/// Native <c>AsleepPower</c> (LagavulinMatriarch, three stacks applied in <c>AfterAddedToRoom</c>):
+/// unblocked damage wakes the owner — the existing engine removes Plating, forces
+/// <c>STUNNED</c> with SLASH_MOVE as the follow-up and removes this power
+/// (<c>AfterDamageReceivedMirrors.HandleAsleepPower</c>). At its side turn end it loses one stack
+/// (<c>EndTurnPowerSupport.TriggerRegular</c>); reaching zero removes Plating. The separate
+/// <c>TriggerVeryEarly</c> Plating removal is handled in <see cref="PlatingPower.EnemySideTurnEnd"/>,
+/// where it precedes the Plating block gain exactly as in <c>CorePowerSupport</c>.
+/// </summary>
+[FlashContent("ASLEEP_POWER")]
+public sealed class AsleepPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver != self.Owner || result.UnblockedDamage == 0)
+            return;
+        FlashKernel.SetPowerAmount(ref x.B, self.Owner, FlashRegistry.PowerId<PlatingPower>(), 0);
+        FlashKernel.ForceStunnedMove(ref x, self.Owner, x.R.Monster(self.Owner).NodeIndex("SLASH_MOVE"));
+        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+    }
+
+    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+        if (!participates)
+            return;
+        int remaining = x.B.Powers[self.Index].Amount - 1;
+        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, remaining);
+        if (remaining <= 0)
+            FlashKernel.SetPowerAmount(ref x.B, self.Owner, FlashRegistry.PowerId<PlatingPower>(), 0);
+    }
+}
+
+/// <summary>
+/// Native <c>RavenousPower</c> (CorpseSlug, applied with its native starting amount): when a living
+/// teammate dies, the owner is stunned with the default follow-up and gains its amount as Strength
+/// (<c>DeathPowerSupport.Trigger</c>). The private <c>_isRavenous</c> flag only selects animations.
+/// </summary>
+[FlashContent("RAVENOUS_POWER")]
+public sealed class RavenousPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterDeath(ref FlashExec x, FlashListener self, byte creature, bool wasRemovalPrevented)
+    {
+        if (wasRemovalPrevented
+            || creature == self.Owner
+            || !FlashKernel.IsEnemyOwner(creature)
+            || x.B.Creature(self.Owner).IsDead)
+        {
+            return;
+        }
+        int amount = x.B.Powers[self.Index].Amount;
+        FlashKernel.ForceStunnedMove(ref x, self.Owner, -1);
+        FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<StrengthPower>(), amount, self.Owner);
+    }
+}
+
+/// <summary>
+/// Native <c>ShriekPower</c> (TerrorEel, applied with its native starting amount 70/75): unblocked
+/// damage that leaves the owner at or below that amount forces <c>STUNNED</c> with TERROR_MOVE as the
+/// follow-up and removes the power (<c>AfterDamageReceivedMirrors.HandleShriekPower</c>).
+/// </summary>
+[FlashContent("SHRIEK_POWER")]
+public sealed class ShriekPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Debuff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override bool AllowNegative => true;
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver != self.Owner
+            || result.UnblockedDamage <= 0
+            || x.B.Creature(self.Owner).CurrentHp > x.B.Powers[self.Index].Amount)
+        {
+            return;
+        }
+        FlashKernel.ForceStunnedMove(ref x, self.Owner, x.R.Monster(self.Owner).NodeIndex("TERROR_MOVE"));
+        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+    }
+}
+
+/// <summary>
+/// Native <c>VigorPower</c> (TerrorEel THRASH applies 6): a powered attack by the owner deals its
+/// amount as extra damage and loses the amount captured when that attack started
+/// (<c>VigorPowerMirrors.BeforeAttack</c>/<c>ModifyDamageAdditive</c>/<c>AfterAttack</c>).
+/// Aux0 = amount captured for the current attack; zero at every action boundary. The existing
+/// engine keeps the same pair in a private <c>VigorPowerMirrors.State</c> store entry that is
+/// asserted clean before a fork and claimed by the bridge projection.
+/// </summary>
+[FlashContent("VIGOR_POWER")]
+public sealed class VigorPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override decimal ModifyDamageAdditive(ref FlashExec x, FlashListener self, in FlashDamageContext damage, decimal amount)
+    {
+        if (damage.Dealer != self.Owner || !damage.Props.IsPoweredAttack())
+            return 0m;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Amount <= 0)
+            return 0m;
+        if (power.Aux0 == 0)
+            power.Aux0 = power.Amount;
+        return power.Amount;
+    }
+
+    public override void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
+    {
+        if (attacker != self.Owner)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        int captured = power.Aux0;
+        if (captured == 0)
+            return;
+        power.Aux0 = 0;
+        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, Math.Max(0, power.Amount - captured));
+    }
+}

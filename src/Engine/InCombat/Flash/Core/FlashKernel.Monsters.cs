@@ -4,10 +4,21 @@ public static partial class FlashKernel
 {
     private const int MonsterAdvanceGuard = 32;
 
+    /// <summary>Native id of the synthetic stunned move (<c>SimulatedCombatState.ForceStunnedMove</c>).</summary>
+    public const string StunnedNodeId = "STUNNED";
+
     /// <summary>
     /// Mirrors <c>MonsterMoveSemantics.ApplyForecastMove</c>. Returns true when the player died.
     /// </summary>
     public static bool ExecuteMonsterMove(ref FlashExec x, byte owner)
+    {
+        x.B.Enemy(owner).Flags |= FlashEnemyFlags.ActingThisRound;
+        bool playerDied = ExecuteMonsterMoveCore(ref x, owner);
+        x.B.Enemy(owner).Flags &= ~FlashEnemyFlags.ActingThisRound;
+        return playerDied;
+    }
+
+    private static bool ExecuteMonsterMoveCore(ref FlashExec x, byte owner)
     {
         FlashMonsterRules rules = x.R.Monster(owner);
         int moveNode = x.B.Enemy(owner).Move;
@@ -61,13 +72,81 @@ public static partial class FlashKernel
         return x.B.Player.IsDead;
     }
 
-    /// <summary>Mirrors <c>SimulatedCombatState.PrepareMonsterMoveForNextRound</c> for every roster enemy.</summary>
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.ForceMonsterMove</c> (<c>MonsterAi.cs:58-74</c>): replaces the
+    /// current move and clears the pending initial roll. Nothing is logged here; the state machine log
+    /// only receives moves resolved by <see cref="ResolveMonsterState"/>.
+    /// </summary>
+    public static void ForceMonsterMove(ref FlashExec x, byte owner, int node)
+    {
+        FlashMonsterRules rules = x.R.Monster(owner);
+        if ((uint)node >= (uint)rules.Nodes.Length)
+            throw new ArgumentOutOfRangeException(nameof(node), node, "强制行动节点越界。");
+        if (node == rules.StunnedNode)
+            throw new FlashUnsupportedException("合成 STUNNED 节点只能由 ForceStunnedMove 设置。");
+        ref FlashEnemy enemy = ref x.B.Enemy(owner);
+        FlashMonsterNode target = rules.Nodes[node];
+        // Native ForceMonsterMove stores a MoveState object. If it differs from the move performed this
+        // round, a must-perform-once target must not transition (MonsterAi.cs:122-126); the external
+        // performed flag is only set after the action (Replay.cs:1164), so the in-action marker counts.
+        if (node != enemy.Move
+            && target.MustPerformOnceBeforeTransitioning
+            && (enemy.Flags & (FlashEnemyFlags.PerformedMoveThisRound | FlashEnemyFlags.ActingThisRound)) != 0)
+        {
+            enemy.Flags |= FlashEnemyFlags.ForcedMustPerformAfterMove;
+        }
+        enemy.Move = checked((byte)node);
+        enemy.ForcedMove = byte.MaxValue;
+        enemy.Flags &= ~FlashEnemyFlags.NeedsInitialRoll;
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.ForceStunnedMove</c> (<c>MonsterAi.cs:76-86</c>): builds a new
+    /// <c>MoveState("STUNNED")</c> with no attacks or effects, <c>MustPerformOnceBeforeTransitioning</c>,
+    /// and a dynamic follow-up. <paramref name="nextNode"/> below zero takes the native default,
+    /// <c>StateLog.LastOrDefault() ?? Current.Id</c> (the most recently logged move, newest last, or the
+    /// current node when nothing has been logged). Like the native method it writes no state-log entry.
+    /// </summary>
+    public static void ForceStunnedMove(ref FlashExec x, byte owner, int nextNode)
+    {
+        FlashMonsterRules rules = x.R.Monster(owner);
+        ref FlashEnemy enemy = ref x.B.Enemy(owner);
+        if (nextNode < 0)
+            nextNode = DefaultStunnedFollowUp(enemy, rules);
+        if ((uint)nextNode >= (uint)rules.Nodes.Length)
+            throw new ArgumentOutOfRangeException(nameof(nextNode), nextNode, "STUNNED 后继节点越界。");
+        if (nextNode == rules.StunnedNode)
+            throw new FlashUnsupportedException("STUNNED 的后继不能是合成 STUNNED 节点。");
+        // A forced STUNNED is always a new MoveState object, so after this enemy already performed the
+        // round the native must-perform-once check refuses to advance (MonsterAi.cs:122-126).
+        if ((enemy.Flags & (FlashEnemyFlags.PerformedMoveThisRound | FlashEnemyFlags.ActingThisRound)) != 0)
+            enemy.Flags |= FlashEnemyFlags.ForcedMustPerformAfterMove;
+        enemy.ForcedMove = checked((byte)nextNode);
+        enemy.Move = checked((byte)rules.StunnedNode);
+        enemy.Flags &= ~FlashEnemyFlags.NeedsInitialRoll;
+    }
+
+    private static int DefaultStunnedFollowUp(in FlashEnemy enemy, in FlashMonsterRules rules)
+    {
+        int recent = Math.Min((int)enemy.LoggedMoves, FlashLimits.EnemyRecentMoves);
+        int next = recent > 0 ? enemy.RecentMoves[recent - 1] : enemy.Move;
+        if (next == rules.StunnedNode)
+            throw new FlashUnsupportedException("STUNNED 的缺省后继仍是合成 STUNNED 节点。");
+        return next;
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.PrepareMonsterMoveForNextRound</c> (<c>MonsterAi.cs:102-128</c>)
+    /// for every roster enemy.
+    /// </summary>
     public static void PrepareMonsterMovesForNextRound(ref FlashExec x)
     {
         for (int position = 0; position < x.B.RosterCount; position++)
         {
             byte owner = EnemyOwner(x.B.Roster[position]);
             ref FlashEnemy enemy = ref x.B.Enemy(owner);
+            bool forcedAfterMove = (enemy.Flags & FlashEnemyFlags.ForcedMustPerformAfterMove) != 0;
+            enemy.Flags &= ~FlashEnemyFlags.ForcedMustPerformAfterMove;
             if (!CanPerformMonsterMove(enemy))
                 continue;
             if ((enemy.Flags & FlashEnemyFlags.NeedsInitialRoll) != 0)
@@ -78,8 +157,26 @@ public static partial class FlashKernel
             }
             if ((enemy.Flags & FlashEnemyFlags.PerformedMoveThisRound) == 0)
                 continue;
-            // STUNNED and must-perform-once moves are not supported yet.
-            FlashMonsterNode current = x.R.Monster(owner).Nodes[enemy.Move];
+            FlashMonsterRules rules = x.R.Monster(owner);
+            if (enemy.Move == rules.StunnedNode)
+            {
+                // Native checks STUNNED first, then the must-perform-once gate (MonsterAi.cs:120-126).
+                if ((enemy.Flags & FlashEnemyFlags.SkipNextMove) != 0)
+                    continue;
+                if (forcedAfterMove)
+                    continue;
+                int next = enemy.ForcedMove;
+                if (next == byte.MaxValue)
+                    throw new FlashUnsupportedException("STUNNED 缺少动态后继。");
+                if (next == rules.StunnedNode)
+                    throw new FlashUnsupportedException("STUNNED 的动态后继是合成 STUNNED 节点。");
+                enemy.ForcedMove = byte.MaxValue;
+                ResolveMonsterState(ref x, owner, next);
+                continue;
+            }
+            FlashMonsterNode current = rules.Nodes[enemy.Move];
+            if (current.MustPerformOnceBeforeTransitioning && forcedAfterMove)
+                continue;
             if (current.FollowUp < 0)
                 throw new FlashUnsupportedException($"行动 {current.NativeId} 没有后继状态。");
             ResolveMonsterState(ref x, owner, current.FollowUp);
@@ -107,6 +204,8 @@ public static partial class FlashKernel
                 case FlashMonsterNodeKind.Move:
                     ref FlashEnemy enemy = ref x.B.Enemy(owner);
                     enemy.Move = checked((byte)state);
+                    // A resolved node is a native state; the dynamic STUNNED follow-up no longer applies.
+                    enemy.ForcedMove = byte.MaxValue;
                     LogMonsterMove(ref enemy, state);
                     return;
                 case FlashMonsterNodeKind.RandomBranch:

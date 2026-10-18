@@ -167,3 +167,23 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 - 九条流与旧引擎一致：Shuffle、CombatCardGeneration、CombatPotionGeneration、CombatCardSelection、CombatEnergyCosts、CombatTargets、CombatOrbGeneration、MonsterAi、Niche。
 - 每条流保存计数器与四个状态字，算法逐位复刻原版 `Rng`/`MegaRandom`，用纯内核检查对照原版类录制的输出向量。
 - 每次取值计数器 +1，与原版一致；状态字和计数器都进入状态字节。
+
+## 12. 强制行动与眩晕
+
+来源：`Q/SimulatedCombatState.MonsterAi.cs:58-128`、`Q/SimulatedCombatState.cs:1174-1181`、`Q/CombatBeamSolver.Expansion.Replay.cs:1105-1180`、`P/BranchMonsterAi.cs:139-166,245-255`。
+
+**规则编译**（`Bridge/FlashRulesCompiler.CompileMonster/CompileMove`）：`MoveState.MustPerformOnceBeforeTransitioning` 编译成 `FlashMonsterNode` 标志，不再拒绝。为每个怪物在已登记状态（以及未登记进状态表的初始分支）之后追加一个合成节点：Id 为 `STUNNED`、`Kind = Move`、无攻击、无效果、`MustPerformOnceBeforeTransitioning = true`、静态后继为空。已有节点下标保持不变；节点的后继动态存放在 `FlashEnemy.ForcedMove`（255 表示当前不是 STUNNED）。节点总数因此加一，超过 64 个节点的状态机在导入时按容量拒绝。
+
+**强制行动 API**：
+
+- `FlashKernel.ForceMonsterMove(ref FlashExec, byte owner, int node)`：把当前节点换成 `node`，清除 `NeedsInitialRoll` 与 `ForcedMove`。不写 `LoggedMoves`/`RecentMoves`（`BranchMonsterAi` 只在 `Advance`/`RollInitial` 落到行动节点时写日志）。
+- `FlashKernel.ForceStunnedMove(ref FlashExec, byte owner, int nextNode)`：`nextNode` 小于 0 时取现有引擎的缺省后继 `StateLog.LastOrDefault() ?? Current.Id`，即最近一条日志（`RecentMoves` 的末项），日志为空时取当前节点；随后写入 `ForcedMove = nextNode`、`Move = StunnedNode`、清除 `NeedsInitialRoll`。同样不写日志：现有引擎的 `ForceStunnedMove` 只替换 `Current`。
+- 现有引擎的 `performedMoves` 是行动开始时的 `MoveState` 对象；强制行动在本轮已经行动之后替换当前节点时，这个对象与新的 `Current` 不同。Flash 用 `FlashEnemyFlags.ForcedMustPerformAfterMove` 记录这一条件（`ForceStunnedMove` 总是新建对象，在已行动之后调用时记录；`ForceMonsterMove` 只在目标不同且目标 must-perform-once 时记录）。`ActingThisRound` 覆盖现有引擎在动作返回后才写入 performed 标记的时序。两个标志都只在敌方回合内部使用，`PrepareMonsterMovesForNextRound` 消费并清零，稳定边界上恒为 0。
+
+**推进**（`PrepareMonsterMovesForNextRound`，逐行对应 `MonsterAi.cs:102-128`）：不在场或不能行动则跳过；`NeedsInitialRoll` 走 `RollInitial` 对应的分支；本轮没有执行任何行动则跳过；当前是 STUNNED 且 `SkipNextMove` 为真则不推进；被强制替换且 must-perform-once 未满足则不推进；否则从 `ForcedMove`（STUNNED）或节点的静态后继推进，`ResolveMonsterState` 落到行动节点时写入日志并输出强制行动。被 `SkipNextMove` 跳过的敌人仍记入 `PerformedMoveThisRound`（`Replay.cs:1120-1125`）。
+
+**执行**：STUNNED 没有攻击，跳过 `BeforeAttack`/`AfterAttack`；`FlashMonsterDef.ApplyMoveEffects` 仍以 `STUNNED` 调用，怪物定义可据此实现 `MonsterMoveEffects.Apply` 的 STUNNED 分支（例如乐加维林族母清空格挡）。STUNNED 本身不写行动日志。
+
+**导入**：旧引擎当前行动 Id 为 `STUNNED` 时映射到合成节点，后继（`FollowUpState?.Id ?? FollowUpStateId`）映射到 `ForcedMove`；后继仍是 `STUNNED` 时显式拒绝。进行中的 must-perform-once 行动由节点标志表示，`PerformedMoveThisRound` 在稳定边界上为 0，因此导入后不会误推进。
+
+**乐加维林族母的 `_isAwake`**：现有引擎在 AsleepPower/STUNNED 中写入、在指纹与续接文本中读取，但行动选择读 AsleepPower 数量（`BranchMonsterAi.ResolveConditional`），该布尔值不影响后续结算。`DescribeFlashUnrepresentableState` 只放过 `(LagavulinMatriarch, "_isAwake")` 这个已证明惰性的 `_monsterIntStates` 条目（不修改模拟器状态）；其他怪物私有整数仍被拒绝。

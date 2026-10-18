@@ -243,3 +243,24 @@ public sealed class BygoneEffigy : FlashMonsterDef
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), WakeStrength, owner);
     }
 }
+
+/// <summary>
+/// CorpseSlug: "GOOP_MOVE" applies Frail <c>GoopFrailAmt</c> to the player
+/// (<c>MonsterMoveEffects</c> "CorpseSlug"). WHIP_SLAP and GLOMP are compiled attacks. Its
+/// RavenousPower is a starting power; the private <c>_isRavenous</c> flag only selects animations.
+/// </summary>
+[FlashContent("CORPSE_SLUG")]
+public sealed class CorpseSlug : FlashMonsterDef
+{
+    private const int GoopFrailAmt = 0;
+
+    public override IReadOnlyList<string> StaticIntNames => ["GoopFrailAmt"];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        FlashMonsterRules rules = x.R.Monster(owner);
+        if (rules.Nodes[moveNode].NativeId == "GOOP_MOVE")
+            FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
+                FlashRegistry.PowerId<Powers.FrailPower>(), rules.StaticInts[GoopFrailAmt], owner);
+    }
+}
