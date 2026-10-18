@@ -14,6 +14,7 @@ namespace CombatSolver.FlashBeam;
 /// models at the root. This type only reads the battle, the rule table and that compile output.
 /// It allocates nothing on the hot path.
 /// </remarks>
+[System.Runtime.CompilerServices.SkipLocalsInit]
 internal sealed class FlashScorer
 {
     private readonly FlashScoreRules _score;

@@ -61,6 +61,7 @@ internal sealed record FlashBeamResult(
 /// byte equality and the best score is kept. Only <see cref="FlashBattle"/> and
 /// <see cref="FlashRules"/> are touched; translation and materialization happen in the bridge.
 /// </summary>
+[System.Runtime.CompilerServices.SkipLocalsInit]
 internal sealed class FlashBeamSolver
 {
     /// <summary>Selections explored per choice request (lexicographic within each size).</summary>
@@ -70,7 +71,7 @@ internal sealed class FlashBeamSolver
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
     private readonly FlashRouteOrdering _ordering;
-    private readonly List<(int Parent, FlashAction Action)> _nodes = new(4096);
+    private readonly List<(int Parent, int Depth, FlashAction Action)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private int _expanded;
@@ -93,7 +94,7 @@ internal sealed class FlashBeamSolver
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
         _nodes.Clear();
-        _nodes.Add((-1, default));
+        _nodes.Add((-1, 0, default));
         int width = Math.Max(1, _options.BeamWidth);
         // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended are bounded
         // by every kept state expanding every legal action, but a layer holds width x (actual legal actions),
@@ -249,7 +250,11 @@ internal sealed class FlashBeamSolver
 
     private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next, Pool ended, TerminalSink terminal)
     {
-        FlashBattle child = parent;
+        // The child is built in next's first free slot and stepped in place: one copy of the parent per
+        // transition. It is committed to next, copied to ended, or dropped as a terminal; the slot is not
+        // touched by anything else until then (a choice re-expansion reuses it from the start).
+        ref FlashBattle child = ref next.Reserve();
+        child = parent;
         _transitions++;
         if (FlashKernel.Step(ref child, action, _rules, out FlashChoiceRequest request) == FlashStepResult.NeedsChoice)
         {
@@ -261,28 +266,25 @@ internal sealed class FlashBeamSolver
             return;
         }
         int node = _nodes.Count;
-        _nodes.Add((parentNode, action));
-        (double score, double rank) = Score(child, Depth(node));
+        int depth = _nodes[parentNode].Depth + 1;
+        _nodes.Add((parentNode, depth, action));
+        (double score, double rank) = Score(child, depth);
         if (!FlashKernel.IsInProgress(child))
         {
             terminal(child, node, score);
             return;
         }
-        Pool target = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn ? ended : next;
-        if (!target.Add(child, node, score, rank))
+        bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
+            ? ended.Add(child, node, score, rank)
+            : next.CommitReserved(node, score, rank);
+        if (!added)
             _duplicates++;
     }
 
     private bool OutOfBudget(Stopwatch watch)
         => _expanded >= _options.MaxExpandedNodes || watch.Elapsed >= _options.SoftTimeBudget;
 
-    private int Depth(int node)
-    {
-        int depth = 0;
-        for (int cursor = node; _nodes[cursor].Parent >= 0; cursor = _nodes[cursor].Parent)
-            depth++;
-        return depth;
-    }
+    private int Depth(int node) => _nodes[node].Depth;
 
     private FlashAction[] Route(int node)
     {
@@ -426,8 +428,26 @@ internal sealed class FlashBeamSolver
             Array.Clear(_table);
         }
 
+        /// <summary>
+        /// The first free slot, for building a state in place before <see cref="CommitReserved"/>. Any
+        /// other call on this pool invalidates the returned reference.
+        /// </summary>
+        public ref FlashBattle Reserve()
+        {
+            if (Count >= _states.Length)
+                Grow();
+            return ref _states[Count];
+        }
+
+        /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
+        public bool CommitReserved(int node, double score, double rank)
+            => Insert(ref _states[Count], reserved: true, node, score, rank);
+
         /// <summary>Adds a state; returns false when an identical state was already present.</summary>
         public bool Add(in FlashBattle state, int node, double score, double rank)
+            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false, node, score, rank);
+
+        private bool Insert(ref FlashBattle state, bool reserved, int node, double score, double rank)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -453,7 +473,8 @@ internal sealed class FlashBeamSolver
                 slot = FreeSlot(hash, _table.Length - 1);
             }
             int index = Count++;
-            _states[index] = state;
+            if (!reserved)
+                _states[index] = state;
             _nodes[index] = node;
             _scores[index] = score;
             _ranks[index] = rank;
