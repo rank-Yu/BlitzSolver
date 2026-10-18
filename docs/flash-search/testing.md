@@ -37,15 +37,23 @@ K0 同时输出一个 Beam 形工作负载的单步耗时（复制父状态到�
 
 ### 2.1 第一批内容（P1，由外部 coding agent 按任务卡实现，2026-10-18）
 
-新增双重打击、铁斩波、柄击、耸肩无视、霹雳、上勾拳，以及虚弱、脆弱、敏捷。固定根 fixture：`coverage/fixtures/cards/flash-p1-fuzzy-wurm-weak.json`、`flash-p1-nibbits-normal.json`、`flash-p1-nibbits-weak.json`（全部卡牌含升级版，三种 Power 分别挂在玩家和敌人身上）。每根 48 条随机游走：单步 25 次、游走 1,807 次转移全部一致，包含 3 次玩家死亡结局。
+新增双重打击、铁斩波、剑柄打击、耸肩无视、闪电霹雳、上勾拳，以及虚弱、脆弱、敏捷。固定根 fixture：`coverage/fixtures/cards/flash-p1-fuzzy-wurm-weak.json`、`flash-p1-nibbits-normal.json`、`flash-p1-nibbits-weak.json`（全部卡牌含升级版，三种 Power 分别挂在玩家和敌人身上）。每根 48 条随机游走：单步 25 次、游走 1,807 次转移全部一致，包含 3 次玩家死亡结局。
 
 ### 2.2 第二批内容（P2，2026-10-18）
 
-新增铁甲战士卡牌 20 张：重锤、全身撞击、突破、放血术、血墙、完美打击、嘲讽、碎裂、震颤、旋风斩、回旋剑、掠夺、威吓、拆解、灰烬打击、余烬、熔火拳、单挑、焚燃、巨像；Power 巨像。完美打击按规则表中的原版卡牌标签统计打击牌。固定根：`coverage/fixtures/cards/flash-p2-a-basic-attacks.json`、`flash-p2-b-calculated.json`、`flash-p2-c-powers.json`、`flash-p2-d-x-random.json`。每根 48 条随机游走，单步 62 次、游走 1,900 次转移全部一致，包含 6 次玩家死亡结局。
+新增铁甲战士卡牌 20 张：重锤、全身撞击、突破、御血术、血墙、完美打击、挑衅、破击、战栗、旋风斩、飞剑回旋镖、劫掠、欺凌、拆卸、灰烬打击、余烬、熔融之拳、与我一战！、焚烧、巨像；Power 巨像。完美打击按规则表中的原版卡牌标签统计打击牌。固定根：`coverage/fixtures/cards/flash-p2-a-basic-attacks.json`、`flash-p2-b-calculated.json`、`flash-p2-c-powers.json`、`flash-p2-d-x-random.json`。每根 48 条随机游走，单步 62 次、游走 1,900 次转移全部一致，包含 6 次玩家死亡结局。
 
-外部 agent 跳过并说明原因的卡：重创与蓄力打击（临时力量的生命周期）、不屈（改费用 Hook）、恶意、撕裂、邪眼（尚未维护的回合与历史计数）、痛打（跨卡的计算伤害）、倾泻（自动打出）、添柴（消耗后生成卡）。
+外部 agent 跳过并说明原因的卡：凌虐与预备打击（临时力量的生命周期）、无情猛攻（改费用 Hook）、怨恨、扯碎、邪眼（尚未维护的回合与历史计数）、痛殴（跨卡的计算伤害）、倾泻（自动打出）、添柴（消耗后生成卡）。
 
-### 2.3 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
+### 2.3 内核扩展与第三批内容（P3，2026-10-18）
+
+内核新增回合阶段骨架（Power 与遗物的阶段方法、`ShouldClearBlock`、`ModifyMaxEnergy`、`ModifyHandDraw`）与玩家本回合计数、生物本回合失血标记；导入改为在私有 Fork 上读取。以上两项各自在 3 个纵切根与当时全部覆盖 fixture 上（每根 32 条随机游走）零差异。
+
+P3 新增铁甲战士卡牌 13 张：燃烧、无惧疼痛、势不可当、残酷、岿然不动、狂宴、祭品、放血、重振精神、跃跃欲试、愤怒、契约终结、主宰；Power：无惧疼痛、势不可当、残酷（易伤倍率加成）。固定根：`coverage/fixtures/cards/flash-p3-a-power-cards.json`、`flash-p3-b-block-exhaust.json`、`flash-p3-c-self-damage.json`、`flash-p3-d-feed-fatal.json`。外部 agent 交付时每根 48 条游走零差异；审查后改为通过 `CloneCard` 生成愤怒的复制品（清除牌组链接，与原版 `AfterCloned` 一致），重振精神只消耗起始快照内的牌；合入主线后连同 P1/P2 与纵切共 14 根、每根 32 条游走零差异。
+
+未验证：fixture 注入的卡都不是牌组卡，愤怒复制品清除牌组链接这一点只有源码对照，没有差分覆盖。外部 agent 跳过的卡（原因均为当时内核缺少的阶段或 Hook）：狂怒、火焰屏障、撕裂（旧引擎写入 `RupturePredictionState`，导入拒绝）、凶恶（`AfterPowerAmountChanged`）、岩石铠甲、坚定不移、薪火之源、惊逃、地狱狂徒、杂耍、连环拳、绯红披风。
+
+### 2.4 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
 
 同一根先用现有 `CombatBeamSolver` 求解，再走 Flash：准入 → FlashBeam → 逐步旧引擎回放核对 → 固定前缀物化。两个根的 Flash 路线逐步核对全部一致，物化成功。宿主默认档位（Beam 24、2000 节点），种子 FLASH1：
 
@@ -59,6 +67,6 @@ K0 同时输出一个 Beam 形工作负载的单步耗时（复制父状态到�
 ## 3. 已知限制与未验证项
 
 - 只覆盖上述纵切内容；其他内容在准入阶段拒绝，尚未有差分证据。
-- 选择分支（`NeedsChoice`）在纵切中不会出现，探针遇到时跳过并计数。
+- 选择分支（`NeedsChoice`）在当前内容中不会出现，探针遇到时跳过并计数。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
 - 未做可见游戏或实机部署验证；FlashBeam 只在离线宿主上与现有求解对照过两个根，未接入协调器。

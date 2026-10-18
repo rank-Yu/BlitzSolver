@@ -20,7 +20,8 @@ public sealed class StrengthPower : FlashPowerDef
 
 /// <summary>
 /// Native <c>VulnerablePower</c> as mirrored by the existing engine: multiplies powered attacks
-/// against its owner by <c>DamageIncrease</c>. Paper Phrog, Cruelty and Debilitate are rejected at
+/// against its owner by <c>DamageIncrease</c>, plus the attacker's Cruelty percentage
+/// (<c>ModifyDamageMirrors.HandleVulnerablePower</c>). Paper Phrog and Debilitate are rejected at
 /// admission until supported. Ticks at the end of the enemy side (<c>TickDurations</c>).
 /// </summary>
 [FlashContent("VULNERABLE_POWER")]
@@ -40,7 +41,12 @@ public sealed class VulnerablePower : FlashPowerDef
     {
         if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack())
             return 1m;
-        return x.R.PowerVar(Id, 0);
+        decimal multiplier = x.R.PowerVar(Id, 0);
+        // ModifyDamageMirrors.HandleVulnerablePower adds CrueltyPower.Amount / 100m; the native
+        // CrueltyPower.ModifyVulnerableMultiplier uses the same percentage divisor.
+        if (damage.Dealer != FlashLimits.NoOwner)
+            multiplier += (decimal)FlashKernel.GetAmount(x.B, damage.Dealer, FlashRegistry.PowerId<CrueltyPower>()) / 100m;
+        return multiplier;
     }
 }
 

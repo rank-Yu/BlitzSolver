@@ -66,6 +66,19 @@ public static class FlashCardEffects
             FlashLimits.PlayerOwner, hasCardSource: false, default);
     }
 
+    /// <summary>
+    /// Self damage from a card that keeps the card as its damage source, matching
+    /// <c>Simulator.Damage(..., playedCard, cardPlay)</c> (Offering, Bloodletting).
+    /// </summary>
+    public static void LoseHpFromCard(ref FlashExec x, decimal amount)
+    {
+        Span<byte> targets = stackalloc byte[1];
+        targets[0] = FlashLimits.PlayerOwner;
+        FlashKernel.Damage(ref x, targets, amount,
+            FlashValueProps.Unblockable | FlashValueProps.Unpowered | FlashValueProps.Move,
+            FlashLimits.PlayerOwner, hasCardSource: true, x.Card);
+    }
+
     /// <summary>Mirrors <c>GeneralCardMirrors.GeneralBlockOnPlay</c>.</summary>
     public static void GeneralBlock(ref FlashExec x, int blockVar)
         => FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, Var(x, blockVar), FlashValueProps.Move, fromCard: true);

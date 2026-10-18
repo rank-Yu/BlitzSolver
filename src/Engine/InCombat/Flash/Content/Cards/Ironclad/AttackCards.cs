@@ -224,3 +224,54 @@ public sealed class Conflagration : FlashCardDef
     public override void OnPlay(ref FlashExec x)
         => FlashCardEffects.GeneralAttack(ref x, 0, hitCount: (int)FlashCardEffects.Var(x, 1));
 }
+
+[FlashContent("FEED")]
+public sealed class Feed : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage", "MaxHp"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        byte target = x.Target;
+        FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice || target == FlashLimits.NoOwner || x.B.Creature(target).IsAlive)
+            return;
+        // CorePowerSupport.Feed only gains MaxHp after a fatal hit and only when every power of the
+        // target lets its owner's death trigger fatal (MinionPower is the supported such power).
+        if (!FlashKernel.IsPrimaryEnemy(x.B, target))
+            return;
+        FlashKernel.GainMaxHp(ref x, FlashLimits.PlayerOwner, FlashCardEffects.Var(x, 1));
+    }
+}
+
+[FlashContent("ANGER")]
+public sealed class Anger : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage"];
+
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("ANGER", 0), ("ANGER", 1)];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice)
+            return;
+        // CorePowerSupport.Anger adds a clone of the played card to the discard pile.
+        FlashKernel.AddGeneratedCard(ref x, FlashKernel.CloneCard(x.Card), FlashPile.Discard);
+    }
+}
+
+[FlashContent("PACTS_END")]
+public sealed class PactsEnd : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        // BespokeCardMirrors.PactsEndOnPlay only attacks when the exhaust pile already has the
+        // CardsVar amount; the card itself stays in the play pile during this check.
+        if (x.B.ExhaustCount < (int)FlashCardEffects.Var(x, 1))
+            return;
+        FlashCardEffects.GeneralAttack(ref x, 0);
+    }
+}

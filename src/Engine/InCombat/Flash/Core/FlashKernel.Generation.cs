@@ -55,6 +55,17 @@ public static partial class FlashKernel
         return true;
     }
 
+    /// <summary>
+    /// Mirrors <c>CardModel.CreateClone</c>: the clone keeps the card's mutable state but not
+    /// ExhaustOnNextPlay, and <c>AfterCloned</c> clears the deck link and the removed-from-state mark.
+    /// </summary>
+    public static FlashCard CloneCard(in FlashCard card)
+    {
+        FlashCard clone = card;
+        clone.Flags &= ~(FlashCardFlags.ExhaustOnNextPlay | FlashCardFlags.DeckCard | FlashCardFlags.RemovedFromState);
+        return clone;
+    }
+
     /// <summary>Mirrors <c>CombatPredictionSimulator.Heal</c>.</summary>
     public static void Heal(ref FlashExec x, byte owner, decimal amount)
     {
