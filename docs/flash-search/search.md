@@ -30,29 +30,38 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 3. 请求参数
 
-`CombatBeamSolver` 构造参数在 Flash 中的处理：
+当前只有协调器主搜索成员（`DirectSearchPurpose.PrimaryBeam`）经过 Flash。`BeamSolveRequest` 各字段在 Flash 中的处理：
 
-| 参数 | F3 首版 |
+| 字段 | 处理 |
 | --- | --- |
-| `root`、`displayNames`、`battleDamage`、`policy`、`cancellationToken`、`searchProfile` | 支持 |
-| `progressCallback` | 支持：每次 `Solve()` 从 0 开始报告节点数与耗时，节流间隔与旧引擎相同 |
-| `potionPolicyOverride`、`maximumPotionUses`、`minimumPotionUses`、`earliestPotionTurn` | 支持 |
-| `fixedPrefixActions` | 支持：先在旧引擎回放前缀，再投影成 Flash 根 |
-| `primaryIncumbent`、`potionFreePolicyBaseline` | 支持：只用于剪枝与终局比较 |
-| `earlyTurnScoutDepth`、`earlyTurnScoutObserver`、`planCommitment`、`NoveltySearch` | 不支持，准入拒绝（`UnsupportedRequest`），本次调用回落旧后端 |
+| `Root`、`DisplayNames`、`BattleDamage`、`Policy`、`CancellationToken`、`Profile` | 支持；FlashBeam 的宽度、节点与时间取自 `Profile` |
+| `PotionPolicyOverride` | 支持：回放求解器与物化求解器带同一覆盖，`CapturePotionPolicyForFlash` 据此取槽位约束 |
+| `ProgressCallback` | 只在物化阶段报告；FlashBeam 搜索期间不报告进度 |
+| `PrimaryIncumbent` | 不参与 Flash 搜索；协调器照常比较各成员结果 |
+| `Purpose` | 决定是否查看模式，并作为物化求解器的工作量归因 |
 
-`Solve()` 结束时同样向 `policy.RequestWorkTotals` 记录工作量，并正确响应接管请求与 `PotionPolicyUnsatisfiedException` 合同。
+`CombatBeamSolver` 的其余构造参数（`maximumPotionUses`、`minimumPotionUses`、`earliestPotionTurn`、`fixedPrefixActions`、`potionFreePolicyBaseline`、`earlyTurnScout*`、`planCommitment`）在主搜索成员中不使用；用到它们的调用点不经过分发，仍用旧后端。
+
+回放与物化求解器照常向 `policy.RequestWorkTotals` 记录工作量，FlashBeam 自身的节点与转移不计入。接管请求只在物化求解器中响应，FlashBeam 搜索期间不响应。
 
 ## 4. BeamSolveDispatch 与模式
 
-协调器中所有 `new CombatBeamSolver(...).Solve()` 改为经过 `BeamSolveDispatch`，构造参数打包为 `BeamSolveRequest` 记录。`Build*Actions` 等辅助方法仍直接使用 `CombatBeamSolver`。
+`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`。只有 `PrimaryBeam` 用途查看模式；精炼成员、补充审计、计划搜索与侦察仍直接使用 `CombatBeamSolver`，因为它们的 profile 开关在 Flash 中没有对应实现。
 
-模式由 `SearchPolicySnapshot.FlashMode` 冻结，主线程从设置读取：
+模式由 `SearchPolicySnapshot.FlashMode` 冻结，主线程从设置 `SolverSettingsData.FlashSearchMode` 读取（设置 > 性能 > 搜索预算 >「Flash 快速搜索（实验）」）。离线宿主可用 `OFFLINE_HARNESS_FLASH_MODE=Off|Shadow|On` 覆盖。
 
 | 模式 | 行为 |
 | --- | --- |
 | Off（默认） | 只用旧后端 |
-| Shadow | 两个后端都跑，部署旧结果；记录 Flash 准入、速度、质量与核对结果 |
-| On | 准入则用 Flash 结果，核对失败或不准入时回落旧后端 |
+| Shadow | 先跑旧后端，再在隔离策略下跑 Flash，返回旧结果并记录 `FLASH_SHADOW` |
+| On | 先跑 Flash；已准入且逐步核对通过则采用并记录 `FLASH_ADOPTED`，否则记录 `FLASH_FALLBACK` 并改跑旧后端 |
+
+Shadow 的隔离策略清空 `RequestWorkTotals`、`PrimaryIncumbents` 与 `Interaction`，求解器诊断写入空接收器，并且不报告进度，因此返回结果、工作量与日志都与 Off 相同，只多一行对照。
+
+日志行前缀为 `[CombatSolver/Flash]`。Flash 段的 `status` 取 `verified`、`rejected`（带准入拒绝原因）或 `mismatch`（带首个不一致步）；`verified` 段记录耗时、胜负、HP、`hp_lost`、`end_turn`、各阶段耗时以及 FlashBeam 节点与转移数。Shadow 行另有旧后端的同名字段与 `same_route`。
+
+准入拒绝（`FlashImportException`）以结果形式返回；核对不一致（`FlashVerificationException`）丢弃整条 Flash 路线。其他异常视为 Flash 缺陷，向上抛出并中止本次搜索，Shadow 也一样。
+
+`SolvedRouteCache` 的键记录 `FlashRoutes = (FlashMode == On)`；Shadow 返回旧结果，与 Off 共用缓存。
 
 设置项的玩家文案同时维护中文与英文（`ui-localization`）。

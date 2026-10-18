@@ -24,6 +24,15 @@ OFFLINE_HARNESS_FLASH_DIFF=1 OFFLINE_HARNESS_FLASH_DIFF_WALKS=32 \
 
 PowerShell 用 `$env:OFFLINE_HARNESS_FLASH_DIFF = '1'` 设置同名变量后运行相同 `dotnet` 命令。探针把结果写入输出目录的 `flash-diff.txt`（首行为汇总），并在 `harness-result.json` 的 `flashDiff` 字段记录同样的计数。`OFFLINE_HARNESS_FLASH_DIFF_STEPS` 控制每条随机游走的最大步数（默认 60）。
 
+主搜索分发（`BeamSolveDispatch`）在协调器模式下复跑，日志中的 `[CombatSolver/Flash]` 行记录对照或采用结果：
+
+```bash
+OFFLINE_HARNESS_FLASH_MODE=Shadow \
+  dotnet .local/tool-build/OfflineSearchHarness/bin/Release/net9.0/OfflineSearchHarness.dll \
+  --character IRONCLAD --encounter NIBBITS_NORMAL --seed FLASH1 --milestone M2 \
+  --search-mode Coordinator --budget-ms 10000 --out <输出目录>
+```
+
 ## 2. 当前证据（F1 纵切，2026-10-18，Linux）
 
 内容范围：铁甲战士初始牌组（打击、防御、痛击）、燃烧之血、力量、易伤、绒毛蠕虫爬行者与尼比特。
@@ -102,9 +111,24 @@ P8 新增带私有状态的遗物 20 个与 Power/卡 5 组（状态逐项投影
 
 结论：管线与语义一致性已打通；FlashBeam v1 的排序只移植了现有评分的核心项，在多敌人根上路线质量明显低于现有搜索，尚不能开放。搜索内单步约 5–8 µs/转移，远高于内核基准 0.4 µs，开销主要在搜索层（每个子节点的威胁投影、比较器分配、父链回溯），属于待优化项。
 
+### 2.10 主搜索分发（Off/Shadow/On，协调器模式，2026-10-18）
+
+离线宿主 `--search-mode Coordinator --budget-ms 10000`，宿主默认档位：
+
+| 根 | 模式 | 结果 |
+| --- | --- | --- |
+| `NIBBITS_NORMAL` / FLASH1 | Off | 总扩展 1627、总转移 4896、最终失血 26 |
+| 同上 | Shadow | 与 Off 完全相同（扩展、转移、分数、失血、求解器诊断行数）；对照行：旧主搜索失血 28、约 520 ms，Flash 失血 42、约 140 ms（搜索 94 ms），逐步核对通过 |
+| 同上 | On | 采用 Flash 主搜索结果（失血 42），后续精炼与审计仍用旧后端，最终失血 28 |
+| `flash-c1-choice-cards` | On | 采用 Flash 结果，零失血，协调器在战损目标处停止；总耗时 0.56 s |
+| `flash-k3-basic-potions` | Shadow / On | 旧主搜索失血 27，Flash 失血 45（含药水动作），核对通过；两种模式最终失血都是 10 |
+| 静默猎手初始牌组 / `NIBBITS_WEAK` | On | 准入拒绝 `UnsupportedCard STRIKE_SILENT`，回落旧后端 |
+
+结论：分发、隔离、回落与药水覆盖均按设计工作。FlashBeam 主搜索的路线质量仍明显低于旧主搜索；当前只替换主搜索成员，整次请求的大部分耗时在旧后端的精炼与审计里，所以 On 的总耗时收益有限。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖上述纵切内容；其他内容在准入阶段拒绝，尚未有差分证据。
 - 选择只覆盖卡牌自身的单选（消耗、移到抽牌堆顶、升级）；多选、回合开始选择、嵌套选择与自动打出中的选择尚无差分证据。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
-- 未做可见游戏或实机部署验证；FlashBeam 只在离线宿主上与现有求解对照过两个根，未接入协调器。
+- 未做可见游戏、无人测试或实机部署验证；分发只在离线宿主协调器模式下验证过 2.10 所列根。设置面板的新选项未在游戏中查看。
