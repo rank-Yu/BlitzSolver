@@ -222,3 +222,24 @@ public sealed class SlitheringStrangler : FlashMonsterDef
 /// <summary>Byrdonis: only "PECK_MOVE" and "SWOOP_MOVE"; its TerritorialPower is a starting power.</summary>
 [FlashContent("BYRDONIS")]
 public sealed class Byrdonis : FlashMonsterDef;
+
+/// <summary>Inklet: only attacks; its SlipperyPower starts in the root.</summary>
+[FlashContent("INKLET")]
+public sealed class Inklet : FlashMonsterDef;
+
+/// <summary>
+/// BygoneEffigy: "WAKE_MOVE" applies Strength 10 to itself. The amount is a literal in
+/// <c>MonsterMoveEffects.Apply</c> ("BygoneEffigy", "WAKE_MOVE"); the native model exposes no
+/// dynamic or static value for it. Sleep moves have no effect.
+/// </summary>
+[FlashContent("BYGONE_EFFIGY")]
+public sealed class BygoneEffigy : FlashMonsterDef
+{
+    private const int WakeStrength = 10;
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "WAKE_MOVE")
+            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), WakeStrength, owner);
+    }
+}

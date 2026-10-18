@@ -184,3 +184,47 @@ public sealed class IntangiblePower : FlashPowerDef
     public override decimal ModifyHpLostAfterOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss, decimal amount)
         => loss.Target == self.Owner && amount >= 1m ? 1m : amount;
 }
+
+/// <summary>
+/// Native <c>NoDrawPower</c> (BattleTrance, BulletTime and similar): while its owner is a player,
+/// a non-hand draw is refused (<c>ShouldDrawMirrors.HandleNoDrawPower</c>). The existing engine removes
+/// it in <c>EndTurnPowerSupport.TriggerRegular</c> when the owner participates in the side turn end;
+/// Flash's <c>EndTurnRegular</c> is that pass. No private slot.
+/// </summary>
+[FlashContent("NO_DRAW_POWER")]
+public sealed class NoDrawPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Debuff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+
+    public override bool ShouldDraw(ref FlashExec x, FlashListener self, bool fromHandDraw)
+        => fromHandDraw || self.Owner != FlashLimits.PlayerOwner;
+
+    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+        if (participates)
+            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+    }
+}
+
+/// <summary>
+/// Native <c>BufferPower</c> (LuckyTonic): the owner's after-Osty HP loss is reduced to 0 in the Late
+/// pass and one stack is consumed by <c>AfterModifyingHpLostAfterOsty</c>
+/// (<c>ModifyHpLostMirrors.HandleBufferPower</c> /
+/// <c>AfterModifyingHpLostAfterOstyMirrors.HandleBufferPower</c>). No private slot.
+/// </summary>
+[FlashContent("BUFFER_POWER")]
+public sealed class BufferPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override decimal ModifyHpLostAfterOstyLate(ref FlashExec x, FlashListener self, in FlashHpLossContext loss,
+        decimal amount)
+        => loss.Target == self.Owner ? 0m : amount;
+
+    public override void AfterModifyingHpLostAfterOsty(ref FlashExec x, FlashListener self)
+        => FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, Math.Max(0, x.B.Powers[self.Index].Amount - 1));
+}

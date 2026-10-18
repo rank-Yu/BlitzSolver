@@ -141,3 +141,27 @@ public sealed class Wound : FlashCardDef
     {
     }
 }
+
+/// <summary>
+/// Native <c>Void</c>: cost -1, Unplayable, Ethereal; when drawn it loses its Energy
+/// (<c>AfterCardDrawnMirrors.HandleVoid</c>, claimed once with
+/// <c>FlashKernel.TakeIntrinsicDraw</c>). The Energy variable comes from the card drawn at
+/// <paramref name="drawnPosition"/>; the definition touches no other card state.
+/// </summary>
+[FlashContent("VOID")]
+public sealed class Void : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Energy"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+    }
+
+    public override void AfterCardDrawn(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
+    {
+        if (!FlashKernel.TakeIntrinsicDraw(ref x, self, drawnPosition))
+            return;
+        ref readonly FlashCard drawn = ref x.B.Cards[drawnPosition];
+        FlashKernel.LoseEnergy(ref x, x.R.Card(drawn.Id, drawn.Upgrade).Vars[0]);
+    }
+}

@@ -251,3 +251,25 @@ public sealed class WeakPotion : FlashPotionDef
             (int)FlashKernel.PotionVar(x, this, 0), FlashLimits.PlayerOwner);
     }
 }
+
+[FlashContent("GHOST_IN_A_JAR")]
+public sealed class GhostInAJar : FlashPotionDef
+{
+    public override IReadOnlyList<string> VarNames => ["IntangiblePower"];
+
+    // GhostInAJar: combat.Apply<IntangiblePower>(playerTarget, IntangiblePower, owner).
+    public override void OnUse(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.IntangiblePower>(),
+            (int)FlashKernel.PotionVar(x, this, 0), FlashLimits.PlayerOwner);
+}
+
+[FlashContent("LUCKY_TONIC")]
+public sealed class LuckyTonic : FlashPotionDef
+{
+    public override IReadOnlyList<string> VarNames => ["BufferPower"];
+
+    // LuckyTonic: combat.Apply<BufferPower>(playerTarget, BufferPower, owner).
+    public override void OnUse(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.BufferPower>(),
+            (int)FlashKernel.PotionVar(x, this, 0), FlashLimits.PlayerOwner);
+}

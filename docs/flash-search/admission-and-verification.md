@@ -68,10 +68,10 @@ Project(Old.Step(s, a)) == Flash.Step(Project(s), a)     （逐字节）
 
 ## 4. 运行时回放核对
 
-Flash 搜出的每条候选路线在采用前由旧引擎从同一根回放（见 [搜索与接入](search.md#2-路线物化)）。回放复用 `MaterializeSelectedRoute` 已有的最终状态键、HP、敌人 HP 与边界原因断言。
+Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](search.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
 
-- 回放失败：丢弃全部 Flash 结果，本次 `Solve()` 回落旧后端重新求解，并输出稳定诊断事件 `FLASH_VERIFY_MISMATCH`（含第一处分歧的步序）。
-- Shadow 模式下额外逐步比较投影，用于在实机路线上积累差分证据，不影响部署。
+- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式回落旧后端，Shadow 模式记为 `status=mismatch`。
+- 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。
 
 ## 5. 失败处理约束
 

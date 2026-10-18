@@ -186,3 +186,77 @@ public sealed class Writhe : FlashCardDef
     {
     }
 }
+
+/// <summary>
+/// Native <c>Enthralled</c>: cost 2, Eternal; while it is in hand no other card can be played
+/// (<c>SimulatedCombatState.IsCardPlayPrevented</c>, implemented by
+/// <see cref="FlashCardDef.LocksOtherHandCards"/>). It has no OnPlay effect.
+/// </summary>
+[FlashContent("ENTHRALLED")]
+public sealed class Enthralled : FlashCardDef
+{
+    public override bool LocksOtherHandCards => true;
+
+    public override void OnPlay(ref FlashExec x)
+    {
+    }
+}
+
+/// <summary>
+/// Native <c>Normality</c>: Unplayable; while it is in hand no card can be played once three card
+/// plays have started this turn (<c>ShouldPlayMirrors.HandleNormality</c>, the native
+/// <c>_numOfCardsPerTurn</c> constant).
+/// </summary>
+[FlashContent("NORMALITY")]
+public sealed class Normality : FlashCardDef
+{
+    private const int CardsPerTurn = 3;
+
+    public override void OnPlay(ref FlashExec x)
+    {
+    }
+
+    public override bool ShouldPlay(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card)
+        => self.Index >= battle.HandCount
+            || battle.Counter(FlashCounter.CardPlayStartsThisTurn) < CardsPerTurn;
+}
+
+/// <summary>
+/// Native <c>Regret</c>: Unplayable; <c>BeforeSideTurnEnd</c> records the hand size in the card's
+/// private counter (<c>BeforeSideTurnEndMirrors.HandleRegret</c>), and at the turn end it loses that
+/// much HP unblockable/unpowered and resets the counter
+/// (<c>CardOnTurnEndInHandMirrors.HandleRegret</c>). Private = cards in hand when the turn end began.
+/// </summary>
+[FlashContent("REGRET")]
+public sealed class Regret : FlashCardDef
+{
+    public override bool HasTurnEndInHandEffect => true;
+
+    public override void OnPlay(ref FlashExec x)
+    {
+    }
+
+    public override void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    {
+        if (!FlashKernel.Participates(participants, self.Owner) || self.Index >= x.B.HandCount)
+            return;
+        ref FlashCard card = ref x.B.Cards[self.Index];
+        if (card.Id != Id)
+            return;
+        card.Private = checked((short)x.B.HandCount);
+    }
+
+    public override void OnTurnEndInHand(ref FlashExec x)
+    {
+        FlashCardEffects.DamageOwnerFromCard(ref x, x.Card.Private,
+            FlashValueProps.Unblockable | FlashValueProps.Unpowered | FlashValueProps.Move);
+        if (x.NeedsChoice)
+            return;
+        int position = x.B.PlayCount - 1;
+        ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
+        if (played.Id != x.Card.Id || played.Upgrade != x.Card.Upgrade)
+            throw new InvalidOperationException("回合末在手效果没有把瑞格瑞特放在打出堆顶。");
+        played.Private = 0;
+        x.Card.Private = 0;
+    }
+}

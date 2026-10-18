@@ -108,3 +108,67 @@ public sealed class ArtifactPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 }
+
+/// <summary>
+/// Native <c>SlipperyPower</c> (Inklet, one stack applied in <c>AfterAddedToRoom</c>): the owner's
+/// HP loss of at least 1 is capped at 1 (<c>ModifyHpLostAfterOsty</c>) and the stack decrements
+/// after unblocked damage (<c>AfterDamageReceived</c>). The existing engine keeps the effective
+/// amount in a <c>PowerAmountPredictionState</c> instead of the cloned model
+/// (<c>ModifyHpLostMirrors</c> / <c>AfterDamageReceivedMirrors.HandleSlipperyPower</c>); the kernel
+/// keeps it in the power amount itself, and the bridge's synchronization applies the same value at
+/// the next boundary. No private slot.
+/// </summary>
+[FlashContent("SLIPPERY_POWER")]
+public sealed class SlipperyPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override decimal ModifyHpLostAfterOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss,
+        decimal amount)
+    {
+        if (loss.Target != self.Owner || amount < 1m)
+            return amount;
+        return 1m;
+    }
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver != self.Owner || result.UnblockedDamage < 1)
+            return;
+        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, x.B.Powers[self.Index].Amount - 1);
+    }
+}
+
+/// <summary>
+/// Native <c>SlowPower</c> (BygoneEffigy, one stack applied in <c>AfterAddedToRoom</c>):
+/// <c>AfterCardPlayed</c> advances the private <c>SlowAmount</c> counter and a powered attack
+/// against the owner is multiplied by <c>1 + 0.1 * counter</c>; <c>BaseSideTurnStart</c> resets the
+/// counter when the owner's side starts. The existing engine stores the counter in a
+/// <c>CounterPredictionState</c> (<c>AfterCardPlayedMirrors.HandleSlowPower</c>,
+/// <c>ModifyDamageMirrors.HandleSlowPower</c>, <c>SimulatedCombatState.TriggerBaseSideTurnStart</c>).
+/// Aux0 = SlowAmount counter; the bridge projects the store entry, falling back to the model's
+/// <c>DynamicVars["SlowAmount"].BaseValue</c>.
+/// </summary>
+[FlashContent("SLOW_POWER")]
+public sealed class SlowPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Debuff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+        => x.B.Powers[self.Index].Aux0++;
+
+    public override decimal ModifyDamageMultiplicative(ref FlashExec x, FlashListener self,
+        in FlashDamageContext damage, decimal amount)
+    {
+        if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack())
+            return 1m;
+        return 1m + 0.1m * x.B.Powers[self.Index].Aux0;
+    }
+
+    public override void BaseSideTurnStart(ref FlashExec x, FlashListener self, bool decrementPlating)
+        => x.B.Powers[self.Index].Aux0 = 0;
+}

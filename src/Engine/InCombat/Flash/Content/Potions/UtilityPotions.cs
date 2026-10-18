@@ -234,3 +234,33 @@ public sealed class TouchOfInsanity : FlashPotionDef
     {
     }
 }
+
+[FlashContent("SNECKO_OIL")]
+public sealed class SneckoOil : FlashPotionDef
+{
+    public override IReadOnlyList<string> VarNames => ["Cards"];
+
+    // SneckoOil (DrawPotionMirrors.SneckoOilOnUse): draw Cards, then for each card in the resulting
+    // hand that does not cost X and whose canonical cost is not negative, append
+    // CardEnergyCost.SetThisTurnOrUntilPlayed(CombatEnergyCosts.NextInt(4)): an absolute local
+    // modifier that expires at the turn end or when the card is played (both expiration bits).
+    public override void OnUse(ref FlashExec x)
+    {
+        FlashKernel.Draw(ref x, (int)FlashKernel.PotionVar(x, this, 0), fromHandDraw: false);
+        if (x.NeedsChoice)
+            return;
+        for (int index = 0; index < x.B.HandCount; index++)
+        {
+            ref FlashCard card = ref x.B.Cards[index];
+            if ((card.Flags & FlashCardFlags.CostsX) != 0 || card.BaseCost < 0)
+                continue;
+            int cost = x.B.RngStream(FlashRngStream.CombatEnergyCosts).NextInt(4);
+            if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
+                throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
+            card.EnergyModifiers[card.EnergyModifierCount] = FlashCostModifier.Create(cost,
+                FlashCostType.Absolute,
+                FlashCostExpiration.EndOfTurn | FlashCostExpiration.WhenPlayed, reduceOnly: false);
+            card.EnergyModifierCount++;
+        }
+    }
+}

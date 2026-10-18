@@ -14,3 +14,30 @@ public sealed class DeprecatedPotion : FlashPotionDef
     public override void OnUse(ref FlashExec x)
         => throw new FlashUnsupportedException("现有搜索不提供 DEPRECATED_POTION 的显式使用。");
 }
+
+/// <summary>
+/// Native <c>FairyInABottle</c>: an automatic potion (<c>PotionOnUseSupport.CanSearch</c> is false),
+/// so the search never offers an explicit use. Its <c>ShouldDie</c> prevents its owner's death and
+/// <c>AfterPreventingDeath</c> consumes the slot and heals
+/// <c>max(1, 30% of max HP)</c> (<c>FairyInABottleMirrors</c>).
+/// </summary>
+[FlashContent("FAIRY_IN_A_BOTTLE")]
+public sealed class FairyInABottle : FlashPotionDef
+{
+    public override bool Searchable => false;
+
+    // Never reached through the search; the effect runs from AfterPreventingDeath below.
+    public override void OnUse(ref FlashExec x)
+        => throw new FlashUnsupportedException("现有搜索不提供 FAIRY_IN_A_BOTTLE 的显式使用。");
+
+    public override bool ShouldDie(ref FlashExec x, FlashListener self, byte creature)
+        => creature != self.Owner;
+
+    public override void AfterPreventingDeath(ref FlashExec x, FlashListener self, byte creature)
+    {
+        // PotionOnUseMirrors consume the slot, then the native OnUse heals max(1, 30% max HP).
+        x.B.Potions[self.Index] = 0;
+        decimal amount = Math.Max(1m, x.B.Creature(creature).MaxHp * 0.3m);
+        FlashKernel.Heal(ref x, creature, amount);
+    }
+}

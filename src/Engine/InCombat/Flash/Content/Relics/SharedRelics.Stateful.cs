@@ -581,3 +581,87 @@ public sealed class VenerableTeaSet : FlashRelicDef
         relic.Counter = 0;
     }
 }
+
+/// <summary>
+/// <c>BeatingRemnant</c>: HP loss from the owner is capped at its MaxHpLoss per player turn and
+/// unblocked damage taken accumulates until the next player side turn start
+/// (<c>ModifyHpLostMirrors.HandleBeatingRemnant</c>,
+/// <c>AfterDamageReceivedMirrors.HandleBeatingRemnant</c>,
+/// <c>RelicPredictionStateSupport.ResetBeforeSideTurnStart</c>).
+/// Counter = damage received this turn (the engine's decimal state only ever accumulates the
+/// integer <c>UnblockedDamage</c>); the bridge projects
+/// <c>BeatingRemnantPredictionState.DamageReceivedThisTurn</c>.
+/// </summary>
+[FlashContent("BEATING_REMNANT")]
+public sealed class BeatingRemnant : FlashRelicDef
+{
+    // BeatingRemnant.cs: DynamicVar("MaxHpLoss", 20m).
+    public override IReadOnlyList<string> VarNames => ["MaxHpLoss"];
+
+    public override decimal ModifyHpLostAfterOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss,
+        decimal amount)
+    {
+        if (loss.Target != self.Owner)
+            return amount;
+        return Math.Min(amount, x.R.RelicVar(Id, 0) - x.B.Relics[self.Index].Counter);
+    }
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver == self.Owner)
+            x.B.Relics[self.Index].Counter += result.UnblockedDamage;
+    }
+
+    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+        => x.B.Relics[self.Index].Counter = 0;
+}
+
+/// <summary>
+/// <c>LizardTail</c>: <c>ShouldDieLate</c> prevents its owner's first death of the combat, then
+/// <c>AfterPreventingDeath</c> marks it used and heals Heal percent of max HP
+/// (<c>DeathPreventerMirrors.LizardTailMirrors</c>). Counter = WasUsed (0/1); the bridge projects
+/// <c>LizardTailPredictionState.WasUsed</c>.
+/// </summary>
+[FlashContent("LIZARD_TAIL")]
+public sealed class LizardTail : FlashRelicDef
+{
+    // LizardTail.cs: HealVar(50m).
+    public override IReadOnlyList<string> VarNames => ["Heal"];
+
+    public override bool ShouldDieLate(ref FlashExec x, FlashListener self, byte creature)
+        => creature != self.Owner || x.B.Relics[self.Index].Counter != 0;
+
+    public override void AfterPreventingDeath(ref FlashExec x, FlashListener self, byte creature)
+    {
+        x.B.Relics[self.Index].Counter = 1;
+        decimal amount = Math.Max(1m, x.B.Creature(creature).MaxHp * (x.R.RelicVar(Id, 0) / 100m));
+        FlashKernel.Heal(ref x, creature, amount);
+    }
+}
+
+/// <summary>
+/// <c>RedSkull</c>: whenever any creature's current HP changes, the relic keeps Strength applied
+/// exactly while its owner is at or below the HP threshold
+/// (<c>AfterCurrentHpChangedMirrors.HandleRedSkull</c>; the native room-entry application happens
+/// before the root and is imported). Counter = the engine's stateful StrengthApplied flag (0/1),
+/// projected by <c>ClaimStatefulRelic</c>.
+/// </summary>
+[FlashContent("RED_SKULL")]
+public sealed class RedSkull : FlashRelicDef
+{
+    // RedSkull.cs: DynamicVar("HpThreshold", 50m), PowerVar<StrengthPower>(3m).
+    public override IReadOnlyList<string> VarNames => ["HpThreshold", "StrengthPower"];
+
+    public override void AfterCurrentHpChanged(ref FlashExec x, FlashListener self, byte creature, decimal delta)
+    {
+        decimal threshold = x.B.Player.MaxHp * (x.R.RelicVar(Id, 0) / 100m);
+        bool shouldApply = x.B.Player.CurrentHp <= threshold;
+        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        if (shouldApply == (relic.Counter != 0))
+            return;
+        int strength = (int)x.R.RelicVar(Id, 1);
+        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<StrengthPower>(),
+            shouldApply ? strength : -strength, FlashLimits.PlayerOwner);
+        relic.Counter = shouldApply ? 1 : 0;
+    }
+}

@@ -121,3 +121,20 @@ public sealed class NotYet : FlashCardDef
     public override void OnPlay(ref FlashExec x)
         => FlashKernel.Heal(ref x, FlashLimits.PlayerOwner, FlashCardEffects.Var(x, 0));
 }
+
+[FlashContent("BATTLE_TRANCE")]
+public sealed class BattleTrance : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Cards"];
+
+    // BattleTrance: the inferred owner draw (Cards) runs first, then
+    // CorePowerSupport.ApplyCardPowers applies NoDrawPower 1 to the owner.
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashKernel.Draw(ref x, FlashCardEffects.Var(x, 0), fromHandDraw: false);
+        if (x.NeedsChoice)
+            return;
+        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.NoDrawPower>(),
+            1, FlashLimits.PlayerOwner);
+    }
+}
