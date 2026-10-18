@@ -20,9 +20,9 @@ public sealed class StrengthPower : FlashPowerDef
 
 /// <summary>
 /// Native <c>VulnerablePower</c> as mirrored by the existing engine: multiplies powered attacks
-/// against its owner by <c>DamageIncrease</c>, plus the attacker's Cruelty percentage
-/// (<c>ModifyDamageMirrors.HandleVulnerablePower</c>). Paper Phrog and Debilitate are rejected at
-/// admission until supported. Ticks at the end of the enemy side (<c>TickDurations</c>).
+/// against its owner by <c>DamageIncrease</c>, plus Paper Phrog's 0.25 and the attacker's Cruelty
+/// percentage (<c>ModifyDamageMirrors.HandleVulnerablePower</c>). Debilitate is rejected at admission
+/// until supported. Ticks at the end of the enemy side (<c>TickDurations</c>).
 /// </summary>
 [FlashContent("VULNERABLE_POWER")]
 public sealed class VulnerablePower : FlashPowerDef
@@ -42,11 +42,30 @@ public sealed class VulnerablePower : FlashPowerDef
         if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack())
             return 1m;
         decimal multiplier = x.R.PowerVar(Id, 0);
+        // ModifyDamageMirrors.HandleVulnerablePower calls PaperPhrog.ModifyVulnerableMultiplier when the
+        // attacker's player owns the relic: it adds 0.25 unless the relic owner is the target.
+        if (damage.Dealer == FlashLimits.PlayerOwner && damage.Target != FlashLimits.PlayerOwner
+            && OwnsPaperPhrog(x.B))
+            multiplier += 0.25m;
         // ModifyDamageMirrors.HandleVulnerablePower adds CrueltyPower.Amount / 100m; the native
         // CrueltyPower.ModifyVulnerableMultiplier uses the same percentage divisor.
         if (damage.Dealer != FlashLimits.NoOwner)
             multiplier += (decimal)FlashKernel.GetAmount(x.B, damage.Dealer, FlashRegistry.PowerId<CrueltyPower>()) / 100m;
         return multiplier;
+    }
+
+    /// <summary><c>Player.GetRelic&lt;PaperPhrog&gt;()</c> for the single player.</summary>
+    private static bool OwnsPaperPhrog(in FlashBattle battle)
+    {
+        if (!FlashRegistry.TryRelic("PAPER_PHROG", out ushort id))
+            return false;
+        for (int index = 0; index < battle.RelicCount; index++)
+        {
+            ref readonly FlashRelic relic = ref battle.Relics[index];
+            if (relic.Id == id)
+                return true;
+        }
+        return false;
     }
 }
 
