@@ -6,7 +6,7 @@
 
 FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选路线，不直接产出 `SolverResult`。
 
-- **容器全部预分配**：每层是复用的 `FlashBattle[]`；子状态先复制父状态到空槽，再在槽位上原地执行动作。分数、父指针、动作等元数据放在平行数组。
+- **容器复用**：每层是跨层复用的 `FlashBattle[]`；子状态先复制父状态到空槽，再在槽位上原地执行动作。分数、父指针、动作等元数据放在平行数组。保留层与回合前沿固定为 Beam 宽度；子状态层与回合结束层从宽度 × 8 起按需倍增，上限为每个状态展开全部合法动作的最坏情况（宽度 × `MaxLegalActions + 1`），超过上限按容量拒绝。
 - **路线不进状态**：每个节点只记父节点下标与本步 `FlashAction`，找到候选后沿父指针倒推。
 - **去重**：每层用开放寻址表按指纹分桶，命中后比较完整字节；同一状态只保留排序值最高的代表。旧引擎转置表的六维 Pareto 保留（药水数、药水战略成本、未来卖血、累计失血、动作数、分数）尚未移植。
 - **层内保留**：按排序值取前 Beam 宽度个状态，其中 `OffensiveShare`（默认 25%）的席位留给敌人 HP 最低的状态。旧引擎的多样性泳道、选择保路与药水配额尚未移植。
@@ -14,7 +14,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 - **评分表**：每张已准入的卡牌按（内容 Id, 升级等级）有明确条目；每个 Power 有战略效果分类与参数。旧引擎判定不贡献的项显式记为 0（例如非玩家侧 Power、临时 Power、`StrategicEffectMirrors.Contributes` 为 false 的项）。未移植的逐内容乘数或请求设置在根上以 `FlashRejection.UnsupportedCard` / `UnsupportedRequest` 拒绝，不默认记 0。
 - **选择**：遇到 `NeedsChoice` 时用 `FlashChoiceEnumerator` 按选项规格枚举（选择数量从小到大、同数量按下标字典序），每个请求至多探索 32 个分支（v1）；每个被执行的分支都是精确的，上限只限制探索面。旧引擎按估值排序挑分支（`MaxPile/HandChoiceBranchesPerAction`），v1 尚未移植这套排序。
 - **药水**：Bridge 在根上取现有搜索的药水约束（`CapturePotionPolicyForFlash`：每个槽位是否允许显式使用、战略 HP 成本、最早回合、最多使用次数），换算成 Flash 玩家回合后放进 `FlashPotionPolicy`；未设置时不使用药水。FlashBeam 只对仍是根上原药水的槽位生成药水动作。旧引擎的 `Score` 不含药水成本，因此 FlashBeam 在**排序值**上额外减去已用药水的战略成本（`SolverWeights.Hp` 计价）；这是 Flash 特有的项，节点分数与终局比较仍用 `Features(...).Score`。v1 尚未移植现有搜索的无药基线、强制使用与保留策略。
-- **预算**：Beam 宽度、全局节点上限与软时间取自同一 `SolverSearchProfile`。旧引擎按回合层分配节点预算的规则尚未移植。
+- **预算**：取同一 `SolverSearchProfile`：Beam 宽度与全局节点上限乘以 `FlashRouteMaterializer.ProfileWidthScale`（4），软时间不变。FlashBeam 只有排序泳道与进攻泳道，需要更宽的 Beam 才能达到现有搜索的路线质量（[测试记录](testing.md) 2.5）。旧引擎按回合层分配节点预算的规则尚未移植。
 - **产出**：按旧引擎终局比较器（`FinalPlanOrdering.Select` 的排序键）选出一条路线：完整胜利、存活、死亡保护次数、战略失血（`ActEndingBossPolicy.StrategicHpDeficit`，含战后遗物回复）、结束回合、生命资源消耗、长期资源、愤怒复制数、可选药水数、敌人 HP、分数、动作数。没有胜利路线时，预算耗尽时的回合起点状态与终局状态一起参与比较。成长与遗物计数额度为 0（相关设置在准入时拒绝）；偷窃、卖血与边界原因这几个键尚未移植。
 
 ## 2. 路线物化
@@ -36,7 +36,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 | 字段 | 处理 |
 | --- | --- |
-| `Root`、`DisplayNames`、`BattleDamage`、`Policy`、`CancellationToken`、`Profile` | 支持；FlashBeam 的宽度、节点与时间取自 `Profile` |
+| `Root`、`DisplayNames`、`BattleDamage`、`Policy`、`CancellationToken`、`Profile` | 支持；FlashBeam 的宽度与节点为 `Profile` 的 4 倍，时间取自 `Profile` |
 | `PotionPolicyOverride` | 支持：回放求解器与物化求解器带同一覆盖，`CapturePotionPolicyForFlash` 据此取槽位约束 |
 | `ProgressCallback` | 只在物化阶段报告；FlashBeam 搜索期间不报告进度 |
 | `PrimaryIncumbent` | 不参与 Flash 搜索；协调器照常比较各成员结果 |

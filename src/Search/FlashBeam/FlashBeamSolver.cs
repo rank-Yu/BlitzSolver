@@ -95,11 +95,15 @@ internal sealed class FlashBeamSolver
         _nodes.Clear();
         _nodes.Add((-1, default));
         int width = Math.Max(1, _options.BeamWidth);
-        int poolCapacity = width * (FlashKernel.MaxLegalActions + 1);
-        Pool current = new(poolCapacity);
-        Pool next = new(poolCapacity);
-        Pool ended = new(poolCapacity);
-        Pool turnFrontier = new(poolCapacity);
+        // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended are bounded
+        // by every kept state expanding every legal action, but a layer holds width x (actual legal actions),
+        // so they start small and grow toward that bound.
+        int maxChildren = checked(width * (FlashKernel.MaxLegalActions + 1));
+        int initialChildren = Math.Min(maxChildren, Math.Max(64, width * 8));
+        Pool current = new(width, width);
+        Pool next = new(initialChildren, maxChildren);
+        Pool ended = new(initialChildren, maxChildren);
+        Pool turnFrontier = new(width, width);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -339,21 +343,27 @@ internal sealed class FlashBeamSolver
         return cost;
     }
 
-    /// <summary>Preallocated state pool with byte-exact deduplication keeping the best score.</summary>
+    /// <summary>
+    /// State pool with byte-exact deduplication keeping the best score. It doubles on demand up to
+    /// <c>maxCapacity</c>; exceeding that bound is a capacity rejection.
+    /// </summary>
     private sealed class Pool
     {
-        private readonly FlashBattle[] _states;
-        private readonly int[] _nodes;
-        private readonly double[] _scores;
-        private readonly double[] _ranks;
-        private readonly ulong[] _hashes;
-        private readonly int[] _table;
-        private readonly int[] _order;
-        private readonly int[] _enemyHp;
-        private readonly bool[] _taken;
+        private readonly int _maxCapacity;
+        private FlashBattle[] _states;
+        private int[] _nodes;
+        private double[] _scores;
+        private double[] _ranks;
+        private ulong[] _hashes;
+        private int[] _table;
+        private int[] _order;
+        private int[] _enemyHp;
+        private bool[] _taken;
 
-        public Pool(int capacity)
+        public Pool(int initialCapacity, int maxCapacity)
         {
+            _maxCapacity = maxCapacity;
+            int capacity = Math.Clamp(initialCapacity, 1, maxCapacity);
             _states = new FlashBattle[capacity];
             _nodes = new int[capacity];
             _scores = new double[capacity];
@@ -362,10 +372,42 @@ internal sealed class FlashBeamSolver
             _order = new int[capacity];
             _enemyHp = new int[capacity];
             _taken = new bool[capacity];
+            _table = new int[TableSize(capacity)];
+        }
+
+        private static int TableSize(int capacity)
+        {
             int size = 1;
             while (size < capacity * 2)
                 size <<= 1;
-            _table = new int[size];
+            return size;
+        }
+
+        private void Grow()
+        {
+            if (_states.Length >= _maxCapacity)
+                throw new FlashCapacityException("FlashBeam.Pool", _maxCapacity);
+            int capacity = (int)Math.Min(_maxCapacity, (long)_states.Length * 2);
+            Array.Resize(ref _states, capacity);
+            Array.Resize(ref _nodes, capacity);
+            Array.Resize(ref _scores, capacity);
+            Array.Resize(ref _ranks, capacity);
+            Array.Resize(ref _hashes, capacity);
+            Array.Resize(ref _order, capacity);
+            Array.Resize(ref _enemyHp, capacity);
+            Array.Resize(ref _taken, capacity);
+            _table = new int[TableSize(capacity)];
+            int mask = _table.Length - 1;
+            for (int index = 0; index < Count; index++)
+                _table[FreeSlot(_hashes[index], mask)] = index + 1;
+        }
+
+        private int FreeSlot(ulong hash, int mask)
+        {
+            int slot = (int)(hash & (ulong)mask);
+            while (_table[slot] != 0)
+                slot = (slot + 1) & mask;
+            return slot;
         }
 
         public int Count { get; private set; }
@@ -406,7 +448,10 @@ internal sealed class FlashBeamSolver
                 slot = (slot + 1) & mask;
             }
             if (Count >= _states.Length)
-                throw new FlashCapacityException("FlashBeam.Pool", _states.Length);
+            {
+                Grow();
+                slot = FreeSlot(hash, _table.Length - 1);
+            }
             int index = Count++;
             _states[index] = state;
             _nodes[index] = node;
