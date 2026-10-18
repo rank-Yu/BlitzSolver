@@ -79,6 +79,80 @@ public sealed class PlatingPower : FlashPowerDef
 }
 
 /// <summary>
+/// Native <c>SuckPower</c> (FossilStalker, three stacks applied in <c>AfterAddedToRoom</c>): after its
+/// owner's powered attack, the owner gains <c>Amount</c> Strength once per hit list that dealt
+/// unblocked damage to the other side (<c>AfterAttackMirrors.HandleSuckPower</c>). The single-player
+/// target side has one creature, so each unblocked hit is one hit list.
+/// Aux0 = unblocked hits counted in the current attack; the bridge projects no slot because the
+/// existing engine keeps no state for this power and the counter is zero at every action boundary.
+/// </summary>
+[FlashContent("SUCK_POWER")]
+public sealed class SuckPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    // AfterDamageGiven runs for every damage result, including a hit that kills the target; the
+    // native AfterAttack counts those hit lists as well.
+    public override void AfterDamageGiven(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (dealer != self.Owner || result.UnblockedDamage <= 0 || !result.Props.IsPoweredAttack())
+            return;
+        x.B.Powers[self.Index].Aux0++;
+    }
+
+    public override void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
+    {
+        if (attacker != self.Owner)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        int hits = power.Aux0;
+        if (hits == 0)
+            return;
+        int amount = power.Amount;
+        power.Aux0 = 0;
+        FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<StrengthPower>(), amount * hits, self.Owner);
+    }
+}
+
+/// <summary>
+/// Native <c>HardenedShellPower</c> (SkulkingColony, 20 stacks applied in <c>AfterAddedToRoom</c>):
+/// each hit against the owner loses at most the shell's remaining points for the turn
+/// (<c>ModifyHpLostMirrors.HandleHardenedShellPower</c> through <c>HardenedShellPredictionState</c>),
+/// unblocked damage is accumulated (<c>AfterDamageReceivedMirrors.HandleHardenedShellPower</c>), and
+/// the accumulator resets at every side start (<c>HardenedShellPower.BeforeSideTurnStart</c>).
+/// Aux0 = damageReceivedThisTurn; the bridge projects it from the prediction state, falling back to
+/// the model's live internal data.
+/// </summary>
+[FlashContent("HARDENED_SHELL_POWER")]
+public sealed class HardenedShellPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override decimal ModifyHpLostBeforeOstyLate(ref FlashExec x, FlashListener self, in FlashHpLossContext loss,
+        decimal amount)
+    {
+        if (loss.Target != self.Owner || amount == 0m)
+            return amount;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        return Math.Min(amount, power.Amount - power.Aux0);
+    }
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver != self.Owner || result.WasFullyBlocked)
+            return;
+        x.B.Powers[self.Index].Aux0 += result.UnblockedDamage;
+    }
+
+    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, bool participates)
+        => x.B.Powers[self.Index].Aux0 = 0;
+}
+
+/// <summary>
 /// Native <c>ThornsPower</c>: before its owner receives a powered attack (or an Omnislice hit), damages the
 /// dealer for its amount as Unpowered damage with the owner as dealer
 /// (<c>M/Hooks/Damage/BeforeDamageReceivedMirrors.HandleThornsPower</c>).

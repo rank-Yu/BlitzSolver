@@ -46,6 +46,75 @@ public sealed class ShrinkPower : FlashPowerDef
 }
 
 /// <summary>
+/// Native <c>MinionPower</c> (KinFollower, one stack applied in <c>AfterAddedToRoom</c>): its owner is
+/// a secondary enemy, so killing the primary enemy kills the remaining minions and a minion's death
+/// does not count as a fatal kill. In the existing engine that is
+/// <c>PowerModel.OwnerIsSecondaryEnemy</c> plus <c>ShouldOwnerDeathTriggerFatal</c>; the kernel's
+/// <c>IsPrimaryEnemy</c> and the Feed fatal-kill check read it through
+/// <see cref="FlashPowerDef.OwnerIsSecondaryEnemy"/>. The power is not removed when its owner dies
+/// (<c>ShouldPowerBeRemovedAfterOwnerDeath</c>), which is inert because a removed enemy is no longer
+/// in the listener roster; no private slot.
+/// </summary>
+[FlashContent("MINION_POWER")]
+public sealed class MinionPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+
+    public override bool OwnerIsSecondaryEnemy => true;
+}
+
+/// <summary>
+/// Native <c>SkittishPower</c> (PhantasmalGardener, <c>SkittishAmount</c> stacks applied in
+/// <c>AfterAddedToRoom</c>): the first damage result against the owner in a card attack that is
+/// still unblocked makes it gain its amount as Unpowered block, at most once per player side
+/// (<c>AfterAttackMirrors.HandleSkittishPower</c> through <c>SkittishPredictionState</c>). The flag
+/// resets at the end of the player side (<c>SkittishPower.AfterSideTurnEnd</c>).
+/// Aux0 = HasGainedBlockThisTurn; Aux1 = a result for the owner was already seen in the current
+/// attack (the native hook inspects the first result for the owner only). The bridge projects Aux0
+/// from the prediction state, falling back to the model's live flag.
+/// </summary>
+[FlashContent("SKITTISH_POWER")]
+public sealed class SkittishPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    // AfterAttackMirrors.HandleSkittishPower reads the first result for the owner out of the attack
+    // command; a result is only considered when the attack is a powered card attack.
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver != self.Owner)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Aux1 != 0)
+            return;
+        if (dealer != FlashLimits.PlayerOwner || !result.Props.IsPoweredAttack())
+            return;
+        power.Aux1 = 1;
+        if (power.Aux0 != 0 || result.UnblockedDamage == 0)
+            return;
+        power.Aux0 = 1;
+        FlashKernel.GainBlock(ref x, self.Owner, power.Amount, FlashValueProps.Unpowered, fromCard: false);
+    }
+
+    // The native hook runs once per attack command; this is the end-of-attack reset of the
+    // "first result seen" latch.
+    public override void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
+        => x.B.Powers[self.Index].Aux1 = 0;
+
+    // SkittishPower.AfterSideTurnEnd resets HasGainedBlockThisTurn when the ending side is not the
+    // owner's side; the owner is an enemy, so that is the player side end.
+    public override void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    {
+        if (side == FlashSide.Player)
+            x.B.Powers[self.Index].Aux0 = 0;
+    }
+}
+
+/// <summary>
 /// Native <c>ConstrictPower</c>: applied to the player by SlitheringStrangler
 /// (<c>MonsterMoveEffects</c> "SlitheringStrangler", "CONSTRICT", <c>combat.Apply&lt;ConstrictPower&gt;</c>).
 /// At the end of the owner's side it damages the owner for its amount as Unpowered damage with the
