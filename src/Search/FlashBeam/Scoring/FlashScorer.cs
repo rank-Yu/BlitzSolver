@@ -604,6 +604,11 @@ internal sealed class FlashScorer
     private ThreatProjection ProjectHpAfterThreat(in FlashBattle battle)
     {
         FlashBattle probe = battle;
+        // CombatBeamSolver.ProjectHpAfterThreat walks the run-listener table, which still contains the
+        // player's relics and cards after the player dies; Flash's PlayerHooksActive flag only gates the
+        // combat dispatch. The projection is read-only and must include those modifiers (Tungsten Rod's
+        // per-hit reduction is the visible case) even on a dead snapshot.
+        probe.Flags |= FlashBattleFlags.PlayerHooksActive;
         FlashExec x = new(ref probe, Rules, default);
         int hp = battle.Player.CurrentHp;
         int block = battle.Player.Block;

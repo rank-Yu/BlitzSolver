@@ -63,6 +63,12 @@ public sealed class Thunderclap : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // ApplyCardPowers settles newly dead enemies after the mirrored attack and before its
+        // card-specific switch; Thunderclap's Vulnerable must therefore see any Wrigglers spawned by
+        // the Phrog Parasite the attack just killed.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         FlashCardEffects.ApplyToAllEnemies(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }

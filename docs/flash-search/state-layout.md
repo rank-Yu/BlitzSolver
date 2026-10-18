@@ -38,7 +38,8 @@
 - `BaseReplayCount`；
 - 语义动态变量相对规则表基础值的增量（两格），以及少数卡牌的私有计数（Claw、Rampage、GeneticAlgorithm、Maul、MadScience、TheScythe 这类）；
 - 附魔 Id、数量、状态，以及 Glam、Momentum 这类附魔私有字段；
-- 苦难 Id 与数量。
+- 苦难 Id 与数量；
+- `IsClone`（原版 `CardModel.IsClone`）：占用 `CostState` 的 bit 3（bit 0–2 是临时星能费用标志，bit 5–7 是附魔状态）；克隆卡跳过 `AfterCardEnteredCombat` 的卡牌专属部分（Stomp 等），由 `CloneCard` 置位，导入时从原版卡读取。
 
 `FlashCardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`FlashKeywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸仍是 90 字节。
 
@@ -55,6 +56,7 @@
 ### 2.4 编码约定
 
 - 药水槽、附魔、苦难存"内部 Id + 1"，0 表示空。卡牌、Power、遗物、怪物直接存内部 Id。
+- `FlashCard.CostState` 的 bit 3 是 `IsClone`；设置/清除临时星能费用和附魔状态时必须保留该位。
 - 敌人是否为主要敌人不存标志，与旧引擎一样由其持有的 Power 推出（`OwnerIsSecondaryEnemy`）。
 - `FlashEnemy.Rules` 是 `FlashRules` 怪物规则表的下标。根已知敌人按 `KnownEnemies` 下标占据表的前 `RootEnemyCount` 项，之后每个可生成怪物类型一项；已知敌人数组只追加，所以新敌人的规则编号由怪物 Id 查可生成表（`FlashRules.SpawnRulesId`）。
 - `FlashEnemy.Slot` 是遭遇槽下标（`FlashRules.EncounterSlots` 的顺序），没有槽名时为 255。名单（`Roster`）按槽下标稳定升序，255 视作 -1 排在有名字的槽位之前；名单顺序就是 Hook 监听与敌方行动顺序。
@@ -71,8 +73,9 @@
 - 未使用的槽位、数组尾部和填充字节全部为零。移除元素时整体前移并清零末尾。
 - 牌堆保持旧引擎里的真实顺序，不排序。旧引擎在部分牌堆上忽略顺序（`PileOrderInvariantMask`），Flash 首版不做这种合并：只会少合并，不会错误合并。
 - 布尔值只用 0 和 1。
-- `FlashBattleFlags.HasRisk` 是旧引擎快照的未补偿风险（`SimulationSnapshot.HasRisk`），一旦
-  Discovery/Splash 等效果记录 `UnresolvedPlayerChoice` 就置位并保持到战斗结束；它不改变结构体大小。
+- `FlashBattleFlags.HasRisk` 是旧引擎快照的未补偿风险（`SimulationSnapshot.HasRisk`），只在根导入时
+  置位并保持到战斗结束；Discovery/Splash 的 `UnresolvedPlayerChoice` 被补偿目录标为已补偿，内核不置位。
+  它不改变结构体大小。
 - 结构体布局用 `StructLayout(LayoutKind.Sequential)`，并有一个检查断言 `Unsafe.SizeOf<FlashBattle>()` 与预期一致，防止字段改动悄悄引入填充。
 
 ## 4. 指纹与相等
@@ -91,4 +94,4 @@
 
 `FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充。`FlashCard` 为 90 字节（96 张，费用修饰容量 16），`FlashBattle` 实测 11808 字节。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸。K0 在同一台机器上测得 `copyOnly` 约 307 ns、`copyStep` 约 1.85 µs。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
 
-Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。
+Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。

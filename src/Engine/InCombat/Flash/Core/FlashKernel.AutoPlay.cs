@@ -96,9 +96,11 @@ public static partial class FlashKernel
     {
         if (IsOverOrEnding(x.B) || count <= 0)
             return;
+        if (count > FlashLimits.Cards)
+            throw new FlashCapacityException("AutoPlayCards", FlashLimits.Cards);
         int start = x.B.PlayCount;
         int moved = 0;
-        Span<FlashCard> cards = stackalloc FlashCard[Math.Min(count, FlashLimits.Cards)];
+        Span<FlashCard> cards = stackalloc FlashCard[count];
         for (int index = 0; index < count; index++)
         {
             ShuffleIfNecessary(ref x);
@@ -114,6 +116,25 @@ public static partial class FlashKernel
         {
             if (x.B.Player.IsDead)
                 return;
+            // ContinueAutoPlayCards still writes ExhaustOnNextPlay on every remaining queued card
+            // before its AutoPlay call returns immediately because the combat is over/ending. The
+            // card that ended the combat moved itself to the tail; the not-yet-played cards stay
+            // contiguous at the index recorded before the move phase.
+            if (IsOverOrEnding(x.B))
+            {
+                for (int remaining = index; remaining < moved; remaining++)
+                {
+                    int position = start + remaining - index;
+                    if (position >= x.B.PlayCount)
+                        throw new FlashUnsupportedException("自动打出的牌堆顺序在结算中被改变。");
+                    ref FlashCard queued = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
+                    if (forceExhaust)
+                        queued.Flags |= FlashCardFlags.ExhaustOnNextPlay;
+                    else
+                        queued.Flags &= ~FlashCardFlags.ExhaustOnNextPlay;
+                }
+                return;
+            }
             // The moved cards stay contiguous at the play-pile index recorded before the move phase;
             // earlier auto-plays remove themselves (or move to another pile) and shift the rest left.
             if (start >= x.B.PlayCount || !SameAutoPlayQueueCard(FlashPiles.At(ref x.B, FlashPile.Play, start), cards[index]))

@@ -170,6 +170,11 @@ public static class FlashCardEffects
     /// </summary>
     public static void UpgradeCurrentCard(ref FlashExec x)
     {
+        // CombatPredictionSimulator.Upgrade is a no-op while the combat is ending; RazorTooth uses it
+        // for the played card and a card that lands the killing blow must stay unupgraded in the play
+        // pile at the resulting stable boundary.
+        if (FlashKernel.IsEnding(x.B))
+            return;
         int position = x.B.PlayCount - 1;
         if (position < 0)
             throw new InvalidOperationException("当前没有正在打出的卡。");

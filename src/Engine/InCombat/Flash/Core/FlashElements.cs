@@ -104,6 +104,7 @@ public struct FlashCard
     private const byte TemporaryStarPresentBit = 0x01;
     private const byte TemporaryStarClearsAtTurnEndBit = 0x02;
     private const byte TemporaryStarClearsWhenPlayedBit = 0x04;
+    private const byte CloneBit = 0x08;
     private const int EnchantmentStatusShift = 5;
 
     public ushort Id;
@@ -117,8 +118,9 @@ public struct FlashCard
 
     /// <summary>
     /// Bit 0: temporary star cost present; bit 1: it clears at turn end; bit 2: it clears when
-    /// played; bits 5-7: native enchantment status. The energy modifier count has its own byte so
-    /// the capacity is not limited to the two bits the packed state used to have.
+    /// played; bit 3: <see cref="IsClone"/>; bit 4 unused; bits 5-7: native enchantment status. The
+    /// energy modifier count has its own byte so the capacity is not limited to the two bits the
+    /// packed state used to have.
     /// </summary>
     public byte CostState;
 
@@ -148,6 +150,17 @@ public struct FlashCard
                 throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
             ModifierCount = (byte)value;
         }
+    }
+
+    /// <summary>
+    /// Native <c>CardModel.IsClone</c>. Clones skip the card-specific part of
+    /// <c>AfterCardEnteredCombat</c> (Stomp's cost reduction and similar); the bit lives in the spare
+    /// bit 3 of <c>CostState</c>, which the temporary-star and enchantment setters preserve.
+    /// </summary>
+    public bool IsClone
+    {
+        readonly get => (CostState & CloneBit) != 0;
+        set => CostState = (byte)((CostState & ~CloneBit) | (value ? CloneBit : 0));
     }
 
     public readonly bool HasTemporaryStarCost => (CostState & TemporaryStarPresentBit) != 0;

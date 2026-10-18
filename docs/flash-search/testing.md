@@ -111,6 +111,8 @@ Shadow 隔离（`NIBBITS_NORMAL`、`SLIMES_NORMAL`、`RUBY_RAIDERS_NORMAL`，FLA
 
 第 15 根在 On 模式中途中止：Thrash 把 `ModifyDamage` 的小数结果加进卡牌变量，Flash 内核抛出通用参数异常并逃出分发点。修正后该路径抛 `FlashUnsupportedException`，分发点把 Flash 搜索中的 `FlashUnsupportedException`/`FlashCapacityException` 当作内核边界回落现有求解器（`status=boundary`）；该根 On 结果与 Off 相同（失血 74，32.2 s 对 29.4 s）。差分探针同样把这类情况计为 `unsupported`。
 
+生成牌组差分（DX，2026-10-19）：对准入的 32 个生成牌组跑 48 条游走，固定根回归没有覆盖到的内容组合暴露出 10 个牌组的分歧与 2 处崩溃。逐个按现有引擎修正：`PendingPowerChanges` 嵌套排空（Vicious 抽到 Strike 后 Hellraiser 自动打出，外层用过期计数越界，改为先整批取走再派发，对应 `DrainPowerAmountChanges`）；自动打出攻击中的敌人死亡要在后续自动打出选目标前结算；玩家死亡后 DarkEmbrace、Juggling、Hellraiser、Rupture、CardPlayPair 的退役预测状态只在玩家已死亡时按惰性处理；Discovery/Splash 不再置风险位（现有引擎把它们登记为已补偿）；Pillage 读取刚抽到的那张牌而不是手牌末尾；Razor Tooth 的升级照 `Upgrade` 在战斗结束中不生效；自动打出队列在战斗结束时照现有引擎只写消耗标志；Thunderclap 与注入死亡生成的结算顺序；SecondWind 与 BurningSticks 的消耗核对。牌组收进 `coverage/corpora/flash-decks/`（33 份 spec 与 request），回归脚本对其逐个跑差分。修复后全量回归 238 行零差异，只有含 Thrash 的两个牌组按小数卡牌变量边界记 `unsupported`。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。

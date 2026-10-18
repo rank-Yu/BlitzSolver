@@ -42,7 +42,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 修正类 Hook（`ModifyDamage*`、`ModifyHpLost*`、`ShouldClearBlock` 等）不得改写状态：预报与评估会在只读语义下调用它们。需要随攻击捕获的值在 `BeforeAttack` 中记录（例如活力，对应 `VigorPowerMirrors.BeforeAttack`）。
 - 战斗正在结束时，战斗监听者的 Hook 返回空，`AfterCardPlayed`、`AfterBlockBroken`、`AfterAttack` 除外；伤害和死亡类的跑局监听者不受此限（`M/HookMirrors.cs:1351`）。`TryModifyEnergyCostInCombat`（普通与 Late）、`ModifyCardPlayResultLocation`、`ModifyCardPlayCount`、`ModifyXValue` 也通过 `IterateCombatHookListeners` 遍历，因此 Flash 在 `IsOverOrEnding` 时跳过它们；费用查询和评估在结束状态读到的是未修正费用。
 - 费用 Hook 是纯查询：普通阶段按战斗监听顺序跑一遍，再按同一顺序跑 Late 阶段；调用方最后 `(int)` 截断并钳制到 ≥ 0（`M/HookMirrors.cs:486-530`）。`AreCardsFree` 分支在 Flash 中没有内容。
-- `AfterPowerAmountChanged` 不在施加 Power 时立即派发：`ApplyWithBeforeApplied` 只把 `(PowerId, Delta, Applier)` 放进栈上的待处理队列，之后在现有引擎的同一位置调用 `ResolvePowerAmountChanges` 排空（卡牌补偿结束、`CompleteCardPlayEffects`、回合开始 `BeforeHandDraw` 后、`TriggerSideTurnStart` 末、玩家/敌方回合结束 `TriggerRegular` 后、敌人行动结束、敌人死亡效果末、药水使用后、Dominate 的 Vulnerable 与 Strength 之间）。排空时只遍历当前 Power（现有引擎 `EffectivePowers()`），按监听顺序对每条变化调用；Vicious 在“Delta > 0 且变化的是 Vulnerable 且施加者是持有者”时抽牌。旧引擎**没有**通用 `AfterApplied`；只有 PhantomBlades/Juggling/Feral 等个别初始化，Flash 在对应定义里另行处理。
+- `AfterPowerAmountChanged` 不在施加 Power 时立即派发：`ApplyWithBeforeApplied` 只把 `(PowerId, Delta, Applier)` 放进栈上的待处理队列，之后在现有引擎的同一位置调用 `ResolvePowerAmountChanges` 排空（卡牌补偿结束、`CompleteCardPlayEffects`、回合开始 `BeforeHandDraw` 后、`TriggerSideTurnStart` 末、玩家/敌方回合结束 `TriggerRegular` 后、敌人行动结束、敌人死亡效果末、药水使用后、Dominate 的 Vulnerable 与 Strength 之间）。排空时先把当前批次复制到栈上的 `drained` 并清空队列，再逐条派发；嵌套排空（Vicious 抽到 Strike 后 Hellraiser 自动打出）因此只能看到处理器新追加的变化，与现有引擎 `DrainPowerAmountChanges` 的先整批取走一致。派发只遍历当前 Power（现有引擎 `EffectivePowers()`），按监听顺序对每条变化调用；Vicious 在“Delta > 0 且变化的是 Vulnerable 且施加者是持有者”时抽牌。旧引擎**没有**通用 `AfterApplied`；只有 PhantomBlades/Juggling/Feral 等个别初始化，Flash 在对应定义里另行处理。
 - 现有引擎的 `ModifyPowerAmountForRelics` 在 Artifact 检查之前依次跑 `BeforePowerAmountChanged`、`ModifyPowerAmountGiven`（SneckoSkull）与 `TryModifyPowerAmountReceived`（RuinedHelmet）。Flash 实现接收侧的 `TryModifyPowerAmountReceived` 纯查询与 `AfterModifyingPowerAmountReceived`；修正阶段不得改写状态，RuinedHelmet 的“本场已用”标记在 After 阶段写入。
 - 卡牌从战斗外进入战斗时，`SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat` 先遍历卡牌拥有者的遗物（GhostSeed），再执行卡牌自身的 `AfterEnteredCombat`（Stomp、Pinpoint 等费用反应）。Flash 的 `FlashKernel.Generation` 的进入战斗路径按同一顺序派发。
 - 只有原版监听者时，旧引擎对回合阶段 Hook、Power 反应、最大能量与抽牌数、`BeforeHandDraw` 使用"先全部 Power、再全部遗物"的批量顺序，不按逐监听者顺序。Flash 在相同位置用相同的批量顺序。这一偏差以旧引擎为准。
@@ -82,7 +82,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 2. **支付**：重算两种费用和超额换算；记录 X 值与本次星能消耗；扣能量 → `AfterEnergySpent`；扣星能 → `AfterStarsSpent`。
 3. **进入打出区**：卡从手牌移到打出区（不触发 `AfterCardChangedPiles`）；确定基础去向（复制品或能力牌 → 无；下次打出时消耗或带消耗关键字 → 消耗堆；其余 → 弃牌堆；个别卡牌覆写）；`ModifyCardPlayResultLocation`，随后只对改变去向的监听者派发 `AfterModifyingCardPlayResultLocation`（Corruption 把 Skill 改成消耗；改变“移出战斗”的基础去向显式拒绝）；打出次数 = 附魔重放 + 1 → `ModifyCardPlayCount` → `AfterModifyingCardPlayCount`（只对改变次数的监听者；OneTwoPunch/Duplication 在此递减）；持有者已死则结束。
 4. **每次打出**：战斗已结束则停止；`BeforeCardPlayed`；历史计数；执行卡牌效果；结算卡牌自身选择。
-5. **卡牌效果顺序**：先执行旧引擎镜像部分（推断配方或专门镜像，即攻击、格挡、抽牌），再执行补偿部分（`CardEffectSpecRegistry` 与 `CorePowerSupport.ApplyCardPowers` 里的 Power、资源、生成效果）。**补偿效果总在镜像效果之后**，这是旧引擎的实际顺序，Flash 的卡牌定义分 `OnPlayMirrored` 与 `OnPlayCompensated` 两段实现。
+5. **卡牌效果顺序**：先执行旧引擎镜像部分（推断配方或专门镜像，即攻击、格挡、抽牌），再执行补偿部分（`CardEffectSpecRegistry` 与 `CorePowerSupport.ApplyCardPowers` 里的 Power、资源、生成效果）。**补偿效果总在镜像效果之后**，这是旧引擎的实际顺序。现有引擎在 `CorePowerSupport.ApplyCardPowers` 里先执行 `CardOnPlaySupport.Apply`，随后立即 `ApplyEnemyDeathPowers`，最后才进入该卡的专属补偿 `switch`；因此“镜像攻击击杀会生成新敌人的怪，再把 Power 施加到当前敌人”的卡（Thunderclap）必须在专属补偿前结算死亡。Flash 的对应定义在镜像攻击与专属补偿之间调用 `ApplyEnemyDeathPowers`，`PlayFromPlay` 还在整张卡的 `OnPlay` 之后、`OwnChoice` 之前补一次死亡结算。
 6. **收尾**：持有者已死则中止；附魔 OnPlay → 苦难 OnPlay；`AfterCardPlayed` 普通阶段 → 重新读取监听列表后跑 Late 阶段（战斗正在结束也照常触发）；`ResolvePowerAmountChanges`（`CompleteCardPlayEffects`）；生命周期计数。
 7. **去向**：仍在打出区的卡按去向处理（无 → 移出战斗；消耗 → `AfterCardExhausted`；否则加入目标牌堆）；不在嵌套效果中时触发 `AfterHandEmptied`；清理费用与目标。
 8. **动作边界**：结算敌人死亡效果（`ApplyEnemyDeathPowers`）→ 胜负判定 → 处理被请求的回合结束。
@@ -99,7 +99,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 2. 不可打出关键字、`ShouldPlay` 拒绝或无法解析目标时，`MoveToResultPileWithoutPlaying`：先加入打出区，再按 `ExhaustOnNextPlay`/消耗关键字进入消耗堆，否则进入弃牌堆；不触发任何出牌 Hook、计数或费用清理。
 3. 不支付能量/星能；`SpendResources(isAutoPlay: true, skipXCapture)` 只在 `!skipXCapture` 时把当前费用写入本次 X 值（X 费卡取当前能量），并记录星能值。`ManualCardsPlayedThisTurn` 不计自动打出。
 4. 目标：`AnyEnemy` 用 `CombatTargets` 流从 `HittableEnemies`（名单顺序、排除复活/永久死亡）取随机目标，候选为空时不消耗流；单人没有其他队友，`AnyAlly` 只有调用方已给出目标才成立；其他目标类型直接通过。
-5. `AutoPlayFromDrawPile` 先按现有引擎把最多 `count` 张抽牌堆顶牌移到打出区，再按顺序逐张自动打出；每张打出前写入 `ExhaustOnNextPlay = forceExhaust`（false 也写入）。打出的卡结果去向为消耗堆时清除该标志（`CardModel.GetResultLocationForCardPlay`），未打出而直接移入去向时保留（`MoveToResultPileWithoutPlaying`）。
+5. `AutoPlayFromDrawPile` 先按现有引擎把最多 `count` 张抽牌堆顶牌移到打出区，再按顺序逐张自动打出；每张打出前写入 `ExhaustOnNextPlay = forceExhaust`（false 也写入）。打出的卡结果去向为消耗堆时清除该标志（`CardModel.GetResultLocationForCardPlay`），未打出而直接移入去向时保留（`MoveToResultPileWithoutPlaying`）。自动打出中战斗结束/正在结束时，现有引擎仍对**剩余队列的每张卡**写入该标志，然后 `AutoPlay` 立即返回；Flash 在队列仍连续位于 `start` 的前提下复刻这一写入并停止。`count` 超过 `FlashLimits.Cards` 时抛 `FlashCapacityException`。
 6. 自动打出中的卡牌自身选择走现有嵌套选择协议：`OwnChoice` 请求选择、动作未携带时返回 `NeedsChoice`，调用方从父状态带选择重执行。生成选项（Discovery/Splash）的选择协议见 4.2。
 
 ### 4.2 卡池随机生成与变化
@@ -109,10 +109,10 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - **候选池在 Bridge 冻结。** 定义用 `FlashCardPools` 的键声明可能生成的池；`FlashRulesCompiler` 用现有引擎的同一枚举（`player.GetUnlocked...` + `FilterForCombatAndPlayerCount`，再按调用点的类型/费用/排除谓词过滤）把候选按原顺序写进 `FlashRules`。内核只按 RNG 取样，不重新过滤。
 - **取样。** 去重（`TakeRandom`）先对整个候选列表做一次 Fisher-Yates（`n-1` 次 `Shuffle` 流 `NextInt(n+1)`），再取前 `count` 张；有放回（`NextItem`）每张消耗一次 `CombatCardGeneration` 流 `NextInt(0, n)`。候选为空时不消耗 RNG。生成的卡按 `CreateCard` 创建为 0 级规范卡，`UpgradeIf` 再升级一次。
 - **加入战斗。** `AddGeneratedCard` 对应 `AddGeneratedCardsToCombat` 的单卡路径：手牌已满改投弃牌堆，按 `Bottom`/`Top`/`Random` 插入，调用卡的 `AfterEnteredCombat`。`SetToFreeThisTurn` 写入绝对 0 能量修饰（EndOfTurn|WhenPlayed）和 0 临时星能费用（回合末清除）。
-- **生成选项选择。** Discovery/Splash 先记录生成的选项并写入风险（旧引擎的 `History.CardGenerationOptions` + `RecordRisk(UnresolvedPlayerChoice)`），随后 `GetSpec` 的 `GenerateToHand` 分支在 `OwnChoice` 提问。Flash 把选项值直接放进 `FlashChoiceRequest.GeneratedOptions`（不在任何牌堆），选择后再 `CloneCard`、`SetToFreeThisTurn`、加入手牌；空选项也提一个空范围选择，与 `RangeSpec` 一致。
+- **生成选项选择。** Discovery/Splash 先记录生成的选项并写入风险（旧引擎的 `History.CardGenerationOptions` + `RecordRisk(UnresolvedPlayerChoice)`），随后 `GetSpec` 的 `GenerateToHand` 分支在 `OwnChoice` 提问。Flash 把选项值直接放进 `FlashChoiceRequest.GeneratedOptions`（不在任何牌堆），选择后按 `PredictedCard.Clone()` 的语义复制卡值（不是 `CreateClone`，`IsClone` 保持为假）、`SetToFreeThisTurn`、加入手牌；空选项也提一个空范围选择，与 `RangeSpec` 一致。
 - **变化。** `ReplaceCard` 对应 `CardCmd.Transform` 的现有引擎结算：从原牌堆移除原卡（`RemoveFromCombat`），再把替换卡插回 `min(原下标, 当前长度)` 并调用 `AfterEnteredCombat`；不触发 `AfterCardChangedPiles`。Flash 没有实例身份，按位置定位；PrimalForce 对 snapshot 的手牌攻击按升序原位替换为 GiantRock（PrimalForce 升级时 GiantRock 升 1 级）。
 - **随机药水。** 一次 `CombatPotionGeneration` `NextFloat` 选稀有度（Rare ≤ 0.1、Uncommon ≤ 0.35、否则 Common），再一次 `NextItem` 在冻结的同稀有度池中选；`TryProcurePotion` 放入第一个空槽，成功时记录 `LongTermResourceValue + 20`。
-- **风险。** `FlashBattleFlags.HasRisk` 只表示旧快照的**未补偿**风险（`snapshot.HasRisk`）；Discovery/Splash 记录 `UnresolvedPlayerChoice` 后置位，之后整场保持。根导入从快照读取该位；内核不尝试对其它风险原因做补偿分类。
+- **风险。** `FlashBattleFlags.HasRisk` 只表示旧快照的**未补偿**风险（`snapshot.HasRisk`）；根导入从快照读取该位并整场保持。Discovery/Splash 虽记录 `UnresolvedPlayerChoice`，但 `CardOnPlayCompensationCatalog` 把它们的 `OnPlay` 风险标为已补偿，`snapshot.HasRisk` 仍为假，因此内核不为它们置位，也不尝试对其它风险原因做补偿分类。
 
 ## 5. 伤害管线
 
@@ -180,7 +180,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 来源：`S/CombatPredictionSimulator.CardPile.cs`。
 
 - 小数抽牌数向上取整；`ShouldDraw` 失败则整次不抽。
-- 逐张：结束中或手牌达到上限则停止；抽牌堆空且弃牌堆非空时洗牌；取抽牌堆顶入手；历史 → `AfterCardDrawn` Early → 普通 → 被抽卡自身 Hook。
+- 逐张：结束中或手牌达到上限则停止；抽牌堆空且弃牌堆非空时洗牌；取抽牌堆顶入手；历史 → `AfterCardDrawn` Early → 普通 → 被抽卡自身 Hook。`TryDrawOne` 在抽牌前保存被抽卡的值；Pillage 用它判断“刚抽到的牌是否攻击”，即使 `AfterCardDrawn` 中的 Hellraiser 已把该牌自动打出并从手牌移除。
 - 洗牌：列表 = 弃牌堆（原顺序）+ 抽牌堆；按卡牌排序键稳定排序后用 `Shuffle` 流做不稳定洗牌（与 `StableShuffleProjection` 相同）；`ModifyShuffleOrder`；全部放到抽牌堆底；`ShuffleEventCount + 1`；战斗未结束时 `AfterShuffle`（TheAbacus 获得其 Unpowered 格挡）。排序键来自原版 `CardModel.CompareTo`，在根导入时编译进 `FlashRules`。
 - 随机插入牌堆位置用 `Shuffle` 流的 `NextInt(n + 1)`。手牌满时加入手牌的卡改进弃牌堆。
 

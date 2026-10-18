@@ -228,6 +228,16 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
+            // ICombatPredictionCardExecutionSink.ApplyCardPlayEffects settles newly dead enemies right
+            // after the card's Power compensation (before the card's own choice and tail). An auto-play
+            // that kills the Phrog Parasite must spawn its Wrigglers before the next queued auto-play
+            // picks a target.
+            ApplyEnemyDeathPowers(ref x);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
             // The existing engine normalizes card afflictions at the end of the compensated card
             // effects, before the card's own choice.
             NormalizeCardAfflictions(ref x);

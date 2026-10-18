@@ -262,16 +262,13 @@ public ref struct FlashExec
         };
     }
 
-    /// <summary>Removes the first <paramref name="count"/> resolved changes, keeping any appended during them.</summary>
-    public void ConsumePowerAmountChanges(int count)
-    {
-        int kept = PendingPowerChangeCount - count;
-        for (int index = 0; index < kept; index++)
-            PendingPowerChanges[index] = PendingPowerChanges[count + index];
-        for (int index = kept; index < PendingPowerChangeCount; index++)
-            PendingPowerChanges[index] = default;
-        PendingPowerChangeCount = kept;
-    }
+    /// <summary>
+    /// Empties the queue after its entries were copied out for dispatch. The existing engine's
+    /// <c>DrainPowerAmountChanges</c> clears the list before handlers run, so a nested resolution
+    /// (for example Vicious drawing a Strike that Hellraiser auto-plays) only sees changes appended
+    /// during the handlers, never the batch currently being dispatched.
+    /// </summary>
+    public void ClearPowerAmountChanges() => PendingPowerChangeCount = 0;
 
     /// <summary>
     /// Takes the next carried choice. When none is left, records <paramref name="request"/>, sets

@@ -133,13 +133,14 @@ public sealed class Pillage : FlashCardDef
         // Attack or the hand is full.
         while (true)
         {
-            int handBefore = x.B.HandCount;
-            FlashKernel.Draw(ref x, 1, fromHandDraw: false);
-            if (x.B.HandCount >= x.B.MaxHandSize || x.B.HandCount == handBefore)
-                break;
-            FlashCard drawn = FlashPiles.ReadCards(x.B, FlashPile.Hand)[x.B.HandCount - 1];
+            if (!FlashKernel.TryDrawOne(ref x, fromHandDraw: false, out FlashCard drawn))
+                return;
+            if (x.B.HandCount >= x.B.MaxHandSize)
+                return;
+            // CardDrawCardMirrors.PillageOnPlay tests the returned drawn card, which stays the same
+            // value even when AfterCardDrawn auto-played (Hellraiser) and removed it from hand.
             if (x.R.Card(drawn.Id, drawn.Upgrade).Type != FlashCardType.Attack)
-                break;
+                return;
         }
     }
 }

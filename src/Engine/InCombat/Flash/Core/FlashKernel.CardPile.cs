@@ -40,21 +40,41 @@ public static partial class FlashKernel
             return;
         for (int index = 0; index < count; index++)
         {
-            if (IsOverOrEnding(x.B) || x.B.HandCount >= x.B.MaxHandSize)
-                break;
-            ShuffleIfNecessary(ref x);
-            if (x.NeedsChoice)
-                return;
-            if (x.B.DrawCount == 0 || x.B.HandCount >= x.B.MaxHandSize)
-                break;
-            // AddToPile(top draw card, Hand, Bottom): the draw segment directly follows the hand.
-            FlashPiles.DrawTopToHand(ref x.B);
-            int position = x.B.HandCount - 1;
-            RecordCardDrawn(ref x, x.B.Cards[position], fromHandDraw);
-            AfterCardDrawn(ref x, position, fromHandDraw);
-            if (x.NeedsChoice)
+            if (!DrawOneCore(ref x, fromHandDraw, out _) || x.NeedsChoice)
                 return;
         }
+    }
+
+    /// <summary>
+    /// One <c>Draw(..., 1, ...)</c> call that also reports the card value at draw time. Pillage uses the
+    /// drawn card's type even when the draw hook auto-played and removed that card (Hellraiser), so a
+    /// hand-position check is not enough.
+    /// </summary>
+    public static bool TryDrawOne(ref FlashExec x, bool fromHandDraw, out FlashCard card)
+    {
+        card = default;
+        if (IsOverOrEnding(x.B) || !ShouldDraw(ref x, fromHandDraw))
+            return false;
+        return DrawOneCore(ref x, fromHandDraw, out card) && !x.NeedsChoice;
+    }
+
+    private static bool DrawOneCore(ref FlashExec x, bool fromHandDraw, out FlashCard card)
+    {
+        card = default;
+        if (IsOverOrEnding(x.B) || x.B.HandCount >= x.B.MaxHandSize)
+            return false;
+        ShuffleIfNecessary(ref x);
+        if (x.NeedsChoice)
+            return false;
+        if (x.B.DrawCount == 0 || x.B.HandCount >= x.B.MaxHandSize)
+            return false;
+        // AddToPile(top draw card, Hand, Bottom): the draw segment directly follows the hand.
+        FlashPiles.DrawTopToHand(ref x.B);
+        int position = x.B.HandCount - 1;
+        card = x.B.Cards[position];
+        RecordCardDrawn(ref x, card, fromHandDraw);
+        AfterCardDrawn(ref x, position, fromHandDraw);
+        return !x.NeedsChoice;
     }
 
     /// <summary>Native <c>Hook.ShouldDraw</c> through <c>HookMirrors.ShouldDraw</c>: any combat listener may prevent the draw.</summary>

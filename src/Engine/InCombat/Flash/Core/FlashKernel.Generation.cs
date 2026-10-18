@@ -109,9 +109,13 @@ public static partial class FlashKernel
         FlashHooks.Dispatch(ref x, ref entered, gatedByEnding: false);
         if (x.NeedsChoice)
             return;
-        FlashRegistry.Card(card.Id).AfterEnteredCombat(ref x, pile, index);
-        if (x.NeedsChoice)
-            return;
+        // CardEventHistory.AfterCardEnteredCombat returns before its card-specific switch for clones.
+        if (!card.IsClone)
+        {
+            FlashRegistry.Card(card.Id).AfterEnteredCombat(ref x, pile, index);
+            if (x.NeedsChoice)
+                return;
+        }
         // SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat ends with the affliction
         // normalization (the one-time Vital Spark/Smog entry check lives there).
         NormalizeCardAfflictions(ref x);
@@ -157,6 +161,7 @@ public static partial class FlashKernel
         clone.Flags &= ~(FlashCardFlags.ExhaustOnNextPlay | FlashCardFlags.DeckCard
             | FlashCardFlags.RemovedFromState | FlashCardFlags.PowerAfflictionChecked);
         clone.Keywords |= FlashKeywords.CreatedAfterRoot;
+        clone.IsClone = true;
         return clone;
     }
 

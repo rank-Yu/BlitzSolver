@@ -47,11 +47,14 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 
 - `SurroundedPower`（KAISER_CRAB_BOSS）：玩家死亡时 `HandlePlayerDeath` 清空玩家 Power，`SurroundedPredictionState` 仍按退役的 Power 实例留在 store。`Facing` 只被 `BeforeCardPlayed` 与 `ModifyDamageMultiplicative` 读取，而这两个入口都只在玩家存活、Power 仍为正层时遍历 `EffectivePowers`；退役实例不可能再被遍历，因此按惰性处理（`RequireAllClaimed` 放过 `SurroundedPower { Amount: 0 }` 的 `SurroundedPredictionState`）。存活时其值由 `ProjectPower` 认领并写入 `FlashPower.Aux0`。
 - `CurlUpPower`（LOUSE_PROGENITOR_NORMAL）：触发后 Power 自身归零移除，store 条目保留 `Consumed`/已清空的 `PlayedCard`。它的两个 Hook（`AfterDamageReceived`、`AfterCardPlayed`）只访问正层的有效 Power，重新获得的 Power 是新的原生实例，旧条目不会再被读；因此 `CurlUpPower { Amount: 0 }` 的 `CurlUpPredictionState` 按惰性处理。
+- 玩家死亡后的退役 Power 状态：`HandlePlayerDeath` → `RemovePowersAfterDeath` 把玩家 Power 数量归零并移除，但 `DarkEmbracePredictionState`、`JugglingPredictionState`、`HellraiserPredictionState`、`RupturePredictionState` 与 `CardPlayPairPredictionState` 仍留在 store。它们的读取点都是该 Power 自己的 Hook，只遍历正层的 `EffectivePowers`；`CardPlayPair` 的全局清理只删除进行中的 `CardPlay` 键。玩家已死亡，后续不会再有出牌、抽牌或回合阶段，因此这些条目按惰性处理。
 - `_tenderCardsPlayed`（HUNTER_KILLER_NORMAL）：不是 store 条目，而是 `SimulatedCombatState` 的分支字典。`TenderPower` 正层时由 `ProjectPower` 通过 `GetTenderCardsPlayed` 写入 `FlashPower.Aux0`（有字典条目取条目，否则取条目构造器会读的原生字段）。玩家死亡清空 Power 后字典可能留下非零值，但 `GetTenderCardsPlayed` 只在正层 `TenderPower` 的 Hook/指纹读取，退役值不可能再被读，故 `DescribeFlashUnrepresentableState` 不再整体拒绝该表。
 
 `FlashKernel.ApplyEnemyDeathPowers` 在清空死亡 Power 之前按 `FlashPowerDef.DeathTrigger` 执行 `DeathPowerSupport.Trigger` 的死亡分支（Reattach、Infested、Surrounded 的朝向更新）；Reattach 段的导入允许 `Reviving` 阶段配原生 `DEAD_MOVE`/`REATTACH_MOVE`，只有幻象型怪物要求 `Reviving` 必须处于合成 `REVIVE_MOVE`。
 
 怪物私有整数（`_monsterIntStates`）走同一条认领规则：`FlashStateProjections.ProjectMonster` 按已知敌人的 `FlashMonsterDef.AiRegisterNames` 把值写入 `FlashEnemy.Ai`，并按 `InertMonsterIntNames` 认领只被状态指纹/续接文本读取的条目（目前是乐加维林族母与沉睡甲虫的 `_isAwake`）。寄存器取值调用现有 `GetMonsterInt`，即优先捕获条目、没有条目时读模型字段，所以惰性条目与缺失条目的投影相同。其余条目一律按 `UnrepresentableState` 拒绝；`DescribeFlashUnrepresentableState` 不再整体拒绝 `_monsterIntStates`。
+
+**退役状态的玩家死亡前提**：上面的惰性规则要求 `model.Amount == 0`、`model.Owner.Player` 存在且该玩家生物在模拟状态里已经死亡；存活玩家的退役 Power 状态仍被拒绝，不把“暂时归零但仍可能被读”的情况放宽。
 
 **卡牌苦难与附魔投影（KA）**：`FlashStateImporter.Card` 读取 `Preview.Affliction`（Id、Amount）与 `Preview.Enchantment`（Id、Amount、Status、私有值），只接受 `FlashRegistry` 中已登记的苦难/附魔，其余按 `UnsupportedAffliction`/`UnsupportedEnchantment` 拒绝；Id 以 `+1` 编码，0 表示无。附魔私有值复用 `EnchantmentStateSupport.TryGetPrivateValue`（`Glam._usedThisCombat`、`Momentum._extraDamage`，与状态指纹同一读取口径），桥接层不新增反射。根卡牌的 `PowerAfflictionChecked` 置位，表示它们已参与现有引擎的一次性进场检查。`SimulatedCombatState.LastNormalizedVitalSparkAmountForFlash` 是只读访问器，导入 `VitalSparkNormalizedAmount`（`int.MinValue` 表示 null）；`SkillPlayedThisSideTurn` 从 `HasPlayedSkillThisTurn` 导入。已实现 18 个附魔：Sharp、Instinct、Corrupted、Momentum、Nimble、Goopy、TezcatarasEmber、Vigorous、Adroit、Inky、Sown、Swift、Glam、Spiral、Clone、Steady、RoyallyApproved、SoulsPower；Imbued、Slither、SlumberingEssence、PerfectFit 仍按未支持附魔拒绝（分别需要自动预打出、抽牌随机费用、BeforeFlush、按实例的洗牌顺序）。
 
@@ -82,7 +85,7 @@ Project(Old.Step(s, a)) == Flash.Step(Project(s), a)     （逐字节）
 
 比较失败时输出第一处差异的字段路径（例如 `Enemies[1].Powers[VULNERABLE].Amount: old=2 flash=3`）、动作序列与种子，便于直接复现。
 
-K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一分数，路线质量的差别只来自搜索结构本身。K5 让 incumbent 下界剪枝的输入与现有主搜索成员相同：同一状态得到同一 `StrategicHpLowerBound` 与 `costClosed`/`pruneEqualHp` 依据；汇总行的 `bound=checked boundChecked=N boundFailed=0` 表示已比较，`bound=disabled(<原因>)` 表示该根显式关闭剪枝。
+K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一分数，路线质量的差别只来自搜索结构本身。威胁投影的 `ProjectedPlayerHp` 在玩家已死亡时仍按现有引擎的 run-listener 表读取遗物/卡牌修正（例如 Tungsten Rod 的每击减伤）；Flash 的评分探针在只读副本上打开 `PlayerHooksActive`，不改变被评估状态。K5 让 incumbent 下界剪枝的输入与现有主搜索成员相同：同一状态得到同一 `StrategicHpLowerBound` 与 `costClosed`/`pruneEqualHp` 依据；汇总行的 `bound=checked boundChecked=N boundFailed=0` 表示已比较，`bound=disabled(<原因>)` 表示该根显式关闭剪枝。
 
 差分测试只证明"与现有引擎一致"。现有引擎与原版是否一致由既有的 actual/simulated 严格差分保证，不在这里重复。
 
@@ -91,7 +94,7 @@ K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一
 Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](search.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
 
 - 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式回落旧后端，Shadow 模式记为 `status=mismatch`。
-- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时同样回落旧后端，记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。
+- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时同样回落旧后端，记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。当前明确边界之一是 Thrash：现有引擎把 `ModifyDamage` 的小数结果写进卡牌 `DynamicVars.Damage`，而 `FlashCard` 的语义变量是整数；没有可以精确复现的整数化/取整规则，因此该路径抛 `FlashUnsupportedException`，不截断、不近似。
 - 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。
 
 ## 5. 失败处理约束

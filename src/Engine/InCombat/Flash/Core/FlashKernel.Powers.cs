@@ -133,12 +133,20 @@ public static partial class FlashKernel
     /// </summary>
     public static void ResolvePowerAmountChanges(ref FlashExec x)
     {
+        // PowerLifecycleSupport.ResolvePowerAmountChanges drains the whole pending list before it
+        // dispatches any handler. Keeping the batch in flight in FlashExec would let a nested
+        // resolution (Vicious -> draw -> Hellraiser auto-play -> PlayFromPlay) consume the outer
+        // batch and leave its captured count stale.
+        Span<FlashPowerAmountChange> drained = stackalloc FlashPowerAmountChange[FlashLimits.PendingPowerAmountChanges];
         while (x.PendingPowerChangeCount > 0)
         {
             int count = x.PendingPowerChangeCount;
             for (int index = 0; index < count; index++)
+                drained[index] = x.PendingPowerChanges[index];
+            x.ClearPowerAmountChanges();
+            for (int index = 0; index < count; index++)
             {
-                FlashPowerAmountChange change = x.PendingPowerChanges[index];
+                FlashPowerAmountChange change = drained[index];
                 AfterPowerAmountChangedHook hook = new()
                 {
                     PowerId = change.PowerId,
@@ -149,7 +157,6 @@ public static partial class FlashKernel
                 if (x.NeedsChoice)
                     return;
             }
-            x.ConsumePowerAmountChanges(count);
         }
     }
 

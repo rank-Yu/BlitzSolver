@@ -41,8 +41,9 @@ public enum FlashBattleFlags : byte
     PendingLoss = 1 << 3,
 
     /// <summary>
-    /// Native <c>CombatPredictionSimulator.HasRisk</c>: the route recorded an unresolved player
-    /// choice (Discovery/Splash generated options). Monotonic for the rest of the combat.
+    /// Native <c>CombatPredictionSimulator.HasRisk</c> (the snapshot's uncompensated risk). Imported
+    /// from the root; generated-card choices are compensated, so the kernel never raises it itself.
+    /// Monotonic for the rest of the combat.
     /// </summary>
     HasRisk = 1 << 4,
 }

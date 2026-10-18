@@ -215,7 +215,9 @@ public sealed class Splash : FlashCardDef
             x.GeneratedOptions[index] = options[index];
         }
         x.GeneratedOptionCount = count;
-        x.B.Flags |= FlashBattleFlags.HasRisk;
+        // RecordOptions records UnresolvedPlayerChoice, but PredictionCoverage treats every OnPlay
+        // risk from a compensated card as compensated and snapshot.HasRisk stays false. The kernel
+        // therefore does not raise the flag; only the imported root's uncompensated risk does.
     }
 
     public override void OwnChoice(ref FlashExec x)
@@ -229,7 +231,9 @@ public sealed class Splash : FlashCardDef
             return;
         if (selectedCount == 0)
             return;
-        FlashCard card = FlashKernel.CloneCard(x.GeneratedOptions[selected[0]]);
+        // CardChoiceResolution.AddGeneratedSelectionToHand uses PredictedCard.Clone(), which clones
+        // the prediction wrapper only and leaves IsClone false; it is not a gameplay clone.
+        FlashCard card = x.GeneratedOptions[selected[0]];
         FlashKernel.MakeFreeThisTurn(x.R, ref card);
         FlashKernel.AddGeneratedCard(ref x, card, FlashPile.Hand);
     }

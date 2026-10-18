@@ -176,8 +176,9 @@ public sealed class Discovery : FlashCardDef
         for (int index = 0; index < count; index++)
             x.GeneratedOptions[index] = options[index];
         x.GeneratedOptionCount = count;
-        // CardGenerationOptions + RecordRisk(UnresolvedPlayerChoice).
-        x.B.Flags |= FlashBattleFlags.HasRisk;
+        // CardGenerationOptions + RecordRisk(UnresolvedPlayerChoice) are compensated for Discovery
+        // by CardOnPlayCompensationCatalog, so snapshot.HasRisk remains false; see the Colorless
+        // Splash definition for the same reasoning.
     }
 
     public override void OwnChoice(ref FlashExec x)
@@ -191,7 +192,9 @@ public sealed class Discovery : FlashCardDef
             return;
         if (selectedCount == 0)
             return;
-        FlashCard card = FlashKernel.CloneCard(x.GeneratedOptions[selected[0]]);
+        // CardChoiceResolution.AddGeneratedSelectionToHand uses PredictedCard.Clone(), which clones
+        // the prediction wrapper only and leaves IsClone false; it is not a gameplay clone.
+        FlashCard card = x.GeneratedOptions[selected[0]];
         FlashKernel.MakeFreeThisTurn(x.R, ref card);
         FlashKernel.AddGeneratedCard(ref x, card, FlashPile.Hand);
     }
