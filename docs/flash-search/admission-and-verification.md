@@ -22,7 +22,9 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `Capacity` | 估计的牌数、Power 数、敌人数超出容量 |
 | `UnsupportedRequest` | 本次 `Solve()` 参数含 Flash 尚未支持的选项（见 [搜索与接入](search.md#3-请求参数)） |
 
-**可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么（固定列表或"某角色某稀有度的卡池"这类池引用）；池在根导入时按原版数据展开。怪物的召唤表、给玩家塞入的状态牌也在闭包内。闭包里任何一项没有定义就拒绝，避免搜索中途遇到未知内容。
+**可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么（固定列表或"某角色某稀有度的卡池"这类池引用）；池在根导入时按原版数据展开。怪物的召唤表（`FlashMonsterDef.SpawnedMonsterIds`）、给玩家塞入的状态牌也在闭包内。闭包里任何一项没有定义就拒绝，避免搜索中途遇到未知内容。
+
+怪物的可生成类型在 `FlashRulesCompiler` 中编译：每个类型在根模拟器的私有 Fork 上执行现有引擎的创建路径（`MonsterSpawnSupport.Create` + `AddPredictedMonster` + `PreparePredictedMonster`），状态机、静态值与初始私有整数都从这次创建结果读取，不手抄。规则表容量是 `FlashLimits.MonsterRules`，超出按 `Capacity` 拒绝。根持有 `Murderous` 修饰而闭包非空时拒绝（`UnsupportedClosure`，新敌人的入场力量未移植）；贤者之石、毛皮大衣没有 Flash 遗物定义，持有它们的根在导入阶段按 `UnsupportedRelic` 拒绝。
 
 准入只做判断，不修改任何状态。拒绝原因写入诊断，用于覆盖率统计。
 
@@ -38,6 +40,8 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 选择不需要投影：`FlashChoiceTranslator` 用旧引擎逐次回放带选择的动作，差分探针同时比较每个选择请求的效果、来源、时机、数量与同序选项（卡牌 Id 与升级），K1 对每个动作展开全部选择组合（每个动作至多 64 个），K2 随机挑合法选择。
 
 模型私有状态（`FlashStateProjections`）：`PredictionStateStore` 的每个条目都必须被某个投影认领（按 Power/遗物写入 `FlashPower.Aux*` 或遗物计数，值取条目，没有条目时取条目构造器会读取的模型数据），或被证明无效；其余条目一律拒绝。无效条目只有两类：等于当前 Power 数量的 `PowerAmountPredictionState`（同步时只会被删除）；敌方生物离开战斗后其 Power 的任何条目（现有引擎只经由仍在战斗中的生物身上的 Power 读取条目，离场的敌人不会回来）。新增投影与对应 Flash 定义一起提交，差分探针逐步比较投影值。
+
+怪物私有整数（`_monsterIntStates`）走同一条认领规则：`FlashStateProjections.ProjectMonster` 按已知敌人的 `FlashMonsterDef.AiRegisterNames` 把值写入 `FlashEnemy.Ai`，并按 `InertMonsterIntNames` 认领只被状态指纹/续接文本读取的条目（目前只有乐加维林族母的 `_isAwake`）。寄存器取值调用现有 `GetMonsterInt`，即优先捕获条目、没有条目时读模型字段，所以惰性条目与缺失条目的投影相同。其余条目一律按 `UnrepresentableState` 拒绝；`DescribeFlashUnrepresentableState` 不再整体拒绝 `_monsterIntStates`。
 
 投影只读不写：旧引擎的本回合计数读取器首次读取时会从根历史填充缓存，因此 `FlashStateImporter` 先 Fork 一份私有模拟器再读取，调用方持有的状态（可能正被其他工作线程 Fork）保持不变。
 

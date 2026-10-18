@@ -7,7 +7,7 @@ public sealed class FuzzyWurmCrawler : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "INHALE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "INHALE")
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 7, owner);
     }
 }
@@ -22,7 +22,7 @@ public sealed class Nibbit : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SLICE_MOVE":

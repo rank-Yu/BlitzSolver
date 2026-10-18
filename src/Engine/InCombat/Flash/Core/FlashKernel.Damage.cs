@@ -409,7 +409,7 @@ public static partial class FlashKernel
             x.B.Enemies[newlyDead[index]].Flags |= FlashEnemyFlags.DeathProcessed;
             // DeathPowerSupport.Trigger: no supported death powers yet. Stolen-resource recovery is
             // rejected at admission until theft is supported.
-            RemovePowersOf(ref x.B, owner);
+            RemovePowersAfterDeath(ref x, owner);
             ref FlashEnemy enemy = ref x.B.Enemies[newlyDead[index]];
             if (enemy.DeathPhase != FlashDeathPhase.Reviving)
                 enemy.DeathPhase = FlashDeathPhase.PermanentlyDead;
@@ -418,5 +418,44 @@ public static partial class FlashKernel
                 return;
         }
         // ResolvePowerAmountChanges: no supported amount-change listeners yet.
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.RemovePowersAfterDeath</c>
+    /// (<c>SimulatedCombatState.DeathLifecycle.cs</c>): an illusion owner keeps its buffs and
+    /// temporary debuffs; every other power follows
+    /// <see cref="FlashPowerDef.ShouldPowerBeRemovedAfterOwnerDeath"/>. A creature no longer in the
+    /// roster loses everything.
+    /// </summary>
+    private static void RemovePowersAfterDeath(ref FlashExec x, byte owner)
+    {
+        bool illusionHook = false;
+        if (InRoster(x.B, owner))
+        {
+            for (int index = 0; index < x.B.PowerCount; index++)
+            {
+                ref readonly FlashPower power = ref x.B.Powers[index];
+                if (power.Owner == owner && power.Amount > 0
+                    && FlashRegistry.Power(power.Id).KeepsOwnerBuffsAfterDeath)
+                {
+                    illusionHook = true;
+                    break;
+                }
+            }
+        }
+        for (int index = x.B.PowerCount - 1; index >= 0; index--)
+        {
+            ref readonly FlashPower power = ref x.B.Powers[index];
+            if (power.Owner != owner || power.Amount == 0)
+                continue;
+            FlashPowerDef def = FlashRegistry.Power(power.Id);
+            bool keep = !def.ShouldPowerBeRemovedAfterOwnerDeath;
+            if (illusionHook)
+                keep = def.Type != FlashPowerType.Debuff || def.IsTemporaryPower;
+            if (!keep)
+                SetPowerAmount(ref x.B, owner, power.Id, 0);
+        }
+        if (!InRoster(x.B, owner))
+            RemovePowersOf(ref x.B, owner);
     }
 }

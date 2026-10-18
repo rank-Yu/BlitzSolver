@@ -40,6 +40,7 @@ public sealed class FlexPotionPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override bool IsTemporaryPower => true;
     public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
     {
         if (participates)
@@ -78,6 +79,7 @@ public sealed class SpeedPotionPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override bool IsTemporaryPower => true;
     public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
     {
         if (!participates)

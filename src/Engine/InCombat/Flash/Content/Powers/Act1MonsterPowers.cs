@@ -63,6 +63,39 @@ public sealed class MinionPower : FlashPowerDef
     public override FlashPowerStackType StackType => FlashPowerStackType.Single;
 
     public override bool OwnerIsSecondaryEnemy => true;
+
+    // Native MinionPower.ShouldPowerBeRemovedAfterOwnerDeath: false.
+    public override bool ShouldPowerBeRemovedAfterOwnerDeath => false;
+}
+
+/// <summary>
+/// Native <c>IllusionPower</c> (EyeWithTeeth and Parafright): a single buff that keeps its owner in
+/// the roster after death and, on death, forces the synthetic REVIVE_MOVE. The solver's
+/// <c>BeginIllusionRevive</c> (<c>SimulatedCombatState.DeathLifecycle.cs:100-119</c>) selects the
+/// last logged non-revive move as the follow-up; <c>ReviveMove</c> heals the owner to its max HP and
+/// clears the reviving death phase (<c>ResolveReviveMove</c>, same file). While the power is on the
+/// dead owner, the solver keeps its buffs and temporary debuffs and removes other debuffs
+/// (<c>RemovePowersAfterDeath</c>), exposed to the kernel as
+/// <see cref="KeepsOwnerBuffsAfterDeath"/>.
+/// </summary>
+[FlashContent("ILLUSION_POWER")]
+public sealed class IllusionPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+
+    // ICombatPredictionCreatureSemantics.ShouldRemoveAfterDeath keeps an owner with IllusionPower.
+    public override bool PreventsRemovalAfterDeath => true;
+
+    public override bool KeepsOwnerBuffsAfterDeath => true;
+
+    public override void AfterDeath(ref FlashExec x, FlashListener self, byte creature, bool wasRemovalPrevented)
+    {
+        if (wasRemovalPrevented || creature != self.Owner)
+            return;
+        FlashKernel.BeginIllusionRevive(ref x, self.Owner);
+    }
 }
 
 /// <summary>
@@ -263,7 +296,7 @@ public sealed class AsleepPower : FlashPowerDef
         if (result.Receiver != self.Owner || result.UnblockedDamage == 0)
             return;
         FlashKernel.SetPowerAmount(ref x.B, self.Owner, FlashRegistry.PowerId<PlatingPower>(), 0);
-        FlashKernel.ForceStunnedMove(ref x, self.Owner, x.R.Monster(self.Owner).NodeIndex("SLASH_MOVE"));
+        FlashKernel.ForceStunnedMove(ref x, self.Owner, FlashKernel.MonsterRules(ref x, self.Owner).NodeIndex("SLASH_MOVE"));
         FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
     }
 
@@ -327,7 +360,7 @@ public sealed class ShriekPower : FlashPowerDef
         {
             return;
         }
-        FlashKernel.ForceStunnedMove(ref x, self.Owner, x.R.Monster(self.Owner).NodeIndex("TERROR_MOVE"));
+        FlashKernel.ForceStunnedMove(ref x, self.Owner, FlashKernel.MonsterRules(ref x, self.Owner).NodeIndex("TERROR_MOVE"));
         FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
     }
 }

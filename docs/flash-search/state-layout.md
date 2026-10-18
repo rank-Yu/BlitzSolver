@@ -7,7 +7,7 @@
 ## 1. 归属原则
 
 - **进入 `FlashBattle`**：会随分支变化、并影响后续合法动作或结算的值。范围以 AGENTS.md 第 5 节的状态清单和旧引擎状态键（`BuildStateKey`、`SimulatedCombatState.AppendFingerprint`）为下限；旧状态键漏掉但影响未来结算的值（例如回合数、Power 的 `AmountOnTurnStart`）同样进入。
-- **进入 `FlashRules`**：根导入时冻结、整场搜索不变的值。包括卡牌各升级等级的基础数值与费用、怪物行动的静态参数与编译后的状态机、根监听前缀顺序、最大能量基础值、手牌上限、药水槽数、卡牌洗牌排序键。`FlashRules` 是不可变引用类型，所有分支共享。
+- **进入 `FlashRules`**：根导入时冻结、整场搜索不变的值。包括卡牌各升级等级的基础数值与费用、怪物行动的静态参数与编译后的状态机、可生成怪物的闭包条目、遭遇槽名、根监听前缀顺序、最大能量基础值、手牌上限、药水槽数、卡牌洗牌排序键。`FlashRules` 是不可变引用类型，所有分支共享。
 - **都不进入**：纯 UI、日志、显示名、派生启发式值。历史日志只保留会影响结算的计数器。
 
 ## 2. 结构
@@ -19,7 +19,7 @@
 | Header | 回合数、轮次、当前方、玩家阶段、终局结果、`ShufflesCrossed`、下一个 CombatId、标志位（玩家 Hook 激活、回合结束请求、正在结束） | — |
 | Player | `FlashCreature`（HP、MaxHP、格挡、标志）、能量、星能、金币、手牌上限 | 1 |
 | Osty | `FlashCreature` 与存在标志 | 1 |
-| Enemies | `FlashEnemy`：`FlashCreature`、怪物 Id、CombatId、槽位、死亡阶段、当前状态机节点、最近行动日志、私有 AI 寄存器、跳过行动/强制行动标志 | 8 |
+| Enemies | `FlashEnemy`：`FlashCreature`、怪物 Id、规则条目下标、CombatId、遭遇槽下标、死亡阶段、当前状态机节点、最近行动日志、私有 AI 寄存器、跳过行动/强制行动标志 | 8 |
 | Powers | `FlashPower`：Power Id、持有者、施加者、数量、`AmountOnTurnStart`、两个辅助计数、标志（跳过下次衰减、刚由敌人施加等） | 64 |
 | Cards | `FlashCard`，五个牌堆连续存放：手牌、抽牌堆、弃牌堆、消耗堆、打出区 | 128 |
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
@@ -54,8 +54,11 @@
 
 - 药水槽、附魔、苦难存"内部 Id + 1"，0 表示空。卡牌、Power、遗物、怪物直接存内部 Id。
 - 敌人是否为主要敌人不存标志，与旧引擎一样由其持有的 Power 推出（`OwnerIsSecondaryEnemy`）。
+- `FlashEnemy.Rules` 是 `FlashRules` 怪物规则表的下标。根已知敌人按 `KnownEnemies` 下标占据表的前 `RootEnemyCount` 项，之后每个可生成怪物类型一项；已知敌人数组只追加，所以新敌人的规则编号由怪物 Id 查可生成表（`FlashRules.SpawnRulesId`）。
+- `FlashEnemy.Slot` 是遭遇槽下标（`FlashRules.EncounterSlots` 的顺序），没有槽名时为 255。名单（`Roster`）按槽下标稳定升序，255 视作 -1 排在有名字的槽位之前；名单顺序就是 Hook 监听与敌方行动顺序。
 - `FlashEnemyFlags.PerformedMoveThisRound`、`ForcedMustPerformAfterMove` 与 `ActingThisRound` 只在敌方回合内部使用，任何稳定边界上都为 0。
-- `FlashEnemy.ForcedMove` 是合成 STUNNED 节点的动态后继（原版 `MoveState("STUNNED").FollowUpStateId`），当前节点不是 STUNNED 时恒为 255。布局不因此改变。
+- `FlashEnemy.ForcedMove` 是合成 STUNNED 或 REVIVE_MOVE 节点的动态后继（原版 `MoveState("STUNNED"/"REVIVE_MOVE").FollowUpStateId`），当前节点不是这两个合成节点时恒为 255。布局不因此改变。
+- `FlashBattle.NextCombatId` 是旧引擎的 `_nextCreatureId`；生成敌人时先取当前值再递增。
 - 怪物行动日志存"曾经用过的行动位集"加最近 8 条；原版重复规则只读这两部分。冷却或连续次数超出 8 的状态机在运行时抛 `FlashUnsupportedException`。
 
 ## 3. 规范化
@@ -81,4 +84,4 @@
 
 ## 6. 尺寸预算
 
-首版实测 6240 字节，其中卡牌区 3072 字节（96 张 × 32 字节）。复制 6 KB 在现代 CPU 上约百纳秒量级。F1 完成后测量单步转移耗时；如果复制成本占主导，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充，`FlashBattle` 实测仍为 6240 字节（首版卡牌区 3072 字节，96 张 × 32 字节）。复制 6 KB 在现代 CPU 上约百纳秒量级。F1 完成后测量单步转移耗时；如果复制成本占主导，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。

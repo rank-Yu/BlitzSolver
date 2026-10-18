@@ -20,7 +20,7 @@ public sealed class Vantom : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "DISMEMBER_MOVE":
                 for (int index = 0; index < DismemberWounds; index++)
@@ -49,7 +49,7 @@ public sealed class KinPriest : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "ORB_OF_FRAILTY_MOVE":
@@ -82,7 +82,7 @@ public sealed class KinFollower : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "POWER_DANCE_MOVE")
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
                 rules.StaticInts[DanceStrength], owner);
@@ -110,7 +110,7 @@ public sealed class PhantasmalGardener : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "ENLARGE_MOVE")
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
                 rules.StaticInts[EnlargeStr], owner);
@@ -118,7 +118,7 @@ public sealed class PhantasmalGardener : FlashMonsterDef
 
     public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "INIT_MOVE")
             return -1;
         string move = (owner - FlashLimits.FirstEnemyOwner) switch
@@ -151,9 +151,13 @@ public sealed class LagavulinMatriarch : FlashMonsterDef
 
     public override IReadOnlyList<string> StaticIntNames => ["Slash2Block"];
 
+    // The existing engine's fingerprint/continuation text reads _isAwake, but no resolution path
+    // does (move selection reads the AsleepPower amount, and STUNNED only clears Plating).
+    public override IReadOnlyList<string> InertMonsterIntNames => ["_isAwake"];
+
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SLASH2_MOVE":
@@ -174,7 +178,7 @@ public sealed class LagavulinMatriarch : FlashMonsterDef
 
     public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "SLEEP_BRANCH")
             return -1;
         return FlashKernel.GetAmount(x.B, owner, FlashRegistry.PowerId<Powers.AsleepPower>()) > 0

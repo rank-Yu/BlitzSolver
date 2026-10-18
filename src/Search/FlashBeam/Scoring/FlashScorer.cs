@@ -583,7 +583,7 @@ internal sealed class FlashScorer
                 continue;
             // Forced moves are not part of the admitted Act-1 content closure; a forced node would have
             // been rejected at admission.
-            FlashMonsterNode move = Rules.Monster(owner).Nodes[enemy.Move];
+            FlashMonsterNode move = Rules.MonsterRule(enemy.Rules).Nodes[enemy.Move];
             for (int attackIndex = 0; attackIndex < move.Attacks.Length; attackIndex++)
             {
                 FlashMonsterAttack attack = move.Attacks[attackIndex];
@@ -788,7 +788,7 @@ internal sealed class FlashScorer
             int currentThreat = 0;
             if ((enemy.Flags & FlashEnemyFlags.SkipNextMove) == 0)
             {
-                FlashMonsterNode move = Rules.Monster(owner).Nodes[enemy.Move];
+                FlashMonsterNode move = Rules.MonsterRule(enemy.Rules).Nodes[enemy.Move];
                 for (int attackIndex = 0; attackIndex < move.Attacks.Length; attackIndex++)
                 {
                     FlashMonsterAttack attack = move.Attacks[attackIndex];

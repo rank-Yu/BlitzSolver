@@ -16,6 +16,13 @@ public static class FlashLimits
     public const int RngStreams = 9;
     public const int EnemyAiRegisters = 4;
     public const int EnemyRecentMoves = 8;
+
+    /// <summary>
+    /// Total monster rule entries: the root's known enemies first, then one entry per spawnable
+    /// monster type in the closure (<c>FlashRulesBuilder.SetMonster</c>/<c>AddSpawnableMonster</c>).
+    /// </summary>
+    public const int MonsterRules = 32;
+
     public const int CardEnergyCostModifiers = 2;
     public const int MaxChoices = 4;
 

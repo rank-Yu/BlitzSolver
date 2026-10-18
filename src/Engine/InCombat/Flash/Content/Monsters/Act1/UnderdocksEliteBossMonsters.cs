@@ -15,7 +15,7 @@ public sealed class FossilStalker : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "TACKLE_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "TACKLE_MOVE")
             FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
                 FlashRegistry.PowerId<Powers.FrailPower>(), 1, owner);
     }
@@ -44,7 +44,7 @@ public sealed class SoulFysh : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "BECKON_MOVE":
@@ -87,7 +87,7 @@ public sealed class SkulkingColony : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "INERTIA_MOVE")
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
                 rules.StaticInts[InertiaStrengthGain], owner);
@@ -108,7 +108,7 @@ public sealed class TerrorEel : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "TERROR_MOVE":
                 FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,

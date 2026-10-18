@@ -125,8 +125,20 @@ public sealed class FlashMonsterNode
 /// <summary>Root-frozen data of one known enemy: its compiled state machine and static values.</summary>
 public sealed class FlashMonsterRules
 {
+    /// <summary>Internal id of the monster type (<see cref="FlashRegistry.Monster"/>).</summary>
+    public required ushort MonsterId { get; init; }
+
     public required FlashMonsterNode[] Nodes { get; init; }
+
     public required int InitialNode { get; init; }
+
+    /// <summary>
+    /// The native <c>MoveState</c> a freshly created monster starts from before its initial roll
+    /// (<c>SimulatedCombatState.MonsterAi.cs:148-166</c>: the first registered <c>MoveState</c> when
+    /// the model's state log is empty). Only observable while a creature spawned during the enemy
+    /// turn waits for <see cref="FlashEnemyFlags.NeedsInitialRoll"/>.
+    /// </summary>
+    public int PendingInitialMoveNode { get; init; }
 
     /// <summary>
     /// The synthetic STUNNED node appended after every native state (and the unregistered initial
@@ -135,8 +147,26 @@ public sealed class FlashMonsterRules
     /// </summary>
     public required int StunnedNode { get; init; }
 
+    /// <summary>
+    /// The synthetic REVIVE_MOVE node of a monster with an illusion revive
+    /// (<c>SimulatedCombatState.DeathLifecycle.cs:100-119</c>), or -1. Its follow-up is the dynamic
+    /// <see cref="FlashEnemy.ForcedMove"/>.
+    /// </summary>
+    public int ReviveNode { get; init; } = -1;
+
+    /// <summary>Native <c>MinInitialHp</c>/<c>MaxInitialHp</c> of a newly created monster.</summary>
+    public required int InitialHpMin { get; init; }
+
+    public required int InitialHpMax { get; init; }
+
     /// <summary>Static integers named by the monster definition, in order.</summary>
     public required int[] StaticInts { get; init; }
+
+    /// <summary>
+    /// Values of the monster-private integers named by <see cref="FlashMonsterDef.AiRegisterNames"/>
+    /// on a freshly created monster, in order (captured through the same <c>GetMonsterInt</c> path).
+    /// </summary>
+    public int[] InitialAiRegisters { get; init; } = [];
 
     public int NodeIndex(string nativeId)
     {
@@ -172,6 +202,8 @@ public sealed class FlashRules
     private readonly FlashPotionStats?[] _potions;
     private readonly decimal[][] _relicVars;
     private readonly FlashMonsterRules?[] _monsters;
+    private readonly Dictionary<ushort, int> _spawnRules;
+    private readonly string[] _encounterSlots;
 
     internal FlashRules(
         FlashCardStats?[][] cards,
@@ -179,6 +211,10 @@ public sealed class FlashRules
         FlashPotionStats?[] potions,
         decimal[][] relicVars,
         FlashMonsterRules?[] monsters,
+        Dictionary<ushort, int> spawnRules,
+        bool hasEncounter,
+        string[] encounterSlots,
+        int rootEnemyCount,
         int baseMaxEnergy,
         int playerSlotIndex)
     {
@@ -187,6 +223,10 @@ public sealed class FlashRules
         _potions = potions;
         _relicVars = relicVars;
         _monsters = monsters;
+        _spawnRules = spawnRules;
+        HasEncounter = hasEncounter;
+        _encounterSlots = encounterSlots;
+        RootEnemyCount = rootEnemyCount;
         BaseMaxEnergy = baseMaxEnergy;
         PlayerSlotIndex = playerSlotIndex;
     }
@@ -194,6 +234,19 @@ public sealed class FlashRules
     public int BaseMaxEnergy { get; }
 
     public int PlayerSlotIndex { get; }
+
+    /// <summary>Whether the battle has an encounter (<c>SimulatedCombatState.Encounter != null</c>).</summary>
+    public bool HasEncounter { get; }
+
+    /// <summary>Native encounter slot names, in native order (<c>SimulatedCombatState._encounterSlots</c>).</summary>
+    public IReadOnlyList<string> EncounterSlots => _encounterSlots;
+
+    /// <summary>
+    /// Number of monster rule entries that belong to the root's known enemies. Known enemies are
+    /// appended in order, so indices at or above this one are spawned monsters and use
+    /// <see cref="SpawnRulesId"/>.
+    /// </summary>
+    public int RootEnemyCount { get; }
 
     /// <summary>
     /// Shuffle sort rank. Card ids are assigned in ordinal order of native ids, and all cards
@@ -231,13 +284,22 @@ public sealed class FlashRules
         return vars[index];
     }
 
-    public FlashMonsterRules Monster(byte owner)
+    public FlashMonsterRules MonsterRule(byte rulesId)
     {
-        int enemy = owner - FlashLimits.FirstEnemyOwner;
-        if ((uint)enemy >= (uint)_monsters.Length || _monsters[enemy] is not { } rules)
-            throw new FlashUnsupportedException($"规则表缺少敌人 {owner} 的状态机。");
+        if (rulesId >= _monsters.Length || _monsters[rulesId] is not { } rules)
+            throw new FlashUnsupportedException($"规则表缺少怪物规则 {rulesId}。");
         return rules;
     }
+
+    /// <summary>Rule entry of a spawnable monster type, or a rejection when the root's closure lacks it.</summary>
+    public int SpawnRulesId(ushort monsterId)
+        => TrySpawnRulesId(monsterId, out int rulesId)
+            ? rulesId
+            : throw new FlashUnsupportedException(
+                $"规则表没有可生成怪物 {FlashRegistry.Monster(monsterId).NativeId} 的条目。");
+
+    public bool TrySpawnRulesId(ushort monsterId, out int rulesId)
+        => _spawnRules.TryGetValue(monsterId, out rulesId);
 }
 
 /// <summary>Collects root data from the bridge and freezes it into <see cref="FlashRules"/>.</summary>
@@ -247,11 +309,19 @@ public sealed class FlashRulesBuilder
     private readonly decimal[]?[] _powerVars = new decimal[]?[FlashRegistry.PowerCount];
     private readonly FlashPotionStats?[] _potions = new FlashPotionStats?[FlashRegistry.PotionCount];
     private readonly decimal[]?[] _relicVars = new decimal[]?[FlashRegistry.RelicCount];
-    private readonly FlashMonsterRules?[] _monsters = new FlashMonsterRules?[FlashLimits.Enemies];
+    private readonly FlashMonsterRules?[] _monsters = new FlashMonsterRules?[FlashLimits.MonsterRules];
+    private readonly Dictionary<ushort, int> _spawnRules = [];
+    private int _monsterRuleCount;
 
     public int BaseMaxEnergy { get; set; }
 
     public int PlayerSlotIndex { get; set; }
+
+    public bool HasEncounter { get; set; }
+
+    public string[] EncounterSlots { get; set; } = [];
+
+    public int RootEnemyCount { get; set; }
 
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
@@ -281,10 +351,29 @@ public sealed class FlashRulesBuilder
 
     public void SetMonster(int enemyIndex, FlashMonsterRules rules)
     {
-        if ((uint)enemyIndex >= FlashLimits.Enemies)
-            throw new FlashCapacityException("Enemies", FlashLimits.Enemies);
+        if ((uint)enemyIndex >= FlashLimits.MonsterRules)
+            throw new FlashCapacityException("MonsterRules", FlashLimits.MonsterRules);
         _monsters[enemyIndex] = rules;
+        if (enemyIndex >= _monsterRuleCount)
+            _monsterRuleCount = enemyIndex + 1;
     }
+
+    /// <summary>
+    /// Appends one entry for a monster type reachable through the spawn closure and returns its rules
+    /// index. Each spawnable type gets one entry, independent of the root's same-typed enemies.
+    /// </summary>
+    public int AddSpawnableMonster(FlashMonsterRules rules)
+    {
+        if (_monsterRuleCount >= FlashLimits.MonsterRules)
+            throw new FlashCapacityException("MonsterRules", FlashLimits.MonsterRules);
+        if (!_spawnRules.TryAdd(rules.MonsterId, _monsterRuleCount))
+            throw new InvalidOperationException(
+                $"可生成怪物 {FlashRegistry.Monster(rules.MonsterId).NativeId} 的规则条目重复。");
+        int index = _monsterRuleCount++;
+        _monsters[index] = rules;
+        return index;
+    }
+
 
     public FlashRules Build()
     {
@@ -298,7 +387,8 @@ public sealed class FlashRulesBuilder
         for (int id = 0; id < _relicVars.Length; id++)
             relicVars[id] = _relicVars[id] ?? [];
         return new FlashRules(cards, powerVars, (FlashPotionStats?[])_potions.Clone(), relicVars,
-            (FlashMonsterRules?[])_monsters.Clone(), BaseMaxEnergy, PlayerSlotIndex);
+            (FlashMonsterRules?[])_monsters.Clone(), new Dictionary<ushort, int>(_spawnRules),
+            HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

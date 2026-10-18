@@ -267,7 +267,11 @@ public struct FlashEnemy
     /// </summary>
     public byte ForcedMove;
 
-    private int _padding;
+    /// <summary>Index into <see cref="FlashRules"/>'s monster table (<c>FlashRules.MonsterRule</c>).</summary>
+    public byte Rules;
+
+    private byte _padding0;
+    private short _padding1;
 
     /// <summary>Bit i set when move node i has ever been logged (native "use only once" rule).</summary>
     public ulong EverUsedMoves;

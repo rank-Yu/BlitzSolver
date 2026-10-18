@@ -458,6 +458,22 @@ public abstract class FlashPowerDef : FlashListenerDef
     /// </summary>
     public virtual bool PreventsRemovalAfterDeath => false;
 
+    /// <summary>
+    /// Native <c>PowerModel.ShouldPowerBeRemovedAfterOwnerDeath</c>, read by
+    /// <c>SimulatedCombatState.RemovePowersAfterDeath</c>.
+    /// </summary>
+    public virtual bool ShouldPowerBeRemovedAfterOwnerDeath => true;
+
+    /// <summary>Native <c>ITemporaryPower</c>: a temporary debuff survives an illusion owner's death.</summary>
+    public virtual bool IsTemporaryPower => false;
+
+    /// <summary>
+    /// Native <c>IllusionPower.ShouldPowerBeRemovedOnDeath</c>: while the dead owner has this power,
+    /// the solver keeps its buffs (and temporary debuffs) and removes the other debuffs
+    /// (<c>SimulatedCombatState.DeathLifecycle.cs</c>, <c>RemovePowersAfterDeath</c>).
+    /// </summary>
+    public virtual bool KeepsOwnerBuffsAfterDeath => false;
+
     // Turn phases. Each method is the power's case in the named existing-engine pass; the kernel
     // visits only powers with a positive amount, in the pass's order (FlashKernel.TurnPhases).
 
@@ -611,6 +627,40 @@ public abstract class FlashMonsterDef : FlashListenerDef
     public virtual IReadOnlyList<string> StaticIntNames => [];
 
     /// <summary>
+    /// Native ids of the monster types this monster can summon. The rule compiler closes over them
+    /// transitively and compiles one rule entry per type.
+    /// </summary>
+    public virtual IReadOnlyList<string> SpawnedMonsterIds => [];
+
+    /// <summary>
+    /// Monster-private integer names (<c>SimulatedCombatState._monsterIntStates</c>) this monster
+    /// reads. Each name maps to a <see cref="FlashEnemy.Ai"/> register in declaration order; the
+    /// bridge imports the captured value and the definition keeps the register up to date.
+    /// </summary>
+    public virtual IReadOnlyList<string> AiRegisterNames => [];
+
+    /// <summary>
+    /// Monster-private integer names that exist in the existing engine's fingerprint or continuation
+    /// text but that no resolution path reads. The bridge accepts their captured entries without
+    /// projecting them; any other unclaimed entry rejects the root.
+    /// </summary>
+    public virtual IReadOnlyList<string> InertMonsterIntNames => [];
+
+    /// <summary>
+    /// True when this monster carries an illusion revive: the rule compiler appends the synthetic
+    /// REVIVE_MOVE node, and <see cref="FlashKernel.BeginIllusionRevive"/> may force it.
+    /// </summary>
+    public virtual bool IllusionRevive => false;
+
+    /// <summary>
+    /// Powers a newly summoned monster receives before its first action, mirroring
+    /// <c>MonsterSpawnSupport.ApplyNativeEntrancePowers</c>.
+    /// </summary>
+    public virtual void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    {
+    }
+
+    /// <summary>
     /// Non-attack part of a move, run after its attack hits, mirroring
     /// <c>MonsterMoveEffects.Apply</c>. Moves without effects do nothing.
     /// </summary>
@@ -685,6 +735,8 @@ public static class FlashRegistry
 
     public static ushort CardId<T>() where T : FlashCardDef => CardIdCache<T>.Id;
 
+    public static ushort MonsterId<T>() where T : FlashMonsterDef => MonsterIdCache<T>.Id;
+
     private static class PowerIdCache<T> where T : FlashPowerDef
     {
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out FlashContentDef? def)
@@ -697,6 +749,13 @@ public static class FlashRegistry
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out FlashContentDef? def)
             ? def.Id
             : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Flash 卡牌。");
+    }
+
+    private static class MonsterIdCache<T> where T : FlashMonsterDef
+    {
+        public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out FlashContentDef? def)
+            ? def.Id
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Flash 怪物。");
     }
 
     private sealed record Tables(

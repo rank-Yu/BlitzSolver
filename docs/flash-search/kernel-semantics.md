@@ -151,7 +151,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 - 推进：从当前行动的后继出发，随机分支用 `MonsterAi` 流按 `MonsterRandomBranchResolver.Pick` 的规则选择（依赖最近行动日志），条件分支取根选择，直到落到行动节点；最多 32 步。
 - 特例：旧引擎在 `ResolveConditional`、`GetBranchWeight` 与 `Advance` 中按怪物类型写的特殊逻辑（KnowledgeDemon、FrogKnight、Fabricator、TestSubject、Ovicopter、LagavulinMatriarch、SlumberingBeetle、Queen、LivingShield、BowlbugRock、TwoTailedRat）由对应 `FlashMonsterDef` 覆写同名方法实现。
 - 行动执行：攻击按编译表结算；非攻击效果由 `FlashMonsterDef` 的行动方法实现，规范来源是 `P/MonsterMoveEffects.cs` 与 `P/MonsterMoveSemantics.cs`。
-- 私有字段：旧引擎通过 `_monsterIntStates` 读写的怪物私有整数，在 Flash 中映射到 `FlashEnemy` 的 AI 寄存器，寄存器编号由各怪物定义声明。
+- 私有字段：旧引擎通过 `_monsterIntStates` 读写的怪物私有整数，在 Flash 中映射到 `FlashEnemy` 的 AI 寄存器，编号由各怪物定义的 `AiRegisterNames` 按声明顺序决定；定义另外用 `InertMonsterIntNames` 声明只被状态指纹/续接文本读取、不影响结算的条目。导入时由定义认领，未认领的条目拒绝（见第 13 节）。
 
 ## 10. 选择协议
 
@@ -187,3 +187,26 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 **导入**：旧引擎当前行动 Id 为 `STUNNED` 时映射到合成节点，后继（`FollowUpState?.Id ?? FollowUpStateId`）映射到 `ForcedMove`；后继仍是 `STUNNED` 时显式拒绝。进行中的 must-perform-once 行动由节点标志表示，`PerformedMoveThisRound` 在稳定边界上为 0，因此导入后不会误推进。
 
 **乐加维林族母的 `_isAwake`**：现有引擎在 AsleepPower/STUNNED 中写入、在指纹与续接文本中读取，但行动选择读 AsleepPower 数量（`BranchMonsterAi.ResolveConditional`），该布尔值不影响后续结算。`DescribeFlashUnrepresentableState` 只放过 `(LagavulinMatriarch, "_isAwake")` 这个已证明惰性的 `_monsterIntStates` 条目（不修改模拟器状态）；其他怪物私有整数仍被拒绝。
+
+## 13. 敌人生成与召唤
+
+来源：`P/MonsterSpawnSupport.cs`、`Q/SimulatedCombatState.cs:2800-2875,2977-3000`、`P/MonsterMoveEffects.cs` 的 `Fogmog`/`TwoTailedRat` 分支、`P/DeathPowerSupport.cs` 与 `Q/SimulatedCombatState.DeathLifecycle.cs:100-119,190-220`。
+
+**规则编号与闭包**：每个 `FlashEnemy` 用 `Rules` 记录怪物规则表下标；根已知敌人按 `KnownEnemies` 下标占用表的前 `RootEnemyCount` 个条目，之后每个可生成怪物类型一个条目。`FlashMonsterDef.SpawnedMonsterIds` 声明该怪物能生成的原版 Id，`FlashRulesCompiler` 从根敌人出发递归求闭包。可生成类型的状态机、静态值与初始私有整数由编译器在根模拟器的**私有 Fork** 上执行现有引擎的创建路径得到：`MonsterSpawnSupport.Create(canonical)` → `AddPredictedMonster`（`SetUpForCombat` + `AddCreature` + 排序）→ `PreparePredictedMonster`，再用同一个 `CompileMonster` 编译；不手抄静态值。规则表总容量 `FlashLimits.MonsterRules`，溢出按 `Capacity` 拒绝。根持有 `Murderous` 修饰且闭包非空时拒绝（`UnsupportedClosure`）；贤者之石与毛皮大衣本就因缺少遗物定义在导入时拒绝。
+
+**`SpawnMonster`**（`FlashKernel.SpawnMonster`，严格对应 `MonsterSpawnSupport.AddCreated` 的顺序）：
+
+1. `CombatId = NextCombatId++`；生命在 `[MinInitialHp, MaxInitialHp]` 中排除名单敌人的当前 `MaxHp` 后取值。可选值按现有 `HashSet<int>` 的枚举顺序（等于升序插入顺序）由 Niche 流 `NextInt(0, count)` 取第 k 个；没有可选值时用 `NextInt(min, max + 1)`。K0 断言该枚举顺序。
+2. 追加到已知敌人数组（`EnemyCount++`），再按遭遇槽下标稳定插入名单，对应 `AddCreature` + `SortEnemiesBySlotName`；同槽位保持先后顺序，无槽名（255）排在有名字的槽位之前。
+3. 写入编译器捕获的 `SetUpForCombat` 初始值：`PendingInitialMoveNode`、初始 AI 寄存器。
+4. 调用定义上的 `ApplyEntrancePowers`（对应 `ApplyNativeEntrancePowers`，只为本批内容实现）。
+5. 玩家回合内立即从 `InitialNode` 掷出初始行动并写日志；敌人回合内保留 `NeedsInitialRoll`，由本轮结束的 `PrepareMonsterMovesForNextRound` 掷出。
+6. `minion` 为真且没有 MinionPower 时补 1 层 Minion，applier 是召唤者。
+
+**空槽**：`FlashKernel.NextFreeSlot`/`LastFreeSlot` 与 `SimulatedCombatState` 同义：战斗没有遭遇时返回 `null`；有空槽时返回遭遇槽名；`NextFreeSlot` 在无空槽时返回 `""`，`LastFreeSlot` 在无空槽时返回 `null`。
+
+**幻象与爪牙**：`EyeWithTeeth` 入场时先获得 IllusionPower 1（applier 为自己）再获得 MinionPower 1（无 applier），与 `ApplyNativeEntrancePowers` 一致。IllusionPower 的 `PreventsRemovalAfterDeath` 让尸体留在名单；其 `AfterDeath` 对应 `BeginIllusionRevive`：死亡阶段改为 `Reviving`，强制合成 `REVIVE_MOVE` 节点，动态后继取最近一条非复活行动日志。规则编译在 `IllusionRevive` 为真的怪物上追加该合成节点（无攻击、必须先执行一次），节点下标存在 `FlashMonsterRules.ReviveNode`。`REVIVE_MOVE` 执行时把生命回满并清回复活阶段，随后按动态后继推进。尸体的 Power 清理按 `RemovePowersAfterDeath`：有 IllusionPower 时保留增益与临时减益、移除其余减益；已离开名单的敌人清空全部 Power。MinionPower 的 `OwnerIsSecondaryEnemy` 让主要敌人死亡时连带杀死剩余爪牙；`MinionPower.ShouldPowerBeRemovedAfterOwnerDeath` 为假。
+
+**TwoTailedRat**：AI 寄存器 0 是 `_turnsUntilSummonable`（初始 2），1 是 `_callForBackupCount`（初始 0）。`SCRATCH_MOVE`/`DISEASE_BITE_MOVE`/`SCREECH_MOVE` 递减前者；`CALL_FOR_BACKUP_MOVE` 在 `LastFreeSlot` 生成一只新鼠，再把名单中所有鼠的后一个寄存器同步为（最大值 + 1）。随机分支权重按 `BranchMonsterAi.GetBranchWeight`：可召唤时 CALL_FOR_BACKUP 为 0.75、其余三者各 1/12；不可召唤时 CALL_FOR_BACKUP 为 0、其余为 1。可召唤条件按 `CanTwoTailedRatSummon`：回合计数不大于 0、计数小于 3、`NextFreeSlot` 非空，且其他鼠当前行动不是 CALL_FOR_BACKUP。`SCREECH_MOVE` 还给玩家 1 层 Frail。
+
+**导入认领**：`_monsterIntStates` 的每个条目必须被某个已知敌人的 `AiRegisterNames` 或 `InertMonsterIntNames` 认领，否则按 `UnrepresentableState` 拒绝；声明为寄存器的名字取 `GetMonsterInt` 的值（有捕获条目用条目，没有时读模型字段），因此与现有引擎的无条目语义一致。乐加维林族母的 `_isAwake` 由 `InertMonsterIntNames` 声明。

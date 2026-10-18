@@ -20,6 +20,7 @@ CheckIntroSort(rules);
 CheckCapacity();
 CheckPiles();
 CheckMonsterForcedMoves(rules);
+CheckMonsterSpawn(SpawnRules());
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -172,7 +173,7 @@ static void CheckMonsterForcedMoves(FlashRules rules)
 // Rules for the slice content: Ironclad starter cards and one Nibbit.
 static FlashRules SliceRules()
 {
-    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3 };
+    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
     FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike);
     FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend);
     FlashRegistry.TryCard("BASH", out ushort bash);
@@ -181,8 +182,12 @@ static FlashRules SliceRules()
     builder.SetCard(bash, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [8m, 2m]));
     FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable);
     builder.SetPowerVars(vulnerable, [1.5m]);
+    FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
+    builder.RootEnemyCount = 1;
+    builder.EncounterSlots = ["first", "second", "third"];
     builder.SetMonster(0, new FlashMonsterRules
     {
+        MonsterId = nibbit,
         Nodes =
         [
             new FlashMonsterNode { NativeId = "INIT_MOVE", Kind = FlashMonsterNodeKind.ConditionalBranch, ConditionalTarget = 1 },
@@ -195,8 +200,12 @@ static FlashRules SliceRules()
             },
         ],
         InitialNode = 0,
+        PendingInitialMoveNode = 1,
         StunnedNode = 4,
+        InitialHpMin = 17,
+        InitialHpMax = 21,
         StaticInts = [5, 2],
+        InitialAiRegisters = [2, 0],
     });
     return builder.Build();
 
@@ -302,6 +311,231 @@ static object Benchmark(FlashRules rules)
         allocatedBytes = allocated,
         sink,
     };
+}
+
+// Spawn contract: CombatId allocation, the native initial-HP distribution, encounter-slot roster
+// insertion, per-side initial roll and the synthetic revive move. Mirrors
+// SimulatedCombatState.CreatePredictedMonster/AddPredictedMonster/PreparePredictedMonster.
+static void CheckMonsterSpawn(FlashRules rules)
+{
+    // HashSet<int> enumeration order is the ascending insertion order the native NextItem sees.
+    for (int trial = 1; trial <= 40; trial++)
+    {
+        int minimum = 17, maximum = 21;
+        HashSet<int> available = Enumerable.Range(minimum, maximum - minimum + 1).ToHashSet();
+        List<int> excluded = [];
+        for (int hp = minimum; hp <= maximum; hp++)
+        {
+            if ((hp + trial) % 4 == 0)
+                excluded.Add(hp);
+        }
+        available.ExceptWith(excluded);
+        List<int> ordered = [.. available];
+        Check(ordered.SequenceEqual(ordered.OrderBy(value => value)),
+            $"HashSet 枚举顺序应升序（trial={trial}）");
+    }
+
+    // Player-turn spawn: CombatId, HP draw, roster order and the immediate initial roll.
+    FlashBattle battle = SpawnBattle();
+    FlashRngState nicheBefore = battle.RngStream(FlashRngStream.Niche);
+    int expectedHp = ExpectedHp(ref nicheBefore, 17, 21, [44]);
+    FlashExec x = new(ref battle, rules, default);
+    byte spawned = FlashKernel.SpawnMonster(ref x, FlashKernel.EnemyOwner(0), 1, slotIndex: 2, minion: false);
+    Check(spawned == FlashKernel.EnemyOwner(1), "生成应返回新 owner");
+    Check(battle.EnemyCount == 2 && battle.RosterCount == 2, "生成后已知敌人数与名单数应各加一");
+    Check(battle.NextCombatId == 8 && battle.Enemies[1].CombatId == 7, "CombatId 应从 NextCombatId 分配并递增");
+    Check(battle.Enemies[1].Creature.CurrentHp == expectedHp && battle.Enemies[1].Creature.MaxHp == expectedHp,
+        $"生成生命应为排除现有 MaxHp 后的 Niche 取值（期望 {expectedHp}，实际 {battle.Enemies[1].Creature.CurrentHp}）");
+    Check(SameRng(battle.RngStream(FlashRngStream.Niche), nicheBefore), "生成只应消耗一次 Niche 抽样");
+    Check(battle.Enemies[1].Rules == 1 && battle.Enemies[1].Slot == 2, "生成敌人应记录规则编号与槽位下标");
+    Check(battle.Roster[0] == 0 && battle.Roster[1] == 1, "新槽位在名单末尾时直接追加");
+    Check(battle.Enemies[1].Move == 0 && battle.Enemies[1].LoggedMoves == 1
+        && (battle.Enemies[1].Flags & FlashEnemyFlags.NeedsInitialRoll) == 0,
+        "玩家回合内生成应立即掷出初始行动并写日志");
+    Check(battle.Enemies[1].Ai[0] == 2 && battle.Enemies[1].Ai[1] == 0, "生成应写入编译的初始 AI 寄存器");
+
+    // Stable slot insertion: a same-slot enemy goes after the existing one, before a later slot.
+    FlashKernel.SpawnMonster(ref x, FlashKernel.EnemyOwner(0), 1, slotIndex: 1, minion: false);
+    Check(battle.RosterCount == 3 && battle.Roster[0] == 0 && battle.Roster[1] == 2 && battle.Roster[2] == 1,
+        "同槽位生成应稳定插在原槽位敌人之后");
+
+    // A null slot name sorts as -1: before named slots, after earlier nulls.
+    FlashBattle nullSlot = SpawnBattle();
+    nullSlot.Enemies[1] = nullSlot.Enemies[0];
+    nullSlot.Enemies[1].Slot = (byte)FlashKernel.NoSlot;
+    nullSlot.Enemies[1].CombatId = 2;
+    nullSlot.EnemyCount = 2;
+    nullSlot.RosterCount = 2;
+    nullSlot.Roster[0] = 1;
+    nullSlot.Roster[1] = 0;
+    x = new FlashExec(ref nullSlot, rules, default);
+    FlashKernel.SpawnMonster(ref x, FlashKernel.EnemyOwner(0), 1, FlashKernel.NoSlot, minion: false);
+    Check(nullSlot.RosterCount == 3 && nullSlot.Roster[0] == 1 && nullSlot.Roster[1] == 2 && nullSlot.Roster[2] == 0,
+        "无槽名生成应排在有名字的槽位之前，并保持既有空槽顺序");
+
+    // NextFreeSlot / LastFreeSlot: null without an encounter, "" when full, otherwise the first/last.
+    Check(FlashKernel.NextFreeSlot(battle, rules) == "first" && FlashKernel.LastFreeSlot(battle, rules) == "first",
+        "只剩 first 时两者都应返回 first");
+    Check(FlashKernel.NextFreeSlot(battle, rules) == "first" && FlashKernel.LastFreeSlot(battle, rules) == "first",
+        "槽位查询不应改变状态");
+    FlashRules noEncounter = NoEncounterRules();
+    Check(FlashKernel.NextFreeSlot(battle, noEncounter) == null && FlashKernel.LastFreeSlot(battle, noEncounter) == null,
+        "无遭遇时槽位查询应返回 null");
+
+    // Exhausted slots: NextFreeSlot returns "", LastFreeSlot returns null.
+    FlashBattle full = SpawnBattle();
+    full.RosterCount = 3;
+    full.EnemyCount = 3;
+    for (int index = 0; index < 3; index++)
+    {
+        full.Enemies[index] = full.Enemies[0];
+        full.Enemies[index].Slot = (byte)index;
+        full.Roster[index] = (byte)index;
+    }
+    Check(FlashKernel.NextFreeSlot(full, rules) == "" && FlashKernel.LastFreeSlot(full, rules) == null,
+        "无空槽时 NextFreeSlot 应为空串、LastFreeSlot 应为 null");
+
+    // HP exclusion follows the roster's current MaxHp, including earlier spawns; an exhausted range
+    // falls back to NextInt(min, max + 1).
+    battle = SpawnBattle();
+    battle.Enemies[0].Creature.MaxHp = 17;
+    x = new FlashExec(ref battle, rules, default);
+    nicheBefore = battle.RngStream(FlashRngStream.Niche);
+    expectedHp = ExpectedHp(ref nicheBefore, 17, 21, [17]);
+    FlashKernel.SpawnMonster(ref x, FlashKernel.EnemyOwner(0), 1, slotIndex: 0, minion: false);
+    Check(battle.Enemies[1].Creature.MaxHp == expectedHp, "生命排除应使用名单敌人的当前 MaxHp");
+    battle.Enemies[0].Creature.MaxHp = 18;
+    nicheBefore = battle.RngStream(FlashRngStream.Niche);
+    expectedHp = ExpectedHp(ref nicheBefore, 17, 21, [18, battle.Enemies[1].Creature.MaxHp]);
+    FlashKernel.SpawnMonster(ref x, FlashKernel.EnemyOwner(0), 1, slotIndex: 2, minion: false);
+    Check(battle.Enemies[2].Creature.MaxHp == expectedHp, "生命排除应包含同回合先前生成的敌人");
+
+    battle = SpawnBattle();
+    for (int index = 0; index < 5; index++)
+    {
+        battle.Enemies[index] = battle.Enemies[0];
+        battle.Enemies[index].Creature.MaxHp = 17 + index;
+        battle.Enemies[index].CombatId = (uint)(index + 1);
+        battle.Enemies[index].Slot = (byte)(index % 3);
+        battle.Roster[index] = (byte)index;
+    }
+    battle.EnemyCount = 5;
+    battle.RosterCount = 5;
+    x = new FlashExec(ref battle, rules, default);
+    nicheBefore = battle.RngStream(FlashRngStream.Niche);
+    int expectedFallback = nicheBefore.NextInt(17, 22);
+    FlashKernel.SpawnMonster(ref x, FlashKernel.EnemyOwner(0), 1, slotIndex: 0, minion: false);
+    Check(battle.Enemies[5].Creature.MaxHp == expectedFallback,
+        $"可取值耗尽时应使用 NextInt(min, max+1)（期望 {expectedFallback}）");
+
+    // Enemy-turn spawn: pending initial roll until the end-of-enemy-turn pass.
+    battle = SpawnBattle();
+    battle.Side = FlashSide.Enemy;
+    battle.Enemies[0].Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+    x = new FlashExec(ref battle, rules, default);
+    FlashKernel.SpawnMonster(ref x, FlashKernel.EnemyOwner(0), 1, slotIndex: 2, minion: false);
+    Check((battle.Enemies[1].Flags & FlashEnemyFlags.NeedsInitialRoll) != 0, "敌人回合内生成应保留待掷标记");
+    Check(battle.Enemies[1].Move == 0 && battle.Enemies[1].LoggedMoves == 0, "待掷时行动节点应为占位行动且不写日志");
+    FlashKernel.PrepareMonsterMovesForNextRound(ref x);
+    Check((battle.Enemies[1].Flags & FlashEnemyFlags.NeedsInitialRoll) == 0
+        && battle.Enemies[1].Move == 0 && battle.Enemies[1].LoggedMoves == 1,
+        "敌人回合结束时应对待掷敌人掷出初始行动");
+
+    // Illusion revive: forced synthetic node, dynamic follow-up, heal to max and advancement.
+    battle = SpawnBattle();
+    x = new FlashExec(ref battle, rules, default);
+    byte rat = FlashKernel.EnemyOwner(0);
+    FlashKernel.LogMonsterMove(ref battle.Enemies[0], 0);
+    battle.Enemies[0].Creature.CurrentHp = 0;
+    FlashKernel.BeginIllusionRevive(ref x, rat);
+    Check(battle.Enemies[0].DeathPhase == FlashDeathPhase.Reviving
+        && battle.Enemies[0].Move == 2 && battle.Enemies[0].ForcedMove == 0,
+        "幻象复活应写复活节点与最近行动后继");
+    Check(FlashKernel.CanPerformMonsterMove(battle.Enemies[0]), "复活中的敌人应可执行行动");
+    FlashKernel.ExecuteMonsterMove(ref x, rat);
+    Check(battle.Enemies[0].Creature.CurrentHp == 44 && battle.Enemies[0].DeathPhase == FlashDeathPhase.None,
+        "REVIVE_MOVE 应回满生命并清除复活阶段");
+    battle.Enemies[0].Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+    FlashKernel.PrepareMonsterMovesForNextRound(ref x);
+    Check(battle.Enemies[0].Move == 0 && battle.Enemies[0].ForcedMove == byte.MaxValue,
+        "复活行动执行后应推进到动态后继并清空 ForcedMove");
+}
+
+// A rules table with a root entry and one spawnable entry, both for NIBBIT, plus the synthetic
+// revive node so the revive contract can force it.
+static FlashRules SpawnRules()
+{
+    FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
+    FlashRulesBuilder builder = new() { RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
+    builder.SetMonster(0, SpawnMonsterRules(nibbit));
+    builder.AddSpawnableMonster(SpawnMonsterRules(nibbit));
+    return builder.Build();
+}
+
+static FlashRules NoEncounterRules()
+{
+    FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
+    FlashRulesBuilder builder = new();
+    builder.SetMonster(0, SpawnMonsterRules(nibbit));
+    return builder.Build();
+}
+
+static FlashMonsterRules SpawnMonsterRules(ushort nibbit) => new()
+{
+    MonsterId = nibbit,
+    Nodes =
+    [
+        new FlashMonsterNode { NativeId = "BUTT_MOVE", Kind = FlashMonsterNodeKind.Move, FollowUp = 0, Attacks = [new(12, 1)] },
+        new FlashMonsterNode { NativeId = "STUNNED", Kind = FlashMonsterNodeKind.Move, MustPerformOnceBeforeTransitioning = true },
+        new FlashMonsterNode { NativeId = "REVIVE_MOVE", Kind = FlashMonsterNodeKind.Move, MustPerformOnceBeforeTransitioning = true },
+    ],
+    InitialNode = 0,
+    PendingInitialMoveNode = 0,
+    StunnedNode = 1,
+    ReviveNode = 2,
+    InitialHpMin = 17,
+    InitialHpMax = 21,
+    StaticInts = [],
+    InitialAiRegisters = [2, 0],
+};
+
+static bool SameRng(in FlashRngState left, in FlashRngState right)
+    => left.Counter == right.Counter && left.S0 == right.S0 && left.S1 == right.S1
+        && left.S2 == right.S2 && left.S3 == right.S3;
+
+static FlashBattle SpawnBattle()
+{
+    FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
+    FlashBattle battle = new()
+    {
+        Round = 1, PlayerTurn = 1, Energy = 3, Side = FlashSide.Player, Phase = FlashPlayerPhase.Play,
+        Flags = FlashBattleFlags.PlayerHooksActive, MaxHandSize = 10,
+        EnemyCount = 1, RosterCount = 1, NextCombatId = 7,
+        Player = new FlashCreature { CurrentHp = 80, MaxHp = 80, Flags = FlashCreatureFlags.Present },
+    };
+    battle.Enemies[0] = new FlashEnemy
+    {
+        Creature = new FlashCreature { CurrentHp = 44, MaxHp = 44, Flags = FlashCreatureFlags.Present },
+        MonsterId = nibbit, Rules = 0, Slot = 1, CombatId = 1, Move = 0, ForcedMove = byte.MaxValue,
+        Flags = FlashEnemyFlags.InCombat,
+    };
+    battle.Roster[0] = 0;
+    battle.RngStream(FlashRngStream.Shuffle) = FlashRngState.FromSerializable(0, 1, 2, 3, 4);
+    battle.RngStream(FlashRngStream.MonsterAi) = FlashRngState.FromSerializable(0, 5, 6, 7, 8);
+    battle.RngStream(FlashRngStream.Niche) = FlashRngState.FromSerializable(0, 9, 10, 11, 12);
+    return battle;
+}
+
+// Reference CreatePredictedMonster HP draw: the eligible values are the ascending HashSet
+// enumeration order; an empty set uses NextInt(min, max + 1).
+static int ExpectedHp(ref FlashRngState niche, int minimum, int maximum, IReadOnlyList<int> rosterMaxHp)
+{
+    HashSet<int> available = Enumerable.Range(minimum, maximum - minimum + 1).ToHashSet();
+    available.ExceptWith(rosterMaxHp);
+    if (available.Count == 0)
+        return niche.NextInt(minimum, maximum + 1);
+    int index = niche.NextInt(0, available.Count);
+    return available.ElementAt(index);
 }
 
 sealed class Keyed(FlashCard card) : IComparable<Keyed>

@@ -11,7 +11,7 @@ public sealed class ShrinkerBeetle : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "SHRINKER_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "SHRINKER_MOVE")
             FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.ShrinkPower>(), -1, owner);
     }
 }
@@ -24,7 +24,7 @@ public sealed class LeafSlimeS : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "GOOP_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "GOOP_MOVE")
             AddSlimed(ref x, count: 1);
     }
 
@@ -43,7 +43,7 @@ public sealed class LeafSlimeM : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "STICKY_SHOT")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STICKY_SHOT")
             LeafSlimeS.AddSlimed(ref x, count: 2);
     }
 }
@@ -60,7 +60,7 @@ public sealed class TwigSlimeM : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "STICKY_SHOT_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STICKY_SHOT_MOVE")
             LeafSlimeS.AddSlimed(ref x, count: 1);
     }
 }
@@ -71,7 +71,7 @@ public sealed class Flyconid : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "VULNERABLE_SPORES_MOVE":
                 FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
@@ -91,7 +91,7 @@ public sealed class Mawler : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
             FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
                 FlashRegistry.PowerId<Powers.VulnerablePower>(), 3, owner);
     }
@@ -103,7 +103,7 @@ public sealed class SnappingJaxfruit : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "ENERGY_ORB_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ENERGY_ORB_MOVE")
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
     }
 }
@@ -121,7 +121,7 @@ public sealed class AxeRubyRaider : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SWING_1":
@@ -142,7 +142,7 @@ public sealed class BruteRubyRaider : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
     }
 }
@@ -158,7 +158,7 @@ public sealed class CrossbowRubyRaider : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "RELOAD_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "RELOAD_MOVE")
             FlashKernel.GainBlock(ref x, owner, ReloadBlock, FlashValueProps.Move, fromCard: false);
     }
 }
@@ -169,7 +169,7 @@ public sealed class TrackerRubyRaider : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "TRACK_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "TRACK_MOVE")
             FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
                 FlashRegistry.PowerId<Powers.FrailPower>(), 2, owner);
     }
@@ -184,7 +184,7 @@ public sealed class CubexConstruct : FlashMonsterDef
 {
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "CHARGE_UP_MOVE":
             case "REPEATER_BLAST_MOVE":
@@ -206,7 +206,7 @@ public sealed class SlitheringStrangler : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        switch (x.R.Monster(owner).Nodes[moveNode].NativeId)
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "CONSTRICT":
                 FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
@@ -239,7 +239,7 @@ public sealed class BygoneEffigy : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        if (x.R.Monster(owner).Nodes[moveNode].NativeId == "WAKE_MOVE")
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "WAKE_MOVE")
             FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), WakeStrength, owner);
     }
 }
@@ -258,9 +258,70 @@ public sealed class CorpseSlug : FlashMonsterDef
 
     public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = x.R.Monster(owner);
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "GOOP_MOVE")
             FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
                 FlashRegistry.PowerId<Powers.FrailPower>(), rules.StaticInts[GoopFrailAmt], owner);
+    }
+}
+
+/// <summary>
+/// Fogmog: "ILLUSION_MOVE" summons an EyeWithTeeth into the encounter's "illusion" slot
+/// (<c>MonsterMoveEffects</c> "Fogmog", "ILLUSION_MOVE", a literal slot name); SWIPE_MOVE and
+/// SWIPE_RANDOM_MOVE apply Strength 1 to itself. The native ILLUSION_MOVE runs before its attacks
+/// (none) and returns without other effects. Fogmog only knows the summon table; the compiler
+/// closes over it and compiles the EyeWithTeeth rule entry.
+/// </summary>
+[FlashContent("FOGMOG")]
+public sealed class Fogmog : FlashMonsterDef
+{
+    public override IReadOnlyList<string> SpawnedMonsterIds => ["EYE_WITH_TEETH"];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        {
+            case "ILLUSION_MOVE":
+                FlashKernel.SpawnMonster(ref x, owner,
+                    x.R.SpawnRulesId(FlashRegistry.MonsterId<EyeWithTeeth>()),
+                    FlashKernel.SlotIndex(x.R, "illusion"), minion: false);
+                break;
+            case "SWIPE_MOVE":
+            case "SWIPE_RANDOM_MOVE":
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 1, owner);
+                break;
+        }
+    }
+}
+
+/// <summary>
+/// EyeWithTeeth: a summoned illusion. <c>MonsterSpawnSupport.ApplyNativeEntrancePowers</c> applies
+/// IllusionPower 1 (applier itself) then MinionPower 1 (no applier); the native AfterAddedToRoom
+/// order is the same. "DISTRACT_MOVE" adds three Dazed to the discard pile
+/// (<c>MonsterMoveEffects</c> "EyeWithTeeth"). Its IllusionPower owns the revive: the kernel appends
+/// the synthetic REVIVE_MOVE node (<see cref="IllusionRevive"/>).
+/// </summary>
+[FlashContent("EYE_WITH_TEETH")]
+public sealed class EyeWithTeeth : FlashMonsterDef
+{
+    private const int DistractDazed = 3;
+
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("DAZED", 0)];
+
+    public override bool IllusionRevive => true;
+
+    public override void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    {
+        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.IllusionPower>(), 1, owner);
+        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.MinionPower>(), 1, FlashLimits.NoOwner);
+    }
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "DISTRACT_MOVE")
+            return;
+        for (int index = 0; index < DistractDazed; index++)
+            FlashKernel.AddGeneratedCard(ref x,
+                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard);
     }
 }

@@ -37,7 +37,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据、审查修正与跳过清单已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，KS 合入后）：FlashKernelChecks 通过；29 个自然遭遇根（铁甲战士初始牌组）与 66 个固定根（`coverage/fixtures/cards/flash-*.json`）每根 32 条随机游走，K1 单步、K2 游走与 K4 评估全部零差异，没有准入拒绝。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，KM 合入后）：FlashKernelChecks 通过；33 个自然遭遇根（铁甲战士初始牌组，含雾菇与双尾鼠的 FLASHM1/FLASHM2）与 68 个固定根（`coverage/fixtures/cards/flash-*.json`）每根 32 条随机游走，K1 单步、K2 游走与 K4 评估全部零差异，没有准入拒绝。
 
 ### 2.1 强制行动与眩晕（KS，2026-10-18）
 
@@ -47,11 +47,11 @@ F1 纵切与内容批次 P1–P12 的逐批证据、审查修正与跳过清单�
 
 证据：四个遭遇的 FLASHM1/FLASHM2 自然根与四个固定根（每根 48 条游走）零差异。临时计数显示游走中眩晕确实触发并推进：乐加维林两个自然根的 74 次唤醒全部进入后继；噬尸蛞蝓普通的 280 次触发中 259 次推进，其余发生在本轮已行动之后，按规则不推进。
 
-强制行动、眩晕与必须先执行一次的行动已有内核支持。仍跳过的 8 个第一幕遭遇及缺失能力如下；仪式兽、瀑布巨兽、异蛙寄生虫各自的强制行动来源随遭遇一起实现：
+强制行动、眩晕与必须先执行一次的行动已有内核支持，敌人生成见 2.6。仍跳过的 6 个第一幕遭遇及缺失能力如下；仪式兽、瀑布巨兽、异蛙寄生虫各自的强制行动来源随遭遇一起实现：
 
 | 能力 | 遭遇 |
 | --- | --- |
-| 召唤/生成敌人 | 雾菇、双尾鼠（只缺这一项）；异蛙寄生虫、穿着一件大衣的两只地精、邪恶气体 |
+| 其他召唤物（内核已支持生成，召唤物定义未实现） | 异蛙寄生虫、穿着一件大衣的两只地精、邪恶气体 |
 | 苦难/附魔与改费用 Hook | 仪式兽、藤蔓蹒跚者、邪恶气体 |
 | 阻止战斗结束、死亡后不离场 | 异蛙寄生虫、瀑布巨兽、穿着一件大衣的两只地精 |
 | 偷窃与评估侧 | 穿着一件大衣的两只地精（被偷资源未建模）；瀑布巨兽（动态攻击伤害与评估特例） |
@@ -119,6 +119,18 @@ K4 证据：22 个自然遭遇根与 57 个固定根（每根 32 条游走）中
 结论：终局比较器修正了“同失血但多拖回合”的选择；进攻席位不可去掉，加大到 40% 也没有收益；同宽度下 FlashBeam 的保留结构仍弱于现有搜索。宽度与节点 ×4 是第一个总失血优于现有搜索的档位，端到端耗时约为其 0.5，因此作为 `FlashRouteMaterializer.ProfileWidthScale` 的默认值（软时间预算不变）。
 
 状态池原按最坏情况预分配（每层宽度 × 122 个 `FlashBattle`，宽度 96 时四个池约 290 MB），现改为按需增长：48 根的路线与改动前逐根相同，每次求解的托管分配平均 19.8 MB、最大 33.6 MB。两次运行的总耗时 11.4 s 与 12.6 s 之差在单根 ±300 ms 的波动之内，未单独确认。游戏内档位（宽度 45/90/135）未做基准。
+
+### 2.6 敌人生成与召唤（KM，2026-10-19）
+
+内核新增 `SpawnMonster`、`NextFreeSlot`/`LastFreeSlot` 与 `BeginIllusionRevive`。每个 `FlashEnemy` 用 `Rules` 记录怪物规则表条目；根已知敌人占前 `RootEnemyCount` 项，之后每个可生成类型一项。可生成类型的状态机、静态值与初始私有整数由 `FlashRulesCompiler` 在根模拟器的私有 Fork 上执行 `MonsterSpawnSupport.Create` + `AddPredictedMonster` + `PreparePredictedMonster` 后编译，不手抄。`FlashBattle` 布局不变（`FlashEnemy` 仍是 64 字节，`FlashBattle` 6240 字节）：`Rules` 占用原填充的第一个字节，`Slot` 改存遭遇槽下标（无槽名 = 255），`NextCombatId` 用于生成敌人的 CombatId。
+
+怪物私有整数改为显式认领：`FlashMonsterDef.AiRegisterNames` 按声明顺序映射到 `FlashEnemy.Ai`，`InertMonsterIntNames` 认领只被状态指纹/续接文本读取的条目；其余 `_monsterIntStates` 条目在校验时拒绝。乐加维林族母的 `_isAwake` 由定义声明，`DescribeFlashUnrepresentableState` 不再整体拒绝 `_monsterIntStates`。
+
+内容：雾菇与双尾鼠的两个第一幕遭遇，以及召唤物 `EyeWithTeeth`、Power `IllusionPower`（幻象死亡后强制合成 `REVIVE_MOVE`，回满生命后按最近行动推进；尸体保留增益与临时减益）和 `MinionPower` 的次要敌人语义。双尾鼠的 `_turnsUntilSummonable`/`_callForBackupCount` 走 AI 寄存器：三个攻击/尖啸行动递减前者，召唤在 `LastFreeSlot` 生成新鼠并把所有鼠的计数同步为最大值 + 1，分支权重按 `CanTwoTailedRatSummon` 切换。
+
+K0 新增生成合同：CombatId 递增、可取值耗尽与 HashSet 枚举顺序下的生命抽样、遭遇槽稳定名单顺序、`NextFreeSlot`/`LastFreeSlot` 的 null/空串区别、玩家回合立即掷初始行动与敌人回合待掷、幻象复活节点与动态后继。
+
+证据：`FOGMOG_NORMAL` 与 `TWO_TAILED_RATS_NORMAL` 的 FLASHM1/FLASHM2 自然根，以及固定根 `coverage/fixtures/cards/flash-km-fogmog-normal.json`、`flash-km-two-tailed-rats-normal.json`，每根 48 条游走全部零差异（K1/K2/K4）。临时计数显示游走中召唤确实发生：雾菇自然根 48 条游走共生成 48 只幻象、幻象复活 263 次、召唤者死亡 18 次；雾菇固定根（玩家 3000 生命）48 条游走共生成 48 只幻象、复活 120 次、召唤者死亡 48 次；双尾鼠自然根生成 118 只、固定根生成 130 只，固定根有 3114 个边界状态的鼠计数达到 3（上限）且 102 个边界状态没有空槽。临时计数代码已删除。
 
 ## 3. 已知限制与未验证项
 
