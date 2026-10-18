@@ -191,6 +191,12 @@ internal sealed class FlashScoreRules
 
     public required bool IsActEndingBoss { get; init; }
 
+    /// <summary><c>Profile.BaseScoreOnly</c>: the intermediate rank is the base score alone.</summary>
+    public bool BaseScoreOnly { get; init; }
+
+    /// <summary><c>Profile.BeamWeightPerturbation</c>: scales one intermediate ranking term.</summary>
+    public BeamWeightPerturbation? BeamWeightPerturbation { get; init; }
+
     public required bool IgnoreLongTermRewards { get; init; }
 
     public required SolverTheftPolicy? TheftPolicy { get; init; }

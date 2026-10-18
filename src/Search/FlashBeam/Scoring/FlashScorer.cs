@@ -1270,6 +1270,10 @@ internal sealed class FlashScorer
 
     public double BeamRankScore(in FlashScoreFeatures features)
     {
+        // CombatBeamSolver.BeamRankScore: the base-score member ranks by the base score alone (the
+        // development strategy that could adjust it is rejected at admission).
+        if (_score.BaseScoreOnly)
+            return features.Score;
         int persistentBuffCap = _score.IsActEndingBoss
             ? SolverWeights.PersistentBuffDeltaBeamCap
             : SolverWeights.StandardPersistentBuffDeltaBeamCap;
@@ -1314,6 +1318,22 @@ internal sealed class FlashScorer
                     Math.Max(0, features.EnemyWeakTurns - _score.InitialEnemyWeakTurns))
                 * weakExpectedHpSaved
                 * SolverWeights.Hp;
+        // The existing ranking scales one term for non-terminal nodes only; FlashBeam ranks only
+        // non-terminal states (terminals go straight to the final route ordering).
+        if (_score.BeamWeightPerturbation is { Scale: not 1d } perturbation)
+        {
+            double term = perturbation.Term switch
+            {
+                BeamWeightTerm.CurrentEnergy => Math.Min(SolverWeights.CurrentEnergyBeamCap, features.Energy)
+                    * SolverWeights.CurrentEnergyBeamValue,
+                BeamWeightTerm.PersistentBuffDelta => Math.Min(persistentBuffCap,
+                        Math.Max(0, features.PersistentBuffValue - _score.InitialPersistentBuffValue))
+                    * persistentBuffValue,
+                BeamWeightTerm.EnemyHp => features.EnemyHp * SolverWeights.EnemyHp,
+                _ => throw new InvalidOperationException("Unknown Beam sensitivity term."),
+            };
+            score += (perturbation.Scale - 1d) * term;
+        }
         return score;
     }
 
