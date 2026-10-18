@@ -34,7 +34,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 3. 请求参数
 
-当前只有协调器主搜索成员（`DirectSearchPurpose.PrimaryBeam`）经过 Flash。`BeamSolveRequest` 各字段在 Flash 中的处理：
+协调器宽度组合的成员（`DirectSearchPurpose.PrimaryBeam` 与 `RefinementBeam`）经过 Flash；Flash 不建模的 profile 开关（仅基础分、权重扰动）在准入时拒绝并回落。`BeamSolveRequest` 各字段在 Flash 中的处理：
 
 | 字段 | 处理 |
 | --- | --- |
@@ -50,7 +50,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 4. BeamSolveDispatch 与模式
 
-`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`。只有 `PrimaryBeam` 用途查看模式；精炼成员、补充审计、计划搜索与侦察仍直接使用 `CombatBeamSolver`，因为它们的 profile 开关在 Flash 中没有对应实现。
+`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`。`PrimaryBeam` 与 `RefinementBeam` 用途查看模式；补充审计、计划搜索、固定前缀续接与侦察不经过分发点，仍直接使用 `CombatBeamSolver`。`SecondRankBand`、`AggressivePowerCommitment` 与分支上限只作用于现有搜索的保路泳道与分支截断，FlashBeam 没有这些结构，因此不读取它们（属于已记录的保留结构差异）。
 
 模式由 `SearchPolicySnapshot.FlashMode` 冻结，主线程从设置 `SolverSettingsData.FlashSearchMode` 读取（设置 > 性能 > 搜索预算 >「Flash 快速搜索（实验）」）。离线宿主可用 `OFFLINE_HARNESS_FLASH_MODE=Off|Shadow|On` 覆盖。
 
