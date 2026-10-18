@@ -106,6 +106,8 @@ public static partial class FlashKernel
             power.Flags |= FlashPowerFlags.SkipNextDurationTick;
         int applied = power.Amount - previous;
         resulting = power.Amount;
+        if (def.MarksJustAppliedByEnemy && previous <= 0 && power.Amount > 0 && IsEnemyOwner(target))
+            power.Flags |= FlashPowerFlags.WasJustAppliedByEnemy;
         if (power.Amount == 0)
             RemovePowerAt(ref battle, index);
         // RecordPowerAmountChange only reacts for Shroud, Sleight of Flesh and Vicious, which are

@@ -102,7 +102,15 @@ public static partial class FlashKernel
         decimal modified = FlashHooks.ModifyDamage(ref x, target, dealer, amount, props, hasCardSource, cardSource);
         if (x.NeedsChoice)
             return false;
-        // BeforeDamageReceived has no supported listeners yet.
+        // HookMirrors.BeforeDamageReceived iterates the run listeners without the ending gate; deck cards
+        // outside combat with this hook are rejected at admission, so the combat listeners are the list.
+        BeforeDamageReceivedHook before = new()
+        {
+            Target = target, Amount = modified, Props = props, Dealer = dealer, HasCardSource = hasCardSource, CardSource = cardSource,
+        };
+        FlashHooks.Dispatch(ref x, ref before, gatedByEnding: false);
+        if (x.NeedsChoice)
+            return false;
         byte blockTarget = target == FlashLimits.OstyOwner ? FlashLimits.PlayerOwner : target;
         decimal blocked = DamageBlock(ref x.B.Creature(blockTarget), modified, props);
         // ModifyHpLost (before and after Osty), the Osty redirect and AfterModifyingHpLostAfterOsty

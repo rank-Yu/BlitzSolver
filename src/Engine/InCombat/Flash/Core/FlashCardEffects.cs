@@ -145,4 +145,59 @@ public static class FlashCardEffects
         }
     }
 
+    /// <summary>
+    /// Upgrades the card currently being played (RazorTooth's <c>CardCmd.Upgrade(cardPlay.Card)</c>).
+    /// The played card is the top of the play pile while its hooks run; only its identity is required
+    /// because an earlier replay may already have upgraded the pile entry.
+    /// </summary>
+    public static void UpgradeCurrentCard(ref FlashExec x)
+    {
+        int position = x.B.PlayCount - 1;
+        if (position < 0)
+            throw new InvalidOperationException("当前没有正在打出的卡。");
+        ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
+        if (played.Id != x.Card.Id)
+            throw new InvalidOperationException("打出堆顶不是当前卡。");
+        FlashKernel.UpgradeCard(x.R, ref played);
+    }
+
+    /// <summary>
+    /// Damage from a relic to every hittable enemy in roster order, with no card source
+    /// (<c>simulator.Damage(state.HittableEnemies, ..., ValueProp.Unpowered, relic.Owner.Creature)</c>).
+    /// </summary>
+    public static void DamageAllEnemies(ref FlashExec x, decimal amount, FlashValueProps props, byte dealer)
+    {
+        Span<byte> targets = stackalloc byte[FlashLimits.Enemies];
+        int count = 0;
+        for (int position = 0; position < x.B.RosterCount; position++)
+        {
+            byte owner = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            if (FlashKernel.IsHittable(x.B, owner))
+                targets[count++] = owner;
+        }
+        if (count == 0)
+            return;
+        FlashKernel.Damage(ref x, targets[..count], amount, props, dealer, hasCardSource: false, default);
+    }
+
+    /// <summary>
+    /// One hit on a random hittable enemy, mirroring <c>Rng.CombatTargets.NextItem(HittableEnemies)</c>:
+    /// the CombatTargets stream is consumed only when the candidate list is non-empty.
+    /// </summary>
+    public static void DamageRandomEnemy(ref FlashExec x, decimal amount, FlashValueProps props, byte dealer)
+    {
+        Span<byte> targets = stackalloc byte[FlashLimits.Enemies];
+        int count = 0;
+        for (int position = 0; position < x.B.RosterCount; position++)
+        {
+            byte owner = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            if (FlashKernel.IsHittable(x.B, owner))
+                targets[count++] = owner;
+        }
+        if (count == 0)
+            return;
+        Span<byte> target = stackalloc byte[1];
+        target[0] = targets[x.B.RngStream(FlashRngStream.CombatTargets).NextInt(0, count)];
+        FlashKernel.Damage(ref x, target, amount, props, dealer, hasCardSource: false, default);
+    }
 }

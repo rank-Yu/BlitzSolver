@@ -12,6 +12,20 @@ internal sealed record FlashBeamOptions(
 {
     /// <summary>Share of each beam layer reserved for the most offensive states (lowest enemy HP).</summary>
     public double OffensiveShare { get; init; } = 0.25;
+
+    /// <summary>Which root potions may be used and what each use costs; disabled unless the caller sets it.</summary>
+    public FlashPotionPolicy Potions { get; init; } = FlashPotionPolicy.Disabled;
+}
+
+/// <summary>
+/// The existing search's potion constraints at the root (<c>EnumeratePlannedPotionActions</c>): slots whose
+/// potion may be used explicitly, the earliest player turn, the maximum number of uses, and each slot's
+/// strategic HP cost (<c>PotionUsePolicy.StrategicHpCost</c>). Only the potions present at the root are
+/// covered; a potion gained during the search is not offered.
+/// </summary>
+internal sealed record FlashPotionPolicy(byte AllowedSlots, int EarliestPlayerTurn, int? MaximumUses, int[] SlotCosts)
+{
+    public static FlashPotionPolicy Disabled { get; } = new(0, int.MaxValue, 0, new int[FlashLimits.PotionSlots]);
 }
 
 internal sealed record FlashBeamResult(
@@ -45,6 +59,7 @@ internal sealed class FlashBeamSolver
     private readonly FlashBeamOptions _options;
     private readonly List<(int Parent, FlashAction Action)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
+    private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private int _expanded;
     private int _transitions;
     private int _duplicates;
@@ -58,6 +73,8 @@ internal sealed class FlashBeamSolver
     public FlashBeamResult Solve(in FlashBattle root, CancellationToken cancellationToken)
     {
         Stopwatch watch = Stopwatch.StartNew();
+        for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
+            _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
         _nodes.Clear();
         _nodes.Add((-1, default));
         int width = Math.Max(1, _options.BeamWidth);
@@ -100,7 +117,11 @@ internal sealed class FlashBeamSolver
                     int parentNode = current.Node(index);
                     int count = FlashKernel.LegalActions(parent, _rules, _actions);
                     for (int actionIndex = 0; actionIndex < count; actionIndex++)
+                    {
+                        if (_actions[actionIndex].Kind == FlashActionKind.UsePotion && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
+                            continue;
                         ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, ConsiderTerminal);
+                    }
                 }
                 current.Clear();
                 next.CopyTopTo(current, width, _options.OffensiveShare);
@@ -193,7 +214,43 @@ internal sealed class FlashBeamSolver
             enemyHp += Math.Max(0, battle.Enemies[index].Creature.CurrentHp);
         score += enemyHp * EnemyHpWeight;
         score += actionCount * ActionPenalty;
+        score -= UsedPotionCost(battle) * HpWeight;
         return score;
+    }
+
+    /// <summary>A slot still holds its root potion and the policy offers it now.</summary>
+    private bool PotionAllowed(in FlashBattle battle, int slot)
+    {
+        FlashPotionPolicy policy = _options.Potions;
+        if ((policy.AllowedSlots & (1 << slot)) == 0 || battle.PlayerTurn < policy.EarliestPlayerTurn)
+            return false;
+        if (battle.Potions[slot] == 0 || battle.Potions[slot] != _rootPotions[slot])
+            return false;
+        if (policy.MaximumUses is { } maximum && UsedPotions(battle) >= maximum)
+            return false;
+        return true;
+    }
+
+    private int UsedPotions(in FlashBattle battle)
+    {
+        int used = 0;
+        for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
+        {
+            if (_rootPotions[slot] != 0 && (slot >= battle.PotionSlotCount || battle.Potions[slot] != _rootPotions[slot]))
+                used++;
+        }
+        return used;
+    }
+
+    private int UsedPotionCost(in FlashBattle battle)
+    {
+        int cost = 0;
+        for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
+        {
+            if (_rootPotions[slot] != 0 && (slot >= battle.PotionSlotCount || battle.Potions[slot] != _rootPotions[slot]))
+                cost += _options.Potions.SlotCosts[slot];
+        }
+        return cost;
     }
 
     /// <summary>Mirrors <c>ProjectHpAfterThreat</c> for the supported monsters: floored hits absorbed by block.</summary>

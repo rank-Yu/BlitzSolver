@@ -18,13 +18,16 @@ public static partial class FlashKernel
         // PlayerTurnEndLifecycle.RunPhaseOne.
         x.B.Phase = FlashPlayerPhase.End;
         // EndTurnPowerSupport.TriggerVeryEarly: no supported sources.
-        RelicPass(ref x, RelicPhase.BeforeSideTurnEnd, FlashSide.Player);
+        RelicPass(ref x, RelicPhase.PrepareBeforeSideTurnEnd, FlashSide.Player);
         if (x.NeedsChoice)
             return;
         // SimulateEndPlayerTurnBeforeOrbPassives.
         x.B.Phase = FlashPlayerPhase.AutoPostPlay;
-        // AfterAutoPostPlayPhaseEntered and BeforeSideTurnEnd: no supported listeners.
+        // AfterAutoPostPlayPhaseEntered: no supported listeners.
         x.B.Phase = FlashPlayerPhase.End;
+        BeforeSideTurnEnd(ref x, FlashSide.Player, ParticipantMask(FlashLimits.PlayerOwner));
+        if (x.NeedsChoice)
+            return;
         CheckWinCondition(ref x.B);
         if (!IsOverOrEnding(x.B))
         {
@@ -123,6 +126,26 @@ public static partial class FlashKernel
         PrepareMonsterMovesForNextRound(ref x);
     }
 
+    /// <summary>Mirrors <c>HookMirrors.BeforeSideTurnEnd</c>: the VeryEarly, Early and normal passes.</summary>
+    private static void BeforeSideTurnEnd(ref FlashExec x, FlashSide side, ushort participants)
+    {
+        BeforeSideTurnEndVeryEarlyHook veryEarly = new() { Side = side, Participants = participants };
+        FlashHooks.Dispatch(ref x, ref veryEarly, gatedByEnding: true);
+        if (x.NeedsChoice)
+            return;
+        BeforeSideTurnEndEarlyHook early = new() { Side = side, Participants = participants };
+        FlashHooks.Dispatch(ref x, ref early, gatedByEnding: true);
+        if (x.NeedsChoice)
+            return;
+        BeforeSideTurnEndHook normal = new() { Side = side, Participants = participants };
+        FlashHooks.Dispatch(ref x, ref normal, gatedByEnding: true);
+    }
+
+    public static ushort ParticipantMask(byte owner) => (ushort)(1 << owner);
+
+    /// <summary>Whether <paramref name="owner"/> is in a participant bit set.</summary>
+    public static bool Participates(ushort participants, byte owner) => (participants & (1 << owner)) != 0;
+
     /// <summary><c>SimulatedCombatState.CurrentSide</c> setter: a side change clears the lost-HP marks.</summary>
     private static void SetSide(ref FlashBattle battle, FlashSide side)
     {
@@ -183,24 +206,63 @@ public static partial class FlashKernel
         }
     }
 
-    /// <summary>Mirrors <c>CombatPredictionSimulator.DoTurnEnd</c>.</summary>
+    /// <summary>
+    /// Mirrors <c>CombatPredictionSimulator.DoTurnEnd</c>: the hand is split once into turn-end-in-hand cards
+    /// and the remaining Ethereal cards (<c>ShouldEtherealTrigger</c> has no supported listeners); the
+    /// Ethereal ones exhaust first, then <c>DoTurnEndCards</c> moves each turn-end card to the play pile,
+    /// runs its effect, and exhausts it when Ethereal (without the hook check) or discards it. Cards are
+    /// located again before each step, since exhaust and effect hooks may change the hand in between.
+    /// </summary>
     private static void DoTurnEnd(ref FlashExec x)
     {
         if (IsOverOrEnding(x.B))
             return;
-        // Ethereal cards exhaust in hand order; turn-end-in-hand cards are not supported yet.
-        for (int index = 0; index < x.B.HandCount;)
+        int handCount = x.B.HandCount;
+        Span<int> ethereal = stackalloc int[handCount];
+        Span<int> turnEnd = stackalloc int[handCount];
+        int etherealCount = 0, turnEndCount = 0;
+        for (int index = 0; index < handCount; index++)
         {
-            ref FlashCard card = ref x.B.Cards[index];
+            ref readonly FlashCard card = ref x.B.Cards[index];
+            if (FlashRegistry.Card(card.Id).HasTurnEndInHandEffect)
+                turnEnd[turnEndCount++] = index;
+            else if (card.HasKeyword(FlashKeywords.Ethereal))
+                ethereal[etherealCount++] = index;
+        }
+        Span<SelectedCard> etherealCards = stackalloc SelectedCard[etherealCount];
+        SnapshotSelected(x.B, FlashPile.Hand, ethereal[..etherealCount], etherealCards);
+        Span<SelectedCard> turnEndCards = stackalloc SelectedCard[turnEndCount];
+        SnapshotSelected(x.B, FlashPile.Hand, turnEnd[..turnEndCount], turnEndCards);
+        for (int item = 0; item < etherealCount; item++)
+        {
+            Exhaust(ref x, FlashPile.Hand, LocateSelected(x.B, FlashPile.Hand, etherealCards, item), causedByEthereal: true);
+            if (x.NeedsChoice)
+                return;
+        }
+        for (int item = 0; item < turnEndCount; item++)
+        {
+            int index = LocateSelected(x.B, FlashPile.Hand, turnEndCards, item);
+            FlashCard card = turnEndCards[item].Card;
+            MoveCard(ref x.B, FlashPile.Hand, index, FlashPile.Play);
+            x.Card = card;
+            x.Stats = x.R.Card(card.Id, card.Upgrade);
+            x.Target = FlashLimits.NoOwner;
+            FlashRegistry.Card(card.Id).OnTurnEndInHand(ref x);
+            if (x.NeedsChoice)
+                return;
+            int position = x.B.PlayCount - 1;
+            if (position < 0 || !FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Play, position), card))
+                throw new FlashUnsupportedException("回合末在手效果移动了打出区的卡。");
             if (card.HasKeyword(FlashKeywords.Ethereal))
             {
-                // ShouldEtherealTrigger has no supported listeners.
-                Exhaust(ref x, FlashPile.Hand, index, causedByEthereal: true);
+                Exhaust(ref x, FlashPile.Play, position, causedByEthereal: true);
                 if (x.NeedsChoice)
                     return;
-                continue;
             }
-            index++;
+            else
+            {
+                MoveCard(ref x.B, FlashPile.Play, position, FlashPile.Discard);
+            }
         }
     }
 

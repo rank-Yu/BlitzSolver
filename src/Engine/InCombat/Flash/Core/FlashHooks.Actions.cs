@@ -111,6 +111,54 @@ public static partial class FlashHooks
 
 // Hook invokers. Each is a value type so dispatch is specialized per hook without allocation.
 
+public struct BeforeSideTurnEndVeryEarlyHook : IFlashActionHook
+{
+    public FlashSide Side;
+    public ushort Participants;
+
+    public static FlashHookMask Mask => FlashHookMask.BeforeSideTurnEndVeryEarly;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.BeforeSideTurnEndVeryEarly(ref x, self, Side, Participants);
+}
+
+public struct BeforeSideTurnEndEarlyHook : IFlashActionHook
+{
+    public FlashSide Side;
+    public ushort Participants;
+
+    public static FlashHookMask Mask => FlashHookMask.BeforeSideTurnEndEarly;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.BeforeSideTurnEndEarly(ref x, self, Side, Participants);
+}
+
+public struct BeforeSideTurnEndHook : IFlashActionHook
+{
+    public FlashSide Side;
+    public ushort Participants;
+
+    public static FlashHookMask Mask => FlashHookMask.BeforeSideTurnEnd;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.BeforeSideTurnEnd(ref x, self, Side, Participants);
+}
+
+public struct BeforeDamageReceivedHook : IFlashActionHook
+{
+    public byte Target;
+    public decimal Amount;
+    public FlashValueProps Props;
+    public byte Dealer;
+    public bool HasCardSource;
+    public FlashCard CardSource;
+
+    public static FlashHookMask Mask => FlashHookMask.BeforeDamageReceived;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.BeforeDamageReceived(ref x, self, Target, Amount, Props, Dealer, HasCardSource, CardSource);
+}
+
 public struct AfterDamageReceivedHook : IFlashActionHook
 {
     public FlashDamageResult Result;

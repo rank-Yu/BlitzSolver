@@ -11,6 +11,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 - **去重**：每层用开放寻址表按指纹分桶，命中后比较完整字节；同一状态保留 Pareto 意义上不被支配的代表，维度沿用旧引擎转置表的六维（药水数、药水战略成本、未来卖血、累计失血、动作数、分数）。
 - **评分**：移植旧引擎 `SimulationSnapshot` 的主要分项（预测 HP、累计失血、敌人 HP、胜利奖励、死亡惩罚、风险等，见 `Q/CombatBeamSolver.StateEvaluation.cs:162-505`）与 `BeamRankScore` 的中间项。特征从 `FlashBattle` 直接计算，不构造 `SimulationSnapshot`。
 - **选择**：遇到 `NeedsChoice` 时用 `FlashChoiceEnumerator` 按选项规格枚举（选择数量从小到大、同数量按下标字典序），每个请求至多探索 32 个分支（v1）；每个被执行的分支都是精确的，上限只限制探索面。旧引擎按估值排序挑分支（`MaxPile/HandChoiceBranchesPerAction`），v1 尚未移植这套排序。
+- **药水**：Bridge 在根上取现有搜索的药水约束（`CapturePotionPolicyForFlash`：每个槽位是否允许显式使用、战略 HP 成本、最早回合、最多使用次数），换算成 Flash 玩家回合后放进 `FlashPotionPolicy`；未设置时不使用药水。FlashBeam 只对仍是根上原药水的槽位生成药水动作，评分减去已用药水的战略成本（按 HP 权重）。v1 尚未移植现有搜索的无药基线、强制使用与保留策略。
 - **预算**：节点数、时间、Beam 宽度取自同一 `SolverSearchProfile`；按回合层分配预算的规则与旧引擎 `SolveCore` 相同。
 - **产出**：胜利路线与在预算边界停下的路线中，按旧引擎终局比较器的主要键排序后取前 K 条（首版 K = 16）。
 

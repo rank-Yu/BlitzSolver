@@ -193,7 +193,7 @@ public static partial class FlashKernel
         AfterEnergyResetLate,
         AfterPlayerTurnStart,
         AfterSideTurnStart,
-        BeforeSideTurnEnd,
+        PrepareBeforeSideTurnEnd,
         AfterSideTurnEnd,
         AfterBlockCleared,
     }
@@ -215,7 +215,7 @@ public static partial class FlashKernel
                 case RelicPhase.AfterEnergyResetLate: def.AfterEnergyResetLate(ref x, self); break;
                 case RelicPhase.AfterPlayerTurnStart: def.AfterPlayerTurnStart(ref x, self); break;
                 case RelicPhase.AfterSideTurnStart: def.AfterSideTurnStart(ref x, self, side); break;
-                case RelicPhase.BeforeSideTurnEnd: def.BeforeSideTurnEnd(ref x, self, side); break;
+                case RelicPhase.PrepareBeforeSideTurnEnd: def.PrepareBeforeSideTurnEnd(ref x, self, side); break;
                 case RelicPhase.AfterSideTurnEnd: def.AfterSideTurnEnd(ref x, self, side); break;
                 case RelicPhase.AfterBlockCleared: def.AfterBlockCleared(ref x, self); break;
                 default: throw new ArgumentOutOfRangeException(nameof(phase), phase, null);

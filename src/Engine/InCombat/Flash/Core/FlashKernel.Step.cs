@@ -27,7 +27,8 @@ public static partial class FlashKernel
                 }
                 break;
             case FlashActionKind.UsePotion:
-                throw new FlashUnsupportedException("药水尚未实现。");
+                UsePotionAction(ref x, action);
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action.Kind, null);
         }
@@ -94,6 +95,32 @@ public static partial class FlashKernel
             else
             {
                 output[count++] = FlashAction.PlayCard(hand, FlashLimits.NoOwner);
+            }
+        }
+        // EnumeratePlannedPotionActions: every potion slot, with TargetsForPotion. The search applies
+        // the potion policy (allowed slots, earliest turn, maximum uses) on top of this list.
+        for (int slot = 0; slot < battle.PotionSlotCount; slot++)
+        {
+            ushort stored = battle.Potions[slot];
+            if (stored == 0 || !FlashRegistry.Potion((ushort)(stored - 1)).Searchable)
+                continue;
+            switch (rules.Potion((ushort)(stored - 1)).Target)
+            {
+                case FlashTargetType.AnyEnemy:
+                    for (int position = 0; position < battle.RosterCount; position++)
+                    {
+                        byte owner = EnemyOwner(battle.Roster[position]);
+                        if (IsHittable(battle, owner))
+                            output[count++] = FlashAction.UsePotion(slot, owner);
+                    }
+                    break;
+                case FlashTargetType.AnyPlayer or FlashTargetType.Self:
+                    if (battle.Player.IsAlive)
+                        output[count++] = FlashAction.UsePotion(slot, FlashLimits.NoOwner);
+                    break;
+                case FlashTargetType.AllEnemies or FlashTargetType.TargetedNoCreature:
+                    output[count++] = FlashAction.UsePotion(slot, FlashLimits.NoOwner);
+                    break;
             }
         }
         output[count++] = FlashAction.EndTurn();

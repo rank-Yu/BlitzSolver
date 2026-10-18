@@ -140,21 +140,38 @@ public sealed class FlashMonsterRules
 /// native models at root import; content definitions read numbers from here instead of
 /// hard-coding them.
 /// </summary>
+/// <summary>Canonical values of a potion: its target type and the dynamic variables its definition names.</summary>
+public sealed class FlashPotionStats
+{
+    public required FlashTargetType Target { get; init; }
+
+    public required decimal[] Vars { get; init; }
+
+    /// <summary>Value props of each named variable (damage and block variables carry them; others are None).</summary>
+    public required FlashValueProps[] VarProps { get; init; }
+}
+
 public sealed class FlashRules
 {
     private readonly FlashCardStats?[][] _cards;
     private readonly decimal[][] _powerVars;
+    private readonly FlashPotionStats?[] _potions;
+    private readonly decimal[][] _relicVars;
     private readonly FlashMonsterRules?[] _monsters;
 
     internal FlashRules(
         FlashCardStats?[][] cards,
         decimal[][] powerVars,
+        FlashPotionStats?[] potions,
+        decimal[][] relicVars,
         FlashMonsterRules?[] monsters,
         int baseMaxEnergy,
         int playerSlotIndex)
     {
         _cards = cards;
         _powerVars = powerVars;
+        _potions = potions;
+        _relicVars = relicVars;
         _monsters = monsters;
         BaseMaxEnergy = baseMaxEnergy;
         PlayerSlotIndex = playerSlotIndex;
@@ -186,6 +203,20 @@ public sealed class FlashRules
         return vars[index];
     }
 
+    public FlashPotionStats Potion(ushort potionId)
+        => potionId < _potions.Length && _potions[potionId] is { } stats
+            ? stats
+            : throw new FlashUnsupportedException($"规则表缺少药水 {FlashRegistry.Potion(potionId).NativeId}。");
+
+    /// <summary>A canonical dynamic variable of a relic, in the order its definition names them.</summary>
+    public decimal RelicVar(ushort relicId, int index)
+    {
+        decimal[] vars = relicId < _relicVars.Length ? _relicVars[relicId] : [];
+        if ((uint)index >= (uint)vars.Length)
+            throw new FlashUnsupportedException($"规则表缺少遗物 {FlashRegistry.Relic(relicId).NativeId} 的第 {index} 个变量。");
+        return vars[index];
+    }
+
     public FlashMonsterRules Monster(byte owner)
     {
         int enemy = owner - FlashLimits.FirstEnemyOwner;
@@ -200,6 +231,8 @@ public sealed class FlashRulesBuilder
 {
     private readonly List<FlashCardStats?>[] _cards = new List<FlashCardStats?>[FlashRegistry.CardCount];
     private readonly decimal[]?[] _powerVars = new decimal[]?[FlashRegistry.PowerCount];
+    private readonly FlashPotionStats?[] _potions = new FlashPotionStats?[FlashRegistry.PotionCount];
+    private readonly decimal[]?[] _relicVars = new decimal[]?[FlashRegistry.RelicCount];
     private readonly FlashMonsterRules?[] _monsters = new FlashMonsterRules?[FlashLimits.Enemies];
 
     public int BaseMaxEnergy { get; set; }
@@ -228,6 +261,10 @@ public sealed class FlashRulesBuilder
 
     public bool HasPowerVars(ushort id) => _powerVars[id] != null;
 
+    public void SetPotion(ushort id, FlashPotionStats stats) => _potions[id] = stats;
+
+    public void SetRelicVars(ushort id, decimal[] vars) => _relicVars[id] = vars;
+
     public void SetMonster(int enemyIndex, FlashMonsterRules rules)
     {
         if ((uint)enemyIndex >= FlashLimits.Enemies)
@@ -243,7 +280,11 @@ public sealed class FlashRulesBuilder
         decimal[][] powerVars = new decimal[_powerVars.Length][];
         for (int id = 0; id < _powerVars.Length; id++)
             powerVars[id] = _powerVars[id] ?? [];
-        return new FlashRules(cards, powerVars, (FlashMonsterRules?[])_monsters.Clone(), BaseMaxEnergy, PlayerSlotIndex);
+        decimal[][] relicVars = new decimal[_relicVars.Length][];
+        for (int id = 0; id < _relicVars.Length; id++)
+            relicVars[id] = _relicVars[id] ?? [];
+        return new FlashRules(cards, powerVars, (FlashPotionStats?[])_potions.Clone(), relicVars,
+            (FlashMonsterRules?[])_monsters.Clone(), BaseMaxEnergy, PlayerSlotIndex);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

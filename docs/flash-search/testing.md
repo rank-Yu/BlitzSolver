@@ -67,9 +67,23 @@ P5 新增第一幕（密林）怪物 16 种：缩小甲虫、树叶史莱姆（�
 
 证据（合入并修正后，每根 48 条游走，铁甲战士初始牌组的自然遭遇根，不用 fixture——fixture 加载器会把敌人生命改成 1）：遭遇缩小甲虫、一群史莱姆、一大群史莱姆、真菌与史莱姆、蛮兽、红宝石劫掠者、密林植物、方柱构装体、扼杀者与伙伴、密林爬虫、多尼斯异鸟（精英）与三个纵切根共 14 根，单步 115 次、游走 15,154 次转移零差异；固定根 31 根（每根 32 条游走）零差异。
 
-P4 跳过（缺少的能力）：狂怒、杂耍、黑暗之拥（现有引擎为它们写入 `PredictionStateStore` 条目，导入拒绝）；绯红披风、狱火（Power 私有动态变量未投影）；岩石铠甲（镀甲的 `BeforeSideTurnEndEarly` 阶段）；坚定不移（单次出牌的格挡事件计数）；好勇斗狠（`UnstableShuffle`）；痛殴、扯碎、踩踏（跨卡伤害变量、历史命中次数、费用修饰容量）；添柴、地狱之刃、原始力量（卡池随机生成、变换）；彼岸咆哮（自动打出）；肉盾、群情激愤、午夜、恶魔护盾、炽焰为多人专用。P5 跳过的遭遇（按怪物）：雾菇（召唤）、墨宝（`ModifyHpLost` Hook）、藤蔓蹒跚者（苦难）、旧日雕像（缓慢的 `PredictionStateStore` 计数）、异蛙寄生虫（感染的回合末在手效果与召唤）。
+P4 跳过（缺少的能力）：狂怒、杂耍、黑暗之拥（现有引擎为它们写入 `PredictionStateStore` 条目，导入拒绝）；绯红披风、狱火（Power 私有动态变量未投影）；岩石铠甲（覆甲的 `BeforeSideTurnEndEarly` 阶段）；坚定不移（单次出牌的格挡事件计数）；好勇斗狠（`UnstableShuffle`）；痛殴、扯碎、踩踏（跨卡伤害变量、历史命中次数、费用修饰容量）；添柴、地狱之刃、原始力量（卡池随机生成、变换）；彼岸咆哮（自动打出）；肉盾、群情激愤、午夜、恶魔护盾、炽焰为多人专用。P5 跳过的遭遇（按怪物）：雾菇（召唤）、墨宝（`ModifyHpLost` Hook）、藤蔓蹒跚者（苦难）、旧日雕像（缓慢的 `PredictionStateStore` 计数）、异蛙寄生虫（感染的回合末在手效果与召唤）。
 
-### 2.6 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
+### 2.6 药水与状态投影（2026-10-18）
+
+内核新增药水动作（`UsePotionAction`、合法目标、规则表药水数值），Bridge 新增药水翻译与 `FlashStateProjections`（`PredictionStateStore` 条目逐个认领，未认领即拒绝；当前只认定等于 Power 数量的 `PowerAmountPredictionState` 为无效条目）；新增火焰药水、格挡药水、力量药水、能量药水。固定根 `coverage/fixtures/cards/flash-k3-basic-potions.json`（初始牌组 + 三瓶药水）每根 48 条游走：单步 16 次（含 4 个药水动作）、游走 1,092 次转移零差异。端到端：Flash 用了格挡与火焰两瓶药水、胜利时 73 HP、约 182 ms，逐步核对与物化通过；现有求解未用药水、51 HP、约 1.7 s——两者药水策略不同（现有搜索有无药基线等），不作质量对比。
+
+### 2.7 第六、七批内容与内核补点（P6、P7，2026-10-18）
+
+P6 新增第一幕（暗港）怪物 8 种：钙化邪教徒、潮湿邪教徒、幽灵船、拳击构装体、海洋混混、下水道蚌、淤泥旋螺、蟾蜍蝌蚪；Power：仪式、覆甲、荆棘；状态牌：晕眩。审查修正：外部 agent 在 `ModifyDamageAdditive` 里触发荆棘反伤（修正 Hook 带副作用，评分与预览也会调用它），内核改为在 `TryDamageTarget` 的现有位置新增 `BeforeDamageReceived` 派发；仪式原以 `AmountOnTurnStart` 近似"刚由敌人施加"，改为内核在施加时设置 `WasJustAppliedByEnemy`（`MarksJustAppliedByEnemy`）、导入投影 `_wasJustAppliedByEnemy`、定义按 `ConsumeRitualApplicationDelay` 消耗；覆甲在玩家身上的回合末格挡属于 `BeforeSideTurnEnd` 的 Early 阶段，内核新增玩家回合结束第一阶段的 `BeforeSideTurnEnd`（VeryEarly、Early、普通三轮）派发。新增固定根 `flash-k4-player-plating-thorns.json`（玩家带覆甲与荆棘）。
+
+P7 新增遗物 85 个：战斗中无效果或只在根之前结算的 65 个写空定义（逐个注明依据），20 个按现有引擎的 Hook 或遗物阶段实现；需要遗物私有状态的 27 个与缺少能力的 13 个跳过。审查修正：斗篷扣、尖叫酒壶、历石、波纹水盆属于 `BeforeSideTurnEnd` Hook 的普通阶段而非回合结束开头的遗物批次，改挂到新派发点；遗物批次方法改名 `PrepareBeforeSideTurnEnd`（与 Hook 同名的重载曾让注册表的反射查找报二义性，`ComputeHooks` 改为按 `FlashListenerDef` 上的基方法精确匹配）。固定根 `coverage/fixtures/cards/flash-p7-*.json` 八个。
+
+内核另外新增：`DoTurnEnd` 改为先对手牌一次分出回合末在手牌与虚无牌并按值与出现序号重新定位，支持 `OnTurnEndInHand`；遗物私有状态投影（`StatefulRelicState` 由投影认领，未认领即拒绝）与规则表遗物变量；不可搜索的药水不产生动作（`Searchable`）。
+
+证据：合入并修正后，22 个自然遭遇根（密林 11、暗港 8、纵切 3，每根 32 条游走）与 27 个固定根零差异，FlashKernelChecks 通过。
+
+### 2.8 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
 
 同一根先用现有 `CombatBeamSolver` 求解，再走 Flash：准入 → FlashBeam → 逐步旧引擎回放核对 → 固定前缀物化。两个根的 Flash 路线逐步核对全部一致，物化成功。宿主默认档位（Beam 24、2000 节点），种子 FLASH1：
 

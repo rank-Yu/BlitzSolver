@@ -110,6 +110,10 @@ public enum FlashHookMask : ulong
     ModifyMaxEnergy = 1UL << 15,
     ModifyHandDraw = 1UL << 16,
     ModifyHandDrawLate = 1UL << 17,
+    BeforeDamageReceived = 1UL << 18,
+    BeforeSideTurnEndVeryEarly = 1UL << 19,
+    BeforeSideTurnEndEarly = 1UL << 20,
+    BeforeSideTurnEnd = 1UL << 21,
 }
 
 public abstract class FlashContentDef
@@ -149,7 +153,32 @@ public abstract class FlashListenerDef : FlashContentDef
 
     // Action hooks. Each dispatch point in the kernel names the existing-engine call it mirrors.
 
+    /// <summary>
+    /// Native <c>BeforeDamageReceived</c>, dispatched after damage modification and before block
+    /// (<c>CombatPredictionSimulator.TryDamageTarget</c>), over every listener without the ending gate.
+    /// </summary>
+    public virtual void BeforeDamageReceived(ref FlashExec x, FlashListener self, byte target, decimal amount,
+        FlashValueProps props, byte dealer, bool hasCardSource, in FlashCard cardSource)
+    {
+    }
+
     public virtual void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+    }
+
+    // HookMirrors.BeforeSideTurnEnd at the player's turn end (phase one, after AfterAutoPostPlayPhaseEntered):
+    // VeryEarly, Early and normal passes over the combat listeners, each gated by combat ending.
+    // participants is a bit set over owner indexes (FlashKernel.Participates).
+
+    public virtual void BeforeSideTurnEndVeryEarly(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    {
+    }
+
+    public virtual void BeforeSideTurnEndEarly(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    {
+    }
+
+    public virtual void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
     {
     }
 
@@ -218,6 +247,17 @@ public abstract class FlashCardDef : FlashListenerDef
     {
     }
 
+    /// <summary>Native <c>CardModel.HasTurnEndInHandEffect</c>: the card runs <see cref="OnTurnEndInHand"/> at the turn end.</summary>
+    public virtual bool HasTurnEndInHandEffect => false;
+
+    /// <summary>
+    /// The card's <c>CardOnTurnEndInHandMirrors</c> effect at the player's turn end, while it sits in the play
+    /// pile (<c>CombatPredictionSimulator.DoTurnEndCards</c>); <see cref="FlashExec.Card"/> holds its value.
+    /// </summary>
+    public virtual void OnTurnEndInHand(ref FlashExec x)
+    {
+    }
+
     /// <summary>Card-specific playability (<c>CardIsPlayableMirrors</c>); most cards are always playable.</summary>
     public virtual bool IsPlayable(in FlashBattle battle, FlashRules rules, in FlashCard card) => true;
 
@@ -267,6 +307,12 @@ public abstract class FlashPowerDef : FlashListenerDef
 
     /// <summary>Native <c>PowerModel.OwnerIsSecondaryEnemy</c>: a positive amount makes its owner a secondary enemy.</summary>
     public virtual bool OwnerIsSecondaryEnemy => false;
+
+    /// <summary>
+    /// Native <c>RitualPower._wasJustAppliedByEnemy</c>: an enemy that gains the power from zero marks it
+    /// (<see cref="FlashPowerFlags.WasJustAppliedByEnemy"/>, set in <c>ApplyWithBeforeApplied</c>).
+    /// </summary>
+    public virtual bool MarksJustAppliedByEnemy => false;
 
     // Turn phases. Each method is the power's case in the named existing-engine pass; the kernel
     // visits only powers with a positive amount, in the pass's order (FlashKernel.TurnPhases).
@@ -364,7 +410,11 @@ public abstract class FlashRelicDef : FlashListenerDef
     {
     }
 
-    public virtual void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side)
+    /// <summary>
+    /// Case in <c>TurnStartRelicSupport.TriggerBeforeSideTurnEnd</c> (<c>PrepareRelicsBeforeSideTurnEnd</c>), the
+    /// relic batch at the start of the player's turn end; not the <c>BeforeSideTurnEnd</c> hook passes.
+    /// </summary>
+    public virtual void PrepareBeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side)
     {
     }
 
@@ -377,7 +427,24 @@ public abstract class FlashRelicDef : FlashListenerDef
     }
 }
 
-public abstract class FlashPotionDef : FlashListenerDef;
+/// <summary>
+/// A potion. Its target type and variables come from <see cref="FlashRules.Potion"/>; targets are
+/// enumerated as <c>CombatBeamSolver.TargetsForPotion</c> does.
+/// </summary>
+public abstract class FlashPotionDef : FlashListenerDef
+{
+    /// <summary>
+    /// <c>PotionOnUseSupport.CanSearch</c>: whether the existing search offers explicit use. A potion it does not
+    /// offer still needs a definition to be held in a slot, but produces no action.
+    /// </summary>
+    public virtual bool Searchable => true;
+
+    /// <summary>
+    /// The potion's case in <c>PotionOnUseSupport.Use</c>. <see cref="FlashExec.Target"/> holds the chosen
+    /// enemy, or <see cref="FlashLimits.NoOwner"/> for self, all-enemy and untargeted potions.
+    /// </summary>
+    public abstract void OnUse(ref FlashExec x);
+}
 
 public abstract class FlashOrbDef : FlashListenerDef;
 
@@ -430,6 +497,8 @@ public static class FlashRegistry
     public static int RelicCount => Data.Value.Relics.Length;
 
     public static int MonsterCount => Data.Value.Monsters.Length;
+
+    public static int PotionCount => Data.Value.Potions.Length;
 
     public static FlashCardDef Card(ushort id) => Data.Value.Cards[id];
 
@@ -547,16 +616,29 @@ public static class FlashRegistry
         return (defs, ids);
     }
 
+    /// <summary>
+    /// Hooks <paramref name="type"/> overrides: for each mask name, the virtual declared on
+    /// <see cref="FlashListenerDef"/> and whether the type overrides exactly that method (overloads with
+    /// the same name on derived bases, such as phase methods, do not count).
+    /// </summary>
     private static FlashHookMask ComputeHooks(Type type)
     {
         FlashHookMask mask = FlashHookMask.None;
+        MethodInfo[] methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance);
         foreach (FlashHookMask hook in Enum.GetValues<FlashHookMask>())
         {
             if (hook == FlashHookMask.None)
                 continue;
-            MethodInfo? method = type.GetMethod(hook.ToString(), BindingFlags.Public | BindingFlags.Instance);
-            if (method != null && method.GetBaseDefinition().DeclaringType != method.DeclaringType)
-                mask |= hook;
+            MethodInfo baseMethod = typeof(FlashListenerDef).GetMethod(hook.ToString(), BindingFlags.Public | BindingFlags.Instance)
+                ?? throw new InvalidOperationException($"FlashListenerDef 没有与 Hook {hook} 同名的方法。");
+            foreach (MethodInfo method in methods)
+            {
+                if (method.DeclaringType != typeof(FlashListenerDef) && method.GetBaseDefinition() == baseMethod)
+                {
+                    mask |= hook;
+                    break;
+                }
+            }
         }
         return mask;
     }
