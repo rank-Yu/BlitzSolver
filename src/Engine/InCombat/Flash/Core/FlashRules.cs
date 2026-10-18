@@ -179,15 +179,23 @@ public sealed class FlashMonsterRules
     }
 }
 
-/// <summary>
-/// Immutable per-root rule tables shared by every branch of one Flash solve. Values come from
-/// native models at root import; content definitions read numbers from here instead of
-/// hard-coding them.
-/// </summary>
+/// <summary>Native <c>PotionRarity</c>; values match the native enum.</summary>
+public enum FlashPotionRarity : byte
+{
+    None = 0,
+    Common = 1,
+    Uncommon = 2,
+    Rare = 3,
+    Event = 4,
+    Token = 5,
+}
+
 /// <summary>Canonical values of a potion: its target type and the dynamic variables its definition names.</summary>
 public sealed class FlashPotionStats
 {
     public required FlashTargetType Target { get; init; }
+
+    public required FlashPotionRarity Rarity { get; init; }
 
     public required decimal[] Vars { get; init; }
 
@@ -195,6 +203,17 @@ public sealed class FlashPotionStats
     public required FlashValueProps[] VarProps { get; init; }
 }
 
+/// <summary>Root-frozen candidate list of one card-generation pool, in the existing engine's order.</summary>
+public sealed class FlashCardPool
+{
+    public required ushort[] Cards { get; init; }
+}
+
+/// <summary>
+/// Immutable per-root rule tables shared by every branch of one Flash solve. Values come from
+/// native models at root import; content definitions read numbers from here instead of
+/// hard-coding them.
+/// </summary>
 public sealed class FlashRules
 {
     private readonly FlashCardStats?[][] _cards;
@@ -203,6 +222,8 @@ public sealed class FlashRules
     private readonly decimal[][] _relicVars;
     private readonly FlashMonsterRules?[] _monsters;
     private readonly Dictionary<ushort, int> _spawnRules;
+    private readonly Dictionary<string, FlashCardPool> _cardPools;
+    private readonly ushort[] _potionPool;
     private readonly string[] _encounterSlots;
 
     internal FlashRules(
@@ -212,6 +233,8 @@ public sealed class FlashRules
         decimal[][] relicVars,
         FlashMonsterRules?[] monsters,
         Dictionary<ushort, int> spawnRules,
+        Dictionary<string, FlashCardPool> cardPools,
+        ushort[] potionPool,
         bool hasEncounter,
         string[] encounterSlots,
         int rootEnemyCount,
@@ -224,6 +247,8 @@ public sealed class FlashRules
         _relicVars = relicVars;
         _monsters = monsters;
         _spawnRules = spawnRules;
+        _cardPools = cardPools;
+        _potionPool = potionPool;
         HasEncounter = hasEncounter;
         _encounterSlots = encounterSlots;
         RootEnemyCount = rootEnemyCount;
@@ -275,6 +300,9 @@ public sealed class FlashRules
             ? stats
             : throw new FlashUnsupportedException($"规则表缺少药水 {FlashRegistry.Potion(potionId).NativeId}。");
 
+    /// <summary>Root-frozen random-potion candidates, in the existing engine's option order.</summary>
+    public IReadOnlyList<ushort> PotionPool => _potionPool;
+
     /// <summary>A canonical dynamic variable of a relic, in the order its definition names them.</summary>
     public decimal RelicVar(ushort relicId, int index)
     {
@@ -300,6 +328,15 @@ public sealed class FlashRules
 
     public bool TrySpawnRulesId(ushort monsterId, out int rulesId)
         => _spawnRules.TryGetValue(monsterId, out rulesId);
+
+    /// <summary>Frozen candidate list of a generation pool declared by a content definition.</summary>
+    public FlashCardPool CardPool(string key)
+        => _cardPools.TryGetValue(key, out FlashCardPool? pool)
+            ? pool
+            : throw new FlashUnsupportedException($"规则表没有卡池 {key}。");
+
+    public bool TryCardPool(string key, out FlashCardPool pool)
+        => _cardPools.TryGetValue(key, out pool!);
 }
 
 /// <summary>Collects root data from the bridge and freezes it into <see cref="FlashRules"/>.</summary>
@@ -311,6 +348,8 @@ public sealed class FlashRulesBuilder
     private readonly decimal[]?[] _relicVars = new decimal[]?[FlashRegistry.RelicCount];
     private readonly FlashMonsterRules?[] _monsters = new FlashMonsterRules?[FlashLimits.MonsterRules];
     private readonly Dictionary<ushort, int> _spawnRules = [];
+    private readonly Dictionary<string, FlashCardPool> _cardPools = new(StringComparer.Ordinal);
+    private ushort[] _potionPool = [];
     private int _monsterRuleCount;
 
     public int BaseMaxEnergy { get; set; }
@@ -346,6 +385,16 @@ public sealed class FlashRulesBuilder
     public bool HasPowerVars(ushort id) => _powerVars[id] != null;
 
     public void SetPotion(ushort id, FlashPotionStats stats) => _potions[id] = stats;
+
+    public void SetCardPool(string key, ushort[] cards)
+    {
+        if (!_cardPools.TryAdd(key, new FlashCardPool { Cards = cards }))
+            throw new InvalidOperationException($"卡池 {key} 重复登记。");
+    }
+
+    public bool HasCardPool(string key) => _cardPools.ContainsKey(key);
+
+    public void SetPotionPool(ushort[] potions) => _potionPool = potions;
 
     public void SetRelicVars(ushort id, decimal[] vars) => _relicVars[id] = vars;
 
@@ -388,6 +437,8 @@ public sealed class FlashRulesBuilder
             relicVars[id] = _relicVars[id] ?? [];
         return new FlashRules(cards, powerVars, (FlashPotionStats?[])_potions.Clone(), relicVars,
             (FlashMonsterRules?[])_monsters.Clone(), new Dictionary<ushort, int>(_spawnRules),
+            new Dictionary<string, FlashCardPool>(_cardPools, StringComparer.Ordinal),
+            (ushort[])_potionPool.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex);
     }
 

@@ -92,12 +92,11 @@ internal sealed class FlashBoundFeatures
     public bool PruneEqualHp => _config.PruneEqualHp;
 
     /// <summary>
-    /// The existing engine has no risk channel for a state the Flash kernel can represent: risk is only
-    /// recorded when the old predictor cannot vouch for a semantic path, and those paths either reject the
-    /// root or fail the K1/K2 projection equality. K5 compares this against <c>snapshot.HasRisk</c> on every
-    /// projected state.
+    /// The existing engine's <c>CombatPredictionSimulator.HasRisk</c>. Risk is recorded when a generation
+    /// effect leaves the player's choice unresolved (Discovery/Splash) and stays true for the rest of the
+    /// combat, so it maps to one monotonic battle flag.
     /// </summary>
-    public bool HasRisk(in FlashBattle battle) => false;
+    public bool HasRisk(in FlashBattle battle) => (battle.Flags & FlashBattleFlags.HasRisk) != 0;
 
     public FlashBoundValues Evaluate(in FlashBattle battle, int explicitPotionStrategicCost)
     {
@@ -122,7 +121,7 @@ internal sealed class FlashBoundFeatures
             _config.BossHpRelief,
             deathSaveHpRestored);
         return new FlashBoundValues(
-            HasRisk: false,
+            HasRisk: HasRisk(battle),
             FutureHealPotential: _config.FutureHealPotential,
             RemainingHealingPotential: remaining,
             FutureHealUsed: futureUsed,

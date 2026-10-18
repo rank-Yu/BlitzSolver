@@ -22,7 +22,9 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `Capacity` | 估计的牌数、Power 数、敌人数超出容量 |
 | `UnsupportedRequest` | 本次 `Solve()` 参数含 Flash 尚未支持的选项（见 [搜索与接入](search.md#3-请求参数)） |
 
-**可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么（固定列表或"某角色某稀有度的卡池"这类池引用）；池在根导入时按原版数据展开。怪物的召唤表（`FlashMonsterDef.SpawnedMonsterIds`）、给玩家塞入的状态牌也在闭包内。闭包里任何一项没有定义就拒绝，避免搜索中途遇到未知内容。
+**可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么：固定卡表（`GeneratedCards`）、候选卡池（`GeneratedCardPools`，键见 `FlashCardPools`）、可施加的 Power（`AppliedPowers`，用于跟随 CalamityPower 这类会继续生成卡的 Power）以及随机药水池（`GeneratesRandomPotion`）。闭包从根的战斗牌堆、Power、遗物、药水、已知敌人与召唤闭包中的怪物定义出发，而不是从全部注册定义出发；这样不含生成效果的根不会被无关池拒绝。
+
+池在根导入时用现有引擎的同一套候选枚举冻结进 `FlashRules`（角色/无色卡池、战斗过滤、多人约束、类型/费用/排除谓词，保持原顺序）；内核只按 RNG 取样。闭包里每个候选卡都必须有 Flash 定义且其规范数值进入规则表，每个随机药水候选都必须有 Flash 药水定义；否则该根按 `UnsupportedClosure` 拒绝，诊断里带上第一个缺失项与池键。召唤表的怪物定义也参与同一闭包，它们生成的卡同样需要定义。
 
 怪物的可生成类型在 `FlashRulesCompiler` 中编译：每个类型在根模拟器的私有 Fork 上执行现有引擎的创建路径（`MonsterSpawnSupport.Create` + `AddPredictedMonster` + `PreparePredictedMonster`），状态机、静态值与初始私有整数都从这次创建结果读取，不手抄。规则表容量是 `FlashLimits.MonsterRules`，超出按 `Capacity` 拒绝。根持有 `Murderous` 修饰而闭包非空时拒绝（`UnsupportedClosure`，新敌人的入场力量未移植）；贤者之石、毛皮大衣没有 Flash 遗物定义，持有它们的根在导入阶段按 `UnsupportedRelic` 拒绝。
 

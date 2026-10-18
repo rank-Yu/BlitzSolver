@@ -28,6 +28,9 @@ public static class FlashLimits
 
     /// <summary>Options of one choice request; selections are bit sets over them.</summary>
     public const int MaxChoiceOptions = 64;
+
+    /// <summary>Options of a generated-card choice (not in any pile), carried by value.</summary>
+    public const int MaxGeneratedChoiceOptions = 8;
     public const int MaxHandSize = 10;
 
     /// <summary>Owner index of the player in <see cref="FlashPower.Owner"/> and creature references.</summary>

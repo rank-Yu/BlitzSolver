@@ -60,6 +60,7 @@
 - `FlashEnemy.ForcedMove` 是合成 STUNNED 或 REVIVE_MOVE 节点的动态后继（原版 `MoveState("STUNNED"/"REVIVE_MOVE").FollowUpStateId`），当前节点不是这两个合成节点时恒为 255。布局不因此改变。
 - `FlashBattle.NextCombatId` 是旧引擎的 `_nextCreatureId`；生成敌人时先取当前值再递增。
 - 怪物行动日志存"曾经用过的行动位集"加最近 8 条；原版重复规则只读这两部分。冷却或连续次数超出 8 的状态机在运行时抛 `FlashUnsupportedException`。
+- 生成候选池、随机药水池与按原卡展开的变化池只存在 `FlashRules`（根冻结、非分支状态）。生成选项（Discovery/Splash）只存在栈上的 `FlashChoiceRequest.GeneratedOptions`，不进入 `FlashBattle`；需要选择时整个动作从父状态重执行。
 
 ## 3. 规范化
 
@@ -68,6 +69,8 @@
 - 未使用的槽位、数组尾部和填充字节全部为零。移除元素时整体前移并清零末尾。
 - 牌堆保持旧引擎里的真实顺序，不排序。旧引擎在部分牌堆上忽略顺序（`PileOrderInvariantMask`），Flash 首版不做这种合并：只会少合并，不会错误合并。
 - 布尔值只用 0 和 1。
+- `FlashBattleFlags.HasRisk` 是旧引擎快照的未补偿风险（`SimulationSnapshot.HasRisk`），一旦
+  Discovery/Splash 等效果记录 `UnresolvedPlayerChoice` 就置位并保持到战斗结束；它不改变结构体大小。
 - 结构体布局用 `StructLayout(LayoutKind.Sequential)`，并有一个检查断言 `Unsafe.SizeOf<FlashBattle>()` 与预期一致，防止字段改动悄悄引入填充。
 
 ## 4. 指纹与相等

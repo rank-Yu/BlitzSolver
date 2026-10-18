@@ -21,6 +21,7 @@ CheckCapacity();
 CheckPiles();
 CheckMonsterForcedMoves(rules);
 CheckMonsterSpawn(SpawnRules());
+CheckGenerationAndAutoPlay();
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -88,9 +89,19 @@ static void CheckIntroSort(FlashRules rules)
             reference.Add(new Keyed(cards[index]));
         }
         reference.Sort();
+        FlashCard[] original = (FlashCard[])cards.Clone();
         FlashCardSort.Sort(cards, rules);
+        FlashCard[] withOrigins = (FlashCard[])original.Clone();
+        int[] origins = new int[length];
         for (int index = 0; index < length; index++)
+            origins[index] = index;
+        FlashCardSort.SortWithOrigins(withOrigins, origins, rules);
+        for (int index = 0; index < length; index++)
+        {
             Check(cards[index].Private == reference[index].Card.Private, $"排序第 {trial} 组第 {index} 位与 List.Sort 不一致");
+            Check(withOrigins[index].Private == cards[index].Private, $"带来源排序第 {trial} 组第 {index} 位与 Sort 不一致");
+            Check(original[origins[index]].Private == cards[index].Private, $"来源映射第 {trial} 组第 {index} 位错误");
+        }
     }
 }
 
@@ -316,6 +327,148 @@ static object Benchmark(FlashRules rules)
 // Spawn contract: CombatId allocation, the native initial-HP distribution, encounter-slot roster
 // insertion, per-side initial roll and the synthetic revive move. Mirrors
 // SimulatedCombatState.CreatePredictedMonster/AddPredictedMonster/PreparePredictedMonster.
+// KG1 contracts: generation-pool sampling order and the auto-play result-pile rules.
+static void CheckGenerationAndAutoPlay()
+{
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD 定义");
+    Check(FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD 定义");
+    FlashRulesBuilder builder = new()
+    {
+        BaseMaxEnergy = 3,
+        PlayerSlotIndex = 0,
+        HasEncounter = true,
+        EncounterSlots = ["a"],
+        RootEnemyCount = 0,
+    };
+    builder.SetCard(defend, 0, new FlashCardStats
+    {
+        Type = FlashCardType.Skill, Target = FlashTargetType.Self, Rarity = FlashCardRarity.Basic,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None,
+        MaxUpgradeLevel = 1, Vars = [6m],
+    });
+    builder.SetCard(strike, 0, new FlashCardStats
+    {
+        Type = FlashCardType.Attack, Target = FlashTargetType.AnyEnemy, Rarity = FlashCardRarity.Basic,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None,
+        MaxUpgradeLevel = 1, Vars = [6m],
+    });
+    builder.SetCard(strike, 1, new FlashCardStats
+    {
+        Type = FlashCardType.Attack, Target = FlashTargetType.AnyAlly, Rarity = FlashCardRarity.Basic,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None,
+        MaxUpgradeLevel = 1, Vars = [6m],
+    });
+    builder.SetCardPool("test.pool", [strike, defend, strike, defend]);
+    FlashRules rules = builder.Build();
+
+    // Distinct selection mirrors TakeRandom/UnstableShuffle: n-1 Shuffle draws over the whole list,
+    // then the first count entries of the shuffled order. With-replacement selection draws each card.
+    FlashBattle battle = NewBattle();
+    battle.RngStream(FlashRngStream.Shuffle) = FlashRngState.FromSerializable(1, 11, 22, 33, 44);
+    Span<FlashCard> selected = stackalloc FlashCard[4];
+    FlashRngState reference = battle.RngStream(FlashRngStream.Shuffle);
+    int distinctCount = FlashKernel.SampleCardPool(ref battle, rules, "test.pool", 1, distinct: true,
+        FlashRngStream.Shuffle, selected);
+    Check(distinctCount == 1, "distinct 取样数量应为 1");
+    Span<ushort> expected = stackalloc ushort[4];
+    for (int index = 0; index < 4; index++)
+        expected[index] = index % 2 == 0 ? strike : defend;
+    for (int n = 4; n > 1;)
+    {
+        n--;
+        int k = reference.NextInt(n + 1);
+        (expected[k], expected[n]) = (expected[n], expected[k]);
+    }
+    Check(selected[0].Id == expected[0], "distinct 取样顺序与 UnstableShuffle 不一致");
+    Check(battle.RngStream(FlashRngStream.Shuffle).Counter == 4, "distinct 取样应消耗 3 次 Shuffle");
+    Check(battle.RngStream(FlashRngStream.Shuffle).Counter == reference.Counter,
+        "distinct 取样参考计数器不一致");
+
+    FlashBattle replacement = NewBattle();
+    replacement.RngStream(FlashRngStream.Shuffle) = FlashRngState.FromSerializable(1, 11, 22, 33, 44);
+    Span<FlashCard> repeated = stackalloc FlashCard[3];
+    int repeatedCount = FlashKernel.SampleCardPool(ref replacement, rules, "test.pool", 3, distinct: false,
+        FlashRngStream.Shuffle, repeated);
+    FlashRngState replacementReference = FlashRngState.FromSerializable(1, 11, 22, 33, 44);
+    Check(repeatedCount == 3, "有放回取样数量应为 3");
+    for (int index = 0; index < 3; index++)
+    {
+        // The same NextInt draw indexes the frozen pool [strike, defend, strike, defend].
+        int pick = replacementReference.NextInt(0, 4);
+        Check(repeated[index].Id == (pick % 2 == 0 ? strike : defend), $"有放回第 {index} 张与 NextInt 不一致");
+    }
+    Check(replacement.RngStream(FlashRngStream.Shuffle).Counter == 4, "有放回取样应每张消耗一次 Shuffle");
+
+    // Unplayable / no-target auto-play goes to the result pile without playing.
+    FlashBattle unplayable = NewBattle();
+    FlashCard blocked = FlashKernel.CreateCard(rules, defend);
+    blocked.Keywords |= FlashKeywords.Unplayable;
+    FlashPiles.Append(ref unplayable, FlashPile.Hand, blocked);
+    FlashExec x = new(ref unplayable, rules, FlashAction.PlayCard(0, FlashLimits.NoOwner));
+    Check(!FlashKernel.AutoPlay(ref x, FlashPile.Hand, 0), "不可打出的自动打出应返回 false");
+    Check(unplayable.HandCount == 0 && unplayable.DiscardCount == 1, "不可打出的自动打出应进入弃牌堆");
+    Check(!x.NeedsChoice, "不可打出的自动打出不应请求选择");
+
+    FlashBattle targetless = NewBattle();
+    FlashPiles.Append(ref targetless, FlashPile.Hand, FlashKernel.CreateCard(rules, strike, 1));
+    FlashExec y = new(ref targetless, rules, FlashAction.PlayCard(0, FlashLimits.NoOwner));
+    Check(!FlashKernel.AutoPlay(ref y, FlashPile.Hand, 0), "无目标的自动打出应返回 false");
+    Check(targetless.HandCount == 0 && targetless.DiscardCount == 1, "无目标的自动打出应进入弃牌堆");
+
+    // Exhaust-keyword and force-exhaust cards land in the exhaust pile; a played force-exhaust card
+    // clears ExhaustOnNextPlay, while one moved without playing keeps it (native behavior).
+    FlashBattle exhaustKeyword = NewBattle();
+    FlashCard howl = FlashKernel.CreateCard(rules, defend);
+    howl.Keywords |= FlashKeywords.Unplayable | FlashKeywords.Exhaust;
+    FlashPiles.Append(ref exhaustKeyword, FlashPile.Hand, howl);
+    FlashExec z = new(ref exhaustKeyword, rules, FlashAction.PlayCard(0, FlashLimits.NoOwner));
+    _ = FlashKernel.AutoPlay(ref z, FlashPile.Hand, 0);
+    Check(exhaustKeyword.ExhaustCount == 1 && exhaustKeyword.DiscardCount == 0, "消耗关键字的自动打出应进入消耗堆");
+
+    FlashBattle played = NewBattle();
+    FlashPiles.Append(ref played, FlashPile.Draw, FlashKernel.CreateCard(rules, defend));
+    FlashExec w = new(ref played, rules, FlashAction.PlayCard(0, FlashLimits.NoOwner));
+    FlashKernel.AutoPlayFromDrawPile(ref w, 1, forceExhaust: true);
+    Check(played.ExhaustCount == 1 && played.DiscardCount == 0, "强制消耗的自动打出应进入消耗堆");
+    Check(played.Player.Block == 6, "自动打出的防御应获得格挡");
+    Check((FlashPiles.At(ref played, FlashPile.Exhaust, 0).Flags & FlashCardFlags.ExhaustOnNextPlay) == 0,
+        "打出的强制消耗标记应被清除");
+
+    FlashBattle notPlayed = NewBattle();
+    FlashPiles.Append(ref notPlayed, FlashPile.Draw, FlashKernel.CreateCard(rules, strike, 1));
+    FlashExec v = new(ref notPlayed, rules, FlashAction.PlayCard(0, FlashLimits.NoOwner));
+    FlashKernel.AutoPlayFromDrawPile(ref v, 1, forceExhaust: true);
+    Check(notPlayed.ExhaustCount == 1, "无目标的强制消耗自动打出应进入消耗堆");
+    Check((FlashPiles.At(ref notPlayed, FlashPile.Exhaust, 0).Flags & FlashCardFlags.ExhaustOnNextPlay) != 0,
+        "未打出的强制消耗标记应保留");
+}
+
+static FlashBattle NewBattle()
+{
+    FlashBattle battle = default;
+    battle.Player = new FlashCreature
+    {
+        CurrentHp = 50,
+        MaxHp = 50,
+        Flags = FlashCreatureFlags.Present,
+    };
+    battle.MaxHandSize = 10;
+    battle.Energy = 3;
+    battle.PotionSlotCount = 0;
+    // One alive primary enemy keeps IsEnding false; targetless tests use an AnyAlly card instead.
+    battle.EnemyCount = 1;
+    battle.RosterCount = 1;
+    battle.Roster[0] = 0;
+    battle.Enemies[0].Creature = new FlashCreature
+    {
+        CurrentHp = 100,
+        MaxHp = 100,
+        Flags = FlashCreatureFlags.Present,
+    };
+    battle.Enemies[0].Flags = FlashEnemyFlags.InCombat;
+    return battle;
+}
+
 static void CheckMonsterSpawn(FlashRules rules)
 {
     // HashSet<int> enumeration order is the ascending insertion order the native NextItem sees.

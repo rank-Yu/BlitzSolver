@@ -127,7 +127,7 @@ public static partial class FlashKernel
     public static void Draw(ref FlashExec x, decimal count, bool fromHandDraw)
         => Draw(ref x, count > 0m ? (int)Math.Ceiling(count) : 0, fromHandDraw);
 
-    private static void ShuffleIfNecessary(ref FlashExec x)
+    internal static void ShuffleIfNecessary(ref FlashExec x)
     {
         if (x.B.DrawCount == 0 && x.B.DiscardCount != 0)
             Shuffle(ref x);

@@ -145,6 +145,41 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// A generated-card choice (<c>CardChoiceSupport.GetSpec</c>'s <c>PlanChoiceEffect.GenerateToHand</c>
+    /// branch): the options are card values that are not in any pile, so they travel by value in the
+    /// request. The existing engine asks even when the option list is empty (<c>RangeSpec</c>).
+    /// </summary>
+    public static bool ChooseGeneratedCardsInRange(ref FlashExec x, FlashChoiceEffect effect,
+        scoped ReadOnlySpan<FlashCard> options, int minCount, int maxCount,
+        scoped Span<int> selected, out int selectedCount)
+    {
+        if (options.Length > FlashLimits.MaxGeneratedChoiceOptions)
+            throw new FlashCapacityException("Choice.GeneratedOptions", FlashLimits.MaxGeneratedChoiceOptions);
+        FlashChoiceRequest request = new()
+        {
+            Kind = FlashChoiceKind.SelectCards,
+            Effect = effect,
+            Timing = x.ChoiceTiming,
+            SourceIsNone = true,
+            OptionsAreGenerated = true,
+            OptionCount = checked((byte)options.Length),
+            MinCount = (byte)Math.Min(minCount, options.Length),
+            MaxCount = (byte)Math.Min(maxCount, options.Length),
+        };
+        for (int index = 0; index < options.Length; index++)
+            request.GeneratedOptions[index] = options[index];
+        selectedCount = 0;
+        if (!x.TryTakeChoice(request, out ulong selection))
+            return false;
+        for (int index = 0; index < options.Length; index++)
+        {
+            if ((selection & (1UL << index)) != 0)
+                selected[selectedCount++] = index;
+        }
+        return true;
+    }
+
+    /// <summary>
     /// Mirrors <c>PredictedCardExtensions.Upgrade</c> → <c>PredictionUtils.UpgradeCard</c>: no change when
     /// the card is at its maximum level; otherwise one level up. The per-level rule stats give the
     /// native <c>OnUpgrade</c> deltas: <c>EnergyCost.UpgradeBy</c> (base floored at zero, absolute local

@@ -51,4 +51,48 @@ public static partial class FlashKernel
     public static decimal PotionVar(in FlashExec x, FlashPotionDef def, int index) => x.R.Potion(def.Id).Vars[index];
 
     public static FlashValueProps PotionVarProps(in FlashExec x, FlashPotionDef def, int index) => x.R.Potion(def.Id).VarProps[index];
+
+    /// <summary>
+    /// Mirrors <c>PotionFactory.CreateRandomPotionInCombat</c>: one CombatPotionGeneration
+    /// <c>NextFloat</c> for the rarity (Rare <= 0.1, Uncommon <= 0.35, else Common), then one
+    /// <c>NextItem</c> draw over the candidates of that rarity in frozen pool order.
+    /// </summary>
+    public static ushort GenerateRandomPotion(ref FlashBattle battle, FlashRules rules)
+    {
+        IReadOnlyList<ushort> pool = rules.PotionPool;
+        if (pool.Count == 0)
+            throw new FlashUnsupportedException("随机药水池为空。");
+        ref FlashRngState rng = ref battle.RngStream(FlashRngStream.CombatPotionGeneration);
+        float roll = rng.NextFloat(1f);
+        FlashPotionRarity rarity = roll <= 0.1f
+            ? FlashPotionRarity.Rare
+            : roll <= 0.35f ? FlashPotionRarity.Uncommon : FlashPotionRarity.Common;
+        Span<ushort> candidates = stackalloc ushort[pool.Count];
+        int count = 0;
+        for (int index = 0; index < pool.Count; index++)
+        {
+            if (rules.Potion(pool[index]).Rarity == rarity)
+                candidates[count++] = pool[index];
+        }
+        if (count == 0)
+            throw new FlashUnsupportedException($"随机药水没有稀有度 {rarity} 的候选。");
+        return candidates[rng.NextInt(0, count)];
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.TryProcurePotion</c> for a supported root: the first empty slot
+    /// receives the potion. <c>ShouldProcurePotion</c> (Sozu) and <c>AfterPotionProcured</c> relic
+    /// reactions have no Flash definitions, so roots holding them are rejected at admission.
+    /// </summary>
+    public static bool TryProcurePotion(ref FlashBattle battle, ushort potionId)
+    {
+        for (int slot = 0; slot < battle.PotionSlotCount; slot++)
+        {
+            if (battle.Potions[slot] != 0)
+                continue;
+            battle.Potions[slot] = (ushort)(potionId + 1);
+            return true;
+        }
+        return false;
+    }
 }

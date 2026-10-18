@@ -4,7 +4,7 @@
 
 本文规定 Flash 内核的执行模型。**规范来源是现有引擎的实际行为**：下文的步骤顺序摘自现有引擎源码，引用路径相对仓库根。两者冲突时以现有引擎和差分测试结果为准，并回头修正本文。
 
-路径缩写：`S/` = `src/Engine/InCombat/Simulation/`，`M/` = `src/Engine/InCombat/Mirrors/`，`Q/` = `src/Search/`，`P/` = `src/Prediction/`。
+路径缩写：`S/` = `src/Engine/InCombat/Simulation/`，`M/` = `src/Engine/InCombat/Mirrors/`，`E/` = `src/Engine/InCombat/Extensions/`，`Q/` = `src/Search/`，`P/` = `src/Prediction/`。
 
 ## 1. 执行上下文
 
@@ -52,8 +52,8 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 格挡：`BeforeBlockGained`、`ModifyBlockAdditive`、`ModifyBlockMultiplicative`、`AfterModifyingBlockAmount`、`AfterBlockGained`、`ShouldClearBlock`、`AfterBlockCleared`。
 - 死亡：`BeforeDeath`、`ShouldDie`（含 Late）、`AfterDeath`、`AfterPreventingDeath`。
 - 已有派发点（其余见本节列表）：`BeforeDamageReceived`（`TryDamageTarget` 中修正后、格挡前，不受战斗结束闸门限制）、`BeforeSideTurnEnd` 三轮（玩家回合结束第一阶段，受闸门限制，参与者以位集合传入）、`ShouldClearBlock`、`ModifyMaxEnergy`、`ModifyHandDraw`（含 Late）与第 7 节的 Power/遗物阶段方法。
-- 回合：`BeforeSideTurnStart`、`AfterSideTurnStart`、`AfterEnergyReset`（含 Late）、`ModifyMaxEnergy`、`BeforeHandDraw`、`ModifyHandDraw`（含 Late）、`AfterPlayerTurnStart`、`AfterAutoPostPlayPhaseEntered`、`BeforeSideTurnEnd`（VeryEarly、Early、普通）、`OnTurnEndInHand`、`AfterSideTurnEnd`（含 Late）、`ShouldTakeExtraTurn`。
-- 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook）、`ModifyShuffleOrder`、`AfterShuffle`、`AfterCardChangedPiles`。
+- 回合：`BeforeSideTurnStart`、`AfterSideTurnStart`、`AfterEnergyReset`（含 Late）、`ModifyMaxEnergy`、`BeforeHandDraw`、`ModifyHandDraw`（含 Late）、`AfterPlayerTurnStart`、`AfterAutoPostPlayPhaseEntered`（阶段切到 AutoPostPlay 后、切到 End 之前，卡牌与 Power 监听者；HowlFromBeyond、StampedePower）、`BeforeSideTurnEnd`（VeryEarly、Early、普通）、`OnTurnEndInHand`、`AfterSideTurnEnd`（含 Late）、`ShouldTakeExtraTurn`。
+- 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook；HellraiserPower 在 Early 自动打出刚抽到的 Strike）、`ModifyShuffleOrder`、`AfterShuffle`、`AfterCardChangedPiles`。
 - Power：`ModifyPowerAmount`（遗物：UnsettlingLamp、SneckoSkull、RuinedHelmet）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious）。
 - 球：被动与激发；`OrbQueue.BeforeTurnEnd`。
 
@@ -72,7 +72,30 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 药水（`Q/CombatBeamSolver.Expansion.Replay.cs` 的 `UsePotion` 分支与 `P/PotionExecutionSupport.cs`）：清空槽位（使用记录只供搜索评分）→ `BeforePotionUsed` → 药水效果（`FlashPotionDef.OnUse`，对应 `PotionOnUseSupport.Use` 的分支；自身药水作用于玩家）→ 药水选择 → 玩家存活时 `AfterPotionUsed` → 敌人死亡效果；之后与出牌相同：洗牌计数、胜负判定、处理被请求的回合结束。药水的目标类型与变量（含伤害、格挡变量的 ValueProp）从规范药水编译进规则表；合法目标按 `TargetsForPotion`（任一敌人逐个可命中敌人；自身/任一玩家在玩家存活时无目标；全体敌人与无生物目标无目标）。
 
-自动打出（`S/CombatPredictionSimulator.AutoPlay.cs:21-73`）：不可打出、`ShouldPlay` 失败或无目标时直接移入去向；随机目标用 `CombatTargets` 流；不支付资源，X 值取当前能量。
+### 4.1 自动打出
+
+来源：`S/CombatPredictionSimulator.AutoPlay.cs:21-73`、`S/CombatPredictionSimulator.AutoPlayContinuation.cs`。
+
+`FlashKernel.AutoPlay` 与 `ManualPlay` 共用 `PlayFromPlay`（结果牌堆、每次打出、`BeforeCardPlayed`、效果、`OwnChoice`、`AfterCardPlayed` 普通与 Late、收尾），只替换资源与目标两步：
+
+1. 战斗结束/正在结束或拥有者死亡时不打出。卡牌不在任何牌堆时先加入打出区（触发 `AfterEnteredCombat`）。
+2. 不可打出关键字、`ShouldPlay` 拒绝或无法解析目标时，`MoveToResultPileWithoutPlaying`：先加入打出区，再按 `ExhaustOnNextPlay`/消耗关键字进入消耗堆，否则进入弃牌堆；不触发任何出牌 Hook、计数或费用清理。
+3. 不支付能量/星能；`SpendResources(isAutoPlay: true, skipXCapture)` 只在 `!skipXCapture` 时把当前费用写入本次 X 值（X 费卡取当前能量），并记录星能值。`ManualCardsPlayedThisTurn` 不计自动打出。
+4. 目标：`AnyEnemy` 用 `CombatTargets` 流从 `HittableEnemies`（名单顺序、排除复活/永久死亡）取随机目标，候选为空时不消耗流；单人没有其他队友，`AnyAlly` 只有调用方已给出目标才成立；其他目标类型直接通过。
+5. `AutoPlayFromDrawPile` 先按现有引擎把最多 `count` 张抽牌堆顶牌移到打出区，再按顺序逐张自动打出；每张打出前写入 `ExhaustOnNextPlay = forceExhaust`（false 也写入）。打出的卡结果去向为消耗堆时清除该标志（`CardModel.GetResultLocationForCardPlay`），未打出而直接移入去向时保留（`MoveToResultPileWithoutPlaying`）。
+6. 自动打出中的卡牌自身选择走现有嵌套选择协议：`OwnChoice` 请求选择、动作未携带时返回 `NeedsChoice`，调用方从父状态带选择重执行。生成选项（Discovery/Splash）的选择协议见 4.2。
+
+### 4.2 卡池随机生成与变化
+
+来源：`E/CombatCardGenerationExtensions.cs`、`S/CombatPredictionSimulator.AutoPlayContinuation.cs`、`P/CardOnPlaySupport.Batch042.cs`、`Q/CardChoiceResolution.cs`。
+
+- **候选池在 Bridge 冻结。** 定义用 `FlashCardPools` 的键声明可能生成的池；`FlashRulesCompiler` 用现有引擎的同一枚举（`player.GetUnlocked...` + `FilterForCombatAndPlayerCount`，再按调用点的类型/费用/排除谓词过滤）把候选按原顺序写进 `FlashRules`。内核只按 RNG 取样，不重新过滤。
+- **取样。** 去重（`TakeRandom`）先对整个候选列表做一次 Fisher-Yates（`n-1` 次 `Shuffle` 流 `NextInt(n+1)`），再取前 `count` 张；有放回（`NextItem`）每张消耗一次 `CombatCardGeneration` 流 `NextInt(0, n)`。候选为空时不消耗 RNG。生成的卡按 `CreateCard` 创建为 0 级规范卡，`UpgradeIf` 再升级一次。
+- **加入战斗。** `AddGeneratedCard` 对应 `AddGeneratedCardsToCombat` 的单卡路径：手牌已满改投弃牌堆，按 `Bottom`/`Top`/`Random` 插入，调用卡的 `AfterEnteredCombat`。`SetToFreeThisTurn` 写入绝对 0 能量修饰（EndOfTurn|WhenPlayed）和 0 临时星能费用（回合末清除）。
+- **生成选项选择。** Discovery/Splash 先记录生成的选项并写入风险（旧引擎的 `History.CardGenerationOptions` + `RecordRisk(UnresolvedPlayerChoice)`），随后 `GetSpec` 的 `GenerateToHand` 分支在 `OwnChoice` 提问。Flash 把选项值直接放进 `FlashChoiceRequest.GeneratedOptions`（不在任何牌堆），选择后再 `CloneCard`、`SetToFreeThisTurn`、加入手牌；空选项也提一个空范围选择，与 `RangeSpec` 一致。
+- **变化。** `ReplaceCard` 对应 `CardCmd.Transform` 的现有引擎结算：从原牌堆移除原卡（`RemoveFromCombat`），再把替换卡插回 `min(原下标, 当前长度)` 并调用 `AfterEnteredCombat`；不触发 `AfterCardChangedPiles`。Flash 没有实例身份，按位置定位；PrimalForce 对 snapshot 的手牌攻击按升序原位替换为 GiantRock（PrimalForce 升级时 GiantRock 升 1 级）。
+- **随机药水。** 一次 `CombatPotionGeneration` `NextFloat` 选稀有度（Rare ≤ 0.1、Uncommon ≤ 0.35、否则 Common），再一次 `NextItem` 在冻结的同稀有度池中选；`TryProcurePotion` 放入第一个空槽，成功时记录 `LongTermResourceValue + 20`。
+- **风险。** `FlashBattleFlags.HasRisk` 只表示旧快照的**未补偿**风险（`snapshot.HasRisk`）；Discovery/Splash 记录 `UnresolvedPlayerChoice` 后置位，之后整场保持。根导入从快照读取该位；内核不尝试对其它风险原因做补偿分类。
 
 ## 5. 伤害管线
 

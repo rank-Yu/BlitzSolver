@@ -155,6 +155,7 @@ public enum FlashHookMask : ulong
     AfterBlockBroken = 1UL << 35,
     ShouldPlay = 1UL << 36,
     ShouldFlush = 1UL << 37,
+    AfterAutoPostPlayPhaseEntered = 1UL << 39,
 
     /// <summary>
     /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
@@ -164,6 +165,32 @@ public enum FlashHookMask : ulong
         | AfterDamageReceived | AfterDamageReceivedLate | AfterDamageGiven | ModifyHpLostBeforeOsty
         | ModifyHpLostBeforeOstyLate | ModifyHpLostAfterOsty | ModifyHpLostAfterOstyLate | AfterCurrentHpChanged
         | BeforeDeath | ShouldDie | ShouldDieLate | AfterDeath,
+}
+
+/// <summary>
+/// Candidate lists frozen by the Bridge with the existing engine's own generation queries. A
+/// definition declaring one of these ids requires the rule table to contain the list and every
+/// candidate to have a Flash card definition (admission rejects the root otherwise).
+/// </summary>
+public static class FlashCardPools
+{
+    /// <summary>Player's unlocked character cards, filtered for combat generation.</summary>
+    public const string CharacterAll = "character.all";
+
+    /// <summary>Player's unlocked character Attacks, filtered for combat generation.</summary>
+    public const string CharacterAttacks = "character.attacks";
+
+    /// <summary>Player's unlocked character cards with canonical cost 0 and no X cost.</summary>
+    public const string CharacterZeroCost = "character.zero-cost";
+
+    /// <summary>Player's unlocked colorless cards, filtered for combat generation.</summary>
+    public const string ColorlessAll = "colorless.all";
+
+    /// <summary>Colorless cards except JackOfAllTrades itself.</summary>
+    public const string ColorlessExceptJackOfAllTrades = "colorless.except-jack-of-all-trades";
+
+    /// <summary>Attacks from every other unlocked character pool (Splash).</summary>
+    public const string OtherCharacterAttacks = "character.other-attacks";
 }
 
 public abstract class FlashContentDef
@@ -182,6 +209,25 @@ public abstract class FlashContentDef
     /// their canonical stats, and admission rejects the root when any of them has no Flash definition.
     /// </summary>
     public virtual IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [];
+
+    /// <summary>
+    /// Candidate pools (see <see cref="FlashCardPools"/>) this content can generate from. The Bridge
+    /// freezes each pool with the existing engine's own query and admission rejects the root when a
+    /// candidate has no Flash definition.
+    /// </summary>
+    public virtual IReadOnlyList<string> GeneratedCardPools => [];
+
+    /// <summary>
+    /// Native power ids this content applies during its effect. The closure follows them so a power
+    /// that can generate cards (CalamityPower) is frozen and checked before the root is admitted.
+    /// </summary>
+    public virtual IReadOnlyList<string> AppliedPowers => [];
+
+    /// <summary>
+    /// True when this content can create a random potion in combat (<c>PotionFactory.CreateRandomPotionInCombat</c>).
+    /// The Bridge then freezes the potion option pool and admission rejects an undefined candidate.
+    /// </summary>
+    public virtual bool GeneratesRandomPotion => false;
 }
 
 /// <summary>
@@ -292,6 +338,15 @@ public abstract class FlashListenerDef : FlashContentDef
     /// when its listener visit did not (for example while combat is ending).
     /// </summary>
     public virtual void AfterCardDrawn(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
+    {
+    }
+
+    /// <summary>
+    /// Native <c>AfterAutoPostPlayPhaseEntered</c> (<c>HookMirrors.AfterAutoPostPlayPhaseEntered</c>),
+    /// dispatched over the combat listeners while the player phase is AutoPostPlay, before it moves to
+    /// End. HowlFromBeyond and StampedePower are the supported listeners.
+    /// </summary>
+    public virtual void AfterAutoPostPlayPhaseEntered(ref FlashExec x, FlashListener self)
     {
     }
 

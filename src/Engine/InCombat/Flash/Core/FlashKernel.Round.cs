@@ -23,7 +23,10 @@ public static partial class FlashKernel
             return;
         // SimulateEndPlayerTurnBeforeOrbPassives.
         x.B.Phase = FlashPlayerPhase.AutoPostPlay;
-        // AfterAutoPostPlayPhaseEntered: no supported listeners.
+        AfterAutoPostPlayPhaseEnteredHook afterAutoPostPlay = new();
+        FlashHooks.Dispatch(ref x, ref afterAutoPostPlay, gatedByEnding: true);
+        if (x.NeedsChoice)
+            return;
         x.B.Phase = FlashPlayerPhase.End;
         BeforeSideTurnEnd(ref x, FlashSide.Player, ParticipantMask(FlashLimits.PlayerOwner));
         if (x.NeedsChoice)

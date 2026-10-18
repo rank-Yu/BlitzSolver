@@ -88,6 +88,12 @@ public enum FlashChoiceEffect : byte
     Discard,
     Exhaust,
     Upgrade,
+
+    /// <summary>Pick one generated option and add a free-this-turn clone to hand (Discovery, Splash).</summary>
+    GenerateToHand,
+
+    /// <summary>Replace the selected cards with random cards from the transform pool (Entropy).</summary>
+    Transform,
 }
 
 /// <summary>Phase the choice belongs to; mirrors <c>PlanChoiceTiming</c>.</summary>
@@ -105,10 +111,18 @@ public struct FlashChoiceOptions
     private byte _first;
 }
 
+[InlineArray(FlashLimits.MaxGeneratedChoiceOptions)]
+public struct FlashGeneratedChoiceOptions
+{
+    private FlashCard _first;
+}
+
 /// <summary>
 /// Option list of a choice the kernel could not resolve from the action. Options are absolute
 /// positions in <see cref="FlashBattle.Cards"/> of the (partial) battle at the time of the request,
-/// in the existing engine's option order; selections are bit sets over this list.
+/// in the existing engine's option order; selections are bit sets over this list. Generated-card
+/// choices (the existing engine's <c>PlanChoiceEffect.GenerateToHand</c>) have no pile, so their
+/// options are carried by value in <see cref="GeneratedOptions"/> instead.
 /// </summary>
 public struct FlashChoiceRequest
 {
@@ -116,12 +130,20 @@ public struct FlashChoiceRequest
     public FlashChoiceEffect Effect;
     public FlashChoiceTiming Timing;
     public FlashPile Source;
+
+    /// <summary>True for a generated-card choice, whose existing spec has <c>PileType.None</c>.</summary>
+    public bool SourceIsNone;
+
+    /// <summary>True when <see cref="GeneratedOptions"/> holds the options instead of pile positions.</summary>
+    public bool OptionsAreGenerated;
+
     public byte OptionCount;
 
     /// <summary>Selection size bounds, already clamped to the option count as the existing engine does.</summary>
     public byte MinCount;
     public byte MaxCount;
     public FlashChoiceOptions Options;
+    public FlashGeneratedChoiceOptions GeneratedOptions;
 }
 
 /// <summary>
@@ -154,6 +176,8 @@ public ref struct FlashExec
         ChoiceTiming = FlashChoiceTiming.Action;
         DrawnCardPosition = -1;
         IntrinsicDrawHandled = false;
+        GeneratedOptions = default;
+        GeneratedOptionCount = 0;
     }
 
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
@@ -184,6 +208,15 @@ public ref struct FlashExec
 
     /// <summary><c>AfterCardDrawnMirrorContext.IntrinsicCardHandled</c> for the current drawn card.</summary>
     public bool IntrinsicDrawHandled;
+
+    /// <summary>
+    /// Generated-card options produced by the current card's OnPlay, consumed by its OwnChoice
+    /// (Discovery/Splash). Transient: a needs-choice unwind discards the whole partial battle and
+    /// re-execution regenerates the same options from the same parent RNG state.
+    /// </summary>
+    public FlashGeneratedChoiceOptions GeneratedOptions;
+
+    public int GeneratedOptionCount;
 
     /// <summary>
     /// Takes the next carried choice. When none is left, records <paramref name="request"/>, sets

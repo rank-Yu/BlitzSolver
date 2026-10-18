@@ -143,4 +143,146 @@ public static class FlashCardSort
     }
 
     private static void Swap(ref FlashCard i, ref FlashCard j) => (i, j) = (j, i);
+
+/// <summary>
+/// The same native <c>List&lt;T&gt;.Sort()</c> permutation as <see cref="Sort"/>, carrying a parallel
+/// origin array so a caller can tell which equal-valued card ended up at each sorted position (the
+/// generation and auto-play effects refer to card instances, not just values).
+/// </summary>
+public static void SortWithOrigins(Span<FlashCard> keys, Span<int> origins, FlashRules rules)
+{
+    if (keys.Length != origins.Length)
+        throw new ArgumentException("keys and origins must have the same length.", nameof(origins));
+    if (keys.Length > 1)
+        IntroSortWithOrigins(keys, origins, 2 * (BitOperations.Log2((uint)keys.Length) + 1), rules);
+}
+
+private static void IntroSortWithOrigins(Span<FlashCard> keys, Span<int> origins, int depthLimit, FlashRules rules)
+{
+    int partitionSize = keys.Length;
+    while (partitionSize > 1)
+    {
+        if (partitionSize <= IntrosortSizeThreshold)
+        {
+            if (partitionSize == 2)
+            {
+                SwapIfGreaterWithOrigins(ref keys[0], ref keys[1], ref origins[0], ref origins[1], rules);
+                return;
+            }
+            if (partitionSize == 3)
+            {
+                SwapIfGreaterWithOrigins(ref keys[0], ref keys[1], ref origins[0], ref origins[1], rules);
+                SwapIfGreaterWithOrigins(ref keys[0], ref keys[2], ref origins[0], ref origins[2], rules);
+                SwapIfGreaterWithOrigins(ref keys[1], ref keys[2], ref origins[1], ref origins[2], rules);
+                return;
+            }
+            InsertionSortWithOrigins(keys[..partitionSize], origins[..partitionSize], rules);
+            return;
+        }
+        if (depthLimit == 0)
+        {
+            HeapSortWithOrigins(keys[..partitionSize], origins[..partitionSize], rules);
+            return;
+        }
+        depthLimit--;
+        int pivot = PickPivotAndPartitionWithOrigins(keys[..partitionSize], origins[..partitionSize], rules);
+        IntroSortWithOrigins(keys[(pivot + 1)..partitionSize], origins[(pivot + 1)..partitionSize], depthLimit, rules);
+        partitionSize = pivot;
+    }
+}
+
+private static int PickPivotAndPartitionWithOrigins(Span<FlashCard> keys, Span<int> origins, FlashRules rules)
+{
+    int last = keys.Length - 1;
+    int middle = last >> 1;
+    SwapIfGreaterWithOrigins(ref keys[0], ref keys[middle], ref origins[0], ref origins[middle], rules);
+    SwapIfGreaterWithOrigins(ref keys[0], ref keys[last], ref origins[0], ref origins[last], rules);
+    SwapIfGreaterWithOrigins(ref keys[middle], ref keys[last], ref origins[middle], ref origins[last], rules);
+
+    int nextToLast = keys.Length - 2;
+    FlashCard pivot = keys[middle];
+    SwapWithOrigins(ref keys[middle], ref keys[nextToLast], ref origins[middle], ref origins[nextToLast]);
+
+    int left = 0;
+    int right = nextToLast;
+    while (left < right)
+    {
+        while (left < nextToLast && Compare(pivot, keys[++left], rules) > 0)
+        {
+        }
+        while (right > 0 && Compare(pivot, keys[--right], rules) < 0)
+        {
+        }
+        if (left >= right)
+            break;
+        SwapWithOrigins(ref keys[left], ref keys[right], ref origins[left], ref origins[right]);
+    }
+
+    if (left != nextToLast)
+        SwapWithOrigins(ref keys[left], ref keys[nextToLast], ref origins[left], ref origins[nextToLast]);
+    return left;
+}
+
+private static void HeapSortWithOrigins(Span<FlashCard> keys, Span<int> origins, FlashRules rules)
+{
+    int n = keys.Length;
+    for (int i = n >> 1; i >= 1; i--)
+        DownHeapWithOrigins(keys, origins, i, n, rules);
+    for (int i = n; i > 1; i--)
+    {
+        SwapWithOrigins(ref keys[0], ref keys[i - 1], ref origins[0], ref origins[i - 1]);
+        DownHeapWithOrigins(keys, origins, 1, i - 1, rules);
+    }
+}
+
+private static void DownHeapWithOrigins(Span<FlashCard> keys, Span<int> origins, int i, int n, FlashRules rules)
+{
+    FlashCard d = keys[i - 1];
+    int dOrigin = origins[i - 1];
+    while (i <= n >> 1)
+    {
+        int child = 2 * i;
+        if (child < n && Compare(keys[child - 1], keys[child], rules) < 0)
+            child++;
+        if (!(Compare(d, keys[child - 1], rules) < 0))
+            break;
+        keys[i - 1] = keys[child - 1];
+        origins[i - 1] = origins[child - 1];
+        i = child;
+    }
+    keys[i - 1] = d;
+    origins[i - 1] = dOrigin;
+}
+
+private static void InsertionSortWithOrigins(Span<FlashCard> keys, Span<int> origins, FlashRules rules)
+{
+    for (int i = 0; i < keys.Length - 1; i++)
+    {
+        FlashCard t = keys[i + 1];
+        int tOrigin = origins[i + 1];
+        int j = i;
+        while (j >= 0 && Compare(t, keys[j], rules) < 0)
+        {
+            keys[j + 1] = keys[j];
+            origins[j + 1] = origins[j];
+            j--;
+        }
+        keys[j + 1] = t;
+        origins[j + 1] = tOrigin;
+    }
+}
+
+private static void SwapIfGreaterWithOrigins(ref FlashCard left, ref FlashCard right,
+    ref int leftOrigin, ref int rightOrigin, FlashRules rules)
+{
+    if (Compare(left, right, rules) > 0)
+        SwapWithOrigins(ref left, ref right, ref leftOrigin, ref rightOrigin);
+}
+
+private static void SwapWithOrigins(ref FlashCard left, ref FlashCard right, ref int leftOrigin, ref int rightOrigin)
+{
+    (left, right) = (right, left);
+    (leftOrigin, rightOrigin) = (rightOrigin, leftOrigin);
+}
+
 }

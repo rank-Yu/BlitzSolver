@@ -39,6 +39,12 @@ public enum FlashBattleFlags : byte
 
     /// <summary>Native <c>CombatTurnState.PendingLoss</c> (<c>IsAboutToLose</c>).</summary>
     PendingLoss = 1 << 3,
+
+    /// <summary>
+    /// Native <c>CombatPredictionSimulator.HasRisk</c>: the route recorded an unresolved player
+    /// choice (Discovery/Splash generated options). Monotonic for the rest of the combat.
+    /// </summary>
+    HasRisk = 1 << 4,
 }
 
 /// <summary>Combat pile segments, in their storage order inside <see cref="FlashBattle.Cards"/>.</summary>

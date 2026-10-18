@@ -523,3 +523,132 @@ public sealed class RupturePower : FlashPowerDef
             FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<StrengthPower>(), gained, self.Owner);
     }
 }
+
+/// <summary>
+/// Native <c>HellraiserPower</c>: when its owner draws a Strike, auto-play that card
+/// (M/Hooks/Card/AfterCardDrawnMirrors.HandleHellraiserPower). The native infinite-HP cap branch is
+/// unreachable here: only WaterfallGiant sets <c>HpDisplay.InfiniteWithoutNumbers</c> and that
+/// encounter has no Flash monster definition, so admission rejects it. The finite branch resets the
+/// counter every draw, so no value needs to live in the power slots.
+/// </summary>
+[FlashContent("HELLRAISER_POWER")]
+public sealed class HellraiserPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+
+    public override void AfterCardDrawnEarly(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner || drawnPosition >= x.B.HandCount)
+            return;
+        FlashCardStats stats = x.R.Card(x.B.Cards[drawnPosition].Id, x.B.Cards[drawnPosition].Upgrade);
+        if ((stats.Tags & FlashCardTag.Strike) == 0)
+            return;
+        // All hittable enemies are finite-HP in every admitted root: ResetInfiniteAutoPlayData.
+        FlashKernel.AutoPlay(ref x, FlashPile.Hand, drawnPosition);
+    }
+
+    public override void EndTurnBatch048(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+        // CorePowerSupport/EndTurnPowerSupport resets the turn counter when the owner participates.
+        if (!participates)
+            return;
+        _ = x;
+    }
+}
+
+/// <summary>
+/// Native <c>StampedePower</c>: at the auto-post-play phase, auto-play up to its amount of Attacks from
+/// hand, each picked with the Shuffle stream
+/// (M/Hooks/TurnEnd/AfterAutoPostPlayPhaseEnteredMirrors.HandleStampedePower).
+/// </summary>
+[FlashContent("STAMPEDE_POWER")]
+public sealed class StampedePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterAutoPostPlayPhaseEntered(ref FlashExec x, FlashListener self)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner)
+            return;
+        int amount = x.B.Powers[self.Index].Amount;
+        for (int index = 0; index < amount; index++)
+        {
+            int count = 0;
+            int pick = -1;
+            for (int hand = 0; hand < x.B.HandCount; hand++)
+            {
+                FlashCard card = x.B.Cards[hand];
+                FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+                if (stats.Type != FlashCardType.Attack || card.HasKeyword(FlashKeywords.Unplayable))
+                    continue;
+                count++;
+            }
+            if (count == 0)
+                return;
+            int selected = x.B.RngStream(FlashRngStream.Shuffle).NextInt(0, count);
+            for (int hand = 0; hand < x.B.HandCount; hand++)
+            {
+                FlashCard card = x.B.Cards[hand];
+                FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+                if (stats.Type != FlashCardType.Attack || card.HasKeyword(FlashKeywords.Unplayable))
+                    continue;
+                if (selected-- == 0)
+                {
+                    pick = hand;
+                    break;
+                }
+            }
+            if (pick < 0)
+                throw new FlashUnsupportedException("Stampede 无法在手牌中定位选中的攻击牌。");
+            FlashKernel.AutoPlay(ref x, FlashPile.Hand, pick);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+}
+
+/// <summary>
+/// Native <c>CalamityPower</c>: an Attack play snapshots the power amount, then
+/// <c>AfterCardPlayed</c> generates that many character Attacks with replacement into hand
+/// (BeforeCardPlayedMirrors.HandleCalamityPower / AfterCardPlayedMirrors.HandleCalamityPower).
+/// Aux0 is the pending-play marker; it is zero at every action boundary.
+/// </summary>
+[FlashContent("CALAMITY_POWER")]
+public sealed class CalamityPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAttacks];
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner)
+            return;
+        FlashCardStats stats = x.R.Card(play.Card.Id, play.Card.Upgrade);
+        if (stats.Type == FlashCardType.Attack)
+            x.B.Powers[self.Index].Aux0 = 1;
+    }
+
+    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Aux0 == 0)
+            return;
+        power.Aux0 = 0;
+        if (power.Amount > FlashLimits.Cards)
+            throw new FlashCapacityException("Cards", FlashLimits.Cards);
+        Span<FlashCard> generated = stackalloc FlashCard[Math.Max(0, power.Amount)];
+        int count = FlashKernel.SampleCardPool(ref x.B, x.R, FlashCardPools.CharacterAttacks,
+            power.Amount, distinct: false, FlashRngStream.CombatCardGeneration, generated);
+        for (int index = 0; index < count; index++)
+            FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Hand);
+        if (x.NeedsChoice)
+            return;
+    }
+}

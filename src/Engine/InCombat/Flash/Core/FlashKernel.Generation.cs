@@ -26,7 +26,77 @@ public static partial class FlashKernel
     }
 
     /// <summary>
-    /// Mirrors <c>CombatPredictionSimulator.AddGeneratedCardsToCombat</c> for one card: insertion as
+    /// Samples <paramref name="count"/> cards from a root-frozen generation pool. Distinct selection
+    /// mirrors <c>IEnumerableExtensions.TakeRandom</c> (<c>UnstableShuffle</c> over the whole list, then
+    /// Take), so it consumes one Shuffle-stream draw per element beyond the first even when fewer cards
+    /// are taken. With-replacement selection mirrors <c>Rng.NextItem</c> per card. Cards are created at
+    /// upgrade 0, as <c>PredictedCard.Create(canonical, player)</c> does.
+    /// </summary>
+    public static int SampleCardPool(ref FlashBattle battle, FlashRules rules, string poolKey, int count,
+        bool distinct, FlashRngStream stream, Span<FlashCard> selected)
+    {
+        FlashCardPool pool = rules.CardPool(poolKey);
+        if (pool.Cards.Length == 0)
+            return 0;
+        if (count > 0 && selected.Length < count)
+            throw new FlashCapacityException("GeneratedCards", selected.Length);
+        ref FlashRngState rng = ref battle.RngStream(stream);
+        if (distinct)
+        {
+            Span<ushort> order = stackalloc ushort[pool.Cards.Length];
+            pool.Cards.AsSpan().CopyTo(order);
+            for (int n = order.Length; n > 1;)
+            {
+                n--;
+                int k = rng.NextInt(n + 1);
+                (order[k], order[n]) = (order[n], order[k]);
+            }
+            int take = Math.Min(count, order.Length);
+            for (int index = 0; index < take; index++)
+                selected[index] = CreateCard(rules, order[index]);
+            return take;
+        }
+        int sampled = Math.Max(0, count);
+        for (int index = 0; index < sampled; index++)
+            selected[index] = CreateCard(rules, pool.Cards[rng.NextInt(0, pool.Cards.Length)]);
+        return sampled;
+    }
+
+    /// <summary>Mirrors <c>CardModel.SetToFreeThisTurn</c>: an absolute 0 energy modifier until the end of
+    /// the turn or the next play, and a 0 temporary star cost cleared at turn end.</summary>
+    public static void MakeFreeThisTurn(FlashRules rules, ref FlashCard card)
+    {
+        FlashCardStats stats = rules.Card(card.Id, card.Upgrade);
+        if (!stats.CostsX && stats.EnergyCost >= 0)
+        {
+            if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
+                throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
+            card.EnergyModifiers[card.EnergyModifierCount] = FlashCostModifier.Create(
+                0, FlashCostType.Absolute, FlashCostExpiration.EndOfTurnOrWhenPlayed, reduceOnly: false);
+            card.EnergyModifierCount++;
+        }
+        card.SetTemporaryStarCost(0, clearsAtTurnEnd: true, clearsWhenPlayed: false);
+    }
+
+    /// <summary>
+    /// Replaces the card at <paramref name="index"/> in <paramref name="pile"/> with
+    /// <paramref name="replacement"/> at the same position, mirroring <c>CardCmd.Transform</c> as the
+    /// existing engine resolves it (<c>CardChoiceResolution.AddTransformedCard</c>). The original has
+    /// no instance identity in Flash, so the position is the identity.
+    /// </summary>
+    public static void ReplaceCard(ref FlashExec x, FlashPile pile, int index, in FlashCard replacement)
+    {
+        if (IsOverOrEnding(x.B))
+            return;
+        FlashPiles.RemoveAt(ref x.B, pile, index);
+        int insert = Math.Min(index, FlashPiles.Count(x.B, pile));
+        FlashPiles.Insert(ref x.B, pile, insert, replacement);
+        FlashRegistry.Card(replacement.Id).AfterEnteredCombat(ref x, pile, insert);
+        // AfterCardGeneratedForCombat and the AfterTransformedFrom/To overrides have no supported
+        // listeners or definitions in this content set.
+    }
+
+    /// <summary>Mirrors <c>CombatPredictionSimulator.AddGeneratedCardsToCombat</c> for one card: insertion as
     /// <c>AddToPile</c> does for a card entering combat (full hand diverts to discard, random position
     /// from the Shuffle stream), then the entered-combat sink and <c>AfterCardGeneratedForCombat</c>.
     /// Returns false when the card was not added.

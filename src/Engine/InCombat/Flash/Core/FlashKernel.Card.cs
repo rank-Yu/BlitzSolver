@@ -87,7 +87,6 @@ public static partial class FlashKernel
     {
         ref FlashBattle battle = ref x.B;
         FlashCard card = battle.Cards[handIndex];
-        FlashCardDef def = FlashRegistry.Card(card.Id);
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
 
         // SpendResources.
@@ -112,16 +111,38 @@ public static partial class FlashKernel
         int playPosition = battle.PlayCount;
         FlashPiles.Append(ref battle, FlashPile.Play, removed);
 
-        FlashPile result = ResultLocation(card, stats, out bool removeFromCombat);
-        // ModifyCardPlayResultLocation and ModifyCardPlayCount have no supported listeners yet.
-        int playCount = card.ReplayCount + 1;
-        if (battle.Player.IsDead)
-            return;
-
         x.Card = card;
         x.Stats = stats;
         x.Target = target;
+        PlayFromPlay(ref x, card, target, energyValue, playPosition, isAutoPlay: false);
+    }
+
+    /// <summary>
+    /// The shared body of <c>OnPlayWrapper</c> once the card is in the play pile: result location,
+    /// play count, every play index, and the result-pile tail. Manual and auto-play differ only in
+    /// how the card reached the play pile and how resources were handled.
+    /// </summary>
+    private static void PlayFromPlay(ref FlashExec x, FlashCard card, byte target, int energyValue,
+        int playPosition, bool isAutoPlay)
+    {
+        FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        FlashPile result = ResultLocation(card, stats, out bool removeFromCombat);
+        // CardModel.GetResultLocationForCardPlay clears ExhaustOnNextPlay when the result is Exhaust
+        // (Havoc/Cascade force-exhaust the auto-played card).
+        if (result == FlashPile.Exhaust)
+        {
+            card.Flags &= ~FlashCardFlags.ExhaustOnNextPlay;
+            if (playPosition < x.B.PlayCount)
+                FlashPiles.At(ref x.B, FlashPile.Play, playPosition).Flags &= ~FlashCardFlags.ExhaustOnNextPlay;
+        }
+        // ModifyCardPlayResultLocation and ModifyCardPlayCount have no supported listeners yet.
+        int playCount = card.ReplayCount + 1;
+        if (x.B.Player.IsDead)
+            return;
+
         x.EffectDepth++;
+        FlashGeneratedChoiceOptions savedOptionCards = x.GeneratedOptions;
+        int savedGeneratedOptions = x.GeneratedOptionCount;
         bool completed = true;
         for (int index = 0; index < playCount; index++)
         {
@@ -136,14 +157,14 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
-            RecordCardPlayStarted(ref x.B, stats, index, energyValue);
-            def.OnPlay(ref x);
+            RecordCardPlayStarted(ref x.B, stats, index, energyValue, isAutoPlay);
+            FlashRegistry.Card(card.Id).OnPlay(ref x);
             if (x.NeedsChoice)
             {
                 completed = false;
                 break;
             }
-            def.OwnChoice(ref x);
+            FlashRegistry.Card(card.Id).OwnChoice(ref x);
             if (x.NeedsChoice)
             {
                 completed = false;
@@ -181,6 +202,8 @@ public static partial class FlashKernel
             }
         }
         x.EffectDepth--;
+        x.GeneratedOptions = savedOptionCards;
+        x.GeneratedOptionCount = savedGeneratedOptions;
         if (x.NeedsChoice || !completed)
             return;
 
@@ -202,8 +225,9 @@ public static partial class FlashKernel
         // AfterHandEmptied has no supported listeners yet.
     }
 
-    /// <summary>Mirrors <c>SimulatedCombatState.RecordCardPlayStarted</c> for a manual play.</summary>
-    private static void RecordCardPlayStarted(ref FlashBattle battle, FlashCardStats stats, int playIndex, int energyValue)
+    /// <summary>Mirrors <c>SimulatedCombatState.RecordCardPlayStarted</c> for a manual or auto play.</summary>
+    private static void RecordCardPlayStarted(ref FlashBattle battle, FlashCardStats stats, int playIndex,
+        int energyValue, bool isAutoPlay)
     {
         battle.AddCounter(FlashCounter.CardPlayStartsThisTurn, 1);
         if (stats.Type == FlashCardType.Attack)
@@ -215,7 +239,8 @@ public static partial class FlashKernel
         if (playIndex != 0)
             return;
         battle.AddCounter(FlashCounter.CardPlaySeriesStartedThisTurn, 1);
-        battle.AddCounter(FlashCounter.ManualCardsPlayedThisTurn, 1);
+        if (!isAutoPlay)
+            battle.AddCounter(FlashCounter.ManualCardsPlayedThisTurn, 1);
     }
 
     /// <summary>

@@ -37,6 +37,12 @@ public static partial class FlashHooks
     {
         public FlashListener Listener;
         public ushort Id;
+
+        /// <summary>Card value of a card-attached listener at snapshot time, for re-location.</summary>
+        public FlashCard Card;
+
+        /// <summary>Index among byte-equal cards in the whole battle at snapshot time, or -1.</summary>
+        public int Occurrence;
     }
 
     /// <summary>
@@ -55,7 +61,7 @@ public static partial class FlashHooks
             return;
         Span<SnapshotEntry> snapshot = stackalloc SnapshotEntry[count];
         for (int index = 0; index < count; index++)
-            snapshot[index] = new SnapshotEntry { Listener = listeners[index], Id = ListenerId(x.B, listeners[index]) };
+            snapshot[index] = Snapshot(x.B, listeners[index]);
         for (int index = 0; index < count; index++)
         {
             if (!TryResolve(x.B, snapshot[index], out FlashListener current))
@@ -64,6 +70,22 @@ public static partial class FlashHooks
             if (x.NeedsChoice)
                 return;
         }
+    }
+
+    private static SnapshotEntry Snapshot(in FlashBattle battle, FlashListener listener)
+    {
+        SnapshotEntry entry = new() { Listener = listener, Id = ListenerId(battle, listener), Occurrence = -1 };
+        if (listener.Kind is not (FlashListenerKind.Card or FlashListenerKind.Affliction or FlashListenerKind.Enchantment))
+            return entry;
+        entry.Card = battle.Cards[listener.Index];
+        int occurrence = 0;
+        for (int position = 0; position < listener.Index; position++)
+        {
+            if (FlashFingerprint.Equal(battle.Cards[position], entry.Card))
+                occurrence++;
+        }
+        entry.Occurrence = occurrence;
+        return entry;
     }
 
     private static ushort ListenerId(in FlashBattle battle, FlashListener listener) => listener.Kind switch
@@ -102,10 +124,37 @@ public static partial class FlashHooks
             case FlashListenerKind.Card:
             case FlashListenerKind.Affliction:
             case FlashListenerKind.Enchantment:
-                return entry.Listener.Index < battle.CardCount && ListenerId(battle, entry.Listener) == entry.Id;
+                // The position is still valid while the card stays where it was (it may have been
+                // modified in place). Otherwise re-locate the snapshot value by its occurrence among
+                // equal cards, so a hook that moves cards cannot skip or double-visit a listener.
+                if (entry.Listener.Index < battle.CardCount && ListenerId(battle, entry.Listener) == entry.Id)
+                    return true;
+                if (!TryLocateCard(battle, entry, out int located))
+                    return false;
+                current = new FlashListener(entry.Listener.Kind, (byte)located, entry.Listener.Owner);
+                return true;
             default:
                 return ListenerId(battle, entry.Listener) == entry.Id;
         }
+    }
+
+    /// <summary>Locates the snapshot card by its value and occurrence over the whole battle.</summary>
+    private static bool TryLocateCard(in FlashBattle battle, in SnapshotEntry entry, out int index)
+    {
+        int occurrence = entry.Occurrence;
+        for (int position = 0; position < battle.CardCount; position++)
+        {
+            if (!FlashFingerprint.Equal(battle.Cards[position], entry.Card))
+                continue;
+            if (occurrence-- == 0)
+            {
+                index = position;
+                return ListenerId(battle, new FlashListener(entry.Listener.Kind, (byte)position, entry.Listener.Owner))
+                    == entry.Id;
+            }
+        }
+        index = -1;
+        return false;
     }
 }
 
@@ -174,6 +223,14 @@ public struct AfterCardDrawnHook : IFlashActionHook
 
     public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
         => definition.AfterCardDrawn(ref x, self, DrawnPosition, FromHandDraw);
+}
+
+public struct AfterAutoPostPlayPhaseEnteredHook : IFlashActionHook
+{
+    public static FlashHookMask Mask => FlashHookMask.AfterAutoPostPlayPhaseEntered;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.AfterAutoPostPlayPhaseEntered(ref x, self);
 }
 
 public struct BeforeSideTurnEndVeryEarlyHook : IFlashActionHook

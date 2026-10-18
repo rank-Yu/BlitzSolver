@@ -171,7 +171,7 @@ internal sealed class FlashScorer
         bool won = !dead && battle.Outcome == FlashOutcome.Victory;
         // The K4 probe only compares states the existing engine left at a clean search boundary, so the
         // snapshot's boundary is None and the threat projection always runs unless the state is won.
-        bool risk = false;
+        bool risk = (battle.Flags & FlashBattleFlags.HasRisk) != 0;
         int projectedHp;
         int projectedDeathSaveHpRestored = 0;
         int projectedDeathSaveUseCount = 0;

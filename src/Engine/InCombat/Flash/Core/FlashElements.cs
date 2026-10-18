@@ -45,6 +45,9 @@ public enum FlashCostExpiration : byte
     EndOfCombat = 0,
     EndOfTurn = 2,
     WhenPlayed = 4,
+
+    /// <summary><c>LocalCostModifierExpiration.EndOfTurn | WhenPlayed</c> (the native "this turn or until played").</summary>
+    EndOfTurnOrWhenPlayed = EndOfTurn | WhenPlayed,
 }
 
 /// <summary>One native <c>LocalCostModifier</c> packed into four bytes.</summary>
