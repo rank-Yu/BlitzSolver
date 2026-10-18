@@ -27,6 +27,21 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>The acceptable battle HP-loss stop; null when the request cannot stop at an HP target.</summary>
     public FlashHpTargetStop? HpTargetStop { get; init; }
+
+    /// <summary>
+    /// The ported incumbent lower bound; null or disabled means the root never prunes. Set together with
+    /// <see cref="Incumbent"/> by <see cref="FlashRouteMaterializer"/>.
+    /// </summary>
+    public FlashBoundFeatures? Bound { get; init; }
+
+    /// <summary>The request's initial incumbent, already translated to Flash player-turn units.</summary>
+    public PrimarySearchIncumbent? Incumbent { get; init; }
+
+    /// <summary>The existing primary member's effective potion policy, used to qualify incumbent tightening.</summary>
+    public SolverPotionPolicy EffectivePotionPolicy { get; init; } = SolverPotionPolicy.Smart;
+
+    /// <summary>The request's minimum explicit potion uses; the primary member passes 0.</summary>
+    public int MinimumPotionUses { get; init; }
 }
 
 /// <summary>
@@ -65,6 +80,7 @@ internal sealed record FlashBeamResult(
     int Transitions,
     int Duplicates,
     int TurnsSearched,
+    int PrunedIncumbents,
     TimeSpan Elapsed);
 
 /// <summary>
@@ -86,9 +102,15 @@ internal sealed class FlashBeamSolver
     private readonly List<(int Parent, int Depth, FlashAction Action)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
+    private readonly FlashBoundFeatures? _bound;
+    private readonly bool _pruneEqualHp;
+    private readonly bool _preservePotionCostOpportunities;
+    private readonly SolverPotionPolicy _effectivePotionPolicy;
+    private PrimarySearchIncumbent? _incumbent;
     private int _expanded;
     private int _transitions;
     private int _duplicates;
+    private int _pruned;
 
     public FlashBeamSolver(FlashRules rules, FlashBeamOptions options)
     {
@@ -98,6 +120,11 @@ internal sealed class FlashBeamSolver
             ?? throw new InvalidOperationException("FlashBeamOptions.Scorer 未设置。");
         _ordering = options.Ordering
             ?? throw new InvalidOperationException("FlashBeamOptions.Ordering 未设置。");
+        _bound = options.Bound is { Enabled: true } ? options.Bound : null;
+        _pruneEqualHp = _bound?.PruneEqualHp ?? false;
+        _preservePotionCostOpportunities = _bound?.RequireCertifiedHealingProof ?? false;
+        _effectivePotionPolicy = options.EffectivePotionPolicy;
+        _incumbent = _bound == null ? null : options.Incumbent;
     }
 
     public FlashBeamResult Solve(in FlashBattle root, CancellationToken cancellationToken)
@@ -141,6 +168,7 @@ internal sealed class FlashBeamSolver
             FlashScoreFeatures features = _scorer.Features(state, actionCount);
             RouteKey key = Key(state, features, actionCount);
             Consider(state, node, key);
+            TightenIncumbent(state, features, key);
             if (!features.AllEnemiesDead)
                 return;
             int explicitPotionUses = ExplicitPotionUses(node);
@@ -160,8 +188,8 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        (double rootScore, double rootRank) = Score(root, 0);
-        turnFrontier.Add(root, 0, rootScore, rootRank);
+        (double rootScore, double rootRank, int rootPotionCost) = Score(root, 0);
+        turnFrontier.Add(root, 0, rootScore, rootRank, rootPotionCost);
         int turns = 0;
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch) && !hpTargetReached)
         {
@@ -188,9 +216,11 @@ internal sealed class FlashBeamSolver
                 }
                 current.Clear();
                 next.CopyTopTo(current, width, _options.OffensiveShare);
+                PrunePool(current);
             }
             turnFrontier.Clear();
             ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare);
+            PrunePool(turnFrontier);
             if (zeroDamageVictory)
                 break;
         }
@@ -208,7 +238,7 @@ internal sealed class FlashBeamSolver
             }
         }
         return new FlashBeamResult(Route(bestNode), bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
-            _expanded, _transitions, _duplicates, turns, watch.Elapsed);
+            _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed);
     }
 
     private delegate void TerminalSink(in FlashBattle state, int node, double score);
@@ -306,15 +336,15 @@ internal sealed class FlashBeamSolver
         int node = _nodes.Count;
         int depth = _nodes[parentNode].Depth + 1;
         _nodes.Add((parentNode, depth, action));
-        (double score, double rank) = Score(child, depth);
+        (double score, double rank, int potionCost) = Score(child, depth);
         if (!FlashKernel.IsInProgress(child))
         {
             terminal(child, node, score);
             return;
         }
         bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
-            ? ended.Add(child, node, score, rank)
-            : next.CommitReserved(node, score, rank);
+            ? ended.Add(child, node, score, rank, potionCost)
+            : next.CommitReserved(node, score, rank, potionCost);
         if (!added)
             _duplicates++;
     }
@@ -345,18 +375,104 @@ internal sealed class FlashBeamSolver
     }
 
     /// <summary>
+    /// The existing primary member's terminal-victory tightening
+    /// (<c>TightenPrimarySearchIncumbentAtTurnLayer</c>): a complete, risk-free, potion-free victory
+    /// publishes a strictly better incumbent at the commit boundary, so the same layer's retention can
+    /// use it. The shared <see cref="PrimaryIncumbentTable"/> is not connected.
+    /// </summary>
+    private void TightenIncumbent(in FlashBattle state, in FlashScoreFeatures features, in RouteKey key)
+    {
+        if (_bound == null || !key.Won || features.ProjectedDeathSaveUseCount > 0)
+            return;
+        if (_options.MinimumPotionUses != 0)
+            return;
+        if (_effectivePotionPolicy is not (SolverPotionPolicy.Disabled or SolverPotionPolicy.Smart))
+            return;
+        int explicitPotionUses = features.PotionUseCount - features.AutomaticPotionUseCount;
+        if (explicitPotionUses != _options.MinimumPotionUses)
+            return;
+        int strategicHpDeficit = ActEndingBossPolicy.StrategicHpDeficit(
+            features.CumulativePlayerHpLost,
+            Math.Max(0, _options.InitialPlayerMaxHp - features.PlayerMaxHp),
+            features.RecoveredPlayerHp + ActEndingBossPolicy.RankedPostCombatRelicHeal(
+                _ordering.PostCombatRelicHeal, true, features.PlayerHp, features.PlayerMaxHp),
+            _bound.BossHpRelief,
+            features.DeathSaveHpRestored) - features.GrowthHpCredit;
+        PrimarySearchIncumbent? candidate = _incumbent;
+        if (CombatBeamSolver.TryTightenPrimarySearchIncumbent(
+                auditedPotionFreeBaseline: null,
+                minimumPotionUses: _options.MinimumPotionUses,
+                maximumPotionUses: null,
+                candidateCompleteVictory: true,
+                candidateSatisfiesHardRules: !_bound.HasRisk(state),
+                candidateExplicitPotionUses: explicitPotionUses,
+                candidateStrategicHpDeficit: strategicHpDeficit,
+                candidateCombatEndedTurn: state.PlayerTurn,
+                ref candidate,
+                effectivePotionPolicy: _effectivePotionPolicy,
+                candidateDeathSaveUseCount: features.ProjectedDeathSaveUseCount,
+                candidateExplicitPotionStrategicCost: features.ExplicitPotionStrategicCost))
+        {
+            _incumbent = candidate;
+        }
+    }
+
+    /// <summary>
+    /// The existing <c>ApplyPrimaryIncumbentBound</c> local path. It runs after the ranked retention
+    /// (action layer and turn boundary) and compacts the pool; removed seats are deliberately not refilled.
+    /// </summary>
+    private void PrunePool(Pool pool)
+    {
+        if (_bound == null || _incumbent is not { } incumbent)
+            return;
+        int write = 0;
+        for (int read = 0; read < pool.Count; read++)
+        {
+            FlashBoundValues values = _bound.Evaluate(pool.State(read), pool.PotionCost(read));
+            bool prune;
+            if (_bound.RequireCertifiedHealingProof && _pruneEqualHp
+                && values.RemainingHealingPotential == int.MaxValue)
+            {
+                // A certified equal-HP proof needs the branch's own certificate; keep the node.
+                prune = false;
+            }
+            else
+            {
+                bool costClosed = !_preservePotionCostOpportunities
+                    || (incumbent.ExplicitPotionStrategicCost is { } cost
+                        && values.ExplicitPotionStrategicCost >= cost);
+                prune = CombatBeamSolver.ShouldPruneByPrimaryIncumbent(
+                    values.StrategicHpLowerBound,
+                    pool.State(read).PlayerTurn,
+                    incumbent,
+                    allowTurnTieBound: costClosed,
+                    pruneEqualHp: _pruneEqualHp && !values.HasRisk && costClosed);
+            }
+            if (prune)
+            {
+                _pruned++;
+                continue;
+            }
+            if (write != read)
+                pool.Move(read, write);
+            write++;
+        }
+        pool.Truncate(write);
+    }
+
+    /// <summary>
     /// The node's final score and its intermediate ranking value. The final score is the ported
     /// <see cref="FlashScorer.Features"/> score; the ranking value is
     /// <see cref="FlashScorer.BeamRankScore"/> minus the strategic HP cost of the potions this route has
     /// spent. The potion term is Flash-specific: the existing snapshot score does not include potion cost,
     /// so without it the beam would spend potions for free.
     /// </summary>
-    private (double Score, double Rank) Score(in FlashBattle battle, int actionCount)
+    private (double Score, double Rank, int PotionCost) Score(in FlashBattle battle, int actionCount)
     {
         FlashScoreFeatures features = _scorer.Features(battle, actionCount);
         double rank = _scorer.BeamRankScore(features)
             - UsedPotionCost(battle) * SolverWeights.Hp;
-        return (features.Score, rank);
+        return (features.Score, rank, features.ExplicitPotionStrategicCost);
     }
 
     /// <summary>A slot still holds its root potion and the policy offers it now.</summary>
@@ -409,6 +525,7 @@ internal sealed class FlashBeamSolver
         private int[] _table;
         private int[] _order;
         private int[] _enemyHp;
+        private int[] _potionCosts;
         private bool[] _taken;
 
         public Pool(int initialCapacity, int maxCapacity)
@@ -422,6 +539,7 @@ internal sealed class FlashBeamSolver
             _hashes = new ulong[capacity];
             _order = new int[capacity];
             _enemyHp = new int[capacity];
+            _potionCosts = new int[capacity];
             _taken = new bool[capacity];
             _table = new int[TableSize(capacity)];
         }
@@ -446,6 +564,7 @@ internal sealed class FlashBeamSolver
             Array.Resize(ref _hashes, capacity);
             Array.Resize(ref _order, capacity);
             Array.Resize(ref _enemyHp, capacity);
+            Array.Resize(ref _potionCosts, capacity);
             Array.Resize(ref _taken, capacity);
             _table = new int[TableSize(capacity)];
             int mask = _table.Length - 1;
@@ -471,6 +590,30 @@ internal sealed class FlashBeamSolver
 
         public double Rank(int index) => _ranks[index];
 
+        public int PotionCost(int index) => _potionCosts[index];
+
+        /// <summary>Copies one retained entry to a lower slot; used by the incumbent compaction.</summary>
+        public void Move(int from, int to)
+        {
+            _states[to] = _states[from];
+            _nodes[to] = _nodes[from];
+            _scores[to] = _scores[from];
+            _ranks[to] = _ranks[from];
+            _hashes[to] = _hashes[from];
+            _enemyHp[to] = _enemyHp[from];
+            _potionCosts[to] = _potionCosts[from];
+        }
+
+        /// <summary>Drops the tail after an incumbent bound; removed seats are not refilled.</summary>
+        public void Truncate(int count)
+        {
+            Count = count;
+            Array.Clear(_table);
+            int mask = _table.Length - 1;
+            for (int index = 0; index < count; index++)
+                _table[FreeSlot(_hashes[index], mask)] = index + 1;
+        }
+
         public void Clear()
         {
             Count = 0;
@@ -489,14 +632,14 @@ internal sealed class FlashBeamSolver
         }
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
-        public bool CommitReserved(int node, double score, double rank)
-            => Insert(ref _states[Count], reserved: true, node, score, rank);
+        public bool CommitReserved(int node, double score, double rank, int potionCost)
+            => Insert(ref _states[Count], reserved: true, node, score, rank, potionCost);
 
         /// <summary>Adds a state; returns false when an identical state was already present.</summary>
-        public bool Add(in FlashBattle state, int node, double score, double rank)
-            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false, node, score, rank);
+        public bool Add(in FlashBattle state, int node, double score, double rank, int potionCost)
+            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false, node, score, rank, potionCost);
 
-        private bool Insert(ref FlashBattle state, bool reserved, int node, double score, double rank)
+        private bool Insert(ref FlashBattle state, bool reserved, int node, double score, double rank, int potionCost)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -511,6 +654,7 @@ internal sealed class FlashBeamSolver
                         _scores[existing] = score;
                         _ranks[existing] = rank;
                         _nodes[existing] = node;
+                        _potionCosts[existing] = potionCost;
                     }
                     return false;
                 }
@@ -528,6 +672,7 @@ internal sealed class FlashBeamSolver
             _scores[index] = score;
             _ranks[index] = rank;
             _hashes[index] = hash;
+            _potionCosts[index] = potionCost;
             _table[slot] = index + 1;
             int enemyHp = 0;
             for (int enemy = 0; enemy < state.EnemyCount; enemy++)
@@ -588,7 +733,7 @@ internal sealed class FlashBeamSolver
         private void Take(Pool target, int source)
         {
             _taken[source] = true;
-            target.Add(_states[source], _nodes[source], _scores[source], _ranks[source]);
+            target.Add(_states[source], _nodes[source], _scores[source], _ranks[source], _potionCosts[source]);
         }
     }
 }

@@ -132,6 +132,46 @@ K0 新增生成合同：CombatId 递增、可取值耗尽与 HashSet 枚举顺�
 
 证据：`FOGMOG_NORMAL` 与 `TWO_TAILED_RATS_NORMAL` 的 FLASHM1/FLASHM2 自然根，以及固定根 `coverage/fixtures/cards/flash-km-fogmog-normal.json`、`flash-km-two-tailed-rats-normal.json`，每根 48 条游走全部零差异（K1/K2/K4）。临时计数显示游走中召唤确实发生：雾菇自然根 48 条游走共生成 48 只幻象、幻象复活 263 次、召唤者死亡 18 次；雾菇固定根（玩家 3000 生命）48 条游走共生成 48 只幻象、复活 120 次、召唤者死亡 48 次；双尾鼠自然根生成 118 只、固定根生成 130 只，固定根有 3114 个边界状态的鼠计数达到 3（上限）且 102 个边界状态没有空槽。临时计数代码已删除。
 
+### 2.7 主搜索 incumbent 下界剪枝（SB，2026-10-19）
+
+`FlashBeamSolver` 移植现有主搜索成员的局部 HP 下界剪枝。`FlashBoundFeatures` 在根上冻结现有引擎给出的 `FutureHealPotential`、剩余治疗证书（Component / KnownNative）、战略首领减伤与初始 incumbent；求值只读 `FlashBattle` 和冻结表。完整胜利在终局提交时收紧 incumbent，每个动作层保留之后与回合边界保留之后各剪一次；被剪掉的席位不补。共享 `PrimaryIncumbents` 表不接入，初始 `PrimaryIncumbent` 由 `BeamSolveDispatch.SolveFlash` 传入。
+
+K5 证据（全量回归 `regress.sh sb-regression 32`）：33 个自然根与 68 个固定根，98 个根 `bound=checked`、3 个根显式禁用（`flash-p3-b-block-exhaust`、`flash-p3-d-feed-fatal` 为 `bound=disabled(growth_targets)`，`flash-p9-offensive-powers` 为 `bound=disabled(regen_potion_policy)`）；每根 `failed=0`、`walkFailed=0`、`scoreFailed=0`、`boundFailed=0`，无 REJECTED。代表首行：
+
+```
+SUMMARY oneStep=6 failed=0 walkTransitions=594 walkFailed=0 terminals=32 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:32 score=checked scoreChecked=601 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=601 boundFailed=0
+```
+
+质量下降的 6 个根另做 128 条游走定向 K5：`FUZZY_WURM_CRAWLER_WEAK-FLASHM2`、`NIBBITS_WEAK-FLASHM1`、`PUNCH_CONSTRUCT_NORMAL-FLASHM1`、`SEAPUNK_WEAK-FLASHM1`、`SLIMES_WEAK-FLASHM1`、`SLIMES_WEAK-FLASHM2`，合计 `boundChecked=17043`、`boundFailed=0`，下界输入在这些状态上仍逐字段一致。
+
+质量与耗时（同一台机器；基线为改动前构建，加剪枝为改动后构建；每行的现有搜索与 Flash 来自同一次运行。24 个自然遭遇 × FLASHM1/FLASHM2，预算 10 秒，宽度与节点 ×4）：
+
+| Flash 配置 | 更好 / 相同 / 更差 | 失血合计差 | 现有耗时 → Flash 热耗时 | 扩展数合计 | 转移数合计 |
+| --- | --- | --- | --- | --- | --- |
+| 无剪枝（改动前默认） | 13 / 28 / 7 | −9 | 24.6 s → 11.2 s | 243,294 | 1,038,405 |
+| 加 incumbent 下界剪枝 | 14 / 24 / 10 | −16 | 23.8 s → 5.5 s | 64,058 | 283,787 |
+
+`searchMs` 合计从 10,018.7 ms 降到 4,319.8 ms，转移数减少 72.7%。协调器 Off/On（`coord.sh sb-coord 10000 M2 FLASHM1 FLASHM2`，`WARMUPS=2`）：
+
+| 配置 | On 更好 / 相同 / 更差 | 失血合计差 | Off 总耗时 | On 总耗时 | On 模式 `flash_transitions` 合计 |
+| --- | --- | --- | --- | --- | --- |
+| 改动前 | 13 / 28 / 7 | −2 | 18.5 s | 17.8 s | 875,377 |
+| 加剪枝 | 12 / 27 / 9 | −2 | 18.6 s | 15.4 s | 283,787 |
+
+逐根变差分析：
+
+- 相对无剪枝基线变差 6 根：`FUZZY_WURM_CRAWLER_WEAK-FLASHM2`、`NIBBITS_WEAK-FLASHM1`、`PUNCH_CONSTRUCT_NORMAL-FLASHM1`、`SEAPUNK_WEAK-FLASHM1`、`SLIMES_WEAK-FLASHM1`、`SLIMES_WEAK-FLASHM2`。其中前两根的新结果与现有搜索完全相同（4/3、4/4），只是无剪枝 Flash 曾找到更好的路线；后四根新结果比现有搜索多 3–5 点失血。
+- 这四根的路线在第二回合左右就分叉：新 Flash 先找到一个较差但更早的完整胜利，收紧后的下界把原先的防守线剪掉；现有搜索在同样的 `ShouldPruneByPrimaryIncumbent` 语义下没有剪掉该线，因为它先找到/保留了另一条胜利，或者该线仍在现有保留泳道（多样性/Pareto）里。K5（含上述 128 条游走）证明两边的下界输入与最终 `StrategicHpLowerBound` 相同，所以差异来自 incumbent 的发现顺序与 FlashBeam 更简单的保留结构，而不是剪枝语义或近似值。
+- 没有通过加宽 Beam、提高节点上限或关闭剪枝来掩盖；这些根在禁用剪枝的配置下仍会回到无剪枝基线结果。
+
+未移植与显式禁用：
+
+- 共享 `PrimaryIncumbents` 表（对照/启用隔离）：不接入。
+- `root.UsesComponentHealingCertificate` 且根药水含 `RegenPotion` 时，Component 上界依赖药水策略；该根禁用剪枝（`regen_potion_policy`）。
+- `policy.EffectiveHasGrowthTargets` 非空的根在现有搜索中本来就不用局部下界；Flash 显式禁用（`growth_targets`）。`InitialGrowthRewards` 非零或可达 FEED 时也禁用（`growth_rewards` / `feed_growth`）。
+- `RemainingHealingUpperBound`（Regent/Silent/Defect 的证书）与 `KnownNativeHealingPotential` 的 `SwipePower` 分支未移植；对应根禁用（`remaining_certificate` / `swipe_power`）。
+- Flash 没有 risk 通道；K5 直接比较现有快照的 `HasRisk`，任何被覆盖状态记录 risk 都会使 K5 失败。当前全部根为零差异。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。
