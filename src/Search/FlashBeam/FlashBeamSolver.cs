@@ -21,7 +21,17 @@ internal sealed record FlashBeamOptions(
     /// <see cref="FlashScoreBridge"/>; a caller that supplies it is responsible for the same root.
     /// </summary>
     public FlashScorer? Scorer { get; init; }
+
+    /// <summary>Root values the final route ordering reads; set together with <see cref="Scorer"/>.</summary>
+    public FlashRouteOrdering? Ordering { get; init; }
 }
+
+/// <summary>The root values <c>FinalPlanOrdering.Select</c> reads for the route keys FlashBeam ports.</summary>
+internal sealed record FlashRouteOrdering(
+    int InitialPlayerHp,
+    int InitialPlayerMaxHp,
+    BossHpRelief BossHpRelief,
+    PostCombatRelicHealProfile PostCombatRelicHeal);
 
 /// <summary>
 /// The existing search's potion constraints at the root (<c>EnumeratePlannedPotionActions</c>): slots whose
@@ -59,6 +69,7 @@ internal sealed class FlashBeamSolver
     private readonly FlashRules _rules;
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
+    private readonly FlashRouteOrdering _ordering;
     private readonly List<(int Parent, FlashAction Action)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
@@ -72,6 +83,8 @@ internal sealed class FlashBeamSolver
         _options = options;
         _scorer = options.Scorer
             ?? throw new InvalidOperationException("FlashBeamOptions.Scorer 未设置。");
+        _ordering = options.Ordering
+            ?? throw new InvalidOperationException("FlashBeamOptions.Ordering 未设置。");
     }
 
     public FlashBeamResult Solve(in FlashBattle root, CancellationToken cancellationToken)
@@ -88,18 +101,22 @@ internal sealed class FlashBeamSolver
         Pool ended = new(poolCapacity);
         Pool turnFrontier = new(poolCapacity);
 
-        double bestScore = double.NegativeInfinity;
+        RouteKey? best = null;
         int bestNode = 0;
         bool bestVictory = false, bestDefeat = false;
+        void Consider(in FlashBattle state, int node, in RouteKey key)
+        {
+            if (best is { } current && CompareRoutes(key, current) >= 0)
+                return;
+            best = key;
+            bestNode = node;
+            bestVictory = state.Outcome == FlashOutcome.Victory;
+            bestDefeat = state.Outcome == FlashOutcome.Defeat;
+        }
         void ConsiderTerminal(in FlashBattle state, int node, double score)
         {
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestNode = node;
-                bestVictory = state.Outcome == FlashOutcome.Victory;
-                bestDefeat = state.Outcome == FlashOutcome.Defeat;
-            }
+            int actionCount = Depth(node);
+            Consider(state, node, Key(state, _scorer.Features(state, actionCount), actionCount));
         }
 
         (double rootScore, double rootRank) = Score(root, 0);
@@ -135,23 +152,96 @@ internal sealed class FlashBeamSolver
             ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare);
         }
 
-        // Without a terminal route, fall back to the best surviving turn-start state.
-        if (double.IsNegativeInfinity(bestScore) || (!bestVictory && turnFrontier.Count > 0 && turnFrontier.BestScore() > bestScore))
+        // Without a victory, the surviving turn-start states compete with the terminal routes under the
+        // same final ordering (the existing search evaluates its boundary nodes alongside terminals).
+        if (!bestVictory)
         {
-            int best = turnFrontier.BestIndex();
-            if (best >= 0)
+            for (int index = 0; index < turnFrontier.Count; index++)
             {
-                bestScore = turnFrontier.Score(best);
-                bestNode = turnFrontier.Node(best);
-                bestVictory = false;
-                bestDefeat = false;
+                int node = turnFrontier.Node(index);
+                int actionCount = Depth(node);
+                ref FlashBattle state = ref turnFrontier.State(index);
+                Consider(state, node, Key(state, _scorer.Features(state, actionCount), actionCount));
             }
         }
-        return new FlashBeamResult(Route(bestNode), bestVictory, bestDefeat, bestScore,
+        return new FlashBeamResult(Route(bestNode), bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
             _expanded, _transitions, _duplicates, turns, watch.Elapsed);
     }
 
     private delegate void TerminalSink(in FlashBattle state, int node, double score);
+
+    /// <summary>
+    /// The keys of the existing final ordering (<c>FinalPlanOrdering.Select</c>) that the admitted requests
+    /// reach. Growth and relic-counter credits are zero because their settings are rejected at admission;
+    /// the theft key and the sold-HP and boundary tie-breakers are not ported yet.
+    /// </summary>
+    private readonly record struct RouteKey(
+        bool Won,
+        bool Survives,
+        int DeathSaveUseCount,
+        int StrategicHpDeficit,
+        int CombatEndedTurn,
+        int HealthResourceCost,
+        int LongTermResourceValue,
+        int AngerCopiesGenerated,
+        int OptionalPotionCount,
+        int EnemyHp,
+        double Score,
+        int ActionCount);
+
+    private RouteKey Key(in FlashBattle state, in FlashScoreFeatures features, int actionCount)
+    {
+        bool won = SolverInterimResultOrdering.IsCompleteVictory(
+            actionCount, features.AllEnemiesDead, features.PlayerDead, features.ProjectedPlayerHp);
+        int relicHeal = ActEndingBossPolicy.RankedPostCombatRelicHeal(
+            _ordering.PostCombatRelicHeal, won, features.PlayerHp, features.PlayerMaxHp);
+        int strategicHpDeficit = ActEndingBossPolicy.StrategicHpDeficit(
+            features.CumulativePlayerHpLost,
+            Math.Max(0, _ordering.InitialPlayerMaxHp - features.PlayerMaxHp),
+            features.RecoveredPlayerHp + relicHeal,
+            _ordering.BossHpRelief,
+            features.DeathSaveHpRestored) - features.GrowthHpCredit;
+        return new RouteKey(
+            won,
+            !features.PlayerDead && features.ProjectedPlayerHp > 0,
+            features.ProjectedDeathSaveUseCount,
+            strategicHpDeficit,
+            won ? state.PlayerTurn : int.MaxValue,
+            _ordering.InitialPlayerHp - features.PlayerHp + _ordering.InitialPlayerMaxHp - features.PlayerMaxHp,
+            features.LongTermResourceValue,
+            features.AngerCopiesGenerated,
+            features.PotionUseCount - features.AutomaticPotionUseCount,
+            features.EnemyHp,
+            features.Score,
+            actionCount);
+    }
+
+    /// <summary>Negative when <paramref name="left"/> is the better route.</summary>
+    private static int CompareRoutes(in RouteKey left, in RouteKey right)
+    {
+        int comparison = right.Won.CompareTo(left.Won);
+        if (comparison != 0) return comparison;
+        comparison = (!left.Won && !left.Survives ? 1 : 0).CompareTo(!right.Won && !right.Survives ? 1 : 0);
+        if (comparison != 0) return comparison;
+        comparison = left.DeathSaveUseCount.CompareTo(right.DeathSaveUseCount);
+        if (comparison != 0) return comparison;
+        comparison = left.StrategicHpDeficit.CompareTo(right.StrategicHpDeficit);
+        if (comparison != 0) return comparison;
+        comparison = left.CombatEndedTurn.CompareTo(right.CombatEndedTurn);
+        if (comparison != 0) return comparison;
+        comparison = left.HealthResourceCost.CompareTo(right.HealthResourceCost);
+        if (comparison != 0) return comparison;
+        comparison = right.LongTermResourceValue.CompareTo(left.LongTermResourceValue);
+        if (comparison != 0) return comparison;
+        comparison = left.AngerCopiesGenerated.CompareTo(right.AngerCopiesGenerated);
+        if (comparison != 0) return comparison;
+        comparison = left.OptionalPotionCount.CompareTo(right.OptionalPotionCount);
+        if (comparison != 0) return comparison;
+        comparison = left.EnemyHp.CompareTo(right.EnemyHp);
+        if (comparison != 0) return comparison;
+        comparison = right.Score.CompareTo(left.Score);
+        return comparison != 0 ? comparison : left.ActionCount.CompareTo(right.ActionCount);
+    }
 
     private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next, Pool ended, TerminalSink terminal)
     {
@@ -385,18 +475,5 @@ internal sealed class FlashBeamSolver
             _taken[source] = true;
             target.Add(_states[source], _nodes[source], _scores[source], _ranks[source]);
         }
-
-        public int BestIndex()
-        {
-            int best = -1;
-            for (int index = 0; index < Count; index++)
-            {
-                if (best < 0 || _scores[index] > _scores[best])
-                    best = index;
-            }
-            return best;
-        }
-
-        public double BestScore() => BestIndex() is var best and >= 0 ? _scores[best] : double.NegativeInfinity;
     }
 }

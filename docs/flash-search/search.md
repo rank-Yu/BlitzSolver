@@ -15,7 +15,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 - **选择**：遇到 `NeedsChoice` 时用 `FlashChoiceEnumerator` 按选项规格枚举（选择数量从小到大、同数量按下标字典序），每个请求至多探索 32 个分支（v1）；每个被执行的分支都是精确的，上限只限制探索面。旧引擎按估值排序挑分支（`MaxPile/HandChoiceBranchesPerAction`），v1 尚未移植这套排序。
 - **药水**：Bridge 在根上取现有搜索的药水约束（`CapturePotionPolicyForFlash`：每个槽位是否允许显式使用、战略 HP 成本、最早回合、最多使用次数），换算成 Flash 玩家回合后放进 `FlashPotionPolicy`；未设置时不使用药水。FlashBeam 只对仍是根上原药水的槽位生成药水动作。旧引擎的 `Score` 不含药水成本，因此 FlashBeam 在**排序值**上额外减去已用药水的战略成本（`SolverWeights.Hp` 计价）；这是 Flash 特有的项，节点分数与终局比较仍用 `Features(...).Score`。v1 尚未移植现有搜索的无药基线、强制使用与保留策略。
 - **预算**：Beam 宽度、全局节点上限与软时间取自同一 `SolverSearchProfile`。旧引擎按回合层分配节点预算的规则尚未移植。
-- **产出**：终局状态与预算耗尽时的回合起点状态中取 `Score` 最高的一条路线。旧引擎的终局比较器（`FinalPlanOrdering` / `RouteQuality`：胜负、存活、战略失血、结束回合、药水成本等）尚未移植。
+- **产出**：按旧引擎终局比较器（`FinalPlanOrdering.Select` 的排序键）选出一条路线：完整胜利、存活、死亡保护次数、战略失血（`ActEndingBossPolicy.StrategicHpDeficit`，含战后遗物回复）、结束回合、生命资源消耗、长期资源、愤怒复制数、可选药水数、敌人 HP、分数、动作数。没有胜利路线时，预算耗尽时的回合起点状态与终局状态一起参与比较。成长与遗物计数额度为 0（相关设置在准入时拒绝）；偷窃、卖血与边界原因这几个键尚未移植。
 
 ## 2. 路线物化
 
