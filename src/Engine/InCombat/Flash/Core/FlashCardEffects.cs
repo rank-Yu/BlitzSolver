@@ -47,4 +47,20 @@ public static class FlashCardEffects
             return;
         FlashKernel.ApplyPower(ref x, x.Target, powerId, (int)Var(x, amountVar), FlashLimits.PlayerOwner);
     }
+
+    /// <summary>
+    /// The common compensation <c>combat.Apply&lt;T&gt;(enemy, ...)</c> over
+    /// <c>SimulatedCombatState.HittableEnemies</c> in roster order.
+    /// </summary>
+    public static void ApplyToAllEnemies(ref FlashExec x, ushort powerId, int amountVar)
+    {
+        int amount = (int)Var(x, amountVar);
+        for (int position = 0; position < x.B.RosterCount; position++)
+        {
+            byte owner = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            if (!FlashKernel.IsHittable(x.B, owner))
+                continue;
+            FlashKernel.ApplyPower(ref x, owner, powerId, amount, FlashLimits.PlayerOwner);
+        }
+    }
 }

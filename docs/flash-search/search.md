@@ -18,13 +18,14 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 `FlashRouteMaterializer` 把候选路线交给旧引擎：
 
-1. 从根分叉旧模拟器，逐步回放 Flash 动作。每一步按手牌位置取牌，按旧引擎的规则生成 `PlanAction`（`CardStateKey`、occurrence、`TargetCombatId`、选择令牌）。
-2. 回放得到的节点链交给旧引擎的终局排序（`Retention.RankFinal`、`FinalPlanOrdering.Select`），选出最终路线。
-3. 用旧引擎的物化逻辑生成 `SolverResult`。这要求把 `SolveCore` 里的局部闭包 `MaterializeSelectedRoute` 提取成可复用的方法，属于 F3 的结构改动，按 `architecture-boundary-refactor` 执行。
+1. 从根分叉旧模拟器，逐步回放 Flash 动作。每一步按手牌位置取牌，按旧引擎的规则生成 `PlanAction`（`CardStateKey`、occurrence、`TargetCombatId`、选择令牌），并要求旧引擎这一步的投影与 Flash 逐字节一致。
+2. 把整条已核对路线作为 `fixedPrefixActions` 交给现有 `CombatBeamSolver`，用极小预算求解。现有求解器自己回放并校验前缀（`ApplyFixedPrefix`），按既有终局排序与物化逻辑生成 `SolverResult`。协调器的续用补搜已经使用同一入口，所以不需要提取 `MaterializeSelectedRoute`。
+
+实现在 `src/Search/FlashBeam/Bridge/FlashRouteMaterializer.cs`。
 
 回放中任何一步与 Flash 投影不一致都按 [运行时回放核对](admission-and-verification.md#4-运行时回放核对) 处理。
 
-**待定问题**：旧引擎的"卖血"按同一回合起点的兄弟节点最小失血计算（`Q/CombatBeamSolver.Terminal.cs:30`），只回放 K 条候选时兄弟集合不同。F3 需要决定是让 FlashBeam 输出每个回合起点的最小失血，还是在物化时重算；决定前不开放 On 模式。
+固定前缀节点按"未比较的回合结果"标注（`CreateUncomparedTurnOutcome`），与协调器续用路线的口径相同；因此 Flash 物化结果的"卖血"统计与完整旧搜索不同，比较路线质量时以战损、胜负与结束回合为准。
 
 ## 3. 请求参数
 
