@@ -4,9 +4,9 @@ namespace CombatSolver.Engine.InCombat.Flash.Content.Cards.Ironclad;
 // - Inflame, FeelNoPain, Juggernaut and Cruelty have no OnPlay mirror; CardPowerOnPlaySupport
 //   applies the power and CorePowerSupport falls back to the same cards.
 // - FeelNoPainPower, JuggernautPower and CrueltyPower keep their native hooks in M/Hooks/**.
-//   Rage and FlameBarrier are not defined because their AfterSideTurnEnd removal has no Flash
-//   turn-phase hook. Rupture is not defined because the existing engine records a
-//   RupturePredictionState entry on every card play once it is present, which Flash cannot import.
+// - StoneArmor (CardPowerOnPlaySupport.SToZ) applies PlatingPower, Aggression (CorePowerSupport)
+//   applies AggressionPower and Unmovable / Rupture (CardPowerOnPlaySupport) apply
+//   UnmovablePower / RupturePower; the powers are defined in Content/Powers/IroncladPowers.cs.
 
 [FlashContent("INFLAME")]
 public sealed class Inflame : FlashCardDef
@@ -51,8 +51,8 @@ public sealed class Cruelty : FlashCardDef
 // P4 batch: FlameBarrier is a block plus power application; its power is removed by
 // CorePowerSupport.TriggerTransientSideTurnEndPowers, which the Flash turn phases copy. Pyre,
 // DemonForm and Barricade are pure CardPowerOnPlaySupport / CorePowerSupport cases (no mirror
-// half). Rage, Juggling, DarkEmbrace, CrimsonMantle, Inferno, StoneArmor, Unmovable and Aggression
-// remain undefined; see the task report for the missing kernel capability of each.
+// half). Rage, Juggling, DarkEmbrace, CrimsonMantle and Inferno were undefined at this point and
+// were added by the P8 batch; StoneArmor, Unmovable and Aggression were added by the P14 batch.
 
 [FlashContent("FLAME_BARRIER")]
 public sealed class FlameBarrier : FlashCardDef
@@ -170,4 +170,48 @@ public sealed class Inferno : FlashCardDef
         // CardOnPlaySupport: InfernoPower.IncrementSelfDamage.
         x.B.Powers[index].Aux0++;
     }
+}
+
+// P14 batch: pure power applications with no mirror half.
+// - Aggression applies AggressionPower 1 (CorePowerSupport's Aggression case).
+// - StoneArmor applies PlatingPower from its PlatingPower dynamic variable
+//   (CardPowerOnPlaySupport.SToZ, StoneArmor case).
+// - Unmovable applies UnmovablePower 1 (CardPowerOnPlaySupport.SToZ, Unmovable case).
+// - Rupture applies RupturePower from its StrengthPower dynamic variable
+//   (CardPowerOnPlaySupport, Rupture case).
+
+[FlashContent("AGGRESSION")]
+public sealed class Aggression : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.AggressionPower>(),
+            1, FlashLimits.PlayerOwner);
+}
+
+[FlashContent("STONE_ARMOR")]
+public sealed class StoneArmor : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["PlatingPower"];
+
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.PlatingPower>(),
+            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+}
+
+[FlashContent("UNMOVABLE")]
+public sealed class Unmovable : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.UnmovablePower>(),
+            1, FlashLimits.PlayerOwner);
+}
+
+[FlashContent("RUPTURE")]
+public sealed class Rupture : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["StrengthPower"];
+
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.RupturePower>(),
+            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
 }

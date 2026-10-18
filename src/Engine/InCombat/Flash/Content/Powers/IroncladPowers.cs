@@ -342,3 +342,184 @@ public sealed class InfernoPower : FlashPowerDef
             self.Owner);
     }
 }
+
+// P14 batch. Aggression is TurnStartPowerSupport.ApplyBeforeSideTurnStartPower's dedicated pass;
+// Unmovable is ModifyBlockMultiplicativeMirrors.HandleUnmovablePower; Rupture is the existing
+// BeforeCardPlayed / AfterDamageReceived / AfterCardPlayed trio
+// (BeforeCardPlayedMirrors.HandleRupturePower, AfterDamageReceivedMirrors.HandleRupturePower,
+// AfterCardPlayedMirrors.HandleRupturePower). PlatingPower (StoneArmor) already has its definition
+// in UnderdocksPowers.cs.
+
+/// <summary>
+/// Native <c>AggressionPower</c>: at its owner's side turn start it unstable-shuffles the Attack
+/// cards of the discard pile with the CombatCardSelection stream and adds the first
+/// <c>Amount</c> to the hand, upgrading each upgradable card
+/// (<c>TurnStartPowerSupport.ApplyBeforeSideTurnStartPower</c>, the dedicated Aggression pass run
+/// before every other power). The card does not keep private state: the selection is re-derived
+/// from the discard pile, exactly as the existing engine does.
+/// </summary>
+[FlashContent("AGGRESSION_POWER")]
+public sealed class AggressionPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, bool participates)
+    {
+        if (!participates || self.Owner != FlashLimits.PlayerOwner)
+            return;
+        int amount = x.B.Powers[self.Index].Amount;
+        if (amount <= 0)
+            return;
+        int discardCount = x.B.DiscardCount;
+        int discardStart = FlashPiles.Start(x.B, FlashPile.Discard);
+        Span<byte> order = stackalloc byte[discardCount];
+        int candidates = 0;
+        for (int index = 0; index < discardCount; index++)
+        {
+            FlashCard card = x.B.Cards[discardStart + index];
+            if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Attack)
+                order[candidates++] = checked((byte)index);
+        }
+        // ListExtensions.UnstableShuffle: Fisher-Yates from the end over the discard-order list.
+        ref FlashRngState rng = ref x.B.RngStream(FlashRngStream.CombatCardSelection);
+        for (int n = candidates; n > 1;)
+        {
+            n--;
+            int k = rng.NextInt(n + 1);
+            (order[k], order[n]) = (order[n], order[k]);
+        }
+        Span<bool> removed = stackalloc bool[discardCount];
+        int take = Math.Min(amount, candidates);
+        for (int index = 0; index < take; index++)
+        {
+            int original = order[index];
+            // AddToPile removes the card before inserting, so earlier removals shift this occurrence.
+            int current = original;
+            for (int earlier = 0; earlier < original; earlier++)
+            {
+                if (removed[earlier])
+                    current--;
+            }
+            FlashPile destination = x.B.HandCount < x.B.MaxHandSize ? FlashPile.Hand : FlashPile.Discard;
+            if (!FlashKernel.MoveCard(ref x.B, FlashPile.Discard, current, destination))
+                return;
+            // AddToPile inserts at the bottom (Hand, or Discard when the hand is full).
+            int inserted = destination == FlashPile.Hand ? x.B.HandCount - 1 : x.B.DiscardCount - 1;
+            ref FlashCard added = ref FlashPiles.At(ref x.B, destination, inserted);
+            // CardCmd.Upgrade on an upgradable card; UpgradeCard is a no-op at the maximum level.
+            FlashKernel.UpgradeCard(x.R, ref added);
+            removed[original] = true;
+        }
+    }
+}
+
+/// <summary>
+/// Native <c>UnmovablePower</c>: <c>ModifyBlockMultiplicative</c> doubles block from a card or
+/// monster move while fewer than <c>Amount</c> block-gain events happened earlier this turn
+/// (<c>ModifyBlockMultiplicativeMirrors.HandleUnmovablePower</c>). The existing engine subtracts the
+/// current card play's powered block events from
+/// <c>SimulatedCombatState.GetBlockCardsPlayedThisTurn</c>; Aux0 stores that turn counter when the
+/// card play starts. Card-sourced block is the only reader, and it runs before the play's tail, so
+/// Aux0 is reset in <c>AfterCardPlayed</c> and is zero at every action boundary
+/// (<c>CombatPredictionSimulator.CardTailContinuation</c> releases the same per-play count there).
+/// </summary>
+[FlashContent("UNMOVABLE_POWER")]
+public sealed class UnmovablePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    // Aux0 = BlockCardsPlayedThisTurn at the start of the current card play.
+    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+        => x.B.Powers[self.Index].Aux0 = x.B.Counter(FlashCounter.BlockCardsPlayedThisTurn);
+
+    // The play is complete: the engine releases its per-CardPlay powered-block count at the same tail.
+    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+        => x.B.Powers[self.Index].Aux0 = 0;
+
+    public override decimal ModifyBlockMultiplicative(ref FlashExec x, FlashListener self,
+        in FlashBlockContext block, decimal amount)
+    {
+        // The native guard is target.IsMonster; Osty does not exist in an admitted root, so only the
+        // power owner's block reaches the doubling branch.
+        if (block.Target != self.Owner || (block.Props & FlashValueProps.Move) == 0)
+            return 1m;
+        // A card source from another owner cannot occur in single-player combat, and non-card block
+        // (relic, power) has no card play, so the engine's CardSource owner guard passes.
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        int earlier = block.HasCardSource
+            ? power.Aux0
+            : x.B.Counter(FlashCounter.BlockCardsPlayedThisTurn);
+        return earlier < power.Amount ? 2m : 1m;
+    }
+}
+
+/// <summary>
+/// Native <c>RupturePower</c>: while its owner plays a card, unblocked damage that card deals to
+/// the owner is accumulated and applied as Strength at the play's AfterCardPlayed; any other
+/// unblocked damage taken on the owner's own side applies Strength immediately
+/// (<c>BeforeCardPlayedMirrors.HandleRupturePower</c>,
+/// <c>AfterDamageReceivedMirrors.HandleRupturePower</c>,
+/// <c>AfterCardPlayedMirrors.HandleRupturePower</c>).
+/// Aux0 = Strength accumulated for the current card play, Aux1 = the current play's pending entry,
+/// Aux2 = the last damage event to the owner had a card source. The existing engine keeps the same
+/// information in <c>RupturePredictionState.StrengthByCard</c>, a map keyed by CardModel; only one
+/// card play can be in flight, so the map is empty or has exactly one keyed entry, and the pending
+/// Strength is its only value. The bridge claims an empty entry and rejects a non-empty one
+/// (<see cref="FlashStateProjections"/>), so every non-terminal imported state has Aux0..2 = 0 and
+/// the three slots are written before each is read: BeforeCardPlayed starts a play,
+/// BeforeDamageReceived records the event's card source, AfterDamageReceived consumes it, and
+/// AfterCardPlayed settles the play.
+/// </summary>
+[FlashContent("RUPTURE_POWER")]
+public sealed class RupturePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        power.Aux0 = 0;
+        power.Aux1 = 1;
+        power.Aux2 = 0;
+    }
+
+    public override void BeforeDamageReceived(ref FlashExec x, FlashListener self, byte target, decimal amount,
+        FlashValueProps props, byte dealer, bool hasCardSource, in FlashCard cardSource)
+    {
+        if (target == self.Owner)
+            x.B.Powers[self.Index].Aux2 = hasCardSource ? (short)1 : (short)0;
+    }
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver != self.Owner || result.UnblockedDamage <= 0 || x.B.Side != FlashSide.Player)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        bool fromPendingPlay = power.Aux1 != 0 && power.Aux2 != 0;
+        power.Aux2 = 0;
+        if (fromPendingPlay)
+        {
+            power.Aux0 += power.Amount;
+            return;
+        }
+        // The existing engine applies with cardSource: null; Flash has no card source on powers.
+        FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<StrengthPower>(), power.Amount, self.Owner);
+    }
+
+    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        int gained = power.Aux0;
+        power.Aux0 = 0;
+        power.Aux1 = 0;
+        power.Aux2 = 0;
+        if (gained != 0)
+            FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<StrengthPower>(), gained, self.Owner);
+    }
+}

@@ -366,3 +366,11 @@ public sealed class FiendFire : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0, hitCount: cardCount);
     }
 }
+
+// P14 batch: Stomp is not defined. Its AllEnemies attack is the inferred recipe, but its two cost
+// reactions (SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat's Stomp case and
+// BeforeCardPlayedMirrors.HandleStomp) each append one CardEnergyCost.AddThisTurn modifier per
+// Attack played; FlashCard holds only FlashLimits.CardEnergyCostModifiers == 2 modifier slots and
+// the importer maps the native list one-to-one, so a third Attack in the same turn overflows the
+// card. Raising that capacity requires FlashBattle/FlashLimits (kernel core), which this batch may
+// not change; see the P14 report's skip list.
