@@ -8,12 +8,14 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 - **容器全部预分配**：每层是复用的 `FlashBattle[]`；子状态先复制父状态到空槽，再在槽位上原地执行动作。分数、父指针、动作等元数据放在平行数组。
 - **路线不进状态**：每个节点只记父节点下标与本步 `FlashAction`，找到候选后沿父指针倒推。
-- **去重**：每层用开放寻址表按指纹分桶，命中后比较完整字节；同一状态保留 Pareto 意义上不被支配的代表，维度沿用旧引擎转置表的六维（药水数、药水战略成本、未来卖血、累计失血、动作数、分数）。
-- **评分**：移植旧引擎 `SimulationSnapshot` 的主要分项（预测 HP、累计失血、敌人 HP、胜利奖励、死亡惩罚、风险等，见 `Q/CombatBeamSolver.StateEvaluation.cs:162-505`）与 `BeamRankScore` 的中间项。特征从 `FlashBattle` 直接计算，不构造 `SimulationSnapshot`。
+- **去重**：每层用开放寻址表按指纹分桶，命中后比较完整字节；同一状态只保留排序值最高的代表。旧引擎转置表的六维 Pareto 保留（药水数、药水战略成本、未来卖血、累计失血、动作数、分数）尚未移植。
+- **层内保留**：按排序值取前 Beam 宽度个状态，其中 `OffensiveShare`（默认 25%）的席位留给敌人 HP 最低的状态。旧引擎的多样性泳道、选择保路与药水配额尚未移植。
+- **评分**：由 `FlashScoreBridge.Create` 在根上编译逐内容数值表（卡牌估值与动态变量增量、计算伤害乘数、潜在布置值与类别、Power 的战略效果分类/参数、药水战略成本），冻结评估读取的 `Initial*` 与 policy 值，返回 `FlashScorer`。`FlashScorer.Features(in FlashBattle, actionCount)` 逐项移植旧引擎 `CombatBeamSolver.Snapshot`（`src/Search/CombatBeamSolver.StateEvaluation.cs`）：同样的项、同样的运算顺序与 `checked`/取整位置，特征直接从 `FlashBattle` 计算，不构造 `SimulationSnapshot`。节点分数与终局比较用 `Features(...).Score`；层内保留排序用 `FlashScorer.BeamRankScore`（旧引擎 `BeamRetentionPolicy.BeamRankScore`）。K4 在同一状态逐字段核对每个特征，`Score` 按 double 逐位比较。
+- **评分表**：每张已准入的卡牌按（内容 Id, 升级等级）有明确条目；每个 Power 有战略效果分类与参数。旧引擎判定不贡献的项显式记为 0（例如非玩家侧 Power、临时 Power、`StrategicEffectMirrors.Contributes` 为 false 的项）。未移植的逐内容乘数或请求设置在根上以 `FlashRejection.UnsupportedCard` / `UnsupportedRequest` 拒绝，不默认记 0。
 - **选择**：遇到 `NeedsChoice` 时用 `FlashChoiceEnumerator` 按选项规格枚举（选择数量从小到大、同数量按下标字典序），每个请求至多探索 32 个分支（v1）；每个被执行的分支都是精确的，上限只限制探索面。旧引擎按估值排序挑分支（`MaxPile/HandChoiceBranchesPerAction`），v1 尚未移植这套排序。
-- **药水**：Bridge 在根上取现有搜索的药水约束（`CapturePotionPolicyForFlash`：每个槽位是否允许显式使用、战略 HP 成本、最早回合、最多使用次数），换算成 Flash 玩家回合后放进 `FlashPotionPolicy`；未设置时不使用药水。FlashBeam 只对仍是根上原药水的槽位生成药水动作，评分减去已用药水的战略成本（按 HP 权重）。v1 尚未移植现有搜索的无药基线、强制使用与保留策略。
-- **预算**：节点数、时间、Beam 宽度取自同一 `SolverSearchProfile`；按回合层分配预算的规则与旧引擎 `SolveCore` 相同。
-- **产出**：胜利路线与在预算边界停下的路线中，按旧引擎终局比较器的主要键排序后取前 K 条（首版 K = 16）。
+- **药水**：Bridge 在根上取现有搜索的药水约束（`CapturePotionPolicyForFlash`：每个槽位是否允许显式使用、战略 HP 成本、最早回合、最多使用次数），换算成 Flash 玩家回合后放进 `FlashPotionPolicy`；未设置时不使用药水。FlashBeam 只对仍是根上原药水的槽位生成药水动作。旧引擎的 `Score` 不含药水成本，因此 FlashBeam 在**排序值**上额外减去已用药水的战略成本（`SolverWeights.Hp` 计价）；这是 Flash 特有的项，节点分数与终局比较仍用 `Features(...).Score`。v1 尚未移植现有搜索的无药基线、强制使用与保留策略。
+- **预算**：Beam 宽度、全局节点上限与软时间取自同一 `SolverSearchProfile`。旧引擎按回合层分配节点预算的规则尚未移植。
+- **产出**：终局状态与预算耗尽时的回合起点状态中取 `Score` 最高的一条路线。旧引擎的终局比较器（`FinalPlanOrdering` / `RouteQuality`：胜负、存活、战略失血、结束回合、药水成本等）尚未移植。
 
 ## 2. 路线物化
 

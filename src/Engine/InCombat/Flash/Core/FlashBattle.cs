@@ -80,6 +80,15 @@ public enum FlashCounter : byte
     // Combat-long player counters.
     CumulativeHpLost,
     RecoveredHp,
+
+    // Route counters read by the score port (FlashScorer). Appended only, so every existing value
+    // keeps its index.
+    LongTermResourceValue,
+    AngerCopiesGenerated,
+    DeathSaveRelicHpRestored,
+    DeathSavePotionHpRestored,
+    DeathSaveUseCount,
+    AutomaticPotionUseCount,
 }
 
 /// <summary>

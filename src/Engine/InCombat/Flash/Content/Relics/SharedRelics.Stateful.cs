@@ -635,7 +635,14 @@ public sealed class LizardTail : FlashRelicDef
     {
         x.B.Relics[self.Index].Counter = 1;
         decimal amount = Math.Max(1m, x.B.Creature(creature).MaxHp * (x.R.RelicVar(Id, 0) / 100m));
+        int hpBeforeRevive = x.B.Creature(creature).CurrentHp;
         FlashKernel.Heal(ref x, creature, amount);
+        int restored = x.B.Creature(creature).CurrentHp - hpBeforeRevive;
+        if (restored > 0)
+        {
+            x.B.AddCounter(FlashCounter.DeathSaveRelicHpRestored, restored);
+            x.B.AddCounter(FlashCounter.DeathSaveUseCount, 1);
+        }
     }
 }
 

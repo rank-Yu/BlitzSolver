@@ -258,6 +258,9 @@ public sealed class Anger : FlashCardDef
             return;
         // CorePowerSupport.Anger adds a clone of the played card to the discard pile.
         FlashKernel.AddGeneratedCard(ref x, FlashKernel.CloneCard(x.Card), FlashPile.Discard);
+        if (x.NeedsChoice)
+            return;
+        x.B.AddCounter(FlashCounter.AngerCopiesGenerated, 1);
     }
 }
 

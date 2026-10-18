@@ -15,6 +15,12 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>Which root potions may be used and what each use costs; disabled unless the caller sets it.</summary>
     public FlashPotionPolicy Potions { get; init; } = FlashPotionPolicy.Disabled;
+
+    /// <summary>
+    /// The ported existing-engine evaluation. Set by <see cref="FlashRouteMaterializer"/> from
+    /// <see cref="FlashScoreBridge"/>; a caller that supplies it is responsible for the same root.
+    /// </summary>
+    public FlashScorer? Scorer { get; init; }
 }
 
 /// <summary>
@@ -47,16 +53,12 @@ internal sealed record FlashBeamResult(
 /// </summary>
 internal sealed class FlashBeamSolver
 {
-    private const double DeathPenalty = -1_000_000_000_000d;
-    private const double VictoryBonus = 10_000_000_000d;
-    private const double HpWeight = 30_000d;
-    private const double EnemyHpWeight = -10_000d;
-    private const double ActionPenalty = -1d;
     /// <summary>Selections explored per choice request (lexicographic within each size).</summary>
     private const int MaxChoiceBranches = 32;
 
     private readonly FlashRules _rules;
     private readonly FlashBeamOptions _options;
+    private readonly FlashScorer _scorer;
     private readonly List<(int Parent, FlashAction Action)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
@@ -68,6 +70,8 @@ internal sealed class FlashBeamSolver
     {
         _rules = rules;
         _options = options;
+        _scorer = options.Scorer
+            ?? throw new InvalidOperationException("FlashBeamOptions.Scorer 未设置。");
     }
 
     public FlashBeamResult Solve(in FlashBattle root, CancellationToken cancellationToken)
@@ -98,7 +102,8 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        turnFrontier.Add(root, 0, Score(root, 0));
+        (double rootScore, double rootRank) = Score(root, 0);
+        turnFrontier.Add(root, 0, rootScore, rootRank);
         int turns = 0;
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch))
         {
@@ -163,14 +168,14 @@ internal sealed class FlashBeamSolver
         }
         int node = _nodes.Count;
         _nodes.Add((parentNode, action));
-        double score = Score(child, Depth(node));
+        (double score, double rank) = Score(child, Depth(node));
         if (!FlashKernel.IsInProgress(child))
         {
             terminal(child, node, score);
             return;
         }
         Pool target = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn ? ended : next;
-        if (!target.Add(child, node, score))
+        if (!target.Add(child, node, score, rank))
             _duplicates++;
     }
 
@@ -195,27 +200,18 @@ internal sealed class FlashBeamSolver
     }
 
     /// <summary>
-    /// Core terms of the existing <c>CombatBeamSolver.Snapshot</c> score: projected HP after the
-    /// stand-pat enemy threat, max-HP change, cumulative HP lost, victory bonus, enemy HP and the
-    /// action penalty.
+    /// The node's final score and its intermediate ranking value. The final score is the ported
+    /// <see cref="FlashScorer.Features"/> score; the ranking value is
+    /// <see cref="FlashScorer.BeamRankScore"/> minus the strategic HP cost of the potions this route has
+    /// spent. The potion term is Flash-specific: the existing snapshot score does not include potion cost,
+    /// so without it the beam would spend potions for free.
     /// </summary>
-    private double Score(in FlashBattle battle, int actionCount)
+    private (double Score, double Rank) Score(in FlashBattle battle, int actionCount)
     {
-        bool dead = battle.Player.IsDead || battle.Outcome == FlashOutcome.Defeat;
-        bool won = !dead && battle.Outcome == FlashOutcome.Victory;
-        int projectedHp = won ? battle.Player.CurrentHp : ProjectHpAfterThreat(battle);
-        double score = dead || projectedHp <= 0 ? DeathPenalty : projectedHp * HpWeight;
-        score += (battle.Player.MaxHp - _options.InitialPlayerMaxHp) * HpWeight;
-        score -= battle.Counter(FlashCounter.CumulativeHpLost) * HpWeight;
-        if (won)
-            score += VictoryBonus;
-        int enemyHp = 0;
-        for (int index = 0; index < battle.EnemyCount; index++)
-            enemyHp += Math.Max(0, battle.Enemies[index].Creature.CurrentHp);
-        score += enemyHp * EnemyHpWeight;
-        score += actionCount * ActionPenalty;
-        score -= UsedPotionCost(battle) * HpWeight;
-        return score;
+        FlashScoreFeatures features = _scorer.Features(battle, actionCount);
+        double rank = _scorer.BeamRankScore(features)
+            - UsedPotionCost(battle) * SolverWeights.Hp;
+        return (features.Score, rank);
     }
 
     /// <summary>A slot still holds its root potion and the policy offers it now.</summary>
@@ -253,42 +249,13 @@ internal sealed class FlashBeamSolver
         return cost;
     }
 
-    /// <summary>Mirrors <c>ProjectHpAfterThreat</c> for the supported monsters: floored hits absorbed by block.</summary>
-    private int ProjectHpAfterThreat(in FlashBattle battle)
-    {
-        FlashBattle probe = battle;
-        FlashExec x = new(ref probe, _rules, default);
-        int hp = battle.Player.CurrentHp;
-        int block = battle.Player.Block;
-        for (int position = 0; position < battle.RosterCount; position++)
-        {
-            byte owner = FlashKernel.EnemyOwner(battle.Roster[position]);
-            ref readonly FlashEnemy enemy = ref battle.Enemies[battle.Roster[position]];
-            if (enemy.Creature.IsDead || (enemy.Flags & FlashEnemyFlags.SkipNextMove) != 0)
-                continue;
-            FlashMonsterNode move = _rules.Monster(owner).Nodes[enemy.Move];
-            foreach (FlashMonsterAttack attack in move.Attacks)
-            {
-                for (int hit = 0; hit < Math.Max(attack.Repeats, 1); hit++)
-                {
-                    decimal modified = FlashHooks.ModifyDamage(ref x, FlashLimits.PlayerOwner, owner, attack.BaseDamage,
-                        FlashValueProps.Move, false, default);
-                    int damage = Math.Max(0, (int)Math.Floor(modified));
-                    int blocked = Math.Min(block, damage);
-                    block -= blocked;
-                    hp -= damage - blocked;
-                }
-            }
-        }
-        return hp;
-    }
-
     /// <summary>Preallocated state pool with byte-exact deduplication keeping the best score.</summary>
     private sealed class Pool
     {
         private readonly FlashBattle[] _states;
         private readonly int[] _nodes;
         private readonly double[] _scores;
+        private readonly double[] _ranks;
         private readonly ulong[] _hashes;
         private readonly int[] _table;
         private readonly int[] _order;
@@ -300,6 +267,7 @@ internal sealed class FlashBeamSolver
             _states = new FlashBattle[capacity];
             _nodes = new int[capacity];
             _scores = new double[capacity];
+            _ranks = new double[capacity];
             _hashes = new ulong[capacity];
             _order = new int[capacity];
             _enemyHp = new int[capacity];
@@ -318,6 +286,8 @@ internal sealed class FlashBeamSolver
 
         public double Score(int index) => _scores[index];
 
+        public double Rank(int index) => _ranks[index];
+
         public void Clear()
         {
             Count = 0;
@@ -325,7 +295,7 @@ internal sealed class FlashBeamSolver
         }
 
         /// <summary>Adds a state; returns false when an identical state was already present.</summary>
-        public bool Add(in FlashBattle state, int node, double score)
+        public bool Add(in FlashBattle state, int node, double score, double rank)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -335,9 +305,10 @@ internal sealed class FlashBeamSolver
                 int existing = _table[slot] - 1;
                 if (_hashes[existing] == hash && FlashFingerprint.Equal(_states[existing], state))
                 {
-                    if (score > _scores[existing])
+                    if (rank > _ranks[existing])
                     {
                         _scores[existing] = score;
+                        _ranks[existing] = rank;
                         _nodes[existing] = node;
                     }
                     return false;
@@ -350,6 +321,7 @@ internal sealed class FlashBeamSolver
             _states[index] = state;
             _nodes[index] = node;
             _scores[index] = score;
+            _ranks[index] = rank;
             _hashes[index] = hash;
             _table[slot] = index + 1;
             int enemyHp = 0;
@@ -375,10 +347,10 @@ internal sealed class FlashBeamSolver
                 _order[index] = index;
                 _taken[index] = false;
             }
-            double[] scores = _scores;
+            double[] ranks = _ranks;
             Array.Sort(_order, 0, count, Comparer<int>.Create((left, right) =>
             {
-                int compare = scores[right].CompareTo(scores[left]);
+                int compare = ranks[right].CompareTo(ranks[left]);
                 return compare != 0 ? compare : left.CompareTo(right);
             }));
             int keep = Math.Min(width, count);
@@ -394,7 +366,7 @@ internal sealed class FlashBeamSolver
                     int compare = enemyHp[left].CompareTo(enemyHp[right]);
                     if (compare != 0)
                         return compare;
-                    compare = scores[right].CompareTo(scores[left]);
+                    compare = ranks[right].CompareTo(ranks[left]);
                     return compare != 0 ? compare : left.CompareTo(right);
                 }));
                 int added = 0;
@@ -411,7 +383,7 @@ internal sealed class FlashBeamSolver
         private void Take(Pool target, int source)
         {
             _taken[source] = true;
-            target.Add(_states[source], _nodes[source], _scores[source]);
+            target.Add(_states[source], _nodes[source], _scores[source], _ranks[source]);
         }
 
         public int BestIndex()

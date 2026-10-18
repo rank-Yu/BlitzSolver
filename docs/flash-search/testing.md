@@ -136,6 +136,24 @@ P8 新增带私有状态的遗物 20 个与 Power/卡 5 组（状态逐项投影
 
 结论：分发、隔离、回落与药水覆盖均按设计工作。FlashBeam 主搜索的路线质量仍明显低于旧主搜索；当前只替换主搜索成员，整次请求的大部分耗时在旧后端的精炼与审计里，所以 On 的总耗时收益有限。
 
+### 2.11 评估移植与 K4（S1，2026-10-18）
+
+`FlashScorer` 移植现有搜索的状态评估（`CombatBeamSolver.Snapshot`）与中途排序（`BeamRankScore`），`FlashScoreBridge` 在根上编译逐内容数值表并冻结请求设置；FlashBeam 改用它们排序。新增路径计数 `LongTermResourceValue`、`AngerCopiesGenerated`、`DeathSaveRelicHpRestored`、`DeathSavePotionHpRestored`、`DeathSaveUseCount`、`AutomaticPotionUseCount`。
+
+K4 证据：22 个自然遭遇根与 57 个固定根（每根 32 条游走）中投影一致的全部状态，评估逐字段相等，`Score` 逐位相等；没有根因设置被拒绝。
+
+评估暂不移植、因而在根上拒绝的设置：非零成长额度、非空遗物计数目标（遗物策略默认开启，持有计数类遗物的局会被拒绝并回落）、第三幕首领策略、开发策略、第三方战略效果与移除估值登记、`Profile` 的仅基础分/连续威胁/权重扰动/上下文排序、偷窃遭遇、瀑布巨人与遗忘者的伤害特例。
+
+端到端对照（FLASHM1，预算 10 秒，同宽度同节点）：
+
+| 根 | 现有搜索失血 / 结束回合 / 耗时 | Flash 失血 / 结束回合 / 端到端耗时（其中搜索） |
+| --- | --- | --- |
+| `NIBBITS_NORMAL` | 29 / 8 / 587 ms | 37 / 8 / 218 ms（87 ms） |
+| `SLIMES_NORMAL` | 19 / 8 / 773 ms | 20 / 12 / 304 ms（157 ms） |
+| `RUBY_RAIDERS_NORMAL` | 35 / 5 / 544 ms | 37 / 5 / 280 ms（151 ms） |
+
+结论：评估已与现有搜索一致，剩余质量差距来自搜索结构（去重保留、层内泳道、按层预算、终局比较器，见 [搜索与接入](search.md#1-flashbeamsolver)）。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖上述纵切内容；其他内容在准入阶段拒绝，尚未有差分证据。

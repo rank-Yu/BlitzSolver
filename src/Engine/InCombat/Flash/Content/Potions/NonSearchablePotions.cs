@@ -37,7 +37,15 @@ public sealed class FairyInABottle : FlashPotionDef
     {
         // PotionOnUseMirrors consume the slot, then the native OnUse heals max(1, 30% max HP).
         x.B.Potions[self.Index] = 0;
+        x.B.AddCounter(FlashCounter.AutomaticPotionUseCount, 1);
         decimal amount = Math.Max(1m, x.B.Creature(creature).MaxHp * 0.3m);
+        int hpBeforeRevive = x.B.Creature(creature).CurrentHp;
         FlashKernel.Heal(ref x, creature, amount);
+        int restored = x.B.Creature(creature).CurrentHp - hpBeforeRevive;
+        if (restored > 0)
+        {
+            x.B.AddCounter(FlashCounter.DeathSavePotionHpRestored, restored);
+            x.B.AddCounter(FlashCounter.DeathSaveUseCount, 1);
+        }
     }
 }
