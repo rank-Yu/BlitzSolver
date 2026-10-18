@@ -185,3 +185,158 @@ public sealed class SetupStrikePower : FlashPowerDef
             FlashKernel.RetireTemporaryStrength(ref x, self);
     }
 }
+
+/// <summary>
+/// Native <c>RagePower</c>: <c>AfterCardPlayed</c> gains its amount as Unpowered block after an
+/// Attack card (<c>AfterCardPlayedMirrors.HandleRagePower</c>). Its removal at the player side turn
+/// end is already part of <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c>.
+/// </summary>
+[FlashContent("RAGE_POWER")]
+public sealed class RagePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+            return;
+        FlashKernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
+            FlashValueProps.Unpowered, fromCard: false);
+    }
+}
+
+/// <summary>
+/// Native <c>JugglingPower</c>: <c>BeforeCardPlayed</c> counts Attack cards started this turn; the
+/// third one adds its amount of clones of the played card to the hand; the player side turn end
+/// resets the count (<c>BeforeCardPlayedMirrors.HandleJugglingPower</c>,
+/// <c>EndTurnPowerSupport.TriggerRegular</c>, and
+/// <c>SimulatedCombatState.InitializeJugglingAfterApplied</c> for the value at application).
+/// Aux0 = attacks played this turn.
+/// </summary>
+[FlashContent("JUGGLING_POWER")]
+public sealed class JugglingPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        power.Aux0++;
+        if (power.Aux0 != 3)
+            return;
+        for (int index = 0; index < power.Amount; index++)
+        {
+            if (!FlashKernel.AddGeneratedCard(ref x, FlashKernel.CloneCard(play.Card), FlashPile.Hand))
+                return;
+        }
+    }
+
+    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+        if (participates)
+            x.B.Powers[self.Index].Aux0 = 0;
+    }
+}
+
+/// <summary>
+/// Native <c>DarkEmbracePower</c>: a non-Ethereal exhaust draws its amount, an Ethereal exhaust is
+/// deferred to the player side turn end, which then draws amount per deferred exhaust
+/// (<c>AfterCardExhaustedMirrors.HandleDarkEmbracePower</c>,
+/// <c>EndTurnPowerSupport.TriggerRegular</c>). Aux0 = deferred Ethereal exhausts.
+/// </summary>
+[FlashContent("DARK_EMBRACE_POWER")]
+public sealed class DarkEmbracePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterCardExhausted(ref FlashExec x, FlashListener self, in FlashCard card, bool causedByEthereal)
+    {
+        if (causedByEthereal)
+        {
+            x.B.Powers[self.Index].Aux0++;
+            return;
+        }
+        FlashKernel.Draw(ref x, x.B.Powers[self.Index].Amount, fromHandDraw: false);
+    }
+
+    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+        if (!participates)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        int draws = power.Amount * power.Aux0;
+        if (draws > 0)
+            FlashKernel.Draw(ref x, draws, fromHandDraw: false);
+        power.Aux0 = 0;
+    }
+}
+
+/// <summary>
+/// Native <c>CrimsonMantlePower</c>: <c>AfterPlayerTurnStart</c> takes its accumulated
+/// <c>SelfDamage</c> as Unblockable Unpowered damage, then gains its amount as Unpowered block
+/// (<c>TurnStartPowerSupport.ContinueAfterPlayerTurnStart</c>). The SelfDamage dynamic variable is
+/// private state; the bridge projects it into Aux0 and the card increments it on application.
+/// </summary>
+[FlashContent("CRIMSON_MANTLE_POWER")]
+public sealed class CrimsonMantlePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
+    {
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Aux0 > 0)
+        {
+            Span<byte> target = stackalloc byte[1];
+            target[0] = self.Owner;
+            FlashKernel.Damage(ref x, target, power.Aux0,
+                FlashValueProps.Unblockable | FlashValueProps.Unpowered, self.Owner,
+                hasCardSource: false, default);
+        }
+        FlashKernel.GainBlock(ref x, self.Owner, power.Amount, FlashValueProps.Unpowered, fromCard: false);
+    }
+}
+
+/// <summary>
+/// Native <c>InfernoPower</c>: <c>AfterPlayerTurnStart</c> takes its accumulated <c>SelfDamage</c>
+/// as Unblockable Unpowered damage; on its own side, unblocked damage taken deals its amount as
+/// Unpowered damage to every hittable enemy (<c>TurnStartPowerSupport.ContinueAfterPlayerTurnStart</c>,
+/// <c>AfterDamageReceivedMirrors.HandleInfernoPower</c>). Aux0 = the private SelfDamage variable.
+/// </summary>
+[FlashContent("INFERNO_POWER")]
+public sealed class InfernoPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
+    {
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Aux0 <= 0)
+            return;
+        Span<byte> target = stackalloc byte[1];
+        target[0] = self.Owner;
+        FlashKernel.Damage(ref x, target, power.Aux0,
+            FlashValueProps.Unblockable | FlashValueProps.Unpowered, self.Owner,
+            hasCardSource: false, default);
+    }
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    {
+        if (result.Receiver != self.Owner || result.UnblockedDamage <= 0 || x.B.Side != FlashSide.Player)
+            return;
+        FlashCardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, FlashValueProps.Unpowered,
+            self.Owner);
+    }
+}

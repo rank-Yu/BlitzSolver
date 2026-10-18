@@ -83,7 +83,15 @@ P7 新增遗物 85 个：战斗中无效果或只在根之前结算的 65 个写
 
 证据：合入并修正后，22 个自然遭遇根（密林 11、暗港 8、纵切 3，每根 32 条游走）与 27 个固定根零差异，FlashKernelChecks 通过。
 
-### 2.8 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
+### 2.8 死亡与出牌限制 Hook，第八至十批内容（P8–P10，2026-10-18）
+
+内核新增：`BeforeDeath`、`ShouldDie`（含 Late、阻止者 `AfterPreventingDeath` 与重试）、`AfterDeath`、`AfterCurrentHpChanged`、`AfterBlockBroken`、移出名单判定（`PreventsRemovalAfterDeath`）；`ShouldPlay` 与着魔的出牌锁；`ShouldFlush`；玩家回合结束第一阶段末的 `CompletePlayerEarlySideTurnEnd`。修正 `AfterCardPlayedCleanup` 按位判断过期方式（原版 `HasFlag(WhenPlayed)`，原实现用相等比较，`EndOfTurn | WhenPlayed` 的修饰不会在出牌后清除）。死亡后判断主要敌人时与现有引擎一致只看名单内生物的 Power。
+
+P8 新增带私有状态的遗物 20 个与 Power/卡 5 组（状态逐项投影到 `FlashRelic.Counter/Aux` 或 `FlashPower.Aux0`），共享遗物的数值改为规则表读取；审查把 Orichalcum 状态的反射读取改为 `OrichalcumMirrors.ShouldTriggerForFlash`。P9 新增药水 36 种与药水相关 Power 9 个；审查把再生的玩家侧递减改到 `CompletePlayerEarlySideTurnEnd`，保留手牌改用 `ShouldFlush`（原实现给手牌打本回合保留标记）。P10 新增状态牌 8 张、诅咒牌 14 张。固定根 `coverage/fixtures/cards/flash-p8-*.json`、`flash-p9-*.json`、`flash-p10-*.json`。
+
+证据：合入并修正后 22 个自然遭遇根与 49 个固定根（每根 32 条游走）零差异，FlashKernelChecks 通过。仍跳过、现已有内核支持可补的：律动残余、蜥蜴尾巴、红头骨、罐装幽灵与幸运补剂、瓶中精灵、虚空、悔恨。
+
+### 2.9 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
 
 同一根先用现有 `CombatBeamSolver` 求解，再走 Flash：准入 → FlashBeam → 逐步旧引擎回放核对 → 固定前缀物化。两个根的 Flash 路线逐步核对全部一致，物化成功。宿主默认档位（Beam 24、2000 节点），种子 FLASH1：
 

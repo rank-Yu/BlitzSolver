@@ -9,7 +9,16 @@ public static partial class FlashKernel
     public static bool CanPlayCard(in FlashBattle battle, FlashRules rules, int handIndex)
     {
         ref readonly FlashCard card = ref battle.Cards[handIndex];
-        // Enthralled lock and Smog are rejected at admission until supported.
+        FlashCardDef def = FlashRegistry.Card(card.Id);
+        // SimulatedCombatState.IsCardPlayPrevented: the Enthralled lock. Smog is rejected at admission.
+        if (!def.LocksOtherHandCards)
+        {
+            for (int index = 0; index < battle.HandCount; index++)
+            {
+                if (FlashRegistry.Card(battle.Cards[index].Id).LocksOtherHandCards)
+                    return false;
+            }
+        }
         if (card.HasKeyword(FlashKeywords.Unplayable))
             return false;
         int energyCost = EnergyCostWithModifiers(battle, card);
@@ -17,8 +26,24 @@ public static partial class FlashKernel
         // ShouldPayExcessEnergyCostWithStars has no supported listeners yet.
         if (energyCost > battle.Energy || starCost > battle.Stars)
             return false;
-        // ShouldPlay has no supported listeners yet; CardIsPlayable conditions are per card.
-        return FlashRegistry.Card(card.Id).IsPlayable(battle, rules, card);
+        if (!ShouldPlay(battle, rules, card))
+            return false;
+        return def.IsPlayable(battle, rules, card);
+    }
+
+    /// <summary>Native <c>ShouldPlay</c> through <c>HookMirrors.ShouldPlay</c>: any combat listener may forbid the play.</summary>
+    private static bool ShouldPlay(in FlashBattle battle, FlashRules rules, in FlashCard card)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ShouldPlay) == 0 || IsOverOrEnding(battle))
+            return true;
+        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        int count = FlashHooks.CollectListeners(battle, FlashHookMask.ShouldPlay, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (!FlashHooks.Definition(battle, listeners[index]).ShouldPlay(battle, rules, listeners[index], card))
+                return false;
+        }
+        return true;
     }
 
     /// <summary>Mirrors <c>GetEnergyCostWithModifiers</c> (X cost pays all current energy).</summary>
@@ -232,7 +257,8 @@ public static partial class FlashKernel
         for (int index = 0; index < card.EnergyModifierCount; index++)
         {
             FlashCostModifier modifier = card.EnergyModifiers[index];
-            if (modifier.Expiration == FlashCostExpiration.WhenPlayed)
+            // CardEnergyCost.AfterCardPlayedCleanup: Expiration.HasFlag(WhenPlayed), so EndOfTurn | WhenPlayed goes too.
+            if (((byte)modifier.Expiration & (byte)FlashCostExpiration.WhenPlayed) != 0)
                 continue;
             card.EnergyModifiers[kept++] = modifier;
         }

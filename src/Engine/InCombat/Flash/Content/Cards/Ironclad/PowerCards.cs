@@ -97,3 +97,77 @@ public sealed class Barricade : FlashCardDef
             1, FlashLimits.PlayerOwner);
 }
 
+
+// P8 batch: Rage and Juggling keep their private counters in FlashPower.Aux0 (see the power
+// definitions); CrimsonMantle and Inferno keep the private SelfDamage dynamic variable there too.
+// The existing engine applies the power in CorePowerSupport / CardOnPlaySupport and then increments
+// the counter, which the definitions below copy.
+
+[FlashContent("RAGE")]
+public sealed class Rage : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Power"];
+
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.RagePower>(),
+            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+}
+
+[FlashContent("JUGGLING")]
+public sealed class Juggling : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.JugglingPower>(),
+            1, FlashLimits.PlayerOwner);
+        int index = FlashKernel.FindPower(x.B, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.JugglingPower>());
+        if (index < 0)
+            throw new FlashUnsupportedException("杂耍状态施加后未找到对应 Power。");
+        // SimulatedCombatState.InitializeJugglingAfterApplied: attacks started this turn.
+        x.B.Powers[index].Aux0 = x.B.Counter(FlashCounter.AttackPlayStartsThisTurn);
+    }
+}
+
+[FlashContent("DARK_EMBRACE")]
+public sealed class DarkEmbrace : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.DarkEmbracePower>(),
+            1, FlashLimits.PlayerOwner);
+}
+
+[FlashContent("CRIMSON_MANTLE")]
+public sealed class CrimsonMantle : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["CrimsonMantlePower"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        ushort id = FlashRegistry.PowerId<Powers.CrimsonMantlePower>();
+        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, id, (int)FlashCardEffects.Var(x, 0),
+            FlashLimits.PlayerOwner);
+        int index = FlashKernel.FindPower(x.B, FlashLimits.PlayerOwner, id);
+        if (index < 0)
+            throw new FlashUnsupportedException("绯红披风状态施加后未找到对应 Power。");
+        // SimulatedCombatState.IncrementCrimsonMantle: SelfDamage.BaseValue++.
+        x.B.Powers[index].Aux0++;
+    }
+}
+
+[FlashContent("INFERNO")]
+public sealed class Inferno : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["InfernoPower"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        ushort id = FlashRegistry.PowerId<Powers.InfernoPower>();
+        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, id, (int)FlashCardEffects.Var(x, 0),
+            FlashLimits.PlayerOwner);
+        int index = FlashKernel.FindPower(x.B, FlashLimits.PlayerOwner, id);
+        if (index < 0)
+            throw new FlashUnsupportedException("炼狱状态施加后未找到对应 Power。");
+        // CardOnPlaySupport: InfernoPower.IncrementSelfDamage.
+        x.B.Powers[index].Aux0++;
+    }
+}

@@ -155,7 +155,19 @@ public static partial class FlashKernel
         int killedCount = 0;
         foreach (FlashDamageResult result in results)
         {
-            // AfterBlockBroken and AfterCurrentHpChanged have no supported listeners yet.
+            if (result.WasBlockBroken)
+            {
+                AfterBlockBrokenHook broken = new() { Target = result.Receiver, Breaker = dealer };
+                FlashHooks.Dispatch(ref x, ref broken, gatedByEnding: false);
+                if (x.NeedsChoice)
+                    return;
+            }
+            if (result.UnblockedDamage > 0)
+            {
+                AfterCurrentHpChanged(ref x, result.Receiver, -result.UnblockedDamage);
+                if (x.NeedsChoice)
+                    return;
+            }
             AfterDamageGivenHook given = new() { Result = result, Dealer = dealer };
             FlashHooks.Dispatch(ref x, ref given, gatedByEnding: false);
             if (x.NeedsChoice)
@@ -195,14 +207,55 @@ public static partial class FlashKernel
             LoseCombat(ref x.B);
     }
 
-    /// <summary>Mirrors <c>CombatPredictionSimulator.KillWithoutCheckingWinCondition</c>.</summary>
-    private static void KillWithoutCheckingWinCondition(ref FlashExec x, byte owner, bool force)
+    /// <summary>
+    /// Mirrors <c>CombatPredictionSimulator.KillWithoutCheckingWinCondition</c>: lose all HP and
+    /// <c>AfterCurrentHpChanged</c>, <c>BeforeDeath</c>, then <c>ShouldDie</c> (normal and Late; skipped when forced or
+    /// at zero max HP). A death removes the enemy from the roster unless a power prevents it, runs <c>AfterDeath</c>,
+    /// and kills the remaining secondary teammates of a primary enemy; a prevented death runs <c>AfterDeath</c> and
+    /// the preventer's <c>AfterPreventingDeath</c>, and retries while the creature is still dead.
+    /// </summary>
+    private static void KillWithoutCheckingWinCondition(ref FlashExec x, byte owner, bool force, int recursion = 0)
     {
-        ref FlashCreature creature = ref x.B.Creature(owner);
-        if (creature.CurrentHp > 0)
-            LoseHp(ref creature, owner, creature.CurrentHp, FlashValueProps.Unblockable | FlashValueProps.Unpowered);
-        // AfterCurrentHpChanged, BeforeDeath and ShouldDie have no supported listeners yet, so the
-        // creature always dies.
+        int currentHp = x.B.Creature(owner).CurrentHp;
+        if (currentHp > 0)
+        {
+            LoseHp(ref x.B.Creature(owner), owner, currentHp, FlashValueProps.Unblockable | FlashValueProps.Unpowered);
+            AfterCurrentHpChanged(ref x, owner, -currentHp);
+            if (x.NeedsChoice)
+                return;
+        }
+        BeforeDeathHook before = new() { Creature = owner };
+        FlashHooks.Dispatch(ref x, ref before, gatedByEnding: false);
+        if (x.NeedsChoice)
+            return;
+        bool shouldDie = force || x.B.Creature(owner).MaxHp <= 0;
+        FlashListener preventer = default;
+        if (!shouldDie)
+            shouldDie = ShouldDie(ref x, owner, out preventer);
+        if (x.NeedsChoice)
+            return;
+        if (!shouldDie)
+        {
+            AfterDeathHook prevented = new() { Creature = owner, WasRemovalPrevented = true };
+            FlashHooks.Dispatch(ref x, ref prevented, gatedByEnding: false);
+            if (x.NeedsChoice)
+                return;
+            FlashHooks.Definition(x.B, preventer).AfterPreventingDeath(ref x, preventer, owner);
+            if (x.NeedsChoice)
+                return;
+            if (x.B.Creature(owner).IsDead)
+            {
+                if (recursion >= 10)
+                    throw new InvalidOperationException("死亡被连续阻止十次后，生物仍未复活。");
+                KillWithoutCheckingWinCondition(ref x, owner, force, recursion + 1);
+            }
+            return;
+        }
+        bool remove = ShouldRemoveAfterDeath(x.B, owner);
+        AfterDeathHook after = new() { Creature = owner, WasRemovalPrevented = false };
+        FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
+        if (x.NeedsChoice)
+            return;
         if (IsEnemyOwner(owner))
         {
             Span<byte> aliveTeammates = stackalloc byte[FlashLimits.Enemies];
@@ -213,9 +266,11 @@ public static partial class FlashKernel
                 if (teammate != owner && x.B.Creature(teammate).IsAlive)
                     aliveTeammates[aliveCount++] = teammate;
             }
-            bool isPrimary = IsPrimaryEnemy(x.B, owner);
-            if (InRoster(x.B, owner))
+            if (remove && InRoster(x.B, owner))
                 RemoveFromRoster(ref x.B, owner);
+            // ICombatPredictionCreatureSemantics.IsPrimaryEnemy reads EffectivePowers, which hold only the powers of
+            // roster creatures: once removed, the dead enemy has no secondary-making power there.
+            bool isPrimary = !InRoster(x.B, owner) || IsPrimaryEnemy(x.B, owner);
             if (isPrimary && aliveCount > 0)
             {
                 bool allSecondary = true;
@@ -233,6 +288,49 @@ public static partial class FlashKernel
         {
             throw new FlashUnsupportedException("Osty 死亡尚未实现。");
         }
+    }
+
+    /// <summary>Native <c>ShouldDie</c> then <c>ShouldDieLate</c> over the run listeners; the first refusal is the preventer.</summary>
+    private static bool ShouldDie(ref FlashExec x, byte owner, out FlashListener preventer)
+    {
+        preventer = default;
+        if ((FlashRegistry.AnyHooks & (FlashHookMask.ShouldDie | FlashHookMask.ShouldDieLate)) == 0)
+            return true;
+        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        for (int pass = 0; pass < 2; pass++)
+        {
+            int count = FlashHooks.CollectListeners(x.B, pass == 0 ? FlashHookMask.ShouldDie : FlashHookMask.ShouldDieLate, listeners);
+            for (int index = 0; index < count; index++)
+            {
+                FlashListenerDef def = FlashHooks.Definition(x.B, listeners[index]);
+                bool dies = pass == 0 ? def.ShouldDie(ref x, listeners[index], owner) : def.ShouldDieLate(ref x, listeners[index], owner);
+                if (!dies)
+                {
+                    preventer = listeners[index];
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /// <summary><c>ICombatPredictionCreatureSemantics.ShouldRemoveAfterDeath</c>: no positive removal-preventing power.</summary>
+    private static bool ShouldRemoveAfterDeath(in FlashBattle battle, byte owner)
+    {
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref battle.Powers[index];
+            if (power.Owner == owner && power.Amount > 0 && FlashRegistry.Power(power.Id).PreventsRemovalAfterDeath)
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>Native <c>AfterCurrentHpChanged</c> over the run listeners, without the ending gate.</summary>
+    internal static void AfterCurrentHpChanged(ref FlashExec x, byte creature, decimal delta)
+    {
+        AfterCurrentHpChangedHook changed = new() { Creature = creature, Delta = delta };
+        FlashHooks.Dispatch(ref x, ref changed, gatedByEnding: false);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.HandlePlayerDeath</c> for a single-player combat.</summary>

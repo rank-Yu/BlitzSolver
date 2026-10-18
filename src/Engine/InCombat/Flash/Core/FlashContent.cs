@@ -146,6 +146,14 @@ public enum FlashHookMask : ulong
     ModifyHpLostAfterOsty = 1UL << 27,
     ModifyHpLostAfterOstyLate = 1UL << 28,
     AfterModifyingHpLostAfterOsty = 1UL << 29,
+    AfterCurrentHpChanged = 1UL << 30,
+    BeforeDeath = 1UL << 31,
+    ShouldDie = 1UL << 32,
+    ShouldDieLate = 1UL << 33,
+    AfterDeath = 1UL << 34,
+    AfterBlockBroken = 1UL << 35,
+    ShouldPlay = 1UL << 36,
+    ShouldFlush = 1UL << 37,
 
     /// <summary>
     /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
@@ -153,7 +161,8 @@ public enum FlashHookMask : ulong
     /// </summary>
     RunListenerHooks = ModifyDamageAdditive | ModifyDamageMultiplicative | ModifyDamageCap | BeforeDamageReceived
         | AfterDamageReceived | AfterDamageReceivedLate | AfterDamageGiven | ModifyHpLostBeforeOsty
-        | ModifyHpLostBeforeOstyLate | ModifyHpLostAfterOsty | ModifyHpLostAfterOstyLate,
+        | ModifyHpLostBeforeOstyLate | ModifyHpLostAfterOsty | ModifyHpLostAfterOstyLate | AfterCurrentHpChanged
+        | BeforeDeath | ShouldDie | ShouldDieLate | AfterDeath,
 }
 
 public abstract class FlashContentDef
@@ -207,6 +216,37 @@ public abstract class FlashListenerDef : FlashContentDef
     {
     }
 
+    // Death (CombatPredictionSimulator.KillWithoutCheckingWinCondition) and HP changes, over the run
+    // listeners without the ending gate.
+
+    /// <summary>Native <c>AfterCurrentHpChanged</c>: after damage, a kill or a heal (<paramref name="delta"/> is the requested change).</summary>
+    public virtual void AfterCurrentHpChanged(ref FlashExec x, FlashListener self, byte creature, decimal delta)
+    {
+    }
+
+    public virtual void BeforeDeath(ref FlashExec x, FlashListener self, byte creature)
+    {
+    }
+
+    /// <summary>Native <c>ShouldDie</c>: return false to prevent the death; the first preventer gets <see cref="AfterPreventingDeath"/>.</summary>
+    public virtual bool ShouldDie(ref FlashExec x, FlashListener self, byte creature) => true;
+
+    public virtual bool ShouldDieLate(ref FlashExec x, FlashListener self, byte creature) => true;
+
+    public virtual void AfterDeath(ref FlashExec x, FlashListener self, byte creature, bool wasRemovalPrevented)
+    {
+    }
+
+    /// <summary>Called on the preventer only (<c>HookMirrors.AfterPreventingDeath</c>).</summary>
+    public virtual void AfterPreventingDeath(ref FlashExec x, FlashListener self, byte creature)
+    {
+    }
+
+    /// <summary>Native <c>AfterBlockBroken</c> over the combat listeners (no ending gate), from <c>ProcessDamageResults</c>.</summary>
+    public virtual void AfterBlockBroken(ref FlashExec x, FlashListener self, byte target, byte breaker)
+    {
+    }
+
     // Action hooks. Each dispatch point in the kernel names the existing-engine call it mirrors.
 
     /// <summary>
@@ -221,6 +261,18 @@ public abstract class FlashListenerDef : FlashContentDef
     public virtual void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
     {
     }
+
+    /// <summary>
+    /// Native <c>ShouldPlay</c> in the playability check (<c>CombatPredictionSimulator.CanPlay</c>, after the costs;
+    /// gated by combat ending): return false to forbid playing <paramref name="card"/>. A pure query of the battle.
+    /// </summary>
+    public virtual bool ShouldPlay(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card) => true;
+
+    /// <summary>
+    /// Native <c>ShouldFlush</c> at the player's turn end (<c>PersistentRelicSupport.ShouldFlush</c>, every listener,
+    /// no ending gate): return false to keep the whole hand.
+    /// </summary>
+    public virtual bool ShouldFlush(ref FlashExec x, FlashListener self) => true;
 
     /// <summary>Native <c>ShouldDraw</c> at the start of a draw (gated by combat ending): return false to prevent it.</summary>
     public virtual bool ShouldDraw(ref FlashExec x, FlashListener self, bool fromHandDraw) => true;
@@ -301,6 +353,10 @@ public abstract class FlashListenerDef : FlashContentDef
 
     public virtual decimal ModifyMaxEnergy(ref FlashExec x, FlashListener self, decimal amount) => amount;
 
+    /// <summary>
+    /// <c>PersistentPowerSupport.GetModifiedHandDraw</c> normal pass. Evaluated exactly once per turn-start hand draw
+    /// (<c>ConsumeModifiedHandDraw</c>), so a listener may advance its own per-turn state here as the existing engine does.
+    /// </summary>
     public virtual decimal ModifyHandDraw(ref FlashExec x, FlashListener self, decimal amount) => amount;
 
     public virtual decimal ModifyHandDrawLate(ref FlashExec x, FlashListener self, decimal amount) => amount;
@@ -322,6 +378,12 @@ public abstract class FlashCardDef : FlashListenerDef
     public virtual void OwnChoice(ref FlashExec x)
     {
     }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.IsCardPlayPrevented</c>: while this card is in hand, no card without this flag can be
+    /// played (Enthralled).
+    /// </summary>
+    public virtual bool LocksOtherHandCards => false;
 
     /// <summary>Native <c>CardModel.HasTurnEndInHandEffect</c>: the card runs <see cref="OnTurnEndInHand"/> at the turn end.</summary>
     public virtual bool HasTurnEndInHandEffect => false;
@@ -390,6 +452,12 @@ public abstract class FlashPowerDef : FlashListenerDef
     /// </summary>
     public virtual bool MarksJustAppliedByEnemy => false;
 
+    /// <summary>
+    /// <c>ShouldRemoveAfterDeath</c>: a positive amount keeps its dead owner in the enemy roster (Adaptable, Illusion,
+    /// Reattach, Steam Eruption).
+    /// </summary>
+    public virtual bool PreventsRemovalAfterDeath => false;
+
     // Turn phases. Each method is the power's case in the named existing-engine pass; the kernel
     // visits only powers with a positive amount, in the pass's order (FlashKernel.TurnPhases).
 
@@ -435,6 +503,11 @@ public abstract class FlashPowerDef : FlashListenerDef
 
     /// <summary>Per-enemy case in <c>CorePowerSupport.TriggerEnemySideTurnEndEffects</c> before <c>TriggerRegular</c>.</summary>
     public virtual void EnemySideTurnEnd(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>Per-player case in <c>CorePowerSupport.CompletePlayerEarlySideTurnEndEffects</c> (end of turn-end phase one).</summary>
+    public virtual void CompletePlayerEarlySideTurnEnd(ref FlashExec x, FlashListener self)
     {
     }
 

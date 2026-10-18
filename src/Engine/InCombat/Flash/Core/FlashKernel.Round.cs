@@ -36,7 +36,7 @@ public static partial class FlashKernel
             if (x.NeedsChoice)
                 return;
             CheckWinCondition(ref x.B);
-            // CompletePlayerEarlySideTurnEndEffects (Regen): not supported.
+            CompletePlayerEarlySideTurnEnd(ref x);
         }
         ApplyEnemyDeathPowers(ref x);
         if (!IsInProgress(x.B))
@@ -250,10 +250,12 @@ public static partial class FlashKernel
             FlashRegistry.Card(card.Id).OnTurnEndInHand(ref x);
             if (x.NeedsChoice)
                 return;
+            // The effect may change the card's own state (a private counter), never its identity or place.
             int position = x.B.PlayCount - 1;
-            if (position < 0 || !FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Play, position), card))
+            if (position < 0 || FlashPiles.At(ref x.B, FlashPile.Play, position).Id != card.Id
+                || FlashPiles.At(ref x.B, FlashPile.Play, position).Upgrade != card.Upgrade)
                 throw new FlashUnsupportedException("回合末在手效果移动了打出区的卡。");
-            if (card.HasKeyword(FlashKeywords.Ethereal))
+            if (FlashPiles.At(ref x.B, FlashPile.Play, position).HasKeyword(FlashKeywords.Ethereal))
             {
                 Exhaust(ref x, FlashPile.Play, position, causedByEthereal: true);
                 if (x.NeedsChoice)
@@ -269,8 +271,9 @@ public static partial class FlashKernel
     /// <summary>Mirrors <c>CorePowerSupport.FlushPlayerHandAtTurnEnd</c>.</summary>
     private static void FlushPlayerHandAtTurnEnd(ref FlashExec x)
     {
-        // BeforeFlush enchantments and ShouldFlush relics: not supported.
-        for (int index = 0; index < x.B.HandCount;)
+        // BeforeFlush enchantments: not supported. A refused flush keeps the whole hand.
+        bool flush = ShouldFlush(ref x);
+        for (int index = 0; flush && index < x.B.HandCount;)
         {
             ref FlashCard card = ref x.B.Cards[index];
             bool retain = card.HasKeyword(FlashKeywords.Retain) || (card.Flags & FlashCardFlags.RetainThisTurn) != 0;
@@ -288,6 +291,21 @@ public static partial class FlashKernel
         int total = x.B.CardCount;
         for (int position = 0; position < total; position++)
             EndOfTurnCleanup(ref x.B.Cards[position]);
+    }
+
+    /// <summary>Mirrors <c>PersistentRelicSupport.ShouldFlush</c>: every combat listener, without the ending gate.</summary>
+    private static bool ShouldFlush(ref FlashExec x)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ShouldFlush) == 0)
+            return true;
+        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        int count = FlashHooks.CollectListeners(x.B, FlashHookMask.ShouldFlush, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (!FlashHooks.Definition(x.B, listeners[index]).ShouldFlush(ref x, listeners[index]))
+                return false;
+        }
+        return true;
     }
 
     /// <summary>Mirrors <c>CardModel.EndOfTurnCleanup</c>.</summary>

@@ -39,6 +39,11 @@ public static partial class FlashKernel
     // CorePowerSupport.TriggerEnemySideTurnEndEffects, per enemy, before TriggerRegular.
     private static readonly string[] EnemySideTurnEndOrder = ["REGEN_POWER", "PLATING_POWER", "DOUBLE_DAMAGE_POWER"];
 
+    // CorePowerSupport.CompletePlayerEarlySideTurnEndEffects, per player.
+    private static readonly string[] CompletePlayerEarlyOrder = ["REGEN_POWER"];
+
+    private static readonly Lazy<ushort[]> CompletePlayerEarlyIds = new(() => Resolve(CompletePlayerEarlyOrder));
+
     // CorePowerSupport.ApplyEnemyDeathPowers: checked on each player creature, in source order.
     private static readonly string[] ApplierDeathOrder = ["CONSTRICT_POWER", "HEX_POWER", "SHRINK_POWER"];
 
@@ -84,6 +89,7 @@ public static partial class FlashKernel
         AfterEnergyReset,
         BeforeHandDraw,
         AfterPlayerTurnStart,
+        CompletePlayerEarlySideTurnEnd,
     }
 
     private static void InvokePowerPhase(ref FlashExec x, PowerPhase phase, int index, FlashSide side, bool participates, bool flag)
@@ -105,6 +111,7 @@ public static partial class FlashKernel
             case PowerPhase.AfterEnergyReset: def.AfterEnergyReset(ref x, self); break;
             case PowerPhase.BeforeHandDraw: def.BeforeHandDraw(ref x, self); break;
             case PowerPhase.AfterPlayerTurnStart: def.AfterPlayerTurnStart(ref x, self); break;
+            case PowerPhase.CompletePlayerEarlySideTurnEnd: def.CompletePlayerEarlySideTurnEnd(ref x, self); break;
             default: throw new ArgumentOutOfRangeException(nameof(phase), phase, null);
         }
     }
@@ -376,6 +383,11 @@ public static partial class FlashKernel
         if (Contains(participants, FlashLimits.PlayerOwner))
             RelicPass(ref x, RelicPhase.AfterSideTurnStart, side);
     }
+
+    /// <summary><c>CorePowerSupport.CompletePlayerEarlySideTurnEndEffects</c>.</summary>
+    internal static void CompletePlayerEarlySideTurnEnd(ref FlashExec x)
+        => PowerTypeSequence(ref x, PowerPhase.CompletePlayerEarlySideTurnEnd, FlashLimits.PlayerOwner, CompletePlayerEarlyIds.Value,
+            FlashSide.Player, participates: true);
 
     /// <summary><c>CorePowerSupport.TriggerPlayerRegularSideTurnEndEffects</c> plus the relic and late passes of phase two.</summary>
     internal static void PlayerTurnEndPhaseTwo(ref FlashExec x)

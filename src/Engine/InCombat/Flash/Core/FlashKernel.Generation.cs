@@ -79,7 +79,8 @@ public static partial class FlashKernel
         int restored = creature.CurrentHp - before;
         if (restored > 0 && owner == FlashLimits.PlayerOwner)
             x.B.AddCounter(FlashCounter.RecoveredHp, restored);
-        // AfterCurrentHpChanged: no supported listeners yet.
+        if (amount > 0m)
+            AfterCurrentHpChanged(ref x, owner, amount);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.GainMaxHp</c>: the capped max-HP delta is then healed.</summary>

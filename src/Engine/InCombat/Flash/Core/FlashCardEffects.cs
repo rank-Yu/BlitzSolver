@@ -79,6 +79,18 @@ public static class FlashCardEffects
             FlashLimits.PlayerOwner, hasCardSource: true, x.Card);
     }
 
+    /// <summary>
+    /// Damage from the card to its owner with the card as source, matching
+    /// <c>CreatureCmd.Damage(context, card.Owner.Creature, amount, props, card, null)</c> (the
+    /// turn-end-in-hand cards: <c>CardOnTurnEndInHandMirrors.DamageOwner</c>).
+    /// </summary>
+    public static void DamageOwnerFromCard(ref FlashExec x, decimal amount, FlashValueProps props)
+    {
+        Span<byte> targets = stackalloc byte[1];
+        targets[0] = FlashLimits.PlayerOwner;
+        FlashKernel.Damage(ref x, targets, amount, props, FlashLimits.PlayerOwner, hasCardSource: true, x.Card);
+    }
+
     /// <summary>Mirrors <c>GeneralCardMirrors.GeneralBlockOnPlay</c>.</summary>
     public static void GeneralBlock(ref FlashExec x, int blockVar)
         => FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, Var(x, blockVar), FlashValueProps.Move, fromCard: true);
