@@ -86,20 +86,30 @@ public static partial class FlashKernel
         FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
     }
 
-    /// <summary>Mirrors <c>CombatPredictionSimulator.Damage</c>.</summary>
-    public static void Damage(ref FlashExec x, scoped ReadOnlySpan<byte> targets, decimal amount, FlashValueProps props,
+    /// <summary>
+    /// Mirrors <c>CombatPredictionSimulator.Damage</c>. Returns whether any result was fully blocked,
+    /// which the monster-move path reads for the Imbalanced stun (<c>MonsterMoveSemantics</c> keeps the
+    /// same per-hit flag).
+    /// </summary>
+    public static bool Damage(ref FlashExec x, scoped ReadOnlySpan<byte> targets, decimal amount, FlashValueProps props,
         byte dealer, bool hasCardSource, in FlashCard cardSource)
     {
         if (dealer != FlashLimits.NoOwner && x.B.Creature(dealer).IsDead || targets.Length == 0)
-            return;
+            return false;
         Span<FlashDamageResult> results = stackalloc FlashDamageResult[MaxDamageResults];
         int count = 0;
         foreach (byte target in targets)
         {
             if (!TryDamageTarget(ref x, target, amount, props, dealer, hasCardSource, cardSource, results, ref count))
-                return;
+                return false;
         }
         ProcessDamageResults(ref x, results[..count], dealer);
+        for (int index = 0; index < count; index++)
+        {
+            if (results[index].WasFullyBlocked)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.TryDamageTarget</c>.</summary>
@@ -424,8 +434,12 @@ public static partial class FlashKernel
         {
             byte owner = EnemyOwner(newlyDead[index]);
             x.B.Enemies[newlyDead[index]].Flags |= FlashEnemyFlags.DeathProcessed;
-            // DeathPowerSupport.Trigger: no supported death powers yet. Stolen-resource recovery is
-            // rejected at admission until theft is supported.
+            // DeathPowerSupport.Trigger runs the death cases of every positive power over a snapshot
+            // taken before this death's power cleanup; stolen-resource recovery is rejected at
+            // admission until theft is supported.
+            TriggerDeathPowers(ref x, owner);
+            if (x.NeedsChoice)
+                return;
             RemovePowersAfterDeath(ref x, owner);
             ref FlashEnemy enemy = ref x.B.Enemies[newlyDead[index]];
             if (enemy.DeathPhase != FlashDeathPhase.Reviving)
@@ -435,6 +449,37 @@ public static partial class FlashKernel
                 return;
         }
         ResolvePowerAmountChanges(ref x);
+    }
+
+    /// <summary>
+    /// The death cases of <c>DeathPowerSupport.Trigger</c>: every positive power's
+    /// <see cref="FlashPowerDef.DeathTrigger"/>, over the listener order snapshot taken before this
+    /// death's own power cleanup (so newly spawned powers are not visited by the same pass).
+    /// </summary>
+    private static void TriggerDeathPowers(ref FlashExec x, byte dead)
+    {
+        Span<byte> owners = stackalloc byte[FlashLimits.Powers];
+        Span<ushort> ids = stackalloc ushort[FlashLimits.Powers];
+        int count = 0;
+        for (int index = 0; index < x.B.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref x.B.Powers[index];
+            if (power.Amount <= 0)
+                continue;
+            owners[count] = power.Owner;
+            ids[count] = power.Id;
+            count++;
+        }
+        for (int index = 0; index < count; index++)
+        {
+            int position = FindPower(x.B, owners[index], ids[index]);
+            if (position < 0 || x.B.Powers[position].Amount <= 0)
+                continue;
+            FlashRegistry.Power(ids[index]).DeathTrigger(ref x,
+                new FlashListener(FlashListenerKind.Power, checked((byte)position), owners[index]), dead);
+            if (x.NeedsChoice)
+                return;
+        }
     }
 
     /// <summary>

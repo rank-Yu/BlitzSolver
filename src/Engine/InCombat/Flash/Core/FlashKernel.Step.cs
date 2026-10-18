@@ -23,7 +23,6 @@ public static partial class FlashKernel
                 if (!x.NeedsChoice)
                 {
                     x.B.Flags &= ~FlashBattleFlags.PlayerTurnEndRequested;
-                    // SettleReplayActionBoundary: no supported power reactions or normalizations.
                 }
                 break;
             case FlashActionKind.UsePotion:
@@ -31,6 +30,13 @@ public static partial class FlashKernel
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action.Kind, null);
+        }
+        // SettleReplayActionBoundary: resolve the queued changes and renormalize card afflictions.
+        if (!x.NeedsChoice)
+        {
+            ResolvePowerAmountChanges(ref x);
+            if (!x.NeedsChoice)
+                NormalizeCardAfflictions(ref x);
         }
         if (x.NeedsChoice)
         {

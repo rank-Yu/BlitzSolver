@@ -3,6 +3,10 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CombatSolver.Engine.InCombat.Flash;
+using CombatSolver.Engine.InCombat.Flash.Content.Afflictions;
+using CombatSolver.Engine.InCombat.Flash.Content.Enchantments;
+using CombatSolver.Engine.InCombat.Flash.Content.Powers;
+using CombatSolver.Engine.InCombat.Flash.Content.Relics;
 
 // Pure Flash kernel contracts (K0): no game, no CombatSolver assembly. Differential equivalence
 // with the existing engine is checked separately by the offline harness probe.
@@ -20,9 +24,11 @@ CheckIntroSort(rules);
 CheckCapacity();
 CheckPiles();
 CheckMonsterForcedMoves(rules);
+CheckKm2Kernel(rules);
 CheckMonsterSpawn(SpawnRules());
 CheckGenerationAndAutoPlay();
 CheckKg2Hooks(rules);
+CheckKaAttachments();
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -180,6 +186,47 @@ static void CheckMonsterForcedMoves(FlashRules rules)
     FlashKernel.ForceStunnedMove(ref x, owner, 2);
     Check(battle.Enemies[0].ForcedMove == 2, "显式后继应写入 ForcedMove");
     Check(battle.Enemies[0].Move == 4, "强制 STUNNED 应指向合成节点");
+}
+
+// KM2 kernel contracts: slot names outside the encounter list behave like
+// SimulatedCombatState.GetSlotIndex (-1), a fully blocked Damage result exposes the flag the
+// Imbalanced stun reads, and an unresolved spawning death keeps IsEnding false.
+static void CheckKm2Kernel(FlashRules rules)
+{
+    Check(FlashKernel.SlotIndex(rules, "second") == 1, "已知槽位应返回其下标");
+    Check(FlashKernel.SlotIndex(rules, "middle") == FlashKernel.NoSlot,
+        "EncounterModel.Slots 之外的槽名应映射到 NoSlot");
+    Check(FlashKernel.SlotIndex(rules, null) == FlashKernel.NoSlot, "null 槽名应映射到 NoSlot");
+
+    FlashAction action = default;
+    FlashBattle battle = SliceBattle();
+    battle.Player.Block = 100;
+    FlashExec x = new(ref battle, rules, action);
+    Check(FlashKernel.Damage(ref x, [FlashLimits.PlayerOwner], 10m, FlashValueProps.Move,
+            FlashKernel.EnemyOwner(0), hasCardSource: false, default),
+        "完全格挡的 Damage 应返回 true");
+    battle = SliceBattle();
+    x = new FlashExec(ref battle, rules, action);
+    Check(!FlashKernel.Damage(ref x, [FlashLimits.PlayerOwner], 10m, FlashValueProps.Move,
+            FlashKernel.EnemyOwner(0), hasCardSource: false, default),
+        "未完全格挡的 Damage 应返回 false");
+
+    Check(FlashRegistry.TryPower("INFESTED_POWER", out ushort infested), "InfestedPower 应有 Flash 定义");
+    battle = default;
+    battle.Outcome = FlashOutcome.None;
+    battle.EnemyCount = 1;
+    battle.RosterCount = 0;
+    battle.Enemies[0].Creature.Flags = FlashCreatureFlags.Present;
+    battle.Enemies[0].DeathPhase = FlashDeathPhase.None;
+    battle.PowerCount = 1;
+    battle.Powers[0] = new FlashPower
+    {
+        Id = infested, Owner = FlashKernel.EnemyOwner(0), Amount = 1, Applier = FlashKernel.EnemyOwner(0),
+    };
+    Check(!FlashKernel.IsEnding(battle), "未结算的寄生死亡应阻止战斗结束");
+    battle.PowerCount = 0;
+    battle.Powers[0] = default;
+    Check(FlashKernel.IsEnding(battle), "死亡效果结算完后应允许战斗结束");
 }
 
 // Rules for the slice content: Ironclad starter cards and one Nibbit.
@@ -806,6 +853,157 @@ static void CheckKg2Hooks(FlashRules rules)
     Kg2TestLog.Clear();
     FlashKernel.Damage(ref x, enemy, 1, FlashValueProps.Move, FlashLimits.PlayerOwner, false, default);
     Check(Kg2TestLog.Lines.Contains("damage-none"), $"KG2 AfterDamageReceived 无来源分支错误 log={string.Join(",", Kg2TestLog.Lines)}");
+}
+
+// KA: card afflictions/enchantments, their modification hooks and the enchantment relic.
+static void CheckKaAttachments()
+{
+    FlashRules rules = KaRules();
+    Check(FlashRegistry.TryAffliction("TAINTED", out ushort tainted), "缺少 TAINTED 定义");
+    Check(FlashRegistry.TryAffliction("ENTANGLED", out ushort entangled), "缺少 ENTANGLED 定义");
+    Check(FlashRegistry.TryAffliction("RINGING", out ushort ringing), "缺少 RINGING 定义");
+    Check(FlashRegistry.TryAffliction("SMOG", out ushort smog), "缺少 SMOG 定义");
+    Check(FlashRegistry.TryEnchantment("SHARP", out ushort sharp), "缺少 SHARP 定义");
+    Check(FlashRegistry.TryEnchantment("GLAM", out _), "缺少 GLAM 定义");
+    Check(FlashRegistry.TryEnchantment("SPIRAL", out _), "缺少 SPIRAL 定义");
+    Check(FlashRegistry.TryPower("VITAL_SPARK_POWER", out ushort vitalSpark), "缺少 VITAL_SPARK_POWER");
+    Check(FlashRegistry.TryPower("SMOGGY_POWER", out ushort smoggy), "缺少 SMOGGY_POWER");
+    Check(FlashRegistry.TryPower("TANGLED_POWER", out ushort tangled), "缺少 TANGLED_POWER");
+    Check(FlashRegistry.TryPower("RINGING_POWER", out ushort ringingPower), "缺少 RINGING_POWER");
+    Check(FlashRegistry.TryPower("TAINTED_POWER", out ushort taintedPower), "缺少 TAINTED_POWER");
+    Check(FlashRegistry.TryRelic("MYSTIC_LIGHTER", out ushort lighter), "缺少 MYSTIC_LIGHTER");
+
+    Check(FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD");
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD");
+    FlashBattle battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, strike));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, defend));
+    FlashExec x = new(ref battle, rules, default);
+    int attackPosition = 0;
+    int skillPosition = 1;
+
+    // CardCmd.Afflict: Tainted is Skill-only and stacks; Entangled is non-stackable.
+    FlashKernel.ApplyAffliction(ref x, skillPosition, tainted, 2);
+    Check(battle.Cards[skillPosition].AfflictionId == tainted + 1
+        && battle.Cards[skillPosition].AfflictionAmount == 2, "Tainted 应施加到技能牌");
+    FlashKernel.ApplyAffliction(ref x, skillPosition, tainted, 3);
+    Check(battle.Cards[skillPosition].AfflictionAmount == 5, "可叠加苦难应累加层数");
+    FlashKernel.ApplyAffliction(ref x, attackPosition, tainted, 1);
+    Check(battle.Cards[attackPosition].AfflictionId == 0, "Tainted 不应施加到攻击牌");
+    FlashKernel.ApplyAffliction(ref x, attackPosition, entangled, 1);
+    FlashKernel.ApplyAffliction(ref x, attackPosition, entangled, 1);
+    Check(battle.Cards[attackPosition].AfflictionId == entangled + 1
+        && battle.Cards[attackPosition].AfflictionAmount == 1, "不可叠加苦难只应保留首次层数");
+    FlashKernel.ClearAfflictions(ref battle, entangled);
+    Check(battle.Cards[attackPosition].AfflictionId == 0, "ClearAfflictions 应清除同类苦难");
+
+    // Vital Spark one-time entry affliction, amount-change rewrite and removal clearing.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, defend));
+    x = new(ref battle, rules, default);
+    byte enemyOwner = FlashKernel.EnemyOwner(0);
+    FlashKernel.ApplyPower(ref x, enemyOwner, vitalSpark, 2, enemyOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    FlashKernel.NormalizeCardAfflictions(ref x);
+    Check(battle.Cards[0].AfflictionId == tainted + 1 && battle.Cards[0].AfflictionAmount == 2,
+        "新进场技能牌应获得 Vital Spark 的 Tainted");
+    FlashKernel.SetPowerAmount(ref battle, enemyOwner, vitalSpark, 3);
+    FlashKernel.NormalizeCardAfflictions(ref x);
+    Check(battle.Cards[0].AfflictionAmount == 3, "Vital Spark 数量变化应同步 Tainted 层数");
+    FlashKernel.SetPowerAmount(ref battle, enemyOwner, vitalSpark, 0);
+    FlashKernel.NormalizeCardAfflictions(ref x);
+    Check(battle.Cards[0].AfflictionId == 0, "Life Spark 移除后应清除 Tainted");
+
+    // SmoggyPower: a Skill played this side turn makes newly entered Skills unplayable.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, defend));
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, smoggy, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    battle.SetCounter(FlashCounter.SkillPlayedThisSideTurn, 1);
+    FlashKernel.NormalizeCardAfflictions(ref x);
+    Check(battle.Cards[0].AfflictionId == smog + 1, "SmoggyPower 应给进场技能牌施加 Smog");
+    Check(!FlashKernel.CanPlayCard(battle, rules, 0), "Smog 牌应不可打出");
+
+    // TangledPower cost and RingingPower second-card restriction.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, strike));
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, tangled, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    FlashKernel.ApplyAffliction(ref x, 0, entangled, 1);
+    Check(FlashKernel.EnergyCostWithModifiers(battle, rules, battle.Cards[0], FlashPile.Hand) == 2,
+        "TangledPower 应给 Entangled 牌加 1 费");
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, ringingPower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    FlashKernel.ClearAfflictions(ref battle, entangled);
+    FlashKernel.ApplyAffliction(ref x, 0, ringing, 1);
+    battle.SetCounter(FlashCounter.CardPlaySeriesStartedThisTurn, 0);
+    Check(FlashKernel.CanPlayCard(battle, rules, 0), "Ringing 牌应能作为本回合第一张打出");
+    battle.SetCounter(FlashCounter.CardPlaySeriesStartedThisTurn, 1);
+    Check(!FlashKernel.CanPlayCard(battle, rules, 0), "Ringing 牌不应作为本回合第二张打出");
+
+    // TaintedPower adds to the player's powered attacks.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, taintedPower, 2, FlashLimits.NoOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    decimal taintedDamage = FlashHooks.ModifyDamage(ref x, FlashLimits.PlayerOwner, enemyOwner, 6m,
+        FlashValueProps.Move, hasCardSource: false, default);
+    Check(taintedDamage == 8m, $"TaintedPower 应加 2 伤害，实际 {taintedDamage}");
+
+    // Enchantment damage/block modifiers and play count.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, strike));
+    x = new(ref battle, rules, default);
+    ref FlashCard enchanted = ref battle.Cards[0];
+    enchanted.EnchantmentId = checked((byte)(sharp + 1));
+    enchanted.EnchantmentAmount = 3;
+    decimal sharpDamage = FlashHooks.ModifyDamage(ref x, enemyOwner, FlashLimits.PlayerOwner, 6m,
+        FlashValueProps.Move, hasCardSource: true, enchanted);
+    Check(sharpDamage == 9m, $"Sharp 应加 3 伤害，实际 {sharpDamage}");
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = lighter };
+    decimal lighterDamage = FlashHooks.ModifyDamage(ref x, enemyOwner, FlashLimits.PlayerOwner, 6m,
+        FlashValueProps.Move, hasCardSource: true, enchanted);
+    Check(lighterDamage == 18m, $"MysticLighter 应给附魔攻击加 9 伤害，实际 {lighterDamage}");
+
+    FlashCard glam = FlashKernel.CreateCard(rules, strike);
+    glam.EnchantmentId = checked((byte)(FlashRegistry.EnchantmentId<Glam>() + 1));
+    Check(FlashKernel.EnchantedReplayCount(glam) == 1, "Glam 首次应加 1 次重放");
+    glam.EnchantmentPrivate = 1;
+    Check(FlashKernel.EnchantedReplayCount(glam) == 0, "Glam 已用后不应再加重放");
+    FlashCard spiral = FlashKernel.CreateCard(rules, strike);
+    spiral.EnchantmentId = checked((byte)(FlashRegistry.EnchantmentId<Spiral>() + 1));
+    Check(FlashKernel.EnchantedReplayCount(spiral) == 1, "Spiral 应加 1 次重放");
+}
+
+static FlashRules KaRules()
+{
+    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["a"], RootEnemyCount = 0 };
+    FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike);
+    FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend);
+    FlashRegistry.TryRelic("MYSTIC_LIGHTER", out ushort lighter);
+    builder.SetCard(strike, 0, new FlashCardStats
+    {
+        Type = FlashCardType.Attack, Target = FlashTargetType.AnyEnemy, Rarity = FlashCardRarity.Basic,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None,
+        MaxUpgradeLevel = 1, Vars = [6m],
+    });
+    builder.SetCard(defend, 0, new FlashCardStats
+    {
+        Type = FlashCardType.Skill, Target = FlashTargetType.Self, Rarity = FlashCardRarity.Basic,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None,
+        MaxUpgradeLevel = 1, Vars = [5m],
+    });
+    builder.SetRelicVars(lighter, [9m]);
+    return builder.Build();
 }
 
 static class Kg2TestLog

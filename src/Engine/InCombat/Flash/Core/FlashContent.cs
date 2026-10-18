@@ -661,6 +661,24 @@ public abstract class FlashPowerDef : FlashListenerDef
     /// </summary>
     public virtual bool KeepsOwnerBuffsAfterDeath => false;
 
+    /// <summary>
+    /// <c>DeathPowerSupport.SpawnsPrimaryEnemyOnDeath</c>: a positive amount means the owner's death
+    /// spawns new primary enemies, so <c>SimulatedCombatState.HasUnresolvedSpawningDeath</c> keeps the
+    /// combat from ending until the deferred death pass runs (<c>InfestedPower</c>).
+    /// </summary>
+    public virtual bool SpawnsPrimaryEnemyOnDeath => false;
+
+    /// <summary>
+    /// Case in <c>DeathPowerSupport.Trigger</c> for one newly dead enemy, over every positive power in
+    /// listener order before that death's power cleanup (<c>FlashKernel.ApplyEnemyDeathPowers</c>). This
+    /// covers the deaths the existing engine settles in that pass (Reattach, Infested, Surrounded's
+    /// facing update); the immediate <see cref="AfterDeath"/> hook keeps the native cases that pass
+    /// does not move (Ravenous, Illusion).
+    /// </summary>
+    public virtual void DeathTrigger(ref FlashExec x, FlashListener self, byte dead)
+    {
+    }
+
     // Turn phases. Each method is the power's case in the named existing-engine pass; the kernel
     // visits only powers with a positive amount, in the pass's order (FlashKernel.TurnPhases).
 
@@ -800,9 +818,56 @@ public abstract class FlashPotionDef : FlashListenerDef
 
 public abstract class FlashOrbDef : FlashListenerDef;
 
-public abstract class FlashEnchantmentDef : FlashListenerDef;
+/// <summary>
+/// A card enchantment. The modification methods mirror <c>EnchantmentModel.EnchantDamage*</c> and
+/// <c>EnchantBlock*</c>, which the existing engine calls before every other damage/block modifier
+/// (<c>HookMirrors.ModifyDamage</c>/<c>ModifyBlock</c>), and <c>EnchantPlayCount</c>, which
+/// <c>CardModel.GetEnchantedReplayCount</c> applies before the play-count hooks. They are pure
+/// queries over the card value: prediction and evaluation call them read-only.
+/// </summary>
+public abstract class FlashEnchantmentDef : FlashListenerDef
+{
+    public virtual decimal EnchantDamageAdditive(in FlashCard card, decimal damage, FlashValueProps props) => 0m;
 
-public abstract class FlashAfflictionDef : FlashListenerDef;
+    public virtual decimal EnchantDamageMultiplicative(in FlashCard card, decimal damage, FlashValueProps props) => 1m;
+
+    public virtual decimal EnchantBlockAdditive(in FlashCard card, decimal block) => 0m;
+
+    public virtual decimal EnchantBlockMultiplicative(in FlashCard card, decimal block) => 1m;
+
+    /// <summary><c>CardModel.GetEnchantedReplayCount</c>: the base replay count with this enchantment's modifier.</summary>
+    public virtual int EnchantPlayCount(in FlashCard card, int replayCount) => replayCount;
+
+    /// <summary>
+    /// <c>EnchantmentModel.OnPlay</c> in the card-play tail, before the affliction's OnPlay and before
+    /// <c>AfterCardPlayed</c> (<c>CombatPredictionSimulator.CardTailContinuation</c>).
+    /// </summary>
+    public virtual void OnPlay(ref FlashExec x, in FlashCard card, byte target)
+    {
+    }
+}
+
+/// <summary>
+/// A card affliction. Vanilla afflictions are markers: their card-type/stacking rules govern
+/// <c>CardCmd.Afflict</c>, and the powers that apply them carry the behavior. <c>OnPlay</c> is the
+/// empty base callback of <c>AfflictionModel.OnPlay</c>.
+/// </summary>
+public abstract class FlashAfflictionDef : FlashListenerDef
+{
+    /// <summary>Native <c>AfflictionModel.IsStackable</c>: a second application of the same type adds its amount.</summary>
+    public virtual bool IsStackable => false;
+
+    /// <summary>Native <c>AfflictionModel.CanAfflictUnplayableCards</c>.</summary>
+    public virtual bool CanAfflictUnplayableCards => true;
+
+    /// <summary>Native <c>AfflictionModel.CanAfflictCardType</c>.</summary>
+    public virtual bool CanAfflictCardType(FlashCardType type) => true;
+
+    /// <summary><c>AfflictionModel.OnPlay</c> in the card-play tail, after the enchantment's OnPlay.</summary>
+    public virtual void OnPlay(ref FlashExec x, in FlashCard card, byte target)
+    {
+    }
+}
 
 /// <summary>
 /// A monster: its non-attack move effects and the special cases the existing engine applies when
@@ -848,6 +913,14 @@ public abstract class FlashMonsterDef : FlashListenerDef
     }
 
     /// <summary>
+    /// The part of a move the existing engine runs before its attacks
+    /// (<c>MonsterMoveEffects.ApplyBeforeAttack</c>), for example Living Fog's BLOAT_MOVE summon.
+    /// </summary>
+    public virtual void BeforeMove(ref FlashExec x, byte owner, int moveNode)
+    {
+    }
+
+    /// <summary>
     /// Non-attack part of a move, run after its attack hits, mirroring
     /// <c>MonsterMoveEffects.Apply</c>. Moves without effects do nothing.
     /// </summary>
@@ -863,6 +936,36 @@ public abstract class FlashMonsterDef : FlashListenerDef
 
     /// <summary>Special random-branch weights (<c>BranchMonsterAi.GetBranchWeight</c>).</summary>
     public virtual float BranchWeight(ref FlashExec x, byte owner, int branchNode, int option, float baseWeight) => baseWeight;
+
+    /// <summary>
+    /// The encounter slot the bridge uses when compiling this type's spawn rule entry, or null to use
+    /// the first free slot. A monster whose native initial state depends on its slot name (Wriggler's
+    /// INIT_MOVE) needs a valid fixed name so the private compile never sees an unmatched conditional.
+    /// </summary>
+    public virtual string? SpawnSlotName => null;
+
+    /// <summary>
+    /// The native model is created with <c>StartStunned = true</c>: its initial state machine node is
+    /// the SPAWNED_MOVE move state instead of the INIT_MOVE conditional. The bridge applies this while
+    /// compiling the spawn rule entry; the kernel spawns from that entry unchanged.
+    /// </summary>
+    public virtual bool SpawnedStunned => false;
+
+    /// <summary>
+    /// The native <c>ResolveReviveMove</c> case of a move, run before <see cref="ApplyMoveEffects"/>
+    /// (<c>MonsterMoveEffects.Apply</c> starts with it). The default REVIVE_MOVE case is handled by the
+    /// kernel; Reattach and Test Subject override this.
+    /// </summary>
+    public virtual void ResolveReviveMove(ref FlashExec x, byte owner, int moveNode)
+    {
+    }
+
+    /// <summary>
+    /// The move that <c>ForceStunnedMove</c> uses after a fully blocked attack while the owner has
+    /// ImbalancedPower. <c>MonsterMoveSemantics</c> passes <c>HEADBUTT_MOVE</c> for BowlbugRock and the
+    /// native default (most recent logged move) otherwise; -1 selects that default.
+    /// </summary>
+    public virtual int ImbalancedStunFollowUp(in FlashMonsterRules rules) => -1;
 }
 
 /// <summary>
@@ -924,6 +1027,10 @@ public static class FlashRegistry
 
     public static ushort MonsterId<T>() where T : FlashMonsterDef => MonsterIdCache<T>.Id;
 
+    public static ushort AfflictionId<T>() where T : FlashAfflictionDef => AfflictionIdCache<T>.Id;
+
+    public static ushort EnchantmentId<T>() where T : FlashEnchantmentDef => EnchantmentIdCache<T>.Id;
+
     private static class PowerIdCache<T> where T : FlashPowerDef
     {
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out FlashContentDef? def)
@@ -943,6 +1050,20 @@ public static class FlashRegistry
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out FlashContentDef? def)
             ? def.Id
             : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Flash 怪物。");
+    }
+
+    private static class AfflictionIdCache<T> where T : FlashAfflictionDef
+    {
+        public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out FlashContentDef? def)
+            ? def.Id
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Flash 苦难。");
+    }
+
+    private static class EnchantmentIdCache<T> where T : FlashEnchantmentDef
+    {
+        public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out FlashContentDef? def)
+            ? def.Id
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Flash 附魔。");
     }
 
     private sealed record Tables(

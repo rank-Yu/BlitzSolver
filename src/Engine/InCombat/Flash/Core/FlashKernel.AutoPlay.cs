@@ -78,6 +78,16 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// Queue identity of a card moved to the play pile for <c>AutoPlayFromDrawPile</c>. The existing
+    /// engine holds live <c>CardModel</c> references, so state mutations (affliction/enchantment
+    /// amounts, PowerAfflictionChecked) during an auto-play do not change the queue order; only a
+    /// different card value does. Duplicate cards are interchangeable for that order check.
+    /// </summary>
+    private static bool SameAutoPlayQueueCard(in FlashCard left, in FlashCard right)
+        => left.Id == right.Id && left.Upgrade == right.Upgrade
+            && left.AfflictionId == right.AfflictionId && left.EnchantmentId == right.EnchantmentId;
+
+    /// <summary>
     /// Mirrors <c>CardPileCmd.AutoPlayFromDrawPile</c>: first move up to <paramref name="count"/>
     /// cards from the top of the draw pile to the play pile (shuffling between moves), then auto-play
     /// them in order, setting <c>ExhaustOnNextPlay</c> from <paramref name="forceExhaust"/>.
@@ -106,7 +116,7 @@ public static partial class FlashKernel
                 return;
             // The moved cards stay contiguous at the play-pile index recorded before the move phase;
             // earlier auto-plays remove themselves (or move to another pile) and shift the rest left.
-            if (start >= x.B.PlayCount || !FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Play, start), cards[index]))
+            if (start >= x.B.PlayCount || !SameAutoPlayQueueCard(FlashPiles.At(ref x.B, FlashPile.Play, start), cards[index]))
                 throw new FlashUnsupportedException("自动打出的牌堆顺序在结算中被改变。");
             ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, start);
             if (forceExhaust)

@@ -102,6 +102,20 @@ public enum FlashCounter : byte
     DeathSavePotionHpRestored,
     DeathSaveUseCount,
     AutomaticPotionUseCount,
+
+    /// <summary>
+    /// <c>SimulatedCombatState._lastNormalizedVitalSparkAmount</c> (<see cref="int.MinValue"/> = null).
+    /// <see cref="FlashKernel.NormalizeCardAfflictions"/> rewrites Tainted amounts only when this
+    /// differs from the current total Vital Spark amount.
+    /// </summary>
+    VitalSparkNormalizedAmount,
+
+    /// <summary>
+    /// <c>SimulatedCombatState._skillsPlayedThisTurn</c> membership for the player: 1 after a Skill
+    /// card finished this side turn, reset at that side's turn end. Distinct from
+    /// <see cref="SkillCardsPlayedThisTurn"/>, which the evaluation and Letter Opener consume.
+    /// </summary>
+    SkillPlayedThisSideTurn,
 }
 
 /// <summary>

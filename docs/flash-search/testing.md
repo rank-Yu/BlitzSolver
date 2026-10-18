@@ -41,29 +41,13 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 ### 2.1 覆盖缺口
 
-第一幕：
+怪物（KM2、KA，2026-10-19）：KM2 补上空 `EncounterModel.Slots` 的槽位回退（未知槽名与现有引擎同为 -1）、失衡眩晕、沉睡、千足虫重接、寄生死亡未结算时阻止战斗结束、Surrounded 与 CurlUp 退役状态的惰性规则、猎杀者的 Tender 计数投影，实现碗虫（普通/弱）、沉睡甲虫、千足虫、异蛙寄生虫、猎杀者、Kaiser Crab、Louse Progenitor；KA 补上卡牌苦难与附魔（导入、施加/清除、归一化、附魔伤害/格挡/重放、尾部 OnPlay，18 个附魔），实现仪式兽、藤蔓蹒跚者、邪恶气体（LIVING_FOG）、注入棱晶与 MysticLighter。`coverage/fixtures/cards/flash-km2-*.json` 8 个、`flash-ka-*.json` 5 个及 12 个新遭遇的 FLASHM1/FLASHM2 自然根，每根 48 条游走零差异、`unsupported=0`。邪恶气体会反复生成毒气弹，极长的战斗可能超出 8 个已知敌人的容量，此时按容量边界回落。
 
-强制行动、眩晕与必须先执行一次的行动已有内核支持，敌人生成也已支持。仍跳过的 6 个第一幕遭遇及缺失能力如下；仪式兽、瀑布巨兽、异蛙寄生虫各自的强制行动来源随遭遇一起实现：
-
-| 能力 | 遭遇 |
-| --- | --- |
-| 其他召唤物（内核已支持生成，召唤物定义未实现） | 异蛙寄生虫、穿着一件大衣的两只地精、邪恶气体 |
-| 苦难/附魔与改费用 Hook | 仪式兽、藤蔓蹒跚者、邪恶气体 |
-| 阻止战斗结束、死亡后不离场 | 异蛙寄生虫、瀑布巨兽、穿着一件大衣的两只地精 |
-| 偷窃与评估侧 | 穿着一件大衣的两只地精（被偷资源未建模）；瀑布巨兽（动态攻击伤害与评估特例） |
-
-第二幕（虫巢）：实现 9 个遭遇（实现说明与逐根证据见 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)），跳过 11 个，缺失能力与现存机制位置：
+仍跳过：第一幕瀑布巨兽（动态攻击伤害、阻止战斗结束与评估特例）、穿着一件大衣的两只地精（偷窃）；第二幕如下。未实现的附魔（Imbued、Slither、SlumberingEssence、PerfectFit）仍在准入拒绝。
 
 | 遭遇 | 缺失能力 | 机制位置 |
 | --- | --- | --- |
-| `BOWLBUGS_NORMAL`、`BOWLBUGS_WEAK` | 其他（遭遇槽位）；另需 ImbalancedPower 的失衡眩晕 | `EncounterModel.Slots` 为空但 `GenerateMonsters` 使用 `first`/`middle`/`last`、`odd`/`even`；`SimulatedCombatState.cs:278` 只取 `Encounter.Slots`；`FlashStateImporter.cs:263-273 SlotForFlash` 拒绝未知槽位。`P/MonsterMoveSemantics.cs:84-90` 的失衡路径已存在，但内容未落。 |
-| `SLUMBERING_BEETLE_NORMAL` | 其他（遭遇槽位）；另需 SlumberPower（Plating 已有） | 同上；`SlumberingBeetle` 的 `first`/`second`/`third` 槽位不在 `Encounter.Slots`。 |
-| `DECIMILLIPEDE_ELITE` | 其他（Reattach 复活/不可命中/致死抑制） | `P/DeathPowerSupport.cs:120 BeginReattach`、`S/SimulatedCombatState.DeathLifecycle.cs:120`、原版 `ReattachPower.DoReattach/ShouldAllowHitting/ShouldOwnerDeathTriggerFatal`；Flash 只有 `PreventsRemovalAfterDeath` 与幻象式复活（`FlashKernel.Monsters.cs:207`），没有 Reattach 节点、复活回血与致死抑制。 |
-| `HUNTER_KILLER_NORMAL` | 状态无法用整数槽表达（`_tenderCardsPlayed`） | `S/SimulatedCombatState.cs:970 RecordTenderCardPlayed`、`P/EndTurnPowerSupport.cs:96,220 RestoreTender`、`P/AfterCardPlayedMirrors.cs:799`；`S/SimulatedCombatState.FlashProjection.cs:116 DescribeFlashUnrepresentableState` 对非零 `_tenderCardsPlayed` 仍直接拒绝，允许修改的投影文件无法认领。 |
-| `KAISER_CRAB_BOSS` | 其他（Surrounded 状态在玩家死亡清空 Power 后残留） | `P/BeforeCardPlayedMirrors.cs:273`/`P/ModifyDamageMirrors.cs:178` 维护 `SurroundedPredictionState`；玩家死亡清空 Power 后 `StateStore` 条目仍在，`FlashStateImporter.ImportPowers` 跳过 0 层 Power，`FlashStateProjections.RequireAllClaimed` 只对 Vigor 退役状态放行。自然根首个差异：`UnrepresentableState StateStore: SurroundedPredictionState@SURROUNDED_POWER`。 |
-| `INFESTED_PRISMS_ELITE` | 苦难/附魔；AfterPowerAmountChanged / AfterApplied | 原版 `VitalSparkPower` 在 `BeforeCombatStart`/`AfterCardEnteredCombat` 施加 `Tainted`、`AfterPowerAmountChanged` 同步层数；`P/MonsterMoveEffects.cs` 的 PULSATE/RADIATE。Flash 没有 Affliction 内容与这些 Hook。 |
 | `KNOWLEDGE_DEMON_BOSS` | 其他（怪物选择协议）；状态无法用整数槽表达（`_knowledgeDemonCurseCounters`） | `S/SimulatedCombatState.KnowledgeDemon.cs`、`P/KnowledgeDemonChoiceSupport.cs`、`P/BranchMonsterAi.cs:160-170`、`P/MonsterMoveEffects.cs:341`；Flash 怪物行动不能产生待处理选择。 |
-| `LOUSE_PROGENITOR_NORMAL` | 状态无法用整数槽表达（CurlUpPredictionState 退役） | `E/Mirrors/Hooks/Card/AfterCardPlayedMirrors.cs:564`、`AfterDamageReceivedMirrors.cs:139` 维护 `CurlUpPredictionState`；Power 归零移除后条目仍在，`ImportPowers` 不再调用 `ProjectPower`，`RequireAllClaimed` 只处理 Vigor。 |
 | `THE_INSATIABLE_BOSS` | 其他（SandpitPower 的 AfterSideTurnStartLate/目标/击杀）；评估侧缺口 | `P/MonsterMoveEffects.cs:938`、`P/TurnStartPowerSupport.cs:449`、`P/CardOnPlaySupport.Batch042.cs:64`、`S/SimulatedCombatState.IncrementSandpitTargeting`；Flash 没有 `AfterSideTurnStartLate` 与目标化 Power。`FlashScorer.cs:415` 把 `SandpitRemaining` 固定为 0，而 `FlashScoreProjection` 比较该字段。 |
 | `THIEVING_HOPPER_WEAK` | 偷窃；评估侧缺口 | `P/MonsterMoveEffects.cs:170-220` 的 THIEVERY/ESCAPE、`S/SimulatedCombatState.RecordThievery`；`FlashScoreBridge.cs:103 TheftApplicable` 拒绝，`FlashScorer.cs:227-230` 把 `OutstandingStolenResource` 固定为 0。 |
 

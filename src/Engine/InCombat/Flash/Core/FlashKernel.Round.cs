@@ -40,6 +40,8 @@ public static partial class FlashKernel
                 return;
             CheckWinCondition(ref x.B);
             CompletePlayerEarlySideTurnEnd(ref x);
+            if (!x.NeedsChoice)
+                NormalizeCardAfflictions(ref x);
         }
         ApplyEnemyDeathPowers(ref x);
         if (!IsInProgress(x.B))
@@ -57,9 +59,15 @@ public static partial class FlashKernel
         // ShouldTakeExtraTurn: no supported sources.
         x.ChoiceTiming = FlashChoiceTiming.EnemyTurn;
         RunEnemyTurn(ref x);
-        // The performed-move marks only carry information within one enemy turn.
+        // The performed-move marks only carry information within one enemy turn. The
+        // forced-must-perform mark is the same kind of in-turn kernel state
+        // (SimulatedCombatState.MonsterAi.cs:122-126): PrepareMonsterMovesForNextRound consumes it when
+        // the turn reaches that pass, but an early return (the player died during the enemy turn or a
+        // choice was requested) skips the pass, and it must still be zero at every stable boundary.
         for (int index = 0; index < x.B.EnemyCount; index++)
-            x.B.Enemies[index].Flags &= ~FlashEnemyFlags.PerformedMoveThisRound;
+        {
+            x.B.Enemies[index].Flags &= ~(FlashEnemyFlags.PerformedMoveThisRound | FlashEnemyFlags.ForcedMustPerformAfterMove);
+        }
         if (x.NeedsChoice || !IsInProgress(x.B))
             return;
         AdvanceRoundPlayerStart(ref x);
@@ -124,6 +132,8 @@ public static partial class FlashKernel
             return;
         ApplyEnemyDeathPowers(ref x);
         // Player poison and NoDraw: not supported.
+        if (!x.NeedsChoice)
+            NormalizeCardAfflictions(ref x);
         if (CheckWinCondition(ref x.B))
             return;
         PrepareMonsterMovesForNextRound(ref x);
@@ -408,6 +418,8 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
         ApplyEnemyDeathPowers(ref x);
+        if (!x.NeedsChoice)
+            NormalizeCardAfflictions(ref x);
         // Enchantment orb hooks and auto pre-play: no supported sources.
         x.B.Phase = FlashPlayerPhase.AutoPrePlay;
         x.B.Phase = FlashPlayerPhase.Play;

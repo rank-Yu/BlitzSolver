@@ -409,6 +409,8 @@ public static partial class FlashKernel
         TriggerTransientSideTurnEndPowers(ref x, FlashSide.Player, participants);
         RelicPass(ref x, RelicPhase.AfterSideTurnEnd, FlashSide.Player);
         // AfterSideTurnEndLate: no supported listeners yet.
+        if (!x.NeedsChoice)
+            NormalizeCardAfflictions(ref x);
     }
 
     /// <summary><c>CorePowerSupport.TriggerEnemySideTurnEndEffects</c>.</summary>
@@ -441,6 +443,12 @@ public static partial class FlashKernel
         PowerListenerPass(ref x, PowerPhase.EndTurnRegular, side, participants, FlashLimits.NoOwner, ushort.MaxValue, ushort.MaxValue, ushort.MaxValue);
         if (x.NeedsChoice)
             return;
+        // EndTurnPowerSupport.TriggerRegular's ResetPowerLifecycleTurn for every participant.
+        foreach (byte owner in participants)
+        {
+            if (owner == FlashLimits.PlayerOwner)
+                x.B.SetCounter(FlashCounter.SkillPlayedThisSideTurn, 0);
+        }
         PowerListenerPass(ref x, PowerPhase.EndTurnBatch048, side, participants, FlashLimits.NoOwner, ushort.MaxValue, ushort.MaxValue, ushort.MaxValue);
     }
 

@@ -190,6 +190,7 @@ public ref struct FlashExec
         Target = FlashLimits.NoOwner;
         XValue = 0;
         PlayIndex = 0;
+        PlayPosition = -1;
         EffectDepth = 0;
         ChoiceTiming = FlashChoiceTiming.Action;
         DrawnCardPosition = -1;
@@ -216,6 +217,9 @@ public ref struct FlashExec
     public int XValue;
 
     public int PlayIndex;
+
+    /// <summary>Relative play-pile position of the card whose tail/attachment hook is running (-1 outside a play).</summary>
+    public int PlayPosition;
 
     /// <summary>Nesting depth of card/potion effects; <c>AfterHandEmptied</c> fires only at depth zero.</summary>
     public int EffectDepth;

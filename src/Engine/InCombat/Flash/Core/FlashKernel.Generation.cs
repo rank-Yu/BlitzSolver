@@ -14,7 +14,7 @@ public static partial class FlashKernel
         {
             Id = cardId,
             Upgrade = checked((byte)upgrade),
-            Keywords = stats.Keywords,
+            Keywords = stats.Keywords | FlashKeywords.CreatedAfterRoot,
             BaseCost = checked((sbyte)(stats.CostsX ? 0 : stats.EnergyCost)),
             BaseStarCost = checked((sbyte)stats.StarCost),
         };
@@ -88,9 +88,11 @@ public static partial class FlashKernel
     {
         if (IsOverOrEnding(x.B))
             return;
+        FlashCard entered = replacement;
+        entered.Keywords |= FlashKeywords.CreatedAfterRoot;
         FlashPiles.RemoveAt(ref x.B, pile, index);
         int insert = Math.Min(index, FlashPiles.Count(x.B, pile));
-        FlashPiles.Insert(ref x.B, pile, insert, replacement);
+        FlashPiles.Insert(ref x.B, pile, insert, entered);
         EnteredCombat(ref x, replacement, pile, insert);
         // AfterCardGeneratedForCombat and the AfterTransformedFrom/To overrides have no supported
         // listeners or definitions in this content set.
@@ -108,6 +110,11 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
         FlashRegistry.Card(card.Id).AfterEnteredCombat(ref x, pile, index);
+        if (x.NeedsChoice)
+            return;
+        // SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat ends with the affliction
+        // normalization (the one-time Vital Spark/Smog entry check lives there).
+        NormalizeCardAfflictions(ref x);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.AddGeneratedCardsToCombat</c> for one card: insertion as
@@ -132,8 +139,10 @@ public static partial class FlashKernel
             FlashPilePosition.Random => x.B.RngStream(FlashRngStream.Shuffle).NextInt(count + 1),
             _ => throw new ArgumentOutOfRangeException(nameof(position), position, null),
         };
-        FlashPiles.Insert(ref x.B, target, index, card);
-        EnteredCombat(ref x, card, target, index);
+        FlashCard added = card;
+        added.Keywords |= FlashKeywords.CreatedAfterRoot;
+        FlashPiles.Insert(ref x.B, target, index, added);
+        EnteredCombat(ref x, added, target, index);
         // AfterCardGeneratedForCombat: no supported listeners yet.
         return !x.NeedsChoice;
     }
@@ -145,7 +154,9 @@ public static partial class FlashKernel
     public static FlashCard CloneCard(in FlashCard card)
     {
         FlashCard clone = card;
-        clone.Flags &= ~(FlashCardFlags.ExhaustOnNextPlay | FlashCardFlags.DeckCard | FlashCardFlags.RemovedFromState);
+        clone.Flags &= ~(FlashCardFlags.ExhaustOnNextPlay | FlashCardFlags.DeckCard
+            | FlashCardFlags.RemovedFromState | FlashCardFlags.PowerAfflictionChecked);
+        clone.Keywords |= FlashKeywords.CreatedAfterRoot;
         return clone;
     }
 

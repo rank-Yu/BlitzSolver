@@ -535,10 +535,23 @@ internal sealed class FlashScorer
             return enemy.Creature.CurrentHp;
         if (enemy.DeathPhase != FlashDeathPhase.Reviving)
             return 0;
-        // Only Illusion-powered revives are representable in the admitted Flash content; its amount is
-        // irrelevant because the restored HP is the captured max HP.
-        return HasPower(battle, _score.IllusionPowerId, FlashKernel.EnemyOwner((byte)index))
-            ? enemy.Creature.MaxHp : 0;
+        byte owner = FlashKernel.EnemyOwner((byte)index);
+        // SimulatedCombatState.RevivingEnemyHp: a Decimillipede segment restores its ReattachPower
+        // amount only while another reattaching segment has not completed death (alive or reviving).
+        if (HasPower(battle, _score.ReattachPowerId, owner))
+        {
+            for (int position = 0; position < battle.RosterCount; position++)
+            {
+                byte other = FlashKernel.EnemyOwner(battle.Roster[position]);
+                if (other == owner || !HasPower(battle, _score.ReattachPowerId, other))
+                    continue;
+                if (battle.Enemies[battle.Roster[position]].DeathPhase != FlashDeathPhase.PermanentlyDead)
+                    return Math.Max(0, GetAmount(battle, _score.ReattachPowerId, owner));
+            }
+            return 0;
+        }
+        // Illusion-powered revives restore the captured max HP; the power amount is irrelevant.
+        return HasPower(battle, _score.IllusionPowerId, owner) ? enemy.Creature.MaxHp : 0;
     }
 
     private bool LeavesHandAtTurnEnd(in FlashBattle battle, FlashPile pile, in FlashCard card, FlashCardScore score)
@@ -568,7 +581,7 @@ internal sealed class FlashScorer
             {
                 ref readonly FlashCard card = ref battle.Cards[start + offset];
                 FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-                int replayCount = Math.Max(0, (int)card.ReplayCount);
+                int replayCount = Math.Max(0, FlashKernel.EnchantedReplayCount(card));
                 if (replayCount == 0
                     || stats.Type is not (FlashCardType.Attack or FlashCardType.Skill or FlashCardType.Power))
                     continue;

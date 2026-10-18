@@ -100,8 +100,13 @@ public static partial class FlashHooks
     public static decimal ModifyDamage(ref FlashExec x, byte target, byte dealer, decimal damage, FlashValueProps props,
         bool hasCardSource, in FlashCard cardSource)
     {
+        // HookMirrors.ModifyDamage: the source card's enchantment runs before every listener.
         if (hasCardSource && cardSource.EnchantmentId != 0)
-            throw new FlashUnsupportedException("附魔的伤害修正尚未实现。");
+        {
+            FlashEnchantmentDef enchantment = FlashRegistry.Enchantment((ushort)(cardSource.EnchantmentId - 1));
+            damage += enchantment.EnchantDamageAdditive(cardSource, damage, props);
+            damage *= enchantment.EnchantDamageMultiplicative(cardSource, damage, props);
+        }
         // Run listeners put out-of-combat deck cards before the combat list; deck cards with
         // damage hooks are rejected at admission.
         FlashDamageContext context = new(target, dealer, props, hasCardSource, cardSource);
@@ -185,8 +190,16 @@ public static partial class FlashHooks
     {
         anyModifier = false;
         bool overflowed = false;
+        // HookMirrors.ModifyBlock: the source card's enchantment runs before every listener and is
+        // part of the settlement overflow tracking.
         if (hasCardSource && cardSource.EnchantmentId != 0)
-            throw new FlashUnsupportedException("附魔的格挡修正尚未实现。");
+        {
+            FlashEnchantmentDef enchantment = FlashRegistry.Enchantment((ushort)(cardSource.EnchantmentId - 1));
+            block += enchantment.EnchantBlockAdditive(cardSource, block);
+            block = MultiplyBlockWithinSettlement(block,
+                enchantment.EnchantBlockMultiplicative(cardSource, block), ref overflowed);
+            anyModifier = true;
+        }
         FlashBlockContext context = new(target, props, hasCardSource, cardSource);
         Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
 

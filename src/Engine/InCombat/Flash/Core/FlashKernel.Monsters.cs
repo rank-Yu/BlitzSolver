@@ -49,7 +49,7 @@ public static partial class FlashKernel
         return null;
     }
 
-    /// <summary>Index of <paramref name="slotName"/> in the encounter slots, or <see cref="NoSlot"/> for null.</summary>
+    /// <summary>Index of <paramref name="slotName"/> in the encounter slots, or <see cref="NoSlot"/>.</summary>
     public static int SlotIndex(FlashRules rules, string? slotName)
     {
         if (slotName == null)
@@ -59,7 +59,9 @@ public static partial class FlashKernel
             if (string.Equals(rules.EncounterSlots[slot], slotName, StringComparison.Ordinal))
                 return slot;
         }
-        throw new FlashUnsupportedException($"遭遇没有槽位 {slotName}。");
+        // SimulatedCombatState.GetSlotIndex returns -1 for a name outside _encounterSlots (an encounter
+        // whose EncounterModel.Slots is empty still uses names in GenerateMonsters); NoSlot is that -1.
+        return NoSlot;
     }
 
     private static bool SlotOccupied(in FlashBattle battle, int slot)
@@ -259,8 +261,12 @@ public static partial class FlashKernel
         int moveNode = x.B.Enemy(owner).Move;
         FlashMonsterNode node = rules.Nodes[moveNode];
         FlashMonsterDef def = FlashRegistry.Monster(x.B.Enemy(owner).MonsterId);
-        // MonsterMoveEffects.ApplyBeforeAttack has no supported moves yet.
+        // MonsterMoveEffects.ApplyBeforeAttack runs before the attack context (Living Fog's BLOAT).
+        def.BeforeMove(ref x, owner, moveNode);
+        if (x.NeedsChoice)
+            return x.B.Player.IsDead;
         bool playerDied = false;
+        bool fullyBlockedAttack = false;
         if (node.Attacks.Length > 0)
         {
             // BeginAttackContext: BeforeAttack iterates the combat listeners behind the ending gate
@@ -277,7 +283,8 @@ public static partial class FlashKernel
                 for (int hit = 0; hit < repeats; hit++)
                 {
                     // AdjustMonsterMoveDamage has no supported special moves yet.
-                    Damage(ref x, player, attack.BaseDamage, FlashValueProps.Move, owner, hasCardSource: false, default);
+                    if (Damage(ref x, player, attack.BaseDamage, FlashValueProps.Move, owner, hasCardSource: false, default))
+                        fullyBlockedAttack = true;
                     if (x.NeedsChoice)
                         return x.B.Player.IsDead;
                     ApplyEnemyDeathPowers(ref x);
@@ -299,9 +306,21 @@ public static partial class FlashKernel
         }
         if (playerDied)
             return true;
-        // Imbalanced stun is not supported yet.
-        // MonsterMoveEffects.Apply starts with ResolveReviveMove; the synthetic revive node has no
-        // attacks, so this is the same position as running it before the action's effects.
+        // MonsterMoveSemantics: a fully blocked attack stuns a monster with ImbalancedPower, using
+        // HEADBUTT_MOVE as the synthetic follow-up for BowlbugRock and the default otherwise, then
+        // skips its next move. This runs before ResolveReviveMove and ApplyMoveEffects.
+        if (fullyBlockedAttack
+            && FlashRegistry.TryPower("IMBALANCED_POWER", out ushort imbalanced)
+            && GetAmount(x.B, owner, imbalanced) > 0)
+        {
+            ForceStunnedMove(ref x, owner, def.ImbalancedStunFollowUp(rules));
+            x.B.Enemy(owner).Flags |= FlashEnemyFlags.SkipNextMove;
+        }
+        // MonsterMoveEffects.Apply starts with ResolveReviveMove; the synthetic illusion revive node has
+        // no attacks, so this is the same position as running it before the action's effects.
+        def.ResolveReviveMove(ref x, owner, moveNode);
+        if (x.NeedsChoice)
+            return x.B.Player.IsDead;
         if (moveNode == rules.ReviveNode)
         {
             ref FlashCreature creature = ref x.B.Creature(owner);
@@ -320,6 +339,8 @@ public static partial class FlashKernel
         // MonsterMoveSemantics resolves the move's queued power amount changes before normalizing.
         if (!x.NeedsChoice)
             ResolvePowerAmountChanges(ref x);
+        if (!x.NeedsChoice)
+            NormalizeCardAfflictions(ref x);
         return x.B.Player.IsDead;
     }
 

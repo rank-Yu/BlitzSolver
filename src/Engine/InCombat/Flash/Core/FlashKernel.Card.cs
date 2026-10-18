@@ -183,9 +183,11 @@ public static partial class FlashKernel
         FlashHooks.AfterModifyingCardPlayResultLocation(ref x, card, result, locationModifiers[..locationModifierCount]);
         if (x.NeedsChoice)
             return;
-        // HookMirrors.ModifyCardPlayCount then Hook.AfterModifyingCardPlayCount.
+        // HookMirrors.ModifyCardPlayCount then Hook.AfterModifyingCardPlayCount. The base count is
+        // CardModel.GetEnchantedReplayCount() (the enchantment modifies the replay count first).
+        int basePlayCount = EnchantedReplayCount(card);
         Span<FlashListener> playCountModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
-        int playCount = FlashHooks.ModifyCardPlayCount(ref x, card, target, card.ReplayCount + 1,
+        int playCount = FlashHooks.ModifyCardPlayCount(ref x, card, target, basePlayCount + 1,
             playCountModifiers, out int playCountModifierCount);
         FlashHooks.AfterModifyingCardPlayCount(ref x, card, playCountModifiers[..playCountModifierCount]);
         if (x.NeedsChoice)
@@ -202,7 +204,8 @@ public static partial class FlashKernel
             if (IsOverOrEnding(x.B))
                 break;
             x.PlayIndex = index;
-            FlashCardPlayInfo play = new(card, target, index, playCount, removeFromCombat ? FlashPile.Play : result);
+            FlashCardPlayInfo play = new(card, target, index, playCount, removeFromCombat ? FlashPile.Play : result,
+                FlashPiles.Start(x.B, FlashPile.Play) + playPosition);
             BeforeCardPlayedHook before = new() { Play = play };
             FlashHooks.Dispatch(ref x, ref before, gatedByEnding: true);
             if (x.NeedsChoice)
@@ -225,17 +228,39 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
+            // The existing engine normalizes card afflictions at the end of the compensated card
+            // effects, before the card's own choice.
+            NormalizeCardAfflictions(ref x);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
             FlashRegistry.Card(card.Id).OwnChoice(ref x);
             if (x.NeedsChoice)
             {
                 completed = false;
                 break;
             }
-            // Tail: abort if the owner died; enchantment and affliction OnPlay are not supported yet.
+            // Tail: abort if the owner died, then EnchantmentModel.OnPlay, then AfflictionModel.OnPlay
+            // (CombatPredictionSimulator.CardTailContinuation's stages).
             if (x.B.Player.IsDead)
             {
                 completed = false;
                 break;
+            }
+            if (!RunCardAttachmentOnPlay(ref x, playPosition, target))
+            {
+                completed = false;
+                break;
+            }
+            // CardModel is mutable: the played card value as seen by AfterCardPlayed includes the
+            // effects and attachment OnPlay updates of this play index.
+            if ((uint)playPosition < (uint)x.B.PlayCount)
+            {
+                play = new FlashCardPlayInfo(FlashPiles.At(ref x.B, FlashPile.Play, playPosition), target, index,
+                    playCount, removeFromCombat ? FlashPile.Play : result,
+                    FlashPiles.Start(x.B, FlashPile.Play) + playPosition);
             }
             // CardPlayFinished: no tracked counter yet. AfterCardPlayed runs its normal pass, then
             // re-reads the listeners for the late pass, without the ending gate.
@@ -312,6 +337,19 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// <c>CardModel.GetEnchantedReplayCount</c>: the base replay count after the enchantment's
+    /// <c>EnchantPlayCount</c>. Pure; the evaluation and search read it without mutating the card.
+    /// </summary>
+    public static int EnchantedReplayCount(in FlashCard card)
+    {
+        int replayCount = card.ReplayCount;
+        if (card.EnchantmentId != 0)
+            replayCount = FlashRegistry.Enchantment((ushort)(card.EnchantmentId - 1))
+                .EnchantPlayCount(card, replayCount);
+        return replayCount;
+    }
+
+    /// <summary>
     /// Mirrors <c>RecordCardPlayed</c> then <c>RecordCardLifecycle</c> in
     /// <c>SimulatedCombatState.CompleteCardPlayEffects</c>. Slow, Fetch, relic card counters and
     /// returning cards are not supported yet.
@@ -326,7 +364,58 @@ public static partial class FlashKernel
         }
         battle.AddCounter(FlashCounter.CardsPlayedThisTurn, 1);
         if (stats.Type == FlashCardType.Skill)
+        {
             battle.AddCounter(FlashCounter.SkillCardsPlayedThisTurn, 1);
+            // SimulatedCombatState.RecordSkillPlayed's _skillsPlayedThisTurn membership.
+            battle.SetCounter(FlashCounter.SkillPlayedThisSideTurn, 1);
+        }
+    }
+
+    /// <summary>
+    /// The current card in the play pile while its tail runs. The play pile segment is located from
+    /// the live counts because effects may have added or removed other cards.
+    /// </summary>
+    public static ref FlashCard CurrentPlayCard(ref FlashExec x)
+    {
+        if ((uint)x.PlayPosition >= (uint)x.B.PlayCount)
+            throw new InvalidOperationException("当前没有正在打出的卡。");
+        return ref FlashPiles.At(ref x.B, FlashPile.Play, x.PlayPosition);
+    }
+
+    /// <summary>Copies the live play-pile card back into <see cref="FlashExec.Card"/> after a tail hook changed it.</summary>
+    public static void SyncCurrentPlayCard(ref FlashExec x) => x.Card = CurrentPlayCard(ref x);
+
+    /// <summary>
+    /// <c>EnchantmentModel.OnPlay</c> then <c>AfflictionModel.OnPlay</c> for the card at
+    /// <paramref name="playPosition"/>. Returns false when a choice interrupted the tail or the owner
+    /// died, matching <c>CardTailContinuation</c>.
+    /// </summary>
+    private static bool RunCardAttachmentOnPlay(ref FlashExec x, int playPosition, byte target)
+    {
+        if ((uint)playPosition >= (uint)x.B.PlayCount)
+            return true;
+        // Nested auto-plays overwrite FlashExec.Card/Stats/Target; restore the outer play context so
+        // the attachment hooks see this card and this target (CardModel/CardPlay are per-play objects
+        // in the existing engine).
+        ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, playPosition);
+        x.Card = played;
+        x.Stats = x.R.Card(played.Id, played.Upgrade);
+        x.Target = target;
+        x.PlayPosition = playPosition;
+        if (played.EnchantmentId != 0)
+        {
+            FlashRegistry.Enchantment((ushort)(played.EnchantmentId - 1)).OnPlay(ref x, played, target);
+            if (x.NeedsChoice || x.B.Player.IsDead)
+                return false;
+            played = ref FlashPiles.At(ref x.B, FlashPile.Play, playPosition);
+        }
+        if (played.AfflictionId != 0)
+        {
+            FlashRegistry.Affliction((ushort)(played.AfflictionId - 1)).OnPlay(ref x, played, target);
+            if (x.NeedsChoice || x.B.Player.IsDead)
+                return false;
+        }
+        return true;
     }
 
     /// <summary>Mirrors <c>CardResultLocationMirrors.GetResultLocation</c> for the supported cards.</summary>

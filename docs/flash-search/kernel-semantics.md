@@ -62,6 +62,18 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 数值与遗物：`ModifyXValue`（ChemicalX，位置与 `CardModel.ResolveEnergyXValue` 一致）、`ShouldPlayerResetEnergy`（IceCream）、遗物 `AfterCardEnteredCombat`（GhostSeed）。
 - 球：被动与激发；`OrbQueue.BeforeTurnEnd`。
 
+### 3.4 苦难与附魔
+
+卡牌上的苦难与附魔是 `FlashCard` 的值（`AfflictionId/Amount`、`EnchantmentId/Amount/Status/Private`），与现有引擎的 `PredictedCard.Preview.Affliction/Enchantment` 同形；导入时只接受已登记的定义，其余按 `UnsupportedAffliction`/`UnsupportedEnchantment` 拒绝。定义类是 `FlashAfflictionDef`（`IsStackable`、`CanAfflictCardType`、`CanAfflictUnplayableCards`、`OnPlay`）与 `FlashEnchantmentDef`（`EnchantDamageAdditive/Multiplicative`、`EnchantBlockAdditive/Multiplicative`、`EnchantPlayCount`、`OnPlay`，以及通用的 `AfterCardPlayed` 等监听 Hook）。
+
+- **修正类 Hook。** 现有引擎在 `HookMirrors.ModifyDamage`/`ModifyBlock` 中先调用来源卡的附魔修正，再跑普通监听者；Flash 在 `FlashHooks.ModifyDamage/ModifyBlock` 的同一位次调用附魔定义。`ModifyDamage` 的附魔修正只用卡值，是纯查询。`ModifyBlock` 的溢出口径与普通修正相同。
+- **出牌次数。** `CardModel.GetEnchantedReplayCount` 先应用附魔的 `EnchantPlayCount`，再进入 `ModifyCardPlayCount`；Flash 的 `EnchantedReplayCount` 同时供出牌管线、评估的 `ReplayPotentialValue` 与 `FlashActionTranslator` 使用。
+- **卡牌尾部。** 每次打出在卡牌效果与 `OwnChoice` 之后、`AfterCardPlayed` 之前依次执行附魔 `OnPlay`、苦难 `OnPlay`；持有者死亡或出现待处理选择时中止，与 `CardTailContinuation` 的 Enchantment → Affliction → Finish 顺序一致。
+- **苦难归一化。** 现有引擎不直接逐 Hook 施加/清除苦难，而是在 `SimulatedCombatState.NormalizeCardAfflictions` 里按当前 Power 归一化：Hex/Tangled/Ringing 先按 Power 数量施加或清除；随后 `NormalizePowerAfflictions` 处理 Vital Spark 的 Tainted（数量变化才回写、Power 归零才清除）、Smoggy 的 Smog（本侧回合已打出技能时给新进场技能）与 Galvanic 的 Galvanized（新进场 Power 牌）。Flash 的 `FlashKernel.NormalizeCardAfflictions` 逐条照抄，并在现有引擎的同一位置调用：`AfterCardEnteredCombat` 末、卡牌补偿效果末、每个动作结算、玩家回合末阶段一/阶段二、玩家回合开始末、每个敌人行动末。`PowerAfflictionChecked` 对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入的卡视为已检查，根之后生成的卡在下一次归一化时检查一次。`SkillPlayedThisSideTurn` 对应 `_skillsPlayedThisTurn`，在技能牌完成后置位、在该侧回合末清零（与持久化的 `SkillCardsPlayedThisTurn` 不同）。
+- **施加/移除路径。** `ApplyAffliction` 对应 `CardCmd.Afflict` 的 `CanAfflict` 与同类型叠加；`ClearAffliction(s)` 对应 `ClearAffliction`。Vital Spark 的 Tainted 层数同步使用导入的 `LastNormalizedVitalSparkAmount` 计数器（`int.MinValue` 表示 null），首次导入不回写，保留实机战斗开始时可能叠高的层数。
+- **Power 与怪物。** 本轮实现 Plow、Ringing、Tangled、Smoggy、Vital Spark、Tainted、Hex 七个 Power，以及 Ceremonial Beast、Vine Shambler、Infested Prism、Living Fog、Gas Bomb 的移动效果。Living Fog 的 BLOAT 在攻击前生成 Gas Bomb（`FlashMonsterDef.BeforeMove`），Gas Bomb 的 EXPLODE 攻击后自毁。MysticLighter 是遗物定义：带附魔卡牌的 powered attack 加 `Damage`。
+
+
 ## 4. 出牌管线
 
 来源：`Q/SimulatedCombatState.cs:1552`、`S/CombatPredictionSimulator.Card.cs:122-330`、`S/CombatPredictionSimulator.CardExecutionContinuation.cs:29-127`、`S/CombatPredictionSimulator.CardTailContinuation.cs:16-125`、`P/CorePowerSupport.cs:21-407`。
@@ -179,7 +191,9 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 - 节点类型：行动节点（攻击列表：基础伤害与次数）、随机分支（各后继的基础权重）、条件分支（根捕获时的选择结果）。
 - 推进：从当前行动的后继出发，随机分支用 `MonsterAi` 流按 `MonsterRandomBranchResolver.Pick` 的规则选择（依赖最近行动日志），条件分支取根选择，直到落到行动节点；最多 32 步。
 - 特例：旧引擎在 `ResolveConditional`、`GetBranchWeight` 与 `Advance` 中按怪物类型写的特殊逻辑（KnowledgeDemon、FrogKnight、Fabricator、TestSubject、Ovicopter、LagavulinMatriarch、SlumberingBeetle、Queen、LivingShield、BowlbugRock、TwoTailedRat）由对应 `FlashMonsterDef` 覆写同名方法实现。
-- 行动执行：攻击按编译表结算；非攻击效果由 `FlashMonsterDef` 的行动方法实现，规范来源是 `P/MonsterMoveEffects.cs` 与 `P/MonsterMoveSemantics.cs`。
+- 行动执行：攻击按编译表结算；攻击前的效果由 `FlashMonsterDef.BeforeMove` 实现（`P/MonsterMoveEffects.ApplyBeforeAttack`，例如 Living Fog 的 BLOAT 先生成 Gas Bomb）；非攻击效果由 `FlashMonsterDef.ApplyMoveEffects` 实现，规范来源是 `P/MonsterMoveEffects.cs` 与 `P/MonsterMoveSemantics.cs`。
+- 遭遇槽位：`FlashEnemy.Slot` 来自 `SimulatedCombatState.GetSlotIndex`，名字不在 `_encounterSlots` 时就是原版的 -1（`NoSlot`）。`EncounterModel.Slots` 为空但仍用 `first`/`middle`/`last`、`odd`/`even`、`first`/`second`/`third` 的遭遇（碗虫、沉睡甲虫）因此不排序、也不报错；`NextFreeSlot` 对空槽表返回 `""`、`LastFreeSlot` 返回 `null`，与现有引擎一致，不编造槽位顺序。
+- 生成初始状态：`FlashMonsterDef.SpawnedStunned` 让 Bridge 用 `StartStunned = true` 编译该类型的生成规则（Wriggler 的初始节点是 SPAWNED_MOVE）；`SpawnSlotName` 给这类按槽名选择 INIT_MOVE 分支的怪物一个固定合法槽名，避免私有编译遇到无匹配条件。
 - 私有字段：旧引擎通过 `_monsterIntStates` 读写的怪物私有整数，在 Flash 中映射到 `FlashEnemy` 的 AI 寄存器，编号由各怪物定义的 `AiRegisterNames` 按声明顺序决定；定义另外用 `InertMonsterIntNames` 声明只被状态指纹/续接文本读取、不影响结算的条目。导入时由定义认领，未认领的条目拒绝（见第 13 节）。
 
 ## 10. 选择协议
@@ -202,6 +216,8 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 来源：`Q/SimulatedCombatState.MonsterAi.cs:58-128`、`Q/SimulatedCombatState.cs:1174-1181`、`Q/CombatBeamSolver.Expansion.Replay.cs:1105-1180`、`P/BranchMonsterAi.cs:139-166,245-255`。
 
 **规则编译**（`Bridge/FlashRulesCompiler.CompileMonster/CompileMove`）：`MoveState.MustPerformOnceBeforeTransitioning` 编译成 `FlashMonsterNode` 标志，不再拒绝。为每个怪物在已登记状态（以及未登记进状态表的初始分支）之后追加一个合成节点：Id 为 `STUNNED`、`Kind = Move`、无攻击、无效果、`MustPerformOnceBeforeTransitioning = true`、静态后继为空。已有节点下标保持不变；节点的后继动态存放在 `FlashEnemy.ForcedMove`（255 表示当前不是 STUNNED）。节点总数因此加一，超过 64 个节点的状态机在导入时按容量拒绝。
+
+**失衡眩晕**：一次怪物行动的全部命中若至少有一次 `DamageResult.WasFullyBlocked`，且该怪物仍有 `ImbalancedPower`，`MonsterMoveSemantics.ApplyForecastMove` 在攻击收尾后、行动附加效果前强制 `STUNNED` 并 `StunNextMove`。Flash 的 `Damage` 返回"是否有完全格挡结果"，在 `ExecuteMonsterMoveCore` 的同一位置执行；BowlbugRock 的合成后继是 `HEADBUTT_MOVE`，其余怪物用最近一条行动日志。沉睡甲虫的 `SlumberPower` 在受击掉到 0 时强制 `STUNNED`（后继 `ROLL_OUT_MOVE`），在侧回合末掉到 0 时清 Plating 并由 `SNORE_NEXT` 条件分支走到 `ROLL_OUT_MOVE`。
 
 **强制行动 API**：
 
@@ -238,4 +254,8 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 **TwoTailedRat**：AI 寄存器 0 是 `_turnsUntilSummonable`（初始 2），1 是 `_callForBackupCount`（初始 0）。`SCRATCH_MOVE`/`DISEASE_BITE_MOVE`/`SCREECH_MOVE` 递减前者；`CALL_FOR_BACKUP_MOVE` 在 `LastFreeSlot` 生成一只新鼠，再把名单中所有鼠的后一个寄存器同步为（最大值 + 1）。随机分支权重按 `BranchMonsterAi.GetBranchWeight`：可召唤时 CALL_FOR_BACKUP 为 0.75、其余三者各 1/12；不可召唤时 CALL_FOR_BACKUP 为 0、其余为 1。可召唤条件按 `CanTwoTailedRatSummon`：回合计数不大于 0、计数小于 3、`NextFreeSlot` 非空，且其他鼠当前行动不是 CALL_FOR_BACKUP。`SCREECH_MOVE` 还给玩家 1 层 Frail。
 
-**导入认领**：`_monsterIntStates` 的每个条目必须被某个已知敌人的 `AiRegisterNames` 或 `InertMonsterIntNames` 认领，否则按 `UnrepresentableState` 拒绝；声明为寄存器的名字取 `GetMonsterInt` 的值（有捕获条目用条目，没有时读模型字段），因此与现有引擎的无条目语义一致。乐加维林族母的 `_isAwake` 由 `InertMonsterIntNames` 声明。
+**寄生死亡与召唤**：`InfestedPower` 在死亡效果清算阶段（`ApplyEnemyDeathPowers` 的 `DeathPowerSupport.Trigger` 位置）生成四只 `Wriggler` 到 `wriggler1..4` 槽位，创建时 `StartStunned = true`。它们是主要敌人；在死亡效果尚未清算、尸体已离开名单的窗口里，`HasUnresolvedSpawningDeath`（`SpawnsPrimaryEnemyOnDeath`）让 `IsEnding` 继续为假，与现有引擎一致（`Hook.ShouldStopCombatFromEnding` 的活动监听表此时看不到已移除尸体的 Power）。
+
+**重接复活**：`ReattachPower` 不阻止击杀命中，但阻止尸体离场（`PreventsRemovalAfterDeath`），`ShouldPowerBeRemovedAfterOwnerDeath` 为假。死亡效果清算时，若还有另一段能行动（存活或 `Reviving`）则死亡阶段改为 `Reviving` 并强制 `DEAD_MOVE`，否则所有段改为 `PermanentlyDead`。`REATTACH_MOVE` 由怪物的 `ResolveReviveMove` 处理：仍有一段能行动时按 `ReattachPower` 数量回血并清除 `Reviving`。Reviving 段的 `CurrentHp` 为 0，`IsHittable` 自然为假；评估的 `EffectiveEnemyHp` 在有其他未永久死亡段时取 `ReattachPower` 数量，否则为 0。
+
+**导入认领**：`_monsterIntStates` 的每个条目必须被某个已知敌人的 `AiRegisterNames` 或 `InertMonsterIntNames` 认领，否则按 `UnrepresentableState` 拒绝；声明为寄存器的名字取 `GetMonsterInt` 的值（有捕获条目用条目，没有时读模型字段），因此与现有引擎的无条目语义一致。乐加维林族母与沉睡甲虫的 `_isAwake` 由 `InertMonsterIntNames` 声明。

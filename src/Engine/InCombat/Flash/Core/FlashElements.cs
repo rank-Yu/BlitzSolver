@@ -15,6 +15,14 @@ public enum FlashCardFlags : byte
     RemovedFromState = 1 << 4,
     CostsX = 1 << 5,
     StarCostsX = 1 << 6,
+
+    /// <summary>
+    /// The existing engine's <c>PredictedCard.HasCheckedPowerAfflictionEntry</c>: the one-time
+    /// <c>VitalSparkPower</c>/<c>SmoggyPower</c>/<c>GalvanicPower</c> card-entry check has run. Root
+    /// cards are marked at import (they were present at the snapshot); cards created after the root
+    /// start unmarked, so the next normalization afflicts them once.
+    /// </summary>
+    PowerAfflictionChecked = 1 << 7,
 }
 
 /// <summary>Current keyword set of a card, one bit per native <c>CardKeyword</c>.</summary>
@@ -29,6 +37,13 @@ public enum FlashKeywords : byte
     Retain = 1 << 4,
     Sly = 1 << 5,
     Eternal = 1 << 6,
+
+    /// <summary>
+    /// Not a native keyword: this card entered combat after the root snapshot. The existing engine
+    /// distinguishes such cards from root cards with <c>SimulatedCombatState._liveCardsAtSnapshot</c>;
+    /// the one-time Vital Spark/Smog/Galvanic entry check applies only to these cards.
+    /// </summary>
+    CreatedAfterRoot = 1 << 7,
 }
 
 /// <summary>Native <c>LocalCostType</c>.</summary>

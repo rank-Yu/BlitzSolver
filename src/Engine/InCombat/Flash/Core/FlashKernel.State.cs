@@ -26,9 +26,41 @@ public static partial class FlashKernel
             if (enemy.Creature.IsAlive && IsPrimaryEnemy(battle, EnemyOwner(battle.Roster[index])))
                 return false;
         }
-        // Unresolved spawning deaths and ShouldStopCombatFromEnding listeners are rejected at
-        // admission until their content is supported.
+        // Native Hook.ShouldStopCombatFromEnding iterates the active listeners, which no longer hold a
+        // removed dead creature's powers, so the existing engine's equivalent stop is
+        // SimulatedCombatState.HasUnresolvedSpawningDeath: an enemy that left the roster, has not
+        // completed its death effects, and still holds a power that spawns primary enemies.
+        if (HasUnresolvedSpawningDeath(battle))
+            return false;
         return true;
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.HasUnresolvedSpawningDeath</c> for the death powers the Flash
+    /// content implements (<see cref="FlashPowerDef.SpawnsPrimaryEnemyOnDeath"/>).
+    /// </summary>
+    private static bool HasUnresolvedSpawningDeath(in FlashBattle battle)
+    {
+        for (int index = 0; index < battle.EnemyCount; index++)
+        {
+            ref readonly FlashEnemy enemy = ref battle.Enemies[index];
+            if ((enemy.Flags & FlashEnemyFlags.InCombat) != 0)
+                continue;
+            // HasCompletedDeathEffects covers both remaining death phases.
+            if (enemy.DeathPhase != FlashDeathPhase.None)
+                continue;
+            byte owner = EnemyOwner(index);
+            for (int power = 0; power < battle.PowerCount; power++)
+            {
+                ref readonly FlashPower candidate = ref battle.Powers[power];
+                if (candidate.Owner == owner && candidate.Amount > 0
+                    && FlashRegistry.Power(candidate.Id).SpawnsPrimaryEnemyOnDeath)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /// <summary>

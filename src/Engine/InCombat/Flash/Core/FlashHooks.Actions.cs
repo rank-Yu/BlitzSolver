@@ -11,13 +11,15 @@ public interface IFlashActionHook
 /// <summary>Information about the card play an <c>AfterCardPlayed</c> or <c>BeforeCardPlayed</c> listener observes.</summary>
 public readonly struct FlashCardPlayInfo
 {
-    public FlashCardPlayInfo(in FlashCard card, byte target, int playIndex, int playCount, FlashPile resultPile)
+    public FlashCardPlayInfo(in FlashCard card, byte target, int playIndex, int playCount, FlashPile resultPile,
+        int position = -1)
     {
         Card = card;
         Target = target;
         PlayIndex = playIndex;
         PlayCount = playCount;
         ResultPile = resultPile;
+        Position = position;
     }
 
     public FlashCard Card { get; }
@@ -29,6 +31,9 @@ public readonly struct FlashCardPlayInfo
     public int PlayCount { get; }
 
     public FlashPile ResultPile { get; }
+
+    /// <summary>Absolute position of the played card in <see cref="FlashBattle.Cards"/> while its tail runs.</summary>
+    public int Position { get; }
 }
 
 public static partial class FlashHooks
