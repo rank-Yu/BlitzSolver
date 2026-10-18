@@ -24,7 +24,19 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>Root values the final route ordering reads; set together with <see cref="Scorer"/>.</summary>
     public FlashRouteOrdering? Ordering { get; init; }
+
+    /// <summary>The acceptable battle HP-loss stop; null when the request cannot stop at an HP target.</summary>
+    public FlashHpTargetStop? HpTargetStop { get; init; }
 }
+
+/// <summary>
+/// The request values of the existing search's HP-target stop (<c>CombatBeamSolver.SolveCore</c>,
+/// <c>MeetsHpTarget</c>): a complete victory without death saves, with at most
+/// <paramref name="EarlyStopPotionUses"/> explicit potion uses and with
+/// <paramref name="HpLostSoFar"/> plus its cumulative HP loss within
+/// <paramref name="AcceptableBattleHpLoss"/>, ends the search before the next parent.
+/// </summary>
+internal sealed record FlashHpTargetStop(int AcceptableBattleHpLoss, int HpLostSoFar, int EarlyStopPotionUses);
 
 /// <summary>The root values <c>FinalPlanOrdering.Select</c> reads for the route keys FlashBeam ports.</summary>
 internal sealed record FlashRouteOrdering(
@@ -118,25 +130,49 @@ internal sealed class FlashBeamSolver
             bestVictory = state.Outcome == FlashOutcome.Victory;
             bestDefeat = state.Outcome == FlashOutcome.Defeat;
         }
+        // The existing search's two early stops. The HP-target stop ends the search before the next parent
+        // (CombatBeamSolver.Phases.cs, MeetsHpTarget); the zero-damage stop ends it after the current turn
+        // once a victory lost no HP, used no explicit potion and left the player at full, undiminished HP
+        // (growth targets, which disable it there, are rejected at admission).
+        bool hpTargetReached = false, zeroDamageVictory = false;
         void ConsiderTerminal(in FlashBattle state, int node, double score)
         {
             int actionCount = Depth(node);
-            Consider(state, node, Key(state, _scorer.Features(state, actionCount), actionCount));
+            FlashScoreFeatures features = _scorer.Features(state, actionCount);
+            RouteKey key = Key(state, features, actionCount);
+            Consider(state, node, key);
+            if (!features.AllEnemiesDead)
+                return;
+            int explicitPotionUses = ExplicitPotionUses(node);
+            if (key.Won && _options.HpTargetStop is { } stop
+                && features.ProjectedDeathSaveUseCount == 0
+                && explicitPotionUses <= stop.EarlyStopPotionUses
+                && stop.HpLostSoFar + features.CumulativePlayerHpLost <= stop.AcceptableBattleHpLoss)
+            {
+                hpTargetReached = true;
+            }
+            if (explicitPotionUses == 0
+                && features.CumulativePlayerHpLost == 0
+                && features.PlayerMaxHp >= _options.InitialPlayerMaxHp
+                && features.PlayerHp >= features.PlayerMaxHp)
+            {
+                zeroDamageVictory = true;
+            }
         }
 
         (double rootScore, double rootRank) = Score(root, 0);
         turnFrontier.Add(root, 0, rootScore, rootRank);
         int turns = 0;
-        while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch))
+        while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch) && !hpTargetReached)
         {
             turns++;
             current.Clear();
             turnFrontier.CopyTopTo(current, width);
             ended.Clear();
-            while (current.Count > 0 && !OutOfBudget(watch))
+            while (current.Count > 0 && !OutOfBudget(watch) && !hpTargetReached)
             {
                 next.Clear();
-                for (int index = 0; index < current.Count && !OutOfBudget(watch); index++)
+                for (int index = 0; index < current.Count && !OutOfBudget(watch) && !hpTargetReached; index++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     _expanded++;
@@ -155,6 +191,8 @@ internal sealed class FlashBeamSolver
             }
             turnFrontier.Clear();
             ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare);
+            if (zeroDamageVictory)
+                break;
         }
 
         // Without a victory, the surviving turn-start states compete with the terminal routes under the
@@ -285,6 +323,17 @@ internal sealed class FlashBeamSolver
         => _expanded >= _options.MaxExpandedNodes || watch.Elapsed >= _options.SoftTimeBudget;
 
     private int Depth(int node) => _nodes[node].Depth;
+
+    private int ExplicitPotionUses(int node)
+    {
+        int uses = 0;
+        for (int cursor = node; _nodes[cursor].Parent >= 0; cursor = _nodes[cursor].Parent)
+        {
+            if (_nodes[cursor].Action.Kind == FlashActionKind.UsePotion)
+                uses++;
+        }
+        return uses;
+    }
 
     private FlashAction[] Route(int node)
     {
