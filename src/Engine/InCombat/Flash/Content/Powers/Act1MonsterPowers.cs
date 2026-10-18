@@ -380,16 +380,26 @@ public sealed class VigorPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    /// <summary>
+    /// <c>VigorPowerMirrors.BeforeAttack</c>: the owner's powered attack from a card or a monster move
+    /// captures the amount once (Aux0); <see cref="AfterAttack"/> spends exactly that amount.
+    /// </summary>
+    public override void BeforeAttack(ref FlashExec x, FlashListener self, byte attacker, FlashValueProps props)
+    {
+        if (attacker != self.Owner || !props.IsPoweredAttack())
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Amount > 0 && power.Aux0 == 0)
+            power.Aux0 = power.Amount;
+    }
+
+    /// <summary>Side-effect free, like every modifier: forecasts and the scorer call it on read-only states.</summary>
     public override decimal ModifyDamageAdditive(ref FlashExec x, FlashListener self, in FlashDamageContext damage, decimal amount)
     {
         if (damage.Dealer != self.Owner || !damage.Props.IsPoweredAttack())
             return 0m;
-        ref FlashPower power = ref x.B.Powers[self.Index];
-        if (power.Amount <= 0)
-            return 0m;
-        if (power.Aux0 == 0)
-            power.Aux0 = power.Amount;
-        return power.Amount;
+        int vigor = x.B.Powers[self.Index].Amount;
+        return vigor > 0 ? vigor : 0m;
     }
 
     public override void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)

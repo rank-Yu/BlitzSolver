@@ -311,6 +311,17 @@ public struct AfterBlockGainedHook : IFlashActionHook
         => definition.AfterBlockGained(ref x, self, Owner, Amount, Props, FromCard);
 }
 
+public struct BeforeAttackHook : IFlashActionHook
+{
+    public byte Attacker;
+    public FlashValueProps Props;
+
+    public static FlashHookMask Mask => FlashHookMask.BeforeAttack;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.BeforeAttack(ref x, self, Attacker, Props);
+}
+
 public struct AfterAttackHook : IFlashActionHook
 {
     public byte Attacker;

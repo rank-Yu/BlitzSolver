@@ -130,6 +130,7 @@ public enum FlashHookMask : ulong
     AfterCardExhausted = 1UL << 11,
     AfterBlockGained = 1UL << 12,
     AfterAttack = 1UL << 13,
+    BeforeAttack = 1UL << 38,
     ShouldClearBlock = 1UL << 14,
     ModifyMaxEnergy = 1UL << 15,
     ModifyHandDraw = 1UL << 16,
@@ -335,6 +336,15 @@ public abstract class FlashListenerDef : FlashContentDef
     }
 
     public virtual void AfterBlockGained(ref FlashExec x, FlashListener self, byte owner, decimal amount, FlashValueProps props, bool fromCard)
+    {
+    }
+
+    /// <summary>
+    /// Native <c>BeforeAttack</c> (<c>CombatPredictionSimulator.BeginAttackContext</c>), before the first
+    /// hit. Every Flash attack comes from a card or a monster move; <paramref name="props"/> are its
+    /// damage props.
+    /// </summary>
+    public virtual void BeforeAttack(ref FlashExec x, FlashListener self, byte attacker, FlashValueProps props)
     {
     }
 

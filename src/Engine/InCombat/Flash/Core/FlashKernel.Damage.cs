@@ -35,7 +35,12 @@ public static partial class FlashKernel
         byte attacker = FlashLimits.PlayerOwner;
         if (x.B.Creature(attacker).IsDead)
             return;
-        // BeforeAttack and ModifyAttackHitCount have no supported listeners yet.
+        // BeginAttackContext: BeforeAttack iterates the combat listeners behind the ending gate
+        // (HookMirrors.BeforeAttack). ModifyAttackHitCount has no supported listeners yet.
+        BeforeAttackHook before = new() { Attacker = attacker, Props = props };
+        FlashHooks.Dispatch(ref x, ref before, gatedByEnding: true);
+        if (x.NeedsChoice)
+            return;
         Span<byte> targets = stackalloc byte[FlashLimits.Enemies + 1];
         for (int hit = 0; hit < hitCount; hit++)
         {

@@ -263,7 +263,12 @@ public static partial class FlashKernel
         bool playerDied = false;
         if (node.Attacks.Length > 0)
         {
-            // BeginAttackContext: BeforeAttack has no supported listeners yet.
+            // BeginAttackContext: BeforeAttack iterates the combat listeners behind the ending gate
+            // (HookMirrors.BeforeAttack).
+            BeforeAttackHook before = new() { Attacker = owner, Props = FlashValueProps.Move };
+            FlashHooks.Dispatch(ref x, ref before, gatedByEnding: true);
+            if (x.NeedsChoice)
+                return x.B.Player.IsDead;
             Span<byte> player = stackalloc byte[1];
             player[0] = FlashLimits.PlayerOwner;
             foreach (FlashMonsterAttack attack in node.Attacks)
