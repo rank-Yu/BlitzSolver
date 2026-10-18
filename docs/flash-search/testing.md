@@ -67,6 +67,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 | `THE_INSATIABLE_BOSS` | 其他（SandpitPower 的 AfterSideTurnStartLate/目标/击杀）；评估侧缺口 | `P/MonsterMoveEffects.cs:938`、`P/TurnStartPowerSupport.cs:449`、`P/CardOnPlaySupport.Batch042.cs:64`、`S/SimulatedCombatState.IncrementSandpitTargeting`；Flash 没有 `AfterSideTurnStartLate` 与目标化 Power。`FlashScorer.cs:415` 把 `SandpitRemaining` 固定为 0，而 `FlashScoreProjection` 比较该字段。 |
 | `THIEVING_HOPPER_WEAK` | 偷窃；评估侧缺口 | `P/MonsterMoveEffects.cs:170-220` 的 THIEVERY/ESCAPE、`S/SimulatedCombatState.RecordThievery`；`FlashScoreBridge.cs:103 TheftApplicable` 拒绝，`FlashScorer.cs:227-230` 把 `OutstandingStolenResource` 固定为 0。 |
 
+卡牌（无色卡池，P15）：新增 28 张无色卡（含 Finesse、Impatience、Production、Salvo、SecretTechnique、DarkShackles 等）与 5 个 Power（DarkShackles、Fasten、NoBlock、PrepTime、TheGambit），8 个 `coverage/fixtures/cards/flash-p15-*.json` 每根 48 条游走 K1/K2/K4/K5 零差异；MindBlast 与 Rend 的计算伤害乘数、TheGambit 的死亡预测按现有评估补进 FlashScorer/FlashScoreBridge。跳过 37 张：多人专用 12、自动打出 3（BeatDown、Catastrophe、Mayhem）、卡池随机生成/变化 7（Alchemize、Calamity、Discovery、Entropy、JackOfAllTrades、Jackpot、Splash）、随机抽样与回手历史 5、伤害/击杀历史 4、按实例区分的 Power 4（Automation、Panache、RollingBoulder、TheBomb）、尚未派发的 Hook 2（Nostalgia、Stratagem）。
+
 ### 2.2 评估移植与 K4（S1，2026-10-18）
 
 `FlashScorer` 移植现有搜索的状态评估（`CombatBeamSolver.Snapshot`）与中途排序（`BeamRankScore`），`FlashScoreBridge` 在根上编译逐内容数值表并冻结请求设置；FlashBeam 改用它们排序。新增路径计数 `LongTermResourceValue`、`AngerCopiesGenerated`、`DeathSaveRelicHpRestored`、`DeathSavePotionHpRestored`、`DeathSaveUseCount`、`AutomaticPotionUseCount`。

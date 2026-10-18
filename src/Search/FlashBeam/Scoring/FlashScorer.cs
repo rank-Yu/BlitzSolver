@@ -75,6 +75,8 @@ internal sealed class FlashScorer
                 FlashCalculatedKind.ExhaustPileCount => battle.ExhaustCount,
                 FlashCalculatedKind.PlayerStrength => Math.Max(0, GetAmount(battle, _score.StrengthPowerId, FlashLimits.PlayerOwner)),
                 FlashCalculatedKind.TargetVulnerable => GetAmount(battle, _score.VulnerablePowerId, owner),
+                FlashCalculatedKind.DrawPileCount => battle.DrawCount,
+                FlashCalculatedKind.TargetDebuffPowerCount => CountTargetDebuffPowers(battle, owner),
                 _ => 0,
             };
             decimal candidate = baseVar + extraVar * multiplier;
@@ -91,6 +93,25 @@ internal sealed class FlashScorer
             ref readonly FlashCard card = ref battle.Cards[position];
             // The rule-table tag set is canonical; instance keywords/tags never change.
             if ((Rules.Card(card.Id, card.Upgrade).Tags & tag) != 0)
+                count++;
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Port of <c>CalculatedVarSpecRegistry.TryMultiplier</c>'s Rend case: the target's powers whose
+    /// type for their current amount is Debuff, excluding temporary powers.
+    /// </summary>
+    private static int CountTargetDebuffPowers(in FlashBattle battle, byte owner)
+    {
+        int count = 0;
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref battle.Powers[index];
+            if (power.Owner != owner)
+                continue;
+            FlashPowerDef def = FlashRegistry.Power(power.Id);
+            if (def.TypeForAmount(power.Amount) == FlashPowerType.Debuff && !def.IsTemporaryPower)
                 count++;
         }
         return count;
@@ -573,6 +594,10 @@ internal sealed class FlashScorer
         int block = battle.Player.Block;
         int originalBlock = block;
         ProjectedDeathPrevention prevention = new(battle, _score, Rules);
+        // CombatBeamSolver.ProjectHpAfterThreat's gambitActive latch: the first unblocked damage from a
+        // powered attack kills the owner through TheGambitPower, then death prevention may revive it.
+        bool gambitActive = _score.TheGambitPowerId != ushort.MaxValue
+            && GetAmount(battle, _score.TheGambitPowerId, FlashLimits.PlayerOwner) > 0;
         for (int position = 0; position < battle.RosterCount; position++)
         {
             ref readonly FlashEnemy enemy = ref battle.Enemies[battle.Roster[position]];
@@ -590,7 +615,7 @@ internal sealed class FlashScorer
                 int repeats = Math.Max(attack.Repeats, 1);
                 for (int hit = 0; hit < repeats; hit++)
                 {
-                    ProjectThreatHit(ref x, owner, attack.BaseDamage, ref block, ref hp, ref prevention);
+                    ProjectThreatHit(ref x, owner, attack.BaseDamage, ref block, ref hp, ref gambitActive, ref prevention);
                 }
             }
         }
@@ -599,7 +624,7 @@ internal sealed class FlashScorer
     }
 
     private void ProjectThreatHit(ref FlashExec x, byte attacker, int baseDamage,
-        ref int block, ref int hp, ref ProjectedDeathPrevention prevention)
+        ref int block, ref int hp, ref bool gambitActive, ref ProjectedDeathPrevention prevention)
     {
         decimal modified = FlashHooks.ModifyDamage(
             ref x, FlashLimits.PlayerOwner, attacker, baseDamage, FlashValueProps.Move, false, default);
@@ -619,6 +644,11 @@ internal sealed class FlashScorer
         FlashHooks.AfterModifyingHpLostAfterOsty(ref x, changed[..changedCount]);
         int damage = Math.Max(0, (int)Math.Floor(hpLoss));
         hp -= damage;
+        if (damage > 0 && gambitActive)
+        {
+            gambitActive = false;
+            hp = 0;
+        }
         prevention.TryRevive(ref hp);
     }
 

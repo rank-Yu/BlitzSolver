@@ -77,6 +77,8 @@ internal enum FlashCalculatedKind : byte
     ExhaustPileCount,
     PlayerStrength,
     TargetVulnerable,
+    DrawPileCount,
+    TargetDebuffPowerCount,
 
     /// <summary>A registered calculated-damage card the port does not model; the root is rejected.</summary>
     Unsupported,
@@ -238,6 +240,8 @@ internal sealed class FlashScoreRules
     public ushort BufferPowerId { get; init; } = ushort.MaxValue;
 
     public ushort NoDrawPowerId { get; init; } = ushort.MaxValue;
+
+    public ushort TheGambitPowerId { get; init; } = ushort.MaxValue;
 
     public ushort FairyInABottlePotionId { get; init; } = ushort.MaxValue;
 
