@@ -119,6 +119,14 @@ Off 侧 24 根的 `search.solverMetrics`、`search.planActions`、`search.cached
 
 Shadow 隔离（`NIBBITS_NORMAL`、`SLIMES_NORMAL`、`RUBY_RAIDERS_NORMAL`，FLASHM1，Medium，120 秒，宽度组合）：Off 与 Shadow 的 `search.solverMetrics` 全部字段、`quality.json`、`search.planActions` 完全相同；3 根合计 26 行 Shadow 对照（其中 11 行续接，`OpeningTargetVariant prefix=4`），全部 `same_route=false`（Flash 找到不同路线，Shadow 仍返回旧结果）。示例：`NIBBITS_NORMAL` 8 行、`SLIMES_NORMAL` 9 行、`RUBY_RAIDERS_NORMAL` 9 行。
 
+### 2.5 生成牌组上的协调器对照（2026-10-19）
+
+60 个随机生成的中期铁甲战士牌组（第一、二幕，普通/精英/首领，6–12 张角色卡、0–2 张无色卡、2–5 个遗物、0–2 瓶药水，进阶 10；`.local/tool-tasks/flash-search/deck-survey.sh`）中，KG2 合入后 15 个准入（此前 4 个）。剩余缺口以怪物为主（仪式兽、千足虫、异蛙寄生虫、知识恶魔、碗虫等），其次是 12 张无色卡、5 瓶带生成选择的药水与 MysticLighter。
+
+对准入的牌组跑实机默认 Medium 档位、开启宽度组合的协调器 Off/On（每进程预热 1 次，`coord-deck.sh`）：14 根总耗时 92.6 s → 26.9 s，On 4 好 / 8 同 / 2 差、失血合计 −2；最重的两根 62.0 s → 12.0 s、17.2 s → 6.1 s。Flash 承担主搜索、精炼成员与 TurnBoundaryRescue、OpeningPowerRouteMember、OpeningTargetVariant、DeferredOpeningPower 四类续接。
+
+第 15 根在 On 模式中途中止：Thrash 把 `ModifyDamage` 的小数结果加进卡牌变量，Flash 内核抛出通用参数异常并逃出分发点。修正后该路径抛 `FlashUnsupportedException`，分发点把 Flash 搜索中的 `FlashUnsupportedException`/`FlashCapacityException` 当作内核边界回落现有求解器（`status=boundary`）；该根 On 结果与 Off 相同（失血 74，32.2 s 对 29.4 s）。差分探针同样把这类情况计为 `unsupported`。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。

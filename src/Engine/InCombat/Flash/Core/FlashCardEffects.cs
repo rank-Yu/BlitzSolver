@@ -135,8 +135,10 @@ public static class FlashCardEffects
     {
         if (delta == 0m)
             return;
+        // FlashCard variables are integers. The existing engine keeps decimal dynamic variables (Thrash adds a
+        // ModifyDamage result, which multipliers can make fractional); such a state is outside Flash.
         if (delta != decimal.Truncate(delta))
-            throw new ArgumentOutOfRangeException(nameof(delta), delta, "卡牌变量偏移必须是整数。");
+            throw new FlashUnsupportedException($"卡牌变量偏移 {delta} 不是整数，Flash 卡牌变量无法表示。");
         int position = x.B.PlayCount - 1;
         if (position < 0)
             throw new InvalidOperationException("当前没有正在打出的卡。");
