@@ -401,7 +401,10 @@ public static partial class FlashKernel
             ref FlashEnemy enemy = ref x.B.Enemies[index];
             if ((enemy.Flags & FlashEnemyFlags.DeathProcessed) != 0 || enemy.Creature.IsAlive)
                 continue;
-            if (enemy.DeathPhase is FlashDeathPhase.Reviving or FlashDeathPhase.PermanentlyDead)
+            // An illusion that just began reviving (IllusionPower.AfterDeath) still goes through the death
+            // pass: DeathPowerSupport.Trigger calls BeginIllusionRevive and then RemovePowersAfterDeath for
+            // the same creature, so it loses its non-temporary debuffs.
+            if (enemy.DeathPhase is FlashDeathPhase.PermanentlyDead)
             {
                 enemy.Flags |= FlashEnemyFlags.DeathProcessed;
                 continue;

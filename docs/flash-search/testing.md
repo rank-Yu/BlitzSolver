@@ -37,7 +37,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，KM 合入后）：FlashKernelChecks 通过；33 个自然遭遇根（铁甲战士初始牌组，含雾菇与双尾鼠的 FLASHM1/FLASHM2）与 68 个固定根（`coverage/fixtures/cards/flash-*.json`）每根 32 条随机游走，K1 单步、K2 游走与 K4 评估全部零差异，没有准入拒绝。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，P13 合入后）：FlashKernelChecks 通过；51 个自然遭遇根（铁甲战士初始牌组，含第二幕 9 个遭遇的 FLASHM1/FLASHM2）与 77 个固定根（`coverage/fixtures/cards/flash-*.json`）每根 32 条随机游走，K1 单步、K2 游走与 K4 评估全部零差异，没有准入拒绝。
 
 ### 2.1 第一幕覆盖缺口
 
@@ -142,6 +142,52 @@ SUMMARY oneStep=6 failed=0 walkTransitions=594 walkFailed=0 terminals=32 choiceA
 | 变体已移植 | 2 / 18 / 4 | +3 | 21.2 s → 15.0 s | 采用 144、回落 0 |
 
 另试过把评估的威胁投影改为直接读取被评估状态、首次写入前才复制：路线与转移数不变，搜索耗时 4.32 s → 4.47 s，没有可测收益，未保留。
+
+### 2.6 第二幕（虫巢）遭遇（P13，2026-10-19）
+
+在保持内核与 Bridge 结构不变的前提下，新增第二幕 9 个遭遇、10 种怪物与 4 个新 Power 定义：
+
+- `CHOMPERS_NORMAL`：Chomper（`SCREECH_MOVE` 弃牌堆 3 张 Dazed；Artifact 由根导入）。
+- `ENTOMANCER_ELITE`：Entomancer（`PHEROMONE_SPIT_MOVE` 的 PersonalHive/Strength 分支；`PERSONAL_HIVE_POWER` 在受击后向抽牌堆随机塞入 Dazed）。
+- `EXOSKELETONS_NORMAL` / `EXOSKELETONS_WEAK`：Exoskeleton（`HARD_TO_KILL_POWER` 的伤害上限；`ENRAGE_MOVE`；槽位条件初始行动）。
+- `MYTES_NORMAL`：Myte（`TOXIC_MOVE` 手牌 2 张 Toxic、`SUCK_MOVE` Strength、`BITE_MOVE`）。
+- `OVICOPTER_NORMAL`：Ovicopter + ToughEgg（`LAY_EGGS_MOVE` 生成 3 个 ToughEgg、`NUTRITIONAL_PASTE_MOVE`、`SMASH_MOVE`、`TENDERIZER_MOVE`；`HATCH_MOVE` 重掷生命并移除除 Minion 外的 Power；`HATCH_POWER` 每侧回合末递减）。
+- `SPINY_TOAD_NORMAL`：SpinyToad（`PROTRUDING_SPIKES_MOVE` / `SPIKE_EXPLOSION_MOVE` 的 ±5 Thorns、`TONGUE_LASH_MOVE`）。
+- `THE_OBSCURA_NORMAL`：TheObscura + Parafright（`ILLUSION_MOVE` 生成 Parafright、`SAIL_MOVE` 全体 Strength、`HARDENING_STRIKE_MOVE`；Parafright 的 Illusion 复活；幻象死亡时按 `RemovePowersAfterDeath` 清除非临时减益）。
+- `TUNNELER_WEAK`：Tunneler（`BURROW_MOVE` 的 BurrowedPower + 格挡；格挡被击破时 `BURROWED_POWER` 清空格挡并强制 STUNNED→`BITE_MOVE`）。
+
+ToughEgg 的 `_isHatched`/`_hatched`、TheObscura 的 `_hasSummoned`、Tunneler 的 `_isStunned` 只被指纹/续接文本或动画读取，分别用 `InertMonsterIntNames` 认领；本批没有新增 `AiRegisterNames` 或 Power Aux 槽位。
+
+每个 fixture 以铁甲战士初始牌组、`OFFLINE_HARNESS_FLASH_DIFF_WALKS=48` 运行，首行均为：
+
+| 遭遇 | `flash-diff.txt` 首行 |
+| --- | --- |
+| `CHOMPERS_NORMAL` | `SUMMARY oneStep=11 failed=0 walkTransitions=2095 walkFailed=0 terminals=48 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:48 score=checked scoreChecked=2107 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=2107 boundFailed=0` |
+| `ENTOMANCER_ELITE` | `SUMMARY oneStep=7 failed=0 walkTransitions=1796 walkFailed=0 terminals=48 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:48 score=checked scoreChecked=1804 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=1804 boundFailed=0` |
+| `EXOSKELETONS_NORMAL` | `SUMMARY oneStep=19 failed=0 walkTransitions=2287 walkFailed=0 terminals=48 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:48 score=checked scoreChecked=2307 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=2307 boundFailed=0` |
+| `EXOSKELETONS_WEAK` | `SUMMARY oneStep=13 failed=0 walkTransitions=1759 walkFailed=0 terminals=48 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:48 score=checked scoreChecked=1773 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=1773 boundFailed=0` |
+| `MYTES_NORMAL` | `SUMMARY oneStep=12 failed=0 walkTransitions=2832 walkFailed=0 terminals=10 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:10 score=checked scoreChecked=2845 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=2845 boundFailed=0` |
+| `OVICOPTER_NORMAL` | `SUMMARY oneStep=7 failed=0 walkTransitions=1097 walkFailed=0 terminals=48 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Defeat/None:48 score=checked scoreChecked=1105 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=1105 boundFailed=0` |
+| `SPINY_TOAD_NORMAL` | `SUMMARY oneStep=7 failed=0 walkTransitions=1256 walkFailed=0 terminals=48 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:48 score=checked scoreChecked=1264 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=1264 boundFailed=0` |
+| `THE_OBSCURA_NORMAL` | `SUMMARY oneStep=7 failed=0 walkTransitions=2721 walkFailed=0 terminals=16 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:16 score=checked scoreChecked=2729 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=2729 boundFailed=0` |
+| `TUNNELER_WEAK` | `SUMMARY oneStep=7 failed=0 walkTransitions=2566 walkFailed=0 terminals=28 choiceActions=0 choiceCapped=0 choiceDeadEnds=0 endings=Victory/None:28 score=checked scoreChecked=2574 scoreFailed=0 scoreSkippedBoundary=0 bound=checked boundChecked=2574 boundFailed=0` |
+
+自然根 `CHOMPERS_NORMAL`、`ENTOMANCER_ELITE`、`EXOSKELETONS_NORMAL`、`EXOSKELETONS_WEAK`、`MYTES_NORMAL`、`OVICOPTER_NORMAL`、`SPINY_TOAD_NORMAL`、`THE_OBSCURA_NORMAL`、`TUNNELER_WEAK` 的 FLASHM1/FLASHM2 已加入 `regress.sh`；`regress.sh p13-regression 32` 的 K0 为 `contracts=Passed`，所有自然根与固定根均 `failed=0 walkFailed=0 scoreFailed=0 boundFailed=0`（详见任务报告）。
+
+跳过 11 个遭遇，缺失能力与现存机制位置：
+
+| 遭遇 | 缺失能力 | 机制位置 |
+| --- | --- | --- |
+| `BOWLBUGS_NORMAL`、`BOWLBUGS_WEAK` | 其他（遭遇槽位）；另需 ImbalancedPower 的失衡眩晕 | `EncounterModel.Slots` 为空但 `GenerateMonsters` 使用 `first`/`middle`/`last`、`odd`/`even`；`SimulatedCombatState.cs:278` 只取 `Encounter.Slots`；`FlashStateImporter.cs:263-273 SlotForFlash` 拒绝未知槽位。`P/MonsterMoveSemantics.cs:84-90` 的失衡路径已存在，但内容未落。 |
+| `SLUMBERING_BEETLE_NORMAL` | 其他（遭遇槽位）；另需 SlumberPower（Plating 已有） | 同上；`SlumberingBeetle` 的 `first`/`second`/`third` 槽位不在 `Encounter.Slots`。 |
+| `DECIMILLIPEDE_ELITE` | 其他（Reattach 复活/不可命中/致死抑制） | `P/DeathPowerSupport.cs:120 BeginReattach`、`S/SimulatedCombatState.DeathLifecycle.cs:120`、原版 `ReattachPower.DoReattach/ShouldAllowHitting/ShouldOwnerDeathTriggerFatal`；Flash 只有 `PreventsRemovalAfterDeath` 与幻象式复活（`FlashKernel.Monsters.cs:207`），没有 Reattach 节点、复活回血与致死抑制。 |
+| `HUNTER_KILLER_NORMAL` | 状态无法用整数槽表达（`_tenderCardsPlayed`） | `S/SimulatedCombatState.cs:970 RecordTenderCardPlayed`、`P/EndTurnPowerSupport.cs:96,220 RestoreTender`、`P/AfterCardPlayedMirrors.cs:799`；`S/SimulatedCombatState.FlashProjection.cs:116 DescribeFlashUnrepresentableState` 对非零 `_tenderCardsPlayed` 仍直接拒绝，允许修改的投影文件无法认领。 |
+| `KAISER_CRAB_BOSS` | 其他（Surrounded 状态在玩家死亡清空 Power 后残留） | `P/BeforeCardPlayedMirrors.cs:273`/`P/ModifyDamageMirrors.cs:178` 维护 `SurroundedPredictionState`；玩家死亡清空 Power 后 `StateStore` 条目仍在，`FlashStateImporter.ImportPowers` 跳过 0 层 Power，`FlashStateProjections.RequireAllClaimed` 只对 Vigor 退役状态放行。自然根首个差异：`UnrepresentableState StateStore: SurroundedPredictionState@SURROUNDED_POWER`。 |
+| `INFESTED_PRISMS_ELITE` | 苦难/附魔；AfterPowerAmountChanged / AfterApplied | 原版 `VitalSparkPower` 在 `BeforeCombatStart`/`AfterCardEnteredCombat` 施加 `Tainted`、`AfterPowerAmountChanged` 同步层数；`P/MonsterMoveEffects.cs` 的 PULSATE/RADIATE。Flash 没有 Affliction 内容与这些 Hook。 |
+| `KNOWLEDGE_DEMON_BOSS` | 其他（怪物选择协议）；状态无法用整数槽表达（`_knowledgeDemonCurseCounters`） | `S/SimulatedCombatState.KnowledgeDemon.cs`、`P/KnowledgeDemonChoiceSupport.cs`、`P/BranchMonsterAi.cs:160-170`、`P/MonsterMoveEffects.cs:341`；Flash 怪物行动不能产生待处理选择。 |
+| `LOUSE_PROGENITOR_NORMAL` | 状态无法用整数槽表达（CurlUpPredictionState 退役） | `E/Mirrors/Hooks/Card/AfterCardPlayedMirrors.cs:564`、`AfterDamageReceivedMirrors.cs:139` 维护 `CurlUpPredictionState`；Power 归零移除后条目仍在，`ImportPowers` 不再调用 `ProjectPower`，`RequireAllClaimed` 只处理 Vigor。 |
+| `THE_INSATIABLE_BOSS` | 其他（SandpitPower 的 AfterSideTurnStartLate/目标/击杀）；评估侧缺口 | `P/MonsterMoveEffects.cs:938`、`P/TurnStartPowerSupport.cs:449`、`P/CardOnPlaySupport.Batch042.cs:64`、`S/SimulatedCombatState.IncrementSandpitTargeting`；Flash 没有 `AfterSideTurnStartLate` 与目标化 Power。`FlashScorer.cs:415` 把 `SandpitRemaining` 固定为 0，而 `FlashScoreProjection` 比较该字段。 |
+| `THIEVING_HOPPER_WEAK` | 偷窃；评估侧缺口 | `P/MonsterMoveEffects.cs:170-220` 的 THIEVERY/ESCAPE、`S/SimulatedCombatState.RecordThievery`；`FlashScoreBridge.cs:103 TheftApplicable` 拒绝，`FlashScorer.cs:227-230` 把 `OutstandingStolenResource` 固定为 0。 |
 
 ## 3. 已知限制与未验证项
 
