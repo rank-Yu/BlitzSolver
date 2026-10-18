@@ -1,0 +1,105 @@
+namespace CombatSolver.Engine.InCombat.Flash;
+
+public static partial class FlashKernel
+{
+    /// <summary>
+    /// Executes one player action to the next stable boundary, mirroring the action branches of
+    /// <c>CombatBeamSolver.Replay</c>. On <see cref="FlashStepResult.NeedsChoice"/> the battle is
+    /// partial and must be discarded.
+    /// </summary>
+    public static FlashStepResult Step(ref FlashBattle battle, in FlashAction action, FlashRules rules,
+        out FlashChoiceRequest request)
+    {
+        if (!IsInProgress(battle))
+            throw new InvalidOperationException("战斗已经结束，不能再执行动作。");
+        FlashExec x = new(ref battle, rules, action);
+        switch (action.Kind)
+        {
+            case FlashActionKind.PlayCard:
+                PlayCardAction(ref x, action);
+                break;
+            case FlashActionKind.EndTurn:
+                AdvanceRound(ref x);
+                if (!x.NeedsChoice)
+                {
+                    x.B.Flags &= ~FlashBattleFlags.PlayerTurnEndRequested;
+                    // SettleReplayActionBoundary: no supported power reactions or normalizations.
+                }
+                break;
+            case FlashActionKind.UsePotion:
+                throw new FlashUnsupportedException("药水尚未实现。");
+            default:
+                throw new ArgumentOutOfRangeException(nameof(action), action.Kind, null);
+        }
+        if (x.NeedsChoice)
+        {
+            request = x.Request;
+            return FlashStepResult.NeedsChoice;
+        }
+        if (!x.AllChoicesConsumed)
+            throw new InvalidOperationException($"动作 {action} 携带了未使用的选择。");
+        request = default;
+        return FlashStepResult.Completed;
+    }
+
+    private static void PlayCardAction(ref FlashExec x, in FlashAction action)
+    {
+        if (action.HandIndex >= x.B.HandCount)
+            throw new ArgumentOutOfRangeException(nameof(action), action.HandIndex, "手牌位置越界。");
+        if (!CanPlayCard(x.B, x.R, action.HandIndex))
+            throw new InvalidOperationException($"手牌位置 {action.HandIndex} 的卡当前不能打出。");
+        int shuffleEvents = x.B.ShuffleEventCount;
+        ManualPlay(ref x, action.HandIndex, action.Target);
+        if (x.NeedsChoice)
+            return;
+        // CompleteCardExecution and the replay loop both run the deferred enemy-death pass.
+        ApplyEnemyDeathPowers(ref x);
+        ApplyEnemyDeathPowers(ref x);
+        // SettleReplayActionBoundary: no supported power reactions or normalizations.
+        if (x.B.ShuffleEventCount != shuffleEvents)
+            x.B.ShufflesCrossed++;
+        CheckWinCondition(ref x.B);
+        if ((x.B.Flags & FlashBattleFlags.PlayerTurnEndRequested) != 0)
+        {
+            x.B.Flags &= ~FlashBattleFlags.PlayerTurnEndRequested;
+            if (IsInProgress(x.B))
+                AdvanceRound(ref x);
+            x.B.Flags &= ~FlashBattleFlags.PlayerTurnEndRequested;
+        }
+    }
+
+    /// <summary>
+    /// Enumerates legal actions in the existing search's order: playable hand cards (each with its
+    /// hittable targets), then end turn. Identical cards are not deduplicated here.
+    /// </summary>
+    public static int LegalActions(in FlashBattle battle, FlashRules rules, Span<FlashAction> output)
+    {
+        if (!IsInProgress(battle))
+            return 0;
+        int count = 0;
+        for (int hand = 0; hand < battle.HandCount; hand++)
+        {
+            if (!CanPlayCard(battle, rules, hand))
+                continue;
+            FlashCardStats stats = rules.Card(battle.Cards[hand].Id, battle.Cards[hand].Upgrade);
+            if (stats.Target == FlashTargetType.AnyEnemy)
+            {
+                for (int position = 0; position < battle.RosterCount; position++)
+                {
+                    byte owner = EnemyOwner(battle.Roster[position]);
+                    if (IsHittable(battle, owner))
+                        output[count++] = FlashAction.PlayCard(hand, owner);
+                }
+            }
+            else
+            {
+                output[count++] = FlashAction.PlayCard(hand, FlashLimits.NoOwner);
+            }
+        }
+        output[count++] = FlashAction.EndTurn();
+        return count;
+    }
+
+    /// <summary>Upper bound of <see cref="LegalActions"/> output.</summary>
+    public const int MaxLegalActions = FlashLimits.MaxHandSize * FlashLimits.Enemies + FlashLimits.PotionSlots * FlashLimits.Enemies + 1;
+}

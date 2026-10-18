@@ -1,0 +1,241 @@
+namespace CombatSolver.Engine.InCombat.Flash;
+
+public enum FlashCardType : byte
+{
+    None = 0,
+    Attack = 1,
+    Skill = 2,
+    Power = 3,
+    Status = 4,
+    Curse = 5,
+    Quest = 6,
+}
+
+public enum FlashTargetType : byte
+{
+    None = 0,
+    Self = 1,
+    AnyEnemy = 2,
+    AllEnemies = 3,
+    RandomEnemy = 4,
+    AnyPlayer = 5,
+    AnyAlly = 6,
+    AllAllies = 7,
+    TargetedNoCreature = 8,
+    Osty = 9,
+}
+
+public enum FlashCardRarity : byte
+{
+    None = 0,
+    Basic = 1,
+    Common = 2,
+    Uncommon = 3,
+    Rare = 4,
+    Ancient = 5,
+    Event = 6,
+    Token = 7,
+    Status = 8,
+    Curse = 9,
+    Quest = 10,
+}
+
+/// <summary>Root-frozen data of one card id at one upgrade level.</summary>
+public sealed class FlashCardStats
+{
+    public required FlashCardType Type { get; init; }
+    public required FlashTargetType Target { get; init; }
+    public required FlashCardRarity Rarity { get; init; }
+    public required int EnergyCost { get; init; }
+    public required bool CostsX { get; init; }
+    public required int StarCost { get; init; }
+    public required bool StarCostsX { get; init; }
+    public required FlashKeywords Keywords { get; init; }
+
+    /// <summary>Base values of the native dynamic variables named by the card definition, in order.</summary>
+    public required decimal[] Vars { get; init; }
+}
+
+public enum FlashMonsterNodeKind : byte
+{
+    Move = 0,
+    RandomBranch = 1,
+    ConditionalBranch = 2,
+}
+
+/// <summary>Native <c>MoveRepeatType</c>.</summary>
+public enum FlashMoveRepeatType : byte
+{
+    CanRepeatForever = 0,
+    CanRepeatXTimes = 1,
+    CannotRepeat = 2,
+    UseOnlyOnce = 3,
+}
+
+public readonly record struct FlashMonsterAttack(int BaseDamage, int Repeats);
+
+public readonly record struct FlashRandomBranchOption(
+    int Target,
+    float BaseWeight,
+    FlashMoveRepeatType RepeatType,
+    int MaxTimes,
+    int Cooldown);
+
+/// <summary>One node of a compiled native monster move state machine.</summary>
+public sealed class FlashMonsterNode
+{
+    public required string NativeId { get; init; }
+    public required FlashMonsterNodeKind Kind { get; init; }
+
+    /// <summary>Follow-up node of a move node.</summary>
+    public int FollowUp { get; init; } = -1;
+
+    public FlashMonsterAttack[] Attacks { get; init; } = [];
+    public FlashRandomBranchOption[] Options { get; init; } = [];
+
+    /// <summary>Root-resolved target of a conditional branch, or -1 when unresolved.</summary>
+    public int ConditionalTarget { get; init; } = -1;
+}
+
+/// <summary>Root-frozen data of one known enemy: its compiled state machine and static values.</summary>
+public sealed class FlashMonsterRules
+{
+    public required FlashMonsterNode[] Nodes { get; init; }
+    public required int InitialNode { get; init; }
+
+    /// <summary>Static integers named by the monster definition, in order.</summary>
+    public required int[] StaticInts { get; init; }
+
+    public int NodeIndex(string nativeId)
+    {
+        for (int index = 0; index < Nodes.Length; index++)
+        {
+            if (Nodes[index].NativeId == nativeId)
+                return index;
+        }
+        throw new FlashUnsupportedException($"怪物状态机没有节点 {nativeId}。");
+    }
+}
+
+/// <summary>
+/// Immutable per-root rule tables shared by every branch of one Flash solve. Values come from
+/// native models at root import; content definitions read numbers from here instead of
+/// hard-coding them.
+/// </summary>
+public sealed class FlashRules
+{
+    private readonly FlashCardStats?[][] _cards;
+    private readonly decimal[][] _powerVars;
+    private readonly FlashMonsterRules?[] _monsters;
+
+    internal FlashRules(
+        FlashCardStats?[][] cards,
+        decimal[][] powerVars,
+        FlashMonsterRules?[] monsters,
+        int baseMaxEnergy,
+        int playerSlotIndex)
+    {
+        _cards = cards;
+        _powerVars = powerVars;
+        _monsters = monsters;
+        BaseMaxEnergy = baseMaxEnergy;
+        PlayerSlotIndex = playerSlotIndex;
+    }
+
+    public int BaseMaxEnergy { get; }
+
+    public int PlayerSlotIndex { get; }
+
+    /// <summary>
+    /// Shuffle sort rank. Card ids are assigned in ordinal order of native ids, and all cards
+    /// share one model category, so the id itself is the native <c>ModelId</c> order.
+    /// </summary>
+    public int CardSortRank(ushort id) => id;
+
+    public FlashCardStats Card(ushort id, int upgrade)
+    {
+        FlashCardStats?[]? levels = id < _cards.Length ? _cards[id] : null;
+        if (levels == null || (uint)upgrade >= (uint)levels.Length || levels[upgrade] is not { } stats)
+            throw new FlashUnsupportedException($"规则表缺少卡牌 {FlashRegistry.Card(id).NativeId}+{upgrade}。");
+        return stats;
+    }
+
+    public decimal PowerVar(ushort powerId, int index)
+    {
+        decimal[] vars = powerId < _powerVars.Length ? _powerVars[powerId] : [];
+        if ((uint)index >= (uint)vars.Length)
+            throw new FlashUnsupportedException($"规则表缺少 Power {FlashRegistry.Power(powerId).NativeId} 的第 {index} 个变量。");
+        return vars[index];
+    }
+
+    public FlashMonsterRules Monster(byte owner)
+    {
+        int enemy = owner - FlashLimits.FirstEnemyOwner;
+        if ((uint)enemy >= (uint)_monsters.Length || _monsters[enemy] is not { } rules)
+            throw new FlashUnsupportedException($"规则表缺少敌人 {owner} 的状态机。");
+        return rules;
+    }
+}
+
+/// <summary>Collects root data from the bridge and freezes it into <see cref="FlashRules"/>.</summary>
+public sealed class FlashRulesBuilder
+{
+    private readonly List<FlashCardStats?>[] _cards = new List<FlashCardStats?>[FlashRegistry.CardCount];
+    private readonly decimal[]?[] _powerVars = new decimal[]?[FlashRegistry.PowerCount];
+    private readonly FlashMonsterRules?[] _monsters = new FlashMonsterRules?[FlashLimits.Enemies];
+
+    public int BaseMaxEnergy { get; set; }
+
+    public int PlayerSlotIndex { get; set; }
+
+    public void SetCard(ushort id, int upgrade, FlashCardStats stats)
+    {
+        List<FlashCardStats?> levels = _cards[id] ??= [];
+        while (levels.Count <= upgrade)
+            levels.Add(null);
+        if (levels[upgrade] is { } existing && !SameStats(existing, stats))
+            throw new InvalidOperationException($"卡牌 {FlashRegistry.Card(id).NativeId}+{upgrade} 的规则数据前后不一致。");
+        levels[upgrade] = stats;
+    }
+
+    public bool HasCard(ushort id, int upgrade)
+        => _cards[id] is { } levels && upgrade < levels.Count && levels[upgrade] != null;
+
+    public void SetPowerVars(ushort id, decimal[] vars)
+    {
+        if (_powerVars[id] is { } existing && !existing.AsSpan().SequenceEqual(vars))
+            throw new InvalidOperationException($"Power {FlashRegistry.Power(id).NativeId} 的规则数据前后不一致。");
+        _powerVars[id] = vars;
+    }
+
+    public bool HasPowerVars(ushort id) => _powerVars[id] != null;
+
+    public void SetMonster(int enemyIndex, FlashMonsterRules rules)
+    {
+        if ((uint)enemyIndex >= FlashLimits.Enemies)
+            throw new FlashCapacityException("Enemies", FlashLimits.Enemies);
+        _monsters[enemyIndex] = rules;
+    }
+
+    public FlashRules Build()
+    {
+        FlashCardStats?[][] cards = new FlashCardStats?[_cards.Length][];
+        for (int id = 0; id < _cards.Length; id++)
+            cards[id] = _cards[id]?.ToArray() ?? [];
+        decimal[][] powerVars = new decimal[_powerVars.Length][];
+        for (int id = 0; id < _powerVars.Length; id++)
+            powerVars[id] = _powerVars[id] ?? [];
+        return new FlashRules(cards, powerVars, (FlashMonsterRules?[])_monsters.Clone(), BaseMaxEnergy, PlayerSlotIndex);
+    }
+
+    private static bool SameStats(FlashCardStats left, FlashCardStats right)
+        => left.Type == right.Type
+            && left.Target == right.Target
+            && left.Rarity == right.Rarity
+            && left.EnergyCost == right.EnergyCost
+            && left.CostsX == right.CostsX
+            && left.StarCost == right.StarCost
+            && left.StarCostsX == right.StarCostsX
+            && left.Keywords == right.Keywords
+            && left.Vars.AsSpan().SequenceEqual(right.Vars);
+}

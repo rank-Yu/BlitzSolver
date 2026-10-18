@@ -50,9 +50,11 @@ Project(Old.Step(s, a)) == Flash.Step(Project(s), a)     （逐字节）
 | 层 | 内容 | 位置 |
 | --- | --- | --- |
 | K0 纯内核 | RNG 对照录制向量、布局尺寸断言、规范化、容量失败、选择协议 | `tools/testing/checks/FlashKernelChecks/`，源码包含内核文件，不依赖游戏 |
-| K1 单步穷举 | 从 fixture 根出发，枚举全部合法动作（含选择分支）各执行一步并比较 | 离线搜索宿主的 `--flash-diff` 模式 |
+| K1 单步穷举 | 从根出发，枚举全部合法动作（含选择分支）各执行一步并比较 | 离线搜索宿主的差分探针（`OFFLINE_HARNESS_FLASH_DIFF=1`，`tools/search/OfflineSearchHarness/FlashDifferentialProbe.cs`） |
 | K2 随机游走 | 固定种子，多回合随机合法动作序列，每步比较；覆盖洗牌、敌人回合、死亡 | 同上 |
 | K3 内容定向 | 每个新内容至少一个 fixture，让该内容在前几步内被触发 | `coverage/fixtures/` 下按主题存放，K1/K2 消费 |
+
+复跑命令与当前证据见 [测试记录](testing.md)。
 
 比较失败时输出第一处差异的字段路径（例如 `Enemies[1].Powers[VULNERABLE].Amount: old=2 flash=3`）、动作序列与种子，便于直接复现。
 

@@ -1,0 +1,43 @@
+# Flash 测试记录
+
+[返回 Flash 入口](README.md)
+
+本文记录 Flash 的可复跑验证入口与当前证据。方法定义见 [准入与校验](admission-and-verification.md)。
+
+## 1. 复跑入口
+
+纯内核合同（K0），不依赖游戏：
+
+```bash
+DOTNET_TieredCompilation=0 dotnet run --project tools/testing/checks/FlashKernelChecks -c Release
+```
+
+差分探针（K1 单步穷举、K2 随机游走），需要游戏程序集与已构建的模组：
+
+```bash
+dotnet build CombatSolver.csproj -c Release -p:CopyModOnBuild=false
+dotnet build tools/search/OfflineSearchHarness/OfflineSearchHarness.csproj -c Release
+OFFLINE_HARNESS_FLASH_DIFF=1 OFFLINE_HARNESS_FLASH_DIFF_WALKS=32 \
+  dotnet .local/tool-build/OfflineSearchHarness/bin/Release/net9.0/OfflineSearchHarness.dll \
+  --character IRONCLAD --encounter NIBBITS_NORMAL --seed FLASH1 --milestone M1 --out <输出目录>
+```
+
+PowerShell 用 `$env:OFFLINE_HARNESS_FLASH_DIFF = '1'` 设置同名变量后运行相同 `dotnet` 命令。探针把结果写入输出目录的 `flash-diff.txt`（首行为汇总），并在 `harness-result.json` 的 `flashDiff` 字段记录同样的计数。`OFFLINE_HARNESS_FLASH_DIFF_STEPS` 控制每条随机游走的最大步数（默认 60）。
+
+## 2. 当前证据（F1 纵切，2026-10-18，Linux）
+
+内容范围：铁甲战士初始牌组（打击、防御、痛击）、燃烧之血、力量、易伤、绒毛蠕虫爬行者与尼比特。
+
+| 层 | 结果 |
+| --- | --- |
+| K0 | 布局尺寸（`FlashBattle` 6240 字节、`FlashCard` 32、`FlashEnemy` 64、`FlashPower` 24、RNG 40）、RNG 对原版算法参考副本 6000 次取值、introsort 与 `List.Sort` 在 4000 组随机数组上的置换一致、容量溢出抛出、牌堆段操作：全部通过 |
+| K1/K2 | `FUZZY_WURM_CRAWLER_WEAK`、`NIBBITS_WEAK`、`NIBBITS_NORMAL` 各 6 个种子（FLASH1–FLASH6），每根 32 条随机游走：单步 135 次、游走约 12,500 次转移全部字节一致，所有游走走到终局 |
+
+K0 同时输出一个 Beam 形工作负载的单步耗时（复制父状态到预分配槽、执行、哈希），在 vps4 上约 0.40 µs/转移，测量循环零托管分配（40 字节为一次性开销）。现有引擎同类工作约 30–45 µs/转移（`compact-real-combat` 实验与生产搜索统计），两者口径不同，只作量级参考。
+
+## 3. 已知限制与未验证项
+
+- 只覆盖上述纵切内容；其他内容在准入阶段拒绝，尚未有差分证据。
+- 选择分支（`NeedsChoice`）在纵切中不会出现，探针遇到时跳过并计数。
+- 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
+- 未做可见游戏、实机部署或整场搜索验证；FlashBeam 尚未实现。
