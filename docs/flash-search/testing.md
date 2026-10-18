@@ -75,6 +75,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 内核能力（KG1，自动打出、卡池随机生成、变化）：`FlashKernel.AutoPlay`/`AutoPlayFromDrawPile` 复用打出管线，不可打出、无目标或 `ShouldPlay` 拒绝时移入结果牌堆，随机目标走 CombatTargets 流；新增 `AfterAutoPostPlayPhaseEntered` 派发点。生成池由 Bridge 按现有枚举冻结，内核按现有取样（去重或有放回）抽取，候选缺定义时按 `UnsupportedClosure` 拒绝；PrimalForce 用 `ReplaceCard` 原位替换为 GiantRock。实现 Havoc、Cascade、Hellraiser、HowlFromBeyond、Stampede、BeatDown、Catastrophe、PrimalForce、Jackpot；InfernalBlade、Stoke、Discovery、JackOfAllTrades、Splash、Calamity、Alchemize 已有定义，但生成闭包仍含未定义的卡或药水，根被拒绝；Entropy 跳过。3 个 `coverage/fixtures/cards/flash-kg1-*.json` 每根 48 条游走零差异，临时计数确认自动打出、生成与变化在游走中发生。
 
+药水（R3）：DistilledChaos 用 `AutoPlayFromDrawPile` 实现，3 个 `coverage/fixtures/cards/flash-r3-*.json` 每根 48 条游走零差异；OrobicAcid 按现有卡池生成语义实现，但生成闭包仍缺 OneTwoPunch、Stomp、Thrash、Unrelenting、Vicious 等卡，根被拒绝。AttackPotion、SkillPotion、PowerPotion、ColorlessPotion 暂不定义：它们的 0..1 生成选择由 `PotionChoiceSupport` 结算，Flash 的回放翻译尚未覆盖。EntropicBrew（战斗外药水池与免费状态）、Duplicator、GigantificationPotion、Ambergris 与角色专属药水跳过。
+
 ### 2.2 搜索演进摘要
 
 完整表格与分析见 [搜索演进测试记录](../archive/flash-search/testing-search-2026-10-19.md)。

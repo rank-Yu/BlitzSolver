@@ -193,6 +193,47 @@ public static class FlashCardEffects
     }
 
     /// <summary>
+    /// Samples <paramref name="count"/> distinct cards of one canonical type from the root-frozen
+    /// <see cref="FlashCardPools.CharacterAll"/> pool, mirroring
+    /// <c>CombatCardGenerationExtensions.GetDistinctUnlockedCharacterCardsForCombat</c>'s predicate
+    /// path: the caller's type filter is applied to the combat/player-count-filtered candidates in
+    /// pool order, then <c>TakeRandom</c> runs a full Fisher-Yates over the filtered list before
+    /// taking the first cards (the distinct path of <see cref="FlashKernel.SampleCardPool"/>, with the
+    /// filter applied first). Cards are created at upgrade 0 by <see cref="FlashKernel.CreateCard"/>.
+    /// </summary>
+    public static int SampleCharacterCardsOfType(ref FlashBattle battle, FlashRules rules, FlashCardType type,
+        int count, Span<FlashCard> selected)
+    {
+        FlashCardPool pool = rules.CardPool(FlashCardPools.CharacterAll);
+        if (pool.Cards.Length == 0)
+            return 0;
+        if (count > 0 && selected.Length < count)
+            throw new FlashCapacityException("GeneratedCards", selected.Length);
+        Span<ushort> order = stackalloc ushort[pool.Cards.Length];
+        int eligible = 0;
+        for (int index = 0; index < pool.Cards.Length; index++)
+        {
+            ushort id = pool.Cards[index];
+            if (rules.Card(id, 0).Type == type)
+                order[eligible++] = id;
+        }
+        if (eligible == 0)
+            return 0;
+        order = order[..eligible];
+        ref FlashRngState rng = ref battle.RngStream(FlashRngStream.CombatCardGeneration);
+        for (int n = order.Length; n > 1;)
+        {
+            n--;
+            int k = rng.NextInt(n + 1);
+            (order[k], order[n]) = (order[n], order[k]);
+        }
+        int take = Math.Min(count, order.Length);
+        for (int index = 0; index < take; index++)
+            selected[index] = FlashKernel.CreateCard(rules, order[index]);
+        return take;
+    }
+
+    /// <summary>
     /// One hit on a random hittable enemy, mirroring <c>Rng.CombatTargets.NextItem(HittableEnemies)</c>:
     /// the CombatTargets stream is consumed only when the candidate list is non-empty.
     /// </summary>
