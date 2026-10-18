@@ -65,7 +65,8 @@ public static partial class FlashKernel
         for (int position = 0; position < actingCount; position++)
             acting[position] = EnemyOwner(x.B.Roster[position]);
 
-        x.B.Side = FlashSide.Enemy;
+        SetSide(ref x.B, FlashSide.Enemy);
+        // BeginSideTurn for the enemies: their per-turn counters are not tracked.
         for (int position = 0; position < x.B.RosterCount; position++)
             SnapshotPowerAmountsAtTurnStart(ref x.B, EnemyOwner(x.B.Roster[position]));
         // Each phase reads the live enemy list, as the existing engine passes simulatedCombat.Enemies.
@@ -118,6 +119,29 @@ public static partial class FlashKernel
         if (CheckWinCondition(ref x.B))
             return;
         PrepareMonsterMovesForNextRound(ref x);
+    }
+
+    /// <summary><c>SimulatedCombatState.CurrentSide</c> setter: a side change clears the lost-HP marks.</summary>
+    private static void SetSide(ref FlashBattle battle, FlashSide side)
+    {
+        if (battle.Side != side)
+            ClearLostHpThisTurn(ref battle);
+        battle.Side = side;
+    }
+
+    private static void ClearLostHpThisTurn(ref FlashBattle battle)
+    {
+        battle.Player.Flags &= ~FlashCreatureFlags.LostHpThisTurn;
+        battle.Osty.Flags &= ~FlashCreatureFlags.LostHpThisTurn;
+        for (int index = 0; index < battle.EnemyCount; index++)
+            battle.Enemies[index].Creature.Flags &= ~FlashCreatureFlags.LostHpThisTurn;
+    }
+
+    /// <summary><c>SimulatedCombatState.BeginSideTurn</c> for the player: resets the per-turn counters.</summary>
+    private static void BeginPlayerSideTurn(ref FlashBattle battle)
+    {
+        for (FlashCounter counter = FlashCounter.CardsPlayedThisTurn; counter <= FlashCounter.EnergySpentThisTurn; counter++)
+            battle.SetCounter(counter, 0);
     }
 
     /// <summary>Owners of the roster enemies in roster order.</summary>
@@ -237,9 +261,12 @@ public static partial class FlashKernel
     /// </summary>
     private static void AdvanceRoundPlayerStart(ref FlashExec x)
     {
-        x.B.Side = FlashSide.Player;
+        SetSide(ref x.B, FlashSide.Player);
         x.B.Round++;
         x.B.PlayerTurn++;
+        // RoundNumber and AdvancePlayerTurn also clear the lost-HP marks; BeginSideTurn(player):
+        ClearLostHpThisTurn(ref x.B);
+        BeginPlayerSideTurn(ref x.B);
         SnapshotPowerAmountsAtTurnStart(ref x.B, FlashLimits.PlayerOwner);
         ReadOnlySpan<byte> player = [FlashLimits.PlayerOwner];
         BeforeSideTurnStart(ref x, FlashSide.Player, player);

@@ -185,6 +185,9 @@ public enum FlashCreatureFlags : byte
 {
     None = 0,
     Present = 1 << 0,
+
+    /// <summary>Took unblocked damage in the current side turn (<c>SimulatedCombatState._unblockedDamageThisTurn</c>).</summary>
+    LostHpThisTurn = 1 << 1,
 }
 
 /// <summary>Native <c>SimulatedCombatState</c> death phase of an enemy.</summary>

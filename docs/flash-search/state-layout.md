@@ -25,7 +25,7 @@
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
 | Potions | 各槽药水 Id 与标志 | 5 |
 | Orbs | `FlashOrb`：球 Id、累积值；容量与数量 | 10 |
-| Counters | 按 `FlashCounter` 编号的整数计数器：本回合与本场历史计数、累计失血、回复量等 | 48 |
+| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除 | 48 |
 | Rng | 九条战斗 RNG：计数器加四个 64 位状态字 | 9 |
 
 ### 2.1 FlashCard

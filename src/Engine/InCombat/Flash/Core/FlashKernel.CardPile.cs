@@ -105,7 +105,7 @@ public static partial class FlashKernel
             return;
         FlashCard card = FlashPiles.At(ref x.B, from, index);
         MoveCard(ref x.B, from, index, FlashPile.Exhaust);
-        // RecordCardExhausted: no tracked counter yet.
+        x.B.AddCounter(FlashCounter.CardsExhaustedThisTurn, 1);
         AfterCardExhaustedHook after = new() { Card = card, CausedByEthereal = causedByEthereal };
         FlashHooks.Dispatch(ref x, ref after, gatedByEnding: true);
     }

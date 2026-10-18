@@ -69,7 +69,10 @@ public static partial class FlashKernel
             if (x.NeedsChoice)
                 return;
         }
-        // EndAttackContext(completed): AfterAttack iterates the combat listeners without the ending gate.
+        // EndAttackContext(completed): RecordCreatureAttacked, then AfterAttack iterates the combat
+        // listeners without the ending gate.
+        if (attacker == FlashLimits.PlayerOwner)
+            x.B.AddCounter(FlashCounter.PlayerAttacksThisTurn, 1);
         AfterAttackHook after = new() { Attacker = attacker };
         FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
     }
@@ -240,10 +243,17 @@ public static partial class FlashKernel
         };
     }
 
-    /// <summary>Mirrors the counters of <c>SimulatedCombatState.RecordDamageReceived</c> that Flash tracks.</summary>
+    /// <summary>
+    /// Mirrors the parts of <c>SimulatedCombatState.RecordDamageReceived</c> that Flash tracks: the
+    /// lost-HP-this-turn mark of every receiver and the player's cumulative HP loss. Powered attack
+    /// hit records are not tracked yet.
+    /// </summary>
     private static void RecordDamageReceived(ref FlashBattle battle, byte receiver, in FlashDamageResult result)
     {
-        if (result.UnblockedDamage > 0 && receiver == FlashLimits.PlayerOwner)
+        if (result.UnblockedDamage <= 0)
+            return;
+        battle.Creature(receiver).Flags |= FlashCreatureFlags.LostHpThisTurn;
+        if (receiver == FlashLimits.PlayerOwner)
             battle.AddCounter(FlashCounter.CumulativeHpLost, result.UnblockedDamage);
     }
 

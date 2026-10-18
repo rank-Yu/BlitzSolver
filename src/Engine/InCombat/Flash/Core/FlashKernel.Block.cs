@@ -13,6 +13,9 @@ public static partial class FlashKernel
         // AfterModifyingBlockAmount has no supported listeners yet.
         if (modified > 0m)
         {
+            // RecordPoweredCardBlockGained: block gained inside a card play with a Move prop.
+            if (fromCard && (props & FlashValueProps.Move) != 0)
+                x.B.AddCounter(FlashCounter.BlockCardsPlayedThisTurn, 1);
             ref FlashCreature creature = ref x.B.Creature(owner);
             creature.Block = (int)Math.Min(creature.Block + modified, FlashLimits.ValueClamp);
         }

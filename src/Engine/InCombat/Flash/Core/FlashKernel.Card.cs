@@ -70,6 +70,8 @@ public static partial class FlashKernel
         int starValue = StarCostWithModifiers(battle, card);
         x.XValue = energyValue;
         if (energyValue > 0)
+            battle.AddCounter(FlashCounter.EnergySpentThisTurn, energyValue);
+        if (energyValue > 0)
             battle.Energy = (int)Math.Clamp((long)battle.Energy - energyValue, 0, FlashLimits.ValueClamp);
         // AfterEnergySpent (Orbit) is not supported yet.
         if (starValue > 0)
@@ -109,6 +111,7 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
+            RecordCardPlayStarted(ref x.B, stats, index, energyValue);
             def.OnPlay(ref x);
             if (x.NeedsChoice)
             {
@@ -137,7 +140,14 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
-            // CompleteCardPlayEffects: no tracked counters yet.
+            // CompleteCardPlayEffects: power amount resolution has no supported listeners yet.
+            RecordCardPlayed(ref x.B, stats);
+            // The tail fails when the owner died during the completion effects.
+            if (x.B.Player.IsDead)
+            {
+                completed = false;
+                break;
+            }
         }
         x.EffectDepth--;
         if (x.NeedsChoice || !completed)
@@ -159,6 +169,40 @@ public static partial class FlashKernel
                 MoveCard(ref x.B, FlashPile.Play, playPosition, result);
         }
         // AfterHandEmptied has no supported listeners yet.
+    }
+
+    /// <summary>Mirrors <c>SimulatedCombatState.RecordCardPlayStarted</c> for a manual play.</summary>
+    private static void RecordCardPlayStarted(ref FlashBattle battle, FlashCardStats stats, int playIndex, int energyValue)
+    {
+        battle.AddCounter(FlashCounter.CardPlayStartsThisTurn, 1);
+        if (stats.Type == FlashCardType.Attack)
+            battle.AddCounter(FlashCounter.AttackPlayStartsThisTurn, 1);
+        if (stats.Type is FlashCardType.Attack or FlashCardType.Skill)
+            battle.AddCounter(FlashCounter.AttackSkillStartsThisTurn, 1);
+        if (stats.Type == FlashCardType.Attack && energyValue == 0)
+            battle.AddCounter(FlashCounter.ZeroCostAttackStartsThisTurn, 1);
+        if (playIndex != 0)
+            return;
+        battle.AddCounter(FlashCounter.CardPlaySeriesStartedThisTurn, 1);
+        battle.AddCounter(FlashCounter.ManualCardsPlayedThisTurn, 1);
+    }
+
+    /// <summary>
+    /// Mirrors <c>RecordCardPlayed</c> then <c>RecordCardLifecycle</c> in
+    /// <c>SimulatedCombatState.CompleteCardPlayEffects</c>. Slow, Fetch, relic card counters and
+    /// returning cards are not supported yet.
+    /// </summary>
+    private static void RecordCardPlayed(ref FlashBattle battle, FlashCardStats stats)
+    {
+        if (stats.Type == FlashCardType.Attack)
+        {
+            battle.AddCounter(FlashCounter.AttacksPlayedThisTurn, 1);
+            if ((stats.Tags & FlashCardTag.Shiv) != 0)
+                battle.AddCounter(FlashCounter.ShivsPlayedThisTurn, 1);
+        }
+        battle.AddCounter(FlashCounter.CardsPlayedThisTurn, 1);
+        if (stats.Type == FlashCardType.Skill)
+            battle.AddCounter(FlashCounter.SkillCardsPlayedThisTurn, 1);
     }
 
     /// <summary>Mirrors <c>CardResultLocationMirrors.GetResultLocation</c> for the supported cards.</summary>

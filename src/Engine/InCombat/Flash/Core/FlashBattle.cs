@@ -57,23 +57,27 @@ public enum FlashPile : byte
 /// </summary>
 public enum FlashCounter : byte
 {
+    // Player per-turn counters (SimulatedCombatState maps keyed by the player creature). They reset
+    // in BeginSideTurn at the player turn start and persist through the enemy turn.
     CardsPlayedThisTurn,
+    ManualCardsPlayedThisTurn,
+    CardPlayStartsThisTurn,
+    AttackPlayStartsThisTurn,
+    AttackSkillStartsThisTurn,
+    ZeroCostAttackStartsThisTurn,
+    CardPlaySeriesStartedThisTurn,
     AttacksPlayedThisTurn,
-    SkillsPlayedThisTurn,
-    PowersPlayedThisTurn,
-    CardsDrawnThisTurn,
+    ShivsPlayedThisTurn,
+    SkillCardsPlayedThisTurn,
+    BlockCardsPlayedThisTurn,
     CardsExhaustedThisTurn,
     CardsDiscardedThisTurn,
+    PlayerAttacksThisTurn,
     EnergySpentThisTurn,
-    UnblockedDamageThisTurn,
+
+    // Combat-long player counters.
     CumulativeHpLost,
     RecoveredHp,
-    HistoryFinishedPlays,
-    HistoryEtherealPlays,
-    HistoryLightningChannels,
-    HistoryUnblockedHitsReceived,
-    HistoryCardsDrawn,
-    HistoryCardsGenerated,
 }
 
 /// <summary>
