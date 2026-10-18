@@ -53,7 +53,13 @@ P3 新增铁甲战士卡牌 13 张：燃烧、无惧疼痛、势不可当、残�
 
 未验证：fixture 注入的卡都不是牌组卡，愤怒复制品清除牌组链接这一点只有源码对照，没有差分覆盖。外部 agent 跳过的卡（原因均为当时内核缺少的阶段或 Hook）：狂怒、火焰屏障、撕裂（旧引擎写入 `RupturePredictionState`，导入拒绝）、凶恶（`AfterPowerAmountChanged`）、岩石铠甲、坚定不移、薪火之源、惊逃、地狱狂徒、杂耍、连环拳、绯红披风。
 
-### 2.4 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
+### 2.4 选择（2026-10-18）
+
+内核新增卡牌选择（`OwnChoice`、`ChooseCards`/`ChooseCardsInRange`、消耗/移动/升级选中卡、卡牌升级）与 Bridge 选择翻译；新增武装、头槌、燃烧契约、坚毅、烙印。固定根 `coverage/fixtures/cards/flash-c1-choice-cards.json`（五张卡各含升级版，弃牌堆有相同的卡，无惧疼痛在场让选择中的消耗触发 Hook）：64 条随机游走中单步 64 次、游走 1,916 次转移零差异，其中 634 次带选择的动作，旧引擎每个选择请求的效果、来源、时机、数量与同序选项都与 Flash 一致。调试中发现并修正：`Spec` 无选项时不提问、`BuildRequiredEmptyChoice` 的空选择、相同卡按出现序号定位。合入后 15 根回归（每根 32 条游走）零差异。
+
+端到端（`OFFLINE_HARNESS_FLASH_SOLVE=1`，同一 fixture，Beam 24、2000 节点）：现有求解失血 1、约 2.5 s；Flash 失血 0、约 223 ms（热运行约 150 ms），路线含 6 次选择，逐步核对与固定前缀物化全部通过。
+
+### 2.5 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
 
 同一根先用现有 `CombatBeamSolver` 求解，再走 Flash：准入 → FlashBeam → 逐步旧引擎回放核对 → 固定前缀物化。两个根的 Flash 路线逐步核对全部一致，物化成功。宿主默认档位（Beam 24、2000 节点），种子 FLASH1：
 
@@ -67,6 +73,6 @@ P3 新增铁甲战士卡牌 13 张：燃烧、无惧疼痛、势不可当、残�
 ## 3. 已知限制与未验证项
 
 - 只覆盖上述纵切内容；其他内容在准入阶段拒绝，尚未有差分证据。
-- 选择分支（`NeedsChoice`）在当前内容中不会出现，探针遇到时跳过并计数。
+- 选择只覆盖卡牌自身的单选（消耗、移到抽牌堆顶、升级）；多选、回合开始选择、嵌套选择与自动打出中的选择尚无差分证据。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
 - 未做可见游戏或实机部署验证；FlashBeam 只在离线宿主上与现有求解对照过两个根，未接入协调器。

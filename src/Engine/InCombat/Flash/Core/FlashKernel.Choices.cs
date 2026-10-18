@@ -1,0 +1,194 @@
+namespace CombatSolver.Engine.InCombat.Flash;
+
+/// <summary>
+/// Card selections and the effects applied to the selected cards, mirroring
+/// <c>SimulatedCombatState.ResolveActionCardChoice</c> and <c>CardChoiceSupport.Apply</c>.
+/// </summary>
+public static partial class FlashKernel
+{
+    /// <summary>
+    /// A choice built by <c>CardChoiceSupport.Spec</c>: select exactly <paramref name="count"/> of
+    /// <paramref name="options"/> (all of them when fewer). With no options the existing engine builds
+    /// no spec and asks nothing, so this returns true with nothing selected.
+    /// </summary>
+    public static bool ChooseCards(ref FlashExec x, FlashChoiceEffect effect, FlashPile pile, scoped ReadOnlySpan<int> options,
+        int count, scoped Span<int> selected, out int selectedCount)
+    {
+        if (options.IsEmpty)
+        {
+            selectedCount = 0;
+            return true;
+        }
+        return ChooseCardsInRange(ref x, effect, pile, options, count, count, selected, out selectedCount);
+    }
+
+    /// <summary>
+    /// A choice built by <c>CardChoiceSupport.RangeSpec</c>: requests a selection among
+    /// <paramref name="options"/> (indexes into <paramref name="pile"/>, in the existing engine's option
+    /// order). Bounds are clamped to the option count as <c>CardChoiceSupport.BuildChoices</c> does; an
+    /// empty option list still asks for an (empty) selection. Returns false when the action carried no
+    /// choice for it; the caller must unwind. Selected indexes are written in option order.
+    /// </summary>
+    public static bool ChooseCardsInRange(ref FlashExec x, FlashChoiceEffect effect, FlashPile pile, scoped ReadOnlySpan<int> options,
+        int minCount, int maxCount, scoped Span<int> selected, out int selectedCount)
+    {
+        if (options.Length > FlashLimits.MaxChoiceOptions)
+            throw new FlashCapacityException("Choice.Options", FlashLimits.MaxChoiceOptions);
+        FlashChoiceRequest request = new()
+        {
+            Kind = FlashChoiceKind.SelectCards,
+            Effect = effect,
+            Timing = x.ChoiceTiming,
+            Source = pile,
+            OptionCount = (byte)options.Length,
+            MinCount = (byte)Math.Min(minCount, options.Length),
+            MaxCount = (byte)Math.Min(maxCount, options.Length),
+        };
+        int start = FlashPiles.Start(x.B, pile);
+        for (int index = 0; index < options.Length; index++)
+            request.Options[index] = checked((byte)(start + options[index]));
+        selectedCount = 0;
+        if (!x.TryTakeChoice(request, out ulong selection))
+            return false;
+        for (int index = 0; index < options.Length; index++)
+        {
+            if ((selection & (1UL << index)) != 0)
+                selected[selectedCount++] = options[index];
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// A selected card remembered by value and by occurrence: it is the <see cref="Occurrence"/>-th card
+    /// byte-equal to <see cref="Card"/> in its pile. Equal cards at different positions are not
+    /// interchangeable (removing one or the other leaves the pile in a different order), so the
+    /// occurrence plays the role of the existing engine's card identity.
+    /// </summary>
+    private struct SelectedCard
+    {
+        public FlashCard Card;
+        public int Occurrence;
+    }
+
+    /// <summary>Records the selected pile indexes (ascending) by value and occurrence before any effect runs.</summary>
+    private static void SnapshotSelected(in FlashBattle battle, FlashPile pile, scoped ReadOnlySpan<int> selected,
+        Span<SelectedCard> cards)
+    {
+        int start = FlashPiles.Start(battle, pile);
+        for (int index = 0; index < selected.Length; index++)
+        {
+            FlashCard card = battle.Cards[start + selected[index]];
+            int occurrence = 0;
+            for (int prior = 0; prior < selected[index]; prior++)
+            {
+                if (FlashFingerprint.Equal(battle.Cards[start + prior], card))
+                    occurrence++;
+            }
+            cards[index] = new SelectedCard { Card = card, Occurrence = occurrence };
+        }
+    }
+
+    /// <summary>
+    /// Current pile index of the <paramref name="item"/>-th selected card. Earlier selected cards equal
+    /// to it were before it and have already left the pile, which lowers its occurrence by their count.
+    /// </summary>
+    private static int LocateSelected(in FlashBattle battle, FlashPile pile, scoped ReadOnlySpan<SelectedCard> cards, int item)
+    {
+        int occurrence = cards[item].Occurrence;
+        for (int prior = 0; prior < item; prior++)
+        {
+            if (FlashFingerprint.Equal(cards[prior].Card, cards[item].Card))
+                occurrence--;
+        }
+        int start = FlashPiles.Start(battle, pile);
+        int count = FlashPiles.Count(battle, pile);
+        for (int index = 0; index < count; index++)
+        {
+            if (!FlashFingerprint.Equal(battle.Cards[start + index], cards[item].Card))
+                continue;
+            if (occurrence-- == 0)
+                return index;
+        }
+        throw new FlashUnsupportedException("所选卡牌在结算前已离开原牌堆。");
+    }
+
+    /// <summary>
+    /// Mirrors <c>TurnStartChoiceSupport.ContinueExhaustSelection</c>: exhausts the selected cards in
+    /// selection order. Exhaust hooks run between cards, so each card is located again (<see cref="LocateSelected"/>).
+    /// </summary>
+    public static void ExhaustSelected(ref FlashExec x, FlashPile pile, scoped ReadOnlySpan<int> selected)
+    {
+        Span<SelectedCard> cards = stackalloc SelectedCard[selected.Length];
+        SnapshotSelected(x.B, pile, selected, cards);
+        for (int index = 0; index < cards.Length; index++)
+        {
+            Exhaust(ref x, pile, LocateSelected(x.B, pile, cards, index));
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Mirrors the multi-card <c>CombatPredictionSimulator.AddToPile</c> for cards already in a combat
+    /// pile (<c>MoveToHand</c>, <c>MoveToDrawTop</c>): each card moves in selection order, with no hook
+    /// in between; a Top insertion leaves the last selected card on top.
+    /// </summary>
+    public static void MoveSelected(ref FlashBattle battle, FlashPile from, scoped ReadOnlySpan<int> selected, FlashPile to,
+        FlashPilePosition position)
+    {
+        if (selected.IsEmpty || IsEnding(battle) || battle.Player.IsDead)
+            return;
+        Span<SelectedCard> cards = stackalloc SelectedCard[selected.Length];
+        SnapshotSelected(battle, from, selected, cards);
+        for (int index = 0; index < cards.Length; index++)
+            MoveCard(ref battle, from, LocateSelected(battle, from, cards, index), to, position);
+    }
+
+    /// <summary>
+    /// Mirrors <c>PredictedCardExtensions.Upgrade</c> → <c>PredictionUtils.UpgradeCard</c>: no change when
+    /// the card is at its maximum level; otherwise one level up. The per-level rule stats give the
+    /// native <c>OnUpgrade</c> deltas: <c>EnergyCost.UpgradeBy</c> (base floored at zero, absolute local
+    /// modifiers capped at a lowered base), the star cost and keyword changes. Dynamic-variable deltas
+    /// relative to the rule base carry over unchanged.
+    /// </summary>
+    public static void UpgradeCard(FlashRules rules, ref FlashCard card)
+    {
+        FlashCardStats before = rules.Card(card.Id, card.Upgrade);
+        if (card.Upgrade >= before.MaxUpgradeLevel)
+            return;
+        FlashCardStats after = rules.Card(card.Id, card.Upgrade + 1);
+        if (before.CostsX != after.CostsX || before.StarCostsX != after.StarCostsX)
+            throw new FlashUnsupportedException("升级改变 X 费用的卡尚未支持。");
+        card.Upgrade++;
+        int addend = after.EnergyCost - before.EnergyCost;
+        if (!before.CostsX && addend != 0)
+        {
+            int previous = card.BaseCost;
+            int lowered = Math.Max(previous + addend, 0);
+            if (lowered < previous)
+            {
+                for (int index = 0; index < card.EnergyModifierCount; index++)
+                {
+                    ref FlashCostModifier modifier = ref card.EnergyModifiers[index];
+                    if (modifier.Type == FlashCostType.Absolute && modifier.Amount > lowered)
+                        modifier.Amount = (short)lowered;
+                }
+            }
+            card.BaseCost = checked((sbyte)lowered);
+        }
+        int starAddend = after.StarCost - before.StarCost;
+        if (!before.StarCostsX && starAddend != 0)
+            card.BaseStarCost = checked((sbyte)Math.Max(card.BaseStarCost + starAddend, 0));
+        FlashKeywords added = after.Keywords & ~before.Keywords;
+        FlashKeywords removed = before.Keywords & ~after.Keywords;
+        card.Keywords = (card.Keywords | added) & ~removed;
+    }
+
+    /// <summary>Upgrades the selected cards in selection order (no hook runs in between).</summary>
+    public static void UpgradeSelected(ref FlashExec x, FlashPile pile, scoped ReadOnlySpan<int> selected)
+    {
+        int start = FlashPiles.Start(x.B, pile);
+        foreach (int index in selected)
+            UpgradeCard(x.R, ref x.B.Cards[start + index]);
+    }
+}

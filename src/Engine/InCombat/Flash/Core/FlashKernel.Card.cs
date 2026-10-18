@@ -118,6 +118,12 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
+            def.OwnChoice(ref x);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
             // Tail: abort if the owner died; enchantment and affliction OnPlay are not supported yet.
             if (x.B.Player.IsDead)
             {

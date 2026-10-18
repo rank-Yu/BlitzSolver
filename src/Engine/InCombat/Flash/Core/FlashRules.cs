@@ -64,6 +64,9 @@ public sealed class FlashCardStats
     public required bool StarCostsX { get; init; }
     public required FlashKeywords Keywords { get; init; }
 
+    /// <summary>Native <c>MaxUpgradeLevel</c>; the card is upgradable while its level is below it.</summary>
+    public required int MaxUpgradeLevel { get; init; }
+
     /// <summary>Canonical native tags (Strike, Defend, Minion, Osty attack, Shiv).</summary>
     public FlashCardTag Tags { get; init; }
 

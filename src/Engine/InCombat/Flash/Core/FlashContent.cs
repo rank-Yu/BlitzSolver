@@ -209,6 +209,15 @@ public abstract class FlashCardDef : FlashListenerDef
     /// </summary>
     public abstract void OnPlay(ref FlashExec x);
 
+    /// <summary>
+    /// The card's own choice and its post-choice effects, run after <see cref="OnPlay"/> as the
+    /// existing engine's <c>ResolveManualCardChoice</c> stage does (<c>CardChoiceSupport.GetSpec</c>,
+    /// <c>Apply</c> and <c>ApplyPostChoiceEffects</c>). Most cards have none.
+    /// </summary>
+    public virtual void OwnChoice(ref FlashExec x)
+    {
+    }
+
     /// <summary>Card-specific playability (<c>CardIsPlayableMirrors</c>); most cards are always playable.</summary>
     public virtual bool IsPlayable(in FlashBattle battle, FlashRules rules, in FlashCard card) => true;
 

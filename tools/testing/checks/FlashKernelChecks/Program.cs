@@ -150,7 +150,7 @@ static FlashRules SliceRules()
     static FlashCardStats Stats(FlashCardType type, FlashTargetType target, int cost, decimal[] vars) => new()
     {
         Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = false,
-        StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None, Vars = vars,
+        StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None, MaxUpgradeLevel = 1, Vars = vars,
     };
 }
 

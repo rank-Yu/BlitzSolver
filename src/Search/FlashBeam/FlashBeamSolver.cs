@@ -38,7 +38,8 @@ internal sealed class FlashBeamSolver
     private const double HpWeight = 30_000d;
     private const double EnemyHpWeight = -10_000d;
     private const double ActionPenalty = -1d;
-    private const int MaxChoiceOptions = 64;
+    /// <summary>Selections explored per choice request (lexicographic within each size).</summary>
+    private const int MaxChoiceBranches = 32;
 
     private readonly FlashRules _rules;
     private readonly FlashBeamOptions _options;
@@ -132,13 +133,11 @@ internal sealed class FlashBeamSolver
         _transitions++;
         if (FlashKernel.Step(ref child, action, _rules, out FlashChoiceRequest request) == FlashStepResult.NeedsChoice)
         {
-            int options = Math.Min((int)request.OptionCount, MaxChoiceOptions);
-            if (request.MinCount > 1 || request.MaxCount > 1)
-                throw new FlashUnsupportedException("多选选择的搜索枚举尚未实现。");
-            if (request.MinCount == 0)
-                ExpandAction(ref parent, parentNode, action.WithChoice(0), next, ended, terminal);
-            for (int option = 0; option < options; option++)
-                ExpandAction(ref parent, parentNode, action.WithChoice(1UL << option), next, ended, terminal);
+            // Every executed selection is exact; the cap only bounds how many are explored.
+            Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
+            int count = FlashChoiceEnumerator.Enumerate(request, selections);
+            for (int index = 0; index < count; index++)
+                ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended, terminal);
             return;
         }
         int node = _nodes.Count;

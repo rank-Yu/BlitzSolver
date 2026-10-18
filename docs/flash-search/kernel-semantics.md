@@ -152,10 +152,12 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 ## 10. 选择协议
 
-- `FlashAction` 携带至多 4 个选择，每个选择是"选项列表上的位集合"。选项列表由需要选择的效果按确定顺序生成（通常是来源牌堆中满足条件的卡的位置）。
-- 效果请求第 k 个选择而动作只提供了不到 k 个时，内核停止执行，返回 `NeedsChoice` 与选项规格（来源、可选位置、最少与最多数量）。调用方丢弃这个半成品状态，枚举选项后从父状态重新执行同一动作。
-- 回合开始的选择由 `EndTurn` 动作携带，时序标签与旧引擎 `PlanChoiceTiming` 对应。
-- 物化时，Bridge 在旧引擎同一时点按位置取卡，生成旧引擎的 `PlanCardChoice` 令牌（卡牌 Id、升级、状态键与 occurrence）。
+- `FlashAction` 携带至多 4 个选择，每个选择是"选项列表上的位集合"。选项列表由需要选择的效果按现有引擎 `CardChoiceSupport.GetSpec` 的顺序生成（来源牌堆中满足条件的卡的位置）。
+- 效果请求第 k 个选择而动作只提供了不到 k 个时，内核停止执行，返回 `NeedsChoice` 与选项规格（效果、时机、来源牌堆、选项的绝对位置、最少与最多数量；数量已按选项数截断，与 `BuildChoices` 一致）。调用方丢弃这个半成品状态，枚举选项后从父状态重新执行同一动作。
+- 卡牌自己的选择在 `FlashCardDef.OwnChoice` 中，位于 `OnPlay` 之后、出牌收尾之前，对应现有引擎的 `ResolveManualCardChoice` 阶段（`GetSpec` → `Apply` → `ApplyPostChoiceEffects`）。`FlashKernel.ChooseCards` 对应 `CardChoiceSupport.Spec`：没有选项时不建规格、不提问，选择后效果照常执行；`ChooseCardsInRange` 对应 `RangeSpec`：没有选项也提问。`BuildRequiredEmptyChoice` 列出的卡（烙印等）在没有选项时提一个空选择。
+- 选中的卡按选择顺序结算（与令牌顺序一致）。字节相同的卡在不同位置并不等价（拿走哪一张会改变中间卡的顺序），所以内核按"值 + 第几张相同的卡"定位选中的卡，对应旧引擎令牌的 `SourceOccurrence`；结算过程中有 Hook 介入时每张卡重新定位。
+- 时机标签按现有引擎 `SetActionChoiceTiming` 的位置切换：出牌为 Action，回合结束开始时为 PlayerTurnEnd，敌方回合为 EnemyTurn，玩家回合开始为 PlayerTurnStart。回合开始的选择由 `EndTurn` 动作携带。
+- 翻译与校验：Bridge 用旧引擎逐次回放动作。旧引擎停在待定选择时，取 Flash 的下一个位集合，按旧引擎规格的同序选项生成 `PlanCardChoice` 令牌（`CardChoiceSupport.BuildSelectedChoiceForFlash`），再按现有搜索放置已解析分支的同一规则（`CombatBeamSolver.AppendPendingChoice`：回合阶段的进 `TurnStartChoices`，出牌第一个无来源请求为主选择，其余为嵌套选择）挂到动作上重放，直到旧引擎不再提问。选择次数不一致即校验失败。
 
 ## 11. RNG
 

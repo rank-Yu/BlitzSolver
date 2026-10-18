@@ -80,17 +80,48 @@ public enum FlashChoiceKind : byte
     SelectCards = 1,
 }
 
-/// <summary>Option list of a choice the kernel could not resolve from the action.</summary>
+/// <summary>What the selected cards undergo; mirrors the supported <c>PlanChoiceEffect</c> values.</summary>
+public enum FlashChoiceEffect : byte
+{
+    MoveToHand,
+    MoveToDrawTop,
+    Discard,
+    Exhaust,
+    Upgrade,
+}
+
+/// <summary>Phase the choice belongs to; mirrors <c>PlanChoiceTiming</c>.</summary>
+public enum FlashChoiceTiming : byte
+{
+    Action,
+    PlayerTurnEnd,
+    EnemyTurn,
+    PlayerTurnStart,
+}
+
+[InlineArray(FlashLimits.MaxChoiceOptions)]
+public struct FlashChoiceOptions
+{
+    private byte _first;
+}
+
+/// <summary>
+/// Option list of a choice the kernel could not resolve from the action. Options are absolute
+/// positions in <see cref="FlashBattle.Cards"/> of the (partial) battle at the time of the request,
+/// in the existing engine's option order; selections are bit sets over this list.
+/// </summary>
 public struct FlashChoiceRequest
 {
     public FlashChoiceKind Kind;
+    public FlashChoiceEffect Effect;
+    public FlashChoiceTiming Timing;
     public FlashPile Source;
     public byte OptionCount;
+
+    /// <summary>Selection size bounds, already clamped to the option count as the existing engine does.</summary>
     public byte MinCount;
     public byte MaxCount;
-
-    /// <summary>Native source model id of the effect asking, for translation to plan choices.</summary>
-    public ushort SourceCardId;
+    public FlashChoiceOptions Options;
 }
 
 /// <summary>
@@ -120,6 +151,7 @@ public ref struct FlashExec
         XValue = 0;
         PlayIndex = 0;
         EffectDepth = 0;
+        ChoiceTiming = FlashChoiceTiming.Action;
     }
 
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
@@ -141,6 +173,9 @@ public ref struct FlashExec
 
     /// <summary>Nesting depth of card/potion effects; <c>AfterHandEmptied</c> fires only at depth zero.</summary>
     public int EffectDepth;
+
+    /// <summary>Timing stamped on choice requests (<c>SimulatedCombatState.SetActionChoiceTiming</c>).</summary>
+    public FlashChoiceTiming ChoiceTiming;
 
     /// <summary>
     /// Takes the next carried choice. When none is left, records <paramref name="request"/>, sets

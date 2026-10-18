@@ -14,6 +14,7 @@ public static partial class FlashKernel
         if (!IsInProgress(x.B))
             return;
 
+        x.ChoiceTiming = FlashChoiceTiming.PlayerTurnEnd;
         // PlayerTurnEndLifecycle.RunPhaseOne.
         x.B.Phase = FlashPlayerPhase.End;
         // EndTurnPowerSupport.TriggerVeryEarly: no supported sources.
@@ -48,6 +49,7 @@ public static partial class FlashKernel
         ApplyEnemyDeathPowers(ref x);
 
         // ShouldTakeExtraTurn: no supported sources.
+        x.ChoiceTiming = FlashChoiceTiming.EnemyTurn;
         RunEnemyTurn(ref x);
         // The performed-move marks only carry information within one enemy turn.
         for (int index = 0; index < x.B.EnemyCount; index++)
@@ -261,6 +263,7 @@ public static partial class FlashKernel
     /// </summary>
     private static void AdvanceRoundPlayerStart(ref FlashExec x)
     {
+        x.ChoiceTiming = FlashChoiceTiming.PlayerTurnStart;
         SetSide(ref x.B, FlashSide.Player);
         x.B.Round++;
         x.B.PlayerTurn++;
