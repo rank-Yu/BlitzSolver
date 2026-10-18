@@ -6,6 +6,19 @@ namespace CombatSolver.Engine.InCombat.Flash;
 /// </summary>
 public static class FlashCardEffects
 {
+    /// <summary>Number of cards in every combat pile whose canonical tags include <paramref name="tag"/>.</summary>
+    public static int CountCardsWithTag(in FlashExec x, FlashCardTag tag)
+    {
+        int count = 0;
+        for (int position = 0; position < x.B.CardCount; position++)
+        {
+            ref readonly FlashCard card = ref x.B.Cards[position];
+            if ((x.R.Card(card.Id, card.Upgrade).Tags & tag) != 0)
+                count++;
+        }
+        return count;
+    }
+
     /// <summary>Current value of the card's i-th declared dynamic variable.</summary>
     public static decimal Var(in FlashExec x, int index)
     {
@@ -21,6 +34,13 @@ public static class FlashCardEffects
 
     /// <summary>Mirrors <c>GeneralCardMirrors.GeneralAttackOnPlay</c> for a plain damage variable and one hit.</summary>
     public static void GeneralAttack(ref FlashExec x, int damageVar, int hitCount = 1)
+        => Attack(ref x, Var(x, damageVar), hitCount);
+
+    /// <summary>
+    /// The attack half of the general recipe with an already-calculated damage value (BodySlam,
+    /// PerfectedStrike and the other <c>CalculatedDamageVar</c> cards).
+    /// </summary>
+    public static void Attack(ref FlashExec x, decimal damage, int hitCount = 1)
     {
         FlashCardStats stats = x.Stats ?? throw new InvalidOperationException("当前没有正在打出的卡。");
         FlashAttackTargeting targeting = stats.Target switch
@@ -30,7 +50,20 @@ public static class FlashCardEffects
             FlashTargetType.RandomEnemy => FlashAttackTargeting.Random,
             _ => throw new FlashUnsupportedException($"攻击目标类型 {stats.Target} 尚未实现。"),
         };
-        FlashKernel.CardAttack(ref x, Var(x, damageVar), hitCount, targeting, x.Target);
+        FlashKernel.CardAttack(ref x, damage, hitCount, targeting, x.Target);
+    }
+
+    /// <summary>
+    /// Self damage from the compensation path: <c>simulator.Damage(owner, HpLoss, Unblockable |
+    /// Unpowered | Move, owner)</c> with no card source (BloodWall, Breakthrough, Hemokinesis).
+    /// </summary>
+    public static void LoseHp(ref FlashExec x, decimal amount)
+    {
+        Span<byte> targets = stackalloc byte[1];
+        targets[0] = FlashLimits.PlayerOwner;
+        FlashKernel.Damage(ref x, targets, amount,
+            FlashValueProps.Unblockable | FlashValueProps.Unpowered | FlashValueProps.Move,
+            FlashLimits.PlayerOwner, hasCardSource: false, default);
     }
 
     /// <summary>Mirrors <c>GeneralCardMirrors.GeneralBlockOnPlay</c>.</summary>

@@ -129,3 +129,29 @@ public sealed class DexterityPower : FlashPowerDef
         return x.B.Powers[self.Index].Amount;
     }
 }
+
+/// <summary>
+/// Native <c>ColossusPower</c>: a powered attack against its owner by a dealer that has Vulnerable
+/// is multiplied by <c>DamageDecrease</c>. Ticks at the end of the enemy side
+/// (<c>ColossusPower.AfterSideTurnEnd</c>).
+/// </summary>
+[FlashContent("COLOSSUS_POWER")]
+public sealed class ColossusPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override bool TicksAtEnemySideEnd => true;
+
+    public override IReadOnlyList<string> VarNames => ["DamageDecrease"];
+
+    public override decimal ModifyDamageMultiplicative(ref FlashExec x, FlashListener self, in FlashDamageContext damage, decimal amount)
+    {
+        if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack() || damage.Dealer == FlashLimits.NoOwner)
+            return 1m;
+        if (FlashKernel.GetAmount(x.B, damage.Dealer, FlashRegistry.PowerId<VulnerablePower>()) <= 0)
+            return 1m;
+        return x.R.PowerVar(Id, 0);
+    }
+}

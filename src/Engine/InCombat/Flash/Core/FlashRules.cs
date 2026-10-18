@@ -40,6 +40,18 @@ public enum FlashCardRarity : byte
     Quest = 10,
 }
 
+/// <summary>Native <c>CardTag</c> set of a card, one bit per tag.</summary>
+[Flags]
+public enum FlashCardTag : byte
+{
+    None = 0,
+    Strike = 1 << 0,
+    Defend = 1 << 1,
+    Minion = 1 << 2,
+    OstyAttack = 1 << 3,
+    Shiv = 1 << 4,
+}
+
 /// <summary>Root-frozen data of one card id at one upgrade level.</summary>
 public sealed class FlashCardStats
 {
@@ -51,6 +63,9 @@ public sealed class FlashCardStats
     public required int StarCost { get; init; }
     public required bool StarCostsX { get; init; }
     public required FlashKeywords Keywords { get; init; }
+
+    /// <summary>Canonical native tags (Strike, Defend, Minion, Osty attack, Shiv).</summary>
+    public FlashCardTag Tags { get; init; }
 
     /// <summary>Base values of the native dynamic variables named by the card definition, in order.</summary>
     public required decimal[] Vars { get; init; }
@@ -237,5 +252,6 @@ public sealed class FlashRulesBuilder
             && left.StarCost == right.StarCost
             && left.StarCostsX == right.StarCostsX
             && left.Keywords == right.Keywords
+            && left.Tags == right.Tags
             && left.Vars.AsSpan().SequenceEqual(right.Vars);
 }

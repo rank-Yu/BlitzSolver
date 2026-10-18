@@ -39,7 +39,13 @@ K0 同时输出一个 Beam 形工作负载的单步耗时（复制父状态到�
 
 新增双重打击、铁斩波、柄击、耸肩无视、霹雳、上勾拳，以及虚弱、脆弱、敏捷。固定根 fixture：`coverage/fixtures/cards/flash-p1-fuzzy-wurm-weak.json`、`flash-p1-nibbits-normal.json`、`flash-p1-nibbits-weak.json`（全部卡牌含升级版，三种 Power 分别挂在玩家和敌人身上）。每根 48 条随机游走：单步 25 次、游走 1,807 次转移全部一致，包含 3 次玩家死亡结局。
 
-### 2.2 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
+### 2.2 第二批内容（P2，2026-10-18）
+
+新增铁甲战士卡牌 20 张：重锤、全身撞击、突破、放血术、血墙、完美打击、嘲讽、碎裂、震颤、旋风斩、回旋剑、掠夺、威吓、拆解、灰烬打击、余烬、熔火拳、单挑、焚燃、巨像；Power 巨像。完美打击按规则表中的原版卡牌标签统计打击牌。固定根：`coverage/fixtures/cards/flash-p2-a-basic-attacks.json`、`flash-p2-b-calculated.json`、`flash-p2-c-powers.json`、`flash-p2-d-x-random.json`。每根 48 条随机游走，单步 62 次、游走 1,900 次转移全部一致，包含 6 次玩家死亡结局。
+
+外部 agent 跳过并说明原因的卡：重创与蓄力打击（临时力量的生命周期）、不屈（改费用 Hook）、恶意、撕裂、邪眼（尚未维护的回合与历史计数）、痛打（跨卡的计算伤害）、倾泻（自动打出）、添柴（消耗后生成卡）。
+
+### 2.3 FlashBeam 端到端（v1，离线宿主 `OFFLINE_HARNESS_FLASH_SOLVE=1`）
 
 同一根先用现有 `CombatBeamSolver` 求解，再走 Flash：准入 → FlashBeam → 逐步旧引擎回放核对 → 固定前缀物化。两个根的 Flash 路线逐步核对全部一致，物化成功。宿主默认档位（Beam 24、2000 节点），种子 FLASH1：
 

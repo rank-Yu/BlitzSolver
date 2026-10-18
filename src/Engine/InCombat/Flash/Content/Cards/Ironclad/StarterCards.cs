@@ -1,3 +1,4 @@
+
 namespace CombatSolver.Engine.InCombat.Flash.Content.Cards.Ironclad;
 
 // Existing engine: StrikeIronclad and DefendIronclad run the inferred Attack/Block recipe;
