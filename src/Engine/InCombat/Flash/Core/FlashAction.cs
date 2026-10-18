@@ -147,6 +147,24 @@ public struct FlashChoiceRequest
 }
 
 /// <summary>
+/// One queued power amount change (<c>SimulatedPowerAmountChange</c>): the changed power id, the
+/// applied delta and the applier. Only transient between <see cref="FlashKernel.ApplyPower"/> and the
+/// next <see cref="FlashKernel.ResolvePowerAmountChanges"/>; a stable boundary has none queued.
+/// </summary>
+public struct FlashPowerAmountChange
+{
+    public ushort PowerId;
+    public byte Applier;
+    public int Delta;
+}
+
+[InlineArray(FlashLimits.PendingPowerAmountChanges)]
+public struct FlashPowerAmountChanges
+{
+    private FlashPowerAmountChange _first;
+}
+
+/// <summary>
 /// Stack-only execution context of one kernel step. Holds the battle by reference and the
 /// transient facts of the current action; nothing here survives the step.
 /// </summary>
@@ -178,6 +196,8 @@ public ref struct FlashExec
         IntrinsicDrawHandled = false;
         GeneratedOptions = default;
         GeneratedOptionCount = 0;
+        PendingPowerChanges = default;
+        PendingPowerChangeCount = 0;
     }
 
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
@@ -217,6 +237,37 @@ public ref struct FlashExec
     public FlashGeneratedChoiceOptions GeneratedOptions;
 
     public int GeneratedOptionCount;
+
+    /// <summary>Power amount changes recorded since the last resolution (empty at a stable boundary).</summary>
+    public FlashPowerAmountChanges PendingPowerChanges;
+
+    public int PendingPowerChangeCount;
+
+    /// <summary>Queues one applied power amount change for <see cref="FlashKernel.ResolvePowerAmountChanges"/>.</summary>
+    public void RecordPowerAmountChange(ushort powerId, int delta, byte applier)
+    {
+        if (delta == 0)
+            return;
+        if (PendingPowerChangeCount >= FlashLimits.PendingPowerAmountChanges)
+            throw new FlashCapacityException("PendingPowerAmountChanges", FlashLimits.PendingPowerAmountChanges);
+        PendingPowerChanges[PendingPowerChangeCount++] = new FlashPowerAmountChange
+        {
+            PowerId = powerId,
+            Applier = applier,
+            Delta = delta,
+        };
+    }
+
+    /// <summary>Removes the first <paramref name="count"/> resolved changes, keeping any appended during them.</summary>
+    public void ConsumePowerAmountChanges(int count)
+    {
+        int kept = PendingPowerChangeCount - count;
+        for (int index = 0; index < kept; index++)
+            PendingPowerChanges[index] = PendingPowerChanges[count + index];
+        for (int index = kept; index < PendingPowerChangeCount; index++)
+            PendingPowerChanges[index] = default;
+        PendingPowerChangeCount = kept;
+    }
 
     /// <summary>
     /// Takes the next carried choice. When none is left, records <paramref name="request"/>, sets

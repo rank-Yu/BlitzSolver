@@ -87,6 +87,13 @@ public enum FlashCounter : byte
     CumulativeHpLost,
     RecoveredHp,
 
+    /// <summary>
+    /// Player unblocked-damage events this combat (<c>History.Entries.OfType&lt;DamageReceivedEntry&gt;</c>
+    /// with <c>Receiver == owner &amp;&amp; Result.UnblockedDamage &gt; 0</c>): the TearAsunder multiplier.
+    /// Imported from the existing engine's pre-prediction history and incremented during the search.
+    /// </summary>
+    PlayerUnblockedDamageEvents,
+
     // Route counters read by the score port (FlashScorer). Appended only, so every existing value
     // keeps its index.
     LongTermResourceValue,
@@ -106,7 +113,7 @@ public enum FlashCounter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashBattle
 {
-    public const int ExpectedSize = 6240;
+    public const int ExpectedSize = 11808;
 
     public int Round;
     public int PlayerTurn;

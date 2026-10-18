@@ -108,6 +108,14 @@ public sealed class ExpectAFight : FlashCardDef
             + FlashCardEffects.Var(x, 1) * Math.Max(0, strength);
         FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, block, FlashValueProps.Move, fromCard: true);
     }
+
+    public override bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        int strength = FlashKernel.GetAmount(x.B, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.StrengthPower>());
+        damage = BodySlam.SelfVar(x, self, 0)
+            + BodySlam.SelfVar(x, self, 1) * Math.Max(0, strength);
+        return true;
+    }
 }
 
 [FlashContent("DOMINATE")]
@@ -123,7 +131,11 @@ public sealed class Dominate : FlashCardDef
         FlashKernel.ApplyPower(ref x, x.Target, vulnerable, (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
         if (x.NeedsChoice)
             return;
-        // CorePowerSupport.Dominate reads the target's resulting Vulnerable amount after applying it.
+        // CorePowerSupport.Dominate resolves queued power changes (Vicious) before reading the
+        // target's resulting Vulnerable amount.
+        FlashKernel.ResolvePowerAmountChanges(ref x);
+        if (x.NeedsChoice)
+            return;
         int amount = FlashKernel.GetAmount(x.B, x.Target, vulnerable);
         FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.StrengthPower>(),
             amount, FlashLimits.PlayerOwner);

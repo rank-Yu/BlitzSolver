@@ -23,11 +23,24 @@ public static class FlashLimits
     /// </summary>
     public const int MonsterRules = 32;
 
-    public const int CardEnergyCostModifiers = 2;
+    /// <summary>
+    /// Local energy-cost modifiers of one card. Stomp adds one <c>EndOfTurn</c> modifier per Attack
+    /// played this turn (<c>Stomp.BeforeCardPlayed</c>) on top of the modifiers other effects write,
+    /// so the native unbounded list needs room for a full turn's plays. Overflow still throws
+    /// <see cref="FlashCapacityException"/> and falls back instead of truncating.
+    /// </summary>
+    public const int CardEnergyCostModifiers = 16;
     public const int MaxChoices = 4;
 
     /// <summary>Options of one choice request; selections are bit sets over them.</summary>
     public const int MaxChoiceOptions = 64;
+
+    /// <summary>
+    /// Power amount changes queued between <c>ResolvePowerAmountChanges</c> calls. The existing engine
+    /// keeps an unbounded list; a single card's applications are far below this bound, so overflow
+    /// throws <see cref="FlashCapacityException"/> rather than truncating.
+    /// </summary>
+    public const int PendingPowerAmountChanges = 64;
 
     /// <summary>Options of a generated-card choice (not in any pile), carried by value.</summary>
     public const int MaxGeneratedChoiceOptions = 8;

@@ -138,3 +138,13 @@ public sealed class BattleTrance : FlashCardDef
             1, FlashLimits.PlayerOwner);
     }
 }
+
+[FlashContent("ONE_TWO_PUNCH")]
+public sealed class OneTwoPunch : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Attacks"];
+
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.OneTwoPunchPower>(),
+            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+}

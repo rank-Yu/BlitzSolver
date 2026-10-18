@@ -165,7 +165,12 @@ public static partial class FlashKernel
         x.B.DrawCount = checked((byte)total);
         x.B.DiscardCount = 0;
         x.B.ShuffleEventCount++;
-        // AfterShuffle has no supported listeners yet.
+        // CombatPredictionSimulator.Shuffle calls HookMirrors.AfterShuffle only while the combat is
+        // not over or ending. The hook then iterates the combat listeners without its own gate.
+        if (IsOverOrEnding(x.B))
+            return;
+        AfterShuffleHook after = new() { Shuffler = FlashLimits.PlayerOwner };
+        FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.Exhaust</c>.</summary>

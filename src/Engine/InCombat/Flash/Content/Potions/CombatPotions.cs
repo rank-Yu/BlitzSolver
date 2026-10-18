@@ -273,3 +273,12 @@ public sealed class LuckyTonic : FlashPotionDef
         => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.BufferPower>(),
             (int)FlashKernel.PotionVar(x, this, 0), FlashLimits.PlayerOwner);
 }
+
+[FlashContent("DUPLICATOR")]
+public sealed class Duplicator : FlashPotionDef
+{
+    // PotionOnUseSupport.Use, Duplicator case: Apply<DuplicationPower>(player, 1, player).
+    public override void OnUse(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+            FlashRegistry.PowerId<Powers.DuplicationPower>(), 1, FlashLimits.PlayerOwner);
+}

@@ -119,6 +119,10 @@ public static class FlashCardEffects
             if (!FlashKernel.IsHittable(x.B, owner))
                 continue;
             FlashKernel.ApplyPower(ref x, owner, powerId, amount, FlashLimits.PlayerOwner);
+            // CorePowerSupport.ApplyAll resolves after each target's application.
+            FlashKernel.ResolvePowerAmountChanges(ref x);
+            if (x.NeedsChoice)
+                return;
         }
     }
 

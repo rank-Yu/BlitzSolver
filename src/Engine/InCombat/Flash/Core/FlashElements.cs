@@ -81,15 +81,14 @@ public struct FlashCostModifiers
 
 /// <summary>
 /// The complete value of one card in a combat pile. Cards have no instance identity: two
-/// cards with equal bytes are interchangeable. Size is asserted to be 32 bytes.
+/// cards with equal bytes are interchangeable. Size is asserted to be 90 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashCard
 {
-    private const byte EnergyModifierCountMask = 0x03;
-    private const byte TemporaryStarPresentBit = 0x04;
-    private const byte TemporaryStarClearsAtTurnEndBit = 0x08;
-    private const byte TemporaryStarClearsWhenPlayedBit = 0x10;
+    private const byte TemporaryStarPresentBit = 0x01;
+    private const byte TemporaryStarClearsAtTurnEndBit = 0x02;
+    private const byte TemporaryStarClearsWhenPlayedBit = 0x04;
     private const int EnchantmentStatusShift = 5;
 
     public ushort Id;
@@ -102,10 +101,14 @@ public struct FlashCard
     public FlashCostModifiers EnergyModifiers;
 
     /// <summary>
-    /// Bits 0-1: energy modifier count; bit 2: temporary star cost present; bit 3: it clears at
-    /// turn end; bit 4: it clears when played; bits 5-7: native enchantment status.
+    /// Bit 0: temporary star cost present; bit 1: it clears at turn end; bit 2: it clears when
+    /// played; bits 5-7: native enchantment status. The energy modifier count has its own byte so
+    /// the capacity is not limited to the two bits the packed state used to have.
     /// </summary>
     public byte CostState;
+
+    /// <summary>Number of used entries in <see cref="EnergyModifiers"/> (0..<see cref="FlashLimits.CardEnergyCostModifiers"/>).</summary>
+    public byte ModifierCount;
 
     public sbyte TemporaryStarCost;
     public byte EnchantmentId;
@@ -123,12 +126,12 @@ public struct FlashCard
 
     public int EnergyModifierCount
     {
-        readonly get => CostState & EnergyModifierCountMask;
+        readonly get => ModifierCount;
         set
         {
             if ((uint)value > FlashLimits.CardEnergyCostModifiers)
                 throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
-            CostState = (byte)((CostState & ~EnergyModifierCountMask) | value);
+            ModifierCount = (byte)value;
         }
     }
 

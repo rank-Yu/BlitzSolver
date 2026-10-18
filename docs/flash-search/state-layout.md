@@ -25,15 +25,15 @@
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
 | Potions | 各槽药水 Id 与标志 | 5 |
 | Orbs | `FlashOrb`：球 Id、累积值；容量与数量 | 10 |
-| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除 | 48 |
+| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除 | 48 |
 | Rng | 九条战斗 RNG：计数器加四个 64 位状态字 | 9 |
 
 ### 2.1 FlashCard
 
-`FlashCard` 是卡牌的完整值，首版 24 字节。字段集以旧引擎卡牌状态键（`CaptureCardStateFingerprintForTesting`、`CardChoiceSupport.ChoiceCardKey`）为准：
+`FlashCard` 是卡牌的完整值，当前 90 字节。字段集以旧引擎卡牌状态键（`CaptureCardStateFingerprintForTesting`、`CardChoiceSupport.ChoiceCardKey`）为准：
 
 - 卡牌 Id、升级等级、本地关键字位图；
-- 费用：基础费用（含 X 费标志）、费用修饰栈（本场、本回合、直到打出、临时）、星能费用；
+- 费用：基础费用（含 X 费标志）、费用修饰栈（本场、本回合、直到打出、临时；容量 16，Stomp 每打出一张攻击追加一条 EndOfTurn 修饰）、星能费用；修饰数量使用独立字节，不再压进 `CostState` 的两位；
 - 状态标志：下次打出时消耗、本回合狡诈、本回合保留、是否牌组卡、已移出战斗；
 - `BaseReplayCount`；
 - 语义动态变量相对规则表基础值的增量（两格），以及少数卡牌的私有计数（Claw、Rampage、GeneticAlgorithm、Maul、MadScience、TheScythe 这类）；
@@ -87,4 +87,6 @@
 
 ## 6. 尺寸预算
 
-`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充，`FlashBattle` 实测仍为 6240 字节（首版卡牌区 3072 字节，96 张 × 32 字节）。复制 6 KB 在现代 CPU 上约百纳秒量级。F1 完成后测量单步转移耗时；如果复制成本占主导，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充。`FlashCard` 为 90 字节（96 张，费用修饰容量 16），`FlashBattle` 实测 11808 字节。K0 在同一台机器上测得 `copyOnly` 约 307 ns、`copyStep` 约 1.45 µs。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+
+Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。

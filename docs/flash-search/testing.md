@@ -77,6 +77,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 药水（R3）：DistilledChaos 用 `AutoPlayFromDrawPile` 实现，3 个 `coverage/fixtures/cards/flash-r3-*.json` 每根 48 条游走零差异；OrobicAcid 按现有卡池生成语义实现，但生成闭包仍缺 OneTwoPunch、Stomp、Thrash、Unrelenting、Vicious 等卡，根被拒绝。AttackPotion、SkillPotion、PowerPotion、ColorlessPotion 暂不定义：它们的 0..1 生成选择由 `PotionChoiceSupport` 结算，Flash 的回放翻译尚未覆盖。EntropicBrew（战斗外药水池与免费状态）、Duplicator、GigantificationPotion、Ambergris 与角色专属药水跳过。
 
+内核 Hook（KG2）：新增改费用（普通与 Late 两遍）、出牌去向、出牌次数、`AfterPowerAmountChanged`（按现有引擎的延迟队列在同样的位置排空）、`AfterShuffle`、`ModifyXValue`、玩家能量重置判定、接收侧 Power 数量修正、遗物 `AfterCardEnteredCombat` 的派发，`AfterDamageReceived` 带卡牌来源。实现 Corruption、Unrelenting、Stomp、OneTwoPunch、Vicious、TearAsunder、Thrash、Duplicator、TheAbacus、ChemicalX、IceCream、RuinedHelmet、GhostSeed；RupturePower 改为直接读取伤害来源。为容纳 Stomp 逐次追加的费用修饰，单卡修饰容量 2 → 16，`FlashCard` 90 字节、`FlashBattle` 11808 字节：48 根基准路线不变，FlashBeam 搜索耗时 +3.5%，每次求解托管分配平均 16 → 27 MB，留作之后压缩卡牌布局的候选。4 个 `coverage/fixtures/cards/flash-kg2-*.json` 每根 48 条游走零差异，临时计数确认每个新派发点在游走中触发。UnsettlingLamp（卡牌实例身份）与 SneckoSkull（无 Poison 定义）跳过。
+
 ### 2.2 搜索演进摘要
 
 完整表格与分析见 [搜索演进测试记录](../archive/flash-search/testing-search-2026-10-19.md)。

@@ -215,3 +215,23 @@ public sealed class Rupture : FlashCardDef
         => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.RupturePower>(),
             (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
 }
+
+[FlashContent("CORRUPTION")]
+public sealed class Corruption : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Power"];
+
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.CorruptionPower>(),
+            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+}
+
+[FlashContent("VICIOUS")]
+public sealed class Vicious : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Cards"];
+
+    public override void OnPlay(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.ViciousPower>(),
+            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+}

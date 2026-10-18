@@ -7,7 +7,7 @@ using CombatSolver.Engine.InCombat.Flash;
 // Pure Flash kernel contracts (K0): no game, no CombatSolver assembly. Differential equivalence
 // with the existing engine is checked separately by the offline harness probe.
 
-Check(Unsafe.SizeOf<FlashCard>() == 32, $"FlashCard 应为 32 字节，实际 {Unsafe.SizeOf<FlashCard>()}");
+Check(Unsafe.SizeOf<FlashCard>() == 90, $"FlashCard 应为 90 字节，实际 {Unsafe.SizeOf<FlashCard>()}");
 Check(Unsafe.SizeOf<FlashEnemy>() == 64, $"FlashEnemy 应为 64 字节，实际 {Unsafe.SizeOf<FlashEnemy>()}");
 Check(Unsafe.SizeOf<FlashPower>() == 24, $"FlashPower 应为 24 字节，实际 {Unsafe.SizeOf<FlashPower>()}");
 Check(Unsafe.SizeOf<FlashRngState>() == 40, $"FlashRngState 应为 40 字节，实际 {Unsafe.SizeOf<FlashRngState>()}");
@@ -22,6 +22,7 @@ CheckPiles();
 CheckMonsterForcedMoves(rules);
 CheckMonsterSpawn(SpawnRules());
 CheckGenerationAndAutoPlay();
+CheckKg2Hooks(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -689,6 +690,263 @@ static int ExpectedHp(ref FlashRngState niche, int minimum, int maximum, IReadOn
         return niche.NextInt(minimum, maximum + 1);
     int index = niche.NextInt(0, available.Count);
     return available.ElementAt(index);
+}
+
+
+// KG2: contracts for the new dispatch points. The helper definitions below are registered only in
+// this pure-kernel executable; they log call order and prove gate, listener scope and multi-pass order.
+static void CheckKg2Hooks(FlashRules rules)
+{
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD 定义");
+    Check(FlashRegistry.TryPower("KG2_TEST_COST_POWER", out ushort costPower), "缺少 KG2 费用 Power");
+    Check(FlashRegistry.TryPower("KG2_TEST_PLAY_COUNT_POWER", out ushort countPower), "缺少 KG2 出牌次数 Power");
+    Check(FlashRegistry.TryPower("KG2_TEST_RESULT_LOCATION_POWER", out ushort locationPower), "缺少 KG2 去向 Power");
+    Check(FlashRegistry.TryPower("KG2_TEST_POWER_CHANGE_POWER", out ushort changePower), "缺少 KG2 Power 数量 Power");
+    Check(FlashRegistry.TryPower("KG2_TEST_DAMAGE_SOURCE_POWER", out ushort damagePower), "缺少 KG2 伤害来源 Power");
+    Check(FlashRegistry.TryRelic("KG2_TEST_COST_RELIC", out ushort costRelic), "缺少 KG2 费用遗物");
+    Check(FlashRegistry.TryRelic("KG2_TEST_X_VALUE_RELIC", out ushort xRelic), "缺少 KG2 X 值遗物");
+    Check(FlashRegistry.TryRelic("KG2_TEST_RESET_RELIC", out ushort resetRelic), "缺少 KG2 能量重置遗物");
+    Check(FlashRegistry.TryRelic("KG2_TEST_RECEIVED_RELIC", out ushort receivedRelic), "缺少 KG2 Power 数量接收遗物");
+    Check(FlashRegistry.TryRelic("KG2_TEST_SHUFFLE_RELIC", out ushort shuffleRelic), "缺少 KG2 洗牌遗物");
+    Check(FlashRegistry.TryRelic("KG2_TEST_ENTERED_RELIC", out ushort enteredRelic), "缺少 KG2 进战斗遗物");
+    Check(FlashRegistry.TryRelic("KG2_TEST_POWER_CHANGE_RELIC", out ushort changeRelic), "缺少 KG2 Power 数量遗物");
+    Check(FlashRegistry.TryPower("VULNERABLE_POWER", out ushort VulnerableId), "缺少 VULNERABLE_POWER");
+    Check(FlashRegistry.TryPower("STRENGTH_POWER", out ushort StrengthId), "缺少 STRENGTH_POWER");
+
+    FlashBattle battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashCard card = FlashKernel.CreateCard(rules, defend);
+    FlashPiles.Append(ref battle, FlashPile.Hand, card);
+    battle.RelicCount = 6;
+    battle.Relics[0] = new FlashRelic { Id = costRelic };
+    battle.Relics[1] = new FlashRelic { Id = xRelic };
+    battle.Relics[2] = new FlashRelic { Id = resetRelic };
+    battle.Relics[3] = new FlashRelic { Id = receivedRelic };
+    battle.Relics[4] = new FlashRelic { Id = shuffleRelic };
+    battle.Relics[5] = new FlashRelic { Id = enteredRelic };
+    FlashExec x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, costPower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+
+    // Normal pass order: power then relic; late pass: power. Multiplicative late makes the order visible.
+    Kg2TestLog.Clear();
+    int cost = FlashKernel.EnergyCostWithModifiers(battle, rules, card, FlashPile.Hand);
+    Check(cost == 10, $"KG2 费用顺序应为 10，实际 {cost} log={string.Join(",", Kg2TestLog.Lines)}");
+    Check(string.Join(",", Kg2TestLog.Lines) == "cost-normal-power,cost-normal-relic,cost-late-power",
+        $"KG2 费用监听顺序错误：{string.Join(",", Kg2TestLog.Lines)}");
+    battle.Outcome = FlashOutcome.Victory;
+    int endedCost = FlashKernel.EnergyCostWithModifiers(battle, rules, card, FlashPile.Hand);
+    Check(endedCost == 1 && Kg2TestLog.Lines.Count == 3, "KG2 费用 Hook 应在战斗结束时跳过");
+    battle.Outcome = FlashOutcome.None;
+
+    // Result location: the changed power is recorded and its after hook runs.
+    Kg2TestLog.Clear();
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, locationPower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    Span<FlashListener> locationModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+    FlashPile location = FlashHooks.ModifyCardPlayResultLocation(ref x, card, false, 0, FlashPile.Discard,
+        locationModifiers, out int locationCount);
+    Check(location == FlashPile.Exhaust && locationCount == 1, "KG2 去向 Hook 未生效");
+    FlashHooks.AfterModifyingCardPlayResultLocation(ref x, card, location, locationModifiers[..locationCount]);
+    Check(Kg2TestLog.Lines.Contains("location-after"), "KG2 去向 After Hook 未派发");
+
+    // Play count: changed listener recorded, after only for changed listeners.
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, countPower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    Kg2TestLog.Clear();
+    Span<FlashListener> countModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+    int playCount = FlashHooks.ModifyCardPlayCount(ref x, card, FlashLimits.NoOwner, 1, countModifiers,
+        out int countModifierCount);
+    Check(playCount == 2 && countModifierCount == 1, "KG2 出牌次数 Hook 未生效");
+    FlashHooks.AfterModifyingCardPlayCount(ref x, card, countModifiers[..countModifierCount]);
+    Check(Kg2TestLog.Lines.Contains("count-after"), "KG2 出牌次数 After Hook 未派发");
+
+    // AfterPowerAmountChanged is power-only; the relic override must not be visited.
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, changePower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    // The relic hook is registered on a relic, not on a power and must not be visited by the
+    // power-only AfterPowerAmountChanged dispatch.
+    battle.RelicCount++;
+    battle.Relics[battle.RelicCount - 1] = new FlashRelic { Id = changeRelic };
+    Kg2TestLog.Clear();
+    FlashKernel.ApplyPower(ref x, FlashLimits.FirstEnemyOwner, VulnerableId, 1,
+        FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    Check(Kg2TestLog.Lines.Contains("power-changed"), "KG2 AfterPowerAmountChanged 未派发");
+    Check(!Kg2TestLog.Lines.Contains("power-changed-relic"), "KG2 AfterPowerAmountChanged 不应派发遗物");
+
+    // AfterShuffle, ModifyXValue, ShouldPlayerResetEnergy, AfterCardEnteredCombat.
+    Kg2TestLog.Clear();
+    FlashPiles.Append(ref battle, FlashPile.Discard, FlashKernel.CreateCard(rules, defend));
+    battle.DrawCount = 0;
+    FlashKernel.Shuffle(ref x);
+    Check(Kg2TestLog.Lines.Contains("shuffle"), "KG2 AfterShuffle 未派发");
+    Check(FlashHooks.ModifyXValue(battle, rules, card, 5) == 6, "KG2 ModifyXValue 未生效");
+    Check(!FlashHooks.ShouldPlayerResetEnergy(battle, rules, FlashLimits.PlayerOwner), "KG2 能量重置判定未生效");
+    Kg2TestLog.Clear();
+    Check(FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(rules, defend), FlashPile.Hand),
+        "KG2 生成卡加入失败");
+    Check(Kg2TestLog.Lines.Contains("entered"), "KG2 遗物 AfterCardEnteredCombat 未派发");
+
+    // Received power amount: the doubling pass runs before the Artifact check and the after records it.
+    Kg2TestLog.Clear();
+    int applied = FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+        StrengthId, 2, FlashLimits.PlayerOwner);
+    Check(applied == 4, $"KG2 接收 Power 数量应为 4，实际 {applied}");
+    Check(Kg2TestLog.Lines.Contains("received-after"), "KG2 AfterModifyingPowerAmountReceived 未派发");
+
+    // AfterDamageReceived carries the card source.
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, damagePower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    Kg2TestLog.Clear();
+    Span<byte> enemy = stackalloc byte[1];
+    enemy[0] = FlashLimits.FirstEnemyOwner;
+    FlashKernel.Damage(ref x, enemy, 1, FlashValueProps.Move, FlashLimits.PlayerOwner, true, card);
+    Check(Kg2TestLog.Lines.Contains("damage-card"), $"KG2 AfterDamageReceived 缺少卡牌来源 log={string.Join(",", Kg2TestLog.Lines)} outcome={battle.Outcome} flags={battle.Flags} hooks={FlashRegistry.Power(damagePower).Hooks}");
+    Kg2TestLog.Clear();
+    FlashKernel.Damage(ref x, enemy, 1, FlashValueProps.Move, FlashLimits.PlayerOwner, false, default);
+    Check(Kg2TestLog.Lines.Contains("damage-none"), $"KG2 AfterDamageReceived 无来源分支错误 log={string.Join(",", Kg2TestLog.Lines)}");
+}
+
+static class Kg2TestLog
+{
+    public static List<string> Lines { get; } = [];
+
+    public static void Clear() => Lines.Clear();
+
+    public static void Add(string line) => Lines.Add(line);
+}
+
+[FlashContent("KG2_TEST_COST_POWER")]
+public sealed class Kg2TestCostPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override decimal TryModifyEnergyCostInCombat(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount)
+    {
+        Kg2TestLog.Add("cost-normal-power");
+        return amount + 1m;
+    }
+
+    public override decimal TryModifyEnergyCostInCombatLate(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount)
+    {
+        Kg2TestLog.Add("cost-late-power");
+        return amount * 2m;
+    }
+}
+
+[FlashContent("KG2_TEST_COST_RELIC")]
+public sealed class Kg2TestCostRelic : FlashRelicDef
+{
+    public override decimal TryModifyEnergyCostInCombat(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount)
+    {
+        Kg2TestLog.Add("cost-normal-relic");
+        return amount + 3m;
+    }
+}
+
+[FlashContent("KG2_TEST_RESULT_LOCATION_POWER")]
+public sealed class Kg2TestResultLocationPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override FlashPile ModifyCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
+        bool isAutoPlay, int energyValue, FlashPile location) => FlashPile.Exhaust;
+
+    public override void AfterModifyingCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
+        FlashPile location) => Kg2TestLog.Add("location-after");
+}
+
+[FlashContent("KG2_TEST_PLAY_COUNT_POWER")]
+public sealed class Kg2TestPlayCountPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
+        int playCount) => playCount + 1;
+
+    public override void AfterModifyingCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card)
+        => Kg2TestLog.Add("count-after");
+}
+
+[FlashContent("KG2_TEST_POWER_CHANGE_POWER")]
+public sealed class Kg2TestPowerChangePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
+        byte applier) => Kg2TestLog.Add("power-changed");
+}
+
+[FlashContent("KG2_TEST_POWER_CHANGE_RELIC")]
+public sealed class Kg2TestPowerChangeRelic : FlashRelicDef
+{
+    public override void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
+        byte applier) => Kg2TestLog.Add("power-changed-relic");
+}
+
+[FlashContent("KG2_TEST_X_VALUE_RELIC")]
+public sealed class Kg2TestXValueRelic : FlashRelicDef
+{
+    public override int ModifyXValue(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card,
+        int value) => value + 1;
+}
+
+[FlashContent("KG2_TEST_RESET_RELIC")]
+public sealed class Kg2TestResetRelic : FlashRelicDef
+{
+    public override bool ShouldPlayerResetEnergy(in FlashBattle battle, FlashRules rules, FlashListener self,
+        byte player) => false;
+}
+
+[FlashContent("KG2_TEST_RECEIVED_RELIC")]
+public sealed class Kg2TestReceivedRelic : FlashRelicDef
+{
+    public override bool TryModifyPowerAmountReceived(in FlashBattle battle, FlashRules rules, FlashListener self,
+        ushort powerId, byte target, int amount, out int modified)
+    {
+        modified = amount * 2;
+        return amount > 0;
+    }
+
+    public override void AfterModifyingPowerAmountReceived(ref FlashExec x, FlashListener self, ushort powerId,
+        byte target) => Kg2TestLog.Add("received-after");
+}
+
+[FlashContent("KG2_TEST_SHUFFLE_RELIC")]
+public sealed class Kg2TestShuffleRelic : FlashRelicDef
+{
+    public override void AfterShuffle(ref FlashExec x, FlashListener self, byte shuffler)
+        => Kg2TestLog.Add("shuffle");
+}
+
+[FlashContent("KG2_TEST_ENTERED_RELIC")]
+public sealed class Kg2TestEnteredRelic : FlashRelicDef
+{
+    public override void AfterCardEnteredCombat(ref FlashExec x, FlashListener self, FlashPile pile, int index,
+        in FlashCard card) => Kg2TestLog.Add("entered");
+}
+
+[FlashContent("KG2_TEST_DAMAGE_SOURCE_POWER")]
+public sealed class Kg2TestDamageSourcePower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+        => Kg2TestLog.Add(result.HasCardSource ? "damage-card" : "damage-none");
 }
 
 sealed class Keyed(FlashCard card) : IComparable<Keyed>

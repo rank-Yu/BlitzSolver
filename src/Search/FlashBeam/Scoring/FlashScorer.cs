@@ -358,9 +358,11 @@ internal sealed class FlashScorer
                 1,
                 (int)Math.Ceiling(CardValue(card, stats, cardScore) * 2d)));
         }
-        // Free-card opportunity, Void Form and summon next turn have no admitted Flash content.
+        // Free-card opportunity (FreeAttackPower), Void Form and summon next turn: Void Form and
+        // summon-next-turn powers have no admitted Flash content.
         int futureResourceValue = GetAmount(battle, _score.RetainHandPowerId, FlashLimits.PlayerOwner) * 4
-            + retainedHandValue;
+            + retainedHandValue
+            + FreeAttackOpportunityValue(battle);
 
         int delayedDamageValue = 0;
         for (int index = 0; index < battle.EnemyCount; index++)
@@ -982,7 +984,7 @@ internal sealed class FlashScorer
                         if (needsSkillCount)
                             skillCount++;
                         if (needsSkillEnergy)
-                            skillEnergy += EnergyCost(battle, card, stats);
+                            skillEnergy += EnergyCost(battle, card, stats, segment);
                         if (needsBlockSkillCount && cardScore.HasBlockDynamicVar)
                             blockSkillCount++;
                         break;
@@ -990,7 +992,7 @@ internal sealed class FlashScorer
                         if (needsPowerCount)
                             powerCount++;
                         if (needsPowerEnergy)
-                            powerEnergy += EnergyCost(battle, card, stats);
+                            powerEnergy += EnergyCost(battle, card, stats, segment);
                         break;
                     case FlashCardType.Status:
                         if (needsStatusCount)
@@ -1093,11 +1095,58 @@ internal sealed class FlashScorer
         };
     }
 
-    private static int EnergyCost(in FlashBattle battle, in FlashCard card, FlashCardStats stats)
+    /// <summary>
+    /// Port of <c>CombatBeamSolver.FreeCardOpportunityValue</c> for FreeAttackPower: for each playable
+    /// Attack in hand without X cost, the local cost minus the hook-modified cost times 16 plus a card
+    /// value bonus; the best <c>freeUses</c> values are summed.
+    /// </summary>
+    private int FreeAttackOpportunityValue(in FlashBattle battle)
+    {
+        int freeUses = GetAmount(battle, _score.FreeAttackPowerId, FlashLimits.PlayerOwner);
+        if (freeUses <= 0)
+            return 0;
+        Span<int> values = stackalloc int[FlashLimits.MaxHandSize];
+        int count = 0;
+        for (int index = 0; index < battle.HandCount; index++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[index];
+            FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+            if (stats.Type != FlashCardType.Attack
+                || (card.Flags & FlashCardFlags.CostsX) != 0
+                || !FlashKernel.CanPlayCard(battle, Rules, index))
+            {
+                continue;
+            }
+            int normalCost = Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
+            int currentCost = Math.Max(0, FlashKernel.EnergyCostWithModifiers(battle, Rules, card, FlashPile.Hand));
+            int savedEnergy = Math.Max(0, normalCost - currentCost);
+            double cardValue = CardValue(card, stats, _score.Card(card.Id, card.Upgrade));
+            values[count++] = savedEnergy * 16
+                + Math.Min(16, Math.Max(1, (int)Math.Ceiling(cardValue)));
+        }
+        for (int index = 1; index < count; index++)
+        {
+            int value = values[index];
+            int position = index;
+            while (position > 0 && values[position - 1] < value)
+            {
+                values[position] = values[position - 1];
+                position--;
+            }
+            values[position] = value;
+        }
+        int total = 0;
+        for (int index = 0; index < Math.Min(freeUses, count); index++)
+            total += values[index];
+        return total;
+    }
+
+    private int EnergyCost(in FlashBattle battle, in FlashCard card, FlashCardStats stats, FlashPile pile)
     {
         if ((card.Flags & FlashCardFlags.CostsX) != 0)
             return 0;
-        return Math.Max(0, FlashKernel.EnergyCostWithModifiers(battle, card));
+        // StrategicEffectModel.EnergyCost reads CostModifiers.All (local only), not the combat hooks.
+        return Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
     }
 
     private static int ReachablePlays(int matchingCards, int deckSize, int reachableCards)

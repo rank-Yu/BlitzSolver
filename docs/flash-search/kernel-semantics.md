@@ -40,33 +40,38 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 按列表顺序逐个调用；遇到待处理选择时停止（与 `M/HookMirrors.cs:1439` 一致）。
 - 多阶段 Hook 依次跑 Early、普通、Late。`AfterCardPlayed` 的 Late 阶段重新读取监听列表。
 - 修正类 Hook（`ModifyDamage*`、`ModifyHpLost*`、`ShouldClearBlock` 等）不得改写状态：预报与评估会在只读语义下调用它们。需要随攻击捕获的值在 `BeforeAttack` 中记录（例如活力，对应 `VigorPowerMirrors.BeforeAttack`）。
-- 战斗正在结束时，战斗监听者的 Hook 返回空，`AfterCardPlayed`、`AfterBlockBroken`、`AfterAttack` 除外；伤害和死亡类的跑局监听者不受此限（`M/HookMirrors.cs:1351`）。
+- 战斗正在结束时，战斗监听者的 Hook 返回空，`AfterCardPlayed`、`AfterBlockBroken`、`AfterAttack` 除外；伤害和死亡类的跑局监听者不受此限（`M/HookMirrors.cs:1351`）。`TryModifyEnergyCostInCombat`（普通与 Late）、`ModifyCardPlayResultLocation`、`ModifyCardPlayCount`、`ModifyXValue` 也通过 `IterateCombatHookListeners` 遍历，因此 Flash 在 `IsOverOrEnding` 时跳过它们；费用查询和评估在结束状态读到的是未修正费用。
+- 费用 Hook 是纯查询：普通阶段按战斗监听顺序跑一遍，再按同一顺序跑 Late 阶段；调用方最后 `(int)` 截断并钳制到 ≥ 0（`M/HookMirrors.cs:486-530`）。`AreCardsFree` 分支在 Flash 中没有内容。
+- `AfterPowerAmountChanged` 不在施加 Power 时立即派发：`ApplyWithBeforeApplied` 只把 `(PowerId, Delta, Applier)` 放进栈上的待处理队列，之后在现有引擎的同一位置调用 `ResolvePowerAmountChanges` 排空（卡牌补偿结束、`CompleteCardPlayEffects`、回合开始 `BeforeHandDraw` 后、`TriggerSideTurnStart` 末、玩家/敌方回合结束 `TriggerRegular` 后、敌人行动结束、敌人死亡效果末、药水使用后、Dominate 的 Vulnerable 与 Strength 之间）。排空时只遍历当前 Power（现有引擎 `EffectivePowers()`），按监听顺序对每条变化调用；Vicious 在“Delta > 0 且变化的是 Vulnerable 且施加者是持有者”时抽牌。旧引擎**没有**通用 `AfterApplied`；只有 PhantomBlades/Juggling/Feral 等个别初始化，Flash 在对应定义里另行处理。
+- 现有引擎的 `ModifyPowerAmountForRelics` 在 Artifact 检查之前依次跑 `BeforePowerAmountChanged`、`ModifyPowerAmountGiven`（SneckoSkull）与 `TryModifyPowerAmountReceived`（RuinedHelmet）。Flash 实现接收侧的 `TryModifyPowerAmountReceived` 纯查询与 `AfterModifyingPowerAmountReceived`；修正阶段不得改写状态，RuinedHelmet 的“本场已用”标记在 After 阶段写入。
+- 卡牌从战斗外进入战斗时，`SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat` 先遍历卡牌拥有者的遗物（GhostSeed），再执行卡牌自身的 `AfterEnteredCombat`（Stomp、Pinpoint 等费用反应）。Flash 的 `FlashKernel.Generation` 的进入战斗路径按同一顺序派发。
 - 只有原版监听者时，旧引擎对回合阶段 Hook、Power 反应、最大能量与抽牌数、`BeforeHandDraw` 使用"先全部 Power、再全部遗物"的批量顺序，不按逐监听者顺序。Flash 在相同位置用相同的批量顺序。这一偏差以旧引擎为准。
 
 ### 3.3 Hook 目录
 
 内核为下列 Hook 提供派发点，名称与原版一致；内容需要新的 Hook 时在内核增加派发点并补差分测试：
 
-- 出牌：`ModifyEnergyCost`（含 Late）、`ModifyStarCost`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount`、`AfterModifyingCardPlayCount`、`ModifyCardPlayResultLocation`、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterHandEmptied`。
+- 出牌：`TryModifyEnergyCostInCombat`（含 Late；Corruption、FreeAttackPower）、`ModifyStarCost`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount` / `AfterModifyingCardPlayCount`（OneTwoPunchPower、DuplicationPower）、`ModifyCardPlayResultLocation` / `AfterModifyingCardPlayResultLocation`（Corruption）、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterHandEmptied`。
 - 攻击与伤害：`BeforeAttack`、`ModifyAttackHitCount`、`AfterAttack`、`ModifyDamageAdditive`、`ModifyDamageMultiplicative`、`ModifyDamageCap`、`BeforeDamageReceived`、`ModifyHpLostBeforeOsty`（含 Late）、`ModifyHpLostAfterOsty`（含 Late）、`AfterModifyingHpLostAfterOsty`、`AfterBlockBroken`、`AfterCurrentHpChanged`、`AfterDamageGiven`、`AfterDamageReceived`（含 Late）。
 - 格挡：`BeforeBlockGained`、`ModifyBlockAdditive`、`ModifyBlockMultiplicative`、`AfterModifyingBlockAmount`、`AfterBlockGained`、`ShouldClearBlock`、`AfterBlockCleared`。
 - 死亡：`BeforeDeath`、`ShouldDie`（含 Late）、`AfterDeath`、`AfterPreventingDeath`。
 - 已有派发点（其余见本节列表）：`BeforeDamageReceived`（`TryDamageTarget` 中修正后、格挡前，不受战斗结束闸门限制）、`BeforeSideTurnEnd` 三轮（玩家回合结束第一阶段，受闸门限制，参与者以位集合传入）、`ShouldClearBlock`、`ModifyMaxEnergy`、`ModifyHandDraw`（含 Late）与第 7 节的 Power/遗物阶段方法。
 - 回合：`BeforeSideTurnStart`、`AfterSideTurnStart`、`AfterEnergyReset`（含 Late）、`ModifyMaxEnergy`、`BeforeHandDraw`、`ModifyHandDraw`（含 Late）、`AfterPlayerTurnStart`、`AfterAutoPostPlayPhaseEntered`（阶段切到 AutoPostPlay 后、切到 End 之前，卡牌与 Power 监听者；HowlFromBeyond、StampedePower）、`BeforeSideTurnEnd`（VeryEarly、Early、普通）、`OnTurnEndInHand`、`AfterSideTurnEnd`（含 Late）、`ShouldTakeExtraTurn`。
-- 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook；HellraiserPower 在 Early 自动打出刚抽到的 Strike）、`ModifyShuffleOrder`、`AfterShuffle`、`AfterCardChangedPiles`。
-- Power：`ModifyPowerAmount`（遗物：UnsettlingLamp、SneckoSkull、RuinedHelmet）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious）。
+- 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook；HellraiserPower 在 Early 自动打出刚抽到的 Strike）、`ModifyShuffleOrder`、`AfterShuffle`（TheAbacus）、`AfterCardChangedPiles`。`AfterShuffle` 在洗牌计数 +1 后、战斗未结束时派发，监听者为全部战斗监听者。
+- Power：`TryModifyPowerAmountReceived` / `AfterModifyingPowerAmountReceived`（RuinedHelmet；UnsettlingLamp 与 SneckoSkull 仍因对象身份/临时 Power 类型表与 Poison 定义缺失而跳过）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious；Flash 目前只有 Vicious 定义）。
+- 数值与遗物：`ModifyXValue`（ChemicalX，位置与 `CardModel.ResolveEnergyXValue` 一致）、`ShouldPlayerResetEnergy`（IceCream）、遗物 `AfterCardEnteredCombat`（GhostSeed）。
 - 球：被动与激发；`OrbQueue.BeforeTurnEnd`。
 
 ## 4. 出牌管线
 
 来源：`Q/SimulatedCombatState.cs:1552`、`S/CombatPredictionSimulator.Card.cs:122-330`、`S/CombatPredictionSimulator.CardExecutionContinuation.cs:29-127`、`S/CombatPredictionSimulator.CardTailContinuation.cs:16-125`、`P/CorePowerSupport.cs:21-407`。
 
-1. **可否打出**：Enthralled 锁 → Unplayable 关键字 → 能量费用 → 星能费用 → `ShouldPlay` → `CardIsPlayable` 镜像 → Smog 苦难。能量费用 = 基础费用 → 本地修饰 → `ModifyEnergyCost` 普通阶段 → Late 阶段；`AreCardsFree` 置 0；钳制 ≥ 0。X 费等于当前全部能量。`ShouldPayExcessEnergyCostWithStars` 为真时超额能量按 2:1 用星能支付。
+1. **可否打出**：Enthralled 锁 → Unplayable 关键字 → 能量费用 → 星能费用 → `ShouldPlay` → `CardIsPlayable` 镜像 → Smog 苦难。能量费用 = 基础费用 → 本地修饰 → `TryModifyEnergyCostInCombat` 普通阶段 → Late 阶段（战斗结束时两阶段都跳过）；钳制 ≥ 0。费用 Hook 接收卡牌当前牌堆，供 FreeAttackPower 判断手牌/打出区；评估侧读取本地修饰（`CostModifiers.Local`/`All`）而不读取费用 Hook。X 费等于当前全部能量。`ShouldPayExcessEnergyCostWithStars` 为真时超额能量按 2:1 用星能支付。
 2. **支付**：重算两种费用和超额换算；记录 X 值与本次星能消耗；扣能量 → `AfterEnergySpent`；扣星能 → `AfterStarsSpent`。
-3. **进入打出区**：卡从手牌移到打出区（不触发 `AfterCardChangedPiles`）；确定基础去向（复制品或能力牌 → 无；下次打出时消耗或带消耗关键字 → 消耗堆；其余 → 弃牌堆；个别卡牌覆写）；`ModifyCardPlayResultLocation`；打出次数 = 附魔重放 + 1 → `ModifyCardPlayCount` → `AfterModifyingCardPlayCount`；持有者已死则结束。
+3. **进入打出区**：卡从手牌移到打出区（不触发 `AfterCardChangedPiles`）；确定基础去向（复制品或能力牌 → 无；下次打出时消耗或带消耗关键字 → 消耗堆；其余 → 弃牌堆；个别卡牌覆写）；`ModifyCardPlayResultLocation`，随后只对改变去向的监听者派发 `AfterModifyingCardPlayResultLocation`（Corruption 把 Skill 改成消耗；改变“移出战斗”的基础去向显式拒绝）；打出次数 = 附魔重放 + 1 → `ModifyCardPlayCount` → `AfterModifyingCardPlayCount`（只对改变次数的监听者；OneTwoPunch/Duplication 在此递减）；持有者已死则结束。
 4. **每次打出**：战斗已结束则停止；`BeforeCardPlayed`；历史计数；执行卡牌效果；结算卡牌自身选择。
 5. **卡牌效果顺序**：先执行旧引擎镜像部分（推断配方或专门镜像，即攻击、格挡、抽牌），再执行补偿部分（`CardEffectSpecRegistry` 与 `CorePowerSupport.ApplyCardPowers` 里的 Power、资源、生成效果）。**补偿效果总在镜像效果之后**，这是旧引擎的实际顺序，Flash 的卡牌定义分 `OnPlayMirrored` 与 `OnPlayCompensated` 两段实现。
-6. **收尾**：持有者已死则中止；附魔 OnPlay → 苦难 OnPlay；`AfterCardPlayed` 普通阶段 → 重新读取监听列表后跑 Late 阶段（战斗正在结束也照常触发）；生命周期计数。
+6. **收尾**：持有者已死则中止；附魔 OnPlay → 苦难 OnPlay；`AfterCardPlayed` 普通阶段 → 重新读取监听列表后跑 Late 阶段（战斗正在结束也照常触发）；`ResolvePowerAmountChanges`（`CompleteCardPlayEffects`）；生命周期计数。
 7. **去向**：仍在打出区的卡按去向处理（无 → 移出战斗；消耗 → `AfterCardExhausted`；否则加入目标牌堆）；不在嵌套效果中时触发 `AfterHandEmptied`；清理费用与目标。
 8. **动作边界**：结算敌人死亡效果（`ApplyEnemyDeathPowers`）→ 胜负判定 → 处理被请求的回合结束。
 
@@ -112,7 +117,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 格挡（`S/CombatPredictionSimulator.Block.cs:49-93`）：结束中或已死返回 0 → `BeforeBlockGained` → `ModifyBlock`（附魔、加法阶段含敏捷、乘法阶段含脆弱、溢出钳制、≥ 0）→ `AfterModifyingBlockAmount` → 大于 0 时按出牌记录并加到格挡（`int` 截断，上限 999,999,999）→ `AfterBlockGained`。己方回合开始清格挡：`ShouldClearBlock` 或保留者，然后 `AfterBlockCleared`。
 
-Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不能接受 Power 时返回 → 遗物修正 → 目标有人工制品且是减益时抵消一层并返回 → 实例型 Power 新建实例，其余按（持有者、类型）叠加并钳制 → 玩家侧新获得的虚弱、易伤、脆弱标记跳过下次衰减 → 更新监听顺序 → 记录数量变化。旧引擎**没有**通用的 `AfterApplied`，只有少数 Power 初始化。
+Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不能接受 Power 时返回 → 遗物修正（`TryModifyPowerAmountReceived` 普通阶段记录被修改的监听者，随后在 Artifact 检查前对它们派发 `AfterModifyingPowerAmountReceived`；RuinedHelmet 在此翻倍并标记本场已用）→ 目标有人工制品且是减益时抵消一层并返回 → 实例型 Power 新建实例，其余按（持有者、类型）叠加并钳制 → 玩家侧新获得的虚弱、易伤、脆弱标记跳过下次衰减 → 更新监听顺序 → 把非零变化放进待处理队列。旧引擎**没有**通用的 `AfterApplied`，只有少数 Power 初始化。
 
 衰减：虚弱、易伤、脆弱、无实体、NoBlock 在**敌方回合结束时对所有生物**衰减并尊重跳过标记；Blur 在己方回合开始衰减；DoubleDamage 在每方回合结束衰减；瞬时 Power 在己方回合结束清除；临时力量、敏捷、集中在 `TriggerRegular` 中按监听顺序退回。
 
@@ -142,7 +147,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 1. 轮次 +1（额外回合不加）；重置计数；记录 `AmountOnTurnStart`；`BeforeSideTurnStart`（原版：先遗物批次，再 Power）。
 2. 清格挡与 `AfterBlockCleared`。
-3. 能量：除非有保留能量效果，否则重置；加修正后的最大能量与下回合能量；`AfterEnergyReset`、遗物 `AfterEnergyReset`、`AfterEnergyResetLate`。
+3. 能量：`ShouldPlayerResetEnergy`（IceCream 从第 2 回合起拒绝重置；否则清零）→ 加修正后的最大能量与下回合能量；`AfterEnergyReset`、遗物 `AfterEnergyReset`、`AfterEnergyResetLate`。
 4. `BeforeHandDraw`：Power → 遗物 → 返回手牌的卡。
 5. 抽牌数 = 5 + 下回合抽牌 + DrawCardsNextTurn → `ModifyHandDraw` → Late；抽牌。
 6. `AfterPlayerTurnStart`（原版：先 Power，再遗物）。
@@ -164,7 +169,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 - 小数抽牌数向上取整；`ShouldDraw` 失败则整次不抽。
 - 逐张：结束中或手牌达到上限则停止；抽牌堆空且弃牌堆非空时洗牌；取抽牌堆顶入手；历史 → `AfterCardDrawn` Early → 普通 → 被抽卡自身 Hook。
-- 洗牌：列表 = 弃牌堆（原顺序）+ 抽牌堆；按卡牌排序键稳定排序后用 `Shuffle` 流做不稳定洗牌（与 `StableShuffleProjection` 相同）；`ModifyShuffleOrder`；全部放到抽牌堆底；`ShuffleEventCount + 1`；`AfterShuffle`。排序键来自原版 `CardModel.CompareTo`，在根导入时编译进 `FlashRules`。
+- 洗牌：列表 = 弃牌堆（原顺序）+ 抽牌堆；按卡牌排序键稳定排序后用 `Shuffle` 流做不稳定洗牌（与 `StableShuffleProjection` 相同）；`ModifyShuffleOrder`；全部放到抽牌堆底；`ShuffleEventCount + 1`；战斗未结束时 `AfterShuffle`（TheAbacus 获得其 Unpowered 格挡）。排序键来自原版 `CardModel.CompareTo`，在根导入时编译进 `FlashRules`。
 - 随机插入牌堆位置用 `Shuffle` 流的 `NextInt(n + 1)`。手牌满时加入手牌的卡改进弃牌堆。
 
 ## 9. 怪物 AI

@@ -29,15 +29,23 @@ public static partial class FlashKernel
     /// </summary>
     public static int ApplyPower(ref FlashExec x, byte target, ushort powerId, int amount, byte applier)
     {
-        ref FlashBattle battle = ref x.B;
-        if (amount == 0 || !CanReceivePowers(battle, target))
+        if (amount == 0 || !CanReceivePowers(x.B, target))
             return 0;
         FlashPowerDef def = FlashRegistry.Power(powerId);
-        // ModifyPowerAmountForRelics: Unsettling Lamp, Snecko Skull and Ruined Helmet are not
-        // supported yet; admission rejects roots holding them.
-        if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref battle, target))
+        // ModifyPowerAmountForRelics: the received pass (Ruined Helmet) runs before the Artifact
+        // check, exactly as the existing engine orders its relic modifiers.
+        Span<FlashListener> received = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        amount = FlashHooks.ModifyPowerAmountReceived(x.B, x.R, powerId, target, amount, received,
+            out int receivedCount);
+        if (receivedCount > 0)
+        {
+            FlashHooks.AfterModifyingPowerAmountReceived(ref x, powerId, target, received[..receivedCount]);
+            if (x.NeedsChoice)
+                return 0;
+        }
+        if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref x.B, target))
             return 0;
-        return AddPowerAmount(ref battle, target, powerId, def, amount, applier, out _);
+        return AddPowerAmount(ref x, target, powerId, def, amount, applier, out _);
     }
 
     /// <summary>
@@ -60,7 +68,7 @@ public static partial class FlashKernel
             : throw new FlashUnsupportedException("临时力量需要力量的 Flash 定义。");
         if (def.IsInstanced || GetAmount(x.B, target, temporaryId) == 0)
             ApplyPower(ref x, target, strength, sign * amount, applier);
-        int applied = AddPowerAmount(ref x.B, target, temporaryId, def, amount, applier, out int resulting);
+        int applied = AddPowerAmount(ref x, target, temporaryId, def, amount, applier, out int resulting);
         if (amount != resulting)
             ApplyPower(ref x, target, strength, sign * amount, applier);
         return applied;
@@ -86,9 +94,10 @@ public static partial class FlashKernel
     }
 
     /// <summary>The counter update of <c>ApplyWithBeforeApplied</c> after its guards and Artifact check.</summary>
-    private static int AddPowerAmount(ref FlashBattle battle, byte target, ushort powerId, FlashPowerDef def, int amount,
+    private static int AddPowerAmount(ref FlashExec x, byte target, ushort powerId, FlashPowerDef def, int amount,
         byte applier, out int resulting)
     {
+        ref FlashBattle battle = ref x.B;
         int index;
         if (def.IsInstanced)
             index = InsertPower(ref battle, target, powerId, applier);
@@ -110,9 +119,38 @@ public static partial class FlashKernel
             power.Flags |= FlashPowerFlags.WasJustAppliedByEnemy;
         if (power.Amount == 0)
             RemovePowerAt(ref battle, index);
-        // RecordPowerAmountChange only reacts for Shroud, Sleight of Flesh and Vicious, which are
-        // not supported yet.
+        // RecordPowerAmountChange: resolved later by ResolvePowerAmountChanges at the same points as
+        // the existing engine (after card effects, turn phases, enemy moves and enemy death powers).
+        x.RecordPowerAmountChange(powerId, applied, applier);
         return applied;
+    }
+
+    /// <summary>
+    /// Mirrors <c>PowerLifecycleSupport.ResolvePowerAmountChanges</c>: drains the queued changes in
+    /// order; for each change it visits the current powers in listener order (Vicious draws after a
+    /// Vulnerable gain whose applier is its owner), stops at a pending choice, and repeats while the
+    /// handlers appended new changes.
+    /// </summary>
+    public static void ResolvePowerAmountChanges(ref FlashExec x)
+    {
+        while (x.PendingPowerChangeCount > 0)
+        {
+            int count = x.PendingPowerChangeCount;
+            for (int index = 0; index < count; index++)
+            {
+                FlashPowerAmountChange change = x.PendingPowerChanges[index];
+                AfterPowerAmountChangedHook hook = new()
+                {
+                    PowerId = change.PowerId,
+                    Delta = change.Delta,
+                    Applier = change.Applier,
+                };
+                FlashHooks.DispatchPowerHook(ref x, ref hook);
+                if (x.NeedsChoice)
+                    return;
+            }
+            x.ConsumePowerAmountChanges(count);
+        }
     }
 
     /// <summary>Mirrors <c>SimulatedCombatState.ApplyFromMonster&lt;T&gt;</c>.</summary>

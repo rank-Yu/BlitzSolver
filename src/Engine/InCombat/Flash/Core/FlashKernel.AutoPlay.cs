@@ -25,7 +25,7 @@ public static partial class FlashKernel
 
         // SpendResources(card, isAutoPlay: true, skipXCapture) captures X and the star value without
         // paying anything. Flash has no persistent LastStarsSpent slot; no supported card reads it.
-        int energyValue = EnergyCostWithModifiers(x.B, card);
+        int energyValue = EnergyCostWithModifiers(x.B, x.R, card, pile);
         if (!skipXCapture)
             x.XValue = energyValue;
 
@@ -60,8 +60,8 @@ public static partial class FlashKernel
         }
 
         FlashPiles.Append(ref x.B, FlashPile.Play, card);
-        FlashRegistry.Card(card.Id).AfterEnteredCombat(ref x, FlashPile.Play, x.B.PlayCount - 1);
-        int energyValue = EnergyCostWithModifiers(x.B, card);
+        EnteredCombat(ref x, card, FlashPile.Play, x.B.PlayCount - 1);
+        int energyValue = EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Play);
         if (!skipXCapture)
             x.XValue = energyValue;
 
@@ -144,7 +144,9 @@ public static partial class FlashKernel
         {
             position = x.B.PlayCount;
             FlashPiles.Append(ref x.B, FlashPile.Play, card);
-            FlashRegistry.Card(card.Id).AfterEnteredCombat(ref x, FlashPile.Play, position);
+            EnteredCombat(ref x, card, FlashPile.Play, position);
+            if (x.NeedsChoice)
+                return;
         }
         ref FlashCard stored = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
         if ((stored.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0 || stored.HasKeyword(FlashKeywords.Exhaust))

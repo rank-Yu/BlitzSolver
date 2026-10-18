@@ -29,8 +29,11 @@ public static partial class FlashKernel
         x.EffectDepth--;
         if (x.NeedsChoice)
             return;
-        // Complete: potion choices are not supported yet; AfterPotionUsed has no supported listeners;
-        // power amount resolution and history compensation have no supported sources.
+        // Complete: potion choices are not supported yet; AfterPotionUsed has no supported listeners.
+        // PotionExecutionSupport.Complete resolves power amount changes before the enemy-death pass.
+        ResolvePowerAmountChanges(ref x);
+        if (x.NeedsChoice)
+            return;
         ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;

@@ -233,6 +233,8 @@ internal sealed class FlashScoreRules
 
     public ushort RetainHandPowerId { get; init; } = ushort.MaxValue;
 
+    public ushort FreeAttackPowerId { get; init; } = ushort.MaxValue;
+
     public ushort IllusionPowerId { get; init; } = ushort.MaxValue;
 
     public ushort BodySlamCardId { get; init; } = ushort.MaxValue;

@@ -23,7 +23,7 @@ public sealed class Havoc : FlashCardDef
 public sealed class Cascade : FlashCardDef
 {
     public override void OnPlay(ref FlashExec x)
-        => FlashKernel.AutoPlayFromDrawPile(ref x, x.XValue + (x.Card.Upgrade > 0 ? 1 : 0),
+        => FlashKernel.AutoPlayFromDrawPile(ref x, FlashKernel.ResolveEnergyXValue(ref x) + (x.Card.Upgrade > 0 ? 1 : 0),
             forceExhaust: false);
 }
 

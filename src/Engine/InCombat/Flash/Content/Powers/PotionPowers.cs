@@ -226,3 +226,31 @@ public sealed class DemisePower : FlashPowerDef
             hasCardSource: false, default);
     }
 }
+
+/// <summary>
+/// Native <c>DuplicationPower</c> (Duplicator potion): each played card gets one extra play;
+/// <c>AfterModifyingCardPlayCount</c> decrements the power, and the player turn end removes it
+/// (<c>ModifyCardPlayCountMirrors</c>, <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c>).
+/// </summary>
+[FlashContent("DUPLICATION_POWER")]
+public sealed class DuplicationPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
+        int playCount)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner)
+            return playCount;
+        return playCount + 1;
+    }
+
+    public override void AfterModifyingCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card)
+    {
+        int amount = x.B.Powers[self.Index].Amount;
+        if (amount > 0)
+            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+    }
+}

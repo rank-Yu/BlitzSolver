@@ -11,6 +11,10 @@ public struct FlashDamageResult
     public int UnblockedDamage;
     public int OverkillDamage;
     public int BlockedDamage;
+
+    /// <summary><c>AfterDamageReceivedMirrorContext.Source</c>: the played card that dealt the damage, if any.</summary>
+    public bool HasCardSource;
+    public FlashCard CardSource;
 }
 
 public enum FlashAttackTargeting : byte
@@ -129,6 +133,8 @@ public static partial class FlashKernel
         }
         ref FlashCreature creature = ref x.B.Creature(target);
         FlashDamageResult result = LoseHp(ref creature, target, unblocked, props);
+        result.HasCardSource = hasCardSource;
+        result.CardSource = cardSource;
         result.BlockedDamage = (int)blocked;
         result.WasBlockBroken = creature.Block <= 0 && blocked > 0m;
         result.WasFullyBlocked = (props & FlashValueProps.Unblockable) == 0
@@ -385,7 +391,10 @@ public static partial class FlashKernel
             return;
         battle.Creature(receiver).Flags |= FlashCreatureFlags.LostHpThisTurn;
         if (receiver == FlashLimits.PlayerOwner)
+        {
             battle.AddCounter(FlashCounter.CumulativeHpLost, result.UnblockedDamage);
+            battle.AddCounter(FlashCounter.PlayerUnblockedDamageEvents, 1);
+        }
     }
 
     /// <summary>
@@ -425,7 +434,7 @@ public static partial class FlashKernel
             if (x.NeedsChoice)
                 return;
         }
-        // ResolvePowerAmountChanges: no supported amount-change listeners yet.
+        ResolvePowerAmountChanges(ref x);
     }
 
     /// <summary>

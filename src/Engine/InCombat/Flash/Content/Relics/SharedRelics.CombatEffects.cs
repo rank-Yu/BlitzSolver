@@ -242,7 +242,7 @@ public sealed class MummifiedHand : FlashRelicDef
         if (!costsResources)
             return true;
         ref readonly FlashCard card = ref x.B.Cards[index];
-        return FlashKernel.EnergyCostWithModifiers(x.B, card) > 0
+        return FlashKernel.EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0
             || FlashKernel.StarCostWithModifiers(x.B, card) > 0;
     }
 
@@ -692,4 +692,109 @@ public sealed class RunicPyramid : FlashRelicDef
 public sealed class RingingTriangle : FlashRelicDef
 {
     public override bool ShouldFlush(ref FlashExec x, FlashListener self) => x.B.PlayerTurn > 1;
+}
+
+/// <summary>
+/// <c>TheAbacus</c>: <c>AfterShuffle</c> gains its unpowered block when the shuffling player is its
+/// owner (<c>AfterShuffleMirrors.HandleTheAbacus</c>).
+/// </summary>
+[FlashContent("THE_ABACUS")]
+public sealed class TheAbacus : FlashRelicDef
+{
+    // TheAbacus.cs: BlockVar(6m, ValueProp.Unpowered).
+    public override IReadOnlyList<string> VarNames => ["Block"];
+
+    public override void AfterShuffle(ref FlashExec x, FlashListener self, byte shuffler)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner || shuffler != FlashLimits.PlayerOwner)
+            return;
+        FlashKernel.GainBlock(ref x, self.Owner, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered, fromCard: false);
+    }
+}
+
+/// <summary>
+/// <c>ChemicalX</c>: <c>ModifyXValue</c> adds its <c>Increase</c> variable to an X value read by its
+/// owner's card (<c>CardModel.ResolveEnergyXValue</c>); the native <c>BeforeCardPlayed</c> only flashes.
+/// </summary>
+[FlashContent("CHEMICAL_X")]
+public sealed class ChemicalX : FlashRelicDef
+{
+    // ChemicalX.cs: DynamicVar("Increase", 2m).
+    public override IReadOnlyList<string> VarNames => ["Increase"];
+
+    public override int ModifyXValue(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card,
+        int value)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner)
+            return value;
+        return value + (int)rules.RelicVar(Id, 0);
+    }
+}
+
+/// <summary>
+/// <c>IceCream</c>: the player keeps their energy between turns after the first
+/// (<c>PersistentRelicSupport.ShouldPlayerResetEnergy</c>: the native relic returns false from turn 2).
+/// </summary>
+[FlashContent("ICE_CREAM")]
+public sealed class IceCream : FlashRelicDef
+{
+    public override bool ShouldPlayerResetEnergy(in FlashBattle battle, FlashRules rules, FlashListener self,
+        byte player)
+        => self.Owner != player || battle.PlayerTurn <= 1;
+}
+
+/// <summary>
+/// <c>RuinedHelmet</c>: the first positive Strength received this combat is doubled
+/// (<c>SimulatedCombatState.ModifyPowerAmountForRelics</c> / <c>ModifyPowerAmountForRuinedHelmet</c>,
+/// native <c>TryModifyPowerAmountReceived</c> and <c>AfterModifyingPowerAmountReceived</c>). The
+/// used flag lives in <see cref="FlashRelicFlags.UsedThisCombat"/>; the bridge projects
+/// <c>RuinedHelmet._usedThisCombat</c>.
+/// </summary>
+[FlashContent("RUINED_HELMET")]
+public sealed class RuinedHelmet : FlashRelicDef
+{
+    public override bool TryModifyPowerAmountReceived(in FlashBattle battle, FlashRules rules, FlashListener self,
+        ushort powerId, byte target, int amount, out int modified)
+    {
+        modified = amount;
+        if (amount <= 0
+            || target != self.Owner
+            || !FlashRegistry.TryPower("STRENGTH_POWER", out ushort strength)
+            || powerId != strength
+            || (battle.Relics[self.Index].Flags & FlashRelicFlags.UsedThisCombat) != 0)
+        {
+            return false;
+        }
+        modified = amount * 2;
+        return true;
+    }
+
+    public override void AfterModifyingPowerAmountReceived(ref FlashExec x, FlashListener self, ushort powerId,
+        byte target)
+        => x.B.Relics[self.Index].Flags |= FlashRelicFlags.UsedThisCombat;
+}
+
+/// <summary>
+/// <c>GhostSeed</c>: a Basic Strike or Defend that enters combat without Ethereal gains it
+/// (<c>SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat</c> /
+/// <c>GhostSeedMirrors.AfterCardEnteredCombat</c>).
+/// </summary>
+[FlashContent("GHOST_SEED")]
+public sealed class GhostSeed : FlashRelicDef
+{
+    public override void AfterCardEnteredCombat(ref FlashExec x, FlashListener self, FlashPile pile, int index,
+        in FlashCard card)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner)
+            return;
+        FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        if (stats.Rarity != FlashCardRarity.Basic
+            || (stats.Tags & (FlashCardTag.Strike | FlashCardTag.Defend)) == 0)
+        {
+            return;
+        }
+        ref FlashCard stored = ref FlashPiles.At(ref x.B, pile, index);
+        if ((stored.Keywords & FlashKeywords.Ethereal) == 0)
+            stored.Keywords |= FlashKeywords.Ethereal;
+    }
 }

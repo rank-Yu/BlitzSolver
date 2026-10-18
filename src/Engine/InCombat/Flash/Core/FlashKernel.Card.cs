@@ -21,7 +21,7 @@ public static partial class FlashKernel
         }
         if (card.HasKeyword(FlashKeywords.Unplayable))
             return false;
-        int energyCost = EnergyCostWithModifiers(battle, card);
+        int energyCost = EnergyCostWithModifiers(battle, rules, card, FlashPile.Hand);
         int starCost = StarCostWithModifiers(battle, card);
         // ShouldPayExcessEnergyCostWithStars has no supported listeners yet.
         if (energyCost > battle.Energy || starCost > battle.Stars)
@@ -46,14 +46,33 @@ public static partial class FlashKernel
         return true;
     }
 
-    /// <summary>Mirrors <c>GetEnergyCostWithModifiers</c> (X cost pays all current energy).</summary>
-    public static int EnergyCostWithModifiers(in FlashBattle battle, in FlashCard card)
+    /// <summary>
+    /// Mirrors <c>GetEnergyCostWithModifiers</c> (X cost pays all current energy). <paramref name="pile"/>
+    /// is the card's current pile, which <c>FreeAttackPower</c> reads (only Hand and Play are free).
+    /// </summary>
+    public static int EnergyCostWithModifiers(in FlashBattle battle, FlashRules rules, in FlashCard card, FlashPile pile)
     {
         if ((card.Flags & FlashCardFlags.CostsX) != 0)
             return battle.Energy;
-        int cost = card.BaseCost;
+        int cost = EnergyCostWithLocalModifiers(battle, card);
         if (cost < 0)
             return Math.Max(0, cost);
+        // HookMirrors.ModifyEnergyCostInCombat: normal listeners then late listeners; the existing
+        // engine truncates the decimal and clamps at zero afterwards.
+        cost = (int)FlashHooks.ModifyEnergyCost(battle, rules, pile, card, cost);
+        return Math.Max(0, cost);
+    }
+
+    /// <summary>
+    /// Mirrors <c>CardEnergyCost.GetWithModifiers(CostModifiers.Local)</c>: the base cost plus the
+    /// card's local modifiers, without the combat cost hooks. The existing engine's evaluation uses
+    /// this value (never the hook-modified one) for free-card opportunity and skill energy.
+    /// </summary>
+    public static int EnergyCostWithLocalModifiers(in FlashBattle battle, in FlashCard card)
+    {
+        int cost = card.BaseCost;
+        if (cost < 0)
+            return cost;
         for (int index = 0; index < card.EnergyModifierCount; index++)
         {
             FlashCostModifier modifier = card.EnergyModifiers[index];
@@ -64,8 +83,19 @@ public static partial class FlashKernel
                 _ => throw new FlashUnsupportedException($"未知的费用修饰类型 {modifier.Type}。"),
             };
         }
-        // ModifyEnergyCostInCombat (normal and late passes) has no supported listeners yet.
         return Math.Max(0, cost);
+    }
+
+    /// <summary>
+    /// Mirrors <c>CardModel.ResolveEnergyXValue</c>: the captured X value with <c>Hook.ModifyXValue</c>
+    /// applied (Chemical X). Every effect reads X through here, at the point native code calls
+    /// <c>ResolveEnergyXValue</c>, not when the resources are spent. Only X-cost cards may resolve it.
+    /// </summary>
+    public static int ResolveEnergyXValue(ref FlashExec x)
+    {
+        if ((x.Card.Flags & FlashCardFlags.CostsX) == 0)
+            throw new InvalidOperationException("这张卡不是 X 费卡，不能解析 X 值。");
+        return FlashHooks.ModifyXValue(x.B, x.R, x.Card, x.XValue);
     }
 
     /// <summary>Mirrors <c>GetStarCostWithModifiers</c>.</summary>
@@ -89,8 +119,8 @@ public static partial class FlashKernel
         FlashCard card = battle.Cards[handIndex];
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
 
-        // SpendResources.
-        int energyValue = EnergyCostWithModifiers(battle, card);
+        // SpendResources (the card is still in hand).
+        int energyValue = EnergyCostWithModifiers(battle, x.R, card, FlashPile.Hand);
         int starValue = StarCostWithModifiers(battle, card);
         x.XValue = energyValue;
         if (energyValue > 0)
@@ -135,8 +165,31 @@ public static partial class FlashKernel
             if (playPosition < x.B.PlayCount)
                 FlashPiles.At(ref x.B, FlashPile.Play, playPosition).Flags &= ~FlashCardFlags.ExhaustOnNextPlay;
         }
-        // ModifyCardPlayResultLocation and ModifyCardPlayCount have no supported listeners yet.
-        int playCount = card.ReplayCount + 1;
+        // HookMirrors.ModifyCardPlayResultLocation, then CardModel.OnPlayWrapper's direct after dispatch
+        // over the modifiers that changed the location.
+        Span<FlashListener> locationModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        FlashPile hooked = FlashHooks.ModifyCardPlayResultLocation(ref x, card, isAutoPlay, energyValue, result,
+            locationModifiers, out int locationModifierCount);
+        if (x.NeedsChoice)
+            return;
+        if (hooked != result)
+        {
+            if (removeFromCombat)
+                throw new FlashUnsupportedException("出牌去向修改把移出战斗的卡改成了牌堆。");
+            if (hooked == FlashPile.Play)
+                throw new FlashUnsupportedException($"出牌去向修改返回了无效牌堆 {hooked}。");
+            result = hooked;
+        }
+        FlashHooks.AfterModifyingCardPlayResultLocation(ref x, card, result, locationModifiers[..locationModifierCount]);
+        if (x.NeedsChoice)
+            return;
+        // HookMirrors.ModifyCardPlayCount then Hook.AfterModifyingCardPlayCount.
+        Span<FlashListener> playCountModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        int playCount = FlashHooks.ModifyCardPlayCount(ref x, card, target, card.ReplayCount + 1,
+            playCountModifiers, out int playCountModifierCount);
+        FlashHooks.AfterModifyingCardPlayCount(ref x, card, playCountModifiers[..playCountModifierCount]);
+        if (x.NeedsChoice)
+            return;
         if (x.B.Player.IsDead)
             return;
 
@@ -159,6 +212,14 @@ public static partial class FlashKernel
             }
             RecordCardPlayStarted(ref x.B, stats, index, energyValue, isAutoPlay);
             FlashRegistry.Card(card.Id).OnPlay(ref x);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
+            // CorePowerSupport.ApplyCardPowers resolves queued power amount changes after the card's
+            // compensation effects (Vicious draws here, not inside the effect that applied Vulnerable).
+            ResolvePowerAmountChanges(ref x);
             if (x.NeedsChoice)
             {
                 completed = false;
@@ -192,7 +253,14 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
-            // CompleteCardPlayEffects: power amount resolution has no supported listeners yet.
+            // SimulatedCombatState.CompleteCardPlayEffects resolves the remaining power amount changes
+            // before recording the play and its lifecycle counters.
+            ResolvePowerAmountChanges(ref x);
+            if (x.NeedsChoice)
+            {
+                completed = false;
+                break;
+            }
             RecordCardPlayed(ref x.B, stats);
             // The tail fails when the owner died during the completion effects.
             if (x.B.Player.IsDead)

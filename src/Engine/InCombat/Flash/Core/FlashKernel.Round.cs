@@ -362,8 +362,11 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
 
-        // Energy reset (Ice Cream not supported) plus modified max energy and energy next turn (not supported).
-        x.B.Energy = 0;
+        // Energy reset: PersistentRelicSupport.ShouldPlayerResetEnergy over every combat listener
+        // (Ice Cream keeps the previous turn's energy from turn 2 on). Modified max energy and energy
+        // next turn follow.
+        if (FlashHooks.ShouldPlayerResetEnergy(x.B, x.R, FlashLimits.PlayerOwner))
+            x.B.Energy = 0;
         x.B.Energy = (int)Math.Clamp((long)x.B.Energy + Math.Max(0, ModifiedMaxEnergy(ref x)), 0, FlashLimits.ValueClamp);
         PowersAfterEnergyReset(ref x);
         if (x.NeedsChoice)
@@ -382,7 +385,11 @@ public static partial class FlashKernel
         BeforeHandDraw(ref x);
         if (x.NeedsChoice)
             return;
-        // ResolvePowerAmountChanges: no supported amount-change listeners yet.
+        // CombatBeamSolver.TurnExecutionContinuation resolves BeforeHandDraw's power changes before
+        // the pre-draw checkpoint.
+        ResolvePowerAmountChanges(ref x);
+        if (x.NeedsChoice)
+            return;
         x.B.ShufflesCrossed += x.B.ShuffleEventCount - beforeHandShuffles;
         // ConsumeModifiedHandDraw: draw-next-turn sources are not supported yet.
         int drawCount = ModifiedHandDraw(ref x, BaseHandDrawCount);

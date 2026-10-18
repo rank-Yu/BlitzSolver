@@ -224,6 +224,203 @@ public static partial class FlashHooks
         return block * multiplier;
     }
 
+    /// <summary>
+    /// Mirrors <c>HookMirrors.ModifyEnergyCostInCombat</c>: the normal pass over every combat
+    /// listener, then the late pass over every combat listener, without an ending gate. The caller
+    /// truncates and clamps at zero.
+    /// </summary>
+    public static decimal ModifyEnergyCost(in FlashBattle battle, FlashRules rules, FlashPile pile,
+        in FlashCard card, decimal amount)
+    {
+        FlashHookMask masks = FlashHookMask.TryModifyEnergyCostInCombat | FlashHookMask.TryModifyEnergyCostInCombatLate;
+        // HookMirrors iterates IterateCombatHookListeners, which returns no combat listeners while
+        // the combat is over or ending.
+        if ((FlashRegistry.AnyHooks & masks) == 0 || FlashKernel.IsOverOrEnding(battle))
+            return amount;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(battle, FlashHookMask.TryModifyEnergyCostInCombat, listeners);
+        for (int index = 0; index < count; index++)
+        {
+                amount = Definition(battle, listeners[index]).TryModifyEnergyCostInCombat(battle, rules, listeners[index],
+                card, pile, amount);
+        }
+        count = CollectListeners(battle, FlashHookMask.TryModifyEnergyCostInCombatLate, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            amount = Definition(battle, listeners[index]).TryModifyEnergyCostInCombatLate(battle, rules, listeners[index],
+                card, pile, amount);
+        }
+        return amount;
+    }
+
+    /// <summary>Mirrors <c>Hook.ModifyXValue</c>: every combat listener in order, skipped while the combat is over/ending.</summary>
+    public static int ModifyXValue(in FlashBattle battle, FlashRules rules, in FlashCard card, int value)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ModifyXValue) == 0 || FlashKernel.IsOverOrEnding(battle))
+            return value;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(battle, FlashHookMask.ModifyXValue, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            value = Definition(battle, listeners[index]).ModifyXValue(battle, rules, listeners[index], card, value);
+        }
+        return value;
+    }
+
+    /// <summary>
+    /// Mirrors <c>PersistentRelicSupport.ShouldPlayerResetEnergy</c>: every combat listener in order,
+    /// no ending gate; the first false keeps the current energy.
+    /// </summary>
+    public static bool ShouldPlayerResetEnergy(in FlashBattle battle, FlashRules rules, byte player)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ShouldPlayerResetEnergy) == 0)
+            return true;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(battle, FlashHookMask.ShouldPlayerResetEnergy, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (!Definition(battle, listeners[index]).ShouldPlayerResetEnergy(battle, rules, listeners[index], player))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Mirrors <c>HookMirrors.ModifyCardPlayResultLocation</c> plus <c>CardModel.OnPlayWrapper</c>'s direct
+    /// after dispatch over the listeners that changed the location. Both use the combat-listener gate.
+    /// </summary>
+    public static FlashPile ModifyCardPlayResultLocation(ref FlashExec x, in FlashCard card, bool isAutoPlay,
+        int energyValue, FlashPile location, scoped Span<FlashListener> modifiers, out int modifierCount)
+    {
+        modifierCount = 0;
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ModifyCardPlayResultLocation) == 0 || FlashKernel.IsOverOrEnding(x.B))
+            return location;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMask.ModifyCardPlayResultLocation, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            FlashPile previous = location;
+            location = Definition(x.B, listeners[index]).ModifyCardPlayResultLocation(ref x, listeners[index], card,
+                isAutoPlay, energyValue, location);
+            if (location != previous)
+                modifiers[modifierCount++] = listeners[index];
+        }
+        return location;
+    }
+
+    /// <summary><c>HookMirrors.AfterModifyingCardPlayResultLocation</c>: the recorded modifiers in order.</summary>
+    public static void AfterModifyingCardPlayResultLocation(ref FlashExec x, in FlashCard card, FlashPile location,
+        scoped ReadOnlySpan<FlashListener> modifiers)
+    {
+        for (int index = 0; index < modifiers.Length; index++)
+        {
+            FlashListenerDef def = Definition(x.B, modifiers[index]);
+            if ((def.Hooks & FlashHookMask.AfterModifyingCardPlayResultLocation) == 0)
+                continue;
+            def.AfterModifyingCardPlayResultLocation(ref x, modifiers[index], card, location);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Mirrors <c>HookMirrors.ModifyCardPlayCount</c>: every combat listener in order; the changed
+    /// listeners are recorded for the after pass. Skipped while the combat is over/ending.
+    /// </summary>
+    public static int ModifyCardPlayCount(ref FlashExec x, in FlashCard card, byte target, int playCount,
+        scoped Span<FlashListener> modifiers, out int modifierCount)
+    {
+        modifierCount = 0;
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ModifyCardPlayCount) == 0 || FlashKernel.IsOverOrEnding(x.B))
+            return playCount;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMask.ModifyCardPlayCount, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            int previous = playCount;
+            playCount = Definition(x.B, listeners[index]).ModifyCardPlayCount(ref x, listeners[index], card, target,
+                playCount);
+            if (playCount != previous)
+                modifiers[modifierCount++] = listeners[index];
+        }
+        return playCount;
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.AfterModifyingCardPlayCount</c>: re-reads the listener list and calls the after
+    /// hook only on the recorded modifiers. OneTwoPunch and Duplication decrement themselves here.
+    /// </summary>
+    public static void AfterModifyingCardPlayCount(ref FlashExec x, in FlashCard card,
+        scoped ReadOnlySpan<FlashListener> modifiers)
+    {
+        if (modifiers.IsEmpty || (FlashRegistry.AnyHooks & FlashHookMask.AfterModifyingCardPlayCount) == 0
+            || FlashKernel.IsOverOrEnding(x.B))
+        {
+            return;
+        }
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMask.AfterModifyingCardPlayCount, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (!Contains(modifiers, listeners[index]))
+                continue;
+            Definition(x.B, listeners[index]).AfterModifyingCardPlayCount(ref x, listeners[index], card);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.ModifyPowerAmountForRelics</c>'s received pass: a pure query over
+    /// every combat listener; the listeners that changed the amount are recorded. Artifact stays in the
+    /// kernel after this pass, as the existing engine consumes it after the relic modifiers.
+    /// </summary>
+    public static int ModifyPowerAmountReceived(in FlashBattle battle, FlashRules rules, ushort powerId,
+        byte target, int amount, scoped Span<FlashListener> modifiers, out int modifierCount)
+    {
+        modifierCount = 0;
+        if ((FlashRegistry.AnyHooks & FlashHookMask.TryModifyPowerAmountReceived) == 0)
+            return amount;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(battle, FlashHookMask.TryModifyPowerAmountReceived, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (!Definition(battle, listeners[index]).TryModifyPowerAmountReceived(battle, rules, listeners[index],
+                powerId, target, amount, out int modified))
+            {
+                continue;
+            }
+            amount = modified;
+            modifiers[modifierCount++] = listeners[index];
+        }
+        return amount;
+    }
+
+    /// <summary><c>Hook.AfterModifyingPowerAmountReceived</c> for the recorded listeners, in order.</summary>
+    public static void AfterModifyingPowerAmountReceived(ref FlashExec x, ushort powerId, byte target,
+        scoped ReadOnlySpan<FlashListener> modifiers)
+    {
+        for (int index = 0; index < modifiers.Length; index++)
+        {
+            FlashListenerDef def = Definition(x.B, modifiers[index]);
+            if ((def.Hooks & FlashHookMask.AfterModifyingPowerAmountReceived) == 0)
+                continue;
+            def.AfterModifyingPowerAmountReceived(ref x, modifiers[index], powerId, target);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    private static bool Contains(scoped ReadOnlySpan<FlashListener> listeners, FlashListener listener)
+    {
+        for (int index = 0; index < listeners.Length; index++)
+        {
+            if (listeners[index] == listener)
+                return true;
+        }
+        return false;
+    }
+
     private static int CollectPowers(in FlashBattle battle, byte owner, FlashHookMask hook, int start,
         Span<FlashListener> output, ref int count)
     {

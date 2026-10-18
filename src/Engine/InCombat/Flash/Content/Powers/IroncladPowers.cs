@@ -464,15 +464,14 @@ public sealed class UnmovablePower : FlashPowerDef
 /// (<c>BeforeCardPlayedMirrors.HandleRupturePower</c>,
 /// <c>AfterDamageReceivedMirrors.HandleRupturePower</c>,
 /// <c>AfterCardPlayedMirrors.HandleRupturePower</c>).
-/// Aux0 = Strength accumulated for the current card play, Aux1 = the current play's pending entry,
-/// Aux2 = the last damage event to the owner had a card source. The existing engine keeps the same
-/// information in <c>RupturePredictionState.StrengthByCard</c>, a map keyed by CardModel; only one
-/// card play can be in flight, so the map is empty or has exactly one keyed entry, and the pending
-/// Strength is its only value. The bridge claims an empty entry and rejects a non-empty one
-/// (<see cref="FlashStateProjections"/>), so every non-terminal imported state has Aux0..2 = 0 and
-/// the three slots are written before each is read: BeforeCardPlayed starts a play,
-/// BeforeDamageReceived records the event's card source, AfterDamageReceived consumes it, and
-/// AfterCardPlayed settles the play.
+/// Aux0 = Strength accumulated for the current card play, Aux1 = the current play's pending entry.
+/// The card source is read directly from <see cref="FlashDamageResult.HasCardSource"/> (the existing
+/// engine passes <c>AfterDamageReceivedMirrorContext.Source</c>), so no source marker is staged on
+/// BeforeDamageReceived. The existing engine keeps the pending information in
+/// <c>RupturePredictionState.StrengthByCard</c>, a map keyed by CardModel; only one card play can be
+/// in flight, so the map is empty or has exactly one keyed entry, and the pending Strength is its
+/// only value. The bridge claims an empty entry and rejects a non-empty one
+/// (<see cref="FlashStateProjections"/>), so every non-terminal imported state has Aux0 = Aux1 = 0.
 /// </summary>
 [FlashContent("RUPTURE_POWER")]
 public sealed class RupturePower : FlashPowerDef
@@ -486,14 +485,6 @@ public sealed class RupturePower : FlashPowerDef
         ref FlashPower power = ref x.B.Powers[self.Index];
         power.Aux0 = 0;
         power.Aux1 = 1;
-        power.Aux2 = 0;
-    }
-
-    public override void BeforeDamageReceived(ref FlashExec x, FlashListener self, byte target, decimal amount,
-        FlashValueProps props, byte dealer, bool hasCardSource, in FlashCard cardSource)
-    {
-        if (target == self.Owner)
-            x.B.Powers[self.Index].Aux2 = hasCardSource ? (short)1 : (short)0;
     }
 
     public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
@@ -501,9 +492,7 @@ public sealed class RupturePower : FlashPowerDef
         if (result.Receiver != self.Owner || result.UnblockedDamage <= 0 || x.B.Side != FlashSide.Player)
             return;
         ref FlashPower power = ref x.B.Powers[self.Index];
-        bool fromPendingPlay = power.Aux1 != 0 && power.Aux2 != 0;
-        power.Aux2 = 0;
-        if (fromPendingPlay)
+        if (power.Aux1 != 0 && result.HasCardSource)
         {
             power.Aux0 += power.Amount;
             return;
@@ -518,7 +507,6 @@ public sealed class RupturePower : FlashPowerDef
         int gained = power.Aux0;
         power.Aux0 = 0;
         power.Aux1 = 0;
-        power.Aux2 = 0;
         if (gained != 0)
             FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<StrengthPower>(), gained, self.Owner);
     }
@@ -650,5 +638,144 @@ public sealed class CalamityPower : FlashPowerDef
             FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Hand);
         if (x.NeedsChoice)
             return;
+    }
+}
+
+/// <summary>
+/// Native <c>CorruptionPower</c>: Skills cost 0 through the late energy-cost pass, and a played Skill
+/// changes its result location to the exhaust pile
+/// (<c>ModifyEnergyCostInCombatMirrors</c>, <c>ModifyCardPlayResultLocationMirrors</c>). The native
+/// <c>AfterModifyingCardPlayResultLocation</c> only flashes; it has no state.
+/// </summary>
+[FlashContent("CORRUPTION_POWER")]
+public sealed class CorruptionPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+
+    public override decimal TryModifyEnergyCostInCombatLate(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner
+            || rules.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
+        {
+            return amount;
+        }
+        return 0m;
+    }
+
+    public override FlashPile ModifyCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
+        bool isAutoPlay, int energyValue, FlashPile location)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner
+            || x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
+        {
+            return location;
+        }
+        return FlashPile.Exhaust;
+    }
+
+    public override void AfterModifyingCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
+        FlashPile location)
+    {
+    }
+}
+
+/// <summary>
+/// Native <c>FreeAttackPower</c>: Attack cards in hand or the play pile cost 0 through the late cost
+/// pass, and the power loses one stack on <c>BeforeCardPlayed</c> for such an Attack
+/// (<c>ModifyEnergyCostInCombatMirrors.HandleFreeAttackPower</c>,
+/// <c>BeforeCardPlayedMirrors.HandleFreeAttackPower</c>).
+/// </summary>
+[FlashContent("FREE_ATTACK_POWER")]
+public sealed class FreeAttackPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override decimal TryModifyEnergyCostInCombatLate(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner
+            || rules.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack
+            || pile is not (FlashPile.Hand or FlashPile.Play))
+        {
+            return amount;
+        }
+        return 0m;
+    }
+
+    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner
+            || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        {
+            return;
+        }
+        int amount = x.B.Powers[self.Index].Amount;
+        if (amount > 0)
+            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+    }
+}
+
+/// <summary>
+/// Native <c>OneTwoPunchPower</c>: each played Attack owned by the power owner gets one extra play;
+/// <c>AfterModifyingCardPlayCount</c> decrements the power, and the player turn end removes it
+/// (<c>ModifyCardPlayCountMirrors</c>, <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c>).
+/// </summary>
+[FlashContent("ONE_TWO_PUNCH_POWER")]
+public sealed class OneTwoPunchPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
+        int playCount)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner
+            || x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack)
+        {
+            return playCount;
+        }
+        return playCount + 1;
+    }
+
+    public override void AfterModifyingCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card)
+    {
+        int amount = x.B.Powers[self.Index].Amount;
+        if (amount > 0)
+            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+    }
+}
+
+/// <summary>
+/// Native <c>ViciousPower</c>: when its owner applies Vulnerable, draw one card per stack
+/// (<c>PowerLifecycleSupport.ResolvePowerAmountChanges</c>'s Vicious case). The draw happens when the
+/// queued amount change is resolved, not inside the effect that applied Vulnerable.
+/// </summary>
+[FlashContent("VICIOUS_POWER")]
+public sealed class ViciousPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
+        byte applier)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner
+            || delta <= 0
+            || applier != self.Owner
+            || !FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable)
+            || powerId != vulnerable)
+        {
+            return;
+        }
+        int amount = x.B.Powers[self.Index].Amount;
+        if (amount > 0)
+            FlashKernel.Draw(ref x, amount, fromHandDraw: false);
     }
 }

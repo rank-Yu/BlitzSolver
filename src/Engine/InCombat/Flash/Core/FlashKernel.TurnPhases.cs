@@ -382,6 +382,9 @@ public static partial class FlashKernel
         }
         if (Contains(participants, FlashLimits.PlayerOwner))
             RelicPass(ref x, RelicPhase.AfterSideTurnStart, side);
+        if (x.NeedsChoice)
+            return;
+        ResolvePowerAmountChanges(ref x);
     }
 
     /// <summary><c>CorePowerSupport.CompletePlayerEarlySideTurnEndEffects</c>.</summary>
@@ -400,7 +403,9 @@ public static partial class FlashKernel
         EndTurnRegularAndBatch(ref x, FlashSide.Player, participants);
         if (x.NeedsChoice)
             return;
-        // ResolvePowerAmountChanges: no supported amount-change listeners yet.
+        ResolvePowerAmountChanges(ref x);
+        if (x.NeedsChoice)
+            return;
         TriggerTransientSideTurnEndPowers(ref x, FlashSide.Player, participants);
         RelicPass(ref x, RelicPhase.AfterSideTurnEnd, FlashSide.Player);
         // AfterSideTurnEndLate: no supported listeners yet.
@@ -417,6 +422,9 @@ public static partial class FlashKernel
                 return;
         }
         EndTurnRegularAndBatch(ref x, FlashSide.Enemy, enemies);
+        if (x.NeedsChoice)
+            return;
+        ResolvePowerAmountChanges(ref x);
         if (x.NeedsChoice)
             return;
         TriggerTransientSideTurnEndPowers(ref x, FlashSide.Enemy, enemies);

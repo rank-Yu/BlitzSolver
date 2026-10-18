@@ -72,6 +72,39 @@ public static partial class FlashHooks
         }
     }
 
+    /// <summary>
+    /// Power-only action hook dispatch. The existing engine's <c>AfterPowerAmountChanged</c> loop
+    /// iterates the current powers (<c>PowerLifecycleSupport.ResolvePowerAmountChanges</c>), not every
+    /// combat listener, so the general listener list is filtered to powers while keeping its order.
+    /// </summary>
+    public static void DispatchPowerHook<T>(ref FlashExec x, ref T hook) where T : struct, IFlashActionHook
+    {
+        if ((FlashRegistry.AnyHooks & T.Mask) == 0)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, T.Mask, listeners);
+        if (count == 0)
+            return;
+        Span<SnapshotEntry> snapshot = stackalloc SnapshotEntry[count];
+        int powers = 0;
+        for (int index = 0; index < count; index++)
+        {
+            if (listeners[index].Kind != FlashListenerKind.Power)
+                continue;
+            snapshot[powers++] = Snapshot(x.B, listeners[index]);
+        }
+        for (int index = 0; index < powers; index++)
+        {
+            if (!TryResolve(x.B, snapshot[index], out FlashListener current))
+                continue;
+            if (current.Kind != FlashListenerKind.Power || x.B.Powers[current.Index].Amount <= 0)
+                continue;
+            hook.Invoke(ref x, Definition(x.B, current), current);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
     private static SnapshotEntry Snapshot(in FlashBattle battle, FlashListener listener)
     {
         SnapshotEntry entry = new() { Listener = listener, Id = ListenerId(battle, listener), Occurrence = -1 };
@@ -387,4 +420,38 @@ public struct AfterAttackHook : IFlashActionHook
 
     public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
         => definition.AfterAttack(ref x, self, Attacker);
+}
+
+public struct AfterPowerAmountChangedHook : IFlashActionHook
+{
+    public ushort PowerId;
+    public int Delta;
+    public byte Applier;
+
+    public static FlashHookMask Mask => FlashHookMask.AfterPowerAmountChanged;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.AfterPowerAmountChanged(ref x, self, PowerId, Delta, Applier);
+}
+
+public struct AfterShuffleHook : IFlashActionHook
+{
+    public byte Shuffler;
+
+    public static FlashHookMask Mask => FlashHookMask.AfterShuffle;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.AfterShuffle(ref x, self, Shuffler);
+}
+
+public struct AfterCardEnteredCombatHook : IFlashActionHook
+{
+    public FlashPile Pile;
+    public int Index;
+    public FlashCard Card;
+
+    public static FlashHookMask Mask => FlashHookMask.AfterCardEnteredCombat;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.AfterCardEnteredCombat(ref x, self, Pile, Index, Card);
 }

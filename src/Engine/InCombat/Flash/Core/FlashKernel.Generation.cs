@@ -75,7 +75,7 @@ public static partial class FlashKernel
                 0, FlashCostType.Absolute, FlashCostExpiration.EndOfTurnOrWhenPlayed, reduceOnly: false);
             card.EnergyModifierCount++;
         }
-        card.SetTemporaryStarCost(0, clearsAtTurnEnd: true, clearsWhenPlayed: false);
+        card.SetTemporaryStarCost(0, clearsAtTurnEnd: true, clearsWhenPlayed: true);
     }
 
     /// <summary>
@@ -91,9 +91,23 @@ public static partial class FlashKernel
         FlashPiles.RemoveAt(ref x.B, pile, index);
         int insert = Math.Min(index, FlashPiles.Count(x.B, pile));
         FlashPiles.Insert(ref x.B, pile, insert, replacement);
-        FlashRegistry.Card(replacement.Id).AfterEnteredCombat(ref x, pile, insert);
+        EnteredCombat(ref x, replacement, pile, insert);
         // AfterCardGeneratedForCombat and the AfterTransformedFrom/To overrides have no supported
         // listeners or definitions in this content set.
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat</c>: the player's relic listeners
+    /// (<c>AfterCardEnteredCombat</c>, GhostSeed) run before the card-specific cost reactions
+    /// (Stomp, Pinpoint, Banshee's Cry), then <c>FlashCardDef.AfterEnteredCombat</c>.
+    /// </summary>
+    private static void EnteredCombat(ref FlashExec x, in FlashCard card, FlashPile pile, int index)
+    {
+        AfterCardEnteredCombatHook entered = new() { Pile = pile, Index = index, Card = card };
+        FlashHooks.Dispatch(ref x, ref entered, gatedByEnding: false);
+        if (x.NeedsChoice)
+            return;
+        FlashRegistry.Card(card.Id).AfterEnteredCombat(ref x, pile, index);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.AddGeneratedCardsToCombat</c> for one card: insertion as
@@ -119,10 +133,9 @@ public static partial class FlashKernel
             _ => throw new ArgumentOutOfRangeException(nameof(position), position, null),
         };
         FlashPiles.Insert(ref x.B, target, index, card);
-        // SimulatedCombatState.AfterCardEnteredCombat: card-specific cost adjustments.
-        FlashRegistry.Card(card.Id).AfterEnteredCombat(ref x, target, index);
+        EnteredCombat(ref x, card, target, index);
         // AfterCardGeneratedForCombat: no supported listeners yet.
-        return true;
+        return !x.NeedsChoice;
     }
 
     /// <summary>

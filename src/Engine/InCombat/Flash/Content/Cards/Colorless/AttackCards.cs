@@ -42,6 +42,13 @@ public sealed class MindBlast : FlashCardDef
         decimal damage = FlashCardEffects.Var(x, 0) + FlashCardEffects.Var(x, 1) * x.B.DrawCount;
         FlashCardEffects.Attack(ref x, damage);
     }
+
+    public override bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        FlashCardStats stats = x.R.Card(self.Id, self.Upgrade);
+        damage = stats.Vars[0] + self.Var0 + (stats.Vars[1] + self.Var1) * x.B.DrawCount;
+        return true;
+    }
 }
 
 [FlashContent("REND")]
@@ -51,23 +58,36 @@ public sealed class Rend : FlashCardDef
     // debuff count (CalculatedVarSpecRegistry.TryMultiplier, Rend case).
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
+    public override bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        FlashCardStats stats = x.R.Card(self.Id, self.Upgrade);
+        damage = stats.Vars[0] + self.Var0
+            + (stats.Vars[1] + self.Var1) * CountTargetDebuffs(x, target);
+        return true;
+    }
+
     public override void OnPlay(ref FlashExec x)
     {
-        int debuffs = 0;
-        if (x.Target != FlashLimits.NoOwner)
-        {
-            for (int index = 0; index < x.B.PowerCount; index++)
-            {
-                ref readonly FlashPower power = ref x.B.Powers[index];
-                if (power.Owner != x.Target)
-                    continue;
-                FlashPowerDef def = FlashRegistry.Power(power.Id);
-                if (def.TypeForAmount(power.Amount) == FlashPowerType.Debuff && !def.IsTemporaryPower)
-                    debuffs++;
-            }
-        }
-        decimal damage = FlashCardEffects.Var(x, 0) + FlashCardEffects.Var(x, 1) * debuffs;
+        decimal damage = FlashCardEffects.Var(x, 0)
+            + FlashCardEffects.Var(x, 1) * CountTargetDebuffs(x, x.Target);
         FlashCardEffects.Attack(ref x, damage);
+    }
+
+    private static int CountTargetDebuffs(in FlashExec x, byte target)
+    {
+        int debuffs = 0;
+        if (target == FlashLimits.NoOwner)
+            return 0;
+        for (int index = 0; index < x.B.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref x.B.Powers[index];
+            if (power.Owner != target)
+                continue;
+            FlashPowerDef def = FlashRegistry.Power(power.Id);
+            if (def.TypeForAmount(power.Amount) == FlashPowerType.Debuff && !def.IsTemporaryPower)
+                debuffs++;
+        }
+        return debuffs;
     }
 }
 
@@ -102,6 +122,6 @@ public sealed class Volley : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         // HasEnergyCostX: one random-target hit per energy spent (ResolveEnergyXValue).
-        FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), x.XValue);
+        FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), FlashKernel.ResolveEnergyXValue(ref x));
     }
 }

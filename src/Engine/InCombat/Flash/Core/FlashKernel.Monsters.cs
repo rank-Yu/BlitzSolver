@@ -317,6 +317,9 @@ public static partial class FlashKernel
         {
             ApplyEnemyDeathPowers(ref x);
         }
+        // MonsterMoveSemantics resolves the move's queued power amount changes before normalizing.
+        if (!x.NeedsChoice)
+            ResolvePowerAmountChanges(ref x);
         return x.B.Player.IsDead;
     }
 

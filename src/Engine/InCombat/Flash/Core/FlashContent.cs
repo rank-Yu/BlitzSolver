@@ -156,6 +156,19 @@ public enum FlashHookMask : ulong
     ShouldPlay = 1UL << 36,
     ShouldFlush = 1UL << 37,
     AfterAutoPostPlayPhaseEntered = 1UL << 39,
+    TryModifyEnergyCostInCombat = 1UL << 40,
+    TryModifyEnergyCostInCombatLate = 1UL << 41,
+    ModifyCardPlayResultLocation = 1UL << 42,
+    AfterModifyingCardPlayResultLocation = 1UL << 43,
+    ModifyCardPlayCount = 1UL << 44,
+    AfterModifyingCardPlayCount = 1UL << 45,
+    AfterPowerAmountChanged = 1UL << 46,
+    AfterShuffle = 1UL << 47,
+    ModifyXValue = 1UL << 48,
+    ShouldPlayerResetEnergy = 1UL << 49,
+    TryModifyPowerAmountReceived = 1UL << 50,
+    AfterModifyingPowerAmountReceived = 1UL << 51,
+    AfterCardEnteredCombat = 1UL << 52,
 
     /// <summary>
     /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
@@ -374,6 +387,104 @@ public abstract class FlashListenerDef : FlashContentDef
     {
     }
 
+    // Energy cost and play-result hooks. The cost hooks are pure queries (no state mutation): the
+    // kernel reads them from playability checks and the evaluation as well as from an action.
+    // HookMirrors.ModifyEnergyCostInCombat runs the normal pass over every combat listener, then the
+    // late pass over every combat listener; the caller clamps the result at zero.
+
+    /// <summary>Native <c>TryModifyEnergyCostInCombat</c> normal pass; <paramref name="pile"/> is the card's pile.</summary>
+    public virtual decimal TryModifyEnergyCostInCombat(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount) => amount;
+
+    /// <summary>Native <c>TryModifyEnergyCostInCombatLate</c> late pass (Corruption, FreeAttackPower).</summary>
+    public virtual decimal TryModifyEnergyCostInCombatLate(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount) => amount;
+
+    /// <summary>
+    /// Native <c>ModifyCardPlayResultLocation</c> (<c>CardModel.OnPlayWrapper</c>), after the base
+    /// result location. <paramref name="energyValue"/> is <c>CardPlay.Resources.EnergyValue</c>.
+    /// </summary>
+    public virtual FlashPile ModifyCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
+        bool isAutoPlay, int energyValue, FlashPile location) => location;
+
+    /// <summary>
+    /// <c>CardModel.OnPlayWrapper</c>'s direct dispatch over the modifiers that changed the result
+    /// location (<c>HookMirrors.AfterModifyingCardPlayResultLocation</c>); not re-read from the listener list.
+    /// </summary>
+    public virtual void AfterModifyingCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
+        FlashPile location)
+    {
+    }
+
+    /// <summary>
+    /// Native <c>ModifyCardPlayCount</c> over every combat listener; the existing engine records the
+    /// listeners whose value changed for the after pass.
+    /// </summary>
+    public virtual int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
+        int playCount) => playCount;
+
+    /// <summary>
+    /// <c>Hook.AfterModifyingCardPlayCount</c>: only the modifiers recorded by
+    /// <see cref="ModifyCardPlayCount"/>, in listener order (OneTwoPunch, Duplication).
+    /// </summary>
+    public virtual void AfterModifyingCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card)
+    {
+    }
+
+    /// <summary>
+    /// <c>PowerLifecycleSupport.ResolvePowerAmountChanges</c>: a queued power amount change from
+    /// <c>ApplyWithBeforeApplied</c>. The existing engine dispatches this over the current powers only.
+    /// </summary>
+    public virtual void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
+        byte applier)
+    {
+    }
+
+    /// <summary>Native <c>AfterShuffle</c> over the combat listeners, after the shuffle event count.</summary>
+    public virtual void AfterShuffle(ref FlashExec x, FlashListener self, byte shuffler)
+    {
+    }
+
+    /// <summary>Native <c>ModifyXValue</c> over the combat listeners (<c>Hook.ModifyXValue</c>).</summary>
+    public virtual int ModifyXValue(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card,
+        int value) => value;
+
+    /// <summary>
+    /// Native <c>ShouldPlayerResetEnergy</c> over the combat listeners before the player turn's energy
+    /// reset (<c>PersistentRelicSupport.ShouldPlayerResetEnergy</c>); false keeps the current energy.
+    /// </summary>
+    public virtual bool ShouldPlayerResetEnergy(in FlashBattle battle, FlashRules rules, FlashListener self,
+        byte player) => true;
+
+    /// <summary>
+    /// Native <c>TryModifyPowerAmountReceived</c> (RuinedHelmet). This pass must not mutate state; the
+    /// kernel records the listeners that changed the amount and calls
+    /// <see cref="AfterModifyingPowerAmountReceived"/> on them before the Artifact check, matching
+    /// <c>SimulatedCombatState.ModifyPowerAmountForRelics</c>.
+    /// </summary>
+    public virtual bool TryModifyPowerAmountReceived(in FlashBattle battle, FlashRules rules, FlashListener self,
+        ushort powerId, byte target, int amount, out int modified)
+    {
+        modified = amount;
+        return false;
+    }
+
+    /// <summary>Native <c>AfterModifyingPowerAmountReceived</c> for the listeners recorded by the received pass.</summary>
+    public virtual void AfterModifyingPowerAmountReceived(ref FlashExec x, FlashListener self, ushort powerId,
+        byte target)
+    {
+    }
+
+    /// <summary>
+    /// Native <c>AfterCardEnteredCombat</c> over the player's relics when a card enters combat from
+    /// outside the combat piles (<c>SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat</c>
+    /// dispatches the relic before the card-specific cost reactions).
+    /// </summary>
+    public virtual void AfterCardEnteredCombat(ref FlashExec x, FlashListener self, FlashPile pile, int index,
+        in FlashCard card)
+    {
+    }
+
     public virtual void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
     }
@@ -463,6 +574,17 @@ public abstract class FlashCardDef : FlashListenerDef
 
     /// <summary>Card-specific playability (<c>CardIsPlayableMirrors</c>); most cards are always playable.</summary>
     public virtual bool IsPlayable(in FlashBattle battle, FlashRules rules, in FlashCard card) => true;
+
+    /// <summary>
+    /// A card's native <c>CalculatedDamage</c> formula for another effect that reads this card's damage
+    /// (Thrash). Returns false for cards without a calculated damage variable; the caller then reads
+    /// the named <c>Damage</c>/<c>OstyDamage</c> variable. <paramref name="self"/> is this card's value.
+    /// </summary>
+    public virtual bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        damage = 0m;
+        return false;
+    }
 
     /// <summary>
     /// Card-specific adjustment when this card enters combat from outside the combat piles

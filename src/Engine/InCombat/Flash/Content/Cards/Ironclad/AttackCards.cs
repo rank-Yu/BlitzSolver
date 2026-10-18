@@ -27,6 +27,19 @@ public sealed class BodySlam : FlashCardDef
     public override void OnPlay(ref FlashExec x)
         => FlashCardEffects.Attack(ref x,
             FlashCardEffects.Var(x, 0) + FlashCardEffects.Var(x, 1) * x.B.Player.Block);
+
+    public override bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        damage = SelfVar(x, self, 0) + SelfVar(x, self, 1) * x.B.Player.Block;
+        return true;
+    }
+
+    internal static decimal SelfVar(in FlashExec x, in FlashCard card, int index)
+    {
+        FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        decimal delta = index == 0 ? card.Var0 : card.Var1;
+        return stats.Vars[index] + delta;
+    }
 }
 
 [FlashContent("BREAKTHROUGH")]
@@ -65,6 +78,13 @@ public sealed class PerfectedStrike : FlashCardDef
     public override void OnPlay(ref FlashExec x)
         => FlashCardEffects.Attack(ref x,
             FlashCardEffects.Var(x, 0) + FlashCardEffects.Var(x, 1) * FlashCardEffects.CountCardsWithTag(x, FlashCardTag.Strike));
+
+    public override bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        damage = BodySlam.SelfVar(x, self, 0)
+            + BodySlam.SelfVar(x, self, 1) * FlashCardEffects.CountCardsWithTag(x, FlashCardTag.Strike);
+        return true;
+    }
 }
 
 [FlashContent("BREAK")]
@@ -87,7 +107,7 @@ public sealed class Whirlwind : FlashCardDef
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.GeneralAttack(ref x, 0, hitCount: x.XValue);
+        => FlashCardEffects.GeneralAttack(ref x, 0, hitCount: FlashKernel.ResolveEnergyXValue(ref x));
 }
 
 [FlashContent("SWORD_BOOMERANG")]
@@ -129,6 +149,15 @@ public sealed class Bully : FlashCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
+    public override bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        int vulnerable = target == FlashLimits.NoOwner
+            ? 0
+            : FlashKernel.GetAmount(x.B, target, FlashRegistry.PowerId<Powers.VulnerablePower>());
+        damage = BodySlam.SelfVar(x, self, 0) + BodySlam.SelfVar(x, self, 1) * vulnerable;
+        return true;
+    }
+
     public override void OnPlay(ref FlashExec x)
     {
         int vulnerable = x.Target == FlashLimits.NoOwner
@@ -160,6 +189,12 @@ public sealed class AshenStrike : FlashCardDef
     public override void OnPlay(ref FlashExec x)
         => FlashCardEffects.Attack(ref x,
             FlashCardEffects.Var(x, 0) + FlashCardEffects.Var(x, 1) * x.B.ExhaustCount);
+
+    public override bool TryGetCalculatedDamage(ref FlashExec x, in FlashCard self, byte target, out decimal damage)
+    {
+        damage = BodySlam.SelfVar(x, self, 0) + BodySlam.SelfVar(x, self, 1) * x.B.ExhaustCount;
+        return true;
+    }
 }
 
 [FlashContent("CINDER")]
@@ -374,3 +409,140 @@ public sealed class FiendFire : FlashCardDef
 // the importer maps the native list one-to-one, so a third Attack in the same turn overflows the
 // card. Raising that capacity requires FlashBattle/FlashLimits (kernel core), which this batch may
 // not change; see the P14 report's skip list.
+
+[FlashContent("UNRELENTING")]
+public sealed class Unrelenting : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage"];
+
+    // Unrelenting.cs: the single-target attack runs first, then FreeAttackPower 1 is applied.
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice)
+            return;
+        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.FreeAttackPower>(),
+            1, FlashLimits.PlayerOwner);
+    }
+}
+
+[FlashContent("STOMP")]
+public sealed class Stomp : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage"];
+
+    public override void OnPlay(ref FlashExec x)
+        => FlashCardEffects.GeneralAttack(ref x, 0);
+
+    // Stomp.AfterCardEnteredCombat: reduce the cost by the Attacks finished this turn.
+    public override void AfterEnteredCombat(ref FlashExec x, FlashPile pile, int index)
+    {
+        int attacks = x.B.Counter(FlashCounter.AttacksPlayedThisTurn);
+        if (attacks <= 0)
+            return;
+        ref FlashCard card = ref FlashPiles.At(ref x.B, pile, index);
+        AddThisTurn(ref card, -attacks);
+    }
+
+    // BeforeCardPlayedMirrors.HandleStomp: every Attack the owner plays reduces this card by 1.
+    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    {
+        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+            return;
+        ref FlashCard card = ref x.B.Cards[self.Index];
+        if (card.Id != Id)
+            return;
+        AddThisTurn(ref card, -1);
+    }
+
+    private static void AddThisTurn(ref FlashCard card, int amount)
+    {
+        if (amount == 0)
+            return;
+        if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
+            throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
+        card.EnergyModifiers[card.EnergyModifierCount] = FlashCostModifier.Create(amount, FlashCostType.Relative,
+            FlashCostExpiration.EndOfTurn, reduceOnly: false);
+        card.EnergyModifierCount++;
+    }
+}
+
+[FlashContent("TEAR_ASUNDER")]
+public sealed class TearAsunder : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage"];
+
+    // CalculatedHits = 1 + History DamageReceived entries for the owner with unblocked damage.
+    public override void OnPlay(ref FlashExec x)
+    {
+        int hits = 1 + x.B.Counter(FlashCounter.PlayerUnblockedDamageEvents);
+        FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), hits);
+    }
+}
+
+[FlashContent("THRASH")]
+public sealed class Thrash : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Damage"];
+
+    public override void OnPlay(ref FlashExec x)
+    {
+        // Thrash.cs: two hits, then a random Attack in hand is read for its damage, that value is
+        // added to this card's Damage (unmodified by Strength/Vulnerable because target is null in
+        // the native ModifyDamage call), and the selected card is exhausted.
+        FlashCardEffects.GeneralAttack(ref x, 0, hitCount: 2);
+        if (x.NeedsChoice)
+            return;
+        int selected = PickRandomHandAttack(ref x);
+        if (selected < 0)
+            return;
+        FlashCard victim = x.B.Cards[selected];
+        FlashCardDef def = FlashRegistry.Card(victim.Id);
+        if (!def.TryGetCalculatedDamage(ref x, victim, FlashLimits.NoOwner, out decimal damage))
+            damage = NamedDamage(ref x, victim, def);
+        damage = FlashHooks.ModifyDamage(ref x, FlashLimits.NoOwner, FlashLimits.PlayerOwner, damage,
+            FlashValueProps.Move, hasCardSource: true, victim);
+        FlashCardEffects.AddCurrentCardVar(ref x, 0, damage);
+        FlashKernel.Exhaust(ref x, FlashPile.Hand, selected);
+    }
+
+    private static int PickRandomHandAttack(ref FlashExec x)
+    {
+        int count = 0;
+        for (int index = 0; index < x.B.HandCount; index++)
+        {
+            if (x.R.Card(x.B.Cards[index].Id, x.B.Cards[index].Upgrade).Type == FlashCardType.Attack)
+                count++;
+        }
+        if (count == 0)
+            return -1;
+        int pick = x.B.RngStream(FlashRngStream.CombatCardSelection).NextInt(0, count);
+        for (int index = 0; index < x.B.HandCount; index++)
+        {
+            if (x.R.Card(x.B.Cards[index].Id, x.B.Cards[index].Upgrade).Type != FlashCardType.Attack)
+                continue;
+            if (pick-- == 0)
+                return index;
+        }
+        throw new InvalidOperationException("Thrash 的手牌随机选择没有落到任何候选。");
+    }
+
+    private static decimal NamedDamage(ref FlashExec x, in FlashCard card, FlashCardDef def)
+    {
+        FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        for (int index = 0; index < def.VarNames.Count && index < stats.Vars.Length; index++)
+        {
+            string name = def.VarNames[index];
+            if (name is not ("Damage" or "OstyDamage"))
+                continue;
+            decimal delta = index switch
+            {
+                0 => card.Var0,
+                1 => card.Var1,
+                _ => 0,
+            };
+            return stats.Vars[index] + delta;
+        }
+        throw new FlashUnsupportedException($"Thrash 选中的攻击 {def.NativeId} 没有 Damage 变量。");
+    }
+}
