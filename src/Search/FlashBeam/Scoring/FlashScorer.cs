@@ -896,8 +896,12 @@ internal sealed class FlashScorer
             return false;
         if (score.HasTurnEndInHandEffect)
             return false;
+        // The existing engine reads `card.HasKeyword(State, Ethereal)`, i.e. through Hook.ModifyKeywords:
+        // HexPower grants Ethereal to every Hexed card, so a Hexed status/curse in hand leaves at the
+        // turn end even without a local Ethereal keyword. The local keyword alone under-counts the
+        // exception and makes the card look like persistent clutter.
         // Hook.ShouldEtherealTrigger has no supported listeners, so it is always true here.
-        return (card.Keywords & FlashKeywords.Ethereal) != 0;
+        return FlashKernel.HasKeyword(battle, card, FlashKeywords.Ethereal);
     }
 
     private int ReplayPotentialValue(in FlashBattle battle)
@@ -1806,7 +1810,9 @@ internal sealed class FlashScorer
                 int count = FlashPiles.Count(battle, segment);
                 for (int offset = 0; offset < count; offset++)
                 {
-                    if (battle.Cards[start + offset].HasKeyword(FlashKeywords.Ethereal))
+                    // CombatBeamSolver.StateEvaluation uses `HasKeyword(State, Ethereal)` here too,
+                    // so a Hexed card in the draw/discard pile is part of Pagestorm's projection.
+                    if (FlashKernel.HasKeyword(battle, battle.Cards[start + offset], FlashKeywords.Ethereal))
                         futureEtherealCards++;
                 }
             }

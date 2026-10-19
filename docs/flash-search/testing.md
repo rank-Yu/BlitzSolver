@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B 合入后）：FlashKernelChecks 通过；150 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、227 个固定根（`coverage/fixtures/cards/flash-*.json`）与 63 个生成牌组（含 28 个非铁甲战士牌组、10 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C 合入后）：FlashKernelChecks 通过；150 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、227 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
 ### 2.1 覆盖缺口
 
@@ -57,6 +57,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 剩余怪物（MB，2026-10-19）：知识恶魔的怪物行动现在产生待处理的固定选项选择（`FlashChoiceKind.SelectOption`，接入选择翻译、回放与差分比较），实现四个诅咒 Power 与诅咒卡（只作为选项）并投影 `_knowledgeDemonCurseCounters`；无餍者的目标化 SandpitPower（敌方回合开始按行减层、归零击杀目标）、FranticEscape、评估中的 `SandpitRemaining` 与“1 层流沙必死”威胁特例；新 Hook `AfterSideTurnEndLate`（`FlashHookMaskExt`）。EntropicBrew 按现有引擎冻结战斗外随机药水池，免费药水与生成药水的用量和战略成本进入评估（K4 覆盖）。两个首领的 FLASHM1/FLASHM2 自然根与 `flash-mb-*` 固定根零差异。
 
 偷窃与瀑布巨兽（TW，2026-10-19）：实现 THIEVING_HOPPER_WEAK、GREMLIN_MERC_NORMAL 与 WATERFALL_GIANT_BOSS，三幕遭遇全部覆盖。偷窃：THIEVERY 按 `ThievingHopper._stealPriorities` 的稀有度优先从抽牌堆与弃牌堆取牌组卡并移出战斗，被偷卡的完整值存进 `FlashBattle.DetachedCards`（容量 2 → 3，与 Nightmare 共用），击杀回收、逃跑不回收；ThieveryPower 的金币、HeistPower、SurprisePower 的死亡生成与 Heist 转移、逃跑时已知敌人的压实与下标重映射；`OutstandingStolenResource` 进入评分与路线键，`MinimumOutstandingStolenResource` 纳入 K4，偷窃根照现有引擎以 `theft_policy` 禁用 incumbent 下界，`PreserveResources` 策略下的资源保全代表只在偷窃根比较。瀑布巨兽：SteamEruption 的死亡改写（HP 钳制、强制 ABOUT_TO_BLOW、保留本 Power 并清其余 Power）、ABOUT_TO_BLOW/EXPLODE 强制行动、压力枪的动态伤害、爆发阶段 `EffectiveEnemyHp` 为 0 与阻止战斗结束；`FlashEnemy.SteamPhase` 使用原填充字节，`FlashBattle` 12320 → 12408 字节。瀑布巨兽的死亡改写暴露 11 个卡牌定义漏掉的时机：照 `CorePowerSupport.ApplyCardPowers` 在镜像攻击之后、专属补偿施加敌方 Power 之前结算敌人死亡 Power（Bash、Uppercut、Thunderclap、SuckerPunch、PoisonedStab、Comet 等）。4 个 `coverage/fixtures/cards/flash-tw-*.json` 与 6 个自然根 48 条游走零差异，临时计数确认偷窃、回收、逃跑、Surprise 生成与蒸汽三阶段在游走中触发；强制 THIEVING_HOPPER_WEAK 的 180 个生成牌组中 165 个零差异，8 个在 Hopper 逃跑后现有引擎仍保留 FlutterPower（持有者已离开已知敌人）而无法投影，按缺失能力记录。48 根基准路线与每根转移数逐根不变。
+
+评估中的动态关键字（K4C，2026-10-19）：第三幕 REGENT-04（KNIGHTS_ELITE）有 33 个状态的 K4 `LiveDeckClutter` 比现有评估多 1–2。HexPower 在战斗中给被诅咒（Hexed）的牌动态追加“虚无”关键字，不写进卡牌字段；现有引擎的牌库杂质判定经 `Hook.ModifyKeywordsInCombat` 读到它，Flash 评分只读了卡牌自身关键字。`FlashScorer` 的杂质判定与 Pagestorm 的未来虚无牌统计改用内核已有的 `FlashKernel.HasKeyword`。修正后第一、二幕五个调查各 30 个根与第三幕 150 个根的 48 条游走全部 `scoreFailed=0`、`boundFailed=0`，REGENT-04 收进 `coverage/corpora/flash-decks/`；48 根基准逐根不变。
 
 第三幕首领策略（A3B，2026-10-19）：`SearchPolicySnapshot.Act3BossStrategy` 在 TEST_SUBJECT_BOSS、AEONGLASS_BOSS、QUEEN_BOSS 默认开启，此前 Flash 遇到它整根拒绝，每局的最终首领战都回落现有搜索；生产默认设置下这是唯一实际生效的整根策略拒绝（成长额度与遗物计数目标只在玩家配置后出现，连续致命定价与上下文排序只在测试合同中使用）。移植全部读取点：`StrategicEffectModel.Requirements` 的首领开关，Lethality 首击、Pagestorm 虚无抽牌、DanseMacabre 高费出牌、Demesne 未来能量与抽牌、PrepTime 的首领估值分支，`CaptureFirstAttackDamage` 与 `CaptureAct3BossInteractionPotential`；K4 新增 7 个逐字段特征（现有引擎侧在 `SimulationSnapshot` 上记录同名只读值，不进入状态键）。搜索阶段移植首个回合层的承诺展开：取回了付得起的能力牌（MoveToHand 主选择或预知之滴）的中间状态不参与排序，直接展开其全部合法后继，计数与去重照常；现有引擎的回合层局部墙钟切片在 Flash 中本来不存在。50 个第三幕首领牌组从 `score=rejected` 变为逐字段一致；新增 6 个首领自然根零差异。20 个首领牌组的协调器对照 19 同 1 好、0 差（IRONCLAD-11 由未完成变为第 13 回合胜利），总耗时 357.1 s → 182.5 s（−49%），20/20 主搜索 `FLASH_ADOPTED:verified`；48 根基准路线逐根相同。
 
@@ -168,7 +170,6 @@ Linux 无头游戏（Medium 档位、宽度组合、`Instant / 0 秒`，铁甲�
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。
-- 第三幕随机牌组 REGENT-04（精英）在 48 条游走中有 33 个状态的 K4 `LiveDeckClutter` 比现有评估多 1–2（`Score` 随之不同），内核状态逐字节一致；DX3 合入后即存在，待修。路线采用前仍由现有引擎逐步核对。
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择覆盖卡牌自身的单选、手牌/抽牌堆/弃牌堆选择、回合开始选择、知识恶魔的固定选项与自动打出中的嵌套选择（LR、MB 固定根）；一个动作最多携带 8 个选择，更深的链按容量边界拒绝。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
