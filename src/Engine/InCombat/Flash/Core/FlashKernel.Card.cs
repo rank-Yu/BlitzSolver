@@ -225,8 +225,13 @@ public static partial class FlashKernel
         // PlayPosition to its slot; put this play's slot back afterwards so CurrentPlayCard keeps
         // addressing this card (nested cards are appended after it and leave the play pile first).
         int outerPlayPosition = x.PlayPosition;
+        // A nested auto-play inside this play's effects (OwnChoice discarding a Sly card) completes its
+        // own power-application scope, which overwrites LastCardPowerSourceSerial. Restore the outer
+        // play's completed scope so Vambrace's AfterCardPlayed still matches its triggering card.
+        int outerLastSourceSerial = x.LastCardPowerSourceSerial;
         PlayFromPlayCore(ref x, card, target, energyValue, playPosition, isAutoPlay, out resultPile, out resultIndex);
         x.PlayPosition = outerPlayPosition;
+        x.LastCardPowerSourceSerial = outerLastSourceSerial;
     }
 
     private static void PlayFromPlayCore(ref FlashExec x, FlashCard card, byte target, int energyValue,
@@ -605,7 +610,11 @@ public static partial class FlashKernel
     }
 
     /// <summary>Copies the live play-pile card back into <see cref="FlashExec.Card"/> after a tail hook changed it.</summary>
-    public static void SyncCurrentPlayCard(ref FlashExec x) => x.Card = CurrentPlayCard(ref x);
+    public static void SyncCurrentPlayCard(ref FlashExec x)
+    {
+        x.Card = CurrentPlayCard(ref x);
+        x.Stats = x.R.Card(x.Card.Id, x.Card.Upgrade);
+    }
 
     /// <summary>
     /// <c>EnchantmentModel.OnPlay</c> then <c>AfflictionModel.OnPlay</c> for the card at

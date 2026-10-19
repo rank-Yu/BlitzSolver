@@ -393,11 +393,17 @@ public sealed class Rampage : FlashCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Increase"];
 
+    // Rampage.AfterDowngraded re-adds _extraDamageFromPlays; the delta in Var0 is that accumulator.
+    public override bool PreservesVar0OnDowngrade => true;
+
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // The native DynamicVars are read from the live CardModel after the attack; a mid-play
+        // Dampen restore can upgrade this card before the Increase is added.
+        FlashKernel.SyncCurrentPlayCard(ref x);
         FlashCardEffects.AddCurrentCardVar(ref x, 0, FlashCardEffects.Var(x, 1));
     }
 }

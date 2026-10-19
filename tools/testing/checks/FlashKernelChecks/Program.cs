@@ -44,6 +44,7 @@ CheckLrKernel(rules);
 CheckIdKernel(rules);
 CheckCxKernel(rules);
 CheckDecimalVars(rules);
+CheckDx3Kernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -850,6 +851,10 @@ static FlashRules SliceRules()
     builder.SetCard(whirlwind, 0, Stats(FlashCardType.Attack, FlashTargetType.AllEnemies, 0, [5m], costsX: true));
     FlashRegistry.TryCard("FETCH", out ushort fetch);
     builder.SetCard(fetch, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [3m, 1m]));
+    // DX3: Dampen's level-0 rules and the Rampage accumulator restore.
+    FlashRegistry.TryCard("RAMPAGE", out ushort rampage);
+    builder.SetCard(rampage, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [10m, 5m]));
+    builder.SetCard(rampage, 1, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [10m, 8m]));
     // RG: the forge kernel creates SOVEREIGN_BLADE; the star-cost contract uses a synthetic card.
     FlashRegistry.TryCard("SOVEREIGN_BLADE", out ushort blade);
     builder.SetCard(blade, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [10m]));
@@ -2030,6 +2035,7 @@ static void CheckDecimalVars(FlashRules rules)
     {
         Card = strikeBattle.Cards[0],
         Stats = rules.Card(strike, 0),
+        PlayPosition = 0,
     };
     bool fractionalRejected = false;
     try
@@ -2065,6 +2071,70 @@ static void CheckDecimalVars(FlashRules rules)
     FlashCard marked = FlashKernel.CreateCard(rules, thrash);
     marked.TransientMark = 5;
     Check(FlashKernel.CloneCard(marked).TransientMark == 0, "克隆应清除 BeatDown 瞬态标记");
+}
+
+// DX3: contracts for the rules/identity fixes. The spawn contract uses the state-machine
+// constructor's logged initial MoveState (InitialMoveLogged), the card contract pins the play-pile
+// position of AddCurrentCardVar and Dampen's accumulator restore.
+static void CheckDx3Kernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryMonster("NIBBIT", out ushort nibbit), "缺少 NIBBIT");
+    FlashRulesBuilder builder = new() { RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
+    builder.SetMonster(0, SpawnMonsterRules(nibbit));
+    builder.AddSpawnableMonster(SpawnMonsterRules(nibbit, initialMoveLogged: true));
+    FlashRules spawnRules = builder.Build();
+    FlashBattle battle = SpawnBattle();
+    battle.Side = FlashSide.Enemy;
+    FlashExec spawnExec = new(ref battle, spawnRules, default);
+    int rulesId = spawnRules.SpawnRulesId(nibbit);
+    byte owner = FlashKernel.SpawnMonster(ref spawnExec, FlashLimits.PlayerOwner, rulesId, 1, minion: false);
+    Check((battle.Enemy(owner).Flags & FlashEnemyFlags.NeedsInitialRoll) == 0,
+        "InitialMoveLogged 的敌方召唤物应直接采用状态机构造器记录的初始行动");
+    Check(battle.Enemy(owner).Move == 0 && battle.Enemy(owner).LoggedMoves == 1,
+        $"InitialMoveLogged 召唤物应已记录初始行动，实际 move={battle.Enemy(owner).Move} logged={battle.Enemy(owner).LoggedMoves}");
+
+    // AddCurrentCardVar must address FlashExec.PlayPosition, not the top of the play pile: a nested
+    // auto-play leaves its card above the outer card until its tail moves it.
+    Check(FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD");
+    FlashBattle pileBattle = NewBattle();
+    FlashPiles.Append(ref pileBattle, FlashPile.Play, FlashKernel.CreateCard(rules, strike));
+    FlashPiles.Append(ref pileBattle, FlashPile.Play, FlashKernel.CreateCard(rules, strike));
+    int playStart = FlashPiles.Start(pileBattle, FlashPile.Play);
+    FlashExec pileExec = new(ref pileBattle, rules, default);
+    pileExec.Card = FlashPiles.At(ref pileBattle, FlashPile.Play, 0);
+    pileExec.PlayPosition = 0;
+    FlashCardEffects.AddCurrentCardVar(ref pileExec, 0, 5);
+    Check(FlashPiles.At(ref pileBattle, FlashPile.Play, 0).Var0 == 5
+        && FlashPiles.At(ref pileBattle, FlashPile.Play, 1).Var0 == 0,
+        "AddCurrentCardVar 应写到当前出牌位置，而不是打出堆顶");
+
+    // Dampen downgrade: the level-0 value is read and the accumulated Rampage var is restored.
+    Check(FlashRegistry.TryCard("RAMPAGE", out ushort rampage), "缺少 RAMPAGE");
+    FlashBattle rampBattle = NewBattle();
+    FlashPiles.Append(ref rampBattle, FlashPile.Hand, FlashKernel.CreateCard(rules, rampage, 1));
+    int rampageIndex = FlashPiles.Start(rampBattle, FlashPile.Hand);
+    rampBattle.Cards[rampageIndex].Var0 = 10;
+    FlashExec rampExec = new(ref rampBattle, rules, default);
+    rampExec.Card = rampBattle.Cards[rampageIndex];
+    rampExec.PlayPosition = rampageIndex;
+    FlashKernel.DowngradeCard(ref rampExec, rampageIndex);
+    Check(rampBattle.Cards[rampageIndex].Upgrade == 0
+        && rampBattle.Cards[rampageIndex].DampenOriginalUpgrade == 2
+        && rampBattle.Cards[rampageIndex].Var0 == 10,
+        "Dampen 降级后应使用 0 级规则并恢复 Rampage 的累计 Var0");
+
+    // The pending amount marker is transient and cleared at the stable boundary.
+    FlashBattle flagBattle = NewBattle();
+    Check(FlashRegistry.TryPower("STRENGTH_POWER", out ushort strength), "缺少 STRENGTH_POWER");
+    flagBattle.PowerCount = 1;
+    flagBattle.Powers[0] = new FlashPower
+    {
+        Id = strength, Owner = FlashLimits.PlayerOwner, Amount = 1,
+        Flags = FlashPowerFlags.PendingAmountState,
+    };
+    FlashKernel.ClearPendingPowerAmountStates(ref flagBattle);
+    Check((flagBattle.Powers[0].Flags & FlashPowerFlags.PendingAmountState) == 0,
+        "PendingAmountState 应在稳定边界清除");
 }
 
 static FlashBattle NewBattle()
@@ -2257,7 +2327,7 @@ static FlashRules NoEncounterRules()
     return builder.Build();
 }
 
-static FlashMonsterRules SpawnMonsterRules(ushort nibbit) => new()
+static FlashMonsterRules SpawnMonsterRules(ushort nibbit, bool initialMoveLogged = false) => new()
 {
     MonsterId = nibbit,
     Nodes =
@@ -2274,6 +2344,7 @@ static FlashMonsterRules SpawnMonsterRules(ushort nibbit) => new()
     InitialHpMax = 21,
     StaticInts = [],
     InitialAiRegisters = [2, 0],
+    InitialMoveLogged = initialMoveLogged,
 };
 
 static bool SameRng(in FlashRngState left, in FlashRngState right)

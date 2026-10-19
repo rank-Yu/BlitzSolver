@@ -758,15 +758,8 @@ public sealed class Axebot : FlashMonsterDef
         int newStock = FlashKernel.GetAmount(x.B, source, stock) - 1;
         if (newStock < 0)
             newStock = 0;
-        // The compiled spawn rule already has RespawnCount 1 (StockAmount 1); each further missing
-        // stock adds another 10 maximum HP (native RespawnMaxHpBonus = RespawnCount * 10).
-        int bonus = (1 - newStock) * StockPerRespawnHp;
-        if (bonus > 0)
-        {
-            ref FlashCreature creature = ref x.B.Creature(owner);
-            creature.MaxHp += bonus;
-            creature.CurrentHp += bonus;
-        }
+        // The HP roll already used the replacement's RespawnCount (see AfterDeath); the entrance only
+        // applies the remaining StockPower (native ApplyNativeEntrancePowers).
         if (newStock > 0)
             FlashKernel.ApplyPower(ref x, owner, stock, newStock, FlashLimits.NoOwner);
     }
@@ -807,7 +800,14 @@ public sealed class Axebot : FlashMonsterDef
         {
             throw new FlashUnsupportedException("Axebot 补货没有生成规则条目。");
         }
-        FlashKernel.SpawnMonster(ref x, self.Owner, rulesId, x.B.Enemy(self.Owner).Slot, minion: false);
+        int newStock = FlashKernel.GetAmount(x.B, self.Owner, stock) - 1;
+        if (newStock < 0)
+            newStock = 0;
+        // The compiled rule is the StockAmount-1 variant (RespawnCount 1, +10 HP range); missing
+        // further stock shifts the whole range by another RespawnMaxHpBonus (native RespawnCount =
+        // 2 - StockAmount feeds MinInitialHp/MaxInitialHp before CreatePredictedMonster rolls).
+        FlashKernel.SpawnMonster(ref x, self.Owner, rulesId, x.B.Enemy(self.Owner).Slot, minion: false,
+            hpRangeShift: (1 - newStock) * StockPerRespawnHp);
     }
 }
 

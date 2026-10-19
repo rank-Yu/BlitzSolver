@@ -377,6 +377,14 @@ public enum FlashPowerFlags : byte
 
     /// <summary>Solver-side skip set by <c>ApplyFromMonster</c> for powers without the native duration skip.</summary>
     SkipNextTickFromMonster = 1 << 2,
+
+    /// <summary>
+    /// The native mirror read this power's amount through <c>PowerAmountPredictionState</c> during the
+    /// current action. <c>SynchronizePowerAmountPredictionStates</c> at the action boundary restores
+    /// the model amount from that entry, so a death cleanup that zeroed the model is undone. Transient:
+    /// <c>FlashKernel.Step</c> clears it at every stable boundary.
+    /// </summary>
+    PendingAmountState = 1 << 3,
 }
 
 /// <summary>

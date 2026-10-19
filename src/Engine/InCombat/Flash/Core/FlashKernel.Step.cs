@@ -40,6 +40,8 @@ public static partial class FlashKernel
         }
         if (!x.NeedsChoice && rules.HasDecimalCardVars)
             FlashDecimalVars.Canonicalize(ref battle);
+        if (!x.NeedsChoice)
+            ClearPendingPowerAmountStates(ref battle);
         if (x.NeedsChoice)
         {
             request = x.Request;

@@ -140,12 +140,19 @@ public static class FlashCardEffects
     {
         if (delta == 0m)
             return;
-        int position = x.B.PlayCount - 1;
-        if (position < 0)
+        // The current card sits at FlashExec.PlayPosition, not at the top of the play pile: a nested
+        // auto-play (OwnChoice discarding a Sly card, an in-effect auto-play) appends its card after
+        // the outer one and leaves before the outer tail resumes.
+        int position = x.PlayPosition;
+        if ((uint)position >= (uint)x.B.PlayCount)
             throw new InvalidOperationException("当前没有正在打出的卡。");
         ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
-        if (played.Id != x.Card.Id || played.Upgrade != x.Card.Upgrade)
-            throw new InvalidOperationException("打出堆顶不是当前卡。");
+        if (played.Id != x.Card.Id)
+            throw new InvalidOperationException("当前打出的卡与打出堆位置不一致。");
+        // The live play-pile copy is the native mutable CardModel; a mid-play upgrade (Dampen's last
+        // caster dying during this card's attack) changes it before the tail reads its variables.
+        if (played.Upgrade != x.Card.Upgrade)
+            FlashKernel.SyncCurrentPlayCard(ref x);
         if (index == 0 && FlashDecimalVars.IsTracked(in played))
         {
             decimal current = FlashDecimalVars.TryGet(in x.B, in played, out decimal existing) ? existing : 0m;

@@ -27,6 +27,11 @@ public sealed class FlashOfSteel : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
+        // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         FlashKernel.Draw(ref x, FlashCardEffects.Var(x, 1), fromHandDraw: false);
     }
 }

@@ -432,13 +432,16 @@ public static partial class FlashKernel
     {
         if ((FlashRegistry.AnyHooks & FlashHookMask.Rampart) == 0)
             return;
-        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
-        int count = FlashHooks.CollectListeners(x.B, FlashHookMask.Rampart, listeners);
-        for (int index = 0; index < count; index++)
+        // PersistentPowerSupport.TriggerRampart walks EffectivePowers() and only filters by amount,
+        // unlike the ordinary listener passes: a Living Shield that left the roster keeps its
+        // RampartPower row and still grants the Turret Operator its block. Walk the power table in
+        // row order instead of CollectListeners, which skips non-roster owners.
+        for (int index = 0; index < x.B.PowerCount; index++)
         {
-            if (x.B.Powers[listeners[index].Index].Amount <= 0)
+            FlashPowerDef def = FlashRegistry.Power(x.B.Powers[index].Id);
+            if ((def.Hooks & FlashHookMask.Rampart) == 0 || x.B.Powers[index].Amount <= 0)
                 continue;
-            FlashHooks.Definition(x.B, listeners[index]).Rampart(ref x, listeners[index]);
+            def.Rampart(ref x, new FlashListener(FlashListenerKind.Power, (byte)index, x.B.Powers[index].Owner));
             if (x.NeedsChoice)
                 return;
         }

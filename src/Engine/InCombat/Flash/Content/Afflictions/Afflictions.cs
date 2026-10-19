@@ -39,7 +39,7 @@ public sealed class HexedAffliction : FlashAfflictionDef;
 
 /// <summary>
 /// <c>Galvanized</c>: no card-type restriction, stackable. GalvanicPower afflicts newly entered
-/// Power cards (<c>NormalizeCardAfflictions</c>) and damages the owner when such a card is played.
+/// Power cards (<c>NormalizeCardAfflictions</c>) and damages the card's owner when one is played.
 /// </summary>
 [FlashContent("GALVANIZED")]
 public sealed class GalvanizedAffliction : FlashAfflictionDef

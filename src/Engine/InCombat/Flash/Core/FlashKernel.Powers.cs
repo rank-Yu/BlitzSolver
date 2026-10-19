@@ -120,6 +120,40 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// <c>SimulatedCombatState.ApplyPowerFromSource(..., cardSource: null)</c>: the application is not
+    /// part of the current card's power scope, so card-source relic passes such as UnsettlingLamp do
+    /// not observe or double it. Power hooks whose native mirror passes a null card source use this
+    /// (Envenom/ReaperForm doom and MonarchsGaze's temporary Strength loss).
+    /// </summary>
+    public static int ApplyPowerWithoutCardSource(ref FlashExec x, byte target, ushort powerId, int amount,
+        byte applier)
+    {
+        bool active = x.CardPowerSourceActive;
+        int serial = x.CardPowerSourceSerial;
+        x.CardPowerSourceActive = false;
+        int applied = ApplyPower(ref x, target, powerId, amount, applier);
+        x.CardPowerSourceActive = active;
+        x.CardPowerSourceSerial = serial;
+        return applied;
+    }
+
+    /// <summary>
+    /// <see cref="ApplyTemporaryStrength"/> with <c>ApplyPowerFromSource(..., cardSource: null)</c>'s
+    /// suppressed card scope (MonarchsGazePower).
+    /// </summary>
+    public static int ApplyTemporaryStrengthWithoutCardSource(ref FlashExec x, byte target, ushort temporaryId,
+        int amount, byte applier, int sign)
+    {
+        bool active = x.CardPowerSourceActive;
+        int serial = x.CardPowerSourceSerial;
+        x.CardPowerSourceActive = false;
+        int applied = ApplyTemporaryStrength(ref x, target, temporaryId, amount, applier, sign);
+        x.CardPowerSourceActive = active;
+        x.CardPowerSourceSerial = serial;
+        return applied;
+    }
+
+    /// <summary>
     /// Mirrors <c>SimulatedCombatState.ApplyTemporaryStrength</c> (<c>ApplyTemporaryStrengthGain</c> with
     /// <paramref name="sign"/> 1, <c>ApplyTemporaryStrengthLoss</c> with -1): Artifact is checked against
     /// the temporary power; a first (or instanced) application runs its native <c>BeforeApplied</c>,
@@ -527,12 +561,37 @@ public static partial class FlashKernel
 
     /// <summary>Mirrors <c>SimulatedCombatState.RemovePowersAfterDeath</c>: drops every power of the owner.</summary>
     public static void RemovePowersOf(ref FlashBattle battle, byte owner)
+        => RemovePowersOfInternal(ref battle, owner, keepPendingAmountStates: false);
+
+    /// <summary>
+    /// <c>RemovePowersAfterDeath</c> for the player. A row whose native mirror created a
+    /// <c>PowerAmountPredictionState</c> during this action is not removed: the boundary
+    /// synchronization writes the stored amount back into the model, so the native state keeps the
+    /// power (GigantificationPower's BeforeAttack reads it for every attack).
+    /// </summary>
+    private static void RemovePowersOfInternal(ref FlashBattle battle, byte owner, bool keepPendingAmountStates)
     {
         for (int index = battle.PowerCount - 1; index >= 0; index--)
         {
-            if (battle.Powers[index].Owner == owner)
-                RemovePowerAt(ref battle, index);
+            if (battle.Powers[index].Owner != owner)
+                continue;
+            if (keepPendingAmountStates
+                && (battle.Powers[index].Flags & FlashPowerFlags.PendingAmountState) != 0)
+            {
+                continue;
+            }
+            RemovePowerAt(ref battle, index);
         }
+    }
+
+    /// <summary>
+    /// Drops the transient <see cref="FlashPowerFlags.PendingAmountState"/> markers at a stable
+    /// boundary; the native entry is consumed by <c>SynchronizePowerAmountPredictionStates</c> there.
+    /// </summary>
+    public static void ClearPendingPowerAmountStates(ref FlashBattle battle)
+    {
+        for (int index = 0; index < battle.PowerCount; index++)
+            battle.Powers[index].Flags &= ~FlashPowerFlags.PendingAmountState;
     }
     private static bool HasRelic(in FlashBattle battle, string nativeId)
     {

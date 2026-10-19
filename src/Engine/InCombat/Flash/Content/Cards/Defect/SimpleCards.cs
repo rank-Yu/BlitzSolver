@@ -121,6 +121,11 @@ public sealed class RocketPunch : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
+        // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         FlashKernel.Draw(ref x, (int)FlashCardEffects.Var(x, 1), fromHandDraw: false);
     }
 
@@ -150,6 +155,11 @@ public sealed class SweepingBeam : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice)
+            return;
+        // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
+        // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
         FlashKernel.Draw(ref x, (int)FlashCardEffects.Var(x, 1), fromHandDraw: false);
@@ -235,6 +245,11 @@ public sealed class CompileDriver : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
+        // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         FlashKernel.Draw(ref x, FlashKernel.DistinctOrbCount(x.B), fromHandDraw: false);
     }
 }
@@ -248,6 +263,11 @@ public sealed class Ftl : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice)
+            return;
+        // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
+        // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
         if (x.B.Counter(FlashCounter.CardsPlayedThisTurn) < (int)FlashCardEffects.Var(x, 1))

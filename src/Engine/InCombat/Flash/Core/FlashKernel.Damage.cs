@@ -519,7 +519,7 @@ public static partial class FlashKernel
     /// <summary>Mirrors <c>CombatPredictionSimulator.HandlePlayerDeath</c> for a single-player combat.</summary>
     private static void HandlePlayerDeath(ref FlashExec x)
     {
-        RemovePowersOf(ref x.B, FlashLimits.PlayerOwner);
+        RemovePowersOfInternal(ref x.B, FlashLimits.PlayerOwner, keepPendingAmountStates: true);
         // CreatureCmd's player-death cleanup calls OrbQueue.Clear(), which also drops the capacity.
         x.B.OrbCapacity = 0;
         x.B.OrbCount = 0;
@@ -719,6 +719,8 @@ public static partial class FlashKernel
         {
             FlashPower power = x.B.Powers[index];
             if (power.Owner != owner || power.Amount == 0)
+                continue;
+            if ((power.Flags & FlashPowerFlags.PendingAmountState) != 0)
                 continue;
             FlashPowerDef def = FlashRegistry.Power(power.Id);
             bool keep = ownerInRoster

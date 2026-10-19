@@ -967,11 +967,17 @@ public sealed class TheScythe : FlashCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Increase"];
 
+    // TheScythe.AfterDowngraded calls UpdateDamage() with IncreasedDamage; Var0 is that accumulator.
+    public override bool PreservesVar0OnDowngrade => true;
+
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // The native OnPlay reads the live card's Increase after the attack (Dampen restore may have
+        // upgraded the played copy in the meantime).
+        FlashKernel.SyncCurrentPlayCard(ref x);
         int increase = (int)NecrobinderContent.Var(ref x, 1);
         FlashCardEffects.AddCurrentCardVar(ref x, 0, increase);
         if ((x.Card.Flags & FlashCardFlags.DeckCard) != 0)

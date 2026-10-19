@@ -81,10 +81,13 @@ public sealed class SoarPower : FlashPowerDef
 }
 
 /// <summary>
-/// Native <c>GalvanicPower</c>: after its owner plays a Galvanized card, the owner takes
-/// <c>Amount</c> Unpowered damage (<c>AfterCardPlayedMirrors.HandleGalvanicPower</c>). Its
-/// <c>AfterCardEnteredCombat</c> is mirrored by <c>FlashKernel.NormalizeCardAfflictions</c>
-/// (newly entered Power cards get Galvanized with the power's amount).
+/// Native <c>GalvanicPower</c>: after a Galvanized card is played, the <b>card's owner</b> takes
+/// <c>Amount</c> Unpowered damage (<c>AfterCardPlayedMirrors.HandleGalvanicPower</c> damages
+/// <c>context.PreviewCard.Owner.Creature</c>, not the power's owner; the Globe Head carries the power
+/// while the player plays the card). Every card in a Flash battle is the player's, so the target is
+/// the player owner. Its <c>AfterCardEnteredCombat</c> is mirrored by
+/// <c>FlashKernel.NormalizeCardAfflictions</c> (newly entered Power cards get Galvanized with the
+/// power's amount).
 /// </summary>
 [FlashContent("GALVANIC_POWER")]
 public sealed class GalvanicPower : FlashPowerDef
@@ -101,7 +104,7 @@ public sealed class GalvanicPower : FlashPowerDef
             return;
         }
         Span<byte> target = stackalloc byte[1];
-        target[0] = self.Owner;
+        target[0] = FlashLimits.PlayerOwner;
         FlashKernel.Damage(ref x, target, x.B.Powers[self.Index].Amount,
             FlashValueProps.Unpowered, FlashLimits.NoOwner, hasCardSource: false, default);
     }
@@ -138,8 +141,10 @@ public sealed class ChainsOfBindingPower : FlashPowerDef
 
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (play.Card.IsClone
-            || play.Card.AfflictionId == 0
+        // BeforeCardPlayedMirrors.HandleChainsOfBindingPower skips CardModel.IsDupe, not IsClone.
+        // Dupes are rejected at import (FlashStateImporter), and FlashCard.IsClone marks native
+        // CreateClone copies (Swift, AdaptiveStrike), which must set the mark when Bound.
+        if (play.Card.AfflictionId == 0
             || play.Card.AfflictionId - 1 != FlashRegistry.AfflictionId<Afflictions.BoundAffliction>())
         {
             return;

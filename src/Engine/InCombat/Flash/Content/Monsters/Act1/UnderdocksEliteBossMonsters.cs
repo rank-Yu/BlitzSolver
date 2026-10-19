@@ -132,6 +132,8 @@ public sealed class TerrorEel : FlashMonsterDef
 [FlashContent("WATERFALL_GIANT")]
 public sealed class WaterfallGiant : FlashMonsterDef
 {
+    public override bool HasInfiniteHpDisplay => true;
+
     private const int PressurizeAmount = 0;
     private const int SiphonHeal = 1;
     private const int PressureGunIncrease = 2;

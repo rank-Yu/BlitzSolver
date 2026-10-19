@@ -329,7 +329,7 @@ public sealed class EnvenomPower : FlashPowerDef
     {
         if (dealer != self.Owner || !result.Props.IsPoweredAttack() || result.UnblockedDamage <= 0)
             return;
-        FlashKernel.ApplyPower(ref x, result.Receiver, FlashRegistry.PowerId<PoisonPower>(),
+        FlashKernel.ApplyPowerWithoutCardSource(ref x, result.Receiver, FlashRegistry.PowerId<PoisonPower>(),
             x.B.Powers[self.Index].Amount, self.Owner);
     }
 }

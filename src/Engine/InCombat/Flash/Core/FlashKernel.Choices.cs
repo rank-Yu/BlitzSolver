@@ -296,13 +296,19 @@ public static partial class FlashKernel
             return;
         card.DampenOriginalUpgrade = checked((byte)(card.Upgrade + 1));
         FlashCardStats stats = x.R.Card(card.Id, 0);
+        short previousVar0 = card.Var0;
         card.Upgrade = 0;
         card.Var0 = 0;
         card.Var1 = 0;
         card.BaseCost = checked((sbyte)stats.EnergyCost);
         card.BaseStarCost = checked((sbyte)stats.StarCost);
         card.Keywords = stats.Keywords | (card.Keywords & FlashKeywords.CreatedAfterRoot);
-        FlashRegistry.Card(card.Id).AfterDowngraded(ref x.B, position);
+        FlashCardDef def = FlashRegistry.Card(card.Id);
+        def.AfterDowngraded(ref x.B, position);
+        if (def.PreservesVar0OnDowngrade)
+        {
+            card.Var0 = previousVar0;
+        }
     }
 
     /// <summary>

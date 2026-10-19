@@ -138,6 +138,15 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 
 **容量与回落。** `DetachedCards` 容量 3（Nightmare 的两个实例与被偷卡共用；同一场战斗里 ThievingHopper 只有一个且 THIEVERY 只发生一次，逃跑/死亡后槽位释放）；第 4 个并存卡片按 `FlashCapacityException` 回落（不覆盖、不逐出）。`FlashExec.MonologuePending` 容量 8；更多同时等候结算的 Monologue 实例按同一异常回落。`FlashRules.HasIdentityContent` 为假（根牌组/Power/遗物与可生成内容都不涉及身份）时，整批身份扫描跳过；它只是优化前提，为真时仍按上述语义逐项结算。`Private` 是 `short`：SwordSage 已应用层数或 `ReplayCount` 增量超出 `short` 范围时按 `FlashCapacityException`；`ReplayCount` 本身仍按 `byte` 容量（现有 `FlashCard` 字段）。Fetch 只用 bit 0，其余位保持 0。所有退役条目只按惰性放行，不写回、不清理活实例。
 
+### 2.6 DX3 追加的瞬态值与规则字段
+
+DX3 批次没有改变 `FlashBattle`/`FlashCard` 的尺寸，也没有新增 `FlashCounter`：
+
+- `FlashPowerFlags.PendingAmountState`（bit 3）是**瞬态**标志：某 Power 的 native `PowerAmountPredictionState` 在本动作内被读取（目前是 GigantificationPower 的 `BeforeAttack`）。玩家死亡清理时带此标志的行保留，`FlashKernel.Step` 在稳定边界统一清除；稳定边界的字节里没有它。
+- `HellraiserPower.Aux0` 保存 `infiniteAutoPlaysThisTurn`（状态条目优先，否则模型内部数据）；`RampartPass` 直接按 Power 行顺序派发，不随 owner 是否在名单内过滤。
+- `FlashCard.DampenOriginalUpgrade` 仍是卡牌被 Dampen 前的升级等级加一：克隆、变化和替换（`CloneCard`/`TransformCards`/`ReplaceCard`）清零；Rampage/TheScythe 的 `PreservesVar0OnDowngrade` 在降级后恢复 `Var0`，其余累计值仍按既有 `AfterDowngraded`/`Private` 表示。
+- `FlashMonsterRules.InitialMoveLogged` 是规则表字段（非战斗状态）：状态机构造器已把初始 `MoveState` 记入 `StateLog` 时，敌方回合内的召唤物在生成时立即记录该行动。
+
 ## 3. 规范化
 
 同一局面必须只有一种字节表示，否则去重失效；不同局面绝不能字节相同。

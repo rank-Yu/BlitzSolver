@@ -102,3 +102,19 @@
 - **Misery**：锁定目标的每个减益（层数、applier、`Target`）快照，攻击后按可命中敌人顺序克隆到其他敌人，每次克隆后排空 Power 数量变化队列；目标带临时 Power 时显式 `FlashUnsupportedException`（缺少实例内部属性合并）。对照 `BespokeCardMirrors.MiseryOnPlay`。
 - **Pagestorm**：`AfterCardDrawn` 只检查卡牌本地 Ethereal 关键字，命中后抽层数张；对照 `AfterCardDrawnMirrors.HandlePagestormPower`。
 - **BigHat**：唯一战斗内触发是玩家第 1 回合开始生成 2 张 Ethereal 角色牌，发生在根捕获之前；现有引擎也没有对应镜像，定义为空。
+
+## 5. 第三幕牌组的 DX3 修正
+
+来源：第三幕随机牌组 150 根的 K1/K2 差分；现有引擎位置逐条注在改动处。
+
+- **Globe Head / GalvanicPower**：`AfterCardPlayedMirrors.HandleGalvanicPower` 的伤害目标是**打出卡牌的所有者**（`PreviewCard.Owner`），不是 Power 的所有者；Globe Head 持 Power 而玩家出牌，因此反伤落在玩家。`FlashPowerDef` 的 `AfterCardPlayed` 以 `FlashLimits.PlayerOwner` 为目标（Flash 内所有卡都属于玩家）。
+- **MagiKnight / DampenPower**：升级牌降到 0 级后仍会被读取或打出，因此 `FlashRulesCompiler` 为根上的升级牌补 0 级规则；`DowngradeCard` 在 `AfterDowngraded` 后按 `PreservesVar0OnDowngrade` 恢复 Rampage/TheScythe 的累计伤害（现有引擎的 `ExtraDamageFromPlays`/`IncreasedDamage`）。克隆与变化/替换产生的是新对象，`DampenOriginalUpgrade` 清零；离开战斗牌堆的 Dampen 记录按退役处理（见[准入](admission-and-verification.md)）。卡牌在出牌中被降级后又被恢复时，`AddCurrentCardVar`/`SyncCurrentPlayCard` 以 `FlashExec.PlayPosition` 的实时牌值为准（`Rampage`/`TheScythe` 在攻击后同步，现有引擎读的是可变 `CardModel`）。
+- **Queen / ChainsOfBindingPower**：`BeforeCardPlayedMirrors.HandleChainsOfBindingPower` 跳过的是 `CardModel.IsDupe`，不是 `IsClone`；复制品在准入时已拒绝，克隆（Swift、AdaptiveStrike）必须照常设置束缚标记。
+- **不宁提灯（UnsettlingLamp）**：现有引擎的 `ApplyPowerFromSource(..., cardSource: null)` 会把“当前卡牌来源”压成 null，灯的观察/翻倍都不生效。Flash 的 `ApplyPowerWithoutCardSource`/`ApplyTemporaryStrengthWithoutCardSource` 在应用期间关闭 `CardPowerSourceActive`，Envenom/Concoct 的毒与 ReaperForm/Underworld 的 Doom、MonarchsGaze 的临时力量降层都走这两个入口；否则卡牌作用域内的非卡牌来源减益会被翻倍。
+- **Vambrace**：`AfterCardPlayed` 用“触发卡的作用域序号”匹配；`OwnChoice` 弃置 Sly 牌触发的嵌套自动打出会完成自己的作用域并改写 `LastCardPowerSourceSerial`，因此 `PlayFromPlay` 在嵌套打出返回后恢复外层的序号。
+- **Turret Operator / RampartPower**：`PersistentPowerSupport.TriggerRampart` 遍历 `EffectivePowers()` 且只按数量过滤；Living Shield 已离开名单时其 Rampart 行仍会派发。`RampartPass` 直接按 Power 表行顺序遍历，不使用会跳过离场 owner 的 `CollectListeners`。
+- **Axebot / StockPower**：补货时 `StockAmount = 原 Stock - 1` 会改变 `RespawnCount = 2 - StockAmount`，进而改变 `MinInitialHp/MaxInitialHp` 的整个区间。规则表按 StockAmount 1 编译，`AfterDeath` 传入 `hpRangeShift = (1 - newStock) * 10`，`RollInitialHp` 在平移后的区间上做“避开名单同生命”的抽取；入场 Power 不再补加生命。
+- **召唤物的初始行动**：`RegisterPendingInitialMonsterAi` 在状态机构造器已把初始 `MoveState` 记入 `StateLog` 时直接采用它（`NeedsInitialRoll=false`）。`FlashMonsterRules.InitialMoveLogged` 记录该条件；敌方回合内生成的召唤物也在 `PrepareSpawnedMonster` 立即记录初始行动，而不是等 `PrepareMonsterMovesForNextRound`（回合可能在玩家死亡时提前结束）。
+- **HellraiserPower**：`InfiniteAutoPlaysThisTurn` 存 `FlashPower.Aux0`（条目优先，缺条目取模型内部数据）。`HittableEnemies.All(HpDisplay.IsInfinite())` 在空集合时为真（测试体复活窗口），非空时只有 Waterfall Giant 的蒸汽爆发重写为真；计数达到 9 后不再自动打出但仍自增，有限分支清零，`EndTurnBatch048` 在 owner 参与时清零。
+- **攻击后抽牌的死亡结算**：`CorePowerSupport.ApplyCardPowers` 在镜像攻击之后、卡牌专属补偿之前结算敌人死亡。PommelStrike、DaggerThrow、FlashOfSteel、MinionStrike、PhotonCut、RocketPunch、SweepingBeam、CompileDriver、Ftl 在攻击与抽牌之间调用 `ApplyEnemyDeathPowers`，使抽牌时的 `HittableEnemies`/Hellraiser 与现有引擎一致。
+- **GigantificationPower**：现有引擎的 `PowerAmountPredictionState` 在动作边界把模型数量写回；玩家在同一次动作中死亡时，`BeforeAttack` 已登记的层数会把被死亡清理清零的 Power 恢复。Flash 在 `BeforeAttack` 标 `FlashPowerFlags.PendingAmountState`，`HandlePlayerDeath`/`RemovePowersAfterDeath` 保留这些行，`FlashKernel.Step` 在稳定边界清标记。

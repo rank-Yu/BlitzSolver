@@ -247,7 +247,7 @@ public sealed class MonarchsGazePower : FlashPowerDef
     {
         if (dealer != self.Owner || !result.Props.IsPoweredAttack())
             return;
-        FlashKernel.ApplyTemporaryStrength(ref x, result.Receiver,
+        FlashKernel.ApplyTemporaryStrengthWithoutCardSource(ref x, result.Receiver,
             FlashRegistry.PowerId<Powers.MonarchsGazeStrengthDownPower>(), x.B.Powers[self.Index].Amount,
             self.Owner, -1);
     }

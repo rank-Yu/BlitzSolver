@@ -274,6 +274,12 @@ public sealed class GigantificationPower : FlashPowerDef
 
     public override void BeforeAttack(ref FlashExec x, FlashListener self, byte attacker, FlashValueProps props)
     {
+        // GigantificationPowerMirrors.BeforeAttack calls StateStore.GetPowerAmount(power) before any
+        // predicate, for every attack (including the enemy's). That creates the native
+        // PowerAmountPredictionState; the action-boundary synchronization restores the model amount
+        // from it, so a player death during the same action leaves the power in place. The flag lets
+        // FlashKernel.HandlePlayerDeath keep the row; Step clears it at the stable boundary.
+        x.B.Powers[self.Index].Flags |= FlashPowerFlags.PendingAmountState;
         if (self.Owner != attacker || !props.IsPoweredAttack())
             return;
         if (x.Card.Id == 0 || x.Stats?.Type != FlashCardType.Attack)

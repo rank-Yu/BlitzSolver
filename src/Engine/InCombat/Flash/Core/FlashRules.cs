@@ -162,6 +162,15 @@ public sealed class FlashMonsterRules
     public int PendingInitialMoveNode { get; init; }
 
     /// <summary>
+    /// The state-machine constructor already appended <see cref="InitialNode"/> to the native
+    /// <c>MoveStateMachine.StateLog</c> (the initial state is a <c>MoveState</c>). A monster created
+    /// during the enemy turn then adopts that log entry instead of waiting for
+    /// <see cref="FlashEnemyFlags.NeedsInitialRoll"/>
+    /// (<c>SimulatedCombatState.RegisterPendingInitialMonsterAi</c>).
+    /// </summary>
+    public bool InitialMoveLogged { get; init; }
+
+    /// <summary>
     /// The synthetic STUNNED node appended after every native state (and the unregistered initial
     /// branch). It has no attacks or effects, is must-perform-once, and its follow-up is the dynamic
     /// <see cref="FlashEnemy.ForcedMove"/> (<c>SimulatedCombatState.MonsterAi.cs:76-86,102-128</c>).
@@ -282,7 +291,8 @@ public sealed class FlashRules
         bool hasShuffleOrderEnchantment,
         bool hasBeforeFlushEnchantment,
         bool hasTheftContent,
-        bool hasDecimalCardVars)
+        bool hasDecimalCardVars,
+        bool hasInfiniteHpDisplayMonster)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -307,6 +317,7 @@ public sealed class FlashRules
         HasBeforeFlushEnchantment = hasBeforeFlushEnchantment;
         HasTheftContent = hasTheftContent;
         HasDecimalCardVars = hasDecimalCardVars;
+        HasInfiniteHpDisplayMonster = hasInfiniteHpDisplayMonster;
     }
 
     public int BaseMaxEnergy { get; }
@@ -356,6 +367,13 @@ public sealed class FlashRules
     /// When false, the kernel skips decimal-table canonicalization at every stable boundary.
     /// </summary>
     public bool HasDecimalCardVars { get; }
+
+    /// <summary>
+    /// A known or spawnable monster can expose <c>HpDisplay.InfiniteWithoutNumbers</c>
+    /// (only the Waterfall Giant's steam-eruption rewrite). <c>HellraiserPower</c> reads it to choose
+    /// the capped infinite-life auto-play branch; roots without one skip that scan.
+    /// </summary>
+    public bool HasInfiniteHpDisplayMonster { get; }
 
     /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
     public int BaseOrbSlotCount { get; }
@@ -496,6 +514,8 @@ public sealed class FlashRulesBuilder
 
     public bool HasDecimalCardVars { get; set; }
 
+    public bool HasInfiniteHpDisplayMonster { get; set; }
+
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
         List<FlashCardStats?> levels = _cards[id] ??= [];
@@ -586,7 +606,7 @@ public sealed class FlashRulesBuilder
             (ushort[])_rootPotions.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
             RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent, HasShuffleOrderEnchantment,
-            HasBeforeFlushEnchantment, HasTheftContent, HasDecimalCardVars);
+            HasBeforeFlushEnchantment, HasTheftContent, HasDecimalCardVars, HasInfiniteHpDisplayMonster);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

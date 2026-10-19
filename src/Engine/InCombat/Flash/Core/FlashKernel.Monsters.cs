@@ -82,10 +82,11 @@ public static partial class FlashKernel
     /// values and entrance powers, rolls or defers the initial action
     /// (<c>PreparePredictedMonster</c>), and finally applies Minion.
     /// </summary>
-    public static byte SpawnMonster(ref FlashExec x, byte source, int rulesId, int slotIndex, bool minion)
+    public static byte SpawnMonster(ref FlashExec x, byte source, int rulesId, int slotIndex, bool minion,
+        int hpRangeShift = 0)
     {
         FlashEnemy pending = default;
-        CreateMonster(ref x, rulesId, slotIndex, int.MinValue, ref pending);
+        CreateMonster(ref x, rulesId, slotIndex, int.MinValue, ref pending, hpRangeShift);
         return AddCreatedMonster(ref x, source, ref pending, minion);
     }
 
@@ -98,7 +99,7 @@ public static partial class FlashKernel
     /// added afterwards) and the Niche/CombatId draw order.
     /// </summary>
     public static void CreateMonster(ref FlashExec x, int rulesId, int slotIndex, int initialHp,
-        ref FlashEnemy pending)
+        ref FlashEnemy pending, int hpRangeShift = 0)
     {
         if (rulesId < 0 || rulesId >= FlashLimits.MonsterRules)
             throw new ArgumentOutOfRangeException(nameof(rulesId), rulesId, "怪物规则条目越界。");
@@ -114,7 +115,7 @@ public static partial class FlashKernel
         pending.Rules = checked((byte)rulesId);
         pending.Slot = checked((byte)slotIndex);
         pending.CombatId = x.B.NextCombatId++;
-        int rolledHp = initialHp == int.MinValue ? RollInitialHp(ref x.B, rules) : initialHp;
+        int rolledHp = initialHp == int.MinValue ? RollInitialHp(ref x.B, rules, hpRangeShift) : initialHp;
         pending.Creature.CurrentHp = rolledHp;
         pending.Creature.MaxHp = rolledHp;
         pending.Creature.Flags = FlashCreatureFlags.Present;
@@ -160,18 +161,23 @@ public static partial class FlashKernel
     /// <c>HashSet&lt;int&gt;</c> enumeration order); with none left it draws
     /// <c>NextInt(MinInitialHp, MaxInitialHp + 1)</c>.
     /// </summary>
-    private static int RollInitialHp(ref FlashBattle battle, in FlashMonsterRules rules)
+    private static int RollInitialHp(ref FlashBattle battle, in FlashMonsterRules rules, int hpRangeShift)
     {
+        // Axebot's stock replacement changes RespawnMaxHpBonus (RespawnCount * 10) before the native
+        // HP roll, so both bounds of the eligible range move; the compiled rule is the stock-1
+        // variant and the shift is (1 - new stock) * 10.
+        int minimum = rules.InitialHpMin + hpRangeShift;
+        int maximum = rules.InitialHpMax + hpRangeShift;
         int eligible = 0;
-        for (int hp = rules.InitialHpMin; hp <= rules.InitialHpMax; hp++)
+        for (int hp = minimum; hp <= maximum; hp++)
         {
             if (!RosterMaxHp(battle, hp))
                 eligible++;
         }
         if (eligible == 0)
-            return battle.RngStream(FlashRngStream.Niche).NextInt(rules.InitialHpMin, rules.InitialHpMax + 1);
+            return battle.RngStream(FlashRngStream.Niche).NextInt(minimum, maximum + 1);
         int index = battle.RngStream(FlashRngStream.Niche).NextInt(0, eligible);
-        for (int hp = rules.InitialHpMin; hp <= rules.InitialHpMax; hp++)
+        for (int hp = minimum; hp <= maximum; hp++)
         {
             if (RosterMaxHp(battle, hp))
                 continue;
@@ -222,8 +228,11 @@ public static partial class FlashKernel
     private static void PrepareSpawnedMonster(ref FlashExec x, byte owner, in FlashMonsterRules rules)
     {
         ref FlashEnemy enemy = ref x.B.Enemy(owner);
-        if (x.B.Side == FlashSide.Player)
+        if (x.B.Side == FlashSide.Player || rules.InitialMoveLogged)
         {
+            // On the player side PreparePredictedMonster rolls the initial move; during the enemy
+            // turn RegisterPendingInitialMonsterAi adopts the MoveState the state-machine constructor
+            // already logged. Only an unlogged (branch) initial waits for NeedsInitialRoll.
             ResolveMonsterState(ref x, owner, rules.InitialNode);
             return;
         }

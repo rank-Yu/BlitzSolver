@@ -113,6 +113,15 @@ TW（偷窃与瀑布巨兽）新增的投影与惰性规则：
 - **瀑布巨兽的私有状态**：`_pressureGunBonus`/`_steamEruptionDamage` 的每个键必须是已知 WaterfallGiant，值投影到该敌人的 `PressureGunBonus`/`SteamEruptionDamage` AI 寄存器；`_steamEruptionPhases` 的键同样受限，值投影到 `FlashEnemy.SteamPhase`。死亡改写（HP/最大 HP 钳制、强制 `ABOUT_TO_BLOW_MOVE`、清 Power 并保留 SteamEruptionPower）与 `ABOUT_TO_BLOW`/`EXPLODE` 两个强制阶段由内核按 `TryTriggerSteamEruptionDeath`/`TryConsumeForcedMonsterMove` 的顺序结算；爆发阶段 `EffectiveEnemyHp` 为 0，`PreventsCombatEnding`/`PreventsRemovalAfterDeath` 与阻止战斗结束都按 Power 定义投影。
 - **K4**：`FlashScoreFeatures.MinimumOutstandingStolenResource` 逐状态与 `SimulatedCombatState.MinimumOutstandingStolenResource` 比较；`OutstandingStolenResource` 同时进入评分与路线键（仅 `PreserveResources`）。`FlashBoundBridge` 的 `swipe_power` 禁用原因保留：下界的已知来源证书还没有覆盖被偷卡语义。
 
+DX3 的第三幕牌组投影与惰性规则：
+
+- **Dampen 退役条目**：`_dampenOriginalUpgrades` 的键是 `PredictedCard` 对象。被变化/替换/移出战斗的卡不在任何牌堆中，但记录仍在；`RestoreDampenedCards` 只会升级该对象并删除记录，而 `HasBeenRemovedFromState` 阻止它再被加回牌堆，因此这类条目按惰性放行（无读取点能影响投影状态）。仍在牌堆中的条目必须能找到，否则 `UnrepresentableState`。升级牌的基础等级规则在根上补齐，降级后可读可打。
+- **Hellraiser 计数**：`HellraiserPredictionState` 被认领并投影到 `FlashPower.Aux0`；没有条目时取条目构造器会读的模型内部数据 `HellraiserPower.Data.infiniteAutoPlaysThisTurn`。空的可击中敌人集合（测试体复活窗口）走无限分支。
+- **Gigantification 的待同步条目**：现有引擎的 `PowerAmountPredictionState` 在动作边界把数量写回模型；玩家在同一动作中死亡时，这一写回会把死亡清理掉的 Power 恢复。Flash 用瞬态 `PendingAmountState` 保留对应行并在稳定边界清标记，不把它写进投影。
+- **Axebot 补货规则**：规则表只编译 StockAmount 1 的生成条目；补货时 `hpRangeShift` 在抽取前平移整个生命区间（`RespawnCount * 10`），因此不需要第二份规则条目，也不改变 `FlashBattle`。
+- **召唤物初始行动**：`InitialMoveLogged` 由规则表记录状态机构造器写入 `StateLog` 的初始 MoveState；敌方回合内生成时立即采用它，回合提前结束也不会留下 `NeedsInitialRoll`。
+- **Rampart 的离场 owner**：`PersistentPowerSupport.TriggerRampart` 只按数量过滤 `EffectivePowers()`，离场敌人的 Rampart 行仍参与；`RampartPass` 与它一致，不使用按名单过滤的监听收集。
+
 **卡牌苦难与附魔投影（KA）**：`FlashStateImporter.Card` 读取 `Preview.Affliction`（Id、Amount）与 `Preview.Enchantment`（Id、Amount、Status、私有值），只接受 `FlashRegistry` 中已登记的苦难/附魔，其余按 `UnsupportedAffliction`/`UnsupportedEnchantment` 拒绝；Id 以 `+1` 编码，0 表示无。附魔私有值复用 `EnchantmentStateSupport.TryGetPrivateValue`（`Glam._usedThisCombat`、`Momentum._extraDamage`，与状态指纹同一读取口径），桥接层不新增反射。根卡牌的 `PowerAfflictionChecked` 置位，表示它们已参与现有引擎的一次性进场检查。`SimulatedCombatState.LastNormalizedVitalSparkAmountForFlash` 是只读访问器，导入 `VitalSparkNormalizedAmount`（`int.MinValue` 表示 null）；`SkillPlayedThisSideTurn` 从 `HasPlayedSkillThisTurn` 导入。已实现 18 个附魔：Sharp、Instinct、Corrupted、Momentum、Nimble、Goopy、TezcatarasEmber、Vigorous、Adroit、Inky、Sown、Swift、Glam、Spiral、Clone、Steady、RoyallyApproved、SoulsPower；Imbued、Slither、SlumberingEssence、PerfectFit 仍按未支持附魔拒绝（分别需要自动预打出、抽牌随机费用、BeforeFlush、按实例的洗牌顺序）。
 
 投影只读不写：旧引擎的本回合计数读取器首次读取时会从根历史填充缓存，因此 `FlashStateImporter` 先 Fork 一份私有模拟器再读取，调用方持有的状态（可能正被其他工作线程 Fork）保持不变。

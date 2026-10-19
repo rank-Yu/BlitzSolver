@@ -1018,6 +1018,15 @@ public abstract class FlashCardDef : FlashListenerDef
     }
 
     /// <summary>
+    /// Native <c>AfterDowngraded</c> restores a per-play Damage accumulator that the model keeps
+    /// outside its dynamic variables (Rampage's <c>_extraDamageFromPlays</c>, TheScythe's
+    /// <c>IncreasedDamage</c>). Flash keeps that accumulation in <see cref="FlashCard.Var0"/>, so
+    /// <see cref="FlashKernel.DowngradeCard"/> restores the pre-downgrade value after the level-0
+    /// reset instead of reading a private field.
+    /// </summary>
+    public virtual bool PreservesVar0OnDowngrade => false;
+
+    /// <summary>
     /// Fills <see cref="FlashCard.Private"/> for a card value imported from the existing engine, after
     /// the variable deltas were computed. Only cards whose definition reads the private counter may
     /// use it; the existing engine's per-card accumulator is available in the var delta
@@ -1495,6 +1504,13 @@ public abstract class FlashMonsterDef : FlashListenerDef
     /// </summary>
     public virtual void ApplyEntrancePowers(ref FlashExec x, byte owner, byte source)
         => ApplyEntrancePowers(ref x, owner);
+
+    /// <summary>
+    /// The monster can set <c>HpDisplay.InfiniteWithoutNumbers</c> (Waterfall Giant's steam-eruption
+    /// rewrite). The rule compiler uses this instead of a native-id literal to decide whether
+    /// Hellraiser's infinite-life branch needs its scan.
+    /// </summary>
+    public virtual bool HasInfiniteHpDisplay => false;
 
     /// <summary>
     /// Native <c>MonsterModel.StockAmount</c> used when the rule compiler creates this type's spawn

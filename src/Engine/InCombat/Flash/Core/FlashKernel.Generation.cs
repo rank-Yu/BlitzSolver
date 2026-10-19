@@ -97,6 +97,9 @@ public static partial class FlashKernel
             return;
         FlashCard entered = replacement;
         entered.Keywords |= FlashKeywords.CreatedAfterRoot;
+        // A replacement is a new native card: Dampen's per-card original upgrade belongs to the object
+        // that was downgraded, not to a generated/transformed value.
+        entered.DampenOriginalUpgrade = 0;
         FlashPiles.RemoveAt(ref x.B, pile, index);
         int insert = Math.Min(index, FlashPiles.Count(x.B, pile));
         FlashPiles.Insert(ref x.B, pile, insert, entered);
@@ -179,6 +182,7 @@ public static partial class FlashKernel
         {
             FlashCard card = replacement;
             card.Upgrade = checked((byte)upgrade);
+            card.DampenOriginalUpgrade = 0;
             card.BaseCost = checked((sbyte)x.R.Card(card.Id, upgrade).EnergyCost);
             card.BaseStarCost = checked((sbyte)x.R.Card(card.Id, upgrade).StarCost);
             card.Keywords = x.R.Card(card.Id, upgrade).Keywords | FlashKeywords.CreatedAfterRoot;
@@ -288,8 +292,10 @@ public static partial class FlashKernel
             | FlashCardFlags.RemovedFromState | FlashCardFlags.PowerAfflictionChecked);
         clone.Keywords |= FlashKeywords.CreatedAfterRoot;
         clone.IsClone = true;
-        // The clone is a new native object; a BeatDown transient mark belongs to the original.
+        // The clone is a new native object; a BeatDown transient mark and Dampen's per-card original
+        // upgrade belong to the original.
         clone.TransientMark = 0;
+        clone.DampenOriginalUpgrade = 0;
         // PredictedCard/CardModel clones are new objects: the existing engine's per-card dictionaries
         // have no entry for them until their first normalization/play. Other cards keep Private (the
         // native clone copies Claw/Rampage-style private counters).

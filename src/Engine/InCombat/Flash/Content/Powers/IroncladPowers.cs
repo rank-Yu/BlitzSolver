@@ -516,10 +516,11 @@ public sealed class RupturePower : FlashPowerDef
 
 /// <summary>
 /// Native <c>HellraiserPower</c>: when its owner draws a Strike, auto-play that card
-/// (M/Hooks/Card/AfterCardDrawnMirrors.HandleHellraiserPower). The native infinite-HP cap branch is
-/// unreachable here: only WaterfallGiant sets <c>HpDisplay.InfiniteWithoutNumbers</c> and that
-/// encounter has no Flash monster definition, so admission rejects it. The finite branch resets the
-/// counter every draw, so no value needs to live in the power slots.
+/// (M/Hooks/Card/AfterCardDrawnMirrors.HandleHellraiserPower). When every hittable enemy shows
+/// infinite HP (Waterfall Giant's steam-eruption rewrite) the auto-play stops after nine draws and
+/// the counter keeps incrementing; the finite branch resets it. Aux0 is
+/// <c>infiniteAutoPlaysThisTurn</c> (HellraiserPredictionState; without an entry the model's internal
+/// data). <c>EndTurnBatch048</c> resets it when the owner participates (ResetInfiniteAutoPlayData).
 /// </summary>
 [FlashContent("HELLRAISER_POWER")]
 public sealed class HellraiserPower : FlashPowerDef
@@ -535,16 +536,59 @@ public sealed class HellraiserPower : FlashPowerDef
         FlashCardStats stats = x.R.Card(x.B.Cards[drawnPosition].Id, x.B.Cards[drawnPosition].Upgrade);
         if ((stats.Tags & FlashCardTag.Strike) == 0)
             return;
-        // All hittable enemies are finite-HP in every admitted root: ResetInfiniteAutoPlayData.
-        FlashKernel.AutoPlay(ref x, FlashPile.Hand, drawnPosition);
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        bool autoPlay = true;
+        if (AllHittableEnemiesInfinite(ref x))
+        {
+            if (power.Aux0 >= InfiniteAutoPlayCap)
+                autoPlay = false;
+            power.Aux0++;
+        }
+        else
+        {
+            power.Aux0 = 0;
+        }
+        if (autoPlay)
+            FlashKernel.AutoPlay(ref x, FlashPile.Hand, drawnPosition);
     }
 
     public override void EndTurnBatch048(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
     {
         // CorePowerSupport/EndTurnPowerSupport resets the turn counter when the owner participates.
-        if (!participates)
-            return;
-        _ = x;
+        if (participates)
+            x.B.Powers[self.Index].Aux0 = 0;
+    }
+
+    private const int InfiniteAutoPlayCap = 9;
+
+    /// <summary>
+    /// <c>HittableEnemies.All(c =&gt; c.HpDisplay.IsInfinite())</c>: hittable enemies are the roster
+    /// entries not in a death phase. The only infinite display is a Waterfall Giant rewritten by
+    /// <c>TryTriggerSteamEruptionDeath</c>; Flash records that as the steam phase or the value-clamp HP
+    /// (the Explode phase clears SteamPhase but keeps the rewritten HP until the forced kill).
+    /// </summary>
+    private static bool AllHittableEnemiesInfinite(ref FlashExec x)
+    {
+        for (int position = 0; position < x.B.RosterCount; position++)
+        {
+            byte owner = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            ref FlashEnemy enemy = ref x.B.Enemy(owner);
+            if (enemy.DeathPhase != FlashDeathPhase.None)
+                continue;
+            // A non-empty hittable set needs the one native infinite-display source. An empty set
+            // (every enemy reviving, as with the Test Subject's first form) makes All() true.
+            if (!x.R.HasInfiniteHpDisplayMonster
+                || FlashRegistry.Monster(enemy.MonsterId).NativeId != "WATERFALL_GIANT")
+            {
+                return false;
+            }
+            if (enemy.SteamPhase == FlashSteamPhase.None
+                && x.B.Creature(owner).CurrentHp < FlashLimits.ValueClamp)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }
 

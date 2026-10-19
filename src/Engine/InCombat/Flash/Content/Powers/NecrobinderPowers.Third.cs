@@ -49,7 +49,7 @@ public sealed class ReaperFormPower : FlashPowerDef
             return;
         if (!FlashRegistry.TryPower("DOOM_POWER", out ushort doom))
             throw new FlashUnsupportedException("Doom 没有 Flash 定义。");
-        FlashKernel.ApplyPower(ref x, result.Receiver, doom, total * x.B.Powers[self.Index].Amount,
-            self.Owner);
+        FlashKernel.ApplyPowerWithoutCardSource(ref x, result.Receiver, doom,
+            total * x.B.Powers[self.Index].Amount, self.Owner);
     }
 }
