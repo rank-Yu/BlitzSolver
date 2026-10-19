@@ -21,6 +21,7 @@ Check(Unsafe.SizeOf<FlashBattle>() == FlashBattle.ExpectedSize,
     $"FlashBattle 应为 {FlashBattle.ExpectedSize} 字节，实际 {Unsafe.SizeOf<FlashBattle>()}");
 
 CheckRng();
+CheckGrowthRewards();
 FlashRules rules = SliceRules();
 CheckIntroSort(rules);
 CheckCapacity();
@@ -62,6 +63,30 @@ static void Check(bool condition, string message)
 }
 
 // Reference copy of native MegaRandom + Rng (decompiled sts2 0.111.0) to pin the Flash port.
+
+static void CheckGrowthRewards()
+{
+    FlashBattle battle = default;
+    foreach (FlashGrowthSource source in Enum.GetValues<FlashGrowthSource>())
+        FlashGrowthRewards.Add(ref battle, source);
+    foreach (FlashGrowthSource source in Enum.GetValues<FlashGrowthSource>())
+        Check(FlashGrowthRewards.Get(battle, source) == 1, $"成长来源 {source} 应记录一次");
+    Check(FlashGrowthRewards.Get(battle, FlashGrowthSource.TheHunt) == 1, "同计数器的高 16 位不应串值");
+    FlashGrowthRewards.Set(ref battle, FlashGrowthSource.MadScience, ushort.MaxValue);
+    bool overflowed = false;
+    try
+    {
+        FlashGrowthRewards.Add(ref battle, FlashGrowthSource.MadScience);
+    }
+    catch (FlashCapacityException)
+    {
+        overflowed = true;
+    }
+    Check(overflowed, "成长计数溢出必须显式成为容量边界");
+    Check((int)FlashCounter.GrowthRewardsForbiddenGrimoireMadScience < FlashLimits.Counters,
+        "成长计数器必须位于固定计数器数组内");
+}
+
 static void CheckRng()
 {
     ulong seed = 0x1234_5678_9ABC_DEF0UL;

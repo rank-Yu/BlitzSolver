@@ -981,6 +981,9 @@ public sealed class TheScythe : FlashCardDef
         int increase = (int)NecrobinderContent.Var(ref x, 1);
         FlashCardEffects.AddCurrentCardVar(ref x, 0, increase);
         if ((x.Card.Flags & FlashCardFlags.DeckCard) != 0)
+        {
             x.B.AddCounter(FlashCounter.LongTermResourceValue, increase);
+            FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.TheScythe);
+        }
     }
 }

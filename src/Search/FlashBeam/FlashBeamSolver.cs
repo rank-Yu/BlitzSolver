@@ -302,6 +302,8 @@ internal sealed class FlashBeamSolver
                 return;
             int explicitPotionUses = ExplicitPotionUses(node);
             if (key.Won && _options.HpTargetStop is { } stop
+                && _scorer.GrowthTargetsSatisfied(features)
+                && _scorer.RelicTargetsSatisfied(features)
                 && features.ProjectedDeathSaveUseCount == 0
                 && explicitPotionUses <= stop.EarlyStopPotionUses
                 && stop.HpLostSoFar + features.CumulativePlayerHpLost <= stop.AcceptableBattleHpLoss)
@@ -319,7 +321,7 @@ internal sealed class FlashBeamSolver
         }
 
         (double rootScore, double rootRank, int rootPotionCost, FlashScoreFeatures rootFeatures) =
-            Score(root, _options.InitialActionCount);
+            Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
         (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
         RetentionFacts rootFacts = RetentionFacts.From(
             rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
@@ -569,6 +571,10 @@ internal sealed class FlashBeamSolver
         }
         comparison = left.Key.StrategicHpDeficit.CompareTo(right.Key.StrategicHpDeficit);
         if (comparison != 0) return comparison;
+        comparison = right.Key.GrowthHpCredit.CompareTo(left.Key.GrowthHpCredit);
+        if (comparison != 0) return comparison;
+        comparison = right.Key.GrowthRewardCount.CompareTo(left.Key.GrowthRewardCount);
+        if (comparison != 0) return comparison;
         comparison = left.Key.CombatEndedTurn.CompareTo(right.Key.CombatEndedTurn);
         if (comparison != 0) return comparison;
         comparison = left.Key.HealthResourceCost.CompareTo(right.Key.HealthResourceCost);
@@ -601,6 +607,8 @@ internal sealed class FlashBeamSolver
         int DeathSaveUseCount,
         int OutstandingStolenResource,
         int StrategicHpDeficit,
+        int GrowthHpCredit,
+        int GrowthRewardCount,
         int CombatEndedTurn,
         int PolicyHpDeficit,
         int HealthResourceCost,
@@ -633,7 +641,7 @@ internal sealed class FlashBeamSolver
             Math.Max(0, _ordering.InitialPlayerMaxHp - features.PlayerMaxHp),
             features.RecoveredPlayerHp + relicHeal,
             _ordering.BossHpRelief,
-            features.DeathSaveHpRestored) - features.GrowthHpCredit;
+            features.DeathSaveHpRestored) - features.StrategicHpCredit;
         int optionalPotionCount = features.ExplicitPotionUseCount;
         int optionalPotionStrategicCost = OptionalPotionStrategicCost(
             features.ExplicitPotionStrategicCost, optionalPotionCount);
@@ -651,6 +659,8 @@ internal sealed class FlashBeamSolver
             features.ProjectedDeathSaveUseCount,
             _theftPolicy == SolverTheftPolicy.PreserveResources ? features.OutstandingStolenResource : 0,
             strategicHpDeficit,
+            features.StrategyGoalHpCredit,
+            features.StrategyGoalCount,
             won ? state.PlayerTurn : int.MaxValue,
             policyHpDeficit,
             _ordering.InitialPlayerHp - features.PlayerHp + _ordering.InitialPlayerMaxHp - features.PlayerMaxHp,
@@ -678,6 +688,10 @@ internal sealed class FlashBeamSolver
             if (comparison != 0) return comparison;
         }
         comparison = left.StrategicHpDeficit.CompareTo(right.StrategicHpDeficit);
+        if (comparison != 0) return comparison;
+        comparison = right.GrowthHpCredit.CompareTo(left.GrowthHpCredit);
+        if (comparison != 0) return comparison;
+        comparison = right.GrowthRewardCount.CompareTo(left.GrowthRewardCount);
         if (comparison != 0) return comparison;
         comparison = left.CombatEndedTurn.CompareTo(right.CombatEndedTurn);
         if (comparison != 0) return comparison;
@@ -766,8 +780,10 @@ internal sealed class FlashBeamSolver
         // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
         int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
         _nodes.Add((parentNode, depth, action, lineage));
-        (double score, double rank, int potionCost, FlashScoreFeatures features) = Score(child, depth);
-        if (!FlashKernel.IsInProgress(child))
+        bool isTerminal = !FlashKernel.IsInProgress(child);
+        (double score, double rank, int potionCost, FlashScoreFeatures features) =
+            Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
+        if (isTerminal)
         {
             terminal(child, node, score);
             return;
@@ -943,7 +959,7 @@ internal sealed class FlashBeamSolver
             features.RecoveredPlayerHp + ActEndingBossPolicy.RankedPostCombatRelicHeal(
                 _ordering.PostCombatRelicHeal, true, features.PlayerHp, features.PlayerMaxHp),
             _bound.BossHpRelief,
-            features.DeathSaveHpRestored) - features.GrowthHpCredit;
+            features.DeathSaveHpRestored) - features.StrategicHpCredit;
         PrimarySearchIncumbent? candidate = _incumbent;
         if (CombatBeamSolver.TryTightenPrimarySearchIncumbent(
                 auditedPotionFreeBaseline: _potionFreeBaseline,
@@ -1022,13 +1038,13 @@ internal sealed class FlashBeamSolver
     /// so without it the beam would spend potions for free.
     /// </summary>
     private (double Score, double Rank, int PotionCost, FlashScoreFeatures Features) Score(
-        in FlashBattle battle, int actionCount)
+        in FlashBattle battle, int actionCount, bool terminal, bool isEndTurn)
     {
         // ReachableHandValue / ZeroCostPlayableCount feed only the retention comparators, not Score,
         // BeamRankScore or RouteKey. The retention pool computes them when a state is stored, which
         // skips duplicate and terminal children.
         FlashScoreFeatures features = _scorer.Features(battle, actionCount, includeRetentionOnly: false);
-        double rank = _scorer.BeamRankScore(features)
+        double rank = _scorer.BeamRankScore(battle, features, terminal, isEndTurn)
             - UsedPotionCost(battle) * SolverWeights.Hp;
         return (features.Score, rank, features.ExplicitPotionStrategicCost, features);
     }

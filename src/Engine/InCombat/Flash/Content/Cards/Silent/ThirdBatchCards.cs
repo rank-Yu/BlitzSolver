@@ -169,6 +169,7 @@ public sealed class TheHunt : FlashCardDef
         if (x.NeedsChoice)
             return;
         x.B.AddCounter(FlashCounter.LongTermResourceValue, LongTermResourceValue);
+        FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.TheHunt);
     }
 }
 

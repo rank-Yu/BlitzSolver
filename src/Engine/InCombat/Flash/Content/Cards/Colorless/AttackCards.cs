@@ -197,12 +197,15 @@ public sealed class HandOfGreed : FlashCardDef
         if (x.B.Creature(target).IsAlive || !fatal)
             return;
         int gold = (int)FlashCardEffects.Var(x, 1);
-        if (gold <= 0)
-            return;
-        // CombatPredictionSimulator.GainPlayerGold (the gold-modifier relics are not modeled; roots
-        // holding them are outside this content set's evidence).
-        x.B.Gold = (int)Math.Clamp((long)x.B.Gold + gold, 0, FlashLimits.ValueClamp);
-        x.B.AddCounter(FlashCounter.LongTermResourceValue, gold);
+        if (gold > 0)
+        {
+            // CombatPredictionSimulator.GainPlayerGold (the gold-modifier relics are not modeled; roots
+            // holding them are outside this content set's evidence).
+            x.B.Gold = (int)Math.Clamp((long)x.B.Gold + gold, 0, FlashLimits.ValueClamp);
+            x.B.AddCounter(FlashCounter.LongTermResourceValue, gold);
+        }
+        // CorePowerSupport records the growth reward after the gold gain regardless of its clamp.
+        FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.HandOfGreed);
     }
 }
 

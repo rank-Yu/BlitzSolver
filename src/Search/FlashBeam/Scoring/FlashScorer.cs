@@ -274,6 +274,76 @@ internal sealed class FlashScorer
         => powerId != ushort.MaxValue && GetAmount(battle, powerId, owner) > 0;
 
     // ---------------------------------------------------------------------------------------------
+    // Growth rewards and configured relic counters (CombatBeamSolver.Snapshot).
+
+    /// <summary>
+    /// <c>SimulatedCombatState.GrowthRewards</c> from the packed counters. The kernel packs two
+    /// 16-bit source counts per counter; see <see cref="FlashGrowthRewards"/>.
+    /// </summary>
+    private static GrowthValues CaptureGrowthRewards(in FlashBattle battle) => new(
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.HandOfGreed),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.TheHunt),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.Feed),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.Royalties),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.Alchemize),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.GeneticAlgorithm),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.TheScythe),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.Goopy),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.ForbiddenGrimoire),
+        FlashGrowthRewards.Get(battle, FlashGrowthSource.MadScience));
+
+    /// <summary>
+    /// <c>SimulatedCombatState.EvaluateRelicCounters</c> over the frozen policy targets, including
+    /// the Meat on the Bone victory heal credit the existing snapshot adds in
+    /// <c>CombatBeamSolver.Snapshot</c>.
+    /// </summary>
+    private RelicCounterEvaluation EvaluateRelicCounters(in FlashBattle battle, bool won)
+    {
+        RelicCounterEvaluation result = default;
+        for (int index = 0; index < _score.RelicCounterRules.Length; index++)
+        {
+            FlashRelicCounterRule rule = _score.RelicCounterRules[index];
+            int value = ReadRelicCounter(battle, rule);
+            result = RelicCounterPolicy.Add(result, rule.Target, value % rule.Target.Period);
+        }
+        if (won
+            && (result.SatisfiedMask & (1UL << (int)RelicCounterId.MeatOnTheBone)) != 0)
+        {
+            int thresholdHeal = _score.PostCombatRelicHeal.HealFor(
+                    battle.Player.CurrentHp, battle.Player.MaxHp)
+                - _score.PostCombatRelicHeal.MonotoneHealFor(
+                    battle.Player.CurrentHp, battle.Player.MaxHp);
+            result = result with
+            {
+                HealingHpCredit = ActEndingBossPolicy.PersistentValueOfRecoveredHp(
+                    thresholdHeal, _score.BossHpRelief),
+            };
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.ReadRelicCounter</c> for the supported relics. Flash already carries
+    /// each counter that the native relic reads for gameplay; only the Meat on the Bone threshold
+    /// health comparison is recomputed from the battle.
+    /// </summary>
+    private static int ReadRelicCounter(in FlashBattle battle, in FlashRelicCounterRule rule)
+    {
+        if (rule.Target.Id == RelicCounterId.MeatOnTheBone)
+        {
+            return battle.Player.CurrentHp * 100 <= battle.Player.MaxHp * rule.MeatOnTheBoneThreshold
+                ? 1 : 0;
+        }
+        for (int index = 0; index < battle.RelicCount; index++)
+        {
+            if (battle.Relics[index].Id == rule.RelicId)
+                return battle.Relics[index].Counter;
+        }
+        throw new FlashUnsupportedException(
+            $"遗物计数目标 {rule.Target.Id} 的遗物不在 Flash 状态中。");
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Snapshot.
 
     /// <param name="includeRetentionOnly">
@@ -285,6 +355,17 @@ internal sealed class FlashScorer
     /// </param>
     public FlashScoreFeatures Features(in FlashBattle battle, int actionCount, bool includeRetentionOnly = true)
         => Evaluate(battle, actionCount, includeRetentionOnly);
+
+    /// <summary>
+    /// <c>SearchPolicySnapshot.GrowthTargetSatisfied</c>: every bounded growth goal has been realized.
+    /// The request already disabled the HP-target stop for unbounded targets.
+    /// </summary>
+    public bool GrowthTargetsSatisfied(in FlashScoreFeatures features)
+        => features.GrowthRewards.Satisfies(_score.RequiredGrowthRewards);
+
+    /// <summary><c>SearchPolicySnapshot.RelicTargetsSatisfied</c>.</summary>
+    public bool RelicTargetsSatisfied(in FlashScoreFeatures features)
+        => (features.RelicSatisfiedMask & features.RelicTargetMask) == features.RelicTargetMask;
 
     private FlashScoreFeatures Evaluate(in FlashBattle battle, int actionCount, bool includeRetentionOnly)
     {
@@ -368,11 +449,21 @@ internal sealed class FlashScorer
         int longTermResourceValue = _score.IgnoreLongTermRewards
             ? 0
             : realizedLongTermResourceValue - missedTheHuntRewards * TheHuntLongTermResourceValue;
-        int growthHpCredit = 0;
+        GrowthValues growthRewards = _score.IgnoreLongTermRewards
+            ? default
+            : CaptureGrowthRewards(battle);
+        int growthHpCredit = _score.GrowthBudgets.Credit(growthRewards);
         score += Math.Min(
             realizedLongTermResourceValue * SolverWeights.LongTermResourceBeamValue,
             SolverWeights.LongTermResourceBeamCap);
         score += (double)growthHpCredit * hpWeight;
+        RelicCounterEvaluation relicCounters = EvaluateRelicCounters(battle, won);
+        score += (double)(relicCounters.HpCredit + relicCounters.HealingHpCredit) * hpWeight;
+        score += relicCounters.SatisfiedPriority * 0.1 - relicCounters.Distance * 0.001;
+
+        int strategyGoalHpCredit = growthHpCredit + relicCounters.HpCredit;
+        int strategicHpCredit = strategyGoalHpCredit + relicCounters.HealingHpCredit;
+        int strategyGoalCount = growthRewards.Total + relicCounters.SatisfiedPriority;
 
         int angerCopiesGenerated = battle.Counter(FlashCounter.AngerCopiesGenerated);
         score += angerCopiesGenerated * SolverWeights.AngerCopyBeamPenalty;
@@ -793,6 +884,20 @@ internal sealed class FlashScorer
             DefensiveBlockValue = defensiveBlockValue,
             LongTermResourceValue = longTermResourceValue,
             GrowthHpCredit = growthHpCredit,
+            GrowthRewards = growthRewards,
+            GrowthRewardCount = growthRewards.Total,
+            StrategyGoalHpCredit = strategyGoalHpCredit,
+            StrategicHpCredit = strategicHpCredit,
+            StrategyGoalCount = strategyGoalCount,
+            RelicSatisfiedMask = relicCounters.SatisfiedMask,
+            RelicTargetMask = relicCounters.TargetMask,
+            RelicCounterValues = relicCounters.CounterValues,
+            RelicTargetMinimums = relicCounters.TargetMinimums,
+            RelicTargetMaximums = relicCounters.TargetMaximums,
+            RelicHpCredit = relicCounters.HpCredit,
+            RelicDistance = relicCounters.Distance,
+            RelicSatisfiedPriority = relicCounters.SatisfiedPriority,
+            RelicHealingHpCredit = relicCounters.HealingHpCredit,
             AngerCopiesGenerated = angerCopiesGenerated,
             EnemyHp = enemyHp,
             EnemyBlock = enemyBlock,
@@ -816,6 +921,7 @@ internal sealed class FlashScorer
             Energy = battle.Energy,
             Stars = battle.Stars,
             HandCount = battle.HandCount,
+            Turn = battle.PlayerTurn,
             ReachableHandValue = reachableHandValue,
             ZeroCostPlayableCount = zeroCostPlayableCount,
             PersistentBuffValue = persistentBuffValue,
@@ -2202,7 +2308,8 @@ internal sealed class FlashScorer
     // ---------------------------------------------------------------------------------------------
     // Intermediate beam ranking (BeamRetentionPolicy.BeamRankScore).
 
-    public double BeamRankScore(in FlashScoreFeatures features)
+    public double BeamRankScore(in FlashBattle battle, in FlashScoreFeatures features,
+        bool terminal, bool isEndTurn)
     {
         // CombatBeamSolver.BeamRankScore: the base-score member ranks by the base score alone (the
         // development strategy that could adjust it is rejected at admission).
@@ -2221,7 +2328,23 @@ internal sealed class FlashScorer
         int weakExpectedHpSaved = _score.IsActEndingBoss
             ? SolverWeights.BossEnemyWeakExpectedHpSaved
             : SolverWeights.StandardEnemyWeakExpectedHpSaved;
-        double score = features.Score
+        double baseScore = features.Score;
+        if (_score.ContinuousThreatRanking && !terminal && isEndTurn
+            && !features.PlayerDead && features.ProjectedPlayerHp <= 0)
+        {
+            // CombatBeamSolver.BeamRankScore: stand-pat projects ending now, but a living player can
+            // still block, draw or kill before that intent. Keep its HP deficit continuous only in
+            // intermediate ordering when a playable hand remains; final outcomes keep their policy.
+            int reachable = features.ReachableHandValue;
+            if (reachable == 0)
+                (reachable, _) = ReachableHandPotential(battle);
+            if (reachable > 0)
+            {
+                baseScore = features.Score - SolverWeights.DeathPenalty
+                    + features.ProjectedPlayerHp * SolverWeights.Hp;
+            }
+        }
+        double score = baseScore
             + Math.Min(SolverWeights.CurrentEnergyBeamCap, features.Energy)
                 * SolverWeights.CurrentEnergyBeamValue
             + Math.Min(
@@ -2252,9 +2375,9 @@ internal sealed class FlashScorer
                     Math.Max(0, features.EnemyWeakTurns - _score.InitialEnemyWeakTurns))
                 * weakExpectedHpSaved
                 * SolverWeights.Hp;
-        // The existing ranking scales one term for non-terminal nodes only; FlashBeam ranks only
-        // non-terminal states (terminals go straight to the final route ordering).
-        if (_score.BeamWeightPerturbation is { Scale: not 1d } perturbation)
+        // The existing ranking scales one term for non-terminal nodes only. Terminal children never
+        // enter a retention pool, but their rank is still computed before the terminal check.
+        if (!terminal && _score.BeamWeightPerturbation is { Scale: not 1d } perturbation)
         {
             double term = perturbation.Term switch
             {
@@ -2268,8 +2391,49 @@ internal sealed class FlashScorer
             };
             score += (perturbation.Scale - 1d) * term;
         }
+        score += ContextualAdjustment(battle, features, terminal);
         return score;
     }
+
+    /// <summary>
+    /// <c>ContextualRankingModel.Adjustment</c> for a Flash state. Terminal and non-surviving
+    /// contexts bypass the model; the four retention-only inputs are recomputed here because the
+    /// ordinary child score skips them, and the rest are the K4-checked features.
+    /// </summary>
+    private double ContextualAdjustment(in FlashBattle battle, in FlashScoreFeatures features,
+        bool terminal)
+    {
+        if (_score.ContextualRanking is not { } model || terminal || features.ProjectedPlayerHp <= 0)
+            return 0;
+        (int reachableHandValue, int zeroCostPlayableCount) = ReachableHandPotential(battle);
+        ContextualRankingModel.Input input = new(
+            features.Turn,
+            false,
+            features.ProjectedPlayerHp,
+            features.Energy,
+            features.PlayerHp,
+            features.PlayerMaxHp,
+            features.EnemyHp,
+            features.HandCount,
+            zeroCostPlayableCount,
+            reachableHandValue,
+            features.PersistentBuffValue,
+            features.LatentSetupValue,
+            features.RetainedAttackValue,
+            features.ReplayPotentialValue,
+            features.FutureResourceValue,
+            features.DelayedDamageValue,
+            features.LiveDeckClutter,
+            features.LiveDeckSize,
+            features.EnemyStrengthSuppression,
+            features.EnemyWeakTurns,
+            features.EnemyVulnerableTurns);
+        return model.Adjustment(input);
+    }
+
+    internal double ContextualAdjustmentForTesting(in FlashBattle battle,
+        in FlashScoreFeatures features, bool terminal)
+        => ContextualAdjustment(battle, features, terminal);
 
     private int RetainedAttackGrowth(in FlashScoreFeatures features)
         => Math.Min(

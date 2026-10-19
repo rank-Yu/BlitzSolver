@@ -27,6 +27,30 @@ internal readonly record struct FlashScoreFeatures
     public int DefensiveBlockValue { get; init; }
     public int LongTermResourceValue { get; init; }
     public int GrowthHpCredit { get; init; }
+
+    /// <summary><c>Snapshot.GrowthRewards</c>: the per-source realized growth rewards.</summary>
+    public GrowthValues GrowthRewards { get; init; }
+
+    /// <summary><c>Snapshot.GrowthRewards.Total</c>.</summary>
+    public int GrowthRewardCount { get; init; }
+
+    /// <summary><c>Snapshot.StrategyGoalHpCredit</c> (growth + relic HP credit).</summary>
+    public int StrategyGoalHpCredit { get; init; }
+
+    /// <summary><c>Snapshot.StrategicHpCredit</c> (strategy HP credit + Meat on the Bone heal).</summary>
+    public int StrategicHpCredit { get; init; }
+
+    /// <summary><c>Snapshot.StrategyGoalCount</c> (growth total + satisfied relic priority).</summary>
+    public int StrategyGoalCount { get; init; }
+    public ulong RelicSatisfiedMask { get; init; }
+    public ulong RelicTargetMask { get; init; }
+    public ulong RelicCounterValues { get; init; }
+    public ulong RelicTargetMinimums { get; init; }
+    public ulong RelicTargetMaximums { get; init; }
+    public int RelicHpCredit { get; init; }
+    public int RelicDistance { get; init; }
+    public int RelicSatisfiedPriority { get; init; }
+    public int RelicHealingHpCredit { get; init; }
     public int AngerCopiesGenerated { get; init; }
     public int EnemyHp { get; init; }
     public int EnemyBlock { get; init; }
@@ -58,6 +82,9 @@ internal readonly record struct FlashScoreFeatures
     public int Energy { get; init; }
     public int Stars { get; init; }
     public int HandCount { get; init; }
+
+    /// <summary><c>SearchNode.Turn</c> (the snapshot's combat turn, equal to the Flash player turn).</summary>
+    public int Turn { get; init; }
     public int ReachableHandValue { get; init; }
     public int ZeroCostPlayableCount { get; init; }
     public int PersistentBuffValue { get; init; }
@@ -133,6 +160,24 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(DefensiveBlockValue), old.DefensiveBlockValue, flash.DefensiveBlockValue);
         Check(nameof(LongTermResourceValue), old.LongTermResourceValue, flash.LongTermResourceValue);
         Check(nameof(GrowthHpCredit), old.GrowthHpCredit, flash.GrowthHpCredit);
+        Check(nameof(GrowthRewardCount), old.GrowthRewardCount, flash.GrowthRewardCount);
+        foreach (GrowthSource source in Enum.GetValues<GrowthSource>())
+        {
+            Check($"{nameof(GrowthRewards)}.{source}",
+                old.GrowthRewards.Get(source), flash.GrowthRewards.Get(source));
+        }
+        Check(nameof(StrategyGoalHpCredit), old.StrategyGoalHpCredit, flash.StrategyGoalHpCredit);
+        Check(nameof(StrategicHpCredit), old.StrategicHpCredit, flash.StrategicHpCredit);
+        Check(nameof(StrategyGoalCount), old.StrategyGoalCount, flash.StrategyGoalCount);
+        Check(nameof(RelicSatisfiedMask), old.RelicSatisfiedMask, flash.RelicSatisfiedMask);
+        Check(nameof(RelicTargetMask), old.RelicTargetMask, flash.RelicTargetMask);
+        Check(nameof(RelicCounterValues), old.RelicCounterValues, flash.RelicCounterValues);
+        Check(nameof(RelicTargetMinimums), old.RelicTargetMinimums, flash.RelicTargetMinimums);
+        Check(nameof(RelicTargetMaximums), old.RelicTargetMaximums, flash.RelicTargetMaximums);
+        Check(nameof(RelicHpCredit), old.RelicHpCredit, flash.RelicHpCredit);
+        Check(nameof(RelicDistance), old.RelicDistance, flash.RelicDistance);
+        Check(nameof(RelicSatisfiedPriority), old.RelicSatisfiedPriority, flash.RelicSatisfiedPriority);
+        Check(nameof(RelicHealingHpCredit), old.RelicHealingHpCredit, flash.RelicHealingHpCredit);
         Check(nameof(AngerCopiesGenerated), old.AngerCopiesGenerated, flash.AngerCopiesGenerated);
         Check(nameof(EnemyHp), old.EnemyHp, flash.EnemyHp);
         Check(nameof(EnemyBlock), old.EnemyBlock, flash.EnemyBlock);
@@ -157,6 +202,7 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(Energy), old.Energy, flash.Energy);
         Check(nameof(Stars), old.Stars, flash.Stars);
         Check(nameof(HandCount), old.HandCount, flash.HandCount);
+        Check(nameof(Turn), old.Turn, flash.Turn);
         Check(nameof(ReachableHandValue), old.ReachableHandValue, flash.ReachableHandValue);
         Check(nameof(ZeroCostPlayableCount), old.ZeroCostPlayableCount, flash.ZeroCostPlayableCount);
         Check(nameof(PersistentBuffValue), old.PersistentBuffValue, flash.PersistentBuffValue);

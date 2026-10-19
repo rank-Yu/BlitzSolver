@@ -131,6 +131,7 @@ public sealed class Royalties : FlashCardDef
         FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.RoyaltiesPower>(),
             gold, FlashLimits.PlayerOwner);
         x.B.AddCounter(FlashCounter.LongTermResourceValue, gold);
+        FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.Royalties);
     }
 }
 

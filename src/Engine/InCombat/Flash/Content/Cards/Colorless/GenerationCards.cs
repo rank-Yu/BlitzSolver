@@ -287,9 +287,9 @@ public sealed class Alchemize : FlashCardDef
         ushort potion = FlashKernel.GenerateRandomPotion(ref x.B, x.R);
         if (FlashKernel.TryProcurePotion(ref x.B, potion))
         {
-            // SimulatedCombatState.RecordLongTermResource(20); the growth reward has no score impact
-            // while every configured growth budget is zero (FlashScoreBridge rejects non-zero budgets).
+            // SimulatedCombatState.RecordLongTermResource(20) after a successful procure.
             x.B.AddCounter(FlashCounter.LongTermResourceValue, 20);
+            FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.Alchemize);
         }
     }
 }

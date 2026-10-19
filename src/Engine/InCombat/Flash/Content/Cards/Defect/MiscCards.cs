@@ -105,7 +105,10 @@ public sealed class GeneticAlgorithm : FlashCardDef
         played.Private = (short)(played.Private + increase);
         x.Card = played;
         if ((played.Flags & FlashCardFlags.DeckCard) != 0)
+        {
             x.B.AddCounter(FlashCounter.LongTermResourceValue, increase);
+            FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.GeneticAlgorithm);
+        }
     }
 
     public override void ProjectPrivate(ref FlashCard card) => card.Private = card.Var0;

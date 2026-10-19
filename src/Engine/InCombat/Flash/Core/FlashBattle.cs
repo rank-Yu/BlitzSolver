@@ -227,6 +227,15 @@ public enum FlashCounter : byte
     /// <c>RecoverStolenResources</c> when the thief dies; escaping leaves it outstanding.
     /// </summary>
     OutstandingStolenCards,
+
+    // Per-source growth reward counts (SimulatedCombatState._growthRewards). Two 16-bit source
+    // values per counter; see FlashGrowthRewards. The fixed counter array has room for all of them,
+    // so the FlashBattle layout is unchanged.
+    GrowthRewardsHandOfGreedTheHunt,
+    GrowthRewardsFeedRoyalties,
+    GrowthRewardsAlchemizeGeneticAlgorithm,
+    GrowthRewardsTheScytheGoopy,
+    GrowthRewardsForbiddenGrimoireMadScience,
 }
 
 /// <summary>
@@ -462,4 +471,76 @@ public static class FlashPiles
             default: throw new ArgumentOutOfRangeException(nameof(pile), pile, null);
         }
     }
+}
+
+/// <summary>
+/// The ten built-in growth reward sources, in the order of the existing engine's
+/// <c>GrowthSource</c> enum. The kernel cannot reference that enum; the bridge maps by index.
+/// </summary>
+public enum FlashGrowthSource : byte
+{
+    HandOfGreed = 0,
+    TheHunt,
+    Feed,
+    Royalties,
+    Alchemize,
+    GeneticAlgorithm,
+    TheScythe,
+    Goopy,
+    ForbiddenGrimoire,
+    MadScience,
+}
+
+/// <summary>
+/// Accessors for <c>SimulatedCombatState._growthRewards</c> inside <see cref="FlashBattle.Counters"/>.
+/// Each counter packs two 16-bit source counts so the ten sources fit in five of the existing
+/// counters; the counters array size (and therefore the state layout) does not change. The existing
+/// engine records at most one reward per resolved card effect, orders of magnitude below the 16-bit
+/// ceiling; a value that would overflow is an explicit capacity boundary, never truncated.
+/// </summary>
+public static class FlashGrowthRewards
+{
+    public const int SourceCount = 10;
+    private const int Mask = 0xFFFF;
+
+    public static int Get(in FlashBattle battle, FlashGrowthSource source)
+    {
+        int packed = battle.Counter(Counter(source));
+        return ((int)source & 1) == 0 ? packed & Mask : (int)((uint)packed >> 16) & Mask;
+    }
+
+    public static void Add(ref FlashBattle battle, FlashGrowthSource source)
+    {
+        int value = Get(battle, source);
+        if (value == Mask)
+            throw new FlashCapacityException($"{nameof(FlashGrowthRewards)}.{source}", Mask);
+        Set(ref battle, source, value + 1);
+    }
+
+    public static void Set(ref FlashBattle battle, FlashGrowthSource source, int value)
+    {
+        if ((uint)value > Mask)
+            throw new FlashCapacityException($"{nameof(FlashGrowthRewards)}.{source}", Mask);
+        FlashCounter counter = Counter(source);
+        int packed = battle.Counter(counter);
+        packed = ((int)source & 1) == 0
+            ? (int)(((uint)packed & 0xFFFF0000u) | (uint)value)
+            : (int)(((uint)packed & 0x0000FFFFu) | ((uint)value << 16));
+        battle.SetCounter(counter, packed);
+    }
+
+    private static FlashCounter Counter(FlashGrowthSource source) => source switch
+    {
+        FlashGrowthSource.HandOfGreed or FlashGrowthSource.TheHunt
+            => FlashCounter.GrowthRewardsHandOfGreedTheHunt,
+        FlashGrowthSource.Feed or FlashGrowthSource.Royalties
+            => FlashCounter.GrowthRewardsFeedRoyalties,
+        FlashGrowthSource.Alchemize or FlashGrowthSource.GeneticAlgorithm
+            => FlashCounter.GrowthRewardsAlchemizeGeneticAlgorithm,
+        FlashGrowthSource.TheScythe or FlashGrowthSource.Goopy
+            => FlashCounter.GrowthRewardsTheScytheGoopy,
+        FlashGrowthSource.ForbiddenGrimoire or FlashGrowthSource.MadScience
+            => FlashCounter.GrowthRewardsForbiddenGrimoireMadScience,
+        _ => throw new ArgumentOutOfRangeException(nameof(source), source, null),
+    };
 }

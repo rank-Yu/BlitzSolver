@@ -105,6 +105,13 @@ public sealed class Goopy : FlashEnchantmentDef
         if (card.EnchantmentAmount == short.MaxValue)
             throw new FlashUnsupportedException($"Goopy 层数 {card.EnchantmentAmount} 超出 Flash 的短整型表示。");
         card.EnchantmentAmount++;
+        if ((card.Flags & FlashCardFlags.DeckCard) != 0)
+        {
+            // AfterCardPlayedMirrors.HandleGoopy records the long-term resource and growth reward
+            // only for a card with a permanent deck version.
+            x.B.AddCounter(FlashCounter.LongTermResourceValue, 1);
+            FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.Goopy);
+        }
     }
 }
 

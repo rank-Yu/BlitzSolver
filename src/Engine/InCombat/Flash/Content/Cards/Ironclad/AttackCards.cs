@@ -296,6 +296,7 @@ public sealed class Feed : FlashCardDef
         if (!fatal)
             return;
         FlashKernel.GainMaxHp(ref x, FlashLimits.PlayerOwner, FlashCardEffects.Var(x, 1));
+        FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.Feed);
     }
 }
 

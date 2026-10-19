@@ -241,6 +241,12 @@ internal sealed class FlashPowerScore
     public int DanseMacabreEnergyThreshold { get; init; }
 }
 
+/// <summary>One configured relic counter goal, with the Flash relic id that carries its counter.</summary>
+internal readonly record struct FlashRelicCounterRule(
+    RelicCounterTarget Target,
+    ushort RelicId,
+    int MeatOnTheBoneThreshold);
+
 /// <summary>
 /// Everything <see cref="FlashScorer"/> reads besides the <see cref="FlashBattle"/> and
 /// <see cref="FlashRules"/>: per-card and per-power evaluation values compiled from the existing
@@ -258,6 +264,28 @@ internal sealed class FlashScoreRules
 
     /// <summary>Indexed by potion id; <c>PotionUsePolicy.StrategicHpCost</c> of the canonical potion.</summary>
     public required int[] PotionStrategicCost { get; init; }
+
+    /// <summary><c>SearchPolicySnapshot.EffectiveGrowthBudgets</c>: HP credit per realized reward.</summary>
+    public GrowthValues GrowthBudgets { get; init; }
+
+    /// <summary>
+    /// <c>GrowthOpportunityTargets.RequiredRewards</c>: the bounded goals the HP-target stop must
+    /// satisfy; empty when the root has no bounded growth target.
+    /// </summary>
+    public GrowthValues RequiredGrowthRewards { get; init; }
+
+    /// <summary>Configured relic counter goals in the policy order (the captured list is id-sorted).</summary>
+    public FlashRelicCounterRule[] RelicCounterRules { get; init; } = [];
+
+    /// <summary>The existing final ordering's post-combat relic heal profile.</summary>
+    public PostCombatRelicHealProfile PostCombatRelicHeal { get; init; } = PostCombatRelicHealProfile.None;
+
+    /// <summary>The existing final ordering's strategic boss HP relief.</summary>
+    public BossHpRelief BossHpRelief { get; init; }
+
+    public bool ContinuousThreatRanking { get; init; }
+
+    public ContextualRankingModel? ContextualRanking { get; init; }
 
     public required int InitialPlayerMaxHp { get; init; }
 
