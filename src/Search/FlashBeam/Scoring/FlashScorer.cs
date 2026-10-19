@@ -81,12 +81,27 @@ internal sealed class FlashScorer
                 FlashCalculatedKind.CardsDiscardedThisTurn => battle.Counter(FlashCounter.CardsDiscardedThisTurn),
                 FlashCalculatedKind.NegativeHandCount => -battle.HandCount,
                 FlashCalculatedKind.CardsDrawn => battle.Counter(FlashCounter.CardsDrawn),
+                FlashCalculatedKind.StarCardCount => CountStarCostCards(battle),
                 _ => 0,
             };
             decimal candidate = baseVar + extraVar * multiplier;
             damage = Math.Max(damage, candidate);
         }
         return value + (double)damage - score.BaseDamage;
+    }
+
+    /// <summary><c>CalculatedVarSpecRegistry.CrescentSpear</c>: the combat piles' star-cost cards.</summary>
+    private int CountStarCostCards(in FlashBattle battle)
+    {
+        int count = 0;
+        for (int position = 0; position < battle.CardCount; position++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[position];
+            FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+            if (stats.StarCost >= 0 || stats.StarCostsX)
+                count++;
+        }
+        return count;
     }
 
     private int CountCardsWithTag(in FlashBattle battle, FlashCardTag tag)
@@ -384,6 +399,7 @@ internal sealed class FlashScorer
         // summon-next-turn powers have no admitted Flash content.
         int futureResourceValue = GetAmount(battle, _score.EnergyNextTurnPowerId, FlashLimits.PlayerOwner) * 16
             + GetAmount(battle, _score.DrawCardsNextTurnPowerId, FlashLimits.PlayerOwner) * 8
+            + GetAmount(battle, _score.StarNextTurnPowerId, FlashLimits.PlayerOwner) * 8
             + GetAmount(battle, _score.RetainHandPowerId, FlashLimits.PlayerOwner) * 4
             + retainedHandValue
             + FreeCardOpportunityValue(battle, FlashCardType.Attack, _score.FreeAttackPowerId)

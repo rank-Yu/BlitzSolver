@@ -87,6 +87,9 @@ internal enum FlashCalculatedKind : byte
     NegativeHandCount,
     CardsDrawn,
 
+    /// <summary>CrescentSpear: cards in the combat piles whose canonical star cost is ≥ 0 or X.</summary>
+    StarCardCount,
+
     /// <summary>A registered calculated-damage card the port does not model; the root is rejected.</summary>
     Unsupported,
 }
@@ -254,6 +257,8 @@ internal sealed class FlashScoreRules
     public ushort EnergyNextTurnPowerId { get; init; } = ushort.MaxValue;
 
     public ushort DrawCardsNextTurnPowerId { get; init; } = ushort.MaxValue;
+
+    public ushort StarNextTurnPowerId { get; init; } = ushort.MaxValue;
 
     public ushort FreeAttackPowerId { get; init; } = ushort.MaxValue;
 

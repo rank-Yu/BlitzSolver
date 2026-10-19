@@ -147,6 +147,12 @@ public enum FlashCounter : byte
     /// (<c>CombatPredictionSimulator.MaxSimulatedChanneledOrbs</c>).
     /// </summary>
     OrbChannels,
+
+    /// <summary>
+    /// Stars gained this player turn (<c>SimulatedCombatState.GetStarsGainedThisTurn</c>, positive
+    /// gains only): Radiate's CalculatedHits multiplier. Reset in the player side-turn begin.
+    /// </summary>
+    StarsGainedThisTurn,
 }
 
 /// <summary>

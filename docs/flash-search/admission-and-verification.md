@@ -53,6 +53,13 @@ DF 新增的球与卡牌私有状态投影：
 - 满槽充能先激发最左侧球；若激发副作用同步充能又把槽填满，现有引擎记录 `MethodMirrorIncomplete` 风险并放弃本次预测。Flash 明确抛 `FlashUnsupportedException`，不追加激发。预测历史充能达到 1000 次同样按未支持边界拒绝。
 - `ReptileTrinket` 的 `AfterPotionUsed` 在药水效果之后、Power 数量结算与敌人死亡结算之前派发：玩家存活时按遗物变量施加 `ReptileTrinketPower`（临时力量 + 力量）。`UnsettlingLamp` 仍无定义：它依赖卡牌实例身份、`BeforePowerAmountChanged` 与 `ModifyPowerAmountGivenMultiplicative` 的逐卡翻倍账本。
 
+RG 的储君投影与惰性规则：
+
+- **星能**：`FlashBattle.Stars` 直接取 `SimPlayerCombatState.Stars`；无星费的卡 `BaseStarCost` 为 -1，临时星费按最后一条投影（多条目不一致按容量拒绝）；`LastStarsSpent` 只存在出牌期的 `FlashExec`，不投影。
+- **星能遗物计数**：`GalacticDust.Counter` 与 `MiniRegent.Counter` 取 `StatefulRelicState.Current`（`SimulatedCombatState.StatefulRelicStateForFlash`，无条目时其构造器读的模型字段）；`Regalite.Counter` 取 `RegalitePredictionState.UsedThisTurn`（无条目时读 `_usedThisTurn`）；`BrilliantScarf.Counter` 取 `CounterPredictionState.Value`（无条目时读 `_cardsPlayedThisTurn`）。四者都只在对应遗物的 Hook 里读写。
+- **`_swordSageReplayBonuses` 的惰性规则**：`NormalizeSwordSageReplays` 会为每张君王之刃记录一条「已应用的重放加成」，没有 SwordSagePower 时全部为 0。SwordSagePower 没有 Flash 定义（根持有它时按 `UnsupportedPower` 拒绝），因此目标加成恒为 0，所有条目都处在目标值、没有 delta 可应用；每张牌的已应用加成已经体现在导入的 `BaseReplayCount` 里。只有「所有条目值为 0 且所有玩家的 SwordSagePower 层数为 0」时按惰性放过，否则仍按 `UnrepresentableState` 拒绝。读取点：`NormalizeSwordSageReplays` 只遍历当前牌堆的君王之刃；`FlashProjection` 的指纹/续接文本不参与结算。
+- **自动预打出**：`BOMBARDMENT` 的消耗堆捕获与 `MayhemPower` 的计划自动打出在 `FlashKernel.AutoPrePlay` 里复刻；尚未实现的 Imbued、HistoryCourse、WhisperingEarring 没有 Flash 定义，持有它们的根在准入拒绝。
+
 退役条目的认领规则与现有实现：
 
 - `SurroundedPower`（KAISER_CRAB_BOSS）：玩家死亡时 `HandlePlayerDeath` 清空玩家 Power，`SurroundedPredictionState` 仍按退役的 Power 实例留在 store。`Facing` 只被 `BeforeCardPlayed` 与 `ModifyDamageMultiplicative` 读取，而这两个入口都只在玩家存活、Power 仍为正层时遍历 `EffectivePowers`；退役实例不可能再被遍历，因此按惰性处理（`RequireAllClaimed` 放过 `SurroundedPower { Amount: 0 }` 的 `SurroundedPredictionState`）。存活时其值由 `ProjectPower` 认领并写入 `FlashPower.Aux0`。

@@ -34,6 +34,7 @@ CheckKaAttachments();
 CheckP16Kernel(rules);
 CheckSkKernel();
 CheckDfKernel(rules);
+CheckRgKernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -479,6 +480,11 @@ static FlashRules SliceRules()
     builder.SetCard(defend, 0, Stats(FlashCardType.Skill, FlashTargetType.Self, 1, [5m]));
     builder.SetCard(bash, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [8m, 2m]));
     builder.SetCard(whirlwind, 0, Stats(FlashCardType.Attack, FlashTargetType.AllEnemies, 0, [5m], costsX: true));
+    // RG: the forge kernel creates SOVEREIGN_BLADE; the star-cost contract uses a synthetic card.
+    FlashRegistry.TryCard("SOVEREIGN_BLADE", out ushort blade);
+    builder.SetCard(blade, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [10m]));
+    FlashRegistry.TryCard("RG_TEST_STAR_CARD", out ushort starCard);
+    builder.SetCard(starCard, 0, Stats(FlashCardType.Skill, FlashTargetType.Self, 0, [0m], starCost: 2));
     FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable);
     builder.SetPowerVars(vulnerable, [1.5m]);
     FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
@@ -509,10 +515,10 @@ static FlashRules SliceRules()
     return builder.Build();
 
     static FlashCardStats Stats(FlashCardType type, FlashTargetType target, int cost, decimal[] vars,
-        bool costsX = false) => new()
+        bool costsX = false, int starCost = -1) => new()
     {
         Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = costsX,
-        StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None, MaxUpgradeLevel = 1, Vars = vars,
+        StarCost = starCost, StarCostsX = false, Keywords = FlashKeywords.None, MaxUpgradeLevel = 1, Vars = vars,
     };
 }
 
@@ -1260,7 +1266,7 @@ static void CheckKg2Hooks(FlashRules rules)
     FlashKernel.ResolvePowerAmountChanges(ref x);
     Span<FlashListener> locationModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
     FlashPile location = FlashHooks.ModifyCardPlayResultLocation(ref x, card, false, 0, FlashPile.Discard,
-        locationModifiers, out int locationCount, out FlashPilePosition locationPosition);
+        FlashPilePosition.Bottom, locationModifiers, out int locationCount, out FlashPilePosition locationPosition);
     Check(location == FlashPile.Draw && locationPosition == FlashPilePosition.Top && locationCount == 1,
         "KG2 去向 Hook 未生效（含 Draw/Top 位置）");
     FlashHooks.AfterModifyingCardPlayResultLocation(ref x, card, location, locationModifiers[..locationCount]);
@@ -1475,6 +1481,139 @@ static FlashRules KaRules()
     builder.SetRelicVars(lighter, [9m]);
     return builder.Build();
 }
+
+// RG: star and forge kernel contracts. The helper definitions below are registered only in this
+// pure-kernel executable; the star relic/power log the dispatch order and the paid amount.
+static void CheckRgKernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryCard("SOVEREIGN_BLADE", out ushort blade), "缺少 SOVEREIGN_BLADE 定义");
+    Check(FlashRegistry.TryCard("RG_TEST_STAR_CARD", out ushort starCard), "缺少 RG_TEST_STAR_CARD 定义");
+    Check(FlashRegistry.TryPower("RG_TEST_STAR_POWER", out ushort starPower), "缺少 RG_TEST_STAR_POWER");
+    Check(FlashRegistry.TryRelic("RG_TEST_STAR_RELIC", out ushort starRelic), "缺少 RG_TEST_STAR_RELIC");
+
+    // Star cost: the hook only sees non-negative costs, runs in listener order and is gated by combat
+    // ending; the temporary cost replaces the base; X star cost returns every current star without
+    // dispatching the hook.
+    FlashBattle battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = starRelic };
+    FlashCard card = FlashKernel.CreateCard(rules, starCard);
+    Kg2TestLog.Clear();
+    Check(FlashKernel.StarCostWithModifiers(battle, rules, card, FlashPile.Hand) == 0,
+        "RG 星能费用 Hook 未生效（应把 2 降到 -2 后钳制到 0）");
+    Check(Kg2TestLog.Lines.Count == 1 && Kg2TestLog.Lines[0] == "star-cost:2",
+        $"RG 星能费用 Hook 应只收到一次 2，实际 {string.Join(",", Kg2TestLog.Lines)}");
+    card.SetTemporaryStarCost(5, clearsAtTurnEnd: true, clearsWhenPlayed: true);
+    Kg2TestLog.Clear();
+    Check(FlashKernel.StarCostWithModifiers(battle, rules, card, FlashPile.Hand) == 1
+        && Kg2TestLog.Lines.Count == 1 && Kg2TestLog.Lines[0] == "star-cost:5",
+        "RG 临时星能费用应替换基础费用");
+    card.Flags |= FlashCardFlags.StarCostsX;
+    battle.Stars = 3;
+    Kg2TestLog.Clear();
+    Check(FlashKernel.StarCostWithModifiers(battle, rules, card, FlashPile.Hand) == 3
+        && Kg2TestLog.Lines.Count == 0, "RG X 星能费用应返回当前星能且不派发 Hook");
+    card.Flags &= ~FlashCardFlags.StarCostsX;
+    battle.Outcome = FlashOutcome.Victory;
+    Kg2TestLog.Clear();
+    Check(FlashKernel.StarCostWithModifiers(battle, rules, card, FlashPile.Hand) == 5
+        && Kg2TestLog.Lines.Count == 0, "RG 战斗结束时星能费用 Hook 应跳过");
+    battle.Outcome = FlashOutcome.None;
+    card.ClearTemporaryStarCost();
+    card.BaseStarCost = -1;
+    Kg2TestLog.Clear();
+    Check(FlashKernel.StarCostWithModifiers(battle, rules, card, FlashPile.Hand) == 0
+        && Kg2TestLog.Lines.Count == 0, "RG 负星能费用不应派发 Hook");
+
+    // AfterStarsSpent: the existing engine runs the relics before the powers, not in listener order.
+    FlashExec x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, starPower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    Kg2TestLog.Clear();
+    FlashHooks.AfterStarsSpent(ref x, 4);
+    Check(string.Join(",", Kg2TestLog.Lines) == "stars-spent-relic:4,stars-spent-power:4",
+        $"RG 星能消耗顺序错误：{string.Join(",", Kg2TestLog.Lines)}");
+
+    // GainStars: clamp, then AfterStarsGained; skipped while the combat is ending.
+    battle.Stars = FlashLimits.ValueClamp - 2;
+    Kg2TestLog.Clear();
+    Check(FlashKernel.GainStars(ref x, 5), "RG 星能获得不应产生待处理选择");
+    Check(battle.Stars == FlashLimits.ValueClamp, "RG 星能获得应钳制到上限");
+    Check(Kg2TestLog.Lines.Contains("stars-gained:5"), "RG 星能获得 Hook 未派发");
+    battle.Stars = 0;
+    battle.Enemies[0].Creature.CurrentHp = 0;
+    Check(FlashKernel.IsEnding(battle), "RG 终局测试前提不成立");
+    Kg2TestLog.Clear();
+    Check(FlashKernel.GainStars(ref x, 5) && battle.Stars == 0 && Kg2TestLog.Lines.Count == 0,
+        "RG 战斗结束时星能获得应跳过");
+    battle.Enemies[0].Creature.CurrentHp = 100;
+
+    // Star payment: ManualPlay deducts the star cost once and dispatches AfterStarsSpent with the paid
+    // amount (K0 contract for the "the count changed by exactly the paid amount" assumption). No
+    // cost-modifying relic here, so the base cost 2 is paid.
+    FlashBattle paid = NewBattle();
+    paid.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref paid, FlashPile.Hand, FlashKernel.CreateCard(rules, starCard));
+    FlashExec pay = new(ref paid, rules, default);
+    FlashKernel.ApplyPower(ref pay, FlashLimits.PlayerOwner, starPower, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref pay);
+    paid.Stars = 5;
+    Kg2TestLog.Clear();
+    FlashKernel.ManualPlay(ref pay, 0, FlashLimits.NoOwner);
+    Check(paid.Stars == 3, $"RG 出牌应恰好支付 2 星能，实际星能 {paid.Stars}");
+    Check(string.Join(",", Kg2TestLog.Lines) == "stars-spent-power:2",
+        $"RG 出牌应只派发一次金额 2 的星能消耗 Hook：{string.Join(",", Kg2TestLog.Lines)}");
+
+    // Forge: grows every Sovereign Blade in every pile; creates one canonical blade only when no
+    // unexhausted blade exists; the freshly created blade receives the same forge amount.
+    FlashBattle forgeBattle = NewBattle();
+    FlashExec forge = new(ref forgeBattle, rules, default);
+    FlashCard bladeValue = FlashKernel.CreateCard(rules, blade);
+    FlashPiles.Append(ref forgeBattle, FlashPile.Hand, bladeValue);
+    FlashPiles.Append(ref forgeBattle, FlashPile.Discard, bladeValue);
+    Check(FlashKernel.Forge(ref forge, 3), "RG 锻造失败");
+    Check(forgeBattle.CardCount == 2, "RG 已有未消耗君王之刃时不应再生成");
+    Check(forgeBattle.Cards[0].Var0 == 3 && forgeBattle.Cards[1].Var0 == 3,
+        "RG 锻造应增加所有君王之刃的伤害变量");
+
+    FlashBattle exhaustedOnly = NewBattle();
+    FlashExec forge2 = new(ref exhaustedOnly, rules, default);
+    FlashPiles.Append(ref exhaustedOnly, FlashPile.Exhaust, bladeValue);
+    Check(FlashKernel.Forge(ref forge2, 4), "RG 消耗堆君王之刃的锻造失败");
+    Check(exhaustedOnly.HandCount == 1 && exhaustedOnly.ExhaustCount == 1,
+        "RG 只有消耗堆君王之刃时应生成一张新牌");
+    Check(exhaustedOnly.Cards[0].Var0 == 4 && exhaustedOnly.Cards[1].Var0 == 4,
+        "RG 新生成的君王之刃也应获得本次锻造量");
+
+    // StarsGainedThisTurn: positive gains accumulate (Radiate's CalculatedHits), non-positive gains do
+    // not, and the player side turn start resets it (BeginSideTurn's ResetTurnCounter).
+    FlashBattle turn = SliceBattle();
+    FlashExec turnExec = new(ref turn, rules, default);
+    turn.Stars = 10;
+    Check(FlashKernel.GainStars(ref turnExec, 4), "RG 星能获得不应产生待处理选择");
+    Check(turn.Counter(FlashCounter.StarsGainedThisTurn) == 4,
+        $"RG 本回合获得星能应为 4，实际 {turn.Counter(FlashCounter.StarsGainedThisTurn)}");
+    Check(FlashKernel.GainStars(ref turnExec, -2), "RG 负星能获得不应产生待处理选择");
+    Check(turn.Counter(FlashCounter.StarsGainedThisTurn) == 4,
+        "RG 负星能获得不应计入本回合获得星能");
+    FlashKernel.Step(ref turn, FlashAction.EndTurn(), rules, out _);
+    Check(turn.Counter(FlashCounter.StarsGainedThisTurn) == 0,
+        $"RG 玩家回合开始应清零本回合获得星能，实际 {turn.Counter(FlashCounter.StarsGainedThisTurn)}");
+
+    // The blade targets every enemy while the owner holds SeekingEdgePower.
+    Check(FlashRegistry.TryPower("SEEKING_EDGE_POWER", out ushort seekingEdge), "缺少 SEEKING_EDGE_POWER");
+    FlashBattle targetBattle = NewBattle();
+    FlashExec target = new(ref targetBattle, rules, default);
+    FlashCard bladeCard = FlashKernel.CreateCard(rules, blade);
+    Check(FlashRegistry.Card(blade).TargetType(targetBattle, rules, bladeCard) == FlashTargetType.AnyEnemy,
+        "RG 君王之刃默认目标应为单体");
+    FlashKernel.ApplyPower(ref target, FlashLimits.PlayerOwner, seekingEdge, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref target);
+    Check(FlashRegistry.Card(blade).TargetType(targetBattle, rules, bladeCard) == FlashTargetType.AllEnemies,
+        "RG 寻求锋芒下君王之刃目标应为全体");
+}
+
 
 static class Kg2TestLog
 {
@@ -1717,3 +1856,39 @@ public sealed class KsTestDiscardRelic : FlashRelicDef
 
 [FlashContent("KS_TEST_SLY_RELIC")]
 public sealed class KsTestSlyRelic : FlashRelicDef;
+
+[FlashContent("RG_TEST_STAR_CARD")]
+public sealed class RgTestStarCard : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+    {
+    }
+}
+
+[FlashContent("RG_TEST_STAR_POWER")]
+public sealed class RgTestStarPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void AfterStarsSpent(ref FlashExec x, FlashListener self, int amount)
+        => Kg2TestLog.Add($"stars-spent-power:{amount}");
+
+    public override void AfterStarsGained(ref FlashExec x, FlashListener self, int amount)
+        => Kg2TestLog.Add($"stars-gained:{amount}");
+}
+
+[FlashContent("RG_TEST_STAR_RELIC")]
+public sealed class RgTestStarRelic : FlashRelicDef
+{
+    public override decimal TryModifyStarCost(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount)
+    {
+        Kg2TestLog.Add($"star-cost:{(int)amount}");
+        return amount - 4m;
+    }
+
+    public override void AfterStarsSpent(ref FlashExec x, FlashListener self, int amount)
+        => Kg2TestLog.Add($"stars-spent-relic:{amount}");
+}

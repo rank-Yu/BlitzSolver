@@ -51,7 +51,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 内核为下列 Hook 提供派发点，名称与原版一致；内容需要新的 Hook 时在内核增加派发点并补差分测试：
 
-- 出牌：`TryModifyEnergyCostInCombat`（含 Late；Corruption、FreeAttackPower、FreeSkillPower、FreePowerPower）、`ModifyStarCost`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount` / `AfterModifyingCardPlayCount`（OneTwoPunchPower、DuplicationPower）、`ModifyCardPlayResultLocation` / `AfterModifyingCardPlayResultLocation`（Corruption；Nostalgia 还返回 `Draw` 的 `Top` 位置）、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterCardDiscarded`、`AfterHandEmptied`。
+- 出牌：`TryModifyEnergyCostInCombat`（含 Late；Corruption、FreeAttackPower、FreeSkillPower、FreePowerPower）、`TryModifyStarCost`（BrilliantScarf、VoidFormPower；纯查询，只在原费用非负且战斗未结束时派发）、`AfterStarsSpent`（先遗物后 Power 的固定顺序）、`AfterStarsGained`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount` / `AfterModifyingCardPlayCount`（OneTwoPunchPower、DuplicationPower）、`ModifyCardPlayResultLocation` / `AfterModifyingCardPlayResultLocation`（Corruption；Nostalgia 还返回 `Draw` 的 `Top` 位置）、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterCardDiscarded`、`AfterHandEmptied`。
 - 卡牌目标：`FlashCardDef.TargetType` 覆写原生 `CardModel.TargetType`。规则表冻结规范目标；`Shiv` 在持有 `FanOfKnivesPower` 时返回 `AllEnemies`，合法动作枚举、自动打出目标解析与卡牌攻击都读这个动态值。
 - 攻击与伤害：`BeforeAttack`、`ModifyAttackHitCount`、`AfterAttack`、`ModifyDamageAdditive`、`ModifyDamageMultiplicative`、`ModifyDamageCap`、`BeforeDamageReceived`、`ModifyHpLostBeforeOsty`（含 Late）、`ModifyHpLostAfterOsty`（含 Late）、`AfterModifyingHpLostAfterOsty`、`AfterBlockBroken`、`AfterCurrentHpChanged`、`AfterDamageGiven`、`AfterDamageReceived`（含 Late）。
 - 格挡：`BeforeBlockGained`、`ModifyBlockAdditive`、`ModifyBlockMultiplicative`、`AfterModifyingBlockAmount`、`AfterBlockGained`、`ShouldClearBlock`、`AfterBlockCleared`。
@@ -94,6 +94,24 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 **遗物。** CrackedCore 在第一回合玩家侧 `BeforeSideTurnStart` 充能闪电；RunicCapacitor 与 SymbioticVirus 在第一回合玩家侧 `AfterSideTurnStart` 增加 3 槽 / 充能暗球；GoldPlatedCables 实现触发次数 Hook；PowerCell 与旧引擎的 `RegisterIgnored<PowerCell>` 一致，是准入所需的空定义。ReptileTrinket 在 `AfterPotionUsed` 中按遗物变量施加临时力量（`ReptileTrinketPower`），对应 `TriggerRelicsAfterPotionUsed`。UnsettlingLamp 仍无定义：它需要卡牌实例身份、`BeforePowerAmountChanged` 与 `ModifyPowerAmountGivenMultiplicative` 的逐卡翻倍账本。
 
+### 3.6 储君：星能与锻造
+
+来源：`S/CombatPredictionSimulator.Energy.cs`、`S/CombatPredictionSimulator.Card.cs`、`E/CombatPredictedCardExtensions.cs`、`P/PowerLifecycleSupport.cs`、`M/Hooks/Resources/AfterStarsGainedMirrors.cs`、`M/Hooks/Card/ModifyStarCostMirrors.cs`、`P/PersistentPowerSupport.Forge`、`Q/SimulatedCombatState.CardLifecycle.cs`、`Q/SimulatedCombatState.AutoPlay.cs`。
+
+**状态。** 星能是 `FlashBattle.Stars`（`SimPlayerCombatState.Stars`），导入直接取 `playerState.Stars`。`BaseStarCost` 来自原版同名字段（无星费为 -1），临时星费取 `_temporaryStarCosts` 最后一条（多条目不一致按容量拒绝）。`LastStarsSpent` 是出牌期瞬时值，存栈上的 `FlashExec.StarValue`，不进入稳定状态。
+
+**费用。** `StarCostWithModifiers` 对应 `GetStarCostWithModifiers`：X 星费卡返回当前全部星能；否则基础/临时星费只在非负时交给 `TryModifyStarCost`（BrilliantScarf、VoidFormPower），最后 `(int)` 截断并钳制 ≥ 0；X 星费不派发费用 Hook。`ShouldPayExcessEnergyCostWithStars` 没有原版监听者，Flash 不做能量超额折算。`ResolveStarXValue` 读 `StarValue` 再过 `ModifyXValue`（Stardust）。
+
+**获得。** `FlashKernel.GainStars` 对应 `PlayerCmd.GainStars`/`CombatPredictionSimulator.GainStars`：`IsEnding` 时不获得；`ShouldGainStars` 没有原版监听者；状态钳制到 [0, 999999999]；正数获得同时累加 `StarsGainedThisTurn`（Radiate 的 CalculatedHits 乘数，玩家回合开始清零）；随后派发 `AfterStarsGained`（BlackHolePower）。卡牌在现有引擎的同一位置调用它（Venerate/HiddenCache/Convergence 在 `CardOnPlaySupport` 位置，SolarStrike/Glow/ShiningStrike 在 `CardEffectSpecRegistry` 位置，BigBang 按 Energy → Stars → Forge）。
+
+**消耗。** `ManualPlay` 在卡进入打出区之前重算星费，写入 `StarValue`，扣星能后派发 `AfterStarsSpent`。现有引擎的顺序不是监听者顺序：先 `TriggerRelicsAfterStarsSpent`（GalacticDust、MiniRegent 按遗物表顺序），再按 `EffectivePowers()` 顺序跑 `ChildOfTheStarsPower`；Flash 因此用「先遗物、后 Power」两遍派发。自动打出不支付星能，但同样在 `skipXCapture` 为假时捕获 `StarValue`。
+
+**锻造。** `FlashKernel.Forge` 对应 `PersistentPowerSupport.Forge`：有待处理选择时不执行；手牌/抽牌堆/弃牌堆/打出区都没有未消耗的 `SOVEREIGN_BLADE` 时创建一张规范 0 级君王之刃到手中（走 `AddGeneratedCardToCombat` 的进战斗与生成卡 Hook）；然后给**所有**牌堆里的非复制君王之刃的伤害变量加 amount（`Var0`）。`CreatedThroughForge` 只驱动原版视觉，不进入 Flash 状态。君王之刃的攻击次数来自 `Repeat` 变量（恒为 1，无原版效果调用 `SetRepeats`），`SeekingEdgePower` 把它改为全体目标，`ParryPower` 提供格挡。锻造卡与 `FurnacePower` 在 `GeneratedCards` 里声明君王之刃，规则闭包因此冻结它的两级数值。
+
+**AutoPrePlay。** 玩家回合开始、`AfterTurnStartOrbs` 之后：`Phase = AutoPrePlay`；先按消耗堆顺序自动打出阶段开始时在消耗堆的 `BOMBARDMENT`（每次打出后回到消耗堆，捕获数量与当前数量必须一致，否则显式拒绝）；再按 `MayhemPower` 层数把抽牌堆顶牌移到打出区后依次自动打出（对应 `MoveCardsForAutoPlay` 与 `TriggerScheduledAutoPlays`）。Imbued、HistoryCourse、WhisperingEarring 没有 Flash 定义，持有它们的根在准入拒绝。完成后 `Phase = Play` 并做胜负判定。
+
+**遗物与 Power。** GalacticDust/MiniRegent 的计数取 `StatefulRelicState.Current`，Regalite 取 `RegalitePredictionState.UsedThisTurn`，BrilliantScarf 取 `CounterPredictionState`（非自动出牌递增、玩家侧回合开始清零，计数达到 `Cards-1` 时能量与星能费用都变 0）。ChildOfTheStarsPower 在 `AfterStarsSpent` 给格挡；GenesisPower/StarNextTurnPower 在 `AfterEnergyReset` 获得星能（后者随后移除）；ArsenalPower/PillarOfCreationPower 在 `AfterCardGeneratedForCombat` 给力量/格挡；FurnacePower 在 `OwnerAfterSideTurnStart` 锻造；ConquerorPower 让君王之刃对持有者造成双倍伤害并在侧回合末减层；ReflectPower 反弹被格挡的 powered attack 伤害并在侧回合开始减层；DyingStarPower 与 MonarchsGazeStrengthDownPower 是负向临时力量，在持有者侧回合末归还。
+
 ## 4. 出牌管线
 
 来源：`Q/SimulatedCombatState.cs:1552`、`S/CombatPredictionSimulator.Card.cs:122-330`、`S/CombatPredictionSimulator.CardExecutionContinuation.cs:29-127`、`S/CombatPredictionSimulator.CardTailContinuation.cs:16-125`、`P/CorePowerSupport.cs:21-407`。
@@ -102,7 +120,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 2. **支付**：重算两种费用和超额换算；记录 X 值与本次星能消耗；扣能量 → `AfterEnergySpent`；扣星能 → `AfterStarsSpent`。
 3. **进入打出区**：卡从手牌移到打出区（不触发 `AfterCardChangedPiles`）；确定基础去向（复制品或能力牌 → 无；下次打出时消耗或带消耗关键字 → 消耗堆；其余 → 弃牌堆；个别卡牌覆写）；`ModifyCardPlayResultLocation`，随后只对改变去向的监听者派发 `AfterModifyingCardPlayResultLocation`（Corruption 把 Skill 改成消耗；改变“移出战斗”的基础去向显式拒绝）；打出次数 = 附魔重放 + 1 → `ModifyCardPlayCount` → `AfterModifyingCardPlayCount`（只对改变次数的监听者；OneTwoPunch/Duplication 在此递减）；持有者已死则结束。
 4. **每次打出**：战斗已结束则停止；`BeforeCardPlayed`；历史计数；执行卡牌效果；结算卡牌自身选择。
-5. **卡牌效果顺序**：先执行旧引擎镜像部分（推断配方或专门镜像，即攻击、格挡、抽牌），再执行补偿部分（`CardEffectSpecRegistry` 与 `CorePowerSupport.ApplyCardPowers` 里的 Power、资源、生成效果）。**补偿效果总在镜像效果之后**，这是旧引擎的实际顺序。现有引擎在 `CorePowerSupport.ApplyCardPowers` 里先执行 `CardOnPlaySupport.Apply`，随后立即 `ApplyEnemyDeathPowers`，最后才进入该卡的专属补偿 `switch`；因此“镜像攻击击杀会生成新敌人的怪，再把 Power 施加到当前敌人”的卡（Thunderclap）必须在专属补偿前结算死亡。Flash 的对应定义在镜像攻击与专属补偿之间调用 `ApplyEnemyDeathPowers`，`PlayFromPlay` 还在整张卡的 `OnPlay` 之后、`OwnChoice` 之前补一次死亡结算。
+5. **卡牌效果顺序**：先执行旧引擎镜像部分（推断配方或专门镜像，即攻击、格挡、抽牌），再执行补偿部分（`CardEffectSpecRegistry` 与 `CorePowerSupport.ApplyCardPowers` 里的 Power、资源、生成效果）。卡牌可以覆写 `ResultLocation` 来复刻 `CardResultLocationMirrors` 的 `GetResultLocationForCardPlay`（ShiningStrike 回抽牌堆顶、ParticleWall 回手牌）；基础去向仍由规则表类型与关键字决定。**补偿效果总在镜像效果之后**，这是旧引擎的实际顺序。现有引擎在 `CorePowerSupport.ApplyCardPowers` 里先执行 `CardOnPlaySupport.Apply`，随后立即 `ApplyEnemyDeathPowers`，最后才进入该卡的专属补偿 `switch`；因此“镜像攻击击杀会生成新敌人的怪，再把 Power 施加到当前敌人”的卡（Thunderclap）必须在专属补偿前结算死亡。Flash 的对应定义在镜像攻击与专属补偿之间调用 `ApplyEnemyDeathPowers`，`PlayFromPlay` 还在整张卡的 `OnPlay` 之后、`OwnChoice` 之前补一次死亡结算。
 6. **收尾**：持有者已死则中止；附魔 OnPlay → 苦难 OnPlay；`AfterCardPlayed` 普通阶段 → 重新读取监听列表后跑 Late 阶段（战斗正在结束也照常触发）；`ResolvePowerAmountChanges`（`CompleteCardPlayEffects`）；生命周期计数。
 7. **去向**：仍在打出区的卡按去向处理（无 → 移出战斗；消耗 → `AfterCardExhausted`；否则加入目标牌堆）；不在嵌套效果中时触发 `AfterHandEmptied`；清理费用与目标。
 8. **动作边界**：结算敌人死亡效果（`ApplyEnemyDeathPowers`）→ 胜负判定 → 处理被请求的回合结束。

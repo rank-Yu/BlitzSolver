@@ -231,6 +231,7 @@ public ref struct FlashExec
         Stats = null;
         Target = FlashLimits.NoOwner;
         XValue = 0;
+        StarValue = 0;
         PlayIndex = 0;
         PlayPosition = -1;
         EffectDepth = 0;
@@ -281,7 +282,14 @@ public ref struct FlashExec
     /// <summary>Target owner of the current card or potion, or <see cref="FlashLimits.NoOwner"/>.</summary>
     public byte Target;
 
+    /// <summary>Energy X value captured by the last card play (<c>EnergyCost.CapturedXValue</c>).</summary>
     public int XValue;
+
+    /// <summary>
+    /// Star value captured by the last card play (<c>CardModel.LastStarsSpent</c>): the star cost paid,
+    /// or the star cost computed for an auto-play. <c>ResolveStarXValue</c> reads it.
+    /// </summary>
+    public int StarValue;
 
     public int PlayIndex;
 

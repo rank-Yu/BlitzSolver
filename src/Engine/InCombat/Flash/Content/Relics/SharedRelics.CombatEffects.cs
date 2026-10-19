@@ -201,17 +201,10 @@ public sealed class MummifiedHand : FlashRelicDef
             index = PickHandCard(ref x, naturallyCostly: false, costsResources: false);
         if (index < 0)
             return;
-        ref FlashCard card = ref x.B.Cards[index];
-        if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
-            throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
-        // CardEnergyCost.SetThisTurnOrUntilPlayed(0): absolute, EndOfTurn | WhenPlayed, not reduce-only.
-        card.EnergyModifiers[card.EnergyModifierCount] = FlashCostModifier.Create(0, FlashCostType.Absolute,
-            FlashCostExpiration.EndOfTurn | FlashCostExpiration.WhenPlayed, reduceOnly: false);
-        card.EnergyModifierCount++;
-        // CardModel.SetToFreeThisTurn also sets the star cost to 0 for this turn.
-        if (card.HasTemporaryStarCost)
-            throw new FlashCapacityException("Card.TemporaryStarCosts", 1);
-        card.SetTemporaryStarCost(0, clearsAtTurnEnd: true, clearsWhenPlayed: true);
+        // CardModel.SetToFreeThisTurn: the energy modifier is only added when the card's base cost is
+        // not negative (an Unplayable card stays Unplayable with no modifier), and the star cost is
+        // set to 0 for this turn.
+        FlashKernel.MakeFreeThisTurn(x.R, ref x.B.Cards[index]);
     }
 
     private static int PickHandCard(ref FlashExec x, bool naturallyCostly, bool costsResources)
@@ -243,31 +236,15 @@ public sealed class MummifiedHand : FlashRelicDef
             return true;
         ref readonly FlashCard card = ref x.B.Cards[index];
         return FlashKernel.EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0
-            || FlashKernel.StarCostWithModifiers(x.B, card) > 0;
+            || FlashKernel.StarCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0;
     }
 
-    /// <summary><c>CardEnergyCost.GetWithModifiers(CostModifiers.None)</c>: canonical cost plus local modifiers.</summary>
+    /// <summary>
+    /// <c>CardEnergyCost.GetWithModifiers(CostModifiers.None)</c>: the current base cost (upgrade
+    /// included) without local or global modifiers. A negative (Unplayable) or X cost is not costly.
+    /// </summary>
     private static bool IsNaturallyCostly(in FlashBattle battle, in FlashCard card)
-    {
-        if (card.BaseStarCost > 0)
-            return true;
-        if ((card.Flags & FlashCardFlags.CostsX) != 0)
-            return card.BaseCost > 0;
-        int cost = card.BaseCost;
-        if (cost < 0)
-            return cost > 0;
-        for (int index = 0; index < card.EnergyModifierCount; index++)
-        {
-            FlashCostModifier modifier = card.EnergyModifiers[index];
-            cost = modifier.Type switch
-            {
-                FlashCostType.Absolute => modifier.IsReduceOnly ? Math.Min(cost, modifier.Amount) : modifier.Amount,
-                FlashCostType.Relative => modifier.IsReduceOnly ? Math.Min(cost, cost + modifier.Amount) : cost + modifier.Amount,
-                _ => throw new FlashUnsupportedException($"未知的费用修饰类型 {modifier.Type}。"),
-            };
-        }
-        return Math.Max(0, cost) > 0;
-    }
+        => card.BaseStarCost > 0 || card.BaseCost > 0;
 }
 
 /// <summary>

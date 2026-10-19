@@ -22,8 +22,9 @@ public static partial class FlashKernel
         if (HasKeyword(battle, card, FlashKeywords.Unplayable))
             return false;
         int energyCost = EnergyCostWithModifiers(battle, rules, card, FlashPile.Hand);
-        int starCost = StarCostWithModifiers(battle, card);
-        // ShouldPayExcessEnergyCostWithStars has no supported listeners yet.
+        int starCost = StarCostWithModifiers(battle, rules, card, FlashPile.Hand);
+        // ShouldPayExcessEnergyCostWithStars has no vanilla listener (Hook.ShouldPayExcessEnergyCostWithStars
+        // only observes models, and no model overrides it), so the excess-energy conversion cannot trigger.
         if (energyCost > battle.Energy || starCost > battle.Stars)
             return false;
         if (!ShouldPlay(battle, rules, card))
@@ -143,16 +144,6 @@ public static partial class FlashKernel
         return FlashHooks.ModifyXValue(x.B, x.R, x.Card, x.XValue);
     }
 
-    /// <summary>Mirrors <c>GetStarCostWithModifiers</c>.</summary>
-    public static int StarCostWithModifiers(in FlashBattle battle, in FlashCard card)
-    {
-        if ((card.Flags & FlashCardFlags.StarCostsX) != 0)
-            return battle.Stars;
-        int cost = card.HasTemporaryStarCost ? card.TemporaryStarCost : card.BaseStarCost;
-        // ModifyStarCost has no supported listeners yet.
-        return Math.Max(0, cost);
-    }
-
     /// <summary>
     /// Mirrors a manual play through <c>CombatPredictionSimulator.ManualPlay</c>: spend resources,
     /// move to the play pile, run every play index (effect then tail) and settle the result pile.
@@ -166,8 +157,10 @@ public static partial class FlashKernel
 
         // SpendResources (the card is still in hand).
         int energyValue = EnergyCostWithModifiers(battle, x.R, card, FlashPile.Hand);
-        int starValue = StarCostWithModifiers(battle, card);
+        int starValue = StarCostWithModifiers(battle, x.R, card, FlashPile.Hand);
         x.XValue = energyValue;
+        // LastStarsSpent: captured even when the play is free (auto-play captures it too).
+        x.StarValue = starValue;
         if (energyValue > 0)
             battle.AddCounter(FlashCounter.EnergySpentThisTurn, energyValue);
         if (energyValue > 0)
@@ -176,7 +169,11 @@ public static partial class FlashKernel
         if (starValue > 0)
         {
             battle.Stars = (int)Math.Clamp((long)battle.Stars - starValue, 0, FlashLimits.ValueClamp);
-            // AfterStarsSpent is not supported yet.
+            // PowerLifecycleSupport.AfterStarsSpent: the engine returns from ManualPlay while a pending
+            // choice is outstanding, before the card leaves the hand.
+            FlashHooks.AfterStarsSpent(ref x, starValue);
+            if (x.NeedsChoice)
+                return;
         }
 
         // OnPlayWrapper: AddDuringManualCardPlay.
@@ -202,7 +199,8 @@ public static partial class FlashKernel
         int playPosition, bool isAutoPlay)
     {
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-        FlashPile result = ResultLocation(x.B, card, stats, out bool removeFromCombat);
+        FlashPile result = ResultLocation(x.B, x.R, card, stats, out bool removeFromCombat,
+            out FlashPilePosition basePosition);
         // CardModel.GetResultLocationForCardPlay clears ExhaustOnNextPlay when the result is Exhaust
         // (Havoc/Cascade force-exhaust the auto-played card).
         if (result == FlashPile.Exhaust)
@@ -215,7 +213,7 @@ public static partial class FlashKernel
         // over the modifiers that changed the location.
         Span<FlashListener> locationModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
         FlashPile hooked = FlashHooks.ModifyCardPlayResultLocation(ref x, card, isAutoPlay, energyValue, result,
-            locationModifiers, out int locationModifierCount, out FlashPilePosition resultPosition);
+            basePosition, locationModifiers, out int locationModifierCount, out FlashPilePosition resultPosition);
         if (x.NeedsChoice)
             return;
         if (hooked != result)
@@ -482,17 +480,22 @@ public static partial class FlashKernel
     }
 
     /// <summary>Mirrors <c>CardResultLocationMirrors.GetResultLocation</c> for the supported cards.</summary>
-    private static FlashPile ResultLocation(in FlashBattle battle, in FlashCard card, FlashCardStats stats, out bool removeFromCombat)
+    private static FlashPile ResultLocation(in FlashBattle battle, FlashRules rules, in FlashCard card,
+        FlashCardStats stats, out bool removeFromCombat, out FlashPilePosition position)
     {
         removeFromCombat = false;
+        position = FlashPilePosition.Bottom;
         if (stats.Type == FlashCardType.Power)
         {
             removeFromCombat = true;
             return FlashPile.Play;
         }
-        if ((card.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0 || HasKeyword(battle, card, FlashKeywords.Exhaust))
-            return FlashPile.Exhaust;
-        return FlashPile.Discard;
+        FlashPile baseLocation = (card.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0
+            || HasKeyword(battle, card, FlashKeywords.Exhaust)
+                ? FlashPile.Exhaust
+                : FlashPile.Discard;
+        // CardModel.GetResultLocationForCardPlay override (ShiningStrike, ParticleWall).
+        return FlashRegistry.Card(card.Id).ResultLocation(battle, rules, card, baseLocation, out position);
     }
 
     /// <summary>

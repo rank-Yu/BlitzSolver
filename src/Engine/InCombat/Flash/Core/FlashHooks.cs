@@ -413,11 +413,11 @@ public static partial class FlashHooks
     /// after dispatch over the listeners that changed the location. Both use the combat-listener gate.
     /// </summary>
     public static FlashPile ModifyCardPlayResultLocation(ref FlashExec x, in FlashCard card, bool isAutoPlay,
-        int energyValue, FlashPile location, scoped Span<FlashListener> modifiers, out int modifierCount,
-        out FlashPilePosition position)
+        int energyValue, FlashPile location, FlashPilePosition basePosition,
+        scoped Span<FlashListener> modifiers, out int modifierCount, out FlashPilePosition position)
     {
         modifierCount = 0;
-        position = FlashPilePosition.Bottom;
+        position = basePosition;
         if ((FlashRegistry.AnyHooks & FlashHookMask.ModifyCardPlayResultLocation) == 0 || FlashKernel.IsOverOrEnding(x.B))
             return location;
         Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];

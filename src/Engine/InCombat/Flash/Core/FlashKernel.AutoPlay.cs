@@ -30,11 +30,15 @@ public static partial class FlashKernel
             return false;
         }
 
-        // SpendResources(card, isAutoPlay: true, skipXCapture) captures X and the star value without
-        // paying anything. Flash has no persistent LastStarsSpent slot; no supported card reads it.
+        // SpendResources(card, isAutoPlay: true, skipXCapture) captures X and the star value
+        // (CardModel.LastStarsSpent) without paying anything.
         int energyValue = EnergyCostWithModifiers(x.B, x.R, card, pile);
+        int starValue = StarCostWithModifiers(x.B, x.R, card, pile);
         if (!skipXCapture)
+        {
             x.XValue = energyValue;
+            x.StarValue = starValue;
+        }
 
         // OnPlayWrapper's isAutoPlay branch moves the card to the play pile.
         FlashCard moved = FlashPiles.RemoveAt(ref x.B, pile, index);
@@ -82,8 +86,12 @@ public static partial class FlashKernel
         FlashPiles.Append(ref x.B, FlashPile.Play, card);
         EnteredCombat(ref x, card, FlashPile.Play, x.B.PlayCount - 1);
         int energyValue = EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Play);
+        int starValue = StarCostWithModifiers(x.B, x.R, card, FlashPile.Play);
         if (!skipXCapture)
+        {
             x.XValue = energyValue;
+            x.StarValue = starValue;
+        }
 
         // OnPlayWrapper's AddToPile moves the card to the end of the play pile again.
         int index = PlayIndexOf(ref x.B, card);

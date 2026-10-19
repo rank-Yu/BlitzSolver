@@ -312,10 +312,10 @@ public sealed class StratagemPower : FlashPowerDef
 }
 
 /// <summary>
-/// Native <c>MayhemPower</c>: <c>AfterAutoPrePlayPhaseEntered</c> auto-plays Amount cards from the
-/// draw pile. The existing engine does not mirror that hook (it only dispatches
-/// AfterAutoPostPlayPhaseEntered), so this definition keeps only the power amount and no effect,
-/// matching the authoritative engine.
+/// Native <c>MayhemPower</c>: the existing engine models its auto-play in
+/// <c>TriggerScheduledAutoPlays</c> (AutoPrePlay phase) at the player's turn start. The kernel's
+/// <see cref="FlashKernel.AutoPrePlay"/> reads this amount, so the definition keeps only the power
+/// value and no hook of its own.
 /// </summary>
 [FlashContent("MAYHEM_POWER")]
 public sealed class MayhemPower : FlashPowerDef

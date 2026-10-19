@@ -195,6 +195,19 @@ public enum FlashHookMask : ulong
     AfterPotionUsed = 1UL << 60,
 
     /// <summary>
+    /// <c>PowerLifecycleSupport.AfterStarsSpent</c>: <c>TriggerRelicsAfterStarsSpent</c> then the
+    /// <c>ChildOfTheStarsPower</c> loop. The existing engine uses a fixed relic-then-power order
+    /// instead of listener order, so <c>FlashHooks.AfterStarsSpent</c> dispatches in two passes.
+    /// </summary>
+    AfterStarsSpent = 1UL << 61,
+
+    /// <summary><c>HookMirrors.AfterStarsGained</c> (BlackHolePower).</summary>
+    AfterStarsGained = 1UL << 62,
+
+    /// <summary><c>HookMirrors.ModifyStarCost</c> (<c>AbstractModel.TryModifyStarCost</c>): a pure query.</summary>
+    TryModifyStarCost = 1UL << 63,
+
+    /// <summary>
     /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
     /// cards outside combat; a root whose deck holds a card implementing one of them is rejected.
     /// </summary>
@@ -498,6 +511,34 @@ public abstract class FlashListenerDef : FlashContentDef
         int value) => value;
 
     /// <summary>
+    /// <c>HookMirrors.ModifyStarCost</c> (<c>AbstractModel.TryModifyStarCost</c>): a pure query over
+    /// the combat listeners, run only for a non-negative original cost and skipped while the combat is
+    /// over/ending. <paramref name="pile"/> is the card's current pile (VoidFormPower/BrilliantScarf
+    /// only modify cards in Hand or Play).
+    /// </summary>
+    public virtual decimal TryModifyStarCost(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashCard card, FlashPile pile, decimal amount) => amount;
+
+    /// <summary>
+    /// <c>PowerLifecycleSupport.AfterStarsSpent</c> (<c>CombatPredictionSimulator.SpendResources</c>):
+    /// the spender's relics first (<c>TriggerRelicsAfterStarsSpent</c>: MiniRegent, then GalacticDust),
+    /// then every effective power in listener order (ChildOfTheStarsPower). <paramref name="amount"/>
+    /// is the star cost actually paid and is always positive here.
+    /// </summary>
+    public virtual void AfterStarsSpent(ref FlashExec x, FlashListener self, int amount)
+    {
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.AfterStarsGained</c> after <c>PlayerCmd.GainStars</c> mutates the player's
+    /// stars. <paramref name="amount"/> is the requested gain (BlackHolePower ignores non-positive
+    /// amounts).
+    /// </summary>
+    public virtual void AfterStarsGained(ref FlashExec x, FlashListener self, int amount)
+    {
+    }
+
+    /// <summary>
     /// <c>Hook.ModifyOrbValue</c> over the combat listeners (<c>FocusPower</c>, <c>InfusedCore</c>).
     /// A pure query: prediction and evaluation call it read-only.
     /// </summary>
@@ -676,6 +717,19 @@ public abstract class FlashCardDef : FlashListenerDef
     /// </summary>
     public virtual FlashTargetType TargetType(in FlashBattle battle, FlashRules rules, in FlashCard card)
         => rules.Card(card.Id, card.Upgrade).Target;
+
+    /// <summary>
+    /// Native <c>CardModel.GetResultLocationForCardPlay</c> override (<c>CardResultLocationMirrors</c>).
+    /// The base location is Discard, Exhaust or Play (a power removes the card from combat); a card that
+    /// returns to the hand or the top of the draw pile rewrites the discard case here. <paramref name="position"/>
+    /// is the native <c>CardLocation.position</c> for the returned pile.
+    /// </summary>
+    public virtual FlashPile ResultLocation(in FlashBattle battle, FlashRules rules, in FlashCard card,
+        FlashPile baseLocation, out FlashPilePosition position)
+    {
+        position = FlashPilePosition.Bottom;
+        return baseLocation;
+    }
 
     /// <summary>
     /// A card's native <c>CalculatedDamage</c> formula for another effect that reads this card's damage

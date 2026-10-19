@@ -193,6 +193,8 @@ public static partial class FlashKernel
     {
         for (FlashCounter counter = FlashCounter.CardsPlayedThisTurn; counter <= FlashCounter.EnergySpentThisTurn; counter++)
             battle.SetCounter(counter, 0);
+        // BeginSideTurn's ResetTurnCounter(_starsGainedThisTurn) for the player.
+        battle.SetCounter(FlashCounter.StarsGainedThisTurn, 0);
     }
 
     /// <summary>Owners of the roster enemies in roster order.</summary>
@@ -442,8 +444,12 @@ public static partial class FlashKernel
         TriggerAfterTurnStartOrbs(ref x);
         if (x.NeedsChoice)
             return;
-        // Auto pre-play has no supported sources.
+        // TriggerAutoPrePlayEarly: Bombardment cards in the exhaust pile, then the scheduled Mayhem
+        // auto-plays. Imbued / HistoryCourse / WhisperingEarring have no Flash definitions.
         x.B.Phase = FlashPlayerPhase.AutoPrePlay;
+        AutoPrePlay(ref x);
+        if (x.NeedsChoice)
+            return;
         x.B.Phase = FlashPlayerPhase.Play;
         CheckWinCondition(ref x.B);
     }
