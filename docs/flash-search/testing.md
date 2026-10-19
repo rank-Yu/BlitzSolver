@@ -33,6 +33,15 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
   --search-mode Coordinator --budget-ms 10000 --out <输出目录>
 ```
 
+无人测试中的实机部署用 `--flash-search-mode-for-test Off|Shadow|On`（PowerShell `-FlashSearchModeForTest`）临时覆盖设置；`--export-bug-report-after-combat` 导出的问题包在 `diagnostics/logs/combat/*.jsonl` 中保留 `[CombatSolver/Flash]` 行：
+
+```bash
+./tools/testing/run-unattended-test.sh --scenario-id FLASH-ON-NIBBITS --character-id IRONCLAD --encounter-id NIBBITS_NORMAL \
+  --enemy-current-hp 1000 --headless-fast-mode-for-test Instant --deployment-fast-mode-for-test Instant \
+  --deployment-inter-action-delay-seconds-for-test 0 --expected-unexpected-replans-at-most 0 \
+  --flash-search-mode-for-test On --timeout-seconds 120 --cleanup-instance-on-exit
+```
+
 ## 2. 当前证据（2026-10-19，Linux）
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)；下面的全量回归覆盖其中全部根。
@@ -119,10 +128,14 @@ Shadow 隔离（`NIBBITS_NORMAL`、`SLIMES_NORMAL`、`RUBY_RAIDERS_NORMAL`，FLA
 
 保留结构移植（RL）：把现有搜索在对照路线中丢失点的必保机制按出现次数移植进 FlashBeam：每药水分组与全局的防守、进攻、准备（`SetupLaneValue` 与 Scaling+Resource+Control 组合）、牌堆整理、压缩、力量压制与虚弱控制领先者，以及根动作谱系代表（`clamp(width/8, 4, 16)` 组），按 `RankBest` 的必保置换写回，席位总数不变；比较器逐条对照 `BeamRetentionPolicy.Ranking.cs`，只读已由 K4 核对的评估字段（新增 `HandCount` 并纳入 K4）。33 个牌组：质量 6 好 / 22 同 / 5 差、战略失血差合计 −5（优于 Off），On 总耗时 126.6 s → 129.8 s；48 根初始牌组基准对现有搜索 18 好 / 24 同 / 6 差、失血 −46。未移植：选项路由配额、药水配额与谱系、stand-pat 探测、Pareto、力量承诺、回合边界手牌领先者等（仍变差的 IRONCLAD-17 需要力量承诺或 stand-pat 资源探测）。
 
+### 2.6 无人测试实机部署（2026-10-19）
+
+Linux 无头游戏（Medium 档位、宽度组合、`Instant / 0 秒`，铁甲战士初始牌组，`NIBBITS_NORMAL` 原生满血）：On 与 Off 均 Passed、第 9 回合胜利、计划外重算 0；On 最终 59 HP，Off 54 HP，整场耗时 7.1 s 与 6.9 s（含建局）。On 的战后问题包有 6 行 `FLASH_ADOPTED`（全部 `status=verified`，单次 180–467 ms），`diagnostics/settings.json` 与 15 份检查点政策都记录 `"flashSearchMode": "On"`。`CHECKPOINT-PROFILE-CONTRACT` 增加 Flash 模式的记录值优先与旧包回退检查，Passed。该机器首次运行游戏前没有交互档案，用一次 `--force-steam=off` 无头启动在仓库 `.local/headless-seed/` 生成种子档案，并以 `XDG_DATA_HOME` 指向它运行脚本。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择只覆盖卡牌自身的单选（消耗、移到抽牌堆顶、升级）；多选、回合开始选择、嵌套选择与自动打出中的选择尚无差分证据。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
-- 未做可见游戏、无人测试或实机部署验证；分发只在离线宿主协调器模式下验证过归档卷 2.3 所列根。设置面板的新选项未在游戏中查看。
+- 实机部署只在 Linux 无头游戏中验证过 2.6 的一个自然根；未做可见游戏、Windows 或 Steam 会话验证，设置面板的新选项未在游戏中查看。
