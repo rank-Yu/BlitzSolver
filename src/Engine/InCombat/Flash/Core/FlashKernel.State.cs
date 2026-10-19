@@ -122,6 +122,18 @@ public static partial class FlashKernel
         return false;
     }
 
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.IsEnemyIntendingToAttack</c>: the current compiled move node has
+    /// at least one attack (native <c>IntentType.Attack</c>/<c>DeathBlow</c> are the node's attacks).
+    /// </summary>
+    public static bool EnemyIntendsToAttack(in FlashBattle battle, FlashRules rules, byte owner)
+    {
+        if (!IsEnemyOwner(owner))
+            return false;
+        ref readonly FlashEnemy enemy = ref battle.Enemies[owner - FlashLimits.FirstEnemyOwner];
+        return rules.MonsterRule(enemy.Rules).Nodes[enemy.Move].Attacks.Length > 0;
+    }
+
     /// <summary>Mirrors <c>CombatPredictionState.IsHittable</c>: alive and still in the roster.</summary>
     public static bool IsHittable(in FlashBattle battle, byte owner)
     {

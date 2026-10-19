@@ -46,6 +46,29 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// Mirrors <c>CombatPredictionSimulator.Draw</c> while recording each drawn card value in order.
+    /// <c>ShouldDraw</c> is asked once for the whole draw, as the existing engine does; a drawn card may
+    /// already have moved (a draw hook auto-played it), but its value is still reported. Returns the
+    /// number of drawn cards written to <paramref name="drawn"/>.
+    /// </summary>
+    public static int DrawInto(ref FlashExec x, int count, bool fromHandDraw, scoped Span<FlashCard> drawn)
+    {
+        if (IsOverOrEnding(x.B) || !ShouldDraw(ref x, fromHandDraw))
+            return 0;
+        int written = 0;
+        for (int index = 0; index < count; index++)
+        {
+            if (!DrawOneCore(ref x, fromHandDraw, out FlashCard card) || x.NeedsChoice)
+                return written;
+            if (written < drawn.Length)
+                drawn[written++] = card;
+            else
+                throw new FlashCapacityException("DrawnCards", drawn.Length);
+        }
+        return written;
+    }
+
+    /// <summary>
     /// One <c>Draw(..., 1, ...)</c> call that also reports the card value at draw time. Pillage uses the
     /// drawn card's type even when the draw hook auto-played and removed that card (Hellraiser), so a
     /// hand-position check is not enough.

@@ -179,6 +179,21 @@ public enum FlashHookMask : ulong
     /// <summary><c>HookMirrors.AfterCardDiscarded</c> (<c>CombatPredictionSimulator.Discard</c>).</summary>
     AfterCardDiscarded = 1UL << 55,
 
+    /// <summary><c>HookMirrors.AfterOrbChanneled</c> (<c>CombatPredictionSimulator.OrbChannel</c>).</summary>
+    AfterOrbChanneled = 1UL << 56,
+
+    /// <summary><c>HookMirrors.AfterOrbEvoked</c> (<c>CombatPredictionSimulator.OrbEvoke</c>).</summary>
+    AfterOrbEvoked = 1UL << 57,
+
+    /// <summary><c>HookMirrors.ModifyOrbPassiveTriggerCount</c> (<c>OrbModel.TriggerPassive</c>).</summary>
+    ModifyOrbPassiveTriggerCounts = 1UL << 58,
+
+    /// <summary><c>HookMirrors.ModifyOrbValue</c> (<c>OrbModel.ModifyOrbValue</c>): a pure query.</summary>
+    ModifyOrbValue = 1UL << 59,
+
+    /// <summary><c>SimulatedCombatState.AfterPotionUsed</c>'s relic reactions (<c>ReptileTrinket</c>).</summary>
+    AfterPotionUsed = 1UL << 60,
+
     /// <summary>
     /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
     /// cards outside combat; a root whose deck holds a card implementing one of them is rejected.
@@ -213,6 +228,9 @@ public static class FlashCardPools
 
     /// <summary>Attacks from every other unlocked character pool (Splash).</summary>
     public const string OtherCharacterAttacks = "character.other-attacks";
+
+    /// <summary>Player's unlocked character Power cards (WhiteNoise, CreativeAiPower).</summary>
+    public const string CharacterPowers = "character.powers";
 }
 
 public abstract class FlashContentDef
@@ -264,8 +282,13 @@ public abstract class FlashListenerDef : FlashContentDef
     {
     }
 
-    /// <summary><c>HookMirrors.AfterCardGeneratedForCombat</c> for the card at <paramref name="position"/>.</summary>
-    public virtual void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position)
+    /// <summary>
+    /// <c>HookMirrors.AfterCardGeneratedForCombat</c> for the card at <paramref name="position"/>.
+    /// <paramref name="creator"/> is the player owner, or <see cref="FlashLimits.NoOwner"/> when a
+    /// monster generated the card (the existing engine passes a null <c>Player</c> creator there).
+    /// </summary>
+    public virtual void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position,
+        byte creator)
     {
     }
 
@@ -475,6 +498,35 @@ public abstract class FlashListenerDef : FlashContentDef
         int value) => value;
 
     /// <summary>
+    /// <c>Hook.ModifyOrbValue</c> over the combat listeners (<c>FocusPower</c>, <c>InfusedCore</c>).
+    /// A pure query: prediction and evaluation call it read-only.
+    /// </summary>
+    public virtual decimal ModifyOrbValue(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashOrb orb, decimal value) => value;
+
+    /// <summary><c>HookMirrors.AfterOrbChanneled</c> for the orb now at <paramref name="orb"/>.</summary>
+    public virtual void AfterOrbChanneled(ref FlashExec x, FlashListener self, in FlashOrb orb)
+    {
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.AfterOrbEvoked</c>: the evoked orb value and its result targets (owner indexes,
+    /// in <c>OrbModel.Evoke</c> order), dispatched after the evoke.
+    /// </summary>
+    public virtual void AfterOrbEvoked(ref FlashExec x, FlashListener self, in FlashOrb orb,
+        scoped ReadOnlySpan<byte> targets)
+    {
+    }
+
+    /// <summary>
+    /// <c>Hook.ModifyOrbPassiveTriggerCount</c>: a pure query over every combat listener; the listeners
+    /// that change the count are recorded for <c>AfterModifyingOrbPassiveTriggerCount</c>, whose only
+    /// vanilla listener (GoldPlatedCables) is cosmetic and has no Flash definition.
+    /// </summary>
+    public virtual int ModifyOrbPassiveTriggerCounts(in FlashBattle battle, FlashRules rules, FlashListener self,
+        in FlashOrb orb, int orbIndex, int triggerCount) => triggerCount;
+
+    /// <summary>
     /// Native <c>ShouldPlayerResetEnergy</c> over the combat listeners before the player turn's energy
     /// reset (<c>PersistentRelicSupport.ShouldPlayerResetEnergy</c>); false keeps the current energy.
     /// </summary>
@@ -507,6 +559,14 @@ public abstract class FlashListenerDef : FlashContentDef
     /// </summary>
     public virtual void AfterCardEnteredCombat(ref FlashExec x, FlashListener self, FlashPile pile, int index,
         in FlashCard card)
+    {
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.AfterPotionUsed</c>'s relic reactions, dispatched while the player lives
+    /// after the potion effect and before <c>ResolvePowerAmountChanges</c> (ReptileTrinket).
+    /// </summary>
+    public virtual void AfterPotionUsed(ref FlashExec x, FlashListener self, ushort potionId)
     {
     }
 
@@ -633,6 +693,25 @@ public abstract class FlashCardDef : FlashListenerDef
     /// (<c>SimulatedCombatState.AfterCardEnteredCombat</c>, for example Stomp or Pinpoint cost changes).
     /// </summary>
     public virtual void AfterEnteredCombat(ref FlashExec x, FlashPile pile, int index)
+    {
+    }
+
+    /// <summary>
+    /// Card-specific <c>AfterDowngraded</c> (MagiKnight's DampenPower). Called after
+    /// <see cref="FlashKernel.DowngradeCard"/> reset the value to upgrade level 0. Claw and
+    /// GeneticAlgorithm re-add their private per-play accumulator to the Damage/Block variable.
+    /// </summary>
+    public virtual void AfterDowngraded(ref FlashBattle battle, int position)
+    {
+    }
+
+    /// <summary>
+    /// Fills <see cref="FlashCard.Private"/> for a card value imported from the existing engine, after
+    /// the variable deltas were computed. Only cards whose definition reads the private counter may
+    /// use it; the existing engine's per-card accumulator is available in the var delta
+    /// (Claw/GeneticAlgorithm).
+    /// </summary>
+    public virtual void ProjectPrivate(ref FlashCard card)
     {
     }
 }
@@ -848,6 +927,7 @@ public abstract class FlashRelicDef : FlashListenerDef
     public virtual void AfterBlockCleared(ref FlashExec x, FlashListener self)
     {
     }
+
 }
 
 /// <summary>
@@ -869,7 +949,67 @@ public abstract class FlashPotionDef : FlashListenerDef
     public abstract void OnUse(ref FlashExec x);
 }
 
-public abstract class FlashOrbDef : FlashListenerDef;
+/// <summary>
+/// A native orb (<c>OrbModel</c>). The orb queue is the player's, in queue order. <see cref="FlashOrb.Aux"/>
+/// carries the one private decimal each vanilla orb can accumulate (Dark's <c>_evokeVal</c>, Glass's
+/// <c>_passiveVal</c>); the other types ignore it. Base values live in the definition because they are
+/// native code constants, not model data.
+/// </summary>
+public abstract class FlashOrbDef : FlashListenerDef
+{
+    /// <summary>
+    /// <c>OrbQueue.BeforeTurnEnd</c> → <c>OrbModel.BeforeTurnEndOrbTrigger</c>. The default triggers the
+    /// passive through <c>TriggerPassive</c> (which applies <c>ModifyOrbPassiveTriggerCounts</c>);
+    /// Plasma overrides it with an empty trigger.
+    /// </summary>
+    public virtual void BeforeTurnEndOrbTrigger(ref FlashExec x, int orbIndex)
+        => FlashKernel.TriggerOrbPassive(ref x, orbIndex);
+
+    /// <summary><c>OrbQueue.AfterTurnStart</c> → <c>OrbModel.AfterTurnStartOrbTrigger</c> (Plasma).</summary>
+    public virtual void AfterTurnStartOrbTrigger(ref FlashExec x, int orbIndex)
+    {
+    }
+
+    /// <summary>
+    /// Value of <see cref="FlashOrb.Aux"/> for a newly created orb: Dark starts its evoke accumulation
+    /// at 6, Glass its passive at 4 (native <c>DarkOrb._evokeVal</c> / <c>GlassOrb._passiveVal</c>).
+    /// </summary>
+    public virtual int InitialAux => 0;
+
+    /// <summary><c>OrbModel.PassiveVal</c> before the <c>ModifyOrbValue</c> listeners.</summary>
+    public virtual decimal BasePassiveValue(in FlashBattle battle, in FlashOrb orb) => 0m;
+
+    /// <summary><c>OrbModel.EvokeVal</c> before the <c>ModifyOrbValue</c> listeners.</summary>
+    public virtual decimal BaseEvokeValue(in FlashBattle battle, in FlashOrb orb) => 0m;
+
+    /// <summary>
+    /// Whether <c>EvokeVal</c> runs the <c>ModifyOrbValue</c> listeners. DarkOrb.EvokeVal returns the
+    /// raw <c>_evokeVal</c> (Focus only affects its passive accumulation), while the other four evoke
+    /// values are modified.
+    /// </summary>
+    public virtual bool EvokeUsesModifyOrbValue => true;
+
+    /// <summary>
+    /// <c>OrbModel.Passive</c>: mutate the battle (or the orb's private value at
+    /// <paramref name="orbIndex"/>) for one trigger. The kernel verifies the slot still holds the same
+    /// value before calling; a queue change during a passive is an explicit boundary.
+    /// </summary>
+    public virtual void Passive(ref FlashExec x, int orbIndex, byte target)
+    {
+    }
+
+    /// <summary>
+    /// <c>OrbModel.Evoke</c>: return the number of owner indexes written to <paramref name="targets"/>
+    /// (capacity <see cref="FlashLimits.Enemies"/> + 1). The caller dispatches
+    /// <c>AfterOrbEvoked</c> over them afterwards.
+    /// </summary>
+    public virtual int Evoke(ref FlashExec x, in FlashOrb orb, scoped Span<byte> targets) => 0;
+
+    /// <summary>
+    /// <c>OrbRetentionValue</c>'s per-orb multiplier: Glass counts once per living enemy, the rest once.
+    /// </summary>
+    public virtual int RetentionMultiplier(in FlashBattle battle, int aliveEnemyCount) => 1;
+}
 
 /// <summary>
 /// A card enchantment. The modification methods mirror <c>EnchantmentModel.EnchantDamage*</c> and

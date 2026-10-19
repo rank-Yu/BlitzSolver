@@ -83,6 +83,32 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// Mirrors <c>CombatPredictedCardExtensions.GetEnergyCostValueWithModifiers</c>: a negative base
+    /// costs (Unplayable cards) and X costs are returned unchanged; otherwise local modifiers and the
+    /// combat cost hooks apply and the result is clamped at zero. Scrape uses it to decide which drawn
+    /// cards are not free, so a -1 Unplayable cost must stay distinguishable from 0.
+    /// </summary>
+    public static int EnergyCostValueWithModifiers(in FlashBattle battle, FlashRules rules, in FlashCard card,
+        FlashPile pile)
+    {
+        int cost = card.BaseCost;
+        if (cost < 0 || (card.Flags & FlashCardFlags.CostsX) != 0)
+            return cost;
+        for (int index = 0; index < card.EnergyModifierCount; index++)
+        {
+            FlashCostModifier modifier = card.EnergyModifiers[index];
+            cost = modifier.Type switch
+            {
+                FlashCostType.Absolute => modifier.IsReduceOnly ? Math.Min(cost, modifier.Amount) : modifier.Amount,
+                FlashCostType.Relative => modifier.IsReduceOnly ? Math.Min(cost, cost + modifier.Amount) : cost + modifier.Amount,
+                _ => throw new FlashUnsupportedException($"未知的费用修饰类型 {modifier.Type}。"),
+            };
+        }
+        cost = (int)FlashHooks.ModifyEnergyCost(battle, rules, pile, card, cost);
+        return Math.Max(0, cost);
+    }
+
+    /// <summary>
     /// Mirrors <c>CardEnergyCost.GetWithModifiers(CostModifiers.Local)</c>: the base cost plus the
     /// card's local modifiers, without the combat cost hooks. The existing engine's evaluation uses
     /// this value (never the hook-modified one) for free-card opportunity and skill energy.
@@ -476,7 +502,9 @@ public static partial class FlashKernel
     public static void AddEnergyCostModifier(ref FlashCard card, int amount, FlashCostType type,
         FlashCostExpiration expiration, bool reduceOnly)
     {
-        if (amount == 0)
+        // CardEnergyCost.SetThisCombat adds an absolute 0 modifier for a non-negative canonical cost;
+        // AddThisCombat/AddUntilPlayed ignore zero.
+        if (amount == 0 && type != FlashCostType.Absolute)
             return;
         if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
             throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);

@@ -207,7 +207,7 @@ public sealed class WitheringPresencePower : FlashPowerDef
         if (power.Aux0 > 0)
             return;
         FlashKernel.AddGeneratedCard(ref x,
-            FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wither>()), FlashPile.Hand);
+            FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wither>()), FlashPile.Hand, creator: FlashLimits.NoOwner);
         if (x.NeedsChoice)
             return;
         x.B.Powers[self.Index].Aux0 = BaseCardsLeft;
@@ -390,7 +390,7 @@ public sealed class PainfulStabsPower : FlashPowerDef
         for (int index = 0; index < count; index++)
         {
             FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wound>()), FlashPile.Discard);
+                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wound>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
             if (x.NeedsChoice)
                 return;
         }

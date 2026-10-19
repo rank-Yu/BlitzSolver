@@ -333,6 +333,14 @@ internal sealed class FlashScorer
             persistentSetupTraits |= rules.Trait;
         }
         int persistentBuffValue = strategicEffects.RetentionValue;
+        if (battle.OrbCount > 0)
+        {
+            // CombatBeamSolver.StateEvaluation.OrbRetentionValue: the player's orb queue is an
+            // OrbEngine setup trait, and each orb's (Focus-modified) passive adds to the persistent
+            // buff value; Glass counts once per living enemy.
+            persistentSetupTraits |= FlashSetupTraits.OrbEngine;
+            persistentBuffValue = checked(persistentBuffValue + OrbRetentionValue(battle, aliveEnemyCount));
+        }
 
         int latentSetupValue = 0;
         FlashSetupTraits latentSetupTraits = FlashSetupTraits.None;
@@ -379,7 +387,8 @@ internal sealed class FlashScorer
             + GetAmount(battle, _score.RetainHandPowerId, FlashLimits.PlayerOwner) * 4
             + retainedHandValue
             + FreeCardOpportunityValue(battle, FlashCardType.Attack, _score.FreeAttackPowerId)
-            + FreeCardOpportunityValue(battle, FlashCardType.Skill, _score.FreeSkillPowerId);
+            + FreeCardOpportunityValue(battle, FlashCardType.Skill, _score.FreeSkillPowerId)
+            + FreeCardOpportunityValue(battle, FlashCardType.Power, _score.FreePowerPowerId);
 
         int delayedDamageValue = 0;
         for (int index = 0; index < battle.EnemyCount; index++)
@@ -857,6 +866,20 @@ internal sealed class FlashScorer
     }
 
     // ---------------------------------------------------------------------------------------------
+    // CombatBeamSolver.StateEvaluation.OrbRetentionValue. The existing engine applies
+    // Hook.ModifyOrbValue (Focus) through OrbMirrors.GetPassiveValue; FlashKernel.OrbPassiveValue is
+    // the same pure query over the Flash listener list.
+    private int OrbRetentionValue(in FlashBattle battle, int aliveEnemyCount)
+    {
+        decimal value = 0m;
+        for (int index = 0; index < battle.OrbCount; index++)
+        {
+            decimal passive = Math.Max(0m, FlashKernel.OrbPassiveValue(battle, Rules, index));
+            value += passive * FlashRegistry.Orb(battle.Orbs[index].Id).RetentionMultiplier(battle, aliveEnemyCount);
+        }
+        return checked((int)Math.Ceiling(value));
+    }
+
     // Threat focus (BuildThreatFocus).
 
     private readonly record struct ThreatFocus(

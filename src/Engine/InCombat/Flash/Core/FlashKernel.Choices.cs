@@ -245,6 +245,7 @@ public static partial class FlashKernel
         card.BaseCost = checked((sbyte)stats.EnergyCost);
         card.BaseStarCost = checked((sbyte)stats.StarCost);
         card.Keywords = stats.Keywords | (card.Keywords & FlashKeywords.CreatedAfterRoot);
+        FlashRegistry.Card(card.Id).AfterDowngraded(ref x.B, position);
     }
 
     /// <summary>

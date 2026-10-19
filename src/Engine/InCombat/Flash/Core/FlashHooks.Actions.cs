@@ -46,7 +46,10 @@ public static partial class FlashHooks
         /// <summary>Card value of a card-attached listener at snapshot time, for re-location.</summary>
         public FlashCard Card;
 
-        /// <summary>Index among byte-equal cards in the whole battle at snapshot time, or -1.</summary>
+        /// <summary>Orb value at snapshot time, for re-location.</summary>
+        public FlashOrb Orb;
+
+        /// <summary>Index among byte-equal cards (or orbs) at snapshot time, or -1.</summary>
         public int Occurrence;
     }
 
@@ -113,6 +116,18 @@ public static partial class FlashHooks
     private static SnapshotEntry Snapshot(in FlashBattle battle, FlashListener listener)
     {
         SnapshotEntry entry = new() { Listener = listener, Id = ListenerId(battle, listener), Occurrence = -1 };
+        if (listener.Kind == FlashListenerKind.Orb)
+        {
+            entry.Orb = battle.Orbs[listener.Index];
+            int orbOccurrence = 0;
+            for (int index = 0; index < listener.Index; index++)
+            {
+                if (OrbEqual(battle.Orbs[index], entry.Orb))
+                    orbOccurrence++;
+            }
+            entry.Occurrence = orbOccurrence;
+            return entry;
+        }
         if (listener.Kind is not (FlashListenerKind.Card or FlashListenerKind.Affliction or FlashListenerKind.Enchantment))
             return entry;
         entry.Card = battle.Cards[listener.Index];
@@ -125,6 +140,9 @@ public static partial class FlashHooks
         entry.Occurrence = occurrence;
         return entry;
     }
+
+    private static bool OrbEqual(in FlashOrb left, in FlashOrb right)
+        => left.Id == right.Id && left.Aux == right.Aux;
 
     private static ushort ListenerId(in FlashBattle battle, FlashListener listener) => listener.Kind switch
     {
@@ -159,6 +177,24 @@ public static partial class FlashHooks
             case FlashListenerKind.Monster:
                 // The existing engine still calls a monster captured in the listener snapshot.
                 return true;
+            case FlashListenerKind.Orb:
+                // The queue shifts when an earlier listener channels/evokes. Re-locate the captured orb
+                // value by its occurrence among equal orbs, like cards: two orbs with the same value
+                // are interchangeable, but the listener must still point at one of them.
+                if (entry.Listener.Index < battle.OrbCount && OrbEqual(battle.Orbs[entry.Listener.Index], entry.Orb))
+                    return true;
+                int occurrence = entry.Occurrence;
+                for (int index = 0; index < battle.OrbCount; index++)
+                {
+                    if (!OrbEqual(battle.Orbs[index], entry.Orb))
+                        continue;
+                    if (occurrence-- == 0)
+                    {
+                        current = new FlashListener(FlashListenerKind.Orb, (byte)index, entry.Listener.Owner);
+                        return true;
+                    }
+                }
+                return false;
             case FlashListenerKind.Card:
             case FlashListenerKind.Affliction:
             case FlashListenerKind.Enchantment:

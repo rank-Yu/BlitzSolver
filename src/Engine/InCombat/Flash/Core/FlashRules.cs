@@ -246,7 +246,8 @@ public sealed class FlashRules
         string[] encounterSlots,
         int rootEnemyCount,
         int baseMaxEnergy,
-        int playerSlotIndex)
+        int playerSlotIndex,
+        int baseOrbSlotCount)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -261,9 +262,13 @@ public sealed class FlashRules
         RootEnemyCount = rootEnemyCount;
         BaseMaxEnergy = baseMaxEnergy;
         PlayerSlotIndex = playerSlotIndex;
+        BaseOrbSlotCount = baseOrbSlotCount;
     }
 
     public int BaseMaxEnergy { get; }
+
+    /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
+    public int BaseOrbSlotCount { get; }
 
     public int PlayerSlotIndex { get; }
 
@@ -369,6 +374,8 @@ public sealed class FlashRulesBuilder
 
     public int RootEnemyCount { get; set; }
 
+    public int BaseOrbSlotCount { get; set; }
+
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
         List<FlashCardStats?> levels = _cards[id] ??= [];
@@ -446,7 +453,7 @@ public sealed class FlashRulesBuilder
             (FlashMonsterRules?[])_monsters.Clone(), new Dictionary<ushort, int>(_spawnRules),
             new Dictionary<string, FlashCardPool>(_cardPools, StringComparer.Ordinal),
             (ushort[])_potionPool.Clone(),
-            HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex);
+            HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

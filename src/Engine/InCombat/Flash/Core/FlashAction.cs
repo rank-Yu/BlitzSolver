@@ -176,6 +176,12 @@ public enum FlashCardPlayPairKind : byte
 
     /// <summary><c>StranglePower</c>: the power amount is dealt to its owner after the play.</summary>
     StrangleDamage = 1,
+
+    /// <summary><c>StormPower</c>: the power amount becomes Lightning channels after a Power play.</summary>
+    StormLightning = 2,
+
+    /// <summary><c>SubroutinePower</c>: the power amount becomes energy after a Power play.</summary>
+    SubroutineEnergy = 3,
 }
 
 /// <summary>

@@ -259,6 +259,8 @@ internal sealed class FlashScoreRules
 
     public ushort FreeSkillPowerId { get; init; } = ushort.MaxValue;
 
+    public ushort FreePowerPowerId { get; init; } = ushort.MaxValue;
+
     public ushort IllusionPowerId { get; init; } = ushort.MaxValue;
 
     public ushort ReattachPowerId { get; init; } = ushort.MaxValue;

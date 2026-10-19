@@ -14,6 +14,7 @@ using CombatSolver.Engine.InCombat.Flash.Content.Relics;
 Check(Unsafe.SizeOf<FlashCard>() == 92, $"FlashCard 应为 92 字节，实际 {Unsafe.SizeOf<FlashCard>()}");
 Check(Unsafe.SizeOf<FlashEnemy>() == 64, $"FlashEnemy 应为 64 字节，实际 {Unsafe.SizeOf<FlashEnemy>()}");
 Check(Unsafe.SizeOf<FlashPower>() == 24, $"FlashPower 应为 24 字节，实际 {Unsafe.SizeOf<FlashPower>()}");
+Check(Unsafe.SizeOf<FlashOrb>() == 8, $"FlashOrb 应为 8 字节，实际 {Unsafe.SizeOf<FlashOrb>()}");
 Check(Unsafe.SizeOf<FlashRngState>() == 40, $"FlashRngState 应为 40 字节，实际 {Unsafe.SizeOf<FlashRngState>()}");
 Check(Unsafe.SizeOf<FlashBattle>() == FlashBattle.ExpectedSize,
     $"FlashBattle 应为 {FlashBattle.ExpectedSize} 字节，实际 {Unsafe.SizeOf<FlashBattle>()}");
@@ -32,6 +33,7 @@ CheckA3Kernel(rules);
 CheckKaAttachments();
 CheckP16Kernel(rules);
 CheckSkKernel();
+CheckDfKernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -266,9 +268,209 @@ static void CheckKm2Kernel(FlashRules rules)
 }
 
 // Rules for the slice content: Ironclad starter cards and one Nibbit.
+// DF: orb kernel contracts. The existing engine's order and values are pinned here: full-queue
+// channel evokes the leftmost orb first, Dark evokes its raw accumulation (no ModifyOrbValue), Glass
+// decays its private passive by one after a positive passive, Focus modifies passive/evoke values,
+// Plasma's passive fires at turn start, and GoldPlatedCables adds one passive trigger to the first orb.
+static void CheckDfKernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryOrb("LIGHTNING_ORB", out ushort lightning), "缺少 LIGHTNING_ORB");
+    Check(FlashRegistry.TryOrb("FROST_ORB", out ushort frost), "缺少 FROST_ORB");
+    Check(FlashRegistry.TryOrb("DARK_ORB", out ushort dark), "缺少 DARK_ORB");
+    Check(FlashRegistry.TryOrb("PLASMA_ORB", out ushort plasma), "缺少 PLASMA_ORB");
+    Check(FlashRegistry.TryOrb("GLASS_ORB", out ushort glass), "缺少 GLASS_ORB");
+    Check(FlashRegistry.TryPower("FOCUS_POWER", out ushort focus), "缺少 FOCUS_POWER");
+    Check(FlashRegistry.TryRelic("GOLD_PLATED_CABLES", out ushort gold), "缺少 GOLD_PLATED_CABLES");
+    Check(FlashRegistry.TryRelic("CRACKED_CORE", out ushort crackedCore), "缺少 CRACKED_CORE");
+    Check(FlashRegistry.TryRelic("RUNIC_CAPACITOR", out ushort runic), "缺少 RUNIC_CAPACITOR");
+    Check(FlashRegistry.TryRelic("SYMBIOTIC_VIRUS", out ushort symbiotic), "缺少 SYMBIOTIC_VIRUS");
+    Check(FlashRegistry.TryRelic("REPTILE_TRINKET", out ushort reptile), "缺少 REPTILE_TRINKET");
+    Check(FlashRegistry.TryPower("THUNDER_POWER", out ushort thunder), "缺少 THUNDER_POWER");
+    Check(FlashRegistry.TryPower("REPTILE_TRINKET_POWER", out ushort reptilePower), "缺少 REPTILE_TRINKET_POWER");
+    Check(FlashRegistry.TryPower("STRENGTH_POWER", out ushort strength), "缺少 STRENGTH_POWER");
+    FlashAction action = default;
+
+    FlashBattle OrbBattle(int enemyHp = 1000)
+    {
+        FlashBattle battle = SliceBattle();
+        battle.HandCount = 0;
+        battle.DrawCount = 0;
+        battle.DiscardCount = 0;
+        battle.ExhaustCount = 0;
+        battle.PlayCount = 0;
+        battle.OrbCount = 0;
+        battle.OrbCapacity = 3;
+        battle.PowerCount = 0;
+        battle.RelicCount = 0;
+        battle.Player.Block = 0;
+        battle.Enemies[0].Creature.CurrentHp = enemyHp;
+        battle.Enemies[0].Creature.MaxHp = enemyHp;
+        return battle;
+    }
+
+    void SetFocus(ref FlashBattle battle, int amount)
+    {
+        battle.PowerCount = 1;
+        battle.Powers[0] = new FlashPower { Id = focus, Owner = FlashLimits.PlayerOwner, Amount = amount };
+    }
+
+    // Full queue channel: the leftmost (Dark) orb is evoked first. Dark's evoke uses the raw
+    // accumulation, while its passive would have used ModifyOrbValue.
+    FlashBattle battle = OrbBattle();
+    SetFocus(ref battle, 2);
+    battle.OrbCount = 3;
+    battle.Orbs[0] = new FlashOrb { Id = checked((byte)dark), Aux = 10 };
+    battle.Orbs[1] = new FlashOrb { Id = checked((byte)frost) };
+    battle.Orbs[2] = new FlashOrb { Id = checked((byte)lightning) };
+    FlashExec x = new(ref battle, rules, action);
+    Check(FlashKernel.ChannelOrb(ref x, lightning), "满槽充能应成功");
+    Check(battle.OrbCount == 3 && battle.Orbs[0].Id == frost && battle.Orbs[2].Id == lightning,
+        "满槽充能应先激发最左侧球");
+    Check(battle.Enemies[0].Creature.CurrentHp == 990, "暗球激发不应受集中修正（原始累积 10）");
+    Check(battle.Counter(FlashCounter.LightningChannels) == 1 && battle.Counter(FlashCounter.OrbChannels) == 1,
+        "充能计数错误");
+
+    // Turn-end passives in queue order: Frost 2+Focus=4 block, then two Lightning 3+Focus=5 hits.
+    FlashKernel.TriggerBeforeTurnEndOrbs(ref x);
+    Check(battle.Player.Block == 4, $"冰球回合末格挡应为 4，实际 {battle.Player.Block}");
+    Check(battle.Enemies[0].Creature.CurrentHp == 980, "闪电球回合末被动伤害错误");
+
+    // GoldPlatedCables adds one trigger to the first orb's passive.
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = gold };
+    Check(FlashHooks.ModifyOrbPassiveTriggerCounts(battle, rules, battle.Orbs[0], 0, 1) == 2,
+        "金缆应让首个球的被动触发 +1");
+    battle.Player.Block = 0;
+    FlashKernel.TriggerBeforeTurnEndOrbs(ref x);
+    Check(battle.Player.Block == 8, $"金缆双次冰球被动应给 8 格挡，实际 {battle.Player.Block}");
+    Check(battle.Enemies[0].Creature.CurrentHp == 970, "金缆回合末的闪电被动次数错误");
+
+    // Dark accumulation and raw evoke.
+    battle = OrbBattle();
+    SetFocus(ref battle, 3);
+    battle.OrbCount = 1;
+    battle.Orbs[0] = new FlashOrb { Id = checked((byte)dark), Aux = 10 };
+    x = new FlashExec(ref battle, rules, action);
+    FlashKernel.TriggerOrbPassive(ref x, 0);
+    Check(battle.Orbs[0].Aux == 19, $"暗球被动应累积 6+3，实际 {battle.Orbs[0].Aux}");
+    FlashKernel.EvokeOrb(ref x, 0);
+    Check(battle.Enemies[0].Creature.CurrentHp == 981, "暗球激发应使用原始累积 19");
+
+    // Glass decays after a positive passive; evoke doubles the modified remaining value.
+    battle = OrbBattle();
+    SetFocus(ref battle, 1);
+    battle.OrbCount = 1;
+    battle.Orbs[0] = new FlashOrb { Id = checked((byte)glass), Aux = 4 };
+    x = new FlashExec(ref battle, rules, action);
+    FlashKernel.TriggerOrbPassive(ref x, 0);
+    Check(battle.Orbs[0].Aux == 3 && battle.Enemies[0].Creature.CurrentHp == 995,
+        "玻璃球被动应造成 5 并递减私有值");
+    FlashKernel.EvokeOrb(ref x, 0);
+    Check(battle.Enemies[0].Creature.CurrentHp == 987, "玻璃球激发应造成 (3+1)*2 = 8");
+
+    // Plasma passive/evoke energy.
+    battle = OrbBattle();
+    battle.Energy = 0;
+    battle.OrbCount = 1;
+    battle.Orbs[0] = new FlashOrb { Id = checked((byte)plasma) };
+    x = new FlashExec(ref battle, rules, action);
+    FlashKernel.TriggerOrbPassive(ref x, 0);
+    Check(battle.Energy == 1, "等离子球被动应 +1 能量");
+    FlashKernel.EvokeOrb(ref x, 0);
+    Check(battle.Energy == 3, "等离子球激发应 +2 能量");
+
+    // Dualcast semantics: two evocations of the same orb, dequeue only on the last one.
+    battle = OrbBattle();
+    battle.OrbCount = 2;
+    battle.Orbs[0] = new FlashOrb { Id = checked((byte)lightning) };
+    battle.Orbs[1] = new FlashOrb { Id = checked((byte)lightning) };
+    x = new FlashExec(ref battle, rules, action);
+    FlashKernel.EvokeNext(ref x, repeat: 2);
+    Check(battle.OrbCount == 1 && battle.Enemies[0].Creature.CurrentHp == 984,
+        "双发激发应激发两次且只出队一次");
+
+    // Capacity 0 refuses a channel for a character with base slots.
+    battle = OrbBattle();
+    battle.OrbCapacity = 0;
+    x = new FlashExec(ref battle, rules, action);
+    Check(!FlashKernel.ChannelOrb(ref x, lightning) && battle.OrbCount == 0, "零容量不应充能");
+
+    // Slot growth/removal.
+    battle = OrbBattle();
+    battle.OrbCapacity = 9;
+    FlashKernel.AddOrbSlots(ref battle, 3);
+    Check(battle.OrbCapacity == 10, "球槽容量应钳制在 10");
+    battle.OrbCapacity = 3;
+    battle.OrbCount = 3;
+    battle.Orbs[0] = new FlashOrb { Id = checked((byte)lightning) };
+    battle.Orbs[1] = new FlashOrb { Id = checked((byte)frost) };
+    battle.Orbs[2] = new FlashOrb { Id = checked((byte)dark) };
+    FlashKernel.RemoveOrbSlots(ref battle, 2);
+    Check(battle.OrbCapacity == 1 && battle.OrbCount == 1 && battle.Orbs[0].Id == lightning,
+        "移除球槽应从队尾删球");
+
+    // CrackedCore channels one Lightning on the first player side turn.
+    battle = OrbBattle();
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = crackedCore };
+    x = new FlashExec(ref battle, rules, action);
+    FlashRegistry.Relic(crackedCore).BeforeSideTurnStart(ref x,
+        new FlashListener(FlashListenerKind.Relic, 0, FlashLimits.PlayerOwner), FlashSide.Player);
+    Check(battle.OrbCount == 1 && battle.Orbs[0].Id == lightning, "破碎核心应在第一回合充能闪电");
+
+    // RunicCapacitor and SymbioticVirus run in the AfterSideTurnStart relic batch.
+    battle = OrbBattle();
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = runic };
+    x = new FlashExec(ref battle, rules, action);
+    FlashRegistry.Relic(runic).AfterSideTurnStart(ref x,
+        new FlashListener(FlashListenerKind.Relic, 0, FlashLimits.PlayerOwner), FlashSide.Player);
+    Check(battle.OrbCapacity == 6, "符文电容器应 +3 球槽");
+
+    battle = OrbBattle();
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = symbiotic };
+    x = new FlashExec(ref battle, rules, action);
+    FlashRegistry.Relic(symbiotic).AfterSideTurnStart(ref x,
+        new FlashListener(FlashListenerKind.Relic, 0, FlashLimits.PlayerOwner), FlashSide.Player);
+    Check(battle.OrbCount == 1 && battle.Orbs[0].Id == checked((byte)dark), "共生病毒应充能暗球");
+
+    // AfterOrbEvoked: ThunderPower adds its amount to every living evoke target of a Lightning orb.
+    battle = OrbBattle();
+    battle.PowerCount = 1;
+    battle.Powers[0] = new FlashPower { Id = thunder, Owner = FlashLimits.PlayerOwner, Amount = 5 };
+    battle.OrbCount = 1;
+    battle.Orbs[0] = new FlashOrb { Id = checked((byte)lightning) };
+    x = new FlashExec(ref battle, rules, action);
+    FlashKernel.EvokeOrb(ref x, 0);
+    Check(battle.Enemies[0].Creature.CurrentHp == 987, "雷霆应在闪电球激发后追加 5 伤害");
+
+    // AfterPotionUsed: ReptileTrinket grants temporary and permanent Strength.
+    battle = OrbBattle();
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = reptile };
+    x = new FlashExec(ref battle, rules, action);
+    FlashHooks.AfterPotionUsed(ref x, 0);
+    Check(FlashKernel.GetAmount(battle, FlashLimits.PlayerOwner, reptilePower) == 3,
+        "爬行动物饰品应赋予 3 层临时力量");
+    Check(FlashKernel.GetAmount(battle, FlashLimits.PlayerOwner, strength) == 3,
+        "临时力量首次施加应同时获得 3 力量");
+}
+
 static FlashRules SliceRules()
 {
-    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
+    FlashRulesBuilder builder = new()
+    {
+        BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first", "second", "third"], BaseOrbSlotCount = 3,
+    };
+    FlashRegistry.TryRelic("CRACKED_CORE", out ushort crackedCore);
+    builder.SetRelicVars(crackedCore, [1m]);
+    FlashRegistry.TryRelic("RUNIC_CAPACITOR", out ushort runicCapacitor);
+    builder.SetRelicVars(runicCapacitor, [3m]);
+    FlashRegistry.TryRelic("SYMBIOTIC_VIRUS", out ushort symbioticVirus);
+    builder.SetRelicVars(symbioticVirus, [1m]);
+    FlashRegistry.TryRelic("REPTILE_TRINKET", out ushort reptile);
+    builder.SetRelicVars(reptile, [3m]);
     FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike);
     FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend);
     FlashRegistry.TryCard("BASH", out ushort bash);
@@ -1384,9 +1586,11 @@ public sealed class A3TestRampartPower : FlashPowerDef
 [FlashContent("A3_TEST_GENERATED_RELIC")]
 public sealed class A3TestGeneratedRelic : FlashRelicDef
 {
-    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position)
+    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position,
+        byte creator)
     {
-        bool matches = (uint)position < (uint)x.B.CardCount
+        bool matches = creator == FlashLimits.PlayerOwner
+            && (uint)position < (uint)x.B.CardCount
             && FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort expected)
             && x.B.Cards[position].Id == expected;
         Kg2TestLog.Add(matches ? "generated-ok" : "generated-wrong-position");

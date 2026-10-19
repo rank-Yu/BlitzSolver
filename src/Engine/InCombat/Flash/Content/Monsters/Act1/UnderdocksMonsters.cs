@@ -60,7 +60,7 @@ public sealed class HauntedShip : FlashMonsterDef
             FlashRegistry.PowerId<Powers.WeakPower>(), HauntWeak, owner);
         for (int index = 0; index < HauntDazed; index++)
             FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard);
+                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
     }
 }
 

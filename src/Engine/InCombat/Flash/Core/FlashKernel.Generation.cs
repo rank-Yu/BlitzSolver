@@ -96,8 +96,73 @@ public static partial class FlashKernel
         int insert = Math.Min(index, FlashPiles.Count(x.B, pile));
         FlashPiles.Insert(ref x.B, pile, insert, entered);
         EnteredCombat(ref x, replacement, pile, insert);
-        // AfterCardGeneratedForCombat and the AfterTransformedFrom/To overrides have no supported
-        // listeners or definitions in this content set.
+        if (!x.NeedsChoice)
+            AfterGeneratedForCombat(ref x, target: pile, insert, FlashLimits.PlayerOwner);
+    }
+
+    /// <summary>
+    /// Mirrors <c>CardChoiceSupport.TransformCardBatch</c> / <c>CardCmd.Transform</c>: every selected
+    /// card is removed first (recording its index in the shrinking pile), then the replacements are
+    /// inserted in (pile, index) order, each entering combat and firing
+    /// <c>AfterCardGeneratedForCombat</c>. Used by Compact's Status → Fuel transformation.
+    /// </summary>
+    public static void TransformCards(ref FlashExec x, FlashPile pile, scoped ReadOnlySpan<int> selected,
+        FlashCard replacement, int upgrade)
+    {
+        if (selected.IsEmpty || IsOverOrEnding(x.B))
+            return;
+        Span<FlashCard> originals = stackalloc FlashCard[selected.Length];
+        Span<int> removal = stackalloc int[selected.Length];
+        int count = FlashPiles.Count(x.B, pile);
+        for (int item = 0; item < selected.Length; item++)
+        {
+            if ((uint)selected[item] >= (uint)count)
+                throw new FlashUnsupportedException("变换选中的卡不在原牌堆。");
+            originals[item] = FlashPiles.ReadCards(x.B, pile)[selected[item]];
+            removal[item] = selected[item];
+        }
+        // Remove in the selected order; later positions are the shrinking-pile indexes.
+        for (int item = 0; item < selected.Length; item++)
+        {
+            int position = -1;
+            ReadOnlySpan<FlashCard> cards = FlashPiles.ReadCards(x.B, pile);
+            for (int index = 0; index < cards.Length; index++)
+            {
+                if (!FlashFingerprint.Equal(cards[index], originals[item]))
+                    continue;
+                position = index;
+                break;
+            }
+            if (position < 0)
+                throw new FlashUnsupportedException("变换选中的卡在结算前离开了原牌堆。");
+            removal[item] = position;
+            FlashPiles.RemoveAt(ref x.B, pile, position);
+        }
+        // CardCmd.Transform sorts by pile (all equal here) then index, ascending.
+        for (int item = 1; item < removal.Length; item++)
+        {
+            int index = item;
+            while (index > 0 && removal[index - 1] > removal[index])
+            {
+                (removal[index - 1], removal[index]) = (removal[index], removal[index - 1]);
+                index--;
+            }
+        }
+        for (int item = 0; item < removal.Length; item++)
+        {
+            FlashCard card = replacement;
+            card.Upgrade = checked((byte)upgrade);
+            card.BaseCost = checked((sbyte)x.R.Card(card.Id, upgrade).EnergyCost);
+            card.BaseStarCost = checked((sbyte)x.R.Card(card.Id, upgrade).StarCost);
+            card.Keywords = x.R.Card(card.Id, upgrade).Keywords | FlashKeywords.CreatedAfterRoot;
+            int insert = Math.Min(removal[item], FlashPiles.Count(x.B, pile));
+            FlashPiles.Insert(ref x.B, pile, insert, card);
+            EnteredCombat(ref x, card, pile, insert);
+            if (x.NeedsChoice)
+                return;
+            if (!AfterGeneratedForCombat(ref x, pile, insert, FlashLimits.PlayerOwner))
+                return;
+        }
     }
 
     /// <summary>
@@ -129,7 +194,7 @@ public static partial class FlashKernel
     /// Returns false when the card was not added.
     /// </summary>
     public static bool AddGeneratedCard(ref FlashExec x, in FlashCard card, FlashPile pile,
-        FlashPilePosition position = FlashPilePosition.Bottom)
+        FlashPilePosition position = FlashPilePosition.Bottom, byte creator = FlashLimits.PlayerOwner)
     {
         if (!IsInProgress(x.B))
             return false;
@@ -151,17 +216,24 @@ public static partial class FlashKernel
         EnteredCombat(ref x, added, target, index);
         if (x.NeedsChoice)
             return false;
-        // HookMirrors.AfterCardGeneratedForCombat runs after the card entered combat.
+        return AfterGeneratedForCombat(ref x, target, index, creator);
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.AfterCardGeneratedForCombat</c> after a generated card entered combat. The hook
+    /// receives the card's absolute position; <paramref name="index"/> is pile-local.
+    /// </summary>
+    private static bool AfterGeneratedForCombat(ref FlashExec x, FlashPile target, int index, byte creator)
+    {
         if ((FlashRegistry.AnyHooks & FlashHookMask.AfterCardGeneratedForCombat) != 0)
         {
             Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
             int listenerCount = FlashHooks.CollectListeners(x.B, FlashHookMask.AfterCardGeneratedForCombat, listeners);
             for (int listener = 0; listener < listenerCount; listener++)
             {
-                // The hook receives an absolute card position; `index` is pile-local.
                 FlashHooks.Definition(x.B, listeners[listener])
                     .AfterCardGeneratedForCombat(ref x, listeners[listener],
-                        FlashPiles.Start(x.B, target) + index);
+                        FlashPiles.Start(x.B, target) + index, creator);
                 if (x.NeedsChoice)
                     return false;
             }

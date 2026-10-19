@@ -146,7 +146,7 @@ public sealed class MechaKnight : FlashMonsterDef
                 for (int index = 0; index < FlamethrowerBurn; index++)
                 {
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Burn>()), FlashPile.Hand);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Burn>()), FlashPile.Hand, creator: FlashLimits.NoOwner);
                 }
                 break;
             case "WINDUP_MOVE":
@@ -217,7 +217,7 @@ public sealed class SlimedBerserker : FlashMonsterDef
                 for (int index = 0; index < VomitSlime; index++)
                 {
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Slimed>()), FlashPile.Discard);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Slimed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
                 }
                 break;
             case "LEECHING_HUG_MOVE":
@@ -421,7 +421,7 @@ public sealed class Aeonglass : FlashMonsterDef
                 for (int index = 0; index < rules.StaticInts[WitherAmountStat]; index++)
                 {
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wither>()), FlashPile.Discard);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wither>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
                 }
                 int strength = rules.StaticInts[IncreasingIntensityBaseStrengthStat]
                     + x.B.Enemy(owner).Ai[AdditionalStrengthRegister];
@@ -431,7 +431,7 @@ public sealed class Aeonglass : FlashMonsterDef
         }
     }
 
-    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position)
+    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position, byte creator)
     {
         if (x.B.Cards[position].Id != FlashRegistry.CardId<Cards.Status.Wither>())
             return;
@@ -637,11 +637,11 @@ public sealed class Noisebot : FlashMonsterDef
         if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "NOISE_MOVE")
             return;
         ushort dazed = FlashRegistry.CardId<Cards.Status.Dazed>();
-        FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(x.R, dazed), FlashPile.Discard);
+        FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(x.R, dazed), FlashPile.Discard, creator: FlashLimits.NoOwner);
         if (x.NeedsChoice)
             return;
         FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(x.R, dazed), FlashPile.Draw,
-            FlashPilePosition.Random);
+            FlashPilePosition.Random, creator: FlashLimits.NoOwner);
     }
 }
 
@@ -876,7 +876,7 @@ public sealed class TestSubject : FlashMonsterDef
                 for (int index = 0; index < rules.StaticInts[BurningGrowlBurnStat]; index++)
                 {
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Burn>()), FlashPile.Discard);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Burn>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
                 }
                 FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[BurningGrowlStrengthStat], owner);

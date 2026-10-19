@@ -266,6 +266,116 @@ public static partial class FlashHooks
         return amount;
     }
 
+    /// <summary>
+    /// Mirrors <c>Hook.ModifyOrbValue</c>: every combat listener in order, skipped while the combat is
+    /// over/ending (<c>IterateCombatHookListeners</c> yields no listeners then). A pure query.
+    /// </summary>
+    public static decimal ModifyOrbValue(in FlashBattle battle, FlashRules rules, in FlashOrb orb, decimal value)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ModifyOrbValue) == 0 || FlashKernel.IsOverOrEnding(battle))
+            return value;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(battle, FlashHookMask.ModifyOrbValue, listeners);
+        for (int index = 0; index < count; index++)
+            value = Definition(battle, listeners[index]).ModifyOrbValue(battle, rules, listeners[index], orb, value);
+        return value;
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.ModifyOrbPassiveTriggerCount</c>: every combat listener in order, recording the
+    /// ones that changed the count. The existing engine then calls
+    /// <c>AfterModifyingOrbPassiveTriggerCount</c> on those listeners; its only vanilla listener
+    /// (GoldPlatedCables) is cosmetic, so the Flash kernel does not model that pass.
+    /// </summary>
+    public static int ModifyOrbPassiveTriggerCounts(in FlashBattle battle, FlashRules rules, in FlashOrb orb,
+        int orbIndex, int triggerCount)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.ModifyOrbPassiveTriggerCounts) == 0
+            || FlashKernel.IsOverOrEnding(battle))
+        {
+            return triggerCount;
+        }
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(battle, FlashHookMask.ModifyOrbPassiveTriggerCounts, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            int modified = Definition(battle, listeners[index]).ModifyOrbPassiveTriggerCounts(
+                battle, rules, listeners[index], orb, orbIndex, triggerCount);
+            if (modified != triggerCount)
+                triggerCount = modified;
+        }
+        return triggerCount;
+    }
+
+    /// <summary><c>HookMirrors.AfterOrbChanneled</c> over a listener snapshot.</summary>
+    public static void AfterOrbChanneled(ref FlashExec x, in FlashOrb orb)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.AfterOrbChanneled) == 0 || FlashKernel.IsOverOrEnding(x.B))
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMask.AfterOrbChanneled, listeners);
+        if (count == 0)
+            return;
+        Span<SnapshotEntry> snapshot = stackalloc SnapshotEntry[count];
+        for (int index = 0; index < count; index++)
+            snapshot[index] = Snapshot(x.B, listeners[index]);
+        for (int index = 0; index < count; index++)
+        {
+            if (!TryResolve(x.B, snapshot[index], out FlashListener current))
+                continue;
+            Definition(x.B, current).AfterOrbChanneled(ref x, current, orb);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary><c>HookMirrors.AfterOrbEvoked</c> over a listener snapshot with the evoke result targets.</summary>
+    public static void AfterOrbEvoked(ref FlashExec x, in FlashOrb orb, scoped ReadOnlySpan<byte> targets)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.AfterOrbEvoked) == 0 || FlashKernel.IsOverOrEnding(x.B))
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMask.AfterOrbEvoked, listeners);
+        if (count == 0)
+            return;
+        Span<SnapshotEntry> snapshot = stackalloc SnapshotEntry[count];
+        for (int index = 0; index < count; index++)
+            snapshot[index] = Snapshot(x.B, listeners[index]);
+        for (int index = 0; index < count; index++)
+        {
+            if (!TryResolve(x.B, snapshot[index], out FlashListener current))
+                continue;
+            Definition(x.B, current).AfterOrbEvoked(ref x, current, orb, targets);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.AfterPotionUsed</c>'s relic batch: every combat listener carrying the
+    /// hook, in listener order, after the potion effect (no ending gate in the existing engine).
+    /// </summary>
+    public static void AfterPotionUsed(ref FlashExec x, ushort potionId)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.AfterPotionUsed) == 0)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMask.AfterPotionUsed, listeners);
+        if (count == 0)
+            return;
+        Span<SnapshotEntry> snapshot = stackalloc SnapshotEntry[count];
+        for (int index = 0; index < count; index++)
+            snapshot[index] = Snapshot(x.B, listeners[index]);
+        for (int index = 0; index < count; index++)
+        {
+            if (!TryResolve(x.B, snapshot[index], out FlashListener current))
+                continue;
+            Definition(x.B, current).AfterPotionUsed(ref x, current, potionId);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
     /// <summary>Mirrors <c>Hook.ModifyXValue</c>: every combat listener in order, skipped while the combat is over/ending.</summary>
     public static int ModifyXValue(in FlashBattle battle, FlashRules rules, in FlashCard card, int value)
     {

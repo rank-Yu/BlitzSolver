@@ -31,7 +31,7 @@ public sealed class LeafSlimeS : FlashMonsterDef
     internal static void AddSlimed(ref FlashExec x, int count)
     {
         for (int index = 0; index < count; index++)
-            FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Slimed>()), FlashPile.Discard);
+            FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Slimed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
     }
 }
 
@@ -322,6 +322,6 @@ public sealed class EyeWithTeeth : FlashMonsterDef
             return;
         for (int index = 0; index < DistractDazed; index++)
             FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard);
+                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
     }
 }

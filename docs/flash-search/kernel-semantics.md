@@ -51,7 +51,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 内核为下列 Hook 提供派发点，名称与原版一致；内容需要新的 Hook 时在内核增加派发点并补差分测试：
 
-- 出牌：`TryModifyEnergyCostInCombat`（含 Late；Corruption、FreeAttackPower、FreeSkillPower）、`ModifyStarCost`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount` / `AfterModifyingCardPlayCount`（OneTwoPunchPower、DuplicationPower）、`ModifyCardPlayResultLocation` / `AfterModifyingCardPlayResultLocation`（Corruption；Nostalgia 还返回 `Draw` 的 `Top` 位置）、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterCardDiscarded`、`AfterHandEmptied`。
+- 出牌：`TryModifyEnergyCostInCombat`（含 Late；Corruption、FreeAttackPower、FreeSkillPower、FreePowerPower）、`ModifyStarCost`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount` / `AfterModifyingCardPlayCount`（OneTwoPunchPower、DuplicationPower）、`ModifyCardPlayResultLocation` / `AfterModifyingCardPlayResultLocation`（Corruption；Nostalgia 还返回 `Draw` 的 `Top` 位置）、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterCardDiscarded`、`AfterHandEmptied`。
 - 卡牌目标：`FlashCardDef.TargetType` 覆写原生 `CardModel.TargetType`。规则表冻结规范目标；`Shiv` 在持有 `FanOfKnivesPower` 时返回 `AllEnemies`，合法动作枚举、自动打出目标解析与卡牌攻击都读这个动态值。
 - 攻击与伤害：`BeforeAttack`、`ModifyAttackHitCount`、`AfterAttack`、`ModifyDamageAdditive`、`ModifyDamageMultiplicative`、`ModifyDamageCap`、`BeforeDamageReceived`、`ModifyHpLostBeforeOsty`（含 Late）、`ModifyHpLostAfterOsty`（含 Late）、`AfterModifyingHpLostAfterOsty`、`AfterBlockBroken`、`AfterCurrentHpChanged`、`AfterDamageGiven`、`AfterDamageReceived`（含 Late）。
 - 格挡：`BeforeBlockGained`、`ModifyBlockAdditive`、`ModifyBlockMultiplicative`、`AfterModifyingBlockAmount`、`AfterBlockGained`、`ShouldClearBlock`、`AfterBlockCleared`。
@@ -59,11 +59,10 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 已有派发点（其余见本节列表）：`BeforeDamageReceived`（`TryDamageTarget` 中修正后、格挡前，不受战斗结束闸门限制）、`BeforeSideTurnEnd` 三轮（玩家回合结束第一阶段，受闸门限制，参与者以位集合传入）、`ShouldClearBlock`、`ModifyMaxEnergy`、`ModifyHandDraw`（含 Late）与第 7 节的 Power/遗物阶段方法。
 - 回合：`BeforeSideTurnStart`、`AfterSideTurnStart`、`AfterEnergyReset`（含 Late）、`ModifyMaxEnergy`、`BeforeHandDraw`、`ModifyHandDraw`（含 Late）、`AfterPlayerTurnStart`、`AfterAutoPostPlayPhaseEntered`（阶段切到 AutoPostPlay 后、切到 End 之前，卡牌与 Power 监听者；HowlFromBeyond、StampedePower）、`BeforeSideTurnEnd`（VeryEarly、Early、普通）、`OnTurnEndInHand`、`AfterSideTurnEnd`（含 Late）、`ShouldTakeExtraTurn`。
 - 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook；HellraiserPower 在 Early 自动打出刚抽到的 Strike）、`ModifyShuffleOrder`、`AfterShuffle`（TheAbacus）、`AfterCardChangedPiles`。`AfterShuffle` 在洗牌计数 +1 后、战斗未结束时派发，监听者为全部战斗监听者。
-- Power：`TryModifyPowerAmountReceived` / `AfterModifyingPowerAmountReceived`（RuinedHelmet；UnsettlingLamp 与 SneckoSkull 仍因对象身份/临时 Power 类型表与 Poison 定义缺失而跳过）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious；Flash 目前只有 Vicious 定义）。**实例型 Power**（`PowerInstanceType.Instanced`）每个原生实例占 Power 表一行，`(owner, id)` 相同的行按出现序区分；阶段遍历与 Hook 快照都保存 occurrence，`FindPowerOccurrence` 精确回指该行（Automation、Panache、RollingBoulder、TheBomb、Gigantification）。
-- Power：`TryModifyPowerAmountReceived` / `AfterModifyingPowerAmountReceived`（RuinedHelmet；UnsettlingLamp 与 SneckoSkull 仍因对象身份/临时 Power 类型表与 Poison 定义缺失而跳过）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious；Flash 目前只有 Vicious、PossessStrength/PossessSpeed 定义；派发携带被修改 Power 的目标 owner，因为原版读取的是 `power.Owner`）。
+- Power：`TryModifyPowerAmountReceived` / `AfterModifyingPowerAmountReceived`（RuinedHelmet；UnsettlingLamp 与 SneckoSkull 仍因对象身份/临时 Power 类型表与 Poison 定义缺失而跳过）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious；Flash 目前只有 Vicious、PossessStrength/PossessSpeed 定义；派发携带被修改 Power 的目标 owner，因为原版读取的是 `power.Owner`）。**实例型 Power**（`PowerInstanceType.Instanced`）每个原生实例占 Power 表一行，`(owner, id)` 相同的行按出现序区分；阶段遍历与 Hook 快照都保存 occurrence，`FindPowerOccurrence` 精确回指该行（Automation、Panache、RollingBoulder、TheBomb、Gigantification）。
 - 数值与遗物：`ModifyXValue`（ChemicalX，位置与 `CardModel.ResolveEnergyXValue` 一致）、`ShouldPlayerResetEnergy`（IceCream）、遗物 `AfterCardEnteredCombat`（GhostSeed）。
-- 生成卡与 A3 新增时机：`AfterCardGeneratedForCombat` 在 `AddGeneratedCard` 插入牌堆并派发 `AfterCardEnteredCombat` 之后按监听顺序派发，参数是**卡牌数组的绝对下标**（牌堆内下标只用于 `AfterCardEnteredCombat`）；Aeonglass 用它把新生成的 Wither 直接提升到当前 `WitherUpgradeCount`。`Rampart` 只在玩家侧非额外回合的回合开始、`OwnerAfterSideTurnStart` 之后执行（`PersistentPowerSupport.TriggerRampart`）。`HasKeyword` 在稳定边界上查询本地关键字后，还会为持有 `HexPower` 的玩家的 Hexed 卡补上 Ethereal（原版 `TryModifyKeywordsInCombat` 是惰性查询，不写入卡牌状态）。
-- 球：被动与激发；`OrbQueue.BeforeTurnEnd`。
+- 生成卡与 A3 新增时机：`AfterCardGeneratedForCombat` 在 `AddGeneratedCard` 插入牌堆并派发 `AfterCardEnteredCombat` 之后按监听顺序派发，参数是**卡牌数组的绝对下标**（牌堆内下标只用于 `AfterCardEnteredCombat`）与生成者 owner（玩家或 `NoOwner`，对应现有引擎的 `Player? Creator`；怪物及其 Power 生成的牌为 `NoOwner`）；Aeonglass 用它把新生成的 Wither 直接提升到当前 `WitherUpgradeCount`。`Rampart` 只在玩家侧非额外回合的回合开始、`OwnerAfterSideTurnStart` 之后执行（`PersistentPowerSupport.TriggerRampart`）。`HasKeyword` 在稳定边界上查询本地关键字后，还会为持有 `HexPower` 的玩家的 Hexed 卡补上 Ethereal（原版 `TryModifyKeywordsInCombat` 是惰性查询，不写入卡牌状态）。
+- 球：`AfterOrbChanneled`、`AfterOrbEvoked`、`ModifyOrbPassiveTriggerCounts`、`ModifyOrbValue`；被动与激发、回合末/回合开始触发见第 3.5 节。
 
 ### 3.4 苦难与附魔
 
@@ -76,6 +75,24 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - **施加/移除路径。** `ApplyAffliction` 对应 `CardCmd.Afflict` 的 `CanAfflict` 与同类型叠加；`ClearAffliction(s)` 对应 `ClearAffliction`。Vital Spark 的 Tainted 层数同步使用导入的 `LastNormalizedVitalSparkAmount` 计数器（`int.MinValue` 表示 null），首次导入不回写，保留实机战斗开始时可能叠高的层数。
 - **Power 与怪物。** 本轮实现 Plow、Ringing、Tangled、Smoggy、Vital Spark、Tainted、Hex 七个 Power，以及 Ceremonial Beast、Vine Shambler、Infested Prism、Living Fog、Gas Bomb 的移动效果。Living Fog 的 BLOAT 在攻击前生成 Gas Bomb（`FlashMonsterDef.BeforeMove`），Gas Bomb 的 EXPLODE 攻击后自毁。MysticLighter 是遗物定义：带附魔卡牌的 powered attack 加 `Damage`。Hexed 的 Ethereal 由上面的 `HasKeyword` 惰性提供；HexPower 被移除或施加者死亡后不再提供，卡牌本地关键字不变。
 
+
+### 3.5 充能球
+
+来源：`S/CombatPredictionSimulator.Orb.cs`、`S/SimOrbQueue.cs`、`M/Orbs/**`、`M/Hooks/Orb/**`、`P/OrbLifecycleSupport.cs`、`P/EnchantmentLifecycleSupport.TriggerAfterTurnStartOrbs` 与回合阶段中的球调用位置。
+
+**状态与规则。** 球按 `SimOrbQueue.Orbs` 的顺序存在 `FlashBattle.Orbs`，`OrbCount`/`OrbCapacity` 与旧引擎同义。`FlashOrb.Aux` 保存原版球唯一的私有十进制值：Dark 的 `_evokeVal`（初始 6）与 Glass 的 `_passiveVal`（初始 4）；其他球不使用。导入时容量超过 10、球数超过容量、无 Flash 定义的球、或私有值不是 `int` 能表示的整数，都按 `FlashImportException` 拒绝。`BaseOrbSlotCount`（角色基础槽数）进入 `FlashRules`；`LightningChannels` 与 `OrbChannels` 是两个追加计数器，前者导入 `CalculatedVarSpecRegistry.CountLightningChannels`（原版历史 + 预测历史），后者只统计预测历史中的充能事件，对应旧引擎的 1000 次充能安全上限。
+
+**生成（channel）。** `FlashKernel.ChannelOrb` 对应 `CombatPredictionSimulator.OrbChannel`：结束中/有待处理选择时不做；基础槽数为 0 且容量为 0 时先加 1 槽（`OrbCmd.AddSlots`）；容量已满时先 `EvokeNext` 最左侧球，再入队。若激发副作用同步充能又把槽填满，旧引擎记录 `MethodMirrorIncomplete` 风险并放弃；Flash 抛 `FlashUnsupportedException`（K0 合同覆盖满槽先激发），不自行追加激发。容量仍为 0 时返回 false；成功入队后记录 `OrbChannels`，闪电球另记 `LightningChannels`，再派发 `AfterOrbChanneled`。预测历史达到 1000 次充能时显式拒绝。`AddOrbSlots` 按 `min(10 - capacity, amount)` 增长；`RemoveOrbSlots` 对应 `SimOrbQueue.RemoveCapacity`，从队尾删球且不触发任何球 Hook。
+
+**激发（evoke）。** `EvokeNext` 对应 `OrbEvokeNext`/`OrbCmd.EvokeNext`：取最左侧球，按 `repeat` 重复，只有最后一次出队（Dualcast、MultiCast、Shatter 的 `dequeue:false` 语义）；每次激发后执行 `ApplyEnemyDeathPowers`。`EvokeOrb` 对应 `OrbEvoke`：先按需要出队，再调用球的 `Evoke`，把返回值写入目标 owner 列表后派发 `AfterOrbEvoked`；结束中或有待处理选择时不执行。`MultiCast` 等 X 次激发由卡牌读取 `ResolveEnergyXValue` 后传入。`Darkness`/`TeslaCoil`/`Loop` 的额外被动走 `OrbPassiveAt`（不查询触发次数 Hook）。
+
+**被动（passive）。** `TriggerOrbPassive` 对应 `OrbModel.TriggerPassive`：先以纯查询 `ModifyOrbPassiveTriggerCounts` 计算次数（`GoldPlatedCables` 对首个球 +1；`AfterModifyingOrbPassiveTriggerCount` 只有展示监听者，Flash 不派发），再逐次 `Passive`；每次被动后执行 `ApplyEnemyDeathPowers`。`OrbPassiveAt` 对应 `OrbCmd.Passive`，跳过触发次数 Hook。两者都在结束中/待选择时不执行。`ModifyOrbValue` 是纯查询，按战斗监听顺序调用（`FocusPower` 增加集中并钳制 ≥ 0；集中只修正需要修正的球值），修正类 Hook 不写状态。
+
+**回合位置。** 玩家回合末：`BeforeSideTurnEnd` 与胜负判定之后、虚无/回合末在手牌效果之前，按队列快照逐个球调用 `BeforeTurnEndOrbTrigger`（Plasma 的该触发为空）。每次触发与被动后的敌人死亡效果立即结算；战斗结束中后续触发无效果。玩家回合开始：在敌人死亡效果与苦难归一化之后、自动预打出之前，按队列快照调用 `AfterTurnStartOrbTrigger`；只有 Plasma 重写它并触发一次被动（仍经 `TriggerOrbPassive`，所以金缆的触发次数修正生效）。玩家死亡清空球队列时容量一并归零（`OrbQueue.Clear`）。
+
+**球值。** Lightning 被动 3、激发 8；Frost 被动 2 并给所有者格挡、激发 5；Dark 被动把 `Modify(6)` 累加进 `Aux`，激发对当前生命最低的可命中敌人造成 **原始 `Aux`**（原版 `EvokeVal` 不再过 `ModifyOrbValue`，集中只影响累积）；Glass 被动取 `Modify(Aux)`，大于 0 时造成伤害并把 `Aux` 减 1，激发为 `Modify(Aux) * 2`，伤害所有可命中敌人；Plasma 被动 +1 能量、激发 +2 能量。Lightning 与 Glass 的随机目标取 `CombatTargets.NextItem` 的一次 `NextInt(0, count)`，候选为空时不消耗；Lightning 的显式目标（TeslaCoil）不消耗该流。Chaos 与 TrashToTreasure 的随机球取 `CombatOrbGeneration`，候选顺序是原版 `_validOrbs`：Lightning、Frost、Dark、Plasma、Glass。
+
+**遗物。** CrackedCore 在第一回合玩家侧 `BeforeSideTurnStart` 充能闪电；RunicCapacitor 与 SymbioticVirus 在第一回合玩家侧 `AfterSideTurnStart` 增加 3 槽 / 充能暗球；GoldPlatedCables 实现触发次数 Hook；PowerCell 与旧引擎的 `RegisterIgnored<PowerCell>` 一致，是准入所需的空定义。ReptileTrinket 在 `AfterPotionUsed` 中按遗物变量施加临时力量（`ReptileTrinketPower`），对应 `TriggerRelicsAfterPotionUsed`。UnsettlingLamp 仍无定义：它需要卡牌实例身份、`BeforePowerAmountChanged` 与 `ModifyPowerAmountGivenMultiplicative` 的逐卡翻倍账本。
 
 ## 4. 出牌管线
 

@@ -127,6 +127,51 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// Mirrors <c>SimulatedCombatState.ApplyTemporaryFocus</c> (<c>ApplyTemporaryFocusGain</c> with
+    /// <paramref name="sign"/> 1, <c>ApplyTemporaryFocusLoss</c> with -1): the temporary power's native
+    /// <c>BeforeApplied</c> applies sign × amount for a first/instanced application, and a stacking
+    /// application applies sign × the resulting delta after the counter changes.
+    /// </summary>
+    public static int ApplyTemporaryFocus(ref FlashExec x, byte target, ushort temporaryId, int amount,
+        byte applier, int sign)
+    {
+        if (amount == 0 || !CanReceivePowers(x.B, target))
+            return 0;
+        FlashPowerDef def = FlashRegistry.Power(temporaryId);
+        if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref x.B, target))
+            return 0;
+        ushort focus = FlashRegistry.TryPower("FOCUS_POWER", out ushort id)
+            ? id
+            : throw new FlashUnsupportedException("临时集中需要集中的 Flash 定义。");
+        bool alreadyApplied = GetAmount(x.B, target, temporaryId) != 0;
+        if (def.IsInstanced || !alreadyApplied)
+            ApplyPower(ref x, target, focus, sign * amount, applier);
+        int applied = AddPowerAmount(ref x, target, temporaryId, def, amount, applier, out _);
+        if (alreadyApplied && applied != 0)
+            ApplyPower(ref x, target, focus, sign * applied, applier);
+        return applied;
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.RetireTemporaryStat</c> for a temporary Focus power: removes it,
+    /// then changes Focus by -amount for a buff and +amount for a debuff (type for the current amount).
+    /// </summary>
+    public static void RetireTemporaryFocus(ref FlashExec x, FlashListener self)
+    {
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        ushort id = power.Id;
+        int amount = power.Amount;
+        int delta = FlashRegistry.Power(id).TypeForAmount(amount) == FlashPowerType.Buff ? -amount : amount;
+        SetPowerAmount(ref x.B, self.Owner, id, 0);
+        if (delta == 0)
+            return;
+        ushort focus = FlashRegistry.TryPower("FOCUS_POWER", out ushort focusId)
+            ? focusId
+            : throw new FlashUnsupportedException("临时集中需要集中的 Flash 定义。");
+        ApplyPower(ref x, self.Owner, focus, delta, self.Owner);
+    }
+
+    /// <summary>
     /// Mirrors <c>SimulatedCombatState.RetireTemporaryStat</c> for a temporary Strength power: removes it,
     /// then changes Strength by -amount for a buff and +amount for a debuff (type for the current amount).
     /// </summary>

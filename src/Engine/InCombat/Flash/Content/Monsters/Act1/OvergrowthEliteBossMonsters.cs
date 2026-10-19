@@ -25,7 +25,7 @@ public sealed class Vantom : FlashMonsterDef
             case "DISMEMBER_MOVE":
                 for (int index = 0; index < DismemberWounds; index++)
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wound>()), FlashPile.Discard);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wound>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
                 break;
             case "PREPARE_MOVE":
                 FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),

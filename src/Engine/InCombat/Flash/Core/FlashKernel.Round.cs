@@ -34,11 +34,18 @@ public static partial class FlashKernel
         CheckWinCondition(ref x.B);
         if (!IsOverOrEnding(x.B))
         {
-            // Orb passives at turn end: no supported orbs.
-            DoTurnEnd(ref x);
+            // OrbQueue.BeforeTurnEnd: every orb in the queue snapshot, each passive resolving its
+            // pending enemy deaths; a passive that ends the combat skips the turn-end hand effects.
+            TriggerBeforeTurnEndOrbs(ref x);
             if (x.NeedsChoice)
                 return;
-            CheckWinCondition(ref x.B);
+            if (!IsOverOrEnding(x.B))
+            {
+                DoTurnEnd(ref x);
+                if (x.NeedsChoice)
+                    return;
+                CheckWinCondition(ref x.B);
+            }
             CompletePlayerEarlySideTurnEnd(ref x);
             if (!x.NeedsChoice)
                 NormalizeCardAfflictions(ref x);
@@ -430,7 +437,12 @@ public static partial class FlashKernel
         ApplyEnemyDeathPowers(ref x);
         if (!x.NeedsChoice)
             NormalizeCardAfflictions(ref x);
-        // Enchantment orb hooks and auto pre-play: no supported sources.
+        // EnchantmentLifecycleSupport.TriggerAfterTurnStartOrbs: Plasma's AfterTurnStartOrbTrigger
+        // (through TriggerPassive, so ModifyOrbPassiveTriggerCounts applies).
+        TriggerAfterTurnStartOrbs(ref x);
+        if (x.NeedsChoice)
+            return;
+        // Auto pre-play has no supported sources.
         x.B.Phase = FlashPlayerPhase.AutoPrePlay;
         x.B.Phase = FlashPlayerPhase.Play;
         CheckWinCondition(ref x.B);

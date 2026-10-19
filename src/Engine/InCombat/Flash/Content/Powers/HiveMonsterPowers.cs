@@ -44,7 +44,7 @@ public sealed class PersonalHivePower : FlashPowerDef
         {
             FlashKernel.AddGeneratedCard(ref x,
                 FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()),
-                FlashPile.Draw, FlashPilePosition.Random);
+                FlashPile.Draw, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
         }
     }
 }

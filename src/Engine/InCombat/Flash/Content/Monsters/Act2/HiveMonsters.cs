@@ -20,7 +20,7 @@ public sealed class Chomper : FlashMonsterDef
             return;
         for (int index = 0; index < ScreechDazed; index++)
             FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard);
+                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
     }
 }
 
@@ -77,7 +77,7 @@ public sealed class Myte : FlashMonsterDef
                 for (int index = 0; index < 2; index++)
                 {
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Toxic>()), FlashPile.Hand);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Toxic>()), FlashPile.Hand, creator: FlashLimits.NoOwner);
                 }
                 break;
             case "SUCK_MOVE":

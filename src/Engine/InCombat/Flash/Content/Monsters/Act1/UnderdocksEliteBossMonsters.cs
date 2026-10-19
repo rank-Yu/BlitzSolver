@@ -51,15 +51,15 @@ public sealed class SoulFysh : FlashMonsterDef
                 for (int index = 0; index < BeckonDrawAmount; index++)
                     FlashKernel.AddGeneratedCard(ref x,
                         FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()),
-                        FlashPile.Draw, FlashPilePosition.Random);
+                        FlashPile.Draw, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
                 for (int index = 0; index < BeckonDiscardAmount; index++)
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()), FlashPile.Discard);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
                 break;
             case "GAZE_MOVE":
                 for (int index = 0; index < rules.StaticInts[GazeMoveAmount]; index++)
                     FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()), FlashPile.Discard);
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
                 break;
             case "SCREAM_MOVE":
                 FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,

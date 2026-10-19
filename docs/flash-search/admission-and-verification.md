@@ -24,7 +24,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 
 **可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么：固定卡表（`GeneratedCards`）、候选卡池（`GeneratedCardPools`，键见 `FlashCardPools`）、可施加的 Power（`AppliedPowers`，用于跟随 CalamityPower 这类会继续生成卡的 Power）以及随机药水池（`GeneratesRandomPotion`）。闭包从根的战斗牌堆、Power、遗物、药水、已知敌人与召唤闭包中的怪物定义出发，而不是从全部注册定义出发；这样不含生成效果的根不会被无关池拒绝。
 
-池在根导入时用现有引擎的同一套候选枚举冻结进 `FlashRules`（角色/无色卡池、战斗过滤、多人约束、类型/费用/排除谓词，保持原顺序）；内核只按 RNG 取样。闭包里每个候选卡都必须有 Flash 定义且其规范数值进入规则表，每个随机药水候选都必须有 Flash 药水定义；否则该根按 `UnsupportedClosure` 拒绝，诊断里带上第一个缺失项与池键。召唤表的怪物定义也参与同一闭包，它们生成的卡同样需要定义。
+池在根导入时用现有引擎的同一套候选枚举冻结进 `FlashRules`（角色/无色卡池、`character.powers`（WhiteNoise/CreativeAiPower 的 Power 卡池）、战斗过滤、多人约束、类型/费用/排除谓词，保持原顺序）；内核只按 RNG 取样。闭包里每个候选卡都必须有 Flash 定义且其规范数值进入规则表，每个随机药水候选都必须有 Flash 药水定义；否则该根按 `UnsupportedClosure` 拒绝，诊断里带上第一个缺失项与池键。召唤表的怪物定义也参与同一闭包，它们生成的卡同样需要定义。
 
 怪物的可生成类型在 `FlashRulesCompiler` 中编译：每个类型在根模拟器的私有 Fork 上执行现有引擎的创建路径（`MonsterSpawnSupport.Create` + `AddPredictedMonster` + `PreparePredictedMonster`），状态机、静态值与初始私有整数都从这次创建结果读取，不手抄。规则表容量是 `FlashLimits.MonsterRules`，超出按 `Capacity` 拒绝。根持有 `Murderous` 修饰而闭包非空时拒绝（`UnsupportedClosure`，新敌人的入场力量未移植）；贤者之石、毛皮大衣没有 Flash 遗物定义，持有它们的根在导入阶段按 `UnsupportedRelic` 拒绝。
 
@@ -44,6 +44,14 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 模型私有状态（`FlashStateProjections`）：`PredictionStateStore` 的每个条目都必须被某个投影认领（按 Power/遗物写入 `FlashPower.Aux*` 或遗物计数，值取条目，没有条目时取条目构造器会读取的模型数据），或被证明无效；其余条目一律拒绝。无效条目有下列几类：等于当前 Power 数量的 `PowerAmountPredictionState`（同步时只会被删除）；敌方生物离开战斗后其 Power 的任何条目（现有引擎只经由仍在战斗中的生物身上的 Power 读取条目，离场的敌人不会回来）；以及**退役条目**——Power 归零移除后残留、且其值已不可能再被任何结算读取的条目。新增投影与对应 Flash 定义一起提交，差分探针逐步比较投影值。
 
 P16 新增的投影：实例型 Power 每个原生实例导入为一行，`AutomationPower.Aux0` 取 `AutomationPredictionState.CardsLeft`（无条目时取 `DisplayAmount`），`PanachePower.Aux0/Aux1` 取 `PanachePredictionState.CardsLeft/AlreadyApplied`（无条目时由模型构造同类型状态读取），`TheBombPower.Aux0` 取 `DynamicVars.Damage`；`RollingBoulderPower` 只有 Amount。`_addedPowerInstances`/`_rootMultiInstancePowerClones` 不再整体拒绝，因为 `EffectivePowers()` 已给出每个实例，导入按监听顺序写行。`_returnToHandNextTurn` 按原牌对象投影到 `FlashCard.ReturnToHandNextTurn`。`GigantificationPower` 的私有 `State.CommandToModify` 在稳定边界必须为空，活着的实例由 `ProjectPower` 认领；最后 1 层结算后模型归零、条目仍空闲残留，按惰性处理（读取点只遍历正层 `EffectivePowers`，重新获得是新的原生实例）。
+
+DF 新增的球与卡牌私有状态投影：
+
+- `SimOrbQueue.Orbs` 按顺序导入 `FlashBattle.Orbs`，容量写入 `OrbCapacity`；每个球的原版 Id 必须有 Flash 定义，否则 `UnsupportedOrb`。DarkOrb 的 `_evokeVal` 与 GlassOrb 的 `_passiveVal` **没有** `PredictionStateStore` 条目：模拟器克隆球模型并在克隆上改值，导入经 `OrbMirrors.GetStoredValueForFlash` 读取模型字段（Bridge 内唯一的读取点）并写入 `FlashOrb.Aux`。非整数/越界值拒绝为 `UnrepresentableState`，不四舍五入。容量超 10 或球数超容量按 `Capacity` 拒绝。
+- `LightningChannels` 取 `CalculatedVarSpecRegistry.CountLightningChannelsForFlash`（原版历史 + 预测历史）；`OrbChannels` 取预测历史中 `CombatPredictionOrbChanneledEntry` 的数量。二者都只增不减。
+- Claw 与 GeneticAlgorithm 的每卡累积值（`ExtraDamageFromClawPlays` / `IncreasedBlock`）在原版模型里是私有字段，但等于导入卡牌相对规则表基值的整数变量差。`FlashCardDef.ProjectPrivate` 在 Bridge 计算 `Var0/Var1` 之后把该差写进 `FlashCard.Private`；对应定义在 `AfterDowngraded` 中把它加回 `Var0`，与 `DowngradeCard` 重置变量、原版 `AfterDowngraded` 重新加成一致。
+- 满槽充能先激发最左侧球；若激发副作用同步充能又把槽填满，现有引擎记录 `MethodMirrorIncomplete` 风险并放弃本次预测。Flash 明确抛 `FlashUnsupportedException`，不追加激发。预测历史充能达到 1000 次同样按未支持边界拒绝。
+- `ReptileTrinket` 的 `AfterPotionUsed` 在药水效果之后、Power 数量结算与敌人死亡结算之前派发：玩家存活时按遗物变量施加 `ReptileTrinketPower`（临时力量 + 力量）。`UnsettlingLamp` 仍无定义：它依赖卡牌实例身份、`BeforePowerAmountChanged` 与 `ModifyPowerAmountGivenMultiplicative` 的逐卡翻倍账本。
 
 退役条目的认领规则与现有实现：
 

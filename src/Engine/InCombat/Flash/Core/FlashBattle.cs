@@ -135,6 +135,18 @@ public enum FlashCounter : byte
     /// multiplier (<c>CalculatedVarSpecRegistry.CountDrawnCards</c>).
     /// </summary>
     CardsDrawn,
+
+    /// <summary>
+    /// Lightning orbs channelled this combat (<c>CalculatedVarSpecRegistry.CountLightningChannels</c>):
+    /// Voltaic's calculated channel count.
+    /// </summary>
+    LightningChannels,
+
+    /// <summary>
+    /// Every orb channelled this combat: the existing engine's 1000-channel safety cap
+    /// (<c>CombatPredictionSimulator.MaxSimulatedChanneledOrbs</c>).
+    /// </summary>
+    OrbChannels,
 }
 
 /// <summary>

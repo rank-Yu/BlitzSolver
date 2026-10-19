@@ -7,7 +7,7 @@
 ## 1. 归属原则
 
 - **进入 `FlashBattle`**：会随分支变化、并影响后续合法动作或结算的值。范围以 AGENTS.md 第 5 节的状态清单和旧引擎状态键（`BuildStateKey`、`SimulatedCombatState.AppendFingerprint`）为下限；旧状态键漏掉但影响未来结算的值（例如回合数、Power 的 `AmountOnTurnStart`）同样进入。
-- **进入 `FlashRules`**：根导入时冻结、整场搜索不变的值。包括卡牌各升级等级的基础数值与费用、怪物行动的静态参数与编译后的状态机、可生成怪物的闭包条目、遭遇槽名、根监听前缀顺序、最大能量基础值、手牌上限、药水槽数、卡牌洗牌排序键。`FlashRules` 是不可变引用类型，所有分支共享。
+- **进入 `FlashRules`**：根导入时冻结、整场搜索不变的值。包括卡牌各升级等级的基础数值与费用、怪物行动的静态参数与编译后的状态机、可生成怪物的闭包条目、遭遇槽名、根监听前缀顺序、最大能量基础值、手牌上限、药水槽数、卡牌洗牌排序键、角色基础球槽数（`BaseOrbSlotCount`）。`FlashRules` 是不可变引用类型，所有分支共享。
 - **都不进入**：纯 UI、日志、显示名、派生启发式值。历史日志只保留会影响结算的计数器。
 
 ## 2. 结构
@@ -24,9 +24,8 @@
 | Cards | `FlashCard`，五个牌堆连续存放：手牌、抽牌堆、弃牌堆、消耗堆、打出区 | 128 |
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
 | Potions | 各槽药水 Id 与标志 | 5 |
-| Orbs | `FlashOrb`：球 Id、累积值；容量与数量 | 10 |
-| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）、`FinishedCardPlays`（GoldAxe 的整场完成出牌数）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`CardDamageTotal` 等按次出牌伤害历史只在 `FlashExec`。 | 48 |
-| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`DampenCasterMask` 是 MagiKnight 对玩家施加 DampenPower 的施法者位集合（按敌人 owner 下标一位一个） | 48 |
+| Orbs | `FlashOrb`：球 Id、`Aux`（Dark 的 `_evokeVal` / Glass 的 `_passiveVal`）；`OrbCount`、`OrbCapacity` | 10 |
+| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。充能球另有两个战斗长计数器：`LightningChannels`（Voltaic 的闪电充能数，导入原版历史）与 `OrbChannels`（预测历史中的充能次数，对应 1000 次安全上限）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`DampenCasterMask` 是 MagiKnight 对玩家施加 DampenPower 的施法者位集合（按敌人 owner 下标一位一个） | 48 |
 | Rng | 九条战斗 RNG：计数器加四个 64 位状态字 | 9 |
 
 ### 2.1 FlashCard
@@ -66,6 +65,7 @@
 - `FlashEnemy.Slot` 是遭遇槽下标（`FlashRules.EncounterSlots` 的顺序），没有槽名时为 255。名单（`Roster`）按槽下标稳定升序，255 视作 -1 排在有名字的槽位之前；名单顺序就是 Hook 监听与敌方行动顺序。
 - `FlashEnemyFlags.PerformedMoveThisRound`、`ForcedMustPerformAfterMove` 与 `ActingThisRound` 只在敌方回合内部使用，任何稳定边界上都为 0。
 - `FlashEnemy.ForcedMove` 是合成 STUNNED 或 REVIVE_MOVE 节点的动态后继（原版 `MoveState("STUNNED"/"REVIVE_MOVE").FollowUpStateId`），当前节点不是这两个合成节点时恒为 255。布局不因此改变。
+- `FlashOrb.Aux` 是球唯一的私有整数：DarkOrb 的 `_evokeVal`（初始 6，被动累加）或 GlassOrb 的 `_passiveVal`（初始 4，被动后递减）；Lightning/Frost/Plasma 恒为 0。导入时要求它是可表示的整数；未用槽位清零。球的顺序就是 `OrbQueue.Orbs` 的顺序，容量来自 `SimOrbQueue.Capacity`。
 - `FlashBattle.NextCombatId` 是旧引擎的 `_nextCreatureId`；生成敌人时先取当前值再递增。
 - 怪物行动日志存"曾经用过的行动位集"加最近 8 条；原版重复规则只读这两部分。冷却或连续次数超出 8 的状态机在运行时抛 `FlashUnsupportedException`。
 - 生成候选池、随机药水池与按原卡展开的变化池只存在 `FlashRules`（根冻结、非分支状态）。生成选项（Discovery/Splash）只存在栈上的 `FlashChoiceRequest.GeneratedOptions`，不进入 `FlashBattle`；需要选择时整个动作从父状态重执行。
@@ -97,6 +97,6 @@
 
 ## 6. 尺寸预算
 
-`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，新增 `DampenOriginalUpgrade`），`FlashBattle` 实测 12000 字节。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 307 ns、`copyStep` 约 1.85 µs。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充。`FlashOrb` 为 8 字节（`Id` + `Aux`），DF 没有改变它的大小。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，新增 `DampenOriginalUpgrade`），`FlashBattle` 实测 12000 字节。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 307 ns、`copyStep` 约 1.85 µs。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
 
 Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。

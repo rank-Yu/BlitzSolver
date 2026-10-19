@@ -70,9 +70,10 @@ public static partial class FlashKernel
                 break;
             if (targeting == FlashAttackTargeting.Random)
             {
-                // Random attacks without duplicates are not supported yet.
-                int pick = x.B.RngStream(FlashRngStream.CombatTargets).NextInt(0, count);
-                targets[0] = targets[pick];
+                // DamageCmd's TargetingRandomOpponents defaults to allowDuplicates: true; every
+                // vanilla random-target attack uses that default, so each hit picks among all living
+                // enemies and consumes one CombatTargets draw.
+                targets[0] = targets[x.B.RngStream(FlashRngStream.CombatTargets).NextInt(0, count)];
                 count = 1;
             }
             Damage(ref x, targets[..count], damagePerHit, props, attacker, hasCardSource: true, x.Card);
@@ -385,6 +386,8 @@ public static partial class FlashKernel
     private static void HandlePlayerDeath(ref FlashExec x)
     {
         RemovePowersOf(ref x.B, FlashLimits.PlayerOwner);
+        // CreatureCmd's player-death cleanup calls OrbQueue.Clear(), which also drops the capacity.
+        x.B.OrbCapacity = 0;
         x.B.OrbCount = 0;
         for (int index = 0; index < FlashLimits.Orbs; index++)
             x.B.Orbs[index] = default;

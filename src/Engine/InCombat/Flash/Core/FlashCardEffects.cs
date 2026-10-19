@@ -224,9 +224,9 @@ public static class FlashCardEffects
     /// filter applied first). Cards are created at upgrade 0 by <see cref="FlashKernel.CreateCard"/>.
     /// </summary>
     public static int SampleCharacterCardsOfType(ref FlashBattle battle, FlashRules rules, FlashCardType type,
-        int count, Span<FlashCard> selected)
+        int count, Span<FlashCard> selected, string poolKey = FlashCardPools.CharacterAll)
     {
-        FlashCardPool pool = rules.CardPool(FlashCardPools.CharacterAll);
+        FlashCardPool pool = rules.CardPool(poolKey);
         if (pool.Cards.Length == 0)
             return 0;
         if (count > 0 && selected.Length < count)
@@ -254,6 +254,155 @@ public static class FlashCardEffects
             selected[index] = FlashKernel.CreateCard(rules, order[index]);
         return take;
     }
+
+    /// <summary>Number of cards in every non-exhaust pile whose canonical type is Status (FlakCannon).</summary>
+    public static int CountStatusCards(in FlashBattle battle, FlashRules rules)
+    {
+        int count = 0;
+        for (int position = 0; position < battle.CardCount; position++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[position];
+            if (rules.Card(card.Id, card.Upgrade).Type == FlashCardType.Status)
+                count++;
+        }
+        // The exhaust pile is included in CardCount but excluded from the native AllCards filter.
+        for (int position = 0; position < battle.ExhaustCount; position++)
+        {
+            int absolute = FlashPiles.Start(battle, FlashPile.Exhaust) + position;
+            if (rules.Card(battle.Cards[absolute].Id, battle.Cards[absolute].Upgrade).Type == FlashCardType.Status)
+                count--;
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Exhausts every Status card outside the exhaust pile in <c>AllCards</c> order
+    /// (Hand, Draw, Discard, Play), like FlakCannon's <c>GetStatuses</c> + <c>CardCmd.Exhaust</c>.
+    /// The values are snapshotted and relocated by (value, occurrence) because exhaust hooks may move
+    /// cards.
+    /// </summary>
+    public static void ExhaustAllStatusCards(ref FlashExec x)
+    {
+        Span<FlashCard> cards = stackalloc FlashCard[FlashLimits.Cards];
+        Span<byte> sourcePile = stackalloc byte[FlashLimits.Cards];
+        int count = 0;
+        ReadOnlySpan<FlashPile> piles = [FlashPile.Hand, FlashPile.Draw, FlashPile.Discard, FlashPile.Play];
+        for (int pileIndex = 0; pileIndex < piles.Length; pileIndex++)
+        {
+            FlashPile pile = piles[pileIndex];
+            int start = FlashPiles.Start(x.B, pile);
+            int pileCount = FlashPiles.Count(x.B, pile);
+            for (int offset = 0; offset < pileCount; offset++)
+            {
+                FlashCard card = x.B.Cards[start + offset];
+                if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Status)
+                    continue;
+                cards[count] = card;
+                sourcePile[count] = checked((byte)pileIndex);
+                count++;
+            }
+        }
+        for (int item = 0; item < count; item++)
+        {
+            // Equal status cards are interchangeable, so locating the first equal card in the recorded
+            // pile preserves the value sequence even when an earlier equal card was removed first.
+            bool found = false;
+            FlashPile pile = piles[sourcePile[item]];
+            if (TryExhaustFirstEqual(ref x, pile, cards[item]))
+            {
+                found = true;
+            }
+            else
+            {
+                foreach (FlashPile fallback in piles)
+                {
+                    if (!TryExhaustFirstEqual(ref x, fallback, cards[item]))
+                        continue;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                throw new FlashUnsupportedException("主动消耗前一状态牌离开了战斗牌堆。");
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    private static bool TryExhaustFirstEqual(ref FlashExec x, FlashPile pile, in FlashCard card)
+    {
+        int start = FlashPiles.Start(x.B, pile);
+        int count = FlashPiles.Count(x.B, pile);
+        for (int offset = 0; offset < count; offset++)
+        {
+            if (!Equal(x.B.Cards[start + offset], card))
+                continue;
+            FlashKernel.Exhaust(ref x, pile, offset);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Discards cards that were just drawn, by value and per-pile occurrence, mirroring
+    /// <c>Simulator.Discard(IReadOnlyList&lt;PredictedCard&gt;)</c> (the card is located wherever it
+    /// currently is; a draw hook may have moved it).
+    /// </summary>
+    public static void DiscardCards(ref FlashExec x, scoped ReadOnlySpan<FlashCard> cards)
+    {
+        if (FlashKernel.IsOverOrEnding(x.B))
+            return;
+        ReadOnlySpan<FlashPile> piles = [FlashPile.Hand, FlashPile.Draw, FlashPile.Discard, FlashPile.Exhaust, FlashPile.Play];
+        foreach (FlashCard card in cards)
+        {
+            foreach (FlashPile pile in piles)
+            {
+                int start = FlashPiles.Start(x.B, pile);
+                int pileCount = FlashPiles.Count(x.B, pile);
+                int found = -1;
+                for (int offset = 0; offset < pileCount; offset++)
+                {
+                    if (!Equal(x.B.Cards[start + offset], card))
+                        continue;
+                    found = offset;
+                    break;
+                }
+                if (found < 0)
+                    continue;
+                FlashKernel.Discard(ref x, pile, found);
+                if (x.NeedsChoice)
+                    return;
+                break;
+            }
+        }
+    }
+
+    /// <summary>Moves the whole hand to the bottom of the draw pile in hand order (Reboot).</summary>
+    public static void MoveHandToDraw(ref FlashExec x)
+    {
+        int handCount = x.B.HandCount;
+        Span<FlashCard> hand = stackalloc FlashCard[handCount];
+        FlashPiles.ReadCards(x.B, FlashPile.Hand).CopyTo(hand);
+        foreach (FlashCard card in hand)
+        {
+            int start = FlashPiles.Start(x.B, FlashPile.Hand);
+            int index = -1;
+            for (int offset = 0; offset < x.B.HandCount; offset++)
+            {
+                if (Equal(x.B.Cards[start + offset], card))
+                {
+                    index = offset;
+                    break;
+                }
+            }
+            if (index < 0)
+                throw new FlashUnsupportedException("移动手牌时目标牌已不在手牌。");
+            if (!FlashKernel.MoveCard(ref x.B, FlashPile.Hand, index, FlashPile.Draw))
+                return;
+        }
+    }
+
+    internal static bool Equal(in FlashCard left, in FlashCard right) => FlashFingerprint.Equal(left, right);
 
     /// <summary>
     /// One hit on a random hittable enemy, mirroring <c>Rng.CombatTargets.NextItem(HittableEnemies)</c>:

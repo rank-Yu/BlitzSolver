@@ -212,7 +212,7 @@ public sealed class PhrogParasite : FlashMonsterDef
         for (int index = 0; index < 3; index++)
         {
             FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Infection>()), FlashPile.Discard);
+                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Infection>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
         }
     }
 }
@@ -257,7 +257,7 @@ public sealed class Wriggler : FlashMonsterDef
         if (rules.Nodes[moveNode].NativeId != "WRIGGLE_MOVE")
             return;
         FlashKernel.AddGeneratedCard(ref x,
-            FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Infection>()), FlashPile.Discard);
+            FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Infection>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
         FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
     }
 }
