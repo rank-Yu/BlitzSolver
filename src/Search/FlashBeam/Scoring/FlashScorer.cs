@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using CombatSolver.Engine.InCombat.Flash;
 
 namespace CombatSolver.FlashBeam;
@@ -110,7 +111,7 @@ internal sealed class FlashScorer
     /// <see cref="BranchCardValue"/> (including the enchanted replay multiplier), and the exact
     /// <see cref="ReachableHandValue"/> knapsack is fed the player's current energy and stars.
     /// </summary>
-    private (int Value, int ZeroCostPlayableCount) ReachableHandPotential(in FlashBattle battle)
+    internal (int Value, int ZeroCostPlayableCount) ReachableHandPotential(in FlashBattle battle)
     {
         Span<(int Energy, int Stars, int Value)> playable = battle.HandCount <= 64
             ? stackalloc (int, int, int)[battle.HandCount]
@@ -120,12 +121,12 @@ internal sealed class FlashScorer
         for (int index = 0; index < battle.HandCount; index++)
         {
             ref readonly FlashCard card = ref battle.Cards[index];
-            if (!FlashKernel.CanPlayCard(battle, Rules, index))
+            // CanPlayCard computes the same effective hand costs; reuse them instead of running the
+            // energy/star cost hook dispatch a second time for the same card and pile.
+            if (!FlashKernel.CanPlayCard(battle, Rules, index, out int energyCost, out int starCost))
                 continue;
-            int energyCost = Math.Max(0,
-                FlashKernel.EnergyCostWithModifiers(battle, Rules, card, FlashPile.Hand));
-            int starCost = Math.Max(0,
-                FlashKernel.StarCostWithModifiers(battle, Rules, card, FlashPile.Hand));
+            energyCost = Math.Max(0, energyCost);
+            starCost = Math.Max(0, starCost);
             FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
             FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
             double cardValue = BranchCardValue(battle, card, stats, cardScore)
@@ -153,12 +154,13 @@ internal sealed class FlashScorer
         return count;
     }
 
+    private static readonly FlashPile[] LivePiles = [FlashPile.Discard, FlashPile.Draw, FlashPile.Hand];
+
     /// <summary><c>liveCards.Count(card => card.Preview is Soul)</c> over Discard, Draw and Hand.</summary>
     private int CountLiveSoulCards(in FlashBattle battle)
     {
         int count = 0;
-        FlashPile[] piles = [FlashPile.Discard, FlashPile.Draw, FlashPile.Hand];
-        foreach (FlashPile pile in piles)
+        foreach (FlashPile pile in LivePiles)
         {
             int start = FlashPiles.Start(battle, pile);
             int size = FlashPiles.Count(battle, pile);
@@ -191,8 +193,7 @@ internal sealed class FlashScorer
     private int CountLiveOstyAttackCards(in FlashBattle battle)
     {
         int count = 0;
-        FlashPile[] piles = [FlashPile.Discard, FlashPile.Draw, FlashPile.Hand];
-        foreach (FlashPile pile in piles)
+        foreach (FlashPile pile in LivePiles)
         {
             int start = FlashPiles.Start(battle, pile);
             int size = FlashPiles.Count(battle, pile);
@@ -260,10 +261,17 @@ internal sealed class FlashScorer
     // ---------------------------------------------------------------------------------------------
     // Snapshot.
 
-    public FlashScoreFeatures Features(in FlashBattle battle, int actionCount)
-        => Evaluate(battle, actionCount);
+    /// <param name="includeRetentionOnly">
+    /// When false, the two values read only by the retention comparators
+    /// (<see cref="FlashScoreFeatures.ReachableHandValue"/> and
+    /// <see cref="FlashScoreFeatures.ZeroCostPlayableCount"/>) are left at zero. The solver computes
+    /// them when a state actually enters a retention pool; the K4 differential calls the default
+    /// (true) and keeps checking every field.
+    /// </param>
+    public FlashScoreFeatures Features(in FlashBattle battle, int actionCount, bool includeRetentionOnly = true)
+        => Evaluate(battle, actionCount, includeRetentionOnly);
 
-    private FlashScoreFeatures Evaluate(in FlashBattle battle, int actionCount)
+    private FlashScoreFeatures Evaluate(in FlashBattle battle, int actionCount, bool includeRetentionOnly)
     {
         int enemyHp = 0, enemyBlock = 0, rawEnemyHp = 0, maxCurrentEnemyHp = 0;
         int revivingEnemyCount = 0, aliveEnemyCount = 0;
@@ -527,7 +535,10 @@ internal sealed class FlashScorer
         int replayPotentialValue = ReplayPotentialValue(battle);
         // CombatBeamSolver.StateEvaluation.CalculateReachableHandPotential reads the same playable
         // hand costs/values and feeds them to ReachableHandValue.Calculate.
-        (int reachableHandValue, int zeroCostPlayableCount) = ReachableHandPotential(battle);
+        int reachableHandValue = 0;
+        int zeroCostPlayableCount = 0;
+        if (includeRetentionOnly)
+            (reachableHandValue, zeroCostPlayableCount) = ReachableHandPotential(battle);
         int strategicRetentionValue = strategicEffects.RetentionValue;
 
         int retainedHandValue = 0;
@@ -860,27 +871,33 @@ internal sealed class FlashScorer
 
     private ThreatProjection ProjectHpAfterThreat(in FlashBattle battle)
     {
-        FlashBattle probe = battle;
         // CombatBeamSolver.ProjectHpAfterThreat walks the run-listener table, which still contains the
         // player's relics and cards after the player dies; Flash's PlayerHooksActive flag only gates the
-        // combat dispatch. The projection is read-only and must include those modifiers (Tungsten Rod's
-        // per-hit reduction is the visible case) even on a dead snapshot.
+        // combat dispatch. The projection must include those modifiers (Tungsten Rod's per-hit reduction
+        // is the visible case) even on a dead snapshot, and it consumes Buffer stacks, so it runs on a
+        // local copy: the evaluated state stays read-only through the `in` parameter.
+        FlashBattle probe = battle;
         probe.Flags |= FlashBattleFlags.PlayerHooksActive;
+        return ProjectHpAfterThreatCore(ref probe);
+    }
+
+    private ThreatProjection ProjectHpAfterThreatCore(ref FlashBattle probe)
+    {
         FlashExec x = new(ref probe, Rules, default);
-        int hp = battle.Player.CurrentHp;
-        int block = battle.Player.Block;
+        int hp = probe.Player.CurrentHp;
+        int block = probe.Player.Block;
         int originalBlock = block;
         // CombatBeamSolver.ProjectHpAfterThreat: a one-stack Sandpit targeting this player expires at
         // the enemy side turn start and force-kills the player before the attack intent. Block and
         // one-shot death saves cannot make standing pat survive that boundary.
         if (_score.SandpitPowerId != ushort.MaxValue)
         {
-            for (int index = 0; index < battle.PowerCount; index++)
+            for (int index = 0; index < probe.PowerCount; index++)
             {
-                ref readonly FlashPower power = ref battle.Powers[index];
+                ref readonly FlashPower power = ref probe.Powers[index];
                 if (power.Id == _score.SandpitPowerId && power.Amount == 1
                     && power.Target == FlashLimits.PlayerOwner
-                    && battle.Creature(power.Owner).IsAlive)
+                    && probe.Creature(power.Owner).IsAlive)
                 {
                     return new ThreatProjection(0, 0, 0);
                 }
@@ -888,16 +905,16 @@ internal sealed class FlashScorer
         }
         // CombatBeamSolver.ProjectHpAfterThreat's ostyHp: the pet absorbs redirected powered attacks
         // until it dies; the remaining loss spills over to the player.
-        int ostyHp = (battle.Flags & FlashBattleFlags.OstyPresent) != 0 ? battle.Osty.CurrentHp : 0;
-        ProjectedDeathPrevention prevention = new(battle, _score, Rules);
+        int ostyHp = (probe.Flags & FlashBattleFlags.OstyPresent) != 0 ? probe.Osty.CurrentHp : 0;
+        ProjectedDeathPrevention prevention = new(probe, _score, Rules);
         // CombatBeamSolver.ProjectHpAfterThreat's gambitActive latch: the first unblocked damage from a
         // powered attack kills the owner through TheGambitPower, then death prevention may revive it.
         bool gambitActive = _score.TheGambitPowerId != ushort.MaxValue
-            && GetAmount(battle, _score.TheGambitPowerId, FlashLimits.PlayerOwner) > 0;
-        for (int position = 0; position < battle.RosterCount; position++)
+            && GetAmount(probe, _score.TheGambitPowerId, FlashLimits.PlayerOwner) > 0;
+        for (int position = 0; position < probe.RosterCount; position++)
         {
-            ref readonly FlashEnemy enemy = ref battle.Enemies[battle.Roster[position]];
-            byte owner = FlashKernel.EnemyOwner(battle.Roster[position]);
+            ref readonly FlashEnemy enemy = ref probe.Enemies[probe.Roster[position]];
+            byte owner = FlashKernel.EnemyOwner(probe.Roster[position]);
             if (!enemy.Creature.IsAlive)
                 continue;
             if ((enemy.Flags & FlashEnemyFlags.SkipNextMove) != 0)
@@ -917,9 +934,9 @@ internal sealed class FlashScorer
             {
                 FlashMonsterAttack attack = move.Attacks[attackIndex];
                 FlashMonsterDef def = FlashRegistry.Monster(enemy.MonsterId);
-                int baseDamage = def.ModifyAttackDamage(battle, Rules, owner, enemy.Move, attackIndex, attack.BaseDamage);
+                int baseDamage = def.ModifyAttackDamage(probe, Rules, owner, enemy.Move, attackIndex, attack.BaseDamage);
                 int repeats = Math.Max(
-                    def.ModifyAttackRepeats(battle, Rules, owner, enemy.Move, attackIndex, attack.Repeats), 1);
+                    def.ModifyAttackRepeats(probe, Rules, owner, enemy.Move, attackIndex, attack.Repeats), 1);
                 for (int hit = 0; hit < repeats; hit++)
                 {
                     ProjectThreatHit(ref x, owner, baseDamage, ref ostyHp, ref block, ref hp, ref gambitActive, ref prevention);
@@ -1109,11 +1126,16 @@ internal sealed class FlashScorer
         int remaining = Math.Max(0, battle.Player.Block - consumed);
         if (remaining == 0)
             return consumed;
-        FlashBattle probe = battle;
-        FlashExec x = new(ref probe, Rules, default);
+        // ShouldClearBlock and BlockAfterPreventingClear are pure queries in every registered definition
+        // (Calipers only reads its relic var; Barricade/Blur/Hive read owner equality; no implementation
+        // writes x.B), and the FlashExec constructor only stores fields. The query therefore runs on the
+        // read-only state without a 12 KiB copy; this is the only place a FlashExec wraps a battle that is
+        // still reachable through an `in` parameter, and it performs no write.
+        ref FlashBattle state = ref Unsafe.AsRef(in battle);
+        FlashExec x = new(ref state, Rules, default);
         if (ShouldClearBlock(ref x, FlashLimits.PlayerOwner, out FlashListener preventer))
             return consumed;
-        int retained = FlashHooks.Definition(probe, preventer)
+        int retained = FlashHooks.Definition(state, preventer)
             .BlockAfterPreventingClear(ref x, preventer, FlashLimits.PlayerOwner, remaining);
         return consumed + Math.Min(Math.Max(0, retained), Math.Max(0, battle.Player.MaxHp));
     }

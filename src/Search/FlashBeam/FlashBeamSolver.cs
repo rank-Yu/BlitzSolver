@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using CombatSolver.Engine.InCombat.Flash;
 
 namespace CombatSolver.FlashBeam;
@@ -220,8 +222,6 @@ internal sealed class FlashBeamSolver
         Stopwatch watch = Stopwatch.StartNew();
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
-        _nodes.Clear();
-        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1));
         int width = Math.Max(1, _options.BeamWidth);
         // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended are bounded
         // by every kept state expanding every legal action, but a layer holds width x (actual legal actions),
@@ -229,10 +229,12 @@ internal sealed class FlashBeamSolver
         int maxChildren = checked(width * (FlashKernel.MaxLegalActions + 1));
         int initialChildren = Math.Min(maxChildren, Math.Max(64, width * 8));
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
-        Pool current = new(width, width, preserveTheft);
-        Pool next = new(initialChildren, maxChildren, preserveTheft);
-        Pool ended = new(initialChildren, maxChildren, preserveTheft);
-        Pool turnFrontier = new(width, width, preserveTheft);
+        Pool current = new(width, width, preserveTheft, _scorer);
+        Pool next = new(initialChildren, maxChildren, preserveTheft, _scorer);
+        Pool ended = new(initialChildren, maxChildren, preserveTheft, _scorer);
+        Pool turnFrontier = new(width, width, preserveTheft, _scorer);
+        _nodes.Clear();
+        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1));
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -262,7 +264,7 @@ internal sealed class FlashBeamSolver
         void ConsiderTerminal(in FlashBattle state, int node, double score)
         {
             int actionCount = Depth(node);
-            FlashScoreFeatures features = _scorer.Features(state, actionCount);
+            FlashScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
             RouteKey key = Key(state, features, actionCount);
             ConsiderCandidate(state, node, features, key);
             if (!features.AllEnemiesDead)
@@ -284,9 +286,13 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        (double rootScore, double rootRank, int rootPotionCost, RetentionFacts rootFacts) =
+        (double rootScore, double rootRank, int rootPotionCost, FlashScoreFeatures rootFeatures) =
             Score(root, _options.InitialActionCount);
+        (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
+        RetentionFacts rootFacts = RetentionFacts.From(
+            rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
         turnFrontier.Add(root, 0, rootScore, rootRank, rootPotionCost, rootFacts, -1);
+        TerminalSink terminal = ConsiderTerminal;
         int turns = 0;
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch) && !hpTargetReached)
         {
@@ -308,7 +314,7 @@ internal sealed class FlashBeamSolver
                     {
                         if (_actions[actionIndex].Kind == FlashActionKind.UsePotion && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
                             continue;
-                        ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, ConsiderTerminal);
+                        ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, terminal);
                     }
                 }
                 current.Clear();
@@ -334,7 +340,7 @@ internal sealed class FlashBeamSolver
                 int node = turnFrontier.Node(index);
                 int actionCount = Depth(node);
                 ref FlashBattle state = ref turnFrontier.State(index);
-                FlashScoreFeatures features = _scorer.Features(state, actionCount);
+                FlashScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
                 ConsiderCandidate(state, node, features, Key(state, features, actionCount));
             }
             if (SelectAudited(out int auditedNode, out RouteKey auditedKey, out bool auditedVictory, out bool auditedDefeat))
@@ -344,7 +350,7 @@ internal sealed class FlashBeamSolver
                 bestVictory = auditedVictory;
                 bestDefeat = auditedDefeat;
             }
-            return new FlashBeamResult(_auditPotionPolicy && best is null ? [] : Route(bestNode),
+            FlashBeamResult audited = new(_auditPotionPolicy && best is null ? [] : Route(bestNode),
                 bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
                 _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
             {
@@ -352,6 +358,7 @@ internal sealed class FlashBeamSolver
                 SmartPotionPruned = _smartPruned,
                 PotionPolicySatisfied = best is not null,
             };
+            return audited;
         }
 
         // Without a victory, the surviving turn-start states compete with the terminal routes under the
@@ -363,15 +370,18 @@ internal sealed class FlashBeamSolver
                 int node = turnFrontier.Node(index);
                 int actionCount = Depth(node);
                 ref FlashBattle state = ref turnFrontier.State(index);
-                Consider(state, node, Key(state, _scorer.Features(state, actionCount), actionCount));
+                Consider(state, node, Key(state,
+                    _scorer.Features(state, actionCount, includeRetentionOnly: false), actionCount));
             }
         }
-        return new FlashBeamResult(Route(bestNode), bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
+        FlashBeamResult result = new(Route(bestNode), bestVictory, bestDefeat,
+            best?.Score ?? double.NegativeInfinity,
             _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
         {
             CapacityPruned = _capacityPruned,
             SmartPotionPruned = _smartPruned,
         };
+        return result;
     }
 
     private void ConsiderAudited(int node, in FlashScoreFeatures features, in RouteKey key)
@@ -690,15 +700,17 @@ internal sealed class FlashBeamSolver
         // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
         int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
         _nodes.Add((parentNode, depth, action, lineage));
-        (double score, double rank, int potionCost, RetentionFacts facts) = Score(child, depth);
+        (double score, double rank, int potionCost, FlashScoreFeatures features) = Score(child, depth);
         if (!FlashKernel.IsInProgress(child))
         {
             terminal(child, node, score);
             return;
         }
+        // The retention-only hand values are computed by the pool only when the state is actually
+        // stored (a duplicate keeps its existing values); a terminal state never needs them.
         bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
-            ? ended.Add(child, node, score, rank, potionCost, facts, lineage)
-            : next.CommitReserved(node, score, rank, potionCost, facts, lineage);
+            ? ended.AddScored(child, node, score, rank, potionCost, features, depth, lineage)
+            : next.CommitReserved(node, score, rank, potionCost, features, depth, lineage);
         if (!added)
             _duplicates++;
     }
@@ -845,13 +857,16 @@ internal sealed class FlashBeamSolver
     /// spent. The potion term is Flash-specific: the existing snapshot score does not include potion cost,
     /// so without it the beam would spend potions for free.
     /// </summary>
-    private (double Score, double Rank, int PotionCost, RetentionFacts Facts) Score(in FlashBattle battle, int actionCount)
+    private (double Score, double Rank, int PotionCost, FlashScoreFeatures Features) Score(
+        in FlashBattle battle, int actionCount)
     {
-        FlashScoreFeatures features = _scorer.Features(battle, actionCount);
+        // ReachableHandValue / ZeroCostPlayableCount feed only the retention comparators, not Score,
+        // BeamRankScore or RouteKey. The retention pool computes them when a state is stored, which
+        // skips duplicate and terminal children.
+        FlashScoreFeatures features = _scorer.Features(battle, actionCount, includeRetentionOnly: false);
         double rank = _scorer.BeamRankScore(features)
             - UsedPotionCost(battle) * SolverWeights.Hp;
-        return (features.Score, rank, features.ExplicitPotionStrategicCost,
-            RetentionFacts.From(features, actionCount));
+        return (features.Score, rank, features.ExplicitPotionStrategicCost, features);
     }
 
     /// <summary>A slot still holds its root potion and the policy offers it now.</summary>
@@ -951,7 +966,8 @@ internal sealed class FlashBeamSolver
         int OutstandingStolenResource,
         double Score)
     {
-        public static RetentionFacts From(in FlashScoreFeatures features, int depth) => new(
+        public static RetentionFacts From(in FlashScoreFeatures features, int depth,
+            int reachableHandValue, int zeroCostPlayableCount) => new(
             depth,
             features.PotionUseCount,
             features.ProjectedPlayerHp,
@@ -966,7 +982,7 @@ internal sealed class FlashBeamSolver
             features.RetainedAttackValue,
             features.StrategicRetentionValue,
             SetupLane(features),
-            SetupCombo(features),
+            SetupCombo(features, reachableHandValue),
             features.LiveDeckSize,
             features.LiveDeckClutter,
             (long)features.RetainedAttackValue * 1024 / Math.Max(1, features.LiveDeckSize),
@@ -985,8 +1001,8 @@ internal sealed class FlashBeamSolver
             features.Energy,
             features.Stars,
             features.HandCount,
-            features.ReachableHandValue,
-            features.ZeroCostPlayableCount,
+            reachableHandValue,
+            zeroCostPlayableCount,
             features.FutureResourceValue,
             features.LatentSetupValue,
             features.ReplayPotentialValue,
@@ -1011,7 +1027,7 @@ internal sealed class FlashBeamSolver
         /// BeamRetentionPolicy.Ranking.cs). Every term is the existing formula; the resource lane's
         /// Stars and ReachableHandValue and the control lane's SandpitRemaining are K4-checked.
         /// </summary>
-        private static int SetupCombo(in FlashScoreFeatures features)
+        private static int SetupCombo(in FlashScoreFeatures features, int reachableHandValue)
             => features.StrategicRetentionValue * 16
                 + features.LatentSetupValue * 8
                 + features.ReplayPotentialValue * 16
@@ -1020,7 +1036,7 @@ internal sealed class FlashBeamSolver
                 + features.Energy * 16
                 + features.Stars * 8
                 + features.HandCount
-                + features.ReachableHandValue
+                + reachableHandValue
                 + features.FutureResourceValue
                 + features.OstyHp * 16
                 + features.OstyMaxHp * 4
@@ -1319,13 +1335,14 @@ internal sealed class FlashBeamSolver
         private readonly List<(int Potion, PersistentSetupTraits Traits)> _traitOrder = new();
         private readonly Dictionary<(int Potion, uint? Target), FocusLeaders> _focusLeaders = new();
         private readonly List<(int Potion, uint? Target)> _focusOrder = new();
-
+        private readonly FlashScorer _scorer;
         private readonly bool _preserveTheft;
 
-        public Pool(int initialCapacity, int maxCapacity, bool preserveTheft)
+        public Pool(int initialCapacity, int maxCapacity, bool preserveTheft, FlashScorer scorer)
         {
             _maxCapacity = maxCapacity;
             _preserveTheft = preserveTheft;
+            _scorer = scorer;
             int capacity = Math.Clamp(initialCapacity, 1, maxCapacity);
             _states = new FlashBattle[capacity];
             _nodes = new int[capacity];
@@ -1437,17 +1454,25 @@ internal sealed class FlashBeamSolver
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
         public bool CommitReserved(int node, double score, double rank, int potionCost,
-            in RetentionFacts facts, int lineage)
-            => Insert(ref _states[Count], reserved: true, node, score, rank, potionCost, facts, lineage);
+            in FlashScoreFeatures features, int depth, int lineage)
+            => Insert(ref _states[Count], reserved: true, node, score, rank, potionCost,
+                features, default, factsReady: false, depth, lineage);
 
-        /// <summary>Adds a state; returns false when an identical state was already present.</summary>
+        /// <summary>Adds a scored state and computes its retention-only values when it is stored.</summary>
+        public bool AddScored(in FlashBattle state, int node, double score, double rank, int potionCost,
+            in FlashScoreFeatures features, int depth, int lineage)
+            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false,
+                node, score, rank, potionCost, features, default, factsReady: false, depth, lineage);
+
+        /// <summary>Adds a state whose retention facts are already computed (pool-to-pool copies).</summary>
         public bool Add(in FlashBattle state, int node, double score, double rank, int potionCost,
             in RetentionFacts facts, int lineage)
             => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false,
-                node, score, rank, potionCost, facts, lineage);
+                node, score, rank, potionCost, default, facts, factsReady: true, facts.Depth, lineage);
 
         private bool Insert(ref FlashBattle state, bool reserved, int node, double score, double rank,
-            int potionCost, in RetentionFacts facts, int lineage)
+            int potionCost, in FlashScoreFeatures features, in RetentionFacts knownFacts, bool factsReady,
+            int depth, int lineage)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -1463,12 +1488,25 @@ internal sealed class FlashBeamSolver
                         _ranks[existing] = rank;
                         _nodes[existing] = node;
                         _potionCosts[existing] = potionCost;
-                        _facts[existing] = facts;
+                        _facts[existing] = factsReady
+                            ? knownFacts
+                            // The byte-identical state has the same retention-only hand values; only
+                            // the depth-dependent fields move with the better-ranked representative.
+                            : RetentionFacts.From(features, depth,
+                                _facts[existing].ReachableHandValue, _facts[existing].ZeroCostPlayableCount);
                         _lineages[existing] = lineage;
                     }
                     return false;
                 }
                 slot = (slot + 1) & mask;
+            }
+            RetentionFacts facts = knownFacts;
+            if (!factsReady)
+            {
+                (int reachableHandValue, int zeroCostPlayableCount) =
+                    _scorer.ReachableHandPotential(state);
+                facts = RetentionFacts.From(
+                    features, depth, reachableHandValue, zeroCostPlayableCount);
             }
             if (Count >= _states.Length)
             {
@@ -1561,7 +1599,7 @@ internal sealed class FlashBeamSolver
                 selected[replaceIndex] = source;
                 _taken[source] = true;
             }
-            selected.Sort((left, right) => _rankPosition[left].CompareTo(_rankPosition[right]));
+            CollectionsMarshal.AsSpan(selected).Sort(new RankPositionComparer(_rankPosition));
             for (int index = 0; index < selected.Count; index++)
             {
                 int source = selected[index];
@@ -1828,8 +1866,7 @@ internal sealed class FlashBeamSolver
             // …) keep their defensive and setup leaders; the group limit is max(4, width / 6).
             foreach ((int Potion, PersistentSetupTraits Traits) key in _traitLeaders.Keys)
                 _traitOrder.Add(key);
-            _traitOrder.Sort((left, right) => _traitLeaders[left].Position
-                .CompareTo(_traitLeaders[right].Position));
+            CollectionsMarshal.AsSpan(_traitOrder).Sort(new TraitOrderComparer(_traitLeaders));
             int traitLimit = Math.Max(4, width / 6);
             for (int index = 0; index < _traitOrder.Count && index < traitLimit; index++)
             {
@@ -1842,15 +1879,7 @@ internal sealed class FlashBeamSolver
             // potion group) keep their pressure and target-setup leaders.
             foreach ((int Potion, uint? Target) key in _focusLeaders.Keys)
                 _focusOrder.Add(key);
-            _focusOrder.Sort((left, right) =>
-            {
-                FocusLeaders leftLeader = _focusLeaders[left];
-                FocusLeaders rightLeader = _focusLeaders[right];
-                int comparison = rightLeader.MaxPressure.CompareTo(leftLeader.MaxPressure);
-                return comparison != 0
-                    ? comparison
-                    : leftLeader.Position.CompareTo(rightLeader.Position);
-            });
+            CollectionsMarshal.AsSpan(_focusOrder).Sort(new FocusOrderComparer(_focusLeaders));
             int focusLimit = Math.Clamp(width / 10, 2, 4);
             for (int index = 0; index < _focusOrder.Count && index < focusLimit; index++)
             {
@@ -1885,8 +1914,7 @@ internal sealed class FlashBeamSolver
             _lineageOrder.Clear();
             foreach (int key in _lineageLeaders.Keys)
                 _lineageOrder.Add(key);
-            _lineageOrder.Sort((left, right) => _rankPosition[_lineageLeaders[left].Leader]
-                .CompareTo(_rankPosition[_lineageLeaders[right].Leader]));
+            CollectionsMarshal.AsSpan(_lineageOrder).Sort(new LineageOrderComparer(_lineageLeaders, _rankPosition));
             int lineageLimit = Math.Clamp(width / 8, 4, 16);
             for (int index = 0; index < _lineageOrder.Count && index < lineageLimit; index++)
             {
@@ -1914,22 +1942,111 @@ internal sealed class FlashBeamSolver
                         || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
                             && candidate.Score > current.Score);
 
-        private void SortByRank(int count)
+        private readonly struct RankOrderComparer : IComparer<int>
         {
-            double[] ranks = _ranks;
-            RetentionFacts[] facts = _facts;
-            Array.Sort(_order, 0, count, Comparer<int>.Create((left, right) =>
+            private readonly double[] _ranks;
+            private readonly RetentionFacts[] _facts;
+
+            public RankOrderComparer(double[] ranks, RetentionFacts[] facts)
+            {
+                _ranks = ranks;
+                _facts = facts;
+            }
+
+            public int Compare(int left, int right)
             {
                 // CombatBeamSolver.CompareBeamRankOrder: rank, then fewer actions, then offensive progress.
-                int comparison = ranks[right].CompareTo(ranks[left]);
+                int comparison = _ranks[right].CompareTo(_ranks[left]);
                 if (comparison != 0)
                     return comparison;
-                comparison = facts[left].Depth.CompareTo(facts[right].Depth);
+                comparison = _facts[left].Depth.CompareTo(_facts[right].Depth);
                 if (comparison != 0)
                     return comparison;
-                comparison = facts[right].OffensiveProgressValue.CompareTo(facts[left].OffensiveProgressValue);
+                comparison = _facts[right].OffensiveProgressValue.CompareTo(_facts[left].OffensiveProgressValue);
                 return comparison != 0 ? comparison : left.CompareTo(right);
-            }));
+            }
+        }
+
+        private readonly struct EnemyHpOrderComparer : IComparer<int>
+        {
+            private readonly RetentionFacts[] _facts;
+            private readonly int[] _rankPosition;
+
+            public EnemyHpOrderComparer(RetentionFacts[] facts, int[] rankPosition)
+            {
+                _facts = facts;
+                _rankPosition = rankPosition;
+            }
+
+            public int Compare(int left, int right)
+            {
+                int comparison = _facts[left].EnemyHp.CompareTo(_facts[right].EnemyHp);
+                return comparison != 0
+                    ? comparison
+                    : _rankPosition[left].CompareTo(_rankPosition[right]);
+            }
+        }
+
+        private readonly struct RankPositionComparer : IComparer<int>
+        {
+            private readonly int[] _rankPosition;
+
+            public RankPositionComparer(int[] rankPosition) => _rankPosition = rankPosition;
+
+            public int Compare(int left, int right) => _rankPosition[left].CompareTo(_rankPosition[right]);
+        }
+
+        private readonly struct TraitOrderComparer
+            : IComparer<(int Potion, PersistentSetupTraits Traits)>
+        {
+            private readonly Dictionary<(int Potion, PersistentSetupTraits Traits), TraitLeaders> _leaders;
+
+            public TraitOrderComparer(
+                Dictionary<(int Potion, PersistentSetupTraits Traits), TraitLeaders> leaders)
+                => _leaders = leaders;
+
+            public int Compare((int Potion, PersistentSetupTraits Traits) left,
+                (int Potion, PersistentSetupTraits Traits) right)
+                => _leaders[left].Position.CompareTo(_leaders[right].Position);
+        }
+
+        private readonly struct FocusOrderComparer : IComparer<(int Potion, uint? Target)>
+        {
+            private readonly Dictionary<(int Potion, uint? Target), FocusLeaders> _leaders;
+
+            public FocusOrderComparer(Dictionary<(int Potion, uint? Target), FocusLeaders> leaders)
+                => _leaders = leaders;
+
+            public int Compare((int Potion, uint? Target) left, (int Potion, uint? Target) right)
+            {
+                FocusLeaders leftLeader = _leaders[left];
+                FocusLeaders rightLeader = _leaders[right];
+                int comparison = rightLeader.MaxPressure.CompareTo(leftLeader.MaxPressure);
+                return comparison != 0
+                    ? comparison
+                    : leftLeader.Position.CompareTo(rightLeader.Position);
+            }
+        }
+
+        private readonly struct LineageOrderComparer : IComparer<int>
+        {
+            private readonly Dictionary<int, LineageLeaders> _leaders;
+            private readonly int[] _rankPosition;
+
+            public LineageOrderComparer(Dictionary<int, LineageLeaders> leaders, int[] rankPosition)
+            {
+                _leaders = leaders;
+                _rankPosition = rankPosition;
+            }
+
+            public int Compare(int left, int right)
+                => _rankPosition[_leaders[left].Leader]
+                    .CompareTo(_rankPosition[_leaders[right].Leader]);
+        }
+
+        private void SortByRank(int count)
+        {
+            _order.AsSpan(0, count).Sort(new RankOrderComparer(_ranks, _facts));
             for (int position = 0; position < count; position++)
             {
                 int source = _order[position];
@@ -1939,16 +2056,6 @@ internal sealed class FlashBeamSolver
         }
 
         private void SortByEnemyHp(int count)
-        {
-            RetentionFacts[] facts = _facts;
-            int[] rankPosition = _rankPosition;
-            Array.Sort(_order, 0, count, Comparer<int>.Create((left, right) =>
-            {
-                int comparison = facts[left].EnemyHp.CompareTo(facts[right].EnemyHp);
-                return comparison != 0
-                    ? comparison
-                    : rankPosition[left].CompareTo(rankPosition[right]);
-            }));
-        }
+            => _order.AsSpan(0, count).Sort(new EnemyHpOrderComparer(_facts, _rankPosition));
     }
 }

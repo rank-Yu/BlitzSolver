@@ -1585,6 +1585,11 @@ public static class FlashRegistry
     /// <summary>Union of the <see cref="FlashHookMaskExt"/> hooks any registered definition overrides.</summary>
     public static FlashHookMaskExt AnyHooksExt => Data.Value.AnyHooksExt;
 
+    /// <summary>Union of the hooks implemented by card, affliction and enchantment definitions.</summary>
+    public static FlashHookMask CardHooks => Data.Value.CardHooks;
+
+    public static FlashHookMaskExt CardHooksExt => Data.Value.CardHooksExt;
+
     public static int PowerCount => Data.Value.Powers.Length;
 
     public static int RelicCount => Data.Value.Relics.Length;
@@ -1684,6 +1689,20 @@ public static class FlashRegistry
         public FlashHookMask AnyHooks { get; } = ByType.Values.Aggregate(FlashHookMask.None, (mask, def) => mask | def.Hooks);
 
         public FlashHookMaskExt AnyHooksExt { get; } = ByType.Values.Aggregate(FlashHookMaskExt.None, (mask, def) => mask | def.HooksExt);
+
+        /// <summary>
+        /// Hooks any card, affliction or enchantment definition can answer. The listener scan only
+        /// visits the card zone when the requested hook intersects this union; the per-card
+        /// <c>Has</c> test would reject every card otherwise.
+        /// </summary>
+        public FlashHookMask CardHooks { get; } = Cards.Aggregate(FlashHookMask.None, (mask, def) => mask | def.Hooks)
+            | Afflictions.Aggregate(FlashHookMask.None, (mask, def) => mask | def.Hooks)
+            | Enchantments.Aggregate(FlashHookMask.None, (mask, def) => mask | def.Hooks);
+
+        public FlashHookMaskExt CardHooksExt { get; } =
+            Cards.Aggregate(FlashHookMaskExt.None, (mask, def) => mask | def.HooksExt)
+            | Afflictions.Aggregate(FlashHookMaskExt.None, (mask, def) => mask | def.HooksExt)
+            | Enchantments.Aggregate(FlashHookMaskExt.None, (mask, def) => mask | def.HooksExt);
     }
 
     private static Tables Build()

@@ -7,7 +7,19 @@ public static partial class FlashKernel
     /// for a card in hand.
     /// </summary>
     public static bool CanPlayCard(in FlashBattle battle, FlashRules rules, int handIndex)
+        => CanPlayCard(battle, rules, handIndex, out _, out _);
+
+    /// <summary>
+    /// Same check, also returning the effective hand costs it computed on the way. The costs are only
+    /// meaningful when the result is true; a false result may return before computing them (the
+    /// Enthralled lock and Unplayable checks run first). Callers that feed the costs to
+    /// <c>ReachableHandValue</c> must not run the energy/star cost hooks a second time.
+    /// </summary>
+    public static bool CanPlayCard(in FlashBattle battle, FlashRules rules, int handIndex,
+        out int energyCost, out int starCost)
     {
+        energyCost = 0;
+        starCost = 0;
         ref readonly FlashCard card = ref battle.Cards[handIndex];
         FlashCardDef def = FlashRegistry.Card(card.Id);
         // SimulatedCombatState.IsCardPlayPrevented: the Enthralled lock. Smog is rejected at admission.
@@ -21,8 +33,8 @@ public static partial class FlashKernel
         }
         if (HasKeyword(battle, card, FlashKeywords.Unplayable))
             return false;
-        int energyCost = EnergyCostWithModifiers(battle, rules, card, FlashPile.Hand);
-        int starCost = StarCostWithModifiers(battle, rules, card, FlashPile.Hand);
+        energyCost = EnergyCostWithModifiers(battle, rules, card, FlashPile.Hand);
+        starCost = StarCostWithModifiers(battle, rules, card, FlashPile.Hand);
         // ShouldPayExcessEnergyCostWithStars has no vanilla listener (Hook.ShouldPayExcessEnergyCostWithStars
         // only observes models, and no model overrides it), so the excess-energy conversion cannot trigger.
         if (energyCost > battle.Energy || starCost > battle.Stars)

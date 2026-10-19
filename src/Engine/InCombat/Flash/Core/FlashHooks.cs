@@ -73,16 +73,22 @@ public static partial class FlashHooks
                 output[count++] = new FlashListener(FlashListenerKind.Orb, (byte)index, FlashLimits.PlayerOwner);
         }
 
-        int total = battle.CardCount;
-        for (int position = 0; position < total; position++)
+        // The per-card Has test cannot match when no card/affliction/enchantment definition answers
+        // this hook; skip the whole card-zone scan in that case (the cost and threat-projection hooks
+        // have no card-side listeners).
+        if ((hook.Main & FlashRegistry.CardHooks) != 0 || (hook.Ext & FlashRegistry.CardHooksExt) != 0)
         {
-            ref readonly FlashCard card = ref battle.Cards[position];
-            if (Has(FlashRegistry.Card(card.Id), hook))
-                output[count++] = new FlashListener(FlashListenerKind.Card, (byte)position, FlashLimits.PlayerOwner);
-            if (card.AfflictionId != 0 && Has(FlashRegistry.Affliction((ushort)(card.AfflictionId - 1)), hook))
-                output[count++] = new FlashListener(FlashListenerKind.Affliction, (byte)position, FlashLimits.PlayerOwner);
-            if (card.EnchantmentId != 0 && Has(FlashRegistry.Enchantment((ushort)(card.EnchantmentId - 1)), hook))
-                output[count++] = new FlashListener(FlashListenerKind.Enchantment, (byte)position, FlashLimits.PlayerOwner);
+            int total = battle.CardCount;
+            for (int position = 0; position < total; position++)
+            {
+                ref readonly FlashCard card = ref battle.Cards[position];
+                if (Has(FlashRegistry.Card(card.Id), hook))
+                    output[count++] = new FlashListener(FlashListenerKind.Card, (byte)position, FlashLimits.PlayerOwner);
+                if (card.AfflictionId != 0 && Has(FlashRegistry.Affliction((ushort)(card.AfflictionId - 1)), hook))
+                    output[count++] = new FlashListener(FlashListenerKind.Affliction, (byte)position, FlashLimits.PlayerOwner);
+                if (card.EnchantmentId != 0 && Has(FlashRegistry.Enchantment((ushort)(card.EnchantmentId - 1)), hook))
+                    output[count++] = new FlashListener(FlashListenerKind.Enchantment, (byte)position, FlashLimits.PlayerOwner);
+            }
         }
         return count;
     }
