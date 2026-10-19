@@ -30,6 +30,18 @@ internal enum FlashStrategicKind : byte
     Thunder,
     LightningRod,
 
+    /// <summary>Pagestorm under <c>Act3BossInteractions</c>: future ethereal draws.</summary>
+    Pagestorm,
+
+    /// <summary>Danse Macabre under <c>Act3BossInteractions</c>: block from high-energy plays.</summary>
+    DanseMacabre,
+
+    /// <summary>Demesne under <c>Act3BossInteractions</c>: future energy and draws.</summary>
+    Demesne,
+
+    /// <summary>Prep Time under <c>Act3BossInteractions</c>: recurring Vigor damage.</summary>
+    PrepTime,
+
     /// <summary>Automation: recurring energy from drawn cards in the refund window.</summary>
     RecurringEnergy,
 
@@ -160,6 +172,12 @@ internal sealed class FlashCardScore
     /// <summary>The card is a power; <c>CardChoiceSupport.CardValue</c> adds the flat 8.</summary>
     public bool IsPower { get; init; }
 
+    /// <summary>
+    /// <c>CardChoiceSupport</c> gives this played card a primary <c>MoveToHand</c> choice: Hologram,
+    /// Graveblast, Secret Weapon/Technique, Wish, Dredge, Neow's Fury and Seeker Strike.
+    /// </summary>
+    public bool PrimaryMoveToHandChoice { get; init; }
+
     /// <summary>Index of the named variables inside <see cref="FlashCardStats.Vars"/>, or -1.</summary>
     public sbyte DamageVar { get; init; } = -1;
 
@@ -215,6 +233,12 @@ internal sealed class FlashPowerScore
     public bool IsTemporary { get; init; }
 
     public FlashPowerType Type { get; init; }
+
+    /// <summary>
+    /// <c>DanseMacabrePower.DynamicVars.Energy.IntValue</c>: the resolved-cost threshold that turns a
+    /// play into block. Zero for every other power.
+    /// </summary>
+    public int DanseMacabreEnergyThreshold { get; init; }
 }
 
 /// <summary>
@@ -238,6 +262,12 @@ internal sealed class FlashScoreRules
     public required int InitialPlayerMaxHp { get; init; }
 
     public required bool IsActEndingBoss { get; init; }
+
+    /// <summary>
+    /// <c>SearchPolicySnapshot.Act3BossStrategy</c>, frozen at the root. Gates the existing engine's
+    /// three-act boss interaction requirements/evaluation and the first-turn fetched-power commitment.
+    /// </summary>
+    public required bool Act3BossStrategy { get; init; }
 
     /// <summary><c>Profile.BaseScoreOnly</c>: the intermediate rank is the base score alone.</summary>
     public bool BaseScoreOnly { get; init; }
@@ -321,6 +351,15 @@ internal sealed class FlashScoreRules
     public ushort AdaptablePowerId { get; init; } = ushort.MaxValue;
 
     public ushort BodySlamCardId { get; init; } = ushort.MaxValue;
+
+    /// <summary><c>Eradicate</c>: first-attack damage counts every payable hit of the X-cost attack.</summary>
+    public ushort EradicateCardId { get; init; } = ushort.MaxValue;
+
+    /// <summary><c>Fiddle</c>: while unmelted, future Pagestorm bonus draws are blocked.</summary>
+    public ushort FiddleRelicId { get; init; } = ushort.MaxValue;
+
+    /// <summary><c>DropletOfPrecognition</c>: the only potion whose choice effect is <c>MoveToHand</c>.</summary>
+    public ushort DropletOfPrecognitionPotionId { get; init; } = ushort.MaxValue;
 
     public ushort TheHuntCardId { get; init; } = ushort.MaxValue;
 

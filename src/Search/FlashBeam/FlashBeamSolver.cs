@@ -94,6 +94,12 @@ internal sealed record FlashBeamOptions(
     /// same count as the existing solver, which starts counting at the request root.
     /// </summary>
     public int InitialActionCount { get; init; }
+
+    /// <summary>
+    /// <c>SearchPolicySnapshot.Act3BossStrategy</c>. Enables the existing first-turn commitment
+    /// expansion of a fetched, payable power before the layer is ranked.
+    /// </summary>
+    public bool Act3BossStrategy { get; init; }
 }
 
 /// <summary>
@@ -191,6 +197,26 @@ internal sealed class FlashBeamSolver
     private int _pruned;
     private int _smartPruned;
 
+    /// <summary>
+    /// True only on the first completed turn layer when the three-act boss policy is frozen on. The
+    /// existing search expands a fetched, payable power's next decision before ranking that layer
+    /// (<c>CombatBeamSolver.Phases.cs</c>, <c>searchedTurnLayers == 0</c>).
+    /// </summary>
+    private bool _expandFetchedPowers;
+
+    /// <summary>The existing search's HP-target stop, so a commitment batch stops like its parent layer.</summary>
+    private bool _hpTargetReached;
+
+    private CancellationToken _cancellationToken;
+
+    /// <summary>
+    /// Separate action buffer for the commitment expansion: the outer layer loop still iterates its
+    /// own <see cref="_actions"/> span while <see cref="ExpandAction"/> runs.
+    /// </summary>
+    private readonly FlashAction[] _commitmentActions = new FlashAction[FlashKernel.MaxLegalActions];
+
+    private Stopwatch? _solveWatch;
+
     public FlashBeamSolver(FlashRules rules, FlashBeamOptions options)
     {
         _rules = rules;
@@ -220,6 +246,9 @@ internal sealed class FlashBeamSolver
     public FlashBeamResult Solve(in FlashBattle root, CancellationToken cancellationToken)
     {
         Stopwatch watch = Stopwatch.StartNew();
+        _cancellationToken = cancellationToken;
+        _solveWatch = watch;
+        _hpTargetReached = false;
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
         int width = Math.Max(1, _options.BeamWidth);
@@ -278,6 +307,7 @@ internal sealed class FlashBeamSolver
                 && stop.HpLostSoFar + features.CumulativePlayerHpLost <= stop.AcceptableBattleHpLoss)
             {
                 hpTargetReached = true;
+                _hpTargetReached = true;
             }
             if (explicitPotionUses == 0
                 && features.CumulativePlayerHpLost == 0
@@ -302,6 +332,8 @@ internal sealed class FlashBeamSolver
             current.Clear();
             turnFrontier.CopyTopTo(current, width, 0d);
             ended.Clear();
+            // Turn one is the existing search's searchedTurnLayers == 0.
+            _expandFetchedPowers = _options.Act3BossStrategy && turns == 1;
             while (current.Count > 0 && !OutOfBudget(watch) && !hpTargetReached)
             {
                 next.Clear();
@@ -666,6 +698,12 @@ internal sealed class FlashBeamSolver
     }
 
     private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next, Pool ended, TerminalSink terminal)
+        => ExpandAction(ref parent, parentNode, action, next, ended, terminal,
+            null, default, allowFetchedPowerCommit: true);
+
+    private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next, Pool ended,
+        TerminalSink terminal, FlashChoiceEffect? primaryEffect, scoped ReadOnlySpan<FlashCard> selectedPowers,
+        bool allowFetchedPowerCommit)
     {
         // The child is built in next's first free slot and stepped in place: one copy of the parent per
         // transition. It is committed to next, copied to ended, or dropped as a terminal; the slot is not
@@ -692,8 +730,34 @@ internal sealed class FlashBeamSolver
             // Every executed selection is exact; the cap only bounds how many are explored.
             Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
             int count = FlashChoiceEnumerator.Enumerate(request, selections);
+            Span<FlashCard> capturedPowers = stackalloc FlashCard[FlashLimits.MaxHandSize];
             for (int index = 0; index < count; index++)
-                ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended, terminal);
+            {
+                FlashChoiceEffect? effect = primaryEffect;
+                scoped ReadOnlySpan<FlashCard> chosenPowers = selectedPowers;
+                if (allowFetchedPowerCommit && primaryEffect is null
+                    && request.Timing == FlashChoiceTiming.Action
+                    && IsPrimaryMoveToHandAction(parent, action))
+                {
+                    effect = request.Effect;
+                    int captured = 0;
+                    if (effect == FlashChoiceEffect.MoveToHand && !request.OptionsAreGenerated)
+                    {
+                        ulong bits = selections[index];
+                        for (int option = 0; option < request.OptionCount; option++)
+                        {
+                            if ((bits & (1UL << option)) == 0)
+                                continue;
+                            ref readonly FlashCard optionCard = ref child.Cards[request.Options[option]];
+                            if (_rules.Card(optionCard.Id, optionCard.Upgrade).Type == FlashCardType.Power)
+                                capturedPowers[captured++] = optionCard;
+                        }
+                    }
+                    chosenPowers = capturedPowers[..captured];
+                }
+                ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended, terminal,
+                    effect, chosenPowers, allowFetchedPowerCommit);
+            }
             return;
         }
         int node = _nodes.Count;
@@ -708,6 +772,18 @@ internal sealed class FlashBeamSolver
             terminal(child, node, score);
             return;
         }
+        if (allowFetchedPowerCommit
+            && _expandFetchedPowers
+            && primaryEffect == FlashChoiceEffect.MoveToHand
+            && HasPlayableFetchedPower(child, selectedPowers)
+            && CommitmentBudgetAvailable())
+        {
+            // CombatBeamSolver.Phases.cs: settle the fetched, payable power's next decision before
+            // ranking the intermediate selection. The intermediate state is not committed; every
+            // successor goes through the normal transition/dedup/pool accounting.
+            ExpandFetchedPowerSuccessors(ref child, node, next, ended, terminal);
+            return;
+        }
         // The retention-only hand values are computed by the pool only when the state is actually
         // stored (a duplicate keeps its existing values); a terminal state never needs them.
         bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
@@ -716,6 +792,92 @@ internal sealed class FlashBeamSolver
         if (!added)
             _duplicates++;
     }
+
+    private bool CommitmentBudgetAvailable()
+        => _expanded < _options.MaxExpandedNodes
+            && !_hpTargetReached
+            && (_solveWatch is not { } watch || watch.Elapsed < _options.SoftTimeBudget);
+
+    /// <summary>
+    /// The existing search's <c>Expand(commitment)</c>: every legal successor of the fetched-power
+    /// state enters the current layer through the normal path. The commitment state itself is dropped
+    /// (<c>nextPlays.Remove(commitment)</c>). The action buffer is separate because the enclosing layer
+    /// loop still iterates its own actions.
+    /// </summary>
+    private void ExpandFetchedPowerSuccessors(ref FlashBattle commitment, int commitmentNode,
+        Pool next, Pool ended, TerminalSink terminal)
+    {
+        _expanded++;
+        FlashBattle state = commitment;
+        int count = FlashKernel.LegalActions(state, _rules, _commitmentActions);
+        for (int index = 0; index < count; index++)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            FlashAction action = _commitmentActions[index];
+            if (action.Kind == FlashActionKind.UsePotion && !PotionAllowed(state, action.PotionSlot))
+                continue;
+            ExpandAction(ref state, commitmentNode, action, next, ended, terminal,
+                null, default, allowFetchedPowerCommit: false);
+            if (!CommitmentBudgetAvailable())
+                break;
+        }
+    }
+
+    /// <summary>
+    /// <c>CombatBeamSolver.HasPlayableFetchedPower</c>: the choice moved a card to hand and a matching
+    /// Power from that selection is now playable in hand.
+    /// </summary>
+    private bool HasPlayableFetchedPower(in FlashBattle battle, scoped ReadOnlySpan<FlashCard> selectedPowers)
+    {
+        if (selectedPowers.Length == 0)
+            return false;
+        for (int index = 0; index < battle.HandCount; index++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[index];
+            if (_rules.Card(card.Id, card.Upgrade).Type != FlashCardType.Power
+                || !FlashKernel.CanPlayCard(battle, _rules, index))
+            {
+                continue;
+            }
+            for (int selected = 0; selected < selectedPowers.Length; selected++)
+            {
+                if (SameCardIdentity(card, selectedPowers[selected]))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The played card's primary <c>CardChoiceSupport</c> spec is <c>MoveToHand</c>, or the potion is
+    /// Droplet of Precognition (its <c>PotionChoiceSupport</c> spec is also <c>MoveToHand</c>).
+    /// </summary>
+    private bool IsPrimaryMoveToHandAction(in FlashBattle parent, in FlashAction action)
+    {
+        if (action.Kind == FlashActionKind.PlayCard)
+        {
+            if (action.HandIndex >= parent.HandCount)
+                return false;
+            ref readonly FlashCard card = ref parent.Cards[action.HandIndex];
+            return _scorer.IsPrimaryMoveToHandCard(card.Id, card.Upgrade);
+        }
+        if (action.Kind != FlashActionKind.UsePotion
+            || _scorer.DropletOfPrecognitionPotionId == ushort.MaxValue
+            || action.PotionSlot >= parent.PotionSlotCount)
+        {
+            return false;
+        }
+        return parent.Potions[action.PotionSlot]
+            == (ushort)(_scorer.DropletOfPrecognitionPotionId + 1);
+    }
+
+    private static bool SameCardIdentity(in FlashCard left, in FlashCard right)
+        => left.Id == right.Id
+            && left.Upgrade == right.Upgrade
+            && left.EnchantmentId == right.EnchantmentId
+            && left.EnchantmentAmount == right.EnchantmentAmount
+            && left.AfflictionId == right.AfflictionId
+            && left.AfflictionAmount == right.AfflictionAmount;
 
     private bool OutOfBudget(Stopwatch watch)
         => _expanded >= _options.MaxExpandedNodes || watch.Elapsed >= _options.SoftTimeBudget;

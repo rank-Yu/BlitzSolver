@@ -62,6 +62,30 @@ internal readonly record struct FlashScoreFeatures
     public int ZeroCostPlayableCount { get; init; }
     public int PersistentBuffValue { get; init; }
     public int StrategicRetentionValue { get; init; }
+
+    /// <summary>
+    /// <c>StrategicEffectContext.Act3BossInteractions</c>: the frozen three-act boss policy reached a
+    /// contributing strategic power. Diagnostic only; its effect is already in the score terms.
+    /// </summary>
+    public bool Act3BossInteractions { get; init; }
+
+    /// <summary><c>StrategicEffectContext.FirstAttackDamage</c>, read by Lethality in the boss branch.</summary>
+    public int FirstAttackDamage { get; init; }
+
+    /// <summary><c>StrategicEffectContext.EtherealDrawTriggers</c> (Pagestorm).</summary>
+    public int EtherealDrawTriggers { get; init; }
+
+    /// <summary><c>StrategicEffectContext.PagestormBonusDrawCapacity</c>.</summary>
+    public int PagestormBonusDrawCapacity { get; init; }
+
+    /// <summary><c>StrategicEffectContext.HighEnergyPlays</c> (Danse Macabre).</summary>
+    public int HighEnergyPlays { get; init; }
+
+    /// <summary><c>StrategicEffectContext.DemesneEnergyGain</c>.</summary>
+    public int DemesneEnergyGain { get; init; }
+
+    /// <summary><c>StrategicEffectContext.DemesneDrawGain</c>.</summary>
+    public int DemesneDrawGain { get; init; }
     public PersistentSetupTraits PersistentSetupTraits { get; init; }
     public PersistentSetupTraits StrategicSetupTraits { get; init; }
     public int LatentSetupValue { get; init; }
@@ -137,6 +161,14 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(ZeroCostPlayableCount), old.ZeroCostPlayableCount, flash.ZeroCostPlayableCount);
         Check(nameof(PersistentBuffValue), old.PersistentBuffValue, flash.PersistentBuffValue);
         Check(nameof(StrategicRetentionValue), old.StrategicRetentionValue, flash.StrategicRetentionValue);
+        Check(nameof(Act3BossInteractions), old.Act3BossInteractions, flash.Act3BossInteractions);
+        Check(nameof(FirstAttackDamage), old.FirstAttackDamage, flash.FirstAttackDamage);
+        Check(nameof(EtherealDrawTriggers), old.EtherealDrawTriggers, flash.EtherealDrawTriggers);
+        Check(nameof(PagestormBonusDrawCapacity), old.PagestormBonusDrawCapacity,
+            flash.PagestormBonusDrawCapacity);
+        Check(nameof(HighEnergyPlays), old.HighEnergyPlays, flash.HighEnergyPlays);
+        Check(nameof(DemesneEnergyGain), old.DemesneEnergyGain, flash.DemesneEnergyGain);
+        Check(nameof(DemesneDrawGain), old.DemesneDrawGain, flash.DemesneDrawGain);
         Check(nameof(PersistentSetupTraits), old.PersistentSetupTraits, flash.PersistentSetupTraits);
         Check(nameof(StrategicSetupTraits), old.StrategicSetupTraits, flash.StrategicSetupTraits);
         Check(nameof(LatentSetupValue), old.LatentSetupValue, flash.LatentSetupValue);

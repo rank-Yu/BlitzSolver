@@ -24,6 +24,16 @@ internal sealed class FlashScorer
 
     private FlashRules Rules => _score.Rules;
 
+    /// <summary>
+    /// The played card's primary <c>CardChoiceSupport</c> effect is <c>MoveToHand</c>. Root-frozen
+    /// with the rest of the score table; used by the first-turn fetched-power commitment.
+    /// </summary>
+    public bool IsPrimaryMoveToHandCard(ushort id, int upgrade)
+        => _score.Card(id, upgrade).PrimaryMoveToHandChoice;
+
+    /// <summary>The registered Droplet of Precognition id, or <see cref="ushort.MaxValue"/>.</summary>
+    public ushort DropletOfPrecognitionPotionId => _score.DropletOfPrecognitionPotionId;
+
     // ---------------------------------------------------------------------------------------------
     // Card values (CardChoiceSupport.CardValue / DynamicVarBaseValue, plus BranchCardValue extras).
 
@@ -443,6 +453,12 @@ internal sealed class FlashScorer
         bool needsExhaustDrawTiming = false;
         bool skillsExhaust = false;
         bool needsRecurringEnergy = false;
+        // CombatBeamSolver.StateEvaluation: the third-act branch reads Lethality's native first attack,
+        // and the interaction potential is captured only when one of its three powers contributes.
+        bool needsFirstAttackDamage = false;
+        bool hasPagestorm = false;
+        int danseMacabreEnergyThreshold = 0;
+        int demesneAmount = 0;
         for (int index = 0; index < battle.PowerCount; index++)
         {
             ref readonly FlashPower power = ref battle.Powers[index];
@@ -455,6 +471,18 @@ internal sealed class FlashScorer
             needsExhaustDrawTiming |= rules.Kind == FlashStrategicKind.DarkEmbrace;
             skillsExhaust |= rules.Kind == FlashStrategicKind.Corruption;
             needsRecurringEnergy |= rules.Kind is FlashStrategicKind.RecurringEnergy or FlashStrategicKind.OrbitEnergy;
+            needsFirstAttackDamage |= rules.Kind == FlashStrategicKind.Lethality;
+            if (_score.Act3BossStrategy)
+            {
+                hasPagestorm |= rules.Kind == FlashStrategicKind.Pagestorm;
+                if (rules.Kind == FlashStrategicKind.DanseMacabre)
+                {
+                    danseMacabreEnergyThreshold = Math.Max(
+                        danseMacabreEnergyThreshold, rules.DanseMacabreEnergyThreshold);
+                }
+                if (rules.Kind == FlashStrategicKind.Demesne)
+                    demesneAmount += Math.Max(0, power.Amount);
+            }
         }
 
         StrategicEffectContext? strategicContext = null;
@@ -472,6 +500,34 @@ internal sealed class FlashScorer
             {
                 StrategicEffectContext context = BuildStrategicContext(
                     battle, enemyHp, focus.TotalThreat, focus.IncomingHitCount, requirements, skillsExhaust);
+                if (_score.Act3BossStrategy)
+                {
+                    context = context with
+                    {
+                        Act3BossInteractions = true,
+                        FirstAttackDamage = needsFirstAttackDamage
+                            ? CaptureFirstAttackDamage(battle) : 0,
+                    };
+                    if (hasPagestorm || danseMacabreEnergyThreshold > 0 || demesneAmount > 0)
+                    {
+                        var interactions = CaptureAct3BossInteractionPotential(
+                            battle,
+                            context.RemainingTurns,
+                            context.ReachableCards,
+                            hasPagestorm,
+                            skillsExhaust,
+                            demesneAmount,
+                            danseMacabreEnergyThreshold);
+                        context = context with
+                        {
+                            EtherealDrawTriggers = interactions.EtherealDrawTriggers,
+                            PagestormBonusDrawCapacity = interactions.PagestormBonusDrawCapacity,
+                            HighEnergyPlays = interactions.HighEnergyPlays,
+                            DemesneEnergyGain = interactions.DemesneEnergyGain,
+                            DemesneDrawGain = interactions.DemesneDrawGain,
+                        };
+                    }
+                }
                 strategicContext = needsExhaustDrawTiming
                     ? WithExhaustDrawTiming(context, battle, skillsExhaust) : context;
             }
@@ -764,6 +820,13 @@ internal sealed class FlashScorer
             ZeroCostPlayableCount = zeroCostPlayableCount,
             PersistentBuffValue = persistentBuffValue,
             StrategicRetentionValue = strategicRetentionValue,
+            Act3BossInteractions = strategicContext?.Act3BossInteractions ?? false,
+            FirstAttackDamage = strategicContext?.FirstAttackDamage ?? 0,
+            EtherealDrawTriggers = strategicContext?.EtherealDrawTriggers ?? 0,
+            PagestormBonusDrawCapacity = strategicContext?.PagestormBonusDrawCapacity ?? 0,
+            HighEnergyPlays = strategicContext?.HighEnergyPlays ?? 0,
+            DemesneEnergyGain = strategicContext?.DemesneEnergyGain ?? 0,
+            DemesneDrawGain = strategicContext?.DemesneDrawGain ?? 0,
             PersistentSetupTraits = (PersistentSetupTraits)persistentSetupTraits,
             StrategicSetupTraits = (PersistentSetupTraits)(persistentSetupTraits | latentSetupTraits),
             LatentSetupValue = latentSetupValue,
@@ -1276,6 +1339,19 @@ internal sealed class FlashScorer
         public int? ExhaustDrawPlays { get; init; }
         public int ReachableCards { get; init; }
 
+        /// <summary><c>SearchPolicySnapshot.Act3BossStrategy</c> frozen in the score table.</summary>
+        public bool Act3BossInteractions { get; init; }
+
+        /// <summary><c>CaptureFirstAttackDamage</c>: the best payable attack's total first-hit damage.</summary>
+        public int FirstAttackDamage { get; init; }
+
+        /// <summary><c>CaptureAct3BossInteractionPotential</c> values (zero when not computed).</summary>
+        public int EtherealDrawTriggers { get; init; }
+        public int PagestormBonusDrawCapacity { get; init; }
+        public int HighEnergyPlays { get; init; }
+        public int DemesneEnergyGain { get; init; }
+        public int DemesneDrawGain { get; init; }
+
         /// <summary>Automation/Orbit recurring energy from the refund window (StrategicEffectModel).</summary>
         public int RecurringEnergyGain { get; init; }
     }
@@ -1636,6 +1712,263 @@ internal sealed class FlashScorer
             (int)Math.Min(int.MaxValue, Math.Max(0, demand - energySupply)));
     }
 
+    /// <summary>
+    /// <c>PersistentPowerSupport.GetModifiedMaxEnergy</c> through a copy, so the evaluation never mutates
+    /// the battle being scored. <c>WasteAway</c> and other listeners lower the future-turn supply.
+    /// </summary>
+    private int ModifiedMaxEnergy(in FlashBattle battle)
+    {
+        FlashBattle probe = battle;
+        FlashExec probeExec = new(ref probe, Rules, default);
+        return Math.Max(0, FlashKernel.ModifiedMaxEnergy(ref probeExec));
+    }
+
+    /// <summary>
+    /// <c>PersistentPowerSupport.GetModifiedHandDraw</c> through a copy. The base draw is the game's
+    /// <c>CombatManager.baseHandDrawCount</c> (5), the same literal the existing capture uses.
+    /// </summary>
+    private int ModifiedHandDraw(in FlashBattle battle)
+    {
+        FlashBattle probe = battle;
+        FlashExec probeExec = new(ref probe, Rules, default);
+        return Math.Max(0, FlashKernel.ModifiedHandDraw(ref probeExec, 5));
+    }
+
+    /// <summary>
+    /// Port of <c>CombatBeamSolver.CaptureFirstAttackDamage</c>: the best total damage of a payable
+    /// Attack in the live piles, counting every <c>Eradicate</c> hit the available energy pays for.
+    /// The energy ceiling is the current energy or the modified maximum, whichever is larger.
+    /// </summary>
+    private int CaptureFirstAttackDamage(in FlashBattle battle)
+    {
+        int energy = Math.Max(battle.Energy, ModifiedMaxEnergy(battle));
+        int best = 0;
+        for (int pile = 0; pile < 3; pile++)
+        {
+            FlashPile segment = pile switch
+            {
+                0 => FlashPile.Discard,
+                1 => FlashPile.Draw,
+                _ => FlashPile.Hand,
+            };
+            int start = FlashPiles.Start(battle, segment);
+            int count = FlashPiles.Count(battle, segment);
+            for (int offset = 0; offset < count; offset++)
+            {
+                ref readonly FlashCard card = ref battle.Cards[start + offset];
+                FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+                if (stats.Type != FlashCardType.Attack || card.HasKeyword(FlashKeywords.Unplayable))
+                    continue;
+                FlashCardScore score = _score.Card(card.Id, card.Upgrade);
+                if (score.HasOstyAttackTag)
+                    continue;
+                if (FlashKernel.EnergyCostWithModifiers(battle, Rules, card, segment) > energy)
+                    continue;
+                int hits = _score.EradicateCardId != ushort.MaxValue && card.Id == _score.EradicateCardId
+                    ? Math.Max(0, energy)
+                    : AttackHits(battle, score, card, stats);
+                int damage = (int)Math.Floor(Var(battle, card, stats, score.DamageVar));
+                best = Math.Max(best, damage * hits);
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Port of <c>CombatBeamSolver.CaptureAct3BossInteractionPotential</c>: Pagestorm's future ethereal
+    /// draw triggers and unused bonus-draw capacity, Danse Macabre's affordable high-energy plays, and
+    /// Demesne's future energy and draw gains. Values stay zero when the matching power did not
+    /// contribute or the projected cycle cannot realize the interaction.
+    /// </summary>
+    private (int EtherealDrawTriggers, int PagestormBonusDrawCapacity, int HighEnergyPlays,
+        int DemesneEnergyGain, int DemesneDrawGain) CaptureAct3BossInteractionPotential(
+            in FlashBattle battle,
+            int remainingTurns,
+            int reachableCards,
+            bool hasPagestorm,
+            bool skillsExhaust,
+            int demesneAmount,
+            int danseMacabreEnergyThreshold)
+    {
+        int boundedTurns = Math.Max(1, remainingTurns);
+        int boundedReachableCards = Math.Max(0, reachableCards);
+        int liveCount = battle.HandCount + battle.DrawCount + battle.DiscardCount;
+        int etherealDrawTriggers = 0;
+        int pagestormBonusDrawCapacity = 0;
+        if (hasPagestorm)
+        {
+            int futurePileCards = battle.DrawCount + battle.DiscardCount;
+            int futureEtherealCards = 0;
+            for (int pile = 0; pile < 2; pile++)
+            {
+                FlashPile segment = pile == 0 ? FlashPile.Draw : FlashPile.Discard;
+                int start = FlashPiles.Start(battle, segment);
+                int count = FlashPiles.Count(battle, segment);
+                for (int offset = 0; offset < count; offset++)
+                {
+                    if (battle.Cards[start + offset].HasKeyword(FlashKeywords.Ethereal))
+                        futureEtherealCards++;
+                }
+            }
+            int drawPerTurn = ModifiedHandDraw(battle);
+            if (futurePileCards > 0 && futureEtherealCards > 0 && drawPerTurn > 0)
+            {
+                int reachableFutureDraws = (int)Math.Min(
+                    (long)futurePileCards * 2,
+                    boundedReachableCards);
+                etherealDrawTriggers = (int)Math.Min(
+                    (long)futureEtherealCards * 2,
+                    ((long)futureEtherealCards * reachableFutureDraws
+                        + futurePileCards - 1) / futurePileCards);
+                if (!HasUnmeltedFiddle(battle))
+                {
+                    int maxHandSize = battle.MaxHandSize;
+                    int retainedCards = 0;
+                    for (int offset = 0; offset < battle.HandCount; offset++)
+                    {
+                        if (ShouldRetainThisTurn(battle.Cards[offset]))
+                            retainedCards++;
+                    }
+                    int firstTurnSpace = Math.Max(0, maxHandSize - retainedCards);
+                    int firstTurnBonusSpace = Math.Max(
+                        0,
+                        firstTurnSpace - Math.Min(firstTurnSpace, drawPerTurn));
+                    int laterTurnBonusSpace = Math.Max(
+                        0,
+                        maxHandSize - Math.Min(maxHandSize, drawPerTurn));
+                    pagestormBonusDrawCapacity = (int)Math.Min(
+                        (long)futurePileCards * 2,
+                        (long)firstTurnBonusSpace
+                            + (long)Math.Max(0, boundedTurns - 1) * laterTurnBonusSpace);
+                }
+            }
+        }
+
+        int highEnergyPlays = 0;
+        if (danseMacabreEnergyThreshold > 0 && liveCount > 0)
+        {
+            Span<int> highEnergyCosts = stackalloc int[liveCount * 2];
+            int costCount = 0;
+            int highEnergyCards = 0;
+            for (int pile = 0; pile < 3; pile++)
+            {
+                FlashPile segment = pile switch
+                {
+                    0 => FlashPile.Discard,
+                    1 => FlashPile.Draw,
+                    _ => FlashPile.Hand,
+                };
+                int start = FlashPiles.Start(battle, segment);
+                int count = FlashPiles.Count(battle, segment);
+                for (int offset = 0; offset < count; offset++)
+                {
+                    ref readonly FlashCard card = ref battle.Cards[start + offset];
+                    FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+                    if (card.HasKeyword(FlashKeywords.Unplayable))
+                        continue;
+                    int cost = FlashKernel.EnergyCostWithModifiers(battle, Rules, card, segment);
+                    if (cost < danseMacabreEnergyThreshold)
+                        continue;
+                    highEnergyCards++;
+                    highEnergyCosts[costCount++] = cost;
+                    bool singleUse = stats.Type == FlashCardType.Power
+                        || card.HasKeyword(FlashKeywords.Exhaust)
+                        || skillsExhaust && stats.Type == FlashCardType.Skill;
+                    if (!singleUse)
+                        highEnergyCosts[costCount++] = cost;
+                }
+            }
+            int reachableHighEnergyCards = (int)Math.Min(
+                costCount,
+                ((long)highEnergyCards * boundedReachableCards
+                    + liveCount - 1) / liveCount);
+            int futureMaxEnergy = ModifiedMaxEnergy(battle);
+            Span<int> turnEnergy = stackalloc int[boundedTurns];
+            turnEnergy[0] = Math.Max(0, battle.Energy);
+            turnEnergy[1..].Fill(Math.Max(0, futureMaxEnergy));
+            highEnergyCosts[..costCount].Sort();
+            for (int index = 0;
+                 index < reachableHighEnergyCards;
+                 index++)
+            {
+                for (int turn = 0; turn < turnEnergy.Length; turn++)
+                {
+                    if (turnEnergy[turn] < highEnergyCosts[index]) continue;
+                    turnEnergy[turn] -= highEnergyCosts[index];
+                    highEnergyPlays++;
+                    break;
+                }
+            }
+        }
+
+        int demesneEnergyGain = 0, demesneDrawGain = 0;
+        int futureTurns = Math.Max(0, boundedTurns - 1);
+        if (demesneAmount > 0 && futureTurns > 0 && liveCount > 0)
+        {
+            long deckEnergyDemand = 0;
+            for (int pile = 0; pile < 3; pile++)
+            {
+                FlashPile segment = pile switch
+                {
+                    0 => FlashPile.Discard,
+                    1 => FlashPile.Draw,
+                    _ => FlashPile.Hand,
+                };
+                int start = FlashPiles.Start(battle, segment);
+                int count = FlashPiles.Count(battle, segment);
+                for (int offset = 0; offset < count; offset++)
+                {
+                    ref readonly FlashCard card = ref battle.Cards[start + offset];
+                    if (card.HasKeyword(FlashKeywords.Unplayable))
+                        continue;
+                    deckEnergyDemand += Math.Max(0,
+                        FlashKernel.EnergyCostWithModifiers(battle, Rules, card, segment));
+                }
+            }
+            long reachableEnergyDemand = (deckEnergyDemand * boundedReachableCards
+                + liveCount - 1) / liveCount;
+            int baseEnergy = Math.Max(0, ModifiedMaxEnergy(battle) - demesneAmount);
+            long baseEnergySupply = Math.Max(0, battle.Energy) + (long)baseEnergy * futureTurns;
+            demesneEnergyGain = (int)Math.Clamp(reachableEnergyDemand - baseEnergySupply,
+                0L, (long)demesneAmount * futureTurns);
+            int baseDraw = Math.Max(0, ModifiedHandDraw(battle) - demesneAmount);
+            int retained = 0;
+            for (int offset = 0; offset < battle.HandCount; offset++)
+            {
+                if (ShouldRetainThisTurn(battle.Cards[offset]))
+                    retained++;
+            }
+            int firstSpace = Math.Max(0, battle.MaxHandSize - retained - baseDraw);
+            int laterSpace = Math.Max(0, battle.MaxHandSize - baseDraw);
+            demesneDrawGain = (int)Math.Min((long)liveCount * 2,
+                Math.Min(demesneAmount, firstSpace)
+                + (long)Math.Max(0, futureTurns - 1) * Math.Min(demesneAmount, laterSpace));
+        }
+        return (etherealDrawTriggers, pagestormBonusDrawCapacity, highEnergyPlays,
+            demesneEnergyGain, demesneDrawGain);
+    }
+
+    private static bool ShouldRetainThisTurn(in FlashCard card)
+        => (card.Flags & FlashCardFlags.RetainThisTurn) != 0
+            || (card.Keywords & FlashKeywords.Retain) != 0;
+
+    /// <summary><c>combat.RelicsOf(player).Any(relic =&gt; relic is Fiddle &amp;&amp; !relic.IsMelted)</c>.</summary>
+    private bool HasUnmeltedFiddle(in FlashBattle battle)
+    {
+        if (_score.FiddleRelicId == ushort.MaxValue)
+            return false;
+        for (int index = 0; index < battle.RelicCount; index++)
+        {
+            ref readonly FlashRelic relic = ref battle.Relics[index];
+            if (relic.Id == _score.FiddleRelicId
+                && (relic.Flags & FlashRelicFlags.Melted) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private int EnergyCost(in FlashBattle battle, in FlashCard card, FlashCardStats stats, FlashPile pile)
     {
         if ((card.Flags & FlashCardFlags.CostsX) != 0)
@@ -1784,6 +2117,11 @@ internal sealed class FlashScorer
             FlashStrategicKind.SleightOfFlesh => Damage(amount * context.DebuffApplications, enemyHp),
             FlashStrategicKind.Strength => Damage(
                 amount * (context.AttackHits ?? context.AttackPlays), enemyHp),
+            FlashStrategicKind.Lethality when context.Act3BossInteractions && context.AttackPlays > 0
+                => Damage(
+                    context.FirstAttackDamage * Math.Min(context.AttackPlays, context.RemainingTurns)
+                        * amount / 100,
+                    enemyHp),
             FlashStrategicKind.Lethality when context.AttackPlays > 0 => Damage(
                 context.AverageAttackValue
                     * Math.Min(context.AttackPlays, context.RemainingTurns)
@@ -1808,6 +2146,18 @@ internal sealed class FlashScorer
             FlashStrategicKind.Iteration => CardAccess(
                 amount * context.StatusDrawTriggers * cardAccessUnit),
             FlashStrategicKind.MasterPlanner => CardAccess(context.SkillPlays * cardAccessUnit),
+            FlashStrategicKind.Pagestorm when context.Act3BossInteractions => CardAccess(
+                Math.Min(
+                    context.PagestormBonusDrawCapacity,
+                    amount * context.EtherealDrawTriggers) * cardAccessUnit),
+            FlashStrategicKind.DanseMacabre when context.Act3BossInteractions => Prevention(
+                amount * context.HighEnergyPlays,
+                context),
+            FlashStrategicKind.Demesne when context.Act3BossInteractions =>
+                Resource(context.DemesneEnergyGain * energyUnit)
+                + CardAccess(context.DemesneDrawGain * cardAccessUnit),
+            FlashStrategicKind.PrepTime when context.Act3BossInteractions => Damage(
+                amount * Math.Min(context.RemainingTurns, context.AttackPlays), enemyHp),
             FlashStrategicKind.Focus => Scaling(amount * context.RemainingTurns * 2),
             FlashStrategicKind.Furnace => Scaling(amount * context.RemainingTurns * 2),
             FlashStrategicKind.Thunder => Damage(amount * context.RemainingTurns, enemyHp),
