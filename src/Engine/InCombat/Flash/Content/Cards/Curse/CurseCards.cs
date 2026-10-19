@@ -260,3 +260,16 @@ public sealed class Regret : FlashCardDef
         x.Card.Private = 0;
     }
 }
+
+/// <summary>
+/// Native <c>Debt</c>: Unplayable, no upgrade; its <c>OnTurnEndInHand</c> loses up to 10 gold. The
+/// existing engine has no mirror/compensation for that hook, so Flash keeps the definition empty to
+/// match the authority (the card still enters the play pile and is discarded at turn end).
+/// </summary>
+[FlashContent("DEBT")]
+public sealed class Debt : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+    {
+    }
+}

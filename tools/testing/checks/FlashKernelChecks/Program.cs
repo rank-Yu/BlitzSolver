@@ -34,6 +34,7 @@ CheckA3Kernel(rules);
 CheckKaAttachments();
 CheckP16Kernel(rules);
 CheckSkKernel();
+CheckLsKernel();
 CheckNbKernel();
 CheckMbKernel(rules);
 CheckDfKernel(rules);
@@ -662,6 +663,212 @@ static FlashRules SliceRules()
     };
 }
 
+
+// LS: contracts for the remaining Silent/Necrobinder/Defect kernel capabilities: the power
+// amount-given pass, EchoingSlash attack waves, KnifeTrap's duplicate-Shiv auto-play and the
+// drawn-card position assumption, Misery's temporary-power boundary, MomentumStrike's live play slot
+// and HelicalDart's temporary Dexterity.
+static void CheckLsKernel()
+{
+    FlashRules rules = LsRules();
+    Check(FlashRegistry.TryCard("ECHOING_SLASH", out ushort echoing), "缺少 ECHOING_SLASH");
+    Check(FlashRegistry.TryCard("KNIFE_TRAP", out ushort knifeTrap), "缺少 KNIFE_TRAP");
+    Check(FlashRegistry.TryCard("SHIV", out ushort shiv), "缺少 SHIV");
+    Check(FlashRegistry.TryCard("MOMENTUM_STRIKE", out ushort momentum), "缺少 MOMENTUM_STRIKE");
+    Check(FlashRegistry.TryCard("MISERY", out ushort misery), "缺少 MISERY");
+    Check(FlashRegistry.TryPower("POISON_POWER", out ushort poison), "缺少 POISON_POWER");
+    Check(FlashRegistry.TryPower("PIERCING_WAIL_POWER", out ushort piercing), "缺少 PIERCING_WAIL_POWER");
+    Check(FlashRegistry.TryPower("DEXTERITY_POWER", out ushort dexterity), "缺少 DEXTERITY_POWER");
+    Check(FlashRegistry.TryPower("HELICAL_DART_POWER", out ushort helicalPower), "缺少 HELICAL_DART_POWER");
+    Check(FlashRegistry.TryRelic("SNECKO_SKULL", out ushort skull), "缺少 SNECKO_SKULL");
+    Check(FlashRegistry.TryRelic("HELICAL_DART", out ushort dart), "缺少 HELICAL_DART");
+
+    // ModifyPowerAmountGiven: SneckoSkull adds 1 to Poison the player gives.
+    FlashBattle battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = skull };
+    FlashExec x = new(ref battle, rules, default);
+    int applied = FlashKernel.ApplyPower(ref x, 2, poison, 2, FlashLimits.PlayerOwner);
+    Check(applied == 3, $"SneckoSkull 应把毒 2 变成 3，实际 {applied}");
+    Check(FlashKernel.GetAmount(battle, 2, poison) == 3, "SneckoSkull 后的毒层数应为 3");
+
+    // EchoingSlash: the first wave kills one enemy, which adds a second wave.
+    battle = NewBattle();
+    battle.EnemyCount = 2;
+    battle.RosterCount = 2;
+    battle.Roster[1] = 1;
+    battle.Enemies[0].Creature.CurrentHp = 5;
+    battle.Enemies[0].Creature.MaxHp = 5;
+    battle.Enemies[1].Creature.CurrentHp = 100;
+    battle.Enemies[1].Creature.MaxHp = 100;
+    battle.Enemies[1].Flags = FlashEnemyFlags.InCombat;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, echoing));
+    x = new(ref battle, rules, default);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    Check(battle.Enemies[0].Creature.IsDead, "EchoingSlash 第一波应击杀低血量敌人");
+    Check(battle.Enemies[1].Creature.CurrentHp == 80,
+        $"EchoingSlash 击杀后应追加一波，实际敌人生命 {battle.Enemies[1].Creature.CurrentHp}");
+
+    // KnifeTrap: two byte-equal Shivs in the exhaust pile are both auto-played (duplicate copies
+    // must not make the second search pick the first again).
+    battle = NewBattle();
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, knifeTrap));
+    FlashPiles.Append(ref battle, FlashPile.Exhaust, FlashKernel.CreateCard(rules, shiv));
+    FlashPiles.Append(ref battle, FlashPile.Exhaust, FlashKernel.CreateCard(rules, shiv));
+    x = new(ref battle, rules, default);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, 2), rules, out _);
+    Check(battle.Enemies[0].Creature.CurrentHp == 92,
+        $"KnifeTrap 应自动打出两张 Shiv（12 伤害），实际生命 {battle.Enemies[0].Creature.CurrentHp}");
+    Check(battle.ExhaustCount == 2, "两张 Shiv 打出后应回到消耗堆");
+
+    // Upgraded KnifeTrap upgrades every exhausted Shiv before playing it.
+    battle = NewBattle();
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, knifeTrap, 1));
+    FlashPiles.Append(ref battle, FlashPile.Exhaust, FlashKernel.CreateCard(rules, shiv));
+    FlashPiles.Append(ref battle, FlashPile.Exhaust, FlashKernel.CreateCard(rules, shiv));
+    x = new(ref battle, rules, default);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, 2), rules, out _);
+    for (int index = 0; index < battle.ExhaustCount; index++)
+    {
+        FlashCard card = battle.Cards[FlashPiles.Start(battle, FlashPile.Exhaust) + index];
+        Check(card.Id == shiv && card.Upgrade == 1, "升级版 KnifeTrap 应把每张 Shiv 升级");
+    }
+
+    // Drawn-card discard positions are an explicit assumption: a hook that moved the drawn card
+    // leaves a different byte-equal copy at the slot, which must be rejected rather than discarded.
+    battle = NewBattle();
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, shiv));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, echoing));
+    Span<FlashCard> drawn = stackalloc FlashCard[1];
+    Span<int> positions = stackalloc int[1];
+    drawn[0] = FlashKernel.CreateCard(rules, knifeTrap);
+    positions[0] = 0;
+    Span<int> selected = stackalloc int[1];
+    selected[0] = 0;
+    x = new(ref battle, rules, default);
+    bool positionUnsupported = false;
+    try
+    {
+        FlashCardEffects.DiscardDrawn(ref x, drawn, positions, selected);
+    }
+    catch (FlashUnsupportedException)
+    {
+        positionUnsupported = true;
+    }
+    Check(positionUnsupported, "抓牌位置不匹配时应抛 FlashUnsupportedException");
+
+    // Burst adds one replay to the next Skill; the block card counter and block gain both run twice.
+    battle = NewBattle();
+    battle.Energy = 9;
+    Check(FlashRegistry.TryCard("BURST", out ushort burstCard), "缺少 BURST");
+    Check(FlashRegistry.TryCard("MIRAGE", out ushort mirageCard), "缺少 MIRAGE");
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, burstCard));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, mirageCard));
+    x = new(ref battle, rules, default);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    Check(FlashKernel.GetAmount(battle, 0, FlashRegistry.PowerId<BurstPower>()) == 1,
+        $"Burst 应施加 1 层 BurstPower，实际 {FlashKernel.GetAmount(battle, 0, FlashRegistry.PowerId<BurstPower>())}");
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    Check(battle.Counter(FlashCounter.BlockCardsPlayedThisTurn) == 2,
+        $"Burst 应重放 Mirage 两次，格挡牌计数实际 {battle.Counter(FlashCounter.BlockCardsPlayedThisTurn)}");
+
+    battle = NewBattle();
+    battle.Energy = 9;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, burstCard));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, mirageCard));
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, 0, dexterity, 2, 0);
+    FlashKernel.ApplyPower(ref x, 0, FlashRegistry.PowerId<ShadowmeldPower>(), 1, 0);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    Check(battle.Player.Block == 16, $"Burst+Mirage(2,dex,shadowmeld) 应为 16 格挡，实际 {battle.Player.Block}");
+
+    // Misery clones a temporary debuff as its own power row (the native ApplyClonedPower skips the
+    // temporary BeforeApplied) and leaves the internally applied stat alone when it is not among the
+    // cloned debuffs (PiercingWail's Strength is a buff).
+    battle = NewBattle();
+    battle.Energy = 9;
+    battle.EnemyCount = 2;
+    battle.RosterCount = 2;
+    battle.Roster[1] = 1;
+    battle.Enemies[1].Creature.CurrentHp = 100;
+    battle.Enemies[1].Creature.MaxHp = 100;
+    battle.Enemies[1].Flags = FlashEnemyFlags.InCombat;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, misery));
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, 2, piercing, 1, FlashLimits.PlayerOwner);
+    x = new(ref battle, rules, default);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, 2), rules, out _);
+    Check(FlashKernel.GetAmount(battle, 3, piercing) == 1, "Misery 应把临时减益克隆到其他敌人");
+    Check(FlashKernel.GetAmount(battle, 3, dexterity) == 0, "PiercingWail 的内部力量是增益，不应被合并");
+
+    // MomentumStrike sets its own cost to 0 this combat; PlayPosition is valid during OnPlay.
+    battle = NewBattle();
+    battle.Energy = 9;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, momentum));
+    x = new(ref battle, rules, default);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, 2), rules, out _);
+    bool found = false;
+    for (int index = 0; index < battle.DiscardCount; index++)
+    {
+        FlashCard card = battle.Cards[FlashPiles.Start(battle, FlashPile.Discard) + index];
+        if (card.Id != momentum)
+            continue;
+        found = true;
+        Check(card.EnergyModifierCount == 1, "MomentumStrike 应留下一条费用修饰");
+        Check(FlashKernel.EnergyCostValueWithModifiers(battle, rules, card, FlashPile.Discard) == 0,
+            "MomentumStrike 本场费用应为 0");
+    }
+    Check(found, "MomentumStrike 应进入弃牌堆");
+
+    // HelicalDart: a Shiv play applies 1 temporary Dexterity.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = dart };
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, shiv));
+    x = new(ref battle, rules, default);
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, 2), rules, out _);
+    Check(FlashKernel.GetAmount(battle, 0, dexterity) == 1, "HelicalDart 应给 1 敏捷");
+    Check(FlashKernel.GetAmount(battle, 0, helicalPower) == 1, "HelicalDart 应施加临时敏捷层");
+}
+
+static FlashRules LsRules()
+{
+    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 0 };
+    FlashRegistry.TryCard("ECHOING_SLASH", out ushort echoing);
+    FlashRegistry.TryCard("KNIFE_TRAP", out ushort knifeTrap);
+    FlashRegistry.TryCard("SHIV", out ushort shiv);
+    FlashRegistry.TryCard("MOMENTUM_STRIKE", out ushort momentum);
+    FlashRegistry.TryCard("MISERY", out ushort misery);
+    FlashRegistry.TryRelic("SNECKO_SKULL", out ushort skull);
+    FlashRegistry.TryRelic("HELICAL_DART", out ushort dart);
+    builder.SetCard(echoing, 0, LsStats(FlashCardType.Attack, FlashTargetType.AllEnemies, 1, [10m]));
+    builder.SetCard(knifeTrap, 0, LsStats(FlashCardType.Skill, FlashTargetType.AnyEnemy, 1));
+    builder.SetCard(knifeTrap, 1, LsStats(FlashCardType.Skill, FlashTargetType.AnyEnemy, 1));
+    builder.SetCard(shiv, 0, LsStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [4m],
+        FlashKeywords.Exhaust, FlashCardTag.Shiv));
+    builder.SetCard(shiv, 1, LsStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [6m],
+        FlashKeywords.Exhaust, FlashCardTag.Shiv));
+    builder.SetCard(momentum, 0, LsStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [11m]));
+    builder.SetCard(misery, 0, LsStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [7m]));
+    FlashRegistry.TryCard("BURST", out ushort burst);
+    FlashRegistry.TryCard("MIRAGE", out ushort mirage);
+    builder.SetCard(burst, 0, LsStats(FlashCardType.Skill, FlashTargetType.Self, 1, [1m]));
+    builder.SetCard(mirage, 0, LsStats(FlashCardType.Skill, FlashTargetType.Self, 1, [2m, 1m]));
+    builder.SetRelicVars(skull, [1m]);
+    builder.SetRelicVars(dart, [1m]);
+    return builder.Build();
+
+    static FlashCardStats LsStats(FlashCardType type, FlashTargetType target, int cost, decimal[]? vars = null,
+        FlashKeywords keywords = FlashKeywords.None, FlashCardTag tags = FlashCardTag.None) => new()
+    {
+        Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = false,
+        StarCost = -1, StarCostsX = false, Keywords = keywords, Tags = tags, MaxUpgradeLevel = 1,
+        Vars = vars ?? [],
+    };
+}
 
 // NB: contracts for the Necrobinder kernel capabilities. Osty's summon/revive ledger, the
 // DieForYou redirect and spill-over, the Osty attack dealer, Doom's side-turn-end kill, the

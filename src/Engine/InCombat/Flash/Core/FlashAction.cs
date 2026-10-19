@@ -209,6 +209,9 @@ public enum FlashCardPlayPairKind : byte
 
     /// <summary><c>OblivionPower</c>: the power amount at play start becomes Doom on its owner after the play.</summary>
     OblivionDoom = 4,
+
+    /// <summary><c>SerpentFormPower</c>: the power amount at play start becomes Unpowered damage after the play.</summary>
+    SerpentFormDamage = 5,
 }
 
 /// <summary>
@@ -291,6 +294,12 @@ public ref struct FlashExec
 
     /// <summary>Whether the current card play killed its chosen target (HandOfGreed's WasFatalKill).</summary>
     public bool CardKilledTarget;
+
+    /// <summary>
+    /// Number of targets killed by the most recent <c>FlashKernel.Damage</c> call. EchoingSlash uses it
+    /// to add one extra attack wave per kill; nested damage overwrites it, so read it immediately.
+    /// </summary>
+    public int LastDamageKills;
 
     /// <summary>
     /// <c>TotalDamage + OverkillDamage</c> of the most recent <c>Damage</c> call, captured before its

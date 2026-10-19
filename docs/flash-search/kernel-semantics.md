@@ -43,8 +43,9 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 战斗正在结束时，战斗监听者的 Hook 返回空，`AfterCardPlayed`、`AfterBlockBroken`、`AfterAttack` 除外；伤害和死亡类的跑局监听者不受此限（`M/HookMirrors.cs:1351`）。`TryModifyEnergyCostInCombat`（普通与 Late）、`ModifyCardPlayResultLocation`、`ModifyCardPlayCount`、`ModifyXValue` 也通过 `IterateCombatHookListeners` 遍历，因此 Flash 在 `IsOverOrEnding` 时跳过它们；费用查询和评估在结束状态读到的是未修正费用。
 - 费用 Hook 是纯查询：普通阶段按战斗监听顺序跑一遍，再按同一顺序跑 Late 阶段；调用方最后 `(int)` 截断并钳制到 ≥ 0（`M/HookMirrors.cs:486-530`）。`AreCardsFree` 分支在 Flash 中没有内容。
 - `AfterPowerAmountChanged` 不在施加 Power 时立即派发：`ApplyWithBeforeApplied` 只把 `(PowerId, Delta, Applier)` 放进栈上的待处理队列，之后在现有引擎的同一位置调用 `ResolvePowerAmountChanges` 排空（卡牌补偿结束、`CompleteCardPlayEffects`、回合开始 `BeforeHandDraw` 后、`TriggerSideTurnStart` 末、玩家/敌方回合结束 `TriggerRegular` 后、敌人行动结束、敌人死亡效果末、药水使用后、Dominate 的 Vulnerable 与 Strength 之间）。排空时先把当前批次复制到栈上的 `drained` 并清空队列，再逐条派发；嵌套排空（Vicious 抽到 Strike 后 Hellraiser 自动打出）因此只能看到处理器新追加的变化，与现有引擎 `DrainPowerAmountChanges` 的先整批取走一致。派发只遍历当前 Power（现有引擎 `EffectivePowers()`），按监听顺序对每条变化调用；Vicious 在“Delta > 0 且变化的是 Vulnerable 且施加者是持有者”时抽牌。旧引擎**没有**通用 `AfterApplied`；只有 PhantomBlades/Juggling/Feral 等个别初始化，Flash 在对应定义里另行处理。
-- 现有引擎的 `ModifyPowerAmountForRelics` 在 Artifact 检查之前依次跑 `BeforePowerAmountChanged`、`ModifyPowerAmountGiven`（SneckoSkull）与 `TryModifyPowerAmountReceived`（RuinedHelmet）。Flash 实现接收侧的 `TryModifyPowerAmountReceived` 纯查询与 `AfterModifyingPowerAmountReceived`；修正阶段不得改写状态，RuinedHelmet 的“本场已用”标记在 After 阶段写入。
+- 现有引擎的 `ModifyPowerAmountForRelics` 在 Artifact 检查之前依次跑 `BeforePowerAmountChanged`、`ModifyPowerAmountGiven`（SneckoSkull）与 `TryModifyPowerAmountReceived`（RuinedHelmet）。Flash 用 `FlashHookMaskExt.ModifyPowerAmountGiven` 实现给予侧的纯查询，再实现接收侧的 `TryModifyPowerAmountReceived` 与 `AfterModifyingPowerAmountReceived`；修正阶段不得改写状态，RuinedHelmet 的“本场已用”标记在 After 阶段写入。
 - 卡牌从战斗外进入战斗时，`SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat` 先遍历卡牌拥有者的遗物（GhostSeed），再执行卡牌自身的 `AfterEnteredCombat`（Stomp、Pinpoint 等费用反应）。Flash 的 `FlashKernel.Generation` 的进入战斗路径按同一顺序派发。
+- `AmountOnTurnStart` 只有 `DrawCardsNextTurnPower`、`SummonNextTurnPower` 与 `HelloWorldPower` 会被结算读取（`PowerLifecycleSupport.SemanticallyRelevantAmountOnTurnStart`）。其余 Power 的该字段只反映原生模型数量，而镜像扣层（`PowerAmountPredictionState`）要到动作边界才同步到模型；Flash 立即扣层，因此这些 Power 的 `AmountOnTurnStart` 在导入与回合开始快照时都归零，不复制一个只存在于原生模型里的滞后值。
 - 只有原版监听者时，旧引擎对回合阶段 Hook、Power 反应、最大能量与抽牌数、`BeforeHandDraw` 使用"先全部 Power、再全部遗物"的批量顺序，不按逐监听者顺序。Flash 在相同位置用相同的批量顺序。这一偏差以旧引擎为准。
 
 ### 3.3 Hook 目录
@@ -89,7 +90,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 7. **去向**：仍在打出区的卡按去向处理（无 → 移出战斗；消耗 → `AfterCardExhausted`；否则加入目标牌堆）；不在嵌套效果中时触发 `AfterHandEmptied`；清理费用与目标。
 8. **动作边界**：结算敌人死亡效果（`ApplyEnemyDeathPowers`）→ 胜负判定 → 处理被请求的回合结束。
 
-药水（`Q/CombatBeamSolver.Expansion.Replay.cs` 的 `UsePotion` 分支与 `P/PotionExecutionSupport.cs`）：清空槽位（使用记录只供搜索评分）→ `BeforePotionUsed` → 药水效果（`FlashPotionDef.OnUse`，对应 `PotionOnUseSupport.Use` 的分支；自身药水作用于玩家）→ 药水选择 → 玩家存活时 `AfterPotionUsed` → 敌人死亡效果；之后与出牌相同：洗牌计数、胜负判定、处理被请求的回合结束。药水的目标类型与变量（含伤害、格挡变量的 ValueProp）从规范药水编译进规则表；合法目标按 `TargetsForPotion`（任一敌人逐个可命中敌人；自身/任一玩家在玩家存活时无目标；全体敌人与无生物目标无目标）。
+药水（`Q/CombatBeamSolver.Expansion.Replay.cs` 的 `UsePotion` 分支与 `P/PotionExecutionSupport.cs`）：清空槽位（使用记录只供搜索评分）→ `BeforePotionUsed` → 药水效果（`FlashPotionDef.OnUse`，对应 `PotionOnUseSupport.Use` 的分支；自身药水作用于玩家）→ 药水选择 → 玩家存活时 `AfterPotionUsed` → 敌人死亡效果；自动药水 `FairyInABottle` 的复活在 `AfterPreventingDeath` 里同样先 `AfterPotionUsed`（`FairyInABottleMirrors`），再走死亡效果；之后与出牌相同：洗牌计数、胜负判定、处理被请求的回合结束。药水的目标类型与变量（含伤害、格挡变量的 ValueProp）从规范药水编译进规则表；合法目标按 `TargetsForPotion`（任一敌人逐个可命中敌人；自身/任一玩家在玩家存活时无目标；全体敌人与无生物目标无目标）。
 
 ### 4.1 自动打出
 
@@ -108,11 +109,12 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 来源：`E/CombatCardGenerationExtensions.cs`、`S/CombatPredictionSimulator.AutoPlayContinuation.cs`、`P/CardOnPlaySupport.Batch042.cs`、`Q/CardChoiceResolution.cs`。
 
-- **候选池在 Bridge 冻结。** 定义用 `FlashCardPools` 的键声明可能生成的池；`FlashRulesCompiler` 用现有引擎的同一枚举（`player.GetUnlocked...` + `FilterForCombatAndPlayerCount`，再按调用点的类型/费用/排除谓词过滤）把候选按原顺序写进 `FlashRules`。内核只按 RNG 取样，不重新过滤。
+- **候选池在 Bridge 冻结。** 定义用 `FlashCardPools` 的键声明可能生成的池；`CharacterAll` 的 `FilterForCombatAndPlayerCount` 已排除 Basic/Ancient/Event 与 `CanBeGeneratedInCombat=false`，所以 CallOfTheVoid 的“角色池非 Basic/Ancient”直接复用它，`CharacterEthereal`（BigHat 的候选）按原版本地 Ethereal 关键字过滤。`FlashRulesCompiler` 用现有引擎的同一枚举（`player.GetUnlocked...` + `FilterForCombatAndPlayerCount`，再按调用点的类型/费用/排除谓词过滤）把候选按原顺序写进 `FlashRules`。内核只按 RNG 取样，不重新过滤。
 - **取样。** 去重（`TakeRandom`）先对整个候选列表做一次 Fisher-Yates（`n-1` 次 `Shuffle` 流 `NextInt(n+1)`），再取前 `count` 张；有放回（`NextItem`）每张消耗一次 `CombatCardGeneration` 流 `NextInt(0, n)`。候选为空时不消耗 RNG。生成的卡按 `CreateCard` 创建为 0 级规范卡，`UpgradeIf` 再升级一次。
 - **加入战斗。** `AddGeneratedCard` 对应 `AddGeneratedCardsToCombat` 的单卡路径：手牌已满改投弃牌堆，按 `Bottom`/`Top`/`Random` 插入，调用卡的 `AfterEnteredCombat`。`SetToFreeThisTurn` 写入绝对 0 能量修饰（EndOfTurn|WhenPlayed）和 0 临时星能费用（回合末清除）。
 - **生成选项选择。** Discovery/Splash 先记录生成的选项并写入风险（旧引擎的 `History.CardGenerationOptions` + `RecordRisk(UnresolvedPlayerChoice)`），随后 `GetSpec` 的 `GenerateToHand` 分支在 `OwnChoice` 提问。Flash 把选项值直接放进 `FlashChoiceRequest.GeneratedOptions`（不在任何牌堆），选择后按 `PredictedCard.Clone()` 的语义复制卡值（不是 `CreateClone`，`IsClone` 保持为假）、`SetToFreeThisTurn`、加入手牌；空选项也提一个空范围选择，与 `RangeSpec` 一致。
-- **变化。** `ReplaceCard` 对应 `CardCmd.Transform` 的现有引擎结算：从原牌堆移除原卡（`RemoveFromCombat`），再把替换卡插回 `min(原下标, 当前长度)` 并调用 `AfterEnteredCombat`；不触发 `AfterCardChangedPiles`。Flash 没有实例身份，按位置定位；PrimalForce 对 snapshot 的手牌攻击按升序原位替换为 GiantRock（PrimalForce 升级时 GiantRock 升 1 级）。Entropy 的回合开始变化按 `TurnStartChoiceSupport.Resolve(Transform)` 选择手牌，再对每张走 `CombatPredictionSimulator.CreateRandomCardForTransform`：候选是原卡 `Pool`（Quest/Event/Ancient/Token 取无色池）中 `CanBeGeneratedInCombat`、非 Basic/Ancient/Event/Epoch 排除的卡，排除原卡 Id，用 `CombatCardSelection` 流 `NextItem` 抽一张 0 级规范卡；候选为空按 `FlashUnsupportedException` 拒绝。
+- **回合开始的生成。** SentryMode 在 `BeforeHandDraw` 生成 `SweepingGaze`；CallOfTheVoid 在同一时机对 `CharacterAll` 逐张执行 `TakeRandom(1)`（每张一次完整洗牌，等价现有引擎的 `GetDistinctForCombat(1)` 循环），生成后补 Ethereal 关键字再入手；Pagestorm 在 `AfterCardDrawn` 只按本地 Ethereal 关键字追加抽牌。BigHat 的生成发生在玩家第 1 回合开始，早于根捕获，故不在内核路径里。
+- **变化的候选池。** `CardFactory.GetDefaultTransformationOptions` 对 Quest/Event/Ancient/Token 用无色池，其余用卡牌自己的原生池（角色、无色、Status、Curse）。Flash 在规则表为每张卡编译 `FlashTransformPool`，Entropy 的变化按它选择冻结池，而不是按“当前是否在角色池里”猜测；Status/Curse 池分别对应 `FlashCardPools.StatusAll`/`CurseAll`。`ReplaceCard` 对应 `CardCmd.Transform` 的现有引擎结算：从原牌堆移除原卡（`RemoveFromCombat`），再把替换卡插回 `min(原下标, 当前长度)` 并调用 `AfterEnteredCombat`；不触发 `AfterCardChangedPiles`。Flash 没有实例身份，按位置定位；PrimalForce 对 snapshot 的手牌攻击按升序原位替换为 GiantRock（PrimalForce 升级时 GiantRock 升 1 级）。Entropy 的回合开始变化按 `TurnStartChoiceSupport.Resolve(Transform)` 选择手牌，再对每张走 `CombatPredictionSimulator.CreateRandomCardForTransform`：候选是原卡 `Pool`（Quest/Event/Ancient/Token 取无色池）中 `CanBeGeneratedInCombat`、非 Basic/Ancient/Event/Epoch 排除的卡，排除原卡 Id，用 `CombatCardSelection` 流 `NextItem` 抽一张 0 级规范卡；候选为空按 `FlashUnsupportedException` 拒绝。
 - **随机药水。** 一次 `CombatPotionGeneration` `NextFloat` 选稀有度（Rare ≤ 0.1、Uncommon ≤ 0.35、否则 Common），再一次 `NextItem` 在冻结的同稀有度池中选；`TryProcurePotion` 放入第一个空槽，成功时记录 `LongTermResourceValue + 20`。
 - **药水生成选择。** Attack/Skill/Power/ColorlessPotion 在 `OnUse` 里生成 3 张去重候选，再走 `PotionChoiceSupport.GetSpec` 的 `GenerateToHand` 0..1 选择。该选择不走 `PendingTurnStartChoice`：现有引擎把候选写进 `History.CardGenerationOptions`，`PotionExecutionSupport.Complete` 从 `PlanAction.Choice` 直接结算 `PotionChoiceSupport.Apply`。Flash 的翻译层先无选择回放一次读取候选，构造同序 `PlanCardChoice` 挂到动作上，再正式回放；选定后按 `PredictedCard.Clone()` 语义复制（`IsClone` 保持假）、`SetToFreeThisTurn`、加入手牌。
 - **风险。** `FlashBattleFlags.HasRisk` 表示旧快照的**未补偿**风险（`snapshot.HasRisk`）；根导入从快照读取该位。Discovery/Splash 虽记录 `UnresolvedPlayerChoice`，但 `CardOnPlayCompensationCatalog` 把它们的 `OnPlay` 风险标为已补偿，内核不为它们置位。SeekerStrike 的 `BuildSeekerSpec` 不在补偿目录里，会记录风险，Flash 在该选择请求前同样置位（单调保持到战斗结束）。
@@ -124,6 +126,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - **伤害合计。** `Damage` 在结果 Hook 之前把本次每个结果的 `BlockedDamage + UnblockedDamage + OverkillDamage` 累加到 `CardDamageTotal`（该次出牌的全部命中），并记录最近一次 `Damage` 的 `LastDamageTotal = BlockedDamage + UnblockedDamage` 与 `LastDamageOverkill`。对应现有引擎 `CombatPredictionDamageReceivedEntry.Result.TotalDamage + OverkillDamage`。每次出牌开始时清零。
 - **Fisticuffs**：镜像攻击后先结算敌人死亡，再按 `CardDamageTotal` 获得格挡（`CorePowerSupport` 的 Fisticuffs case）。
 - **Omnislice**：第一击后结算死亡，再把 `LastDamageTotal + LastDamageOverkill` 以 `Unpowered | Move` 打给目标以外的可命中敌人（`CardOnPlaySupport.Batch042.ApplyOmnislice`）。
+- **EchoingSlash 与多波攻击。** `FlashKernel.CardAttackRepeating` 对应现有引擎在一个 `AttackContext` 内的循环：每波对当前全部存活敌人造成一次伤害，随后用**当前名单**跑死亡结算，`WasTargetKilled` 的个数追加为下一波；`BeforeAttack`/`AfterAttack` 各只派发一次。Omnislice 与 EchoingSlash 的死亡结算都只遍历当前名单（`combat.Enemies`），因此击杀后离场的 Infested 尸体不会在复制伤害前生成 Wriggler。
 - **HandOfGreed**：镜像攻击后检查本次出牌是否击杀目标且目标所有 Power 都允许致命（`ShouldOwnerDeathTriggerFatal`），成功则加金币与 `LongTermResourceValue`。金币修正遗物（BowlerHat/Ectoplasm/DragonFruit）尚未进入 Flash 定义，含有它们的根不在本批证据内。
 - **GoldAxe**：`FinishedCardPlays` 计数器导入根历史的 `GetFinishedPlaysBeforePrediction` 并在每次完成出牌时 +1，作为 `CalculatedVarSpecRegistry` 的乘数。
 - **回手。** Bolas/ThrummingHatchet 打出后把 `FlashCard.ReturnToHandNextTurn`（`CostState` bit 4）置位；玩家下回合 `BeforeHandDraw` 的返回手牌阶段按当前牌堆顺序把这些牌移回手牌并清位，对应 `SimulatedCombatState._returnToHandNextTurn` 与 `PrepareBeforeHandDraw`。根导入把 `_returnToHandNextTurn` 的成员投影到对应卡值。
@@ -133,7 +136,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 来源：`S/CombatPredictionSimulator.Attack.cs:83-165`、`S/CombatPredictionSimulator.Damage.cs:55-467`、`M/Hooks/Damage/ModifyDamageMirrors.cs`。
 
-1. **攻击**：结束中或攻击者已死则返回；`BeforeAttack`；`ModifyAttackHitCount`；逐次命中：攻击者死亡或无存活目标则停止，随机目标用 `CombatTargets` 流；最后记录历史并触发 `AfterAttack`。
+1. **攻击**：结束中或攻击者已死则返回；`BeforeAttack`；`ModifyAttackHitCount`；逐次命中：攻击者死亡或无存活目标则停止，随机目标用 `CombatTargets` 流；最后记录历史并触发 `AfterAttack`。EchoingSlash 走 `CardAttackRepeating`：同一上下文内多波伤害，每波结束后结算当前名单的死亡，击杀数追加波数。
 2. **伤害**：先对全部目标计算并扣除，再统一处理结果。
 3. **单目标**：目标已死则跳过；`ModifyDamage` = 附魔加成与倍率 → 按监听顺序的加法阶段（力量等）→ 乘法阶段（易伤、虚弱等）→ 取所有 `ModifyDamageCap` 的最小值 → 钳制到 ≥ 0。全程 `decimal`，不取整。`BeforeDamageReceived`；格挡吸收（目标是 Osty 时扣其主人的格挡；不可格挡伤害跳过）；`ModifyHpLost` BeforeOsty 与其 Late → Osty 重定向 → AfterOsty 与其 Late → `AfterModifyingHpLostAfterOsty`；失血时 `(int)` 截断；失血 ≥ 当前 HP 视为击杀。
 4. **结果处理**：`AfterBlockBroken` → `AfterCurrentHpChanged` → `AfterDamageGiven` → 未被击杀时 `AfterDamageReceived`（含 Late）；之后执行击杀，或所有玩家死亡时判负。每次结果同时按 `RecordDamageReceived` 记录玩家对敌人的 powered attack 命中（完全格挡也计数，非强化伤害不计），供 BeatIntoShape 的按目标锻造乘数读取；该计数在玩家回合开始清零，超过 255 按 `FlashUnsupportedException` 拒绝。
@@ -144,7 +147,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 格挡（`S/CombatPredictionSimulator.Block.cs:49-93`）：结束中或已死返回 0 → `BeforeBlockGained` → `ModifyBlock`（附魔、加法阶段含敏捷、乘法阶段含脆弱、溢出钳制、≥ 0）→ `AfterModifyingBlockAmount` → 大于 0 时按出牌记录并加到格挡（`int` 截断，上限 999,999,999）→ `AfterBlockGained`。己方回合开始清格挡：`ShouldClearBlock` 或保留者，然后 `AfterBlockCleared`。
 
-Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不能接受 Power 时返回 → 遗物修正（`TryModifyPowerAmountReceived` 普通阶段记录被修改的监听者，随后在 Artifact 检查前对它们派发 `AfterModifyingPowerAmountReceived`；RuinedHelmet 在此翻倍并标记本场已用）→ 目标有人工制品且是减益时抵消一层并返回 → 实例型 Power 新建实例，其余按（持有者、类型）叠加并钳制 → 玩家侧新获得的虚弱、易伤、脆弱标记跳过下次衰减 → 更新监听顺序 → 把非零变化放进待处理队列。旧引擎**没有**通用的 `AfterApplied`，只有少数 Power 初始化。
+Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不能接受 Power 时返回 → 遗物修正（先 `ModifyPowerAmountGiven` 给 SneckoSkull 等加层，再 `TryModifyPowerAmountReceived` 普通阶段记录被修改的监听者，随后在 Artifact 检查前对它们派发 `AfterModifyingPowerAmountReceived`；RuinedHelmet 在此翻倍并标记本场已用）→ 目标有人工制品且是减益时抵消一层并返回 → 实例型 Power 新建实例，其余按（持有者、类型）叠加并钳制 → 玩家侧新获得的虚弱、易伤、脆弱标记跳过下次衰减 → 更新监听顺序 → 把非零变化放进待处理队列。旧引擎**没有**通用的 `AfterApplied`，只有少数 Power 初始化。
 
 衰减：虚弱、易伤、脆弱、无实体、NoBlock 在**敌方回合结束时对所有生物**衰减并尊重跳过标记；Blur 在己方回合开始衰减且该回合开始不清格挡；DoubleDamage 在每方回合结束衰减；瞬时 Power 在己方回合结束清除；临时力量、敏捷、集中在 `TriggerRegular` 中按监听顺序退回。`FlashPowerDef.PreventsCombatEnding` 对应原版 `ShouldStopCombatFromEnding`：战斗结束判定会遍历仍在阵容中的生物的正层 Power，AdaptablePower、StockPower 等返回真时 `IsEnding` 保持假（TestSubject 的复活窗口）。`SandpitPower` 是实例型、带目标的计数 Power：根导入按原生实例逐行写入 `FlashPower.Target`；敌方侧回合开始的固定序列（`TurnStartPowerSupport.TriggerAfterSideTurnStart` 的 SANDPIT case）按行把层数减一，归零时对记录的目标执行 `Kill(force: true)`（玩家死亡时由 `HandlePlayerDeath` 顺带清理 Osty），与 `SimulatedCombatState.IncrementSandpitTargeting`/`FranticEscape` 的加层路径一致。
 
@@ -194,7 +197,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 来源：`S/CombatPredictionSimulator.CardPile.cs`。
 
-- 小数抽牌数向上取整；`ShouldDraw` 失败则整次不抽。
+- 小数抽牌数向上取整；`ShouldDraw` 失败则整次不抽。Pagestorm 在每张本地 Ethereal 牌抽到后追加一次抽牌（`AfterCardDrawn`）。
 - 逐张：结束中或手牌达到上限则停止；抽牌堆空且弃牌堆非空时洗牌；取抽牌堆顶入手；历史 → `AfterCardDrawn` Early → 普通 → 被抽卡自身 Hook。`TryDrawOne` 在抽牌前保存被抽卡的值；Pillage 用它判断“刚抽到的牌是否攻击”，即使 `AfterCardDrawn` 中的 Hellraiser 已把该牌自动打出并从手牌移除。
 - 洗牌：列表 = 弃牌堆（原顺序）+ 抽牌堆；按卡牌排序键稳定排序后用 `Shuffle` 流做不稳定洗牌（与 `StableShuffleProjection` 相同）；`ModifyShuffleOrder`；全部放到抽牌堆底；`ShuffleEventCount + 1`；战斗未结束时 `AfterShuffle`（TheAbacus 获得其 Unpowered 格挡）。排序键来自原版 `CardModel.CompareTo`，在根导入时编译进 `FlashRules`。
 - 随机插入牌堆位置用 `Shuffle` 流的 `NextInt(n + 1)`。手牌满时加入手牌的卡改进弃牌堆。

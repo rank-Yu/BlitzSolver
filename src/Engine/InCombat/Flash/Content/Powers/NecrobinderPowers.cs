@@ -463,6 +463,8 @@ public sealed class EnfeeblingTouchPower : FlashPowerDef
 {
     public override FlashPowerType Type => FlashPowerType.Debuff;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
+
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
     public override bool IsTemporaryPower => true;
@@ -484,6 +486,8 @@ public sealed class SummonNextTurnPower : FlashPowerDef
     public override FlashPowerType Type => FlashPowerType.Buff;
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override bool UsesAmountOnTurnStart => true;
 
     public override void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
     {

@@ -520,6 +520,26 @@ public static partial class FlashHooks
     }
 
     /// <summary>
+    /// <c>PersistentRelicSupport.ModifyPowerAmountGiven</c>: every combat listener in order adds its
+    /// delta to the running amount. A pure query without the ending gate.
+    /// </summary>
+    public static decimal ModifyPowerAmountGiven(in FlashBattle battle, FlashRules rules, ushort powerId,
+        byte giver, byte target, decimal amount)
+    {
+        if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.ModifyPowerAmountGiven) == 0)
+            return amount;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(battle, FlashHookMaskExt.ModifyPowerAmountGiven, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            FlashListener listener = listeners[index];
+            amount += Definition(battle, listener).ModifyPowerAmountGiven(battle, rules, listener, powerId,
+                giver, target, amount);
+        }
+        return amount;
+    }
+
+    /// <summary>
     /// Mirrors <c>SimulatedCombatState.ModifyPowerAmountForRelics</c>'s received pass: a pure query over
     /// every combat listener; the listeners that changed the amount are recorded. Artifact stays in the
     /// kernel after this pass, as the existing engine consumes it after the relic modifiers.

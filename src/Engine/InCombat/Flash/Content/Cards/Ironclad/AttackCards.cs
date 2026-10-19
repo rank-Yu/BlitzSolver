@@ -269,12 +269,16 @@ public sealed class Feed : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         byte target = x.Target;
+        // CorePowerSupport captures targetDeathTriggersFatal before the card's effects run. MinionPower
+        // is the only supported power that rejects a fatal kill, and it does so by making the owner a
+        // secondary enemy, which IsPrimaryEnemy reports.
+        bool fatal = target != FlashLimits.NoOwner && FlashKernel.IsPrimaryEnemy(x.B, target);
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice || target == FlashLimits.NoOwner || x.B.Creature(target).IsAlive)
             return;
         // CorePowerSupport.Feed only gains MaxHp after a fatal hit and only when every power of the
         // target lets its owner's death trigger fatal (MinionPower is the supported such power).
-        if (!FlashKernel.IsPrimaryEnemy(x.B, target))
+        if (!fatal)
             return;
         FlashKernel.GainMaxHp(ref x, FlashLimits.PlayerOwner, FlashCardEffects.Var(x, 1));
     }

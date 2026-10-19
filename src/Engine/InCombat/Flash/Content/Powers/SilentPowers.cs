@@ -41,6 +41,8 @@ public sealed class DrawCardsNextTurnPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override bool UsesAmountOnTurnStart => true;
+
     public override decimal ModifyHandDraw(ref FlashExec x, FlashListener self, decimal amount)
     {
         ref readonly FlashPower power = ref x.B.Powers[self.Index];
@@ -507,6 +509,8 @@ public sealed class FreeSkillPower : FlashPowerDef
 public sealed class PiercingWailPower : FlashPowerDef
 {
     public override FlashPowerType Type => FlashPowerType.Debuff;
+
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 

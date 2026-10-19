@@ -377,6 +377,32 @@ public static class FlashCardEffects
         }
     }
 
+    /// <summary>
+    /// Discards cards just drawn by hand position (Scrape). Positions are ascending in draw order;
+    /// each prior discard shifts the remaining positions down by one. A hook that moved a selected
+    /// card out of its recorded slot makes the assumption invalid and is rejected explicitly rather
+    /// than discarding a different byte-equal copy.
+    /// </summary>
+    public static void DiscardDrawn(ref FlashExec x, scoped ReadOnlySpan<FlashCard> drawn,
+        scoped ReadOnlySpan<int> positions, scoped ReadOnlySpan<int> selected)
+    {
+        int removed = 0;
+        foreach (int item in selected)
+        {
+            int position = positions[item];
+            int index = position - removed;
+            if (position < 0 || (uint)index >= (uint)x.B.HandCount
+                || !Equal(x.B.Cards[index], drawn[item]))
+            {
+                throw new FlashUnsupportedException("抓牌后被抽牌钩子移动的牌无法按原位置弃置。");
+            }
+            FlashKernel.Discard(ref x, FlashPile.Hand, index);
+            removed++;
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
     /// <summary>Moves the whole hand to the bottom of the draw pile in hand order (Reboot).</summary>
     public static void MoveHandToDraw(ref FlashExec x)
     {

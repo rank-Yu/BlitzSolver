@@ -113,26 +113,47 @@ public static partial class FlashKernel
         if (selected.IsEmpty || IsOverOrEnding(x.B))
             return;
         Span<FlashCard> originals = stackalloc FlashCard[selected.Length];
+        Span<int> occurrences = stackalloc int[selected.Length];
         Span<int> removal = stackalloc int[selected.Length];
         int count = FlashPiles.Count(x.B, pile);
+        ReadOnlySpan<FlashCard> before = FlashPiles.ReadCards(x.B, pile);
         for (int item = 0; item < selected.Length; item++)
         {
             if ((uint)selected[item] >= (uint)count)
                 throw new FlashUnsupportedException("变换选中的卡不在原牌堆。");
-            originals[item] = FlashPiles.ReadCards(x.B, pile)[selected[item]];
+            originals[item] = before[selected[item]];
+            int occurrence = 0;
+            for (int prior = 0; prior < selected[item]; prior++)
+            {
+                if (FlashFingerprint.Equal(before[prior], originals[item]))
+                    occurrence++;
+            }
+            occurrences[item] = occurrence;
             removal[item] = selected[item];
         }
-        // Remove in the selected order; later positions are the shrinking-pile indexes.
+        // Remove in the selected order; byte-equal cards at other slots are not interchangeable.
         for (int item = 0; item < selected.Length; item++)
         {
+            int occurrence = occurrences[item];
+            for (int prior = 0; prior < item; prior++)
+            {
+                if (selected[prior] < selected[item]
+                    && FlashFingerprint.Equal(originals[prior], originals[item]))
+                {
+                    occurrence--;
+                }
+            }
             int position = -1;
             ReadOnlySpan<FlashCard> cards = FlashPiles.ReadCards(x.B, pile);
             for (int index = 0; index < cards.Length; index++)
             {
                 if (!FlashFingerprint.Equal(cards[index], originals[item]))
                     continue;
-                position = index;
-                break;
+                if (occurrence-- == 0)
+                {
+                    position = index;
+                    break;
+                }
             }
             if (position < 0)
                 throw new FlashUnsupportedException("变换选中的卡在结算前离开了原牌堆。");

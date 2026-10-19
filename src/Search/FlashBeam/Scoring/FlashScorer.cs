@@ -292,7 +292,24 @@ internal sealed class FlashScorer
         int realizedLongTermResourceValue = _score.IgnoreLongTermRewards
             ? 0
             : battle.Counter(FlashCounter.LongTermResourceValue);
-        int longTermResourceValue = realizedLongTermResourceValue;
+        int exhaustedTheHunts = 0;
+        if (_score.TheHuntCardId != ushort.MaxValue)
+        {
+            int start = FlashPiles.Start(battle, FlashPile.Exhaust);
+            int count = FlashPiles.Count(battle, FlashPile.Exhaust);
+            for (int index = 0; index < count; index++)
+            {
+                if (battle.Cards[start + index].Id == _score.TheHuntCardId)
+                    exhaustedTheHunts++;
+            }
+        }
+        int rewardedTheHunts = _score.TheHuntPowerId == ushort.MaxValue
+            ? 0
+            : Math.Max(0, GetAmount(battle, _score.TheHuntPowerId, FlashLimits.PlayerOwner));
+        int missedTheHuntRewards = Math.Max(0, exhaustedTheHunts - rewardedTheHunts);
+        int longTermResourceValue = _score.IgnoreLongTermRewards
+            ? 0
+            : realizedLongTermResourceValue - missedTheHuntRewards * TheHuntLongTermResourceValue;
         int growthHpCredit = 0;
         score += Math.Min(
             realizedLongTermResourceValue * SolverWeights.LongTermResourceBeamValue,
@@ -1038,6 +1055,10 @@ internal sealed class FlashScorer
     }
 
     // ---------------------------------------------------------------------------------------------
+    // CorePowerSupport.TheHuntLongTermResourceValue (30): an exhausted TheHunt that did not kill its
+    // target loses the presumed card-reward resource.
+    private const int TheHuntLongTermResourceValue = 30;
+
     // CombatBeamSolver.StateEvaluation.OrbRetentionValue. The existing engine applies
     // Hook.ModifyOrbValue (Focus) through OrbMirrors.GetPassiveValue; FlashKernel.OrbPassiveValue is
     // the same pure query over the Flash listener list.

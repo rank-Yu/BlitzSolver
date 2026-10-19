@@ -203,8 +203,22 @@ public static partial class FlashKernel
     private static void PlayFromPlay(ref FlashExec x, FlashCard card, byte target, int energyValue,
         int playPosition, bool isAutoPlay, out FlashPile resultPile, out int resultIndex)
     {
+        // A nested auto-play inside this play's effects runs its own PlayFromPlay and moves
+        // PlayPosition to its slot; put this play's slot back afterwards so CurrentPlayCard keeps
+        // addressing this card (nested cards are appended after it and leave the play pile first).
+        int outerPlayPosition = x.PlayPosition;
+        PlayFromPlayCore(ref x, card, target, energyValue, playPosition, isAutoPlay, out resultPile, out resultIndex);
+        x.PlayPosition = outerPlayPosition;
+    }
+
+    private static void PlayFromPlayCore(ref FlashExec x, FlashCard card, byte target, int energyValue,
+        int playPosition, bool isAutoPlay, out FlashPile resultPile, out int resultIndex)
+    {
         resultPile = FlashPile.Play;
         resultIndex = -1;
+        // The play-pile slot is fixed before the first effect runs (nested auto-plays append after
+        // it), so OnPlay code can address its own live card with CurrentPlayCard.
+        x.PlayPosition = playPosition;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
         x.CurrentPlayEnergyValue = energyValue;
         FlashPile result = ResultLocation(x.B, x.R, card, stats, out bool removeFromCombat,

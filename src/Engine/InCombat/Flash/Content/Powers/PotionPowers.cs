@@ -38,6 +38,8 @@ public sealed class FlexPotionPower : FlashPowerDef
 {
     public override FlashPowerType Type => FlashPowerType.Buff;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
+
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
     public override bool IsTemporaryPower => true;
@@ -76,6 +78,8 @@ public sealed class ShacklingPotionPower : FlashPowerDef
 public sealed class SpeedPotionPower : FlashPowerDef
 {
     public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override string? InternallyAppliedPowerId => "DEXTERITY_POWER";
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 

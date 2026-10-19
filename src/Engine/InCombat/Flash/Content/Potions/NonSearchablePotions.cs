@@ -59,5 +59,9 @@ public sealed class FairyInABottle : FlashPotionDef
             x.B.AddCounter(FlashCounter.DeathSavePotionHpRestored, restored);
             x.B.AddCounter(FlashCounter.DeathSaveUseCount, 1);
         }
+        // FairyInABottleMirrors.AfterPreventingDeath calls ICombatPredictionEffectSink.AfterPotionUsed
+        // while the revived player lives; the automatic use must reach ReptileTrinket/BeltBuckle too.
+        if (x.B.Player.IsAlive)
+            FlashHooks.AfterPotionUsed(ref x, Id);
     }
 }

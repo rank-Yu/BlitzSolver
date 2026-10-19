@@ -158,6 +158,7 @@ public sealed class ManglePower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
     public override bool IsTemporaryPower => true;
     // EndTurnPowerSupport.TriggerRegular: case TemporaryStrengthPower when the owner participates.
     public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
@@ -179,6 +180,7 @@ public sealed class SetupStrikePower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
     public override bool IsTemporaryPower => true;
     // EndTurnPowerSupport.TriggerRegular: case TemporaryStrengthPower when the owner participates.
     public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)

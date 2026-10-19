@@ -225,8 +225,9 @@ public static partial class FlashKernel
         if ((uint)index >= (uint)battle.OrbCount)
             throw new ArgumentOutOfRangeException(nameof(index), index, "球槽没有这个位置。");
         FlashOrb orb = battle.Orbs[index];
-        decimal raw = FlashRegistry.Orb(orb.Id).BasePassiveValue(battle, orb);
-        return FlashHooks.ModifyOrbValue(battle, rules, orb, raw);
+        FlashOrbDef def = FlashRegistry.Orb(orb.Id);
+        decimal raw = def.BasePassiveValue(battle, orb);
+        return def.PassiveUsesModifyOrbValue ? FlashHooks.ModifyOrbValue(battle, rules, orb, raw) : raw;
     }
 
     /// <summary>Current evoke value with the <c>ModifyOrbValue</c> listeners. A pure query.</summary>

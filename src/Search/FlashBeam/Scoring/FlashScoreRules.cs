@@ -319,6 +319,10 @@ internal sealed class FlashScoreRules
 
     public ushort BodySlamCardId { get; init; } = ushort.MaxValue;
 
+    public ushort TheHuntCardId { get; init; } = ushort.MaxValue;
+
+    public ushort TheHuntPowerId { get; init; } = ushort.MaxValue;
+
     public ushort BufferPowerId { get; init; } = ushort.MaxValue;
 
     public ushort NoDrawPowerId { get; init; } = ushort.MaxValue;

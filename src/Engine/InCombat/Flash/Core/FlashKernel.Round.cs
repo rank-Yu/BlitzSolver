@@ -288,6 +288,10 @@ public static partial class FlashKernel
             FlashRegistry.Card(card.Id).OnTurnEndInHand(ref x);
             if (x.NeedsChoice)
                 return;
+            // An in-hand turn-end effect (Infection) may kill the player; the existing engine stops
+            // the lifecycle there, so the card is no longer required to sit in the play pile.
+            if (x.B.Player.IsDead)
+                return;
             // The effect may change the card's own state (a private counter), never its identity or place.
             int position = x.B.PlayCount - 1;
             if (position < 0 || FlashPiles.At(ref x.B, FlashPile.Play, position).Id != card.Id
@@ -365,13 +369,22 @@ public static partial class FlashKernel
             card.ClearTemporaryStarCost();
     }
 
-    /// <summary>Mirrors <c>SimulatedCombatState.SnapshotPowerAmountsAtTurnStart</c> for one creature.</summary>
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.SnapshotPowerAmountsAtTurnStart</c> for one creature, limited
+    /// to the powers whose <c>AmountOnTurnStart</c> any settlement reads
+    /// (<see cref="FlashPowerDef.UsesAmountOnTurnStart"/>). The native snapshot writes the model
+    /// amount, which lags a mirrored decrement by one action boundary; Flash has no such lag, so the
+    /// remaining powers keep this inert field at zero instead of reproducing the stale model value.
+    /// </summary>
     private static void SnapshotPowerAmountsAtTurnStart(ref FlashBattle battle, byte owner)
     {
         for (int index = 0; index < battle.PowerCount; index++)
         {
-            if (battle.Powers[index].Owner == owner)
-                battle.Powers[index].AmountOnTurnStart = battle.Powers[index].Amount;
+            if (battle.Powers[index].Owner != owner)
+                continue;
+            battle.Powers[index].AmountOnTurnStart = FlashRegistry.Power(battle.Powers[index].Id).UsesAmountOnTurnStart
+                ? battle.Powers[index].Amount
+                : 0;
         }
     }
 

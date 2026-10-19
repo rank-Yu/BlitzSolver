@@ -183,6 +183,10 @@ public sealed class PlasmaOrb : FlashOrbDef
 
     public override decimal BaseEvokeValue(in FlashBattle battle, in FlashOrb orb) => 2m;
 
+    // PlasmaOrb.PassiveVal is the literal 1; OrbMirrors.GetPassiveValue does not run ModifyOrbValue
+    // for it, unlike Lightning/Frost/Dark/Glass.
+    public override bool PassiveUsesModifyOrbValue => false;
+
     // PlasmaOrb overrides AfterTurnStartOrbTrigger instead of BeforeTurnEndOrbTrigger.
     public override void BeforeTurnEndOrbTrigger(ref FlashExec x, int orbIndex)
     {

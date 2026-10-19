@@ -558,20 +558,22 @@ public sealed class Scrape : FlashCardDef
         if (x.NeedsChoice)
             return;
         Span<FlashCard> drawn = stackalloc FlashCard[FlashLimits.Cards];
-        int count = FlashKernel.DrawInto(ref x, (int)FlashCardEffects.Var(x, 1), fromHandDraw: false, drawn);
+        Span<int> positions = stackalloc int[FlashLimits.Cards];
+        int count = FlashKernel.DrawInto(ref x, (int)FlashCardEffects.Var(x, 1), fromHandDraw: false, drawn,
+            positions);
         if (x.NeedsChoice)
             return;
+        Span<int> chosen = stackalloc int[count];
         int discard = 0;
         for (int index = 0; index < count; index++)
         {
             FlashCard card = drawn[index];
-            FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
             int cost = FlashKernel.EnergyCostValueWithModifiers(x.B, x.R, card, FlashPile.Hand);
             if ((card.Flags & FlashCardFlags.CostsX) != 0 || cost != 0)
-                drawn[discard++] = card;
+                chosen[discard++] = index;
         }
         if (discard > 0)
-            FlashCardEffects.DiscardCards(ref x, drawn[..discard]);
+            FlashCardEffects.DiscardDrawn(ref x, drawn, positions, chosen[..discard]);
     }
 }
 

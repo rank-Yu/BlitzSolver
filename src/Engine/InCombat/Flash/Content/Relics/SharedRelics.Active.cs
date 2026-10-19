@@ -313,7 +313,10 @@ public sealed class MiniatureCannon : FlashRelicDef
     public override decimal ModifyDamageAdditive(ref FlashExec x, FlashListener self,
         in FlashDamageContext damage, decimal amount)
     {
-        if (!damage.Props.IsPoweredAttack() || !damage.HasCardSource || damage.Dealer != FlashLimits.PlayerOwner)
+        // Native condition: reject only when neither the dealer is the owner's creature nor the
+        // card source belongs to the owner. An Osty attack has the pet as dealer but the player's
+        // card as source, so it still gains the bonus.
+        if (!damage.Props.IsPoweredAttack() || !damage.HasCardSource)
             return 0m;
         return damage.CardSource.Upgrade > 0 ? x.R.RelicVar(Id, 0) : 0m;
     }

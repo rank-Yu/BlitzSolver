@@ -12,6 +12,17 @@
 - 卡牌自身选择的空选项：`BuildRequiredEmptyChoice` 列出的牌（HiddenDaggers、Brand）在手牌为空时，手动打出会提出 0..0 的空选择；自动打出中的嵌套选择由 `ResolveNestedCardChoice` **直接结算**同一个空选择、不提问。Flash 用 `FlashExec.CurrentPlayIsAutoPlay` 区分这两种情形，随后照常执行 `ApplyPostChoiceEffects`。
 - 手牌触发（`AfterCardDrawn` 中的 `CorrosiveWavePower`、`SpeedsterPower` 等）与弃牌触发都在上面的位置派发；多张弃置的 `AfterCardDiscarded` 之间可以出现待处理选择，Flash 丢弃半成品状态、从父状态带选择重执行。
 
+### 1.1 剩余卡牌与遗物（LS）
+
+- **KnifeTrap**：按消耗堆顺序取出 Shiv（按“值 + 同值第几张”定位），升级版先把该张 Shiv 升一级，再 `FlashKernel.AutoPlay` 到同一目标；Shiv 带消耗关键字，打出后回到消耗堆。位置假设不成立（抽牌钩子移动了牌）时抛 `FlashUnsupportedException`。对照 `CardOnPlaySupport.Batch043.ApplyKnifeTrap`。
+- **EchoingSlash**：`FlashKernel.CardAttackRepeating` 在一个 `BeforeAttack`/`AfterAttack` 上下文内反复对全体敌人造成伤害；每波后按当前名单结算死亡，每击杀一名敌人追加一波。对照 `CardOnPlaySupport.Batch042.ApplyEchoingSlash`。
+- **Burst**：`BurstPower.ModifyCardPlayCount` 给技能牌 +1 次重放，`AfterModifyingCardPlayCount` 减一层，`EndTurnRegular` 移除；对照 `ModifyCardPlayCountMirrors` 与 `CorePowerSupport` 的 Burst case。
+- **Shadowmeld**：`ShadowmeldPower.ModifyBlockMultiplicative` 按 2^层数放大其主人的格挡（≥96 层取 `decimal.MaxValue`，与现有引擎的溢出阀一致），侧回合末移除；对照 `ModifyBlockMultiplicativeMirrors.HandleShadowmeldPower`。
+- **ToolsOfTheTrade**：`ModifyHandDraw` 加层数；玩家回合开始按层数弃牌（`TurnStartPowerSupport` 的 ToolsOfTheTrade case，`PlanChoiceEffect.Discard`）。
+- **Mirage**：`CalculationBase + CalculationExtra × 所有存活敌人的毒层数`，以 `Move` 卡牌格挡结算；对照 `CalculatedVarSpecRegistry` 的 Mirage。
+- **TheHunt**：攻击前捕获目标是否允许致命击杀，击杀后施加 `TheHuntPower` 并记 30 长线资源；战斗内额外卡牌奖励只在 `CombatRoom` 上，两个模拟状态都不表示它，评估按现有 `missedTheHuntRewards` 扣分。对照 `CorePowerSupport` 的 TheHunt case。
+- **遗物**：Tingsha 在玩家侧弃牌后随机打 3 点 Unpowered；HelicalDart 在 Shiv 打出后施加 1 层临时敏捷（`HelicalDartPower`）；SneckoSkull 通过新的 `ModifyPowerAmountGiven` 查询给玩家施加的毒 +1；PaperKrane 在 `WeakPower` 的乘数里对玩家目标减 0.15；BeltBuckle 战前若没有药水已在根快照里给 2 敏捷，`AfterPotionUsed` 在最后一瓶药用掉且本场尚未补过时再给 2 敏捷并置遗物计数（对应 `TriggerRelicsAfterPotionUsed` 的 `StatefulRelicState.Current` 门控）。对照 `AfterCardDiscardedMirrors`、`AfterCardPlayedMirrors.HandleHelicalDart`、`PersistentRelicSupport.ModifyPowerAmountGiven`、`ModifyDamageMirrors.HandleWeakPower`。
+
 ## 2. 故障机器人：充能球
 
 来源：`S/CombatPredictionSimulator.Orb.cs`、`S/SimOrbQueue.cs`、`M/Orbs/**`、`M/Hooks/Orb/**`、`P/OrbLifecycleSupport.cs`、`P/EnchantmentLifecycleSupport.TriggerAfterTurnStartOrbs` 与回合阶段中的球调用位置。
@@ -29,6 +40,12 @@
 **球值。** Lightning 被动 3、激发 8；Frost 被动 2 并给所有者格挡、激发 5；Dark 被动把 `Modify(6)` 累加进 `Aux`，激发对当前生命最低的可命中敌人造成 **原始 `Aux`**（原版 `EvokeVal` 不再过 `ModifyOrbValue`，集中只影响累积）；Glass 被动取 `Modify(Aux)`，大于 0 时造成伤害并把 `Aux` 减 1，激发为 `Modify(Aux) * 2`，伤害所有可命中敌人；Plasma 被动 +1 能量、激发 +2 能量。Lightning 与 Glass 的随机目标取 `CombatTargets.NextItem` 的一次 `NextInt(0, count)`，候选为空时不消耗；Lightning 的显式目标（TeslaCoil）不消耗该流。Chaos 与 TrashToTreasure 的随机球取 `CombatOrbGeneration`，候选顺序是原版 `_validOrbs`：Lightning、Frost、Dark、Plasma、Glass。
 
 **遗物。** CrackedCore 在第一回合玩家侧 `BeforeSideTurnStart` 充能闪电；RunicCapacitor 与 SymbioticVirus 在第一回合玩家侧 `AfterSideTurnStart` 增加 3 槽 / 充能暗球；GoldPlatedCables 实现触发次数 Hook；PowerCell 与旧引擎的 `RegisterIgnored<PowerCell>` 一致，是准入所需的空定义。ReptileTrinket 在 `AfterPotionUsed` 中按遗物变量施加临时力量（`ReptileTrinketPower`），对应 `TriggerRelicsAfterPotionUsed`。UnsettlingLamp 仍无定义：它需要卡牌实例身份、`BeforePowerAmountChanged` 与 `ModifyPowerAmountGivenMultiplicative` 的逐卡翻倍账本。
+
+### 2.1 剩余卡牌与药水（LS）
+
+- **Leap**：通用格挡；**BoostAway**：格挡后生成一张 Dazed 到弃牌堆（`CardEffectSpecRegistry` 的 BoostAway case）；**MeteorStrike**：单体攻击后充能 3 个等离子球（`OrbCardMirrors.MeteorStrikeOnPlay`）；**MomentumStrike**：攻击后给当前打出的牌加一条本场绝对 0 费修饰（`CardEffectSpecRegistry` 的 MomentumStrike case，`CurrentPlayCard` 取当前打出堆槽位）；**Quadcast**：`EvokeNext(Repeat)`，只有最后一激发退队（`OrbCardMirrors.QuadcastOnPlay`）。
+- **EssenceOfDarkness**：按当前球槽容量逐次充能暗球（`OrbPotionMirrors.EssenceOfDarknessOnUse`）。
+- 多人限定卡（EnergySurge、Ignition、ImitationLearning、Hibernate、OneForAll）在单人 `FilterForCombatAndPlayerCount` 中被排除，按原版不定义。
 
 ## 3. 储君：星能与锻造
 
@@ -75,3 +92,11 @@
 **AfterHandEmptied**：现有引擎没有通用遗物 Hook，`TriggerRelicsAfterHandEmptied` 特判 `UnceasingTop`；Flash 在卡牌结果堆移动后（最外层效果、允许的回合阶段内）做同样特判：手牌空且抽/弃牌堆非空时抽一张。
 
 **卡牌修正**：Flatten 在任意 Osty 攻击后给战斗区内每张 Flatten 追加一条 `SetThisTurn(0)`（Absolute/EndOfTurn，按次数累积）；进入战斗的 Flatten 在该回合已有 Osty 攻击时同样追加。RightHandHand 的 `AfterCardPlayedLate` 不校验打出的副本：任意一次能量值达到其 Energy 变量的打出，都把弃牌堆中的每个副本收回手牌（`HandleRightHandHand` 的同一条件）。
+
+### 4.1 剩余卡牌与遗物（LS）
+
+- **SentryMode**：`SentryModePower.BeforeHandDraw` 按层数生成 `SweepingGaze` token 入手；SweepingGaze 是 0 费 Ethereal/Exhaust 的 Osty 随机目标攻击。对照 `TurnStartPowerSupport` 的 SentryMode case。
+- **CallOfTheVoid**：`CallOfTheVoidPower.BeforeHandDraw` 每次从角色池（`CharacterAll`，其过滤已排除 Basic/Ancient/Event 与不可生成卡）做一次 `TakeRandom(1)`，给生成卡补 Ethereal 后入手。该卡的可达闭包仍包含没有定义的 Fetch 与 Delay，因此含它的根按 `UnsupportedClosure` 拒绝（见 testing 摘要的缺失能力）。
+- **Misery**：锁定目标的每个减益（层数、applier、`Target`）快照，攻击后按可命中敌人顺序克隆到其他敌人，每次克隆后排空 Power 数量变化队列；目标带临时 Power 时显式 `FlashUnsupportedException`（缺少实例内部属性合并）。对照 `BespokeCardMirrors.MiseryOnPlay`。
+- **Pagestorm**：`AfterCardDrawn` 只检查卡牌本地 Ethereal 关键字，命中后抽层数张；对照 `AfterCardDrawnMirrors.HandlePagestormPower`。
+- **BigHat**：唯一战斗内触发是玩家第 1 回合开始生成 2 张 Ethereal 角色牌，发生在根捕获之前；现有引擎也没有对应镜像，定义为空。

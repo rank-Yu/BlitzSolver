@@ -183,6 +183,7 @@ public sealed class DyingStarPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
     public override bool IsTemporaryPower => true;
 
     public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
@@ -263,6 +264,7 @@ public sealed class MonarchsGazeStrengthDownPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
     public override bool IsTemporaryPower => true;
 
     public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
@@ -318,6 +320,7 @@ public sealed class CrushUnderPower : FlashPowerDef
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
     public override bool IsTemporaryPower => true;
 
     public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)

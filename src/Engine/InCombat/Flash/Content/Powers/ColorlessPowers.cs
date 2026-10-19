@@ -23,6 +23,8 @@ public sealed class DarkShacklesPower : FlashPowerDef
 {
     public override FlashPowerType Type => FlashPowerType.Debuff;
 
+    public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
+
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
     public override bool IsTemporaryPower => true;
@@ -338,7 +340,7 @@ public sealed class EntropyPower : FlashPowerDef
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
     public override IReadOnlyList<string> GeneratedCardPools =>
-        [FlashCardPools.CharacterAll, FlashCardPools.ColorlessAll];
+        [FlashCardPools.CharacterAll, FlashCardPools.ColorlessAll, FlashCardPools.StatusAll, FlashCardPools.CurseAll];
 
     public override void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
     {
@@ -371,17 +373,26 @@ public sealed class EntropyPower : FlashPowerDef
         // CardFactory.GetDefaultTransformationOptions picks original.Pool unless the card is a
         // Quest/Event/Ancient/Token card (then the colorless pool). CharacterAll excludes Basic cards
         // (FilterForCombat), so a starter card still belongs to the character pool.
-        string poolKey = stats.Rarity is FlashCardRarity.Event or FlashCardRarity.Ancient
-                or FlashCardRarity.Token
+        // CardFactory.GetDefaultTransformationOptions: a Quest/Event/Ancient/Token card uses the
+        // colorless pool; every other card uses its canonical pool (character, colorless, status or
+        // curse), regardless of whether that particular card is currently unlocked.
+        string poolKey = stats.Type == FlashCardType.Quest
+            || stats.Rarity is FlashCardRarity.Event or FlashCardRarity.Ancient or FlashCardRarity.Token
             ? FlashCardPools.ColorlessAll
-            : stats.Rarity == FlashCardRarity.Basic
-                || Contains(x.R.CardPool(FlashCardPools.CharacterAll).Cards, original.Id)
-                ? FlashCardPools.CharacterAll
-                : FlashCardPools.ColorlessAll;
+            : stats.Pool switch
+            {
+                FlashTransformPool.Status => FlashCardPools.StatusAll,
+                FlashTransformPool.Curse => FlashCardPools.CurseAll,
+                FlashTransformPool.Colorless => FlashCardPools.ColorlessAll,
+                _ => FlashCardPools.CharacterAll,
+            };
         ReadOnlySpan<ushort> pool = x.R.CardPool(poolKey).Cards;
         Span<ushort> candidates = stackalloc ushort[pool.Length];
         int count = 0;
-        bool filterRarity = stats.Rarity is not (FlashCardRarity.Event or FlashCardRarity.Ancient);
+        // CardFactory.GetFilteredTransformationOptions keeps the original's rarity band for ordinary
+        // cards; Status and Curse are the two "rarity - 8 <= 1" values that skip the band filter.
+        bool filterRarity = stats.Rarity is not (FlashCardRarity.Event or FlashCardRarity.Ancient
+            or FlashCardRarity.Status or FlashCardRarity.Curse);
         for (int index = 0; index < pool.Length; index++)
         {
             ushort id = pool[index];
@@ -397,15 +408,5 @@ public sealed class EntropyPower : FlashPowerDef
             throw new FlashUnsupportedException($"随机变化没有可用的 {poolKey} 候选。");
         ushort chosen = candidates[x.B.RngStream(FlashRngStream.CombatCardSelection).NextInt(0, count)];
         return FlashKernel.CreateCard(x.R, chosen);
-    }
-
-    private static bool Contains(ReadOnlySpan<ushort> ids, ushort id)
-    {
-        foreach (ushort candidate in ids)
-        {
-            if (candidate == id)
-                return true;
-        }
-        return false;
     }
 }

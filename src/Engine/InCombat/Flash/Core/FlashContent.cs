@@ -239,6 +239,13 @@ public enum FlashHookMaskExt : ulong
     /// <c>HookMirrors.AfterSideTurnEndLate</c>.
     /// </summary>
     AfterSideTurnEndLate = 1UL << 32,
+
+    /// <summary>
+    /// Native <c>Hook.ModifyPowerAmountGiven</c>: a pure query over the combat listeners before the
+    /// received-side pass and the Artifact check (<c>PersistentRelicSupport.ModifyPowerAmountGiven</c>,
+    /// SneckoSkull's Poison bonus). Uses the batch's assigned bits 16-31.
+    /// </summary>
+    ModifyPowerAmountGiven = 1UL << 16,
 }
 
 /// <summary>
@@ -268,6 +275,15 @@ public static class FlashCardPools
 
     /// <summary>Player's unlocked character Power cards (WhiteNoise, CreativeAiPower).</summary>
     public const string CharacterPowers = "character.powers";
+
+    /// <summary>Player's unlocked character cards whose canonical keywords include Ethereal (BigHat).</summary>
+    public const string CharacterEthereal = "character.ethereal";
+
+    /// <summary>Unlocked status cards (Entropy's transformation of a Status card).</summary>
+    public const string StatusAll = "status.all";
+
+    /// <summary>Unlocked curse cards (Entropy's transformation of a Curse card).</summary>
+    public const string CurseAll = "curse.all";
 }
 
 public abstract class FlashContentDef
@@ -622,6 +638,14 @@ public abstract class FlashListenerDef : FlashContentDef
     /// <see cref="AfterModifyingPowerAmountReceived"/> on them before the Artifact check, matching
     /// <c>SimulatedCombatState.ModifyPowerAmountForRelics</c>.
     /// </summary>
+    /// <summary>
+    /// <c>Hook.ModifyPowerAmountGiven</c>: <c>PersistentRelicSupport.ModifyPowerAmountGiven</c> iterates
+    /// the combat listeners and passes the already-modified amount, so each listener adds its delta.
+    /// A pure query; the received-side pass follows it.
+    /// </summary>
+    public virtual decimal ModifyPowerAmountGiven(in FlashBattle battle, FlashRules rules, FlashListener self,
+        ushort powerId, byte giver, byte target, decimal amount) => 0m;
+
     public virtual bool TryModifyPowerAmountReceived(in FlashBattle battle, FlashRules rules, FlashListener self,
         ushort powerId, byte target, int amount, out int modified)
     {
@@ -844,6 +868,17 @@ public abstract class FlashPowerDef : FlashListenerDef
     /// <summary>A newly applied player-side instance skips its first duration tick (Weak, Vulnerable, Frail).</summary>
     public virtual bool UsesNativeDurationSkip => false;
 
+    /// <summary>
+    /// The native <c>PowerModel.AmountOnTurnStart</c> is read for settlement only by
+    /// <c>DrawCardsNextTurnPower</c>, <c>SummonNextTurnPower</c> and <c>HelloWorldPower</c>
+    /// (<c>PowerLifecycleSupport.SemanticallyRelevantAmountOnTurnStart</c>). Other powers only carry
+    /// the value in the native model, where a mirrored decrement (PowerAmountPredictionState) leaves
+    /// the model amount one action behind until <c>SynchronizePowerAmountPredictionStates</c>. Flash
+    /// applies mirrored decrements immediately, so for every non-reader the value is projected and
+    /// snapshotted as zero instead of trying to reproduce a lagging model field.
+    /// </summary>
+    public virtual bool UsesAmountOnTurnStart => false;
+
     /// <summary>Ticks down at the end of the enemy side in <c>CorePowerSupport.TickDurations</c>.</summary>
     public virtual bool TicksAtEnemySideEnd => false;
 
@@ -881,6 +916,13 @@ public abstract class FlashPowerDef : FlashListenerDef
 
     /// <summary>Native <c>ITemporaryPower</c>: a temporary debuff survives an illusion owner's death.</summary>
     public virtual bool IsTemporaryPower => false;
+
+    /// <summary>
+    /// Native <c>ITemporaryPower.InternallyAppliedPower</c> as a Flash native id, used by Misery's
+    /// cloned-temporary merge. A null value means the temporary power has no represented internal
+    /// stat (no clone call site needs the merge).
+    /// </summary>
+    public virtual string? InternallyAppliedPowerId => null;
 
     /// <summary>
     /// Native <c>IllusionPower.ShouldPowerBeRemovedOnDeath</c>: while the dead owner has this power,
@@ -1112,6 +1154,13 @@ public abstract class FlashOrbDef : FlashListenerDef
     /// <c>OrbRetentionValue</c>'s per-orb multiplier: Glass counts once per living enemy, the rest once.
     /// </summary>
     public virtual int RetentionMultiplier(in FlashBattle battle, int aliveEnemyCount) => 1;
+
+    /// <summary>
+    /// <c>OrbMirrors.GetPassiveValue</c> runs <c>ModifyOrbValue</c> for Lightning, Frost, Dark and
+    /// Glass, but returns <c>PlasmaOrb.PassiveVal</c> (1) directly. The evaluation's orb retention
+    /// value uses this query, so Plasma must not receive Focus.
+    /// </summary>
+    public virtual bool PassiveUsesModifyOrbValue => true;
 }
 
 /// <summary>

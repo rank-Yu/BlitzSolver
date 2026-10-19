@@ -99,6 +99,21 @@ public sealed class WeakPower : FlashPowerDef
         if (damage.Dealer != self.Owner || !damage.Props.IsPoweredAttack())
             return 1m;
         decimal multiplier = x.R.PowerVar(Id, 0);
+        // ModifyDamageMirrors.HandleWeakPower asks the target player's PaperKrane relic for the
+        // weak multiplier (subtract 0.15) before folding in DebilitatePower.
+        if (damage.Target == FlashLimits.PlayerOwner
+            && FlashRegistry.TryRelic("PAPER_KRANE", out ushort paperKrane))
+        {
+            for (int index = 0; index < x.B.RelicCount; index++)
+            {
+                ref readonly FlashRelic relic = ref x.B.Relics[index];
+                if (relic.Id == paperKrane && (relic.Flags & FlashRelicFlags.Melted) == 0)
+                {
+                    multiplier -= 0.15m;
+                    break;
+                }
+            }
+        }
         // ModifyDamageMirrors.HandleWeakPower folds in DebilitatePower on the attacking owner:
         // multiplier -= 1 - multiplier.
         if (FlashRegistry.TryPower("DEBILITATE_POWER", out ushort debilitate)

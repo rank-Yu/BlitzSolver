@@ -64,18 +64,36 @@ public static partial class FlashKernel
     /// number of drawn cards written to <paramref name="drawn"/>.
     /// </summary>
     public static int DrawInto(ref FlashExec x, int count, bool fromHandDraw, scoped Span<FlashCard> drawn)
+        => DrawInto(ref x, count, fromHandDraw, drawn, default);
+
+    /// <summary>
+    /// <see cref="DrawInto(ref FlashExec, int, bool, Span{FlashCard})"/> that also reports each drawn
+    /// card's hand position at draw time (or -1 when an <c>AfterCardDrawn</c> hook moved it). Scrape
+    /// uses the positions so that a drawn copy equal to a card already in hand discards the drawn
+    /// instance, not the older one.
+    /// </summary>
+    public static int DrawInto(ref FlashExec x, int count, bool fromHandDraw, scoped Span<FlashCard> drawn,
+        scoped Span<int> positions)
     {
         if (IsOverOrEnding(x.B) || !ShouldDraw(ref x, fromHandDraw))
             return 0;
         int written = 0;
         for (int index = 0; index < count; index++)
         {
-            if (!DrawOneCore(ref x, fromHandDraw, out FlashCard card) || x.NeedsChoice)
+            if (!DrawOneCore(ref x, fromHandDraw, out FlashCard card, out int position) || x.NeedsChoice)
                 return written;
             if (written < drawn.Length)
-                drawn[written++] = card;
+            {
+                drawn[written] = card;
+                if (!positions.IsEmpty)
+                    positions[written] = position >= 0 && position < x.B.HandCount
+                        && FlashFingerprint.Equal(x.B.Cards[position], card) ? position : -1;
+                written++;
+            }
             else
+            {
                 throw new FlashCapacityException("DrawnCards", drawn.Length);
+            }
         }
         return written;
     }
@@ -94,8 +112,12 @@ public static partial class FlashKernel
     }
 
     private static bool DrawOneCore(ref FlashExec x, bool fromHandDraw, out FlashCard card)
+        => DrawOneCore(ref x, fromHandDraw, out card, out _);
+
+    private static bool DrawOneCore(ref FlashExec x, bool fromHandDraw, out FlashCard card, out int position)
     {
         card = default;
+        position = -1;
         if (IsOverOrEnding(x.B) || x.B.HandCount >= x.B.MaxHandSize)
             return false;
         ShuffleIfNecessary(ref x);
@@ -105,7 +127,7 @@ public static partial class FlashKernel
             return false;
         // AddToPile(top draw card, Hand, Bottom): the draw segment directly follows the hand.
         FlashPiles.DrawTopToHand(ref x.B);
-        int position = x.B.HandCount - 1;
+        position = x.B.HandCount - 1;
         card = x.B.Cards[position];
         RecordCardDrawn(ref x, card, fromHandDraw);
         AfterCardDrawn(ref x, position, fromHandDraw);

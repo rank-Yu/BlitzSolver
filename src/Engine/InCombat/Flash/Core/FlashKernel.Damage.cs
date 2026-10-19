@@ -101,6 +101,61 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// One attack context with repeated damage waves (EchoingSlash): a wave hits every living enemy,
+    /// then the roster-only death pass runs, and every target killed adds one more wave. This mirrors
+    /// <c>CardOnPlaySupport.Batch042.ApplyEchoingSlash</c> (one <c>BeginAttackContext</c> around all
+    /// waves and one <c>EndAttackContext</c> at the end).
+    /// </summary>
+    public static void CardAttackRepeating(ref FlashExec x, decimal damagePerHit, int initialWaves,
+        FlashValueProps props = FlashValueProps.Move, byte attacker = FlashLimits.PlayerOwner)
+    {
+        if (IsOverOrEnding(x.B))
+            return;
+        if (x.B.Creature(attacker).IsDead)
+            return;
+        x.AttackUnblockedHits = 0;
+        BeforeAttackHook before = new() { Attacker = attacker, Props = props };
+        FlashHooks.Dispatch(ref x, ref before, gatedByEnding: true);
+        if (x.NeedsChoice)
+            return;
+        Span<byte> targets = stackalloc byte[FlashLimits.Enemies];
+        int waves = initialWaves;
+        int totalKills = 0;
+        while (waves-- > 0)
+        {
+            if (x.B.Creature(attacker).IsDead)
+                break;
+            int count = 0;
+            for (int position = 0; position < x.B.RosterCount; position++)
+            {
+                byte owner = EnemyOwner(x.B.Roster[position]);
+                if (x.B.Creature(owner).IsAlive)
+                    targets[count++] = owner;
+            }
+            if (count == 0)
+                break;
+            Damage(ref x, targets[..count], damagePerHit, props, attacker, hasCardSource: true, x.Card);
+            if (x.NeedsChoice)
+                return;
+            int kills = x.LastDamageKills;
+            totalKills = checked(totalKills + kills);
+            waves += kills;
+            // ApplyEchoingSlash passes combat.Enemies (current roster) to the death pass.
+            ApplyEnemyDeathPowersInRoster(ref x);
+            if (x.NeedsChoice)
+                return;
+            if (totalKills > FlashLimits.Enemies)
+                throw new FlashCapacityException("AttackWaves", FlashLimits.Enemies);
+        }
+        if (attacker == FlashLimits.PlayerOwner)
+            x.B.AddCounter(FlashCounter.PlayerAttacksThisTurn, 1);
+        else if (attacker == FlashLimits.OstyOwner)
+            x.B.AddCounter(FlashCounter.OstyAttacksThisTurn, 1);
+        AfterAttackHook after = new() { Attacker = attacker };
+        FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
+    }
+
+    /// <summary>
     /// Mirrors <c>CombatPredictionSimulator.Damage</c>. Returns whether any result was fully blocked,
     /// which the monster-move path reads for the Imbalanced stun (<c>MonsterMoveSemantics</c> keeps the
     /// same per-hit flag).
@@ -112,6 +167,7 @@ public static partial class FlashKernel
             return false;
         Span<FlashDamageResult> results = stackalloc FlashDamageResult[MaxDamageResults];
         int count = 0;
+        x.LastDamageKills = 0;
         foreach (byte target in targets)
         {
             if (!TryDamageTarget(ref x, target, amount, props, dealer, hasCardSource, cardSource, results, ref count))
@@ -132,8 +188,12 @@ public static partial class FlashKernel
             {
                 x.CardDamageTotal += results[index].BlockedDamage + results[index].UnblockedDamage
                     + results[index].OverkillDamage;
-                if (results[index].WasTargetKilled && dealer == FlashLimits.PlayerOwner)
-                    x.CardKilledTarget = true;
+                if (results[index].WasTargetKilled)
+                {
+                    x.LastDamageKills++;
+                    if (dealer == FlashLimits.PlayerOwner)
+                        x.CardKilledTarget = true;
+                }
             }
         }
         x.LastDamageTotal = total;
@@ -534,13 +594,25 @@ public static partial class FlashKernel
     /// Mirrors <c>CorePowerSupport.ApplyEnemyDeathPowers</c> for enemies without death powers:
     /// marks new deaths processed, removes the dead enemy's powers and completes its death phase.
     /// </summary>
-    public static void ApplyEnemyDeathPowers(ref FlashExec x)
+    public static void ApplyEnemyDeathPowers(ref FlashExec x) => ApplyEnemyDeathPowersCore(ref x, rosterOnly: false);
+
+    /// <summary>
+    /// The death pass over enemies that are still in the roster, matching the existing engine's
+    /// <c>ApplyEnemyDeathPowers(..., combat.Enemies, ...)</c> call sites (Omnislice, EchoingSlash):
+    /// a creature removed from the roster on death is not revisited there, so a summoning death power
+    /// (Infested) does not spawn its minions until the action boundary's known-enemy pass.
+    /// </summary>
+    public static void ApplyEnemyDeathPowersInRoster(ref FlashExec x) => ApplyEnemyDeathPowersCore(ref x, rosterOnly: true);
+
+    private static void ApplyEnemyDeathPowersCore(ref FlashExec x, bool rosterOnly)
     {
         Span<byte> newlyDead = stackalloc byte[FlashLimits.Enemies];
         int count = 0;
         for (int index = 0; index < x.B.EnemyCount; index++)
         {
             ref FlashEnemy enemy = ref x.B.Enemies[index];
+            if (rosterOnly && !InRoster(x.B, EnemyOwner((byte)index)))
+                continue;
             if ((enemy.Flags & FlashEnemyFlags.DeathProcessed) != 0 || enemy.Creature.IsAlive)
                 continue;
             // An illusion that just began reviving (IllusionPower.AfterDeath) still goes through the death

@@ -179,13 +179,17 @@ public sealed class HandOfGreed : FlashCardDef
     // card's hit killed the target and every target power allows a fatal kill.
     public override void OnPlay(ref FlashExec x)
     {
+        // CorePowerSupport captures targetDeathTriggersFatal before the card's effects run, so the
+        // check must not read the powers after the target's death cleanup removed them.
+        byte target = x.Target;
+        bool fatal = target != FlashLimits.NoOwner && FlashKernel.TargetDeathTriggersFatal(x.B, target);
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         FlashKernel.ApplyEnemyDeathPowers(ref x);
-        if (x.NeedsChoice || !x.CardKilledTarget || x.Target == FlashLimits.NoOwner)
+        if (x.NeedsChoice || !x.CardKilledTarget || target == FlashLimits.NoOwner)
             return;
-        if (x.B.Creature(x.Target).IsAlive || !FlashKernel.TargetDeathTriggersFatal(x.B, x.Target))
+        if (x.B.Creature(target).IsAlive || !fatal)
             return;
         int gold = (int)FlashCardEffects.Var(x, 1);
         if (gold <= 0)
@@ -210,7 +214,10 @@ public sealed class Omnislice : FlashCardDef
         if (x.NeedsChoice)
             return;
         int amount = x.LastDamageTotal + x.LastDamageOverkill;
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        // CardOnPlaySupport.Batch042.ApplyOmnislice passes combat.Enemies (current roster) to the
+        // death pass, so a lethal hit that already left the roster does not spawn Infested minions
+        // before the copied hit is resolved.
+        FlashKernel.ApplyEnemyDeathPowersInRoster(ref x);
         if (x.NeedsChoice || amount <= 0)
             return;
         Span<byte> targets = stackalloc byte[FlashLimits.Enemies];
@@ -227,6 +234,8 @@ public sealed class Omnislice : FlashCardDef
         FlashKernel.Damage(ref x, targets[..count], amount,
             FlashValueProps.Unpowered | FlashValueProps.Move, FlashLimits.PlayerOwner,
             hasCardSource: true, x.Card);
+        if (!x.NeedsChoice)
+            FlashKernel.ApplyEnemyDeathPowersInRoster(ref x);
     }
 }
 

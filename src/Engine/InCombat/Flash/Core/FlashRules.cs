@@ -25,6 +25,15 @@ public enum FlashTargetType : byte
     Osty = 9,
 }
 
+/// <summary>The canonical card pool a card belongs to, used by transformation's pool choice.</summary>
+public enum FlashTransformPool : byte
+{
+    Character = 0,
+    Colorless = 1,
+    Status = 2,
+    Curse = 3,
+}
+
 public enum FlashCardRarity : byte
 {
     None = 0,
@@ -58,6 +67,9 @@ public sealed class FlashCardStats
     public required FlashCardType Type { get; init; }
     public required FlashTargetType Target { get; init; }
     public required FlashCardRarity Rarity { get; init; }
+
+    /// <summary><c>CardModel.Pool</c> category for transformation; defaults to the character pool.</summary>
+    public FlashTransformPool Pool { get; init; } = FlashTransformPool.Character;
     public required int EnergyCost { get; init; }
     public required bool CostsX { get; init; }
     public required int StarCost { get; init; }
@@ -509,6 +521,7 @@ public sealed class FlashRulesBuilder
             && left.StarCost == right.StarCost
             && left.StarCostsX == right.StarCostsX
             && left.Keywords == right.Keywords
+            && left.Pool == right.Pool
             && left.Tags == right.Tags
             && left.IsSoul == right.IsSoul
             && left.Vars.AsSpan().SequenceEqual(right.Vars);

@@ -79,13 +79,15 @@ public static partial class FlashKernel
     /// Mirrors <c>SimulatedCombatState.ApplyWithBeforeApplied</c> for the supported powers and
     /// returns the applied delta.
     /// </summary>
-    public static int ApplyPower(ref FlashExec x, byte target, ushort powerId, int amount, byte applier)
+    public static int ApplyPower(ref FlashExec x, byte target, ushort powerId, int amount, byte applier,
+        byte powerTarget = FlashLimits.NoOwner)
     {
         if (amount == 0 || !CanReceivePowers(x.B, target))
             return 0;
         FlashPowerDef def = FlashRegistry.Power(powerId);
-        // ModifyPowerAmountForRelics: the received pass (Ruined Helmet) runs before the Artifact
-        // check, exactly as the existing engine orders its relic modifiers.
+        // ModifyPowerAmountForRelics: the given pass (SneckoSkull) runs first, then the received pass
+        // (Ruined Helmet), both before the Artifact check, exactly as the existing engine orders them.
+        amount = (int)FlashHooks.ModifyPowerAmountGiven(x.B, x.R, powerId, applier, target, amount);
         Span<FlashListener> received = stackalloc FlashListener[FlashHooks.MaxListenerCount];
         amount = FlashHooks.ModifyPowerAmountReceived(x.B, x.R, powerId, target, amount, received,
             out int receivedCount);
@@ -97,7 +99,7 @@ public static partial class FlashKernel
         }
         if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref x.B, target))
             return 0;
-        return AddPowerAmount(ref x, target, powerId, def, amount, applier, out _);
+        return AddPowerAmount(ref x, target, powerId, def, amount, applier, out _, powerTarget);
     }
 
     /// <summary>
@@ -192,17 +194,17 @@ public static partial class FlashKernel
 
     /// <summary>The counter update of <c>ApplyWithBeforeApplied</c> after its guards and Artifact check.</summary>
     private static int AddPowerAmount(ref FlashExec x, byte target, ushort powerId, FlashPowerDef def, int amount,
-        byte applier, out int resulting)
+        byte applier, out int resulting, byte powerTarget = FlashLimits.NoOwner)
     {
         ref FlashBattle battle = ref x.B;
         int index;
         if (def.IsInstanced)
-            index = InsertPower(ref battle, target, powerId, applier);
+            index = InsertPower(ref battle, target, powerId, applier, powerTarget);
         else
         {
             index = FindPower(battle, target, powerId);
             if (index < 0)
-                index = InsertPower(ref battle, target, powerId, applier);
+                index = InsertPower(ref battle, target, powerId, applier, powerTarget);
         }
 
         ref FlashPower power = ref battle.Powers[index];
@@ -394,7 +396,8 @@ public static partial class FlashKernel
     }
 
     /// <summary>Inserts a zero-amount power after the owner's last power, keeping the table grouped by owner.</summary>
-    private static int InsertPower(ref FlashBattle battle, byte owner, ushort powerId, byte applier)
+    private static int InsertPower(ref FlashBattle battle, byte owner, ushort powerId, byte applier,
+        byte powerTarget = FlashLimits.NoOwner)
     {
         int count = battle.PowerCount;
         if (count >= FlashLimits.Powers)
@@ -415,7 +418,7 @@ public static partial class FlashKernel
             Id = powerId,
             Owner = owner,
             Applier = applier,
-            Target = FlashLimits.NoOwner,
+            Target = powerTarget,
         };
         battle.PowerCount++;
         return position;
