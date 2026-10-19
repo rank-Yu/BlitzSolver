@@ -49,8 +49,14 @@ internal readonly record struct FlashScoreFeatures
 
     // BeamRankScore terms.
     public int Energy { get; init; }
+    public int Stars { get; init; }
     public int HandCount { get; init; }
+    public int ReachableHandValue { get; init; }
+    public int ZeroCostPlayableCount { get; init; }
     public int PersistentBuffValue { get; init; }
+    public int StrategicRetentionValue { get; init; }
+    public PersistentSetupTraits PersistentSetupTraits { get; init; }
+    public PersistentSetupTraits StrategicSetupTraits { get; init; }
     public int LatentSetupValue { get; init; }
     public int FutureResourceValue { get; init; }
     public int ReplayPotentialValue { get; init; }
@@ -116,8 +122,14 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(MostVulnerableTargetCombatId), old.MostVulnerableTargetCombatId, flash.MostVulnerableTargetCombatId);
         Check(nameof(EnemyVulnerableTurns), old.EnemyVulnerableTurns, flash.EnemyVulnerableTurns);
         Check(nameof(Energy), old.Energy, flash.Energy);
+        Check(nameof(Stars), old.Stars, flash.Stars);
         Check(nameof(HandCount), old.HandCount, flash.HandCount);
+        Check(nameof(ReachableHandValue), old.ReachableHandValue, flash.ReachableHandValue);
+        Check(nameof(ZeroCostPlayableCount), old.ZeroCostPlayableCount, flash.ZeroCostPlayableCount);
         Check(nameof(PersistentBuffValue), old.PersistentBuffValue, flash.PersistentBuffValue);
+        Check(nameof(StrategicRetentionValue), old.StrategicRetentionValue, flash.StrategicRetentionValue);
+        Check(nameof(PersistentSetupTraits), old.PersistentSetupTraits, flash.PersistentSetupTraits);
+        Check(nameof(StrategicSetupTraits), old.StrategicSetupTraits, flash.StrategicSetupTraits);
         Check(nameof(LatentSetupValue), old.LatentSetupValue, flash.LatentSetupValue);
         Check(nameof(FutureResourceValue), old.FutureResourceValue, flash.FutureResourceValue);
         Check(nameof(ReplayPotentialValue), old.ReplayPotentialValue, flash.ReplayPotentialValue);

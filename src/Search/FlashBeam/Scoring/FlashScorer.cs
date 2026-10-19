@@ -104,6 +104,41 @@ internal sealed class FlashScorer
         return value + (double)damage - score.BaseDamage;
     }
 
+    /// <summary>
+    /// Port of <c>CombatBeamSolver.CalculateReachableHandPotential</c>'s value/count half: each card
+    /// playable from hand contributes its modified energy and star cost plus the same ceiling of
+    /// <see cref="BranchCardValue"/> (including the enchanted replay multiplier), and the exact
+    /// <see cref="ReachableHandValue"/> knapsack is fed the player's current energy and stars.
+    /// </summary>
+    private (int Value, int ZeroCostPlayableCount) ReachableHandPotential(in FlashBattle battle)
+    {
+        Span<(int Energy, int Stars, int Value)> playable = battle.HandCount <= 64
+            ? stackalloc (int, int, int)[battle.HandCount]
+            : new (int, int, int)[battle.HandCount];
+        int count = 0;
+        int zeroCostPlayableCount = 0;
+        for (int index = 0; index < battle.HandCount; index++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[index];
+            if (!FlashKernel.CanPlayCard(battle, Rules, index))
+                continue;
+            int energyCost = Math.Max(0,
+                FlashKernel.EnergyCostWithModifiers(battle, Rules, card, FlashPile.Hand));
+            int starCost = Math.Max(0,
+                FlashKernel.StarCostWithModifiers(battle, Rules, card, FlashPile.Hand));
+            FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+            FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
+            double cardValue = BranchCardValue(battle, card, stats, cardScore)
+                * (1 + Math.Max(0, FlashKernel.EnchantedReplayCount(card)));
+            playable[count++] = (energyCost, starCost,
+                Math.Max(1, (int)Math.Ceiling(cardValue)));
+            if (energyCost == 0 && starCost == 0 && !stats.CostsX && !stats.StarCostsX)
+                zeroCostPlayableCount++;
+        }
+        return (ReachableHandValue.Calculate(playable[..count], battle.Energy, battle.Stars),
+            zeroCostPlayableCount);
+    }
+
     /// <summary><c>CalculatedVarSpecRegistry.CrescentSpear</c>: the combat piles' star-cost cards.</summary>
     private int CountStarCostCards(in FlashBattle battle)
     {
@@ -483,6 +518,10 @@ internal sealed class FlashScorer
         }
 
         int replayPotentialValue = ReplayPotentialValue(battle);
+        // CombatBeamSolver.StateEvaluation.CalculateReachableHandPotential reads the same playable
+        // hand costs/values and feeds them to ReachableHandValue.Calculate.
+        (int reachableHandValue, int zeroCostPlayableCount) = ReachableHandPotential(battle);
+        int strategicRetentionValue = strategicEffects.RetentionValue;
 
         int retainedHandValue = 0;
         for (int offset = 0; offset < battle.HandCount; offset++)
@@ -695,8 +734,14 @@ internal sealed class FlashScorer
             MostVulnerableTargetCombatId = mostVulnerableTargetCombatId,
             EnemyVulnerableTurns = vulnerable,
             Energy = battle.Energy,
+            Stars = battle.Stars,
             HandCount = battle.HandCount,
+            ReachableHandValue = reachableHandValue,
+            ZeroCostPlayableCount = zeroCostPlayableCount,
             PersistentBuffValue = persistentBuffValue,
+            StrategicRetentionValue = strategicRetentionValue,
+            PersistentSetupTraits = (PersistentSetupTraits)persistentSetupTraits,
+            StrategicSetupTraits = (PersistentSetupTraits)(persistentSetupTraits | latentSetupTraits),
             LatentSetupValue = latentSetupValue,
             FutureResourceValue = futureResourceValue,
             ReplayPotentialValue = replayPotentialValue,

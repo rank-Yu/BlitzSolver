@@ -286,7 +286,7 @@ internal sealed class FlashBeamSolver
         {
             turns++;
             current.Clear();
-            turnFrontier.CopyTopTo(current, width);
+            turnFrontier.CopyTopTo(current, width, 0d);
             ended.Clear();
             while (current.Count > 0 && !OutOfBudget(watch) && !hpTargetReached)
             {
@@ -310,7 +310,9 @@ internal sealed class FlashBeamSolver
                 PrunePool(current);
             }
             turnFrontier.Clear();
-            ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare);
+            // BeamRetentionPolicy.RankBest at the end-turn frontier: the turn-boundary hand leader is
+            // a required representative of every potion group.
+            ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare, turnBoundary: true);
             PrunePool(turnFrontier);
             if (zeroDamageVictory)
                 break;
@@ -885,7 +887,10 @@ internal sealed class FlashBeamSolver
         int AliveEnemyCount,
         int RawEnemyHp,
         int EnemyHp,
+        int MaxCurrentEnemyHp,
+        int RevivingEnemyCount,
         int RetainedAttackValue,
+        int StrategicRetentionValue,
         int SetupValue,
         int SetupComboValue,
         int LiveDeckSize,
@@ -893,6 +898,26 @@ internal sealed class FlashBeamSolver
         long AttackDensity,
         int EnemyStrengthSuppression,
         int EnemyWeakTurns,
+        int FocusTargetPressure,
+        int FocusTargetRemainingHp,
+        int FocusTargetCurrentThreat,
+        uint? FocusTargetCombatId,
+        uint? MostVulnerableTargetCombatId,
+        int FocusTargetVulnerableTurns,
+        int EnemyVulnerableTurns,
+        int SandpitRemaining,
+        int ReactiveDamageValue,
+        int LongTermResourceValue,
+        int Energy,
+        int Stars,
+        int HandCount,
+        int ReachableHandValue,
+        int ZeroCostPlayableCount,
+        int FutureResourceValue,
+        int LatentSetupValue,
+        int ReplayPotentialValue,
+        int DelayedDamageValue,
+        PersistentSetupTraits SetupTraits,
         int OffensiveProgressValue,
         double Score)
     {
@@ -906,27 +931,69 @@ internal sealed class FlashBeamSolver
             features.AliveEnemyCount,
             features.RawEnemyHp,
             features.EnemyHp,
+            features.MaxCurrentEnemyHp,
+            features.RevivingEnemyCount,
             features.RetainedAttackValue,
-            // BeamRetentionPolicy.SetupLaneValue: StrategicEffects.RetentionValue * 16
-            // + LatentSetupValue * 8 + ReplayPotentialValue * 16 + FutureResourceValue.
-            // FlashScoreFeatures.PersistentBuffValue is the strategic retention value (K4-checked).
-            features.PersistentBuffValue * 16
+            features.StrategicRetentionValue,
+            SetupLane(features),
+            SetupCombo(features),
+            features.LiveDeckSize,
+            features.LiveDeckClutter,
+            (long)features.RetainedAttackValue * 1024 / Math.Max(1, features.LiveDeckSize),
+            features.EnemyStrengthSuppression,
+            features.EnemyWeakTurns,
+            features.FocusTargetPressure,
+            features.FocusTargetRemainingHp,
+            features.FocusTargetCurrentThreat,
+            features.FocusTargetCombatId,
+            features.MostVulnerableTargetCombatId,
+            features.FocusTargetVulnerableTurns,
+            features.EnemyVulnerableTurns,
+            features.SandpitRemaining,
+            features.ReactiveDamageValue,
+            features.LongTermResourceValue,
+            features.Energy,
+            features.Stars,
+            features.HandCount,
+            features.ReachableHandValue,
+            features.ZeroCostPlayableCount,
+            features.FutureResourceValue,
+            features.LatentSetupValue,
+            features.ReplayPotentialValue,
+            features.DelayedDamageValue,
+            features.PersistentSetupTraits,
+            features.OffensiveProgressValue,
+            features.Score);
+
+        /// <summary>
+        /// BeamRetentionPolicy.SetupLaneValue: StrategicEffects.RetentionValue * 16
+        /// + LatentSetupValue * 8 + ReplayPotentialValue * 16 + FutureResourceValue.
+        /// </summary>
+        private static int SetupLane(in FlashScoreFeatures features)
+            => features.StrategicRetentionValue * 16
                 + features.LatentSetupValue * 8
                 + features.ReplayPotentialValue * 16
-                + features.FutureResourceValue,
-            // BeamRetentionPolicy.FindBestSetup: Scaling + Resource + Control lanes. The resource
-            // lane's Stars (always 0 for an admitted Ironclad root) and ReachableHandValue (no Flash
-            // feature yet) are omitted; every other term is the existing formula.
-            features.PersistentBuffValue * 16
+                + features.FutureResourceValue;
+
+        /// <summary>
+        /// BeamRetentionPolicy.FindBestSetup: Scaling + Resource + Control lanes (LaneValue in
+        /// BeamRetentionPolicy.Ranking.cs). Every term is the existing formula; the resource lane's
+        /// Stars and ReachableHandValue and the control lane's SandpitRemaining are K4-checked.
+        /// </summary>
+        private static int SetupCombo(in FlashScoreFeatures features)
+            => features.StrategicRetentionValue * 16
                 + features.LatentSetupValue * 8
                 + features.ReplayPotentialValue * 16
                 + features.FutureResourceValue
                 + features.DelayedDamageValue
                 + features.Energy * 16
+                + features.Stars * 8
                 + features.HandCount
+                + features.ReachableHandValue
                 + features.FutureResourceValue
                 + features.OstyHp * 16
                 + features.OstyMaxHp * 4
+                + features.SandpitRemaining * 32
                 + features.EnemyStrengthSuppression * 32
                 + features.EnemyWeakTurns * 8
                 + features.FocusTargetVulnerableTurns * 4
@@ -934,14 +1001,7 @@ internal sealed class FlashBeamSolver
                 + Math.Max(0, features.EnemyVulnerableTurns - features.FocusTargetVulnerableTurns)
                     * Math.Min(SolverWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
                 + features.DelayedDamageValue
-                - features.LiveDeckClutter * 8,
-            features.LiveDeckSize,
-            features.LiveDeckClutter,
-            (long)features.RetainedAttackValue * 1024 / Math.Max(1, features.LiveDeckSize),
-            features.EnemyStrengthSuppression,
-            features.EnemyWeakTurns,
-            features.OffensiveProgressValue,
-            features.Score);
+                - features.LiveDeckClutter * 8;
     }
 
     // The leader comparators below are the existing BeamRetentionPolicy.Ranking comparators with the
@@ -1020,6 +1080,134 @@ internal sealed class FlashBeamSolver
                     || candidate.EnemyStrengthSuppression == current.EnemyStrengthSuppression
                         && IsBetterDefensive(candidate, current));
 
+    /// <summary>CombatBeamSolver.BeamRetentionPolicy.IsBetterSearchNode: score, then fewer actions.</summary>
+    private static bool IsBetterSearchNode(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.Score > current.Score
+            || candidate.Score.Equals(current.Score) && candidate.Depth < current.Depth;
+
+    /// <summary>FindBestTacticalEnabler: free card plays, reachable hand value, hand size.</summary>
+    private static bool IsBetterTacticalEnabler(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.ZeroCostPlayableCount > current.ZeroCostPlayableCount
+            || candidate.ZeroCostPlayableCount == current.ZeroCostPlayableCount
+                && (candidate.ReachableHandValue > current.ReachableHandValue
+                    || candidate.ReachableHandValue == current.ReachableHandValue
+                        && (candidate.HandCount > current.HandCount
+                            || candidate.HandCount == current.HandCount
+                                && IsBetterSearchNode(candidate, current)));
+
+    /// <summary>
+    /// FindBestTurnBoundaryHand (BeamRetentionPolicy.Ranking.cs): projected HP, then Osty HP, hand
+    /// size, reachable hand value and enemy HP at the turn boundary.
+    /// </summary>
+    private static bool IsBetterTurnBoundaryHand(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+            || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                && (candidate.OstyHp > current.OstyHp
+                    || candidate.OstyHp == current.OstyHp
+                        && (candidate.HandCount > current.HandCount
+                            || candidate.HandCount == current.HandCount
+                                && (candidate.ReachableHandValue > current.ReachableHandValue
+                                    || candidate.ReachableHandValue == current.ReachableHandValue
+                                        && (candidate.EnemyHp < current.EnemyHp
+                                            || candidate.EnemyHp == current.EnemyHp
+                                                && candidate.Score > current.Score))));
+
+    /// <summary>FindBestTargetPressure: focus pressure, remaining HP, threat, then safety.</summary>
+    private static bool IsBetterTargetPressure(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.FocusTargetPressure > current.FocusTargetPressure
+            || candidate.FocusTargetPressure == current.FocusTargetPressure
+                && (candidate.FocusTargetRemainingHp < current.FocusTargetRemainingHp
+                    || candidate.FocusTargetRemainingHp == current.FocusTargetRemainingHp
+                        && (candidate.FocusTargetCurrentThreat > current.FocusTargetCurrentThreat
+                            || candidate.FocusTargetCurrentThreat == current.FocusTargetCurrentThreat
+                                && (candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+                                    || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                                        && candidate.Score > current.Score)));
+
+    /// <summary>FindBestTargetSetup: setup lane, then focus pressure, then safety.</summary>
+    private static bool IsBetterTargetSetup(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.SetupValue > current.SetupValue
+            || candidate.SetupValue == current.SetupValue
+                && (candidate.RetainedAttackValue > current.RetainedAttackValue
+                    || candidate.RetainedAttackValue == current.RetainedAttackValue
+                        && (candidate.FocusTargetPressure > current.FocusTargetPressure
+                            || candidate.FocusTargetPressure == current.FocusTargetPressure
+                                && (candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+                                    || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                                        && candidate.Score > current.Score)));
+
+    /// <summary>
+    /// BeamRetentionPolicy.Ranking.LaneValue. The existing leader is restricted to nodes whose
+    /// accumulated route traits contain the lane; FlashBeam does not model route traits, so the
+    /// comparator runs over the whole group. A state with the extreme lane value almost always
+    /// carries the trait, which is the case the existing retention protects.
+    /// </summary>
+    private static int LaneValue(in RetentionFacts facts, SearchRouteTraits trait)
+        => trait switch
+        {
+            SearchRouteTraits.Scaling => facts.SetupValue + facts.DelayedDamageValue,
+            SearchRouteTraits.Resource => facts.Energy * 16
+                + facts.Stars * 8
+                + facts.HandCount
+                + facts.ReachableHandValue
+                + facts.FutureResourceValue
+                + facts.OstyHp * 16
+                + facts.OstyMaxHp * 4,
+            SearchRouteTraits.LongTermResource => facts.LongTermResourceValue,
+            SearchRouteTraits.Control => facts.SandpitRemaining * 32
+                + facts.EnemyStrengthSuppression * 32
+                + facts.EnemyWeakTurns * 8
+                + facts.FocusTargetVulnerableTurns * 4
+                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, facts.RetainedAttackValue)
+                + Math.Max(0, facts.EnemyVulnerableTurns - facts.FocusTargetVulnerableTurns)
+                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, facts.RetainedAttackValue)
+                + facts.DelayedDamageValue
+                - facts.LiveDeckClutter * 8,
+            SearchRouteTraits.RevivalWindow => facts.RevivingEnemyCount * 1024
+                - facts.RawEnemyHp * 4
+                - facts.MaxCurrentEnemyHp * 8,
+            SearchRouteTraits.DeclinedExtraTurn => 0,
+            SearchRouteTraits.ReactiveDamage => facts.ReactiveDamageValue,
+            SearchRouteTraits.EndTurnDeckCompression => facts.Energy * 64
+                + facts.FutureResourceValue * 16
+                + (int)Math.Min(int.MaxValue, facts.AttackDensity)
+                + facts.FocusTargetPressure
+                - facts.LiveDeckSize * 16,
+            SearchRouteTraits.HpInvestment => facts.StrategicRetentionValue * 16
+                + facts.FutureResourceValue * 8
+                + facts.DelayedDamageValue * 8
+                + facts.FocusTargetPressure,
+            _ => throw new ArgumentOutOfRangeException(nameof(trait), trait, null),
+        };
+
+    private static bool IsBetterLane(in RetentionFacts candidate, in RetentionFacts current,
+        SearchRouteTraits trait)
+    {
+        int candidateValue = LaneValue(candidate, trait);
+        int currentValue = LaneValue(current, trait);
+        return candidateValue > currentValue
+            || candidateValue == currentValue
+                && (candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+                    || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                        && (candidate.AliveEnemyCount < current.AliveEnemyCount
+                            || candidate.AliveEnemyCount == current.AliveEnemyCount
+                                && (candidate.EnemyHp < current.EnemyHp
+                                    || candidate.EnemyHp == current.EnemyHp
+                                        && candidate.Score > current.Score)));
+    }
+
+    private static readonly SearchRouteTraits[] RetainedLanes =
+    [
+        SearchRouteTraits.Scaling,
+        SearchRouteTraits.Resource,
+        SearchRouteTraits.Control,
+        SearchRouteTraits.RevivalWindow,
+        SearchRouteTraits.ReactiveDamage,
+        SearchRouteTraits.EndTurnDeckCompression,
+        SearchRouteTraits.LongTermResource,
+        SearchRouteTraits.HpInvestment,
+    ];
+
     private sealed class LineageLeaders
     {
         public int Leader = -1;
@@ -1029,6 +1217,8 @@ internal sealed class FlashBeamSolver
         public int SetupCombo = -1;
         public int Curation = -1;
         public int Compressed = -1;
+        public int Tactical = -1;
+        public int TargetPressure = -1;
     }
 
     private sealed class PotionLeaders
@@ -1042,6 +1232,29 @@ internal sealed class FlashBeamSolver
         public int Compressed = -1;
         public int Strength = -1;
         public int Weak = -1;
+        public int Tactical = -1;
+        public int TurnBoundary = -1;
+        public readonly int[] Lanes = new int[8];
+
+        public PotionLeaders()
+        {
+            Array.Fill(Lanes, -1);
+        }
+    }
+
+    private sealed class TraitLeaders
+    {
+        public int Defensive = -1;
+        public int Setup = -1;
+        public int Position = int.MaxValue;
+    }
+
+    private sealed class FocusLeaders
+    {
+        public int Pressure = -1;
+        public int Setup = -1;
+        public int MaxPressure = int.MinValue;
+        public int Position = int.MaxValue;
     }
 
     /// <summary>
@@ -1070,6 +1283,10 @@ internal sealed class FlashBeamSolver
         private readonly Dictionary<int, LineageLeaders> _lineageLeaders = new();
         private readonly List<int> _lineageOrder = new();
         private readonly Dictionary<int, PotionLeaders> _potionLeaders = new();
+        private readonly Dictionary<(int Potion, PersistentSetupTraits Traits), TraitLeaders> _traitLeaders = new();
+        private readonly List<(int Potion, PersistentSetupTraits Traits)> _traitOrder = new();
+        private readonly Dictionary<(int Potion, uint? Target), FocusLeaders> _focusLeaders = new();
+        private readonly List<(int Potion, uint? Target)> _focusOrder = new();
 
         public Pool(int initialCapacity, int maxCapacity)
         {
@@ -1246,7 +1463,7 @@ internal sealed class FlashBeamSolver
         /// root-action lineages) replace the last non-required score seat. The total width is unchanged:
         /// a representative takes a seat, it does not widen the beam.
         /// </summary>
-        public void CopyTopTo(Pool target, int width, double offensiveShare)
+        public void CopyTopTo(Pool target, int width, double offensiveShare, bool turnBoundary = false)
         {
             int count = Count;
             if (count == 0)
@@ -1288,7 +1505,7 @@ internal sealed class FlashBeamSolver
             // Representatives take priority over the mass offensive lane: when a required leader is
             // not in the top seats it replaces the last non-required seat first (offensive seats are
             // appended last), so the score leaders and then the required set are preserved.
-            CollectRepresentatives(required, count, width);
+            CollectRepresentatives(required, count, width, turnBoundary);
             // BeamRetentionPolicy.RankBest: every required candidate not already ranked replaces the
             // last ordinary seat, so all required members survive without widening the layer.
             foreach (int source in required)
@@ -1328,19 +1545,25 @@ internal sealed class FlashBeamSolver
 
         /// <summary>
         /// The existing RankBest required set, restricted to the mechanisms whose inputs Flash already
-        /// evaluates exactly: one leader set per potion count, the global defensive/offensive/setup
-        /// leaders, and the strongest root-action lineages (clamp(width / 8, 4, 16)).
+        /// evaluates exactly: one leader set per potion count, the global leaders, the strongest
+        /// root-action lineages (clamp(width / 8, 4, 16)), the turn-boundary hand leader, the setup
+        /// trait and focus target groups, and the eight lane leaders.
         /// </summary>
-        private void CollectRepresentatives(List<int> required, int count, int width)
+        private void CollectRepresentatives(List<int> required, int count, int width, bool turnBoundary)
         {
             _lineageLeaders.Clear();
             _potionLeaders.Clear();
+            _traitLeaders.Clear();
+            _traitOrder.Clear();
+            _focusLeaders.Clear();
+            _focusOrder.Clear();
             int bestDefensive = -1, bestOffensive = -1, bestSetup = -1, bestUtilityDefensive = -1;
             int bestSetupCombo = -1, bestCuration = -1, bestCompressed = -1;
             int bestPotionFree = -1, bestPotionFreeDefensive = -1, bestPotionFreeOffensive = -1;
             int bestPotionFreeSetup = -1, bestPotionFreeSetupCombo = -1, bestPotionFreeUtilityDefensive = -1;
             int bestPotion = -1, bestPotionDefensive = -1, bestPotionOffensive = -1, bestPotionSetup = -1;
             int bestPotionSetupCombo = -1;
+            int bestLongTermResource = -1, bestHpInvestment = -1;
             for (int position = 0; position < count; position++)
             {
                 int source = _rankOrder[position];
@@ -1367,6 +1590,63 @@ internal sealed class FlashBeamSolver
                     potion.Strength = source;
                 if (potion.Weak < 0 || IsBetterEnemyWeakControl(facts, _facts[potion.Weak]))
                     potion.Weak = source;
+                if (potion.Tactical < 0 || IsBetterTacticalEnabler(facts, _facts[potion.Tactical]))
+                    potion.Tactical = source;
+                if (potion.TurnBoundary < 0
+                    || IsBetterTurnBoundaryHand(facts, _facts[potion.TurnBoundary]))
+                {
+                    potion.TurnBoundary = source;
+                }
+                for (int lane = 0; lane < RetainedLanes.Length; lane++)
+                {
+                    if (potion.Lanes[lane] < 0
+                        || IsBetterLane(facts, _facts[potion.Lanes[lane]], RetainedLanes[lane]))
+                    {
+                        potion.Lanes[lane] = source;
+                    }
+                }
+
+                // BeamRetentionPolicy.RankBest: per potion group and persistent setup trait, keep the
+                // defensive and setup leaders of each signature (limit max(4, width / 6) groups).
+                if (facts.SetupTraits != PersistentSetupTraits.None)
+                {
+                    (int, PersistentSetupTraits) traitKey = (potionCount, facts.SetupTraits);
+                    if (!_traitLeaders.TryGetValue(traitKey, out TraitLeaders? trait))
+                    {
+                        trait = new TraitLeaders { Position = position };
+                        _traitLeaders.Add(traitKey, trait);
+                    }
+                    else if (position < trait.Position)
+                    {
+                        trait.Position = position;
+                    }
+                    if (trait.Defensive < 0 || IsBetterDefensive(facts, _facts[trait.Defensive]))
+                        trait.Defensive = source;
+                    if (trait.Setup < 0 || IsBetterSetup(facts, _facts[trait.Setup]))
+                        trait.Setup = source;
+                }
+
+                // BeamRetentionPolicy.RankBest: per potion group and focus target, keep the pressure
+                // and target-setup leaders (limit clamp(width / 10, 2, 4) targets).
+                if (facts.FocusTargetCombatId is { } focus)
+                {
+                    (int, uint?) focusKey = (potionCount, focus);
+                    if (!_focusLeaders.TryGetValue(focusKey, out FocusLeaders? leader))
+                    {
+                        leader = new FocusLeaders { Position = position };
+                        _focusLeaders.Add(focusKey, leader);
+                    }
+                    else if (position < leader.Position)
+                    {
+                        leader.Position = position;
+                    }
+                    if (facts.FocusTargetPressure > leader.MaxPressure)
+                        leader.MaxPressure = facts.FocusTargetPressure;
+                    if (leader.Pressure < 0 || IsBetterTargetPressure(facts, _facts[leader.Pressure]))
+                        leader.Pressure = source;
+                    if (leader.Setup < 0 || IsBetterTargetSetup(facts, _facts[leader.Setup]))
+                        leader.Setup = source;
+                }
 
                 int lineage = _lineages[source];
                 if (!_lineageLeaders.TryGetValue(lineage, out LineageLeaders? line))
@@ -1386,6 +1666,13 @@ internal sealed class FlashBeamSolver
                     line.Curation = source;
                 if (line.Compressed < 0 || IsBetterCompressedDeck(facts, _facts[line.Compressed]))
                     line.Compressed = source;
+                if (line.Tactical < 0 || IsBetterTacticalEnabler(facts, _facts[line.Tactical]))
+                    line.Tactical = source;
+                if (line.TargetPressure < 0
+                    || IsBetterTargetPressure(facts, _facts[line.TargetPressure]))
+                {
+                    line.TargetPressure = source;
+                }
 
                 if (bestDefensive < 0 || IsBetterDefensive(facts, _facts[bestDefensive]))
                     bestDefensive = source;
@@ -1399,6 +1686,17 @@ internal sealed class FlashBeamSolver
                     bestCuration = source;
                 if (bestCompressed < 0 || IsBetterCompressedDeck(facts, _facts[bestCompressed]))
                     bestCompressed = source;
+                if (bestLongTermResource < 0
+                    || IsBetterLane(facts, _facts[bestLongTermResource],
+                        SearchRouteTraits.LongTermResource))
+                {
+                    bestLongTermResource = source;
+                }
+                if (bestHpInvestment < 0
+                    || IsBetterLane(facts, _facts[bestHpInvestment], SearchRouteTraits.HpInvestment))
+                {
+                    bestHpInvestment = source;
+                }
                 if (bestUtilityDefensive < 0
                     || IsBetterUtilityDefensive(facts, _facts[bestUtilityDefensive]))
                 {
@@ -1469,9 +1767,50 @@ internal sealed class FlashBeamSolver
                 AddRequired(required, potion.Weak, width);
                 AddRequired(required, potion.Setup, width);
                 AddRequired(required, potion.SetupCombo, width);
+                AddRequired(required, potion.Tactical, width);
                 AddRequired(required, potion.Curation, width);
                 AddRequired(required, potion.Compressed, width);
+                if (turnBoundary)
+                    AddRequired(required, potion.TurnBoundary, width);
+                for (int lane = 0; lane < potion.Lanes.Length; lane++)
+                    AddRequired(required, potion.Lanes[lane], width);
             }
+
+            // BeamRetentionPolicy.RankBest: persistent setup trait groups (Focus, Thunder, OrbEngine,
+            // …) keep their defensive and setup leaders; the group limit is max(4, width / 6).
+            foreach ((int Potion, PersistentSetupTraits Traits) key in _traitLeaders.Keys)
+                _traitOrder.Add(key);
+            _traitOrder.Sort((left, right) => _traitLeaders[left].Position
+                .CompareTo(_traitLeaders[right].Position));
+            int traitLimit = Math.Max(4, width / 6);
+            for (int index = 0; index < _traitOrder.Count && index < traitLimit; index++)
+            {
+                TraitLeaders trait = _traitLeaders[_traitOrder[index]];
+                AddRequired(required, trait.Defensive, width);
+                AddRequired(required, trait.Setup, width);
+            }
+
+            // BeamRetentionPolicy.RankBest: focus target groups (clamp(width / 10, 2, 4) targets per
+            // potion group) keep their pressure and target-setup leaders.
+            foreach ((int Potion, uint? Target) key in _focusLeaders.Keys)
+                _focusOrder.Add(key);
+            _focusOrder.Sort((left, right) =>
+            {
+                FocusLeaders leftLeader = _focusLeaders[left];
+                FocusLeaders rightLeader = _focusLeaders[right];
+                int comparison = rightLeader.MaxPressure.CompareTo(leftLeader.MaxPressure);
+                return comparison != 0
+                    ? comparison
+                    : leftLeader.Position.CompareTo(rightLeader.Position);
+            });
+            int focusLimit = Math.Clamp(width / 10, 2, 4);
+            for (int index = 0; index < _focusOrder.Count && index < focusLimit; index++)
+            {
+                FocusLeaders leader = _focusLeaders[_focusOrder[index]];
+                AddRequired(required, leader.Pressure, width);
+                AddRequired(required, leader.Setup, width);
+            }
+
             AddRequired(required, bestPotionFree, width);
             AddRequired(required, bestPotionFreeDefensive, width);
             AddRequired(required, bestPotionFreeOffensive, width);
@@ -1490,6 +1829,8 @@ internal sealed class FlashBeamSolver
             AddRequired(required, bestSetupCombo, width);
             AddRequired(required, bestCuration, width);
             AddRequired(required, bestCompressed, width);
+            AddRequired(required, bestLongTermResource, width);
+            AddRequired(required, bestHpInvestment, width);
 
             _lineageOrder.Clear();
             foreach (int key in _lineageLeaders.Keys)
@@ -1505,8 +1846,10 @@ internal sealed class FlashBeamSolver
                 AddRequired(required, lineage.Offensive, width);
                 AddRequired(required, lineage.Setup, width);
                 AddRequired(required, lineage.SetupCombo, width);
+                AddRequired(required, lineage.Tactical, width);
                 AddRequired(required, lineage.Curation, width);
                 AddRequired(required, lineage.Compressed, width);
+                AddRequired(required, lineage.TargetPressure, width);
             }
         }
 
