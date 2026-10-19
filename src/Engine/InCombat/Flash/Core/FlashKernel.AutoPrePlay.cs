@@ -4,12 +4,14 @@ namespace CombatSolver.Engine.InCombat.Flash;
 /// The AutoPrePlay phase at the player's turn start, mirroring
 /// <c>SimulatedCombatState.TriggerAutoPrePlayEarly</c> / <c>ContinueAutoPrePlay</c>: the exhaust pile's
 /// Bombardment cards first, then the scheduled auto-plays (Mayhem's amount of draw-pile top cards moved
-/// to the play pile). Imbued, HistoryCourse and WhisperingEarring are the remaining scheduled sources;
-/// none of them has a Flash definition, so admission rejects a root that holds them.
+/// to the play pile), then the Imbued enchantment's auto-plays. HistoryCourse and WhisperingEarring are
+/// the remaining scheduled sources; both have no Flash definition, so admission rejects a root that
+/// holds them.
 /// </summary>
 public static partial class FlashKernel
 {
     internal const string BombardmentId = "BOMBARDMENT";
+    internal const string ImbuedEnchantmentId = "IMBUED";
 
     internal static void AutoPrePlay(ref FlashExec x)
     {
@@ -19,6 +21,9 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
         AutoPlayScheduled(ref x);
+        if (x.NeedsChoice)
+            return;
+        AutoPlayImbued(ref x);
     }
 
     /// <summary>
@@ -120,5 +125,118 @@ public static partial class FlashKernel
             if (x.NeedsChoice)
                 return;
         }
+    }
+
+    /// <summary>
+    /// <c>EnchantmentLifecycleSupport.TriggerAutoPrePlay</c>: on the first player turn, auto-play every
+    /// card carrying the Imbued enchantment in <c>AllCards</c> order (hand, draw, discard, exhaust,
+    /// play). The existing engine snapshots the card objects before the loop and keeps playing those
+    /// objects. Flash has no card identity, so it snapshots each card's absolute position plus a stable
+    /// key (id, enchantment, affliction, clone) and tracks the position through the net move of every
+    /// auto-play. A position whose key no longer matches, a changed card count (generated/removed cards)
+    /// or a played card whose final position cannot be captured is an explicit boundary: the kernel
+    /// must not guess which copy the existing engine would play. Cost modifiers, upgrades and the
+    /// one-time affliction-normalization bit may change in place without moving the card and are read
+    /// from the current value.
+    /// </summary>
+    private static void AutoPlayImbued(ref FlashExec x)
+    {
+        if (x.B.PlayerTurn > 1 || !FlashRegistry.TryEnchantment(ImbuedEnchantmentId, out ushort imbued))
+            return;
+        int count = 0;
+        Span<ImbuedCardKey> keys = stackalloc ImbuedCardKey[FlashLimits.Cards];
+        Span<int> positions = stackalloc int[FlashLimits.Cards];
+        byte enchantment = (byte)(imbued + 1);
+        for (int position = 0; position < x.B.CardCount; position++)
+        {
+            ref readonly FlashCard card = ref x.B.Cards[position];
+            if (card.EnchantmentId != enchantment)
+                continue;
+            keys[count] = ImbuedCardKey.Of(card);
+            positions[count] = position;
+            count++;
+        }
+        for (int index = 0; index < count; index++)
+        {
+            if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
+                return;
+            int position = positions[index];
+            if ((uint)position >= (uint)x.B.CardCount || !keys[index].Matches(x.B.Cards[position]))
+                throw new FlashUnsupportedException(
+                    $"Imbued 自动预打出的卡位置已变化：{FlashRegistry.Card(keys[index].Id).NativeId}");
+            int before = x.B.CardCount;
+            FlashCard sourceCard = x.B.Cards[position];
+            FlashPile sourcePile = FlashPiles.PileOf(x.B, position, out int sourceIndex);
+            bool played = AutoPlay(ref x, sourcePile, sourceIndex, FlashLimits.NoOwner, skipXCapture: false,
+                out _, out FlashPile resultPile, out int resultIndex);
+            if (x.NeedsChoice)
+                return;
+            int destination;
+            if (!played)
+            {
+                // MoveToResultPileWithoutPlaying does not run play hooks; the card goes to the exhaust
+                // pile when it would exhaust, otherwise to the discard pile, at the end.
+                if (x.B.CardCount != before)
+                    throw new FlashUnsupportedException("Imbued 未打出的卡改变了战斗牌数。");
+                bool exhaust = (sourceCard.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0
+                    || HasKeyword(x.B, sourceCard, FlashKeywords.Exhaust);
+                FlashPile target = exhaust ? FlashPile.Exhaust : FlashPile.Discard;
+                destination = FlashPiles.Start(x.B, target) + FlashPiles.Count(x.B, target) - 1;
+                if (!FlashCardEffects.Equal(x.B.Cards[destination], sourceCard))
+                    throw new FlashUnsupportedException("Imbued 未打出的卡去向无法捕获。");
+            }
+            else if (resultIndex < 0)
+            {
+                if (x.B.CardCount != before - 1)
+                    throw new FlashUnsupportedException("Imbued 打出的卡离场时战斗牌数不一致。");
+                destination = -1;
+            }
+            else
+            {
+                if (x.B.CardCount != before)
+                    throw new FlashUnsupportedException("Imbued 打出的卡改变了战斗牌数。");
+                destination = FlashPiles.Start(x.B, resultPile) + resultIndex;
+            }
+            for (int later = index + 1; later < count; later++)
+                positions[later] = MoveCardPosition(positions[later], position, destination);
+        }
+    }
+
+    /// <summary>Net position of an untouched card after one card moved from <paramref name="source"/> to <paramref name="destination"/> (-1 = left combat).</summary>
+    private static int MoveCardPosition(int position, int source, int destination)
+    {
+        int shifted = position > source ? position - 1 : position;
+        if (destination >= 0 && shifted >= destination)
+            shifted++;
+        return shifted;
+    }
+
+    /// <summary>
+    /// The stable part of a card's identity for the Imbued snapshot: the fields an in-place effect does
+    /// not change except through a transform/upgrade (upgrade is intentionally excluded so Dampen's
+    /// re-leveling still matches the same object).
+    /// </summary>
+    private readonly struct ImbuedCardKey
+    {
+        private readonly ushort _id;
+        private readonly byte _enchantment;
+        private readonly byte _affliction;
+        private readonly bool _clone;
+
+        private ImbuedCardKey(in FlashCard card)
+        {
+            _id = card.Id;
+            _enchantment = card.EnchantmentId;
+            _affliction = card.AfflictionId;
+            _clone = card.IsClone;
+        }
+
+        public ushort Id => _id;
+
+        public static ImbuedCardKey Of(in FlashCard card) => new(card);
+
+        public bool Matches(in FlashCard card)
+            => card.Id == _id && card.EnchantmentId == _enchantment && card.AfflictionId == _affliction
+                && card.IsClone == _clone;
     }
 }

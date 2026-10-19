@@ -76,6 +76,10 @@ public sealed class BoneShards : FlashCardDef
 
     public override void OnPlay(ref FlashExec x)
     {
+        // BoneShardsOnPlay wraps attack + block in Osty.CheckMissingWithAnim: both are skipped when the
+        // pet is missing or dead. The sacrifice in CardEffectSpecRegistry uses the same alive gate.
+        if (!NecrobinderContent.HasOsty(x.B))
+            return;
         NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
         if (x.NeedsChoice)
             return;

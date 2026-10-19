@@ -271,6 +271,20 @@ public enum FlashHookMaskExt : ulong
     /// <c>OrbitPower</c> accumulates spent energy and grants energy on each full cycle.
     /// </summary>
     AfterEnergySpent = 1UL << 20,
+
+    /// <summary>
+    /// Native <c>EnchantmentModel.BeforeFlush</c> (<c>EnchantmentLifecycleSupport.BeforeFlush</c>):
+    /// the player turn end applies it to every hand card before <c>ShouldFlush</c>
+    /// (SlumberingEssence's <c>AddUntilPlayed(-1)</c>). Uses the batch's assigned bits 1-15.
+    /// </summary>
+    BeforeFlush = 1UL << 1,
+
+    /// <summary>
+    /// Native <c>AbstractModel.ModifyShuffleOrder</c> (<c>CombatPredictionSimulator.Shuffle</c> after the
+    /// stable shuffle, before the cards are placed into the draw pile; PerfectFit moves its card to the
+    /// front). Uses the batch's assigned bits 1-15.
+    /// </summary>
+    ModifyShuffleOrder = 1UL << 2,
 }
 
 /// <summary>
@@ -481,6 +495,26 @@ public abstract class FlashListenerDef : FlashContentDef
     /// no ending gate): return false to keep the whole hand.
     /// </summary>
     public virtual bool ShouldFlush(ref FlashExec x, FlashListener self) => true;
+
+    /// <summary>
+    /// Native <c>EnchantmentModel.BeforeFlush</c> (<c>EnchantmentLifecycleSupport.BeforeFlush</c>): runs for every
+    /// hand card before <c>ShouldFlush</c> at the player turn end. SlumberingEssence adds a
+    /// <c>WhenPlayed</c> −1 cost modifier to its own card.
+    /// </summary>
+    public virtual void BeforeFlush(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>
+    /// Native <c>AbstractModel.ModifyShuffleOrder</c> (<c>HookMirrors.ModifyShuffleOrder</c>): the existing engine
+    /// runs it after the stable shuffle and before the merged cards are placed into the draw pile. The kernel
+    /// passes the local <paramref name="cards"/> region (<paramref name="count"/> entries); <paramref name="self"/>
+    /// identifies the listener's own card by its absolute position in <see cref="FlashBattle.Cards"/>.
+    /// </summary>
+    public virtual void ModifyShuffleOrder(ref FlashExec x, FlashListener self, scoped Span<FlashCard> cards, int count,
+        bool isInitialShuffle)
+    {
+    }
 
     /// <summary>Native <c>ShouldDraw</c> at the start of a draw (gated by combat ending): return false to prevent it.</summary>
     public virtual bool ShouldDraw(ref FlashExec x, FlashListener self, bool fromHandDraw) => true;
@@ -948,6 +982,16 @@ public abstract class FlashCardDef : FlashListenerDef
         damage = 0m;
         return false;
     }
+
+    /// <summary>
+    /// True when every <see cref="FlashHookMask.RunListenerHooks"/> hook this definition implements is a
+    /// no-op for the copy that lives in the player's deck outside combat. The existing engine dispatches
+    /// those hooks over the run listeners, which include deck cards; Flash only has the combat copies.
+    /// Melancholy qualifies: its <c>AfterDeath</c> handler resolves the card through the combat state and
+    /// returns without effect when the card is not in a combat pile. Admission still rejects every other
+    /// deck card implementing a run-listener hook. See admission-and-verification.md.
+    /// </summary>
+    public virtual bool DeckCopyOutsideCombatIsInert => false;
 
     /// <summary>
     /// Card-specific adjustment when this card enters combat from outside the combat piles

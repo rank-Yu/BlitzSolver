@@ -265,3 +265,86 @@ public sealed class RoyallyApproved : FlashEnchantmentDef;
 /// <summary><c>SoulsPower</c>: removes Exhaust at enchant time, already in the imported card value (decompiled SoulsPower.cs).</summary>
 [FlashContent("SOULS_POWER")]
 public sealed class SoulsPower : FlashEnchantmentDef;
+
+/// <summary>
+/// <c>Imbued</c>: on the first player turn, after the scheduled auto-plays, every card with this
+/// enchantment is auto-played (<c>EnchantmentLifecycleSupport.TriggerAutoPrePlay</c>, vanilla
+/// <c>AfterAutoPrePlayPhaseEntered</c>). The auto-play itself is kernel-side in
+/// <c>FlashKernel.AutoPrePlay</c>; the definition only admits the enchantment. ShouldStartAtBottomOfDrawPile
+/// is applied by the root setup before the snapshot, so the imported draw pile already reflects it.
+/// </summary>
+[FlashContent("IMBUED")]
+public sealed class Imbued : FlashEnchantmentDef;
+
+/// <summary>
+/// <c>Slither</c>: when this card is drawn into the hand, its combat energy cost becomes a random
+/// 0..3 (<c>CombatEnergyCosts.NextInt(4)</c>, <c>SetThisCombat</c> absolute; decompiled Slither.cs and
+/// <c>AfterCardDrawnMirrors.HandleSlither</c>). The existing engine ignores the test-only override.
+/// </summary>
+[FlashContent("SLITHER")]
+public sealed class Slither : FlashEnchantmentDef
+{
+    private const int CostRange = 4;
+
+    public override void AfterCardDrawn(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
+    {
+        // HandleSlither matches the drawn object against the enchantment's card and requires it to be
+        // in hand. The kernel collects listeners after the card moved, so drawnPosition is the card's
+        // hand slot; a hook that moved it first makes this no longer the drawn card's slot (the same
+        // position contract used by TakeIntrinsicDraw).
+        if (self.Kind != FlashListenerKind.Enchantment || self.Index != drawnPosition
+            || (uint)drawnPosition >= (uint)x.B.HandCount)
+            return;
+        int cost = x.B.RngStream(FlashRngStream.CombatEnergyCosts).NextInt(CostRange);
+        FlashKernel.AddEnergyCostModifier(ref x.B.Cards[drawnPosition], cost, FlashCostType.Absolute,
+            FlashCostExpiration.EndOfCombat, reduceOnly: false);
+    }
+}
+
+/// <summary>
+/// <c>SlumberingEssence</c>: at the player turn end, before the hand is flushed, the card gains a
+/// <c>WhenPlayed</c> −1 energy cost modifier (vanilla <c>BeforeFlush</c>;
+/// <c>EnchantmentLifecycleSupport.BeforeFlush</c>).
+/// </summary>
+[FlashContent("SLUMBERING_ESSENCE")]
+public sealed class SlumberingEssence : FlashEnchantmentDef
+{
+    public override void BeforeFlush(ref FlashExec x, FlashListener self)
+    {
+        if ((uint)self.Index >= (uint)x.B.HandCount)
+            return;
+        FlashKernel.AddEnergyCostModifier(ref x.B.Cards[self.Index], -1, FlashCostType.Relative,
+            FlashCostExpiration.WhenPlayed, reduceOnly: false);
+    }
+}
+
+/// <summary>
+/// <c>PerfectFit</c>: every non-initial shuffle that contains this card moves it to the front of the
+/// merged list (vanilla <c>ModifyShuffleOrder</c>, <c>ModifyShuffleOrderMirrors.HandlePerfectFit</c>).
+/// </summary>
+[FlashContent("PERFECT_FIT")]
+public sealed class PerfectFit : FlashEnchantmentDef
+{
+    public override void ModifyShuffleOrder(ref FlashExec x, FlashListener self, scoped Span<FlashCard> cards, int count,
+        bool isInitialShuffle)
+    {
+        if (isInitialShuffle || (uint)self.Index >= (uint)x.B.CardCount)
+            return;
+        FlashCard own = x.B.Cards[self.Index];
+        int found = -1;
+        for (int index = 0; index < count; index++)
+        {
+            if (FlashCardEffects.Equal(cards[index], own))
+            {
+                found = index;
+                break;
+            }
+        }
+        if (found <= 0)
+            return;
+        FlashCard card = cards[found];
+        for (int index = found; index > 0; index--)
+            cards[index] = cards[index - 1];
+        cards[0] = card;
+    }
+}

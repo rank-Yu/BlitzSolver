@@ -87,6 +87,8 @@
 
 **其他计数**：`EtherealPlays` 战斗长，导入根历史后按每次打出完成时该卡本地 Ethereal 关键字加一（BansheesCry/PullFromBelow）。
 
+**Melancholy**：`AfterDeath` 用 `State.FindCard(card)` 找战斗副本，对每个战斗副本按 `Energy` 变量追加本场 −费用；牌组（局外）副本取不到战斗副本时不产生效果。Flash 只导入战斗副本，`DeckCopyOutsideCombatIsInert` 让这类牌组副本通过准入，依据与边界见[准入](admission-and-verification.md)。
+
 **Power 时机**：DieForYou/Calcify/Lethality/Haunt/Shroud/Countdown/Neurosurge/Oblivion/SicEm/NecroMastery/Debilitate/Veilpiercer/BorrowedTime/Friendship/EnfeeblingTouch/Demesne/SleightOfFlesh/SpiritOfAsh/DevourLife 逐条对应现有引擎 `HookMirrors`、`PowerLifecycleSupport`、`TurnStartPowerSupport`、`PersistentPowerSupport` 路径。Oblivion 在 `BeforeCardPlayed` 把当次层数放进栈上 `CardPlayPairs`（`OblivionDoom`），`AfterCardPlayed` 取出施加等量 Doom；稳定边界为空。Debilitate 的易伤/虚弱倍率并入 Vulnerable/Weak。SleightOfFlesh 在 `AfterPowerAmountChanged` 对“玩家施加给敌人的非临时减益”造成自身层数的 Unpowered 伤害。
 
 **AfterHandEmptied**：现有引擎没有通用遗物 Hook，`TriggerRelicsAfterHandEmptied` 特判 `UnceasingTop`；Flash 在卡牌结果堆移动后（最外层效果、允许的回合阶段内）做同样特判：手牌空且抽/弃牌堆非空时抽一张。

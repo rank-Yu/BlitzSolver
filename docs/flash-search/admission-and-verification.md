@@ -158,3 +158,9 @@ Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRo
 - 捕获后整个 Flash 求解作废并回落，不把半成品路线交给协调器。
 - 药水审计没有满足策略的路线（`PotionPolicySatisfied=false`）、物化路线次数不符、或精确层下界输入不可用（`smart-potion-bound unavailable`）时同样回落，诊断行写 `status=boundary` 与稳定原因；不把 Flash 搜索面较小解释为现有搜索无解。
 - 回落本身计入诊断：原因、阶段、根摘要。
+
+CX 的附魔与 `MELANCHOLY` 准入规则：
+
+- **局外牌组副本的准入例外**：现有引擎的 `AfterDeath` 等 Hook 走 `RunHookListeners`（不可变的根牌组前缀 + 战斗监听表），因此牌组里的卡也会被派发。`FlashCardDef.DeckCopyOutsideCombatIsInert` 只允许“该卡在战斗牌堆之外时每个局外监听 Hook 都证明无效果”的定义通过：`Melancholy` 的 `AfterDeathMirrors.HandleMelancholy` 用 `State.FindCard(card)` 取战斗副本，牌组副本取不到就直接返回，所以 Flash 只导入战斗副本、不为牌组副本造时机。其余带局外监听 Hook 的牌组卡仍按 `UnsupportedCard` 拒绝。
+- **附魔**：`Imbued`、`Slither`、`SlumberingEssence`、`PerfectFit` 现在都有 Flash 定义，导入时不再按 `UnsupportedEnchantment` 拒绝。`Imbued` 的自动预打出按现有引擎的 `EnchantmentLifecycleSupport.TriggerAutoPrePlay` 在玩家第 1 回合、Mayhem 的计划自动打出之后执行；现有引擎持有 `PredictedCard` 对象快照，Flash 没有卡牌身份，改为“绝对位置 + 稳定键（Id/附魔/苦难/`IsClone`）”的快照并跟踪每次自动打出的净移动。位置或牌数不再匹配（卡被其他效果移走、生成/移除、转化）时显式抛 `FlashUnsupportedException`，不按值猜一张牌；K0 合同覆盖“牌被前一张自动打出移出战斗”的牌数不匹配分支。根快照固定在玩家出牌阶段，第 1 回合的自动预打出在根捕获前已经发生，所以这条路径只能由 K0 合同驱动，游走里不会出现。
+- **无需新投影**：四个附魔的私有值都在既有 `FlashCard` 附魔字段里（`EnchantmentId/Amount/Status/Private`），没有新增 `PredictionStateStore` 条目、计数器或布局字段。

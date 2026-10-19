@@ -327,7 +327,9 @@ public static partial class FlashKernel
     /// <summary>Mirrors <c>CorePowerSupport.FlushPlayerHandAtTurnEnd</c>.</summary>
     private static void FlushPlayerHandAtTurnEnd(ref FlashExec x)
     {
-        // BeforeFlush enchantments: not supported. A refused flush keeps the whole hand.
+        // EnchantmentLifecycleSupport.BeforeFlush runs before ShouldFlush and before any card moves.
+        BeforeFlush(ref x);
+        // A refused flush keeps the whole hand.
         bool flush = ShouldFlush(ref x);
         for (int index = 0; flush && index < x.B.HandCount;)
         {
@@ -347,6 +349,32 @@ public static partial class FlashKernel
         int total = x.B.CardCount;
         for (int position = 0; position < total; position++)
             EndOfTurnCleanup(ref x.B.Cards[position]);
+    }
+
+    /// <summary>
+    /// <c>EnchantmentLifecycleSupport.BeforeFlush</c>: every hand card's enchantment gets the callback
+    /// before <c>ShouldFlush</c>. The existing engine iterates the hand directly (SlumberingEssence adds
+    /// one <c>WhenPlayed</c> −1 modifier per copy), so the kernel does the same instead of a generic
+    /// listener scan.
+    /// </summary>
+    internal static void BeforeFlush(ref FlashExec x)
+    {
+        if (!x.R.HasBeforeFlushEnchantment
+            || (FlashRegistry.AnyHooksExt & FlashHookMaskExt.BeforeFlush) == 0)
+            return;
+        int handCount = x.B.HandCount;
+        for (int index = 0; index < handCount; index++)
+        {
+            ref FlashCard card = ref x.B.Cards[index];
+            if (card.EnchantmentId == 0)
+                continue;
+            FlashEnchantmentDef def = FlashRegistry.Enchantment((ushort)(card.EnchantmentId - 1));
+            if ((def.HooksExt & FlashHookMaskExt.BeforeFlush) == 0)
+                continue;
+            def.BeforeFlush(ref x, new FlashListener(FlashListenerKind.Enchantment, (byte)index, FlashLimits.PlayerOwner));
+            if (x.NeedsChoice)
+                return;
+        }
     }
 
     /// <summary>Mirrors <c>PersistentRelicSupport.ShouldFlush</c>: every combat listener, without the ending gate.</summary>

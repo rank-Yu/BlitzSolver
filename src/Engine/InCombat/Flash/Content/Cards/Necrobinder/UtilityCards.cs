@@ -728,6 +728,13 @@ public sealed class Melancholy : FlashCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block", "Energy"];
 
+    /// <summary>
+    /// The run listeners include the deck copy of this card, but <c>AfterDeathMirrors.HandleMelancholy</c>
+    /// resolves it with <c>State.FindCard(card)</c> and does nothing when the card is not in a combat pile.
+    /// The deck copy therefore has no effect and need not exist in Flash (only combat piles are imported).
+    /// </summary>
+    public override bool DeckCopyOutsideCombatIsInert => true;
+
     public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralBlock(ref x, 0);
 
     public override void AfterDeath(ref FlashExec x, FlashListener self, byte creature, bool wasRemovalPrevented)

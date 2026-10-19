@@ -41,6 +41,7 @@ CheckDfKernel(rules);
 CheckRgKernel(rules);
 CheckLrKernel(rules);
 CheckIdKernel(rules);
+CheckCxKernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -575,6 +576,8 @@ static FlashRules SliceRules()
     FlashRulesBuilder builder = new()
     {
         BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first", "second", "third"], BaseOrbSlotCount = 3,
+        // The CX contracts install PerfectFit/SlumberingEssence on hand/discard cards.
+        HasShuffleOrderEnchantment = true, HasBeforeFlushEnchantment = true,
     };
     FlashRegistry.TryRelic("CRACKED_CORE", out ushort crackedCore);
     builder.SetRelicVars(crackedCore, [1m]);
@@ -629,6 +632,10 @@ static FlashRules SliceRules()
     builder.SetCard(disintegration, 0, Stats(FlashCardType.Status, FlashTargetType.Self, -1, []));
     FlashRegistry.TryCard("MIND_ROT", out ushort mindRot);
     builder.SetCard(mindRot, 0, Stats(FlashCardType.Status, FlashTargetType.Self, -1, []));
+    // CX: a 0-cost skill whose OnPlay removes another hand card. The Imbued contract uses it to make a
+    // captured card disappear before its auto-play turn, which must be an explicit boundary.
+    FlashRegistry.TryCard("CX_TEST_IMBUED_REMOVER", out ushort cxRemover);
+    builder.SetCard(cxRemover, 0, Stats(FlashCardType.Skill, FlashTargetType.Self, 0, []));
     FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable);
     builder.SetPowerVars(vulnerable, [1.5m]);
     FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
@@ -1262,6 +1269,114 @@ static FlashBattle SliceBattle()
         FlashPiles.Append(ref battle, index < 5 ? FlashPile.Hand : FlashPile.Draw, card);
     }
     return battle;
+}
+
+// CX: the four previously missing enchantments. Imbued's turn-1 auto-play (and its explicit boundary
+// when a captured card disappears), Slither's draw-time random cost, SlumberingEssence's BeforeFlush
+// cost modifier and PerfectFit's ModifyShuffleOrder placement.
+static void CheckCxKernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryEnchantment("IMBUED", out ushort imbued), "缺少 IMBUED");
+    Check(FlashRegistry.TryEnchantment("SLITHER", out ushort slither), "缺少 SLITHER");
+    Check(FlashRegistry.TryEnchantment("SLUMBERING_ESSENCE", out ushort slumbering), "缺少 SLUMBERING_ESSENCE");
+    Check(FlashRegistry.TryEnchantment("PERFECT_FIT", out ushort perfectFit), "缺少 PERFECT_FIT");
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD");
+    Check(FlashRegistry.TryCard("CX_TEST_IMBUED_REMOVER", out ushort remover), "缺少 CX_TEST_IMBUED_REMOVER");
+
+    static FlashCard Enchanted(FlashRules rules, ushort card, ushort enchantment)
+    {
+        FlashCard value = FlashKernel.CreateCard(rules, card);
+        value.EnchantmentId = (byte)(enchantment + 1);
+        return value;
+    }
+
+    // Imbued: every enchanted card auto-plays on player turn 1, in AllCards order, without paying energy.
+    FlashBattle imbuedBattle = NewBattle();
+    imbuedBattle.PlayerTurn = 1;
+    imbuedBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref imbuedBattle, FlashPile.Hand, Enchanted(rules, defend, imbued));
+    FlashPiles.Append(ref imbuedBattle, FlashPile.Hand, Enchanted(rules, defend, imbued));
+    FlashExec imbuedExec = new(ref imbuedBattle, rules, default);
+    FlashKernel.AutoPrePlay(ref imbuedExec);
+    Check(imbuedBattle.HandCount == 0 && imbuedBattle.DiscardCount == 2,
+        $"Imbued 应在第一回合自动打出两张牌，实际手牌 {imbuedBattle.HandCount} 弃牌 {imbuedBattle.DiscardCount}");
+    Check(imbuedBattle.Energy == 3 && imbuedBattle.Counter(FlashCounter.CardsPlayedThisTurn) == 2,
+        "Imbued 自动打出不应支付能量");
+    Check(imbuedBattle.Counter(FlashCounter.EnergySpentThisTurn) == 0, "Imbued 自动打出不应记录能量消耗");
+
+    // Turn 2 (and later) must not auto-play Imbued.
+    imbuedBattle.PlayerTurn = 2;
+    FlashPiles.Append(ref imbuedBattle, FlashPile.Hand, Enchanted(rules, defend, imbued));
+    FlashKernel.AutoPrePlay(ref imbuedExec);
+    Check(imbuedBattle.HandCount == 1, "Imbued 只应在第一回合自动打出");
+
+    // Boundary: the remover plays first and takes the other captured card out of combat. The card count
+    // no longer matches the tracked move, so the kernel must throw FlashUnsupportedException (not replay
+    // a guessed card and not silently skip it).
+    FlashBattle boundaryBattle = NewBattle();
+    boundaryBattle.PlayerTurn = 1;
+    boundaryBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref boundaryBattle, FlashPile.Hand, Enchanted(rules, remover, imbued));
+    FlashPiles.Append(ref boundaryBattle, FlashPile.Hand, Enchanted(rules, defend, imbued));
+    FlashExec boundaryExec = new(ref boundaryBattle, rules, default);
+    bool boundaryThrown = false;
+    try
+    {
+        FlashKernel.AutoPrePlay(ref boundaryExec);
+    }
+    catch (FlashUnsupportedException)
+    {
+        boundaryThrown = true;
+    }
+    Check(boundaryThrown, "Imbued 捕获卡消失时应抛 FlashUnsupportedException");
+
+    // Slither: drawing the card into hand spends one CombatEnergyCosts draw and sets an absolute
+    // this-combat cost.
+    FlashBattle slitherBattle = NewBattle();
+    slitherBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref slitherBattle, FlashPile.Draw, Enchanted(rules, defend, slither));
+    FlashRngState expected = slitherBattle.RngStream(FlashRngStream.CombatEnergyCosts);
+    int counterBefore = expected.Counter;
+    int expectedCost = expected.NextInt(4);
+    FlashExec slitherExec = new(ref slitherBattle, rules, default);
+    FlashKernel.Draw(ref slitherExec, 1, fromHandDraw: false);
+    Check(slitherBattle.HandCount == 1, "Slither 测试应抽到一张手牌");
+    ref FlashCard drawn = ref slitherBattle.Cards[0];
+    Check(drawn.EnchantmentId == (byte)(slither + 1), "抽到的应是 Slither 卡");
+    Check(drawn.EnergyModifierCount == 1
+        && drawn.EnergyModifiers[0].Type == FlashCostType.Absolute
+        && drawn.EnergyModifiers[0].Expiration == FlashCostExpiration.EndOfCombat
+        && drawn.EnergyModifiers[0].Amount == expectedCost,
+        $"Slither 应写入绝对值 {expectedCost} 的本场费用修饰，实际 {drawn.EnergyModifierCount}");
+    Check(slitherBattle.RngStream(FlashRngStream.CombatEnergyCosts).Counter == counterBefore + 1,
+        "Slither 应只消耗一次 CombatEnergyCosts");
+
+    // SlumberingEssence: BeforeFlush adds a WhenPlayed -1 relative modifier before the flush.
+    FlashBattle slumberBattle = NewBattle();
+    FlashPiles.Append(ref slumberBattle, FlashPile.Hand, Enchanted(rules, defend, slumbering));
+    FlashExec slumberExec = new(ref slumberBattle, rules, default);
+    FlashKernel.BeforeFlush(ref slumberExec);
+    ref FlashCard slumberCard = ref slumberBattle.Cards[0];
+    Check(slumberCard.EnergyModifierCount == 1
+        && slumberCard.EnergyModifiers[0].Type == FlashCostType.Relative
+        && slumberCard.EnergyModifiers[0].Expiration == FlashCostExpiration.WhenPlayed
+        && slumberCard.EnergyModifiers[0].Amount == -1,
+        "SlumberingEssence BeforeFlush 应写入 WhenPlayed -1 修饰");
+    FlashKernel.BeforeFlush(ref slumberExec);
+    Check(slumberCard.EnergyModifierCount == 2, "每次 BeforeFlush 都应追加一条 SlumberingEssence 修饰");
+
+    // PerfectFit: after the non-initial shuffle the enchanted card is the top of the new draw pile.
+    FlashBattle shuffleBattle = NewBattle();
+    shuffleBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashCard perfect = Enchanted(rules, defend, perfectFit);
+    FlashPiles.Append(ref shuffleBattle, FlashPile.Discard, Enchanted(rules, defend, imbued));
+    FlashPiles.Append(ref shuffleBattle, FlashPile.Discard, perfect);
+    FlashPiles.Append(ref shuffleBattle, FlashPile.Draw, Enchanted(rules, defend, slither));
+    FlashExec shuffleExec = new(ref shuffleBattle, rules, default);
+    FlashKernel.Shuffle(ref shuffleExec);
+    Check(shuffleBattle.DrawCount == 3 && shuffleBattle.DiscardCount == 0, "洗牌后三张牌都应进入抽牌堆");
+    Check(FlashFingerprint.Equal(shuffleBattle.Cards[shuffleBattle.HandCount], perfect),
+        "PerfectFit 应把附魔卡放在洗牌后抽牌堆顶");
 }
 
 // SK: contracts for the Silent kernel capabilities. Discard pipeline + AfterCardDiscarded + Sly
@@ -2799,4 +2914,21 @@ public sealed class RgTestStarRelic : FlashRelicDef
 
     public override void AfterStarsSpent(ref FlashExec x, FlashListener self, int amount)
         => Kg2TestLog.Add($"stars-spent-relic:{amount}");
+}
+
+[FlashContent("CX_TEST_IMBUED_REMOVER")]
+public sealed class CxTestImbuedRemover : FlashCardDef
+{
+    /// <summary>Removes the first other Imbued card from the hand, making its pending auto-play unlocatable.</summary>
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashRegistry.TryEnchantment(FlashKernel.ImbuedEnchantmentId, out ushort imbued);
+        for (int index = 0; index < x.B.HandCount; index++)
+        {
+            if (x.B.Cards[index].EnchantmentId != (byte)(imbued + 1))
+                continue;
+            FlashPiles.RemoveAt(ref x.B, FlashPile.Hand, index);
+            return;
+        }
+    }
 }

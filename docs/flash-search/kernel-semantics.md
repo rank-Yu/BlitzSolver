@@ -59,7 +59,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 死亡：`BeforeDeath`、`ShouldDie`（含 Late）、`AfterDeath`、`AfterPreventingDeath`。
 - 已有派发点（其余见本节列表）：`BeforeDamageReceived`（`TryDamageTarget` 中修正后、格挡前，不受战斗结束闸门限制）、`BeforeSideTurnEnd` 三轮（玩家回合结束第一阶段，受闸门限制，参与者以位集合传入）、`ShouldClearBlock`、`ModifyMaxEnergy`、`ModifyHandDraw`（含 Late）与第 7 节的 Power/遗物阶段方法。
 - 回合：`BeforeSideTurnStart`、`AfterSideTurnStart`、`AfterEnergyReset`（含 Late）、`ModifyMaxEnergy`、`BeforeHandDraw`、`ModifyHandDraw`（含 Late）、`AfterPlayerTurnStart`、`AfterAutoPostPlayPhaseEntered`（阶段切到 AutoPostPlay 后、切到 End 之前，卡牌与 Power 监听者；HowlFromBeyond、StampedePower）、`BeforeSideTurnEnd`（VeryEarly、Early、普通）、`OnTurnEndInHand`、`AfterSideTurnEnd`（含 Late）、`AfterSideTurnEndLate`（`FlashHookMaskExt`；刷新监听快照后派发，DisintegrationPower）、`ShouldTakeExtraTurn`。
-- 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook；HellraiserPower 在 Early 自动打出刚抽到的 Strike）、`ModifyShuffleOrder`、`AfterShuffle`（TheAbacus）、`AfterCardChangedPiles`。`AfterShuffle` 在洗牌计数 +1 后、战斗未结束时派发，监听者为全部战斗监听者。
+- 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook；HellraiserPower 在 Early 自动打出刚抽到的 Strike）、`ModifyShuffleOrder`（稳定洗牌后、写回抽牌堆前；Slither 的抽牌随机费用走 `AfterCardDrawn`）、`AfterShuffle`（TheAbacus）、`AfterCardChangedPiles`。`AfterShuffle` 在洗牌计数 +1 后、战斗未结束时派发，监听者为全部战斗监听者。
 - Power：`TryModifyPowerAmountReceived` / `AfterModifyingPowerAmountReceived`（RuinedHelmet；UnsettlingLamp 按触发卡的出牌来源逐卡翻倍，触发卡与已翻倍的临时 Power 类型只存在 `FlashExec`，见 [状态布局](state-layout.md) 2.5）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious；Flash 目前只有 Vicious、PossessStrength/PossessSpeed 定义；派发携带被修改 Power 的目标 owner，因为原版读取的是 `power.Owner`）。**实例型 Power**（`PowerInstanceType.Instanced`）每个原生实例占 Power 表一行，`(owner, id)` 相同的行按出现序区分；阶段遍历与 Hook 快照都保存 occurrence，`FindPowerOccurrence` 精确回指该行（Automation、Panache、RollingBoulder、TheBomb、Gigantification、Monologue、Orbit、Nightmare）。
 - 数值与遗物：`ModifyXValue`（ChemicalX，位置与 `CardModel.ResolveEnergyXValue` 一致）、`ShouldPlayerResetEnergy`（IceCream）、遗物 `AfterCardEnteredCombat`（GhostSeed）。
 - 生成卡与 A3 新增时机：`AfterCardGeneratedForCombat` 在 `AddGeneratedCard` 插入牌堆并派发 `AfterCardEnteredCombat` 之后按监听顺序派发，参数是**卡牌数组的绝对下标**（牌堆内下标只用于 `AfterCardEnteredCombat`）与生成者 owner（玩家或 `NoOwner`，对应现有引擎的 `Player? Creator`；怪物及其 Power 生成的牌为 `NoOwner`）；Aeonglass 用它把新生成的 Wither 直接提升到当前 `WitherUpgradeCount`。`Rampart` 只在玩家侧非额外回合的回合开始、`OwnerAfterSideTurnStart` 之后执行（`PersistentPowerSupport.TriggerRampart`）。`HasKeyword` 在稳定边界上查询本地关键字后，还会为持有 `HexPower` 的玩家的 Hexed 卡补上 Ethereal（原版 `TryModifyKeywordsInCombat` 是惰性查询，不写入卡牌状态）。
@@ -74,6 +74,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - **卡牌尾部。** 每次打出在卡牌效果与 `OwnChoice` 之后、`AfterCardPlayed` 之前依次执行附魔 `OnPlay`、苦难 `OnPlay`；持有者死亡或出现待处理选择时中止，与 `CardTailContinuation` 的 Enchantment → Affliction → Finish 顺序一致。
 - **苦难归一化。** 现有引擎不直接逐 Hook 施加/清除苦难，而是在 `SimulatedCombatState.NormalizeCardAfflictions` 里按当前 Power 归一化：Hex/Tangled/Ringing 先按 Power 数量施加或清除；随后 `NormalizePowerAfflictions` 处理 Vital Spark 的 Tainted（数量变化才回写、Power 归零才清除）、Smoggy 的 Smog（本侧回合已打出技能时给新进场技能）与 Galvanic 的 Galvanized（新进场 Power 牌）。Flash 的 `FlashKernel.NormalizeCardAfflictions` 逐条照抄，并在现有引擎的同一位置调用：`AfterCardEnteredCombat` 末、卡牌补偿效果末、每个动作结算、玩家回合末阶段一/阶段二、玩家回合开始末、每个敌人行动末。`PowerAfflictionChecked` 对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入的卡视为已检查，根之后生成的卡在下一次归一化时检查一次。`SkillPlayedThisSideTurn` 对应 `_skillsPlayedThisTurn`，在技能牌完成后置位、在该侧回合末清零（与持久化的 `SkillCardsPlayedThisTurn` 不同）。
 - **施加/移除路径。** `ApplyAffliction` 对应 `CardCmd.Afflict` 的 `CanAfflict` 与同类型叠加；`ClearAffliction(s)` 对应 `ClearAffliction`。Vital Spark 的 Tainted 层数同步使用导入的 `LastNormalizedVitalSparkAmount` 计数器（`int.MinValue` 表示 null），首次导入不回写，保留实机战斗开始时可能叠高的层数。
+- **CX 补齐的四个附魔。** `Slither` 在 `AfterCardDrawn` 中按 `CombatEnergyCosts.NextInt(4)` 给刚抽到的手牌追加绝对本场费用（`AfterCardDrawnMirrors.HandleSlither`）；`SlumberingEssence` 在玩家回合末清手牌前的 `BeforeFlush` 给每张自身手牌追加 `WhenPlayed` −1（`EnchantmentLifecycleSupport.BeforeFlush`）；`PerfectFit` 在非初始洗牌的 `ModifyShuffleOrder` 中把自己的牌移到合并列表最前（`ModifyShuffleOrderMirrors.HandlePerfectFit`）；`Imbued` 在玩家第 1 回合的自动预打出阶段按 `AllCards` 顺序自动打出（`EnchantmentLifecycleSupport.TriggerAutoPrePlay`，在 Mayhem 之后）。`Imbued` 的快照与显式边界见[准入](admission-and-verification.md)。
 - **Power 与怪物。** 本轮实现 Plow、Ringing、Tangled、Smoggy、Vital Spark、Tainted、Hex 七个 Power，以及 Ceremonial Beast、Vine Shambler、Infested Prism、Living Fog、Gas Bomb 的移动效果。Living Fog 的 BLOAT 在攻击前生成 Gas Bomb（`FlashMonsterDef.BeforeMove`），Gas Bomb 的 EXPLODE 攻击后自毁。MysticLighter 是遗物定义：带附魔卡牌的 powered attack 加 `Damage`。Hexed 的 Ethereal 由上面的 `HasKeyword` 惰性提供；HexPower 被移除或施加者死亡后不再提供，卡牌本地关键字不变。
 
 
@@ -95,6 +96,8 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 ### 4.1 自动打出
 
 来源：`S/CombatPredictionSimulator.AutoPlay.cs:21-73`、`S/CombatPredictionSimulator.AutoPlayContinuation.cs`。
+
+自动预打出顺序是 `Bombardment` → Mayhem 的计划自动打出 → 第 1 回合的 Imbued 附魔卡（HistoryCourse/WhisperingEarring 仍无定义）。
 
 `FlashKernel.AutoPlay` 与 `ManualPlay` 共用 `PlayFromPlay`（结果牌堆、每次打出、`BeforeCardPlayed`、效果、`OwnChoice`、`AfterCardPlayed` 普通与 Late、收尾），只替换资源与目标两步：
 

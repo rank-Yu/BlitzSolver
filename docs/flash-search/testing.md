@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID 合入后）：FlashKernelChecks 通过；138 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条）、204 个固定根（`coverage/fixtures/cards/flash-*.json`）与 50 个生成牌组（含 17 个非铁甲战士牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；只有含 Thrash 的 `deck-IRONCLAD-02`/`18` 按小数卡牌变量边界记 `unsupported`。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX 合入后）：FlashKernelChecks 通过；138 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条）、206 个固定根（`coverage/fixtures/cards/flash-*.json`）与 53 个生成牌组（含 20 个非铁甲战士牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；只有含 Thrash 的 `deck-IRONCLAD-02`/`18` 按小数卡牌变量边界记 `unsupported`。
 
 ### 2.1 覆盖缺口
 
@@ -56,7 +56,7 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 剩余怪物（MB，2026-10-19）：知识恶魔的怪物行动现在产生待处理的固定选项选择（`FlashChoiceKind.SelectOption`，接入选择翻译、回放与差分比较），实现四个诅咒 Power 与诅咒卡（只作为选项）并投影 `_knowledgeDemonCurseCounters`；无餍者的目标化 SandpitPower（敌方回合开始按行减层、归零击杀目标）、FranticEscape、评估中的 `SandpitRemaining` 与“1 层流沙必死”威胁特例；新 Hook `AfterSideTurnEndLate`（`FlashHookMaskExt`）。EntropicBrew 按现有引擎冻结战斗外随机药水池，免费药水与生成药水的用量和战略成本进入评估（K4 覆盖）。两个首领的 FLASHM1/FLASHM2 自然根与 `flash-mb-*` 固定根零差异。
 
-仍跳过：第一幕瀑布巨兽（SteamEruption 的死亡改写与爆发阶段、动态攻击伤害、阻止战斗结束与评估特例）；偷窃（穿着一件大衣的两只地精与 THIEVING_HOPPER：被偷卡牌身份与回收、Heist/Surprise 死亡生成、评估中的被偷资源）；Thrash 的小数卡牌变量仍是显式边界。未实现的附魔（Imbued、Slither、SlumberingEssence、PerfectFit）仍在准入拒绝。
+仍跳过：第一幕瀑布巨兽（SteamEruption 的死亡改写与爆发阶段、动态攻击伤害、阻止战斗结束与评估特例）；偷窃（穿着一件大衣的两只地精与 THIEVING_HOPPER：被偷卡牌身份与回收、Heist/Surprise 死亡生成、评估中的被偷资源）；Thrash 的小数卡牌变量仍是显式边界。
 
 | 遭遇 | 缺失能力 | 机制位置 |
 | --- | --- | --- |
@@ -78,6 +78,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 其他角色剩余内容（LS，2026-10-19）：先修正非铁甲战士随机牌组差分暴露的 6 处分歧（DEFECT-05/08/26/27/28、NECROBINDER-16），再实现静默猎手的 KnifeTrap、TheHunt、EchoingSlash、ToolsOfTheTrade、Burst、Shadowmeld、Mirage（计算格挡）与闭包所需的 Anticipate、SerpentForm、Untouchable，遗物 Tingsha、HelicalDart、BeltBuckle、PaperKrane（虚弱/易伤乘数修正）、SneckoSkull（新 Hook `ModifyPowerAmountGiven`）；亡灵契约师 SentryMode（SweepingGaze 生成）、Misery、Pagestorm、DanseMacabre、ReaperForm、Seance 与 BigHat；故障机器人 Leap、BoostAway、MeteorStrike、MomentumStrike、Quadcast 与 EssenceOfDarkness。随机牌组准入：静默猎手 9 → 20/30、亡灵契约师 12 → 13/30、故障机器人 22 → 27/30，新准入的 60 个牌组 48 条游走零差异；17 个代表牌组收进 `coverage/corpora/flash-decks/`。合并时补上一处嵌套出牌的上下文恢复：外层出牌在嵌套自动打出返回后恢复自己的出牌堆槽位，使 `CurrentPlayCard`（MomentumStrike 改自身费用、附魔尾部）仍指向本张牌。跳过 CallOfTheVoid（闭包含已跳过的 Delay/Fetch）、Delay（现有引擎缺格挡补偿）与需要卡牌实例身份的 Fetch、Nightmare、PhantomBlades、RollingBoulder、UnsettlingLamp、Vambrace。
 
 卡牌实例身份（ID，2026-10-19）：现有引擎按卡牌对象或 Power 实例记账的状态改为随卡值移动的表示：SwordSage 的已应用重放加成与 Fetch 的“本回合打出过”写进已有的 `FlashCard.Private`，Nightmare 的选定卡完整值存进 `FlashBattle.DetachedCards`（容量 2），Monologue、Orbit、PaleBlueDot、Nightmare 每个实例一行、用 `Aux` 记各自的计数；Monologue、Vambrace 与 UnsettlingLamp 的触发卡只存在一次出牌的 `FlashExec`，稳定边界为空（布局见 [状态布局](state-layout.md) 2.5）。实现储君 Monologue、SwordSage、SummonForth、Orbit、PaleBlueDot，静默猎手 Nightmare、PhantomBlades，亡灵契约师 Fetch、Delay（CallOfTheVoid 的闭包随之可用），无色 BundleOfJoy、Quasar、ManifestAuthority、SpectrumShift，遗物 Vambrace、UnsettlingLamp；Orbit 的战略评估项按现有引擎的退款窗口单独计算。已知敌人容量 8 → 10（REGENT-15 的长游走召出第 9 个敌人），`FlashBattle` 12000 → 12320 字节，`FlashCard` 仍为 92 字节；没有身份内容的根按根级 `HasIdentityContent` 跳过身份扫描，48 根基准路线逐根不变，FlashBeam 热耗时中位数约 +0.9%（单次波动大于此值），托管分配均值 32.1 → 32.8 MB。新准入的根顺带暴露并修正 5 处既有差异：两张 THRUMMING_HATCHET 同时回手时第二张被漏掉、药水目标的 Surrounded 朝向（`BeforePotionUsed`）、SandpitPower 的类型（原生为 Buff，影响 Rend 的评估）、Monologue 撤回临时力量压缩 Power 表后删错行、监听过程中 Power 自移除造成的 occurrence 漂移。7 个 `coverage/fixtures/cards/flash-id-*.json` 每根 48 条游走零差异，临时计数确认各身份路径在游走中触发；随机牌组准入：储君 9 → 30/30、亡灵契约师 13 → 24/30（剩余 6 个因 MELANCHOLY 的局外 run-listener Hook 拒绝），新准入牌组 48 条游走零差异。
+
+附魔与 Melancholy（CX，2026-10-19）：在 ID/RQ 之后的代码上重新调查第一、二幕随机牌组（铁甲战士 60 个、其余四个角色各 30 个），只剩亡灵契约师 6 个牌组因 MELANCHOLY 的局外监听 Hook 被拒，其余全部准入。现有引擎经局外监听派发 `AfterDeath` 时用 `State.FindCard` 查找该牌，牌组副本不在战斗牌堆中、没有效果，因此定义可声明牌组副本惰性（`DeckCopyOutsideCombatIsInert`），战斗副本的降费照旧执行。实现附魔 Imbued（第 1 回合在 Mayhem 计划自动打出之后自动打出）、Slither、SlumberingEssence（新 Hook `BeforeFlush`）与 PerfectFit（新 Hook `ModifyShuffleOrder`，洗牌之后、写回抽牌堆之前），两个 Hook 位于 `FlashHookMaskExt` 1–2 位，没有对应附魔的根按根级布尔跳过派发。新准入的根暴露一处既有差异：BoneShards 在 Osty 缺失或死亡时照 `BoneShardsOnPlay` 跳过攻击与格挡。随机牌组准入：亡灵契约师 24 → 30/30，五个角色全部准入；新准入的 6 个牌组 48 条游走零差异，NECROBINDER-06/24/26 收进 `coverage/corpora/flash-decks/`。`flash-cx-a-enchantments`、`flash-cx-b-melancholy` 零差异，临时计数确认 Slither、SlumberingEssence、PerfectFit 与降费在游走中触发；搜索根固定在出牌阶段，第 1 回合的 Imbued 自动打出在根之前已发生，只由 K0 合同覆盖。48 根基准路线逐根不变，托管分配不变。
 
 遗物（R2）：新增 122 个遗物定义（34 个有战斗行为，88 个只在战斗外或根之前生效、逐个注明原版 Hook）与 SelfFormingClayPower；PaperPhrog 的效果由易伤倍率承载。7 个 `coverage/fixtures/cards/flash-r2-*.json` 每根 48 条游走零差异。跳过的遗物：TheAbacus（AfterShuffle 未派发）、MysticLighter（附魔伤害修正）、IceCream（能量重置）、ChemicalX（ModifyXValue）、RuinedHelmet（Power 数量修正 Hook）、GhostSeed（遗物的 AfterCardEnteredCombat）。目标 8 个药水全部跳过（随机生成与自动打出待 KG1，Duplicator 需出牌次数修改，Gigantification 需对象身份）。
 

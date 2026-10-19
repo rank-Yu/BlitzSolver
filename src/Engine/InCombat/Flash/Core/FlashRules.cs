@@ -278,7 +278,9 @@ public sealed class FlashRules
         int baseOrbSlotCount,
         int rootSwordSageAmount,
         ushort unsettlingLampRelicId,
-        bool hasIdentityContent)
+        bool hasIdentityContent,
+        bool hasShuffleOrderEnchantment,
+        bool hasBeforeFlushEnchantment)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -299,6 +301,8 @@ public sealed class FlashRules
         RootSwordSageAmount = rootSwordSageAmount;
         UnsettlingLampRelicId = unsettlingLampRelicId;
         HasIdentityContent = hasIdentityContent;
+        HasShuffleOrderEnchantment = hasShuffleOrderEnchantment;
+        HasBeforeFlushEnchantment = hasBeforeFlushEnchantment;
     }
 
     public int BaseMaxEnergy { get; }
@@ -326,6 +330,15 @@ public sealed class FlashRules
     /// </summary>
     public bool HasIdentityContent { get; }
 
+    /// <summary>
+    /// The root's combat card values include an enchantment implementing <c>ModifyShuffleOrder</c>
+    /// (PerfectFit). Shuffles skip the listener scan when false; enchantments only enter combat from the
+    /// root (no in-combat card receives these two enchantments), so root cards are the complete source.
+    /// </summary>
+    public bool HasShuffleOrderEnchantment { get; }
+
+    /// <summary>The root's combat card values include an enchantment implementing <c>BeforeFlush</c> (SlumberingEssence).</summary>
+    public bool HasBeforeFlushEnchantment { get; }
 
     /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
     public int BaseOrbSlotCount { get; }
@@ -458,6 +471,10 @@ public sealed class FlashRulesBuilder
 
     public bool HasIdentityContent { get; set; } = true;
 
+    public bool HasShuffleOrderEnchantment { get; set; }
+
+    public bool HasBeforeFlushEnchantment { get; set; }
+
 
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
@@ -548,7 +565,8 @@ public sealed class FlashRulesBuilder
             (ushort[])_outOfCombatPotionPool.Clone(),
             (ushort[])_rootPotions.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
-            RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent);
+            RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent, HasShuffleOrderEnchantment,
+            HasBeforeFlushEnchantment);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

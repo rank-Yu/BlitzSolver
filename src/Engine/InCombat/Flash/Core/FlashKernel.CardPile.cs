@@ -236,7 +236,9 @@ public static partial class FlashKernel
             int k = rng.NextInt(n + 1);
             (list[k], list[n]) = (list[n], list[k]);
         }
-        // ModifyShuffleOrder has no supported listeners yet.
+        // HookMirrors.ModifyShuffleOrder runs after the stable shuffle and before AddToPile
+        // (PerfectFit moves its own card to the front of the merged list).
+        ModifyShuffleOrder(ref x, list, total);
 
         // Draw and discard are adjacent segments: the region becomes the new draw pile.
         list.CopyTo(System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref x.B.Cards[x.B.HandCount], total));
@@ -249,6 +251,23 @@ public static partial class FlashKernel
             return;
         AfterShuffleHook after = new() { Shuffler = FlashLimits.PlayerOwner };
         FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.ModifyShuffleOrder</c> over the combat listeners in dispatch order. The existing
+    /// engine always passes <c>isInitialShuffle: false</c> from <c>CombatPredictionSimulator.Shuffle</c>
+    /// (the only shuffle call site), so Flash passes false as well.
+    /// </summary>
+    private static void ModifyShuffleOrder(ref FlashExec x, scoped Span<FlashCard> cards, int count)
+    {
+        if (!x.R.HasShuffleOrderEnchantment
+            || (FlashRegistry.AnyHooksExt & FlashHookMaskExt.ModifyShuffleOrder) == 0)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        int listenersCount = FlashHooks.CollectListeners(x.B, FlashHookMaskExt.ModifyShuffleOrder, listeners);
+        for (int index = 0; index < listenersCount; index++)
+            FlashHooks.Definition(x.B, listeners[index]).ModifyShuffleOrder(
+                ref x, listeners[index], cards, count, isInitialShuffle: false);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.Exhaust</c>.</summary>
