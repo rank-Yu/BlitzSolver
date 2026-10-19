@@ -847,6 +847,10 @@ public sealed class DrainPower : FlashCardDef
             (order[k], order[n]) = (order[n], order[k]);
         }
         int take = Math.Min((int)NecrobinderContent.Var(ref x, 1), candidates);
+        // CombatPredictionSimulator.Upgrade is a no-op while the combat is ending; the random
+        // selection (and its RNG draws) still happen first. A killing DrainPower must not upgrade.
+        if (FlashKernel.IsEnding(x.B))
+            return;
         for (int index = 0; index < take; index++)
             FlashKernel.UpgradeCard(x.R, ref x.B.Cards[discardStart + order[index]]);
     }

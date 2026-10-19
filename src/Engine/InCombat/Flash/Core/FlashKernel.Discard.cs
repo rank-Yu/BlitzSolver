@@ -50,64 +50,93 @@ public static partial class FlashKernel
         Span<SelectedCard> cards = stackalloc SelectedCard[selected.Length];
         SnapshotSelected(x.B, pile, selected, cards);
         Span<SelectedCard> sly = stackalloc SelectedCard[selected.Length];
-        Span<bool> played = stackalloc bool[selected.Length];
         int slyCount = 0;
-        for (int item = 0; item < cards.Length; item++)
+        // The existing engine keeps the discarded CardModel and auto-plays it from whichever pile the
+        // draw moved it to. Two byte-equal copies are not interchangeable: playing a copy that is still
+        // in hand (or that stayed in the discard pile) leaves a different pile distribution, so each
+        // discarded Sly card gets a one-action identity byte that travels with its value through the
+        // shuffle and draw. Marks 64..255 are reserved for these batches; BeatDown uses 1..63.
+        int markBase = x.TransientMarkBase;
+        if (64 + markBase + selected.Length > 256)
+            throw new FlashCapacityException("TransientMarks", 256 - 64);
+        x.TransientMarkBase = checked((byte)(markBase + selected.Length));
+        int markStart = 64 + markBase;
+        try
         {
-            int index = LocateSelected(x.B, pile, cards, item);
-            FlashCard card = FlashPiles.At(ref x.B, pile, index);
-            bool isSly = IsSlyThisTurn(x.B, card);
-            // AddToPile(card, Discard) appends at the bottom; its result is ignored by the existing
-            // loop, which still records the discard and dispatches the hook.
-            MoveCard(ref x.B, pile, index, FlashPile.Discard);
-            x.B.AddCounter(FlashCounter.CardsDiscardedThisTurn, 1);
-            AfterCardDiscardedHook hook = new() { Card = card };
-            FlashHooks.Dispatch(ref x, ref hook, gatedByEnding: true);
+            for (int item = 0; item < cards.Length; item++)
+            {
+                int index = LocateSelected(x.B, pile, cards, item);
+                FlashCard card = FlashPiles.At(ref x.B, pile, index);
+                bool isSly = IsSlyThisTurn(x.B, card);
+                // AddToPile(card, Discard) appends at the bottom; its result is ignored by the existing
+                // loop, which still records the discard and dispatches the hook.
+                MoveCard(ref x.B, pile, index, FlashPile.Discard);
+                x.B.AddCounter(FlashCounter.CardsDiscardedThisTurn, 1);
+                AfterCardDiscardedHook hook = new() { Card = card };
+                FlashHooks.Dispatch(ref x, ref hook, gatedByEnding: true);
+                if (x.NeedsChoice)
+                    return;
+                if (!isSly)
+                    continue;
+                // AddToPile appended the card at the bottom of the discard pile. A hook may have
+                // removed or moved it; if the same copy is still there, its mark travels with it
+                // through the draw. Otherwise no mark exists and the auto-play reports unsupported.
+                byte mark = checked((byte)(markStart + slyCount));
+                sly[slyCount++] = new SelectedCard { Card = card, Position = mark };
+                if (x.B.DiscardCount > 0
+                    && FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Discard, x.B.DiscardCount - 1), card))
+                {
+                    x.B.Cards[FlashPiles.Start(x.B, FlashPile.Discard) + x.B.DiscardCount - 1].TransientMark = mark;
+                }
+            }
+            Draw(ref x, drawCount, fromHandDraw: false);
             if (x.NeedsChoice)
                 return;
-            if (!isSly)
+            for (int item = 0; item < slyCount; item++)
+            {
+                if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
+                    return;
+                if (!TryFindMarked(x.B, (byte)sly[item].Position, out FlashPile currentPile, out int currentIndex))
+                {
+                    // A hook cleared the identity byte or removed the card from every combat pile;
+                    // the object identity the existing engine holds cannot be reproduced.
+                    throw new FlashUnsupportedException(
+                        $"弃牌 {FlashRegistry.Card(sly[item].Card.Id).NativeId}+{sly[item].Card.Upgrade} " +
+                        $"在自动打出前失去瞬态标记（cards={x.B.CardCount}）。");
+                }
+                x.B.Cards[FlashPiles.Start(x.B, currentPile) + currentIndex].TransientMark = 0;
+                AutoPlay(ref x, currentPile, currentIndex);
+                if (x.NeedsChoice)
+                    return;
+            }
+        }
+        finally
+        {
+            for (int position = 0; position < x.B.CardCount; position++)
+            {
+                if (x.B.Cards[position].TransientMark >= markStart
+                    && x.B.Cards[position].TransientMark < markStart + slyCount)
+                {
+                    x.B.Cards[position].TransientMark = 0;
+                }
+            }
+            x.TransientMarkBase = checked((byte)markBase);
+        }
+    }
+
+    /// <summary>Finds the card carrying the one-action identity byte and its current pile position.</summary>
+    private static bool TryFindMarked(in FlashBattle battle, byte mark, out FlashPile pile, out int index)
+    {
+        for (int absolute = 0; absolute < battle.CardCount; absolute++)
+        {
+            if (battle.Cards[absolute].TransientMark != mark)
                 continue;
-            sly[slyCount++] = new SelectedCard { Card = card, Occurrence = 0, Position = -1 };
+            pile = FlashPiles.PileOf(battle, absolute, out index);
+            return true;
         }
-        // Occurrences among byte-equal cards are assigned in discard order over the current battle
-        // order: the k-th discarded copy of a value is the k-th equal slot. A manual card's occurrence
-        // depends on its source position, but a discarded card has moved, so the slot is taken here.
-        for (int item = 0; item < slyCount; item++)
-        {
-            int wanted = 0;
-            for (int prior = 0; prior < item; prior++)
-            {
-                if (FlashFingerprint.Equal(sly[prior].Card, sly[item].Card))
-                    wanted++;
-            }
-            sly[item].Occurrence = wanted;
-        }
-        Draw(ref x, drawCount, fromHandDraw: false);
-        if (x.NeedsChoice)
-            return;
-        for (int item = 0; item < slyCount; item++)
-        {
-            if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
-                return;
-            // Every earlier auto-play removed one byte-equal card at a lower occurrence.
-            int occurrence = sly[item].Occurrence;
-            for (int prior = 0; prior < item; prior++)
-            {
-                if (played[prior] && FlashFingerprint.Equal(sly[prior].Card, sly[item].Card))
-                    occurrence--;
-            }
-            if (occurrence < 0 || !TryLocateAnywhere(x.B, sly[item].Card, occurrence, out FlashPile currentPile,
-                    out int currentIndex))
-            {
-                throw new FlashUnsupportedException(
-                    $"弃牌 {FlashRegistry.Card(sly[item].Card.Id).NativeId}+{sly[item].Card.Upgrade} " +
-                    $"occurrence={occurrence}/{sly[item].Occurrence} 在结算前已离开战斗牌堆（cards={x.B.CardCount}）。");
-            }
-            AutoPlay(ref x, currentPile, currentIndex);
-            played[item] = true;
-            if (x.NeedsChoice)
-                return;
-        }
+        pile = FlashPile.Hand;
+        index = -1;
+        return false;
     }
 
     /// <summary>Discards every card in the hand, then draws <paramref name="drawCount"/> (CalculatedGamble, ShadowStep).</summary>

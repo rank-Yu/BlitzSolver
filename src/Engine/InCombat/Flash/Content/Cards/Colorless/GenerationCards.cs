@@ -103,10 +103,18 @@ public sealed class BeatDown : FlashCardDef
 
     private static void ClearTransientMarks(ref FlashBattle battle)
     {
+        // BeatDown reserves 1..63. Sly discard batches use 64..255 and may be nested around an
+        // auto-played BeatDown, so their marks must survive this cleanup.
         for (int position = 0; position < battle.CardCount; position++)
-            battle.Cards[position].TransientMark = 0;
+        {
+            if (battle.Cards[position].TransientMark < 64)
+                battle.Cards[position].TransientMark = 0;
+        }
         for (int slot = 0; slot < FlashLimits.DetachedCards; slot++)
-            battle.DetachedCards[slot].TransientMark = 0;
+        {
+            if (battle.DetachedCards[slot].TransientMark < 64)
+                battle.DetachedCards[slot].TransientMark = 0;
+        }
     }
 
     private static void BeatDownStableShuffle(Span<FlashCard> cards, Span<int> origins, FlashRules rules,

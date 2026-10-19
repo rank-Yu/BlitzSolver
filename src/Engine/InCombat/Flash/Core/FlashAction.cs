@@ -308,6 +308,7 @@ public ref struct FlashExec
         MonologuesResolved = false;
         CardPowerSourceActive = false;
         CardPowerSourceSerial = 0;
+        TransientMarkBase = 0;
         CardPowerSourceSerialCounter = 0;
         LampTriggerSerial = 0;
         LampInternalTypeCount = 0;
@@ -432,6 +433,12 @@ public ref struct FlashExec
 
     /// <summary>Unique identity of the current card power-application scope (0 = no source).</summary>
     public int CardPowerSourceSerial;
+
+    /// <summary>
+    /// Base of the transient identity-byte range reserved by nested Sly discard batches
+    /// (<see cref="FlashKernel.DiscardAndDraw"/>). Zero outside them; transient, never part of state.
+    /// </summary>
+    public byte TransientMarkBase;
 
     /// <summary>Monotonic serial allocator; saved/restored around nested plays.</summary>
     public int CardPowerSourceSerialCounter;

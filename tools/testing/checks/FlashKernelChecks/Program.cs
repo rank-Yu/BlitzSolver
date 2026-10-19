@@ -1717,6 +1717,67 @@ static void CheckSkKernel()
     Check(KsTestLog.Lines.Count(line => line == "discarded") == 2, "批量弃牌应派发两次 AfterCardDiscarded");
     Check(KsTestLog.Lines.Contains("sly-play"), "批量弃牌后 Sly 未自动打出");
 
+    // Two byte-equal Sly cards are not interchangeable. The discarded copy must auto-play; taking
+    // the copy still in hand would consume both and leave the hand empty (DX4).
+    battle = NewBattle();
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, slyCard));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, slyCard));
+    x = new(ref battle, rules, default);
+    KsTestLog.Clear();
+    Span<int> duplicateSelection = stackalloc int[1];
+    duplicateSelection[0] = 1;
+    FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, duplicateSelection, 0);
+    Check(battle.HandCount == 1 && FlashPiles.At(ref battle, FlashPile.Hand, 0).Id == slyCard,
+        "两个相同 Sly 牌时应只自动打出被弃置的那一张，手里保留另一张");
+    Check(battle.DiscardCount == 1 && FlashPiles.At(ref battle, FlashPile.Discard, 0).Id == slyCard,
+        "自动打出结束后被弃置的 Sly 牌应在弃牌堆");
+    Check(KsTestLog.Lines.Count(line => line == "sly-play") == 1, "两个相同 Sly 牌时只应自动打出一次");
+    Check(x.TransientMarkBase == 0, "Sly 瞬态身份范围应在结算后释放");
+
+    // The identity range is a capacity-bounded transient resource: exhausting it is an explicit
+    // FlashCapacityException, not a silent reuse of another batch's marks.
+    battle = NewBattle();
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, slyCard));
+    x = new(ref battle, rules, default) { TransientMarkBase = 200 };
+    bool markCapacity = false;
+    try
+    {
+        Span<int> one = stackalloc int[1];
+        one[0] = 0;
+        FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, one, 0);
+    }
+    catch (FlashCapacityException)
+    {
+        markCapacity = true;
+    }
+    Check(markCapacity, "Sly 瞬态身份范围耗尽时应抛 FlashCapacityException");
+
+    // A hook that removes the discarded card leaves no copy carrying its mark; the auto-play target
+    // is unrepresentable and must fail explicitly instead of playing a byte-equal stranger.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = discardRelic };
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, slyCard));
+    x = new(ref battle, rules, default);
+    KsTestDiscardRelic.RemoveDiscardedCard = true;
+    bool batchUnsupported = false;
+    try
+    {
+        Span<int> one = stackalloc int[1];
+        one[0] = 0;
+        FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, one, 0);
+    }
+    catch (FlashUnsupportedException)
+    {
+        batchUnsupported = true;
+    }
+    finally
+    {
+        KsTestDiscardRelic.RemoveDiscardedCard = false;
+    }
+    Check(batchUnsupported, "批量弃牌的 Sly 目标失去瞬态标记时应抛 FlashUnsupportedException");
+
     // An AfterCardDiscarded listener that moves the card out of every pile makes the Sly auto-play
     // target unrepresentable: the kernel must surface a FlashUnsupportedException, not guess a slot.
     battle = NewBattle();

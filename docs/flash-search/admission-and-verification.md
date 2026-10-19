@@ -128,6 +128,8 @@ DX3 的第三幕牌组投影与惰性规则：
 
 投影只读不写：旧引擎的本回合计数读取器首次读取时会从根历史填充缓存，因此 `FlashStateImporter` 先 Fork 一份私有模拟器再读取，调用方持有的状态（可能正被其他工作线程 Fork）保持不变。
 
+**请求根冻结的规则基线（DX4）**：`SimulatedCombatState._rootPowerAmounts` 在请求根捕获并随 Fork 复制，`AdjustMonsterMoveDamage` 的基线不随固定前缀移动。`FlashRulesCompiler.Compile(current, player, baseline)` 从 `baseline` 的 `EffectivePowers()` 读取 `FlashMonsterRules.RootPowerAmounts`；`FlashRouteMaterializer` 在固定前缀后传入请求根快照，没有前缀时两者相同。差分探针默认也把当前根当作基线。`FlashDifferentialProbe` 额外支持 fixture 字段 `flashPrefixActions`（当前只接受 `["EndTurn"]`）：先在旧引擎上回放该前缀，再从产生的搜索根开始 K1/K2，用来覆盖“前缀改变了冻结基线”的根因（`coverage/fixtures/cards/flash-dx4-dread-baseline.json`）。K4 的相对分比较在根上使用前缀动作数，后续单步仍按一次动作计。
+
 NB（亡灵契约师）新增的投影与惰性规则：
 
 - **Osty**：`FlashStateImporter` 以 `simulator.State.GetOsty(player)` 取宠物（模拟字典优先，否则原生 `player.Osty`），把它的 `CurrentHp`/`MaxHp`/`Block`/本回合失血标记写入 `FlashBattle.Osty` 并置 `OstyPresent`；原生 `player.Osty` 非空时再置 `OstyWasRootPet`（该布尔只影响玩家回合开始的 Osty 攻击计数清零，整场不变）。`_simulatedOsties` 的每个键必须是本场玩家、值必须是 `GetOsty` 当前返回的宠物；`_simulatedOstyMaxHp` 的每个值必须等于 `CombatPredictionState` 中该宠物的 `MaxHp`（`SummonOsty` 同时写两处），否则按 `UnrepresentableState` 拒绝。Osty 的 Power 按 `Owner` 映射到 `FlashLimits.OstyOwner`；死亡宠物保留的 Power 与其他正层 Power 一样投影。

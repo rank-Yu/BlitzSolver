@@ -7,7 +7,7 @@
 来源：`S/CombatPredictionSimulator.Card.cs` 的 `Discard`、`S/CombatPredictionSimulator.DiscardContinuation.cs`、`Q/SimulatedCombatState.ActionChoices.cs`、`Q/CardChoiceResolution.cs`。
 
 - `FlashKernel.Discard` 对应 `CardCmd.Discard(choiceContext, CardModel)`：强制结束/已死时返回；卡移到弃牌堆底，`CardsDiscardedThisTurn + 1`，派发 `AfterCardDiscarded`，然后若该牌 `IsSlyThisTurn`（关键字 Sly 或单回合标记）立即自动打出。
-- `FlashKernel.DiscardAndDraw` 对应多张 `CardCmd.Discard` / `DiscardAndDraw`：按选择顺序逐张弃置并派发钩子，然后抽牌，最后按弃置顺序自动打出“弃置时为 Sly”的牌。弃置后可能洗牌，所以自动打出按“值 + 同值第几张”在**整个战斗牌堆**里重新定位；同值序号在全部弃置完成后按弃置顺序分配，先行自动打出移走同值低序号后逐个下调。找不到时抛 `FlashUnsupportedException`（K0 合同）。
+- `FlashKernel.DiscardAndDraw` 对应多张 `CardCmd.Discard` / `DiscardAndDraw`：按选择顺序逐张弃置并派发钩子，然后抽牌，最后按弃置顺序自动打出“弃置时为 Sly”的牌。弃置后可能洗牌，旧引擎持有 `CardModel` 对象并从新牌堆打出；Flash 在弃置时为每张 Sly 卡写一个一次性身份字节（`FlashCard.TransientMark` 的 64..255，`FlashExec.TransientMarkBase` 给嵌套批次分配互不重叠的区间），随牌值穿过抽牌/洗牌后再按标记定位。字节相同的两张 Sly 牌**不能**互换：选另一张会改变手牌与弃牌堆的分配。标记被 hook 清除或卡已离开所有牌堆时抛 `FlashUnsupportedException`，区间耗尽抛 `FlashCapacityException`（K0 合同）。`BeatDown` 使用 1..63，`ClearTransientMarks` 只清自己的区间，因此不会清除 Sly 批次的标记；若 BeatDown 恰好选中同一张卡，其标记会被覆盖，后续 Sly 自动打出按显式未支持回落。
 - 回合末手牌清理（`CorePowerSupport.FlushPlayerHandAtTurnEnd`）直接用 `AddToPile` 移入弃牌堆，**不**派发 `AfterCardDiscarded`、也不触发 Sly；Flash 保持相同行为。
 - 卡牌自身选择的空选项：`BuildRequiredEmptyChoice` 列出的牌（HiddenDaggers、Brand）在手牌为空时，手动打出会提出 0..0 的空选择；自动打出中的嵌套选择由 `ResolveNestedCardChoice` **直接结算**同一个空选择、不提问。Flash 用 `FlashExec.CurrentPlayIsAutoPlay` 区分这两种情形，随后照常执行 `ApplyPostChoiceEffects`。
 - 手牌触发（`AfterCardDrawn` 中的 `CorrosiveWavePower`、`SpeedsterPower` 等）与弃牌触发都在上面的位置派发；多张弃置的 `AfterCardDiscarded` 之间可以出现待处理选择，Flash 丢弃半成品状态、从父状态带选择重执行。
@@ -101,6 +101,7 @@
 - **CallOfTheVoid**：`CallOfTheVoidPower.BeforeHandDraw` 每次从角色池（`CharacterAll`，其过滤已排除 Basic/Ancient/Event 与不可生成卡）做一次 `TakeRandom(1)`，给生成卡补 Ethereal 后入手。该卡的可达闭包仍包含没有定义的 Fetch 与 Delay，因此含它的根按 `UnsupportedClosure` 拒绝（见 testing 摘要的缺失能力）。
 - **Misery**：锁定目标的每个减益（层数、applier、`Target`）快照，攻击后按可命中敌人顺序克隆到其他敌人，每次克隆后排空 Power 数量变化队列；目标带临时 Power 时显式 `FlashUnsupportedException`（缺少实例内部属性合并）。对照 `BespokeCardMirrors.MiseryOnPlay`。
 - **Pagestorm**：`AfterCardDrawn` 只检查卡牌本地 Ethereal 关键字，命中后抽层数张；对照 `AfterCardDrawnMirrors.HandlePagestormPower`。
+- **DrainPower**：单体攻击后从弃牌堆的**可升级**卡中等概率取 `Cards` 张并升级（`CardSelectionCardMirrors.DrainPowerOnPlay` 的过滤 + 完整 Fisher-Yates + `CombatCardSelection` 流）。`CombatPredictionSimulator.Upgrade` 在战斗正在结束时 no-op，所以击杀的 DrainPower 仍消耗随机数、但不升级任何卡；Flash 在选完目标后按同一门控跳过写入（DX4）。
 - **BigHat**：唯一战斗内触发是玩家第 1 回合开始生成 2 张 Ethereal 角色牌，发生在根捕获之前；现有引擎也没有对应镜像，定义为空。
 
 ## 5. 第三幕牌组的 DX3 修正
