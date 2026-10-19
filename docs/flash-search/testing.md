@@ -153,10 +153,12 @@ Shadow 隔离（`NIBBITS_NORMAL`、`SLIMES_NORMAL`、`RUBY_RAIDERS_NORMAL`，FLA
 
 Linux 无头游戏（Medium 档位、宽度组合、`Instant / 0 秒`，铁甲战士初始牌组，`NIBBITS_NORMAL` 原生满血）：On 与 Off 均 Passed、第 9 回合胜利、计划外重算 0；On 最终 59 HP，Off 54 HP，整场耗时 7.1 s 与 6.9 s（含建局）。On 的战后问题包有 6 行 `FLASH_ADOPTED`（全部 `status=verified`，单次 180–467 ms），`diagnostics/settings.json` 与 15 份检查点政策都记录 `"flashSearchMode": "On"`。`CHECKPOINT-PROFILE-CONTRACT` 增加 Flash 模式的记录值优先与旧包回退检查，Passed。该机器首次运行游戏前没有交互档案，用一次 `--force-steam=off` 无头启动在仓库 `.local/headless-seed/` 生成种子档案，并以 `XDG_DATA_HOME` 指向它运行脚本。
 
+其他四个角色（TW 合入后，同一设置，`NIBBITS_NORMAL` 原生满血，同一无头实例依次运行，最后一项带 `--cleanup-instance-on-exit` 并由启动器删除实例目录）：静默猎手、故障机器人、储君、亡灵契约师的初始牌组 On 全部 Passed，分别在第 9、8、9、10 回合胜利，计划外重算 0。静默猎手、故障机器人、储君的战后问题包各有 6、6、7 行 `FLASH_ADOPTED`，全部 `status=verified`，没有回落；亡灵契约师是最后一项，问题包随实例目录一起清理，只保留无人测试结果。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择覆盖卡牌自身的单选、手牌/抽牌堆/弃牌堆选择、回合开始选择、知识恶魔的固定选项与自动打出中的嵌套选择（LR、MB 固定根）；一个动作最多携带 8 个选择，更深的链按容量边界拒绝。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
-- 实机部署只在 Linux 无头游戏中验证过 2.7 的一个自然根；未做可见游戏、Windows 或 Steam 会话验证，设置面板的新选项未在游戏中查看。
+- 实机部署只在 Linux 无头游戏中验证过 2.7 的五个角色初始牌组对 `NIBBITS_NORMAL`；未做可见游戏、Windows 或 Steam 会话验证，设置面板的新选项未在游戏中查看。
