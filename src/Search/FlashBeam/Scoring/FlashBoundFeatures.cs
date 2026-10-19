@@ -27,7 +27,9 @@ internal readonly record struct FlashBoundValues(
     int PlayerMaxHp,
     int DeathSaveHpRestored,
     int ExplicitPotionStrategicCost,
-    int StrategicHpLowerBound);
+    int StrategicHpLowerBound,
+    int SmartPotionRemainingHealingPotential,
+    int SmartPotionHpLowerBound);
 
 /// <summary>
 /// Root-frozen healing-bound tables for FlashBeam and the K5 probe. The bridge classifies every admitted
@@ -49,6 +51,8 @@ internal sealed class FlashBoundFeatures
         public required bool PruneEqualHp { get; init; }
         public required bool ForceAllPotionsDisabled { get; init; }
         public required int? MaximumPotionUses { get; init; }
+        public required int InitialExplicitPotionUses { get; init; }
+        public required int InitialAutomaticPotionUses { get; init; }
         public required bool[] ComponentUnsafeCard { get; init; }
         public required bool[] ComponentUnsafePower { get; init; }
         public required bool[] ComponentUnsafeRelic { get; init; }
@@ -98,7 +102,8 @@ internal sealed class FlashBoundFeatures
     /// </summary>
     public bool HasRisk(in FlashBattle battle) => (battle.Flags & FlashBattleFlags.HasRisk) != 0;
 
-    public FlashBoundValues Evaluate(in FlashBattle battle, int explicitPotionStrategicCost)
+    public FlashBoundValues Evaluate(in FlashBattle battle, int explicitPotionStrategicCost,
+        bool includeSmartPotionLowerBound = false)
     {
         // CombatBeamSolver.RemainingHealingPotentialCore: an unresolved risk invalidates the
         // certificate and returns int.MaxValue regardless of the configured component.
@@ -124,6 +129,19 @@ internal sealed class FlashBoundFeatures
                 recoveredHp, battle.Player.CurrentHp, battle.Player.MaxHp, futureUsed),
             _config.BossHpRelief,
             deathSaveHpRestored);
+        // CombatBeamSolver.ApplySmartPotionEligibilityBound passes RemainingHealingPotential
+        // directly (not the incumbent's min with FutureHealPotential), so the ceiling keeps its
+        // own lower-bound input. Non-audit searches never read it and skip the second
+        // StrategicHpDeficit call on the hot retention path.
+        int smartLowerBound = includeSmartPotionLowerBound
+            ? ActEndingBossPolicy.StrategicHpDeficit(
+                cumulativeHpLost,
+                maxHpDeficit: 0,
+                StrategicHpRecoveryBound.OptimisticRecoveredHp(
+                    recoveredHp, battle.Player.CurrentHp, battle.Player.MaxHp, remaining),
+                _config.BossHpRelief,
+                deathSaveHpRestored)
+            : lowerBound;
         return new FlashBoundValues(
             HasRisk: HasRisk(battle),
             FutureHealPotential: _config.FutureHealPotential,
@@ -135,7 +153,9 @@ internal sealed class FlashBoundFeatures
             PlayerMaxHp: battle.Player.MaxHp,
             DeathSaveHpRestored: deathSaveHpRestored,
             ExplicitPotionStrategicCost: explicitPotionStrategicCost,
-            StrategicHpLowerBound: lowerBound);
+            StrategicHpLowerBound: lowerBound,
+            SmartPotionRemainingHealingPotential: remaining,
+            SmartPotionHpLowerBound: smartLowerBound);
     }
 
     private int ComponentRemaining(in FlashBattle battle)
@@ -219,7 +239,8 @@ internal sealed class FlashBoundFeatures
                 return int.MaxValue;
         }
         bool canUsePotion = !_config.ForceAllPotionsDisabled
-            && (_config.MaximumPotionUses is not { } maximum || ExplicitPotionUses(battle) < maximum);
+            && (_config.MaximumPotionUses is not { } maximum
+                || ExplicitPotionUses(battle) < maximum);
         long directHeal = 0;
         for (int slot = 0; slot < battle.PotionSlotCount; slot++)
         {
@@ -254,7 +275,9 @@ internal sealed class FlashBoundFeatures
             if (slot >= battle.PotionSlotCount || battle.Potions[slot] != rootPotion)
                 uses++;
         }
-        return uses - battle.Counter(FlashCounter.AutomaticPotionUseCount);
+        int automaticAfterRoot = battle.Counter(FlashCounter.AutomaticPotionUseCount)
+            - _config.InitialAutomaticPotionUses;
+        return _config.InitialExplicitPotionUses + uses - automaticAfterRoot;
     }
 
     /// <summary>K5: the members that differ, as <c>name old=… flash=…</c>.</summary>
@@ -278,6 +301,10 @@ internal sealed class FlashBoundFeatures
         Check(nameof(FlashBoundValues.ExplicitPotionStrategicCost),
             old.ExplicitPotionStrategicCost, flash.ExplicitPotionStrategicCost);
         Check(nameof(FlashBoundValues.StrategicHpLowerBound), old.StrategicHpLowerBound, flash.StrategicHpLowerBound);
+        Check(nameof(FlashBoundValues.SmartPotionRemainingHealingPotential),
+            old.SmartPotionRemainingHealingPotential, flash.SmartPotionRemainingHealingPotential);
+        Check(nameof(FlashBoundValues.SmartPotionHpLowerBound),
+            old.SmartPotionHpLowerBound, flash.SmartPotionHpLowerBound);
         return lines;
     }
 }

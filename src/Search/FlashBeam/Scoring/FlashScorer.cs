@@ -488,6 +488,12 @@ internal sealed class FlashScorer
             }
         }
         int automaticPotionUseCount = battle.Counter(FlashCounter.AutomaticPotionUseCount);
+        // A fixed prefix may already have spent potions; the search root's frozen counters keep these
+        // cumulative values equal to the existing snapshot's instead of restarting at the prefix end.
+        potionUseCount = checked(potionUseCount + _score.InitialPotionUseCount);
+        potionStrategicCost = checked(potionStrategicCost + _score.InitialPotionStrategicCost);
+        explicitPotionStrategicCost = checked(
+            explicitPotionStrategicCost + _score.InitialExplicitPotionStrategicCost);
 
         int defensiveBlockValue = MeasureDefensiveBlockReserve(battle, blockConsumed);
 
@@ -543,6 +549,7 @@ internal sealed class FlashScorer
             PotionStrategicCost = potionStrategicCost,
             AutomaticPotionUseCount = automaticPotionUseCount,
             ExplicitPotionStrategicCost = explicitPotionStrategicCost,
+            ExplicitPotionUseCount = checked(potionUseCount - automaticPotionUseCount),
         };
     }
 

@@ -223,6 +223,17 @@ internal sealed class FlashScoreRules
     /// <summary>Root potion ids by slot (0 = empty); used to derive the potion-use counters.</summary>
     public required ushort[] RootPotions { get; init; }
 
+    /// <summary>
+    /// Cumulative potion counters at the Flash search root. A fixed prefix may already have spent
+    /// potions; the scorer adds these frozen totals to the root-potion diff so the derived
+    /// counters equal the existing snapshot's cumulative values.
+    /// </summary>
+    public int InitialPotionUseCount { get; init; }
+
+    public int InitialPotionStrategicCost { get; init; }
+
+    public int InitialExplicitPotionStrategicCost { get; init; }
+
     /// <summary>Power / card ids the port names directly, or <see cref="ushort.MaxValue"/> when unregistered.</summary>
     public ushort StrengthPowerId { get; init; } = ushort.MaxValue;
 
@@ -263,6 +274,8 @@ internal sealed class FlashScoreRules
     public ushort TheGambitPowerId { get; init; } = ushort.MaxValue;
 
     public ushort FairyInABottlePotionId { get; init; } = ushort.MaxValue;
+
+    public ushort AmbergrisPotionId { get; init; } = ushort.MaxValue;
 
     public ushort LizardTailRelicId { get; init; } = ushort.MaxValue;
 

@@ -90,7 +90,7 @@ Project(Old.Step(s, a)) == Flash.Step(Project(s), a)     （逐字节）
 | K1 单步穷举 | 从根出发，枚举全部合法动作（含选择分支）各执行一步并比较 | 离线搜索宿主的差分探针（`OFFLINE_HARNESS_FLASH_DIFF=1`，`tools/search/OfflineSearchHarness/FlashDifferentialProbe.cs`） |
 | K2 随机游走 | 固定种子，多回合随机合法动作序列，每步比较；覆盖洗牌、敌人回合、死亡 | 同上 |
 | K3 内容定向 | 每个新内容至少一个 fixture，让该内容在前几步内被触发 | `coverage/fixtures/` 下按主题存放，K1/K2 消费 |
-| K4 评估一致 | K1/K2 中投影一致的每个状态，`FlashScorer` 的评估值必须等于现有引擎同一状态的 `SimulationSnapshot` 对应成员；`Score` 按 double 精确比较 | 同一探针；字段表与比较在 `FlashScoreFeatures`、`FlashScoreProjection`。现有引擎停在搜索边界的状态（`BoundaryReason` 非 None）不比较 |
+| K4 评估一致 | K1/K2 中投影一致的每个状态，`FlashScorer` 的评估值必须等于现有引擎同一状态的 `SimulationSnapshot` 对应成员；`Score` 按 double 精确比较。药水计数除 `PotionUseCount`/`PotionStrategicCost`/`AutomaticPotionUseCount`/`ExplicitPotionStrategicCost` 外还逐字段比较 `ExplicitPotionUseCount` | 同一探针；字段表与比较在 `FlashScoreFeatures`、`FlashScoreProjection`。现有引擎停在搜索边界的状态（`BoundaryReason` 非 None）不比较 |
 | K5 下界一致 | K1/K2 中投影一致的每个状态，`FlashBoundFeatures` 的 `FutureHealPotential`、`HasRisk`、`RemainingHealingPotential`、`FutureHealUsed`、`CumulativePlayerHpLost`、`RecoveredPlayerHp`、`PlayerHp`、`PlayerMaxHp`、`DeathSaveHpRestored`、`ExplicitPotionStrategicCost` 与 `StrategicHpLowerBound` 必须等于现有主搜索成员同一状态的取值。下界无法精确移植的根整体禁用剪枝，汇总行写 `bound=disabled(<原因>)` | 同一探针；比较在 `FlashBoundFeatures.Diff`。现有侧只读访问器在 `CombatBeamSolver.Flash.cs`（`PrimaryIncumbentRemainingHealingPotential`、`PrimaryIncumbentFutureHealPotential`、`PrimaryIncumbentHpLowerBound`） |
 
 复跑命令与当前证据见 [测试记录](testing.md)。
@@ -108,9 +108,12 @@ Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRo
 - 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式回落旧后端，Shadow 模式记为 `status=mismatch`。
 - Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时同样回落旧后端，记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。当前明确边界之一是 Thrash：现有引擎把 `ModifyDamage` 的小数结果写进卡牌 `DynamicVars.Damage`，而 `FlashCard` 的语义变量是整数；没有可以精确复现的整数化/取整规则，因此该路径抛 `FlashUnsupportedException`，不截断、不近似。
 - 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。
+- Smart 药水审计（`SmartPotionGradient` 与 `SmartOpeningPotionPosterior`）在物化时把同一 `PotionFreePolicyBaseline`、`minimum/maximumPotionUses` 与 `RequireAtLeastOne` 交回现有 `CombatBeamSolver`，由现有 `FinalPlanOrdering.Select` 再做一次筛选。物化后 `FlashPotionBridge.VerifyRoute` 核对路线的显式用药次数：动作里的 `UsePotion` 数必须等于 `PotionUses` 的非自动计数，且满足最小/最大次数与 `RequireAtLeastOne` 至少一次；任一不满足都返回 `ConstraintFailure` 回落，不把 Flash 的“没找到”写成现有求解器的 `PotionPolicyUnsatisfiedException`。现有终局筛选自己抛出的 `PotionPolicyUnsatisfiedException` 也在物化点捕获并回落。
+- 固定前缀可以由药水动作开头：前缀先经现有 `ApplyFixedPrefix` 回放，Flash 只从回放后的搜索根展开；搜索根快照的累计药水计数冻结进评分与下界，因此前缀用药不丢失。
 
 ## 5. 失败处理约束
 
-- 不新增 `catch (Exception)`。只捕获 `FlashUnsupportedException`、`FlashCapacityException` 与校验失败这三类已定义的业务失败，以及取消。
+- 不新增 `catch (Exception)`。只捕获 `FlashUnsupportedException`、`FlashCapacityException`、校验失败、取消，以及物化阶段现有求解器抛出的 `PotionPolicyUnsatisfiedException`。
 - 捕获后整个 Flash 求解作废并回落，不把半成品路线交给协调器。
+- 药水审计没有满足策略的路线（`PotionPolicySatisfied=false`）、物化路线次数不符、或精确层下界输入不可用（`smart-potion-bound unavailable`）时同样回落，诊断行写 `status=boundary` 与稳定原因；不把 Flash 搜索面较小解释为现有搜索无解。
 - 回落本身计入诊断：原因、阶段、根摘要。

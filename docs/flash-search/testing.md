@@ -130,7 +130,13 @@ Shadow 隔离（`NIBBITS_NORMAL`、`SLIMES_NORMAL`、`RUBY_RAIDERS_NORMAL`，FLA
 
 保留结构移植（RL）：把现有搜索在对照路线中丢失点的必保机制按出现次数移植进 FlashBeam：每药水分组与全局的防守、进攻、准备（`SetupLaneValue` 与 Scaling+Resource+Control 组合）、牌堆整理、压缩、力量压制与虚弱控制领先者，以及根动作谱系代表（`clamp(width/8, 4, 16)` 组），按 `RankBest` 的必保置换写回，席位总数不变；比较器逐条对照 `BeamRetentionPolicy.Ranking.cs`，只读已由 K4 核对的评估字段（新增 `HandCount` 并纳入 K4）。33 个牌组：质量 6 好 / 22 同 / 5 差、战略失血差合计 −5（优于 Off），On 总耗时 126.6 s → 129.8 s；48 根初始牌组基准对现有搜索 18 好 / 24 同 / 6 差、失血 −46。未移植：选项路由配额、药水配额与谱系、stand-pat 探测、Pareto、力量承诺、回合边界手牌领先者等（仍变差的 IRONCLAD-17 需要力量承诺或 stand-pat 资源探测）。
 
-### 2.6 无人测试实机部署（2026-10-19）
+### 2.6 Smart 药水审计分发（PT，2026-10-19）
+
+`SmartPotionGradient`（直接审计）与 `SmartOpeningPotionPosterior`（固定前缀续接）在 On 模式下由 FlashBeam 搜索，路线仍由现有引擎回放核对并物化。移植 `RequireAtLeastOne`、精确最少/最多用药次数、累计显式用药上限、药水前缀、`PotionFreePolicyBaseline`、`primaryIncumbent`、Smart 资格 HP 上限剪枝与 `FinalPlanOrdering` 的过滤和排序键；物化后核对显式用药次数与策略，不满足、Flash 无满足路线或内核边界时回落现有求解器，不代替它抛 `PotionPolicyUnsatisfiedException`。K4 新增 `ExplicitPotionUseCount`，K5 新增 Smart 上限使用的剩余回复潜力与战略 HP 下界。
+
+33 个生成牌组（Medium、宽度组合、每进程预热 1 次，同机背靠背）：On 总耗时 140.9 s → 131.4 s，两类审计的旧求解器时间 40.4 s → 18.8 s（`SmartOpeningPotionPosterior` 26.3 → 12.7 s，`SmartPotionGradient` 14.1 → 6.1 s）；战略失血差合计保持 −5，IRONCLAD-37 结束回合 7 → 6，无新增变差。Off/Shadow 在 IRONCLAD-17/46/49 上与改动前逐字段相同（时间、内存、GC 除外）。48 根初始牌组基准逐根质量相同。剩余审计时间来自 Thrash 小数变量与 BeatDown 弃牌堆边界及 IRONCLAD-27 的无满足路线回落。`PlanCommitment` 未接管：缺计划视野延长、CopyPower 计划代表席、AggressivePowerCommitment 与跨回合探测等保留结构。
+
+### 2.7 无人测试实机部署（2026-10-19）
 
 Linux 无头游戏（Medium 档位、宽度组合、`Instant / 0 秒`，铁甲战士初始牌组，`NIBBITS_NORMAL` 原生满血）：On 与 Off 均 Passed、第 9 回合胜利、计划外重算 0；On 最终 59 HP，Off 54 HP，整场耗时 7.1 s 与 6.9 s（含建局）。On 的战后问题包有 6 行 `FLASH_ADOPTED`（全部 `status=verified`，单次 180–467 ms），`diagnostics/settings.json` 与 15 份检查点政策都记录 `"flashSearchMode": "On"`。`CHECKPOINT-PROFILE-CONTRACT` 增加 Flash 模式的记录值优先与旧包回退检查，Passed。该机器首次运行游戏前没有交互档案，用一次 `--force-steam=off` 无头启动在仓库 `.local/headless-seed/` 生成种子档案，并以 `XDG_DATA_HOME` 指向它运行脚本。
 
@@ -140,4 +146,4 @@ Linux 无头游戏（Medium 档位、宽度组合、`Instant / 0 秒`，铁甲�
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择只覆盖卡牌自身的单选（消耗、移到抽牌堆顶、升级）；多选、回合开始选择、嵌套选择与自动打出中的选择尚无差分证据。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
-- 实机部署只在 Linux 无头游戏中验证过 2.6 的一个自然根；未做可见游戏、Windows 或 Steam 会话验证，设置面板的新选项未在游戏中查看。
+- 实机部署只在 Linux 无头游戏中验证过 2.7 的一个自然根；未做可见游戏、Windows 或 Steam 会话验证，设置面板的新选项未在游戏中查看。

@@ -64,6 +64,7 @@ internal readonly record struct FlashScoreFeatures
     public int PotionStrategicCost { get; init; }
     public int AutomaticPotionUseCount { get; init; }
     public int ExplicitPotionStrategicCost { get; init; }
+    public int ExplicitPotionUseCount { get; init; }
 
     /// <summary>One line per member that differs, as <c>name old=… flash=…</c>.</summary>
     public static List<string> Diff(in FlashScoreFeatures old, in FlashScoreFeatures flash)
@@ -126,6 +127,7 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(PotionStrategicCost), old.PotionStrategicCost, flash.PotionStrategicCost);
         Check(nameof(AutomaticPotionUseCount), old.AutomaticPotionUseCount, flash.AutomaticPotionUseCount);
         Check(nameof(ExplicitPotionStrategicCost), old.ExplicitPotionStrategicCost, flash.ExplicitPotionStrategicCost);
+        Check(nameof(ExplicitPotionUseCount), old.ExplicitPotionUseCount, flash.ExplicitPotionUseCount);
         return lines;
     }
 }
