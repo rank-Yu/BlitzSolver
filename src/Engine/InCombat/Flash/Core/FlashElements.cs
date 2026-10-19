@@ -322,7 +322,14 @@ public struct FlashEnemy
     /// <summary>Index into <see cref="FlashRules"/>'s monster table (<c>FlashRules.MonsterRule</c>).</summary>
     public byte Rules;
 
-    private byte _padding0;
+    /// <summary>
+    /// Powered attack hits dealt to this enemy by the player this turn
+    /// (<c>SimulatedCombatState.GetPoweredAttackHitsThisTurn(player, enemy)</c>): BeatIntoShape's
+    /// calculated-forge multiplier. Imported for the root turn and reset for every enemy in
+    /// <c>BeginSideTurn(player)</c>; a hit that does not fit the byte is an explicit boundary.
+    /// </summary>
+    public byte PoweredAttackHitsThisTurn;
+
     private short _padding1;
 
     /// <summary>Bit i set when move node i has ever been logged (native "use only once" rule).</summary>

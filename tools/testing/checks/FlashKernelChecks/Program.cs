@@ -36,6 +36,7 @@ CheckSkKernel();
 CheckNbKernel();
 CheckDfKernel(rules);
 CheckRgKernel(rules);
+CheckLrKernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -484,8 +485,32 @@ static FlashRules SliceRules()
     // RG: the forge kernel creates SOVEREIGN_BLADE; the star-cost contract uses a synthetic card.
     FlashRegistry.TryCard("SOVEREIGN_BLADE", out ushort blade);
     builder.SetCard(blade, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [10m]));
+    builder.SetCard(blade, 1, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [13m]));
     FlashRegistry.TryCard("RG_TEST_STAR_CARD", out ushort starCard);
     builder.SetCard(starCard, 0, Stats(FlashCardType.Skill, FlashTargetType.Self, 0, [0m], starCost: 2));
+    // LR: choice, transform, history-counter and VoidForm cards used by the K0 contracts.
+    void LrCard(string id, FlashCardType type, FlashTargetType target, int cost, decimal[] vars,
+        int starCost = -1)
+    {
+        FlashRegistry.TryCard(id, out ushort card);
+        builder.SetCard(card, 0, Stats(type, target, cost, vars, starCost: starCost));
+        builder.SetCard(card, 1, Stats(type, target, cost, vars, starCost: starCost));
+    }
+    LrCard("TYRANNY", FlashCardType.Power, FlashTargetType.Self, 1, []);
+    LrCard("FOREGONE_CONCLUSION", FlashCardType.Skill, FlashTargetType.Self, 1, [2m]);
+    LrCard("CHARGE", FlashCardType.Skill, FlashTargetType.Self, 1, [2m]);
+    LrCard("GUARDS", FlashCardType.Skill, FlashTargetType.Self, 2, []);
+    LrCard("BEGONE", FlashCardType.Skill, FlashTargetType.Self, 1, []);
+    LrCard("HEIRLOOM_HAMMER", FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [20m, 1m]);
+    LrCard("DECISIONS_DECISIONS", FlashCardType.Skill, FlashTargetType.Self, 0, [3m, 3m], starCost: 6);
+    LrCard("MINION_DIVE_BOMB", FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [13m]);
+    LrCard("MINION_SACRIFICE", FlashCardType.Skill, FlashTargetType.Self, 0, [7m]);
+    LrCard("MINION_STRIKE", FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [6m, 1m]);
+    LrCard("SUPERMASSIVE", FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [5m, 3m]);
+    LrCard("BEAT_INTO_SHAPE", FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [5m, 5m, 5m]);
+    LrCard("KINGLY_KICK", FlashCardType.Attack, FlashTargetType.AnyEnemy, 4, [27m]);
+    LrCard("KINGLY_PUNCH", FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [8m, 4m]);
+    LrCard("VOID_FORM", FlashCardType.Power, FlashTargetType.Self, 3, [2m]);
     FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable);
     builder.SetPowerVars(vulnerable, [1.5m]);
     FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
@@ -1815,6 +1840,201 @@ static void CheckRgKernel(FlashRules rules)
         "RG 寻求锋芒下君王之刃目标应为全体");
 }
 
+
+// LR: new kernel capabilities. Turn-start choices, the fixed transform, the generated-card and
+// per-target powered-hit counters, and VoidForm's free-play window / forced turn end.
+static void CheckLrKernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD");
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD");
+    Check(FlashRegistry.TryCard("SOVEREIGN_BLADE", out ushort blade), "缺少 SOVEREIGN_BLADE");
+    Check(FlashRegistry.TryCard("RG_TEST_STAR_CARD", out ushort starCard), "缺少 RG_TEST_STAR_CARD");
+    Check(FlashRegistry.TryCard("MINION_STRIKE", out ushort minionStrike), "缺少 MINION_STRIKE");
+    Check(FlashRegistry.TryPower("VOID_FORM_POWER", out ushort voidForm), "缺少 VOID_FORM_POWER");
+    Check(FlashRegistry.TryPower("TYRANNY_POWER", out ushort tyranny), "缺少 TYRANNY_POWER");
+    Check(FlashRegistry.TryPower("FOREGONE_CONCLUSION_POWER", out ushort foregone), "缺少 FOREGONE_CONCLUSION_POWER");
+
+    // Generated cards: AddGeneratedCard records History.CardGenerated before insertion, so a card
+    // refused while the combat is ending still counts (HeirloomHammer clones on a killing blow).
+    FlashBattle generated = NewBattle();
+    FlashExec generate = new(ref generated, rules, default);
+    Check(FlashKernel.AddGeneratedCard(ref generate, FlashKernel.CreateCard(rules, defend), FlashPile.Hand),
+        "LR 生成卡应加入手牌");
+    Check(generated.Counter(FlashCounter.CardsGeneratedThisCombat) == 1,
+        "LR 生成卡应计数 1");
+    generated.Enemies[0].Creature.CurrentHp = 0;
+    Check(FlashKernel.IsEnding(generated), "LR 终局测试前提不成立");
+    int handBefore = generated.HandCount;
+    Check(FlashKernel.AddGeneratedCard(ref generate, FlashKernel.CreateCard(rules, defend), FlashPile.Hand),
+        "LR 战斗结束时生成卡按现有引擎继续执行而不中止");
+    Check(generated.HandCount == handBefore, "LR 战斗结束时生成卡不应加入牌堆");
+    Check(generated.Counter(FlashCounter.CardsGeneratedThisCombat) == 2,
+        "LR 战斗结束时被拒绝的生成卡仍应计入生成数");
+
+    // The fixed transform replaces each selected card in place and keeps equal copies distinct by
+    // occurrence (CardChoiceResolution.TransformCards).
+    FlashBattle transformed = NewBattle();
+    FlashExec transform = new(ref transformed, rules, default);
+    FlashCard defendA = FlashKernel.CreateCard(rules, defend);
+    defendA.Flags |= FlashCardFlags.PowerAfflictionChecked;
+    FlashCard strikeA = FlashKernel.CreateCard(rules, strike);
+    strikeA.Flags |= FlashCardFlags.PowerAfflictionChecked;
+    FlashCard defendB = FlashKernel.CreateCard(rules, defend);
+    defendB.Flags |= FlashCardFlags.PowerAfflictionChecked;
+    FlashPiles.Append(ref transformed, FlashPile.Hand, defendA);
+    FlashPiles.Append(ref transformed, FlashPile.Hand, strikeA);
+    FlashPiles.Append(ref transformed, FlashPile.Hand, defendB);
+    Span<int> selection = stackalloc int[2];
+    selection[0] = 0;
+    selection[1] = 2;
+    FlashKernel.TransformSelectedTo(ref transform, FlashPile.Hand, selection, minionStrike, upgrade: true);
+    Check(transformed.HandCount == 3, "LR 变换不应改变手牌数");
+    Check(transformed.Cards[0].Id == minionStrike && transformed.Cards[0].Upgrade == 1
+        && transformed.Cards[2].Id == minionStrike && transformed.Cards[2].Upgrade == 1,
+        "LR 变换应原位替换两张防御并升到 1 级");
+    Check(transformed.Cards[1].Id == strike, "LR 未选中的卡不应改变");
+    Check(transformed.Counter(FlashCounter.CardsGeneratedThisCombat) == 2,
+        "LR 每次固定变换应计入一次生成");
+
+    // Powered attack hits: recorded for the player's powered attacks even when fully blocked,
+    // ignored for unpowered damage, and an overflowing byte is an explicit boundary.
+    FlashBattle hits = NewBattle();
+    FlashExec hit = new(ref hits, rules, default);
+    Span<byte> target = stackalloc byte[1];
+    target[0] = FlashKernel.EnemyOwner(0);
+    FlashKernel.Damage(ref hit, target, 6m, FlashValueProps.Move, FlashLimits.PlayerOwner, false, default);
+    Check(FlashKernel.PoweredAttackHitsByPlayer(hits, target[0]) == 1, "LR 强化攻击命中应计数");
+    hits.Enemies[0].Creature.Block = 100;
+    Check(FlashKernel.Damage(ref hit, target, 6m, FlashValueProps.Move, FlashLimits.PlayerOwner, false, default),
+        "LR 被完全格挡的强化攻击应报告完全格挡");
+    Check(FlashKernel.PoweredAttackHitsByPlayer(hits, target[0]) == 2,
+        "LR 被完全格挡的强化攻击仍应计数");
+    FlashKernel.Damage(ref hit, target, 6m,
+        FlashValueProps.Move | FlashValueProps.Unpowered, FlashLimits.PlayerOwner, false, default);
+    Check(FlashKernel.PoweredAttackHitsByPlayer(hits, target[0]) == 2,
+        "LR 非强化伤害不应计数");
+    hits.Enemies[0].PoweredAttackHitsThisTurn = byte.MaxValue;
+    bool overflowed = false;
+    try
+    {
+        FlashKernel.Damage(ref hit, target, 1m, FlashValueProps.Move, FlashLimits.PlayerOwner, false, default);
+    }
+    catch (FlashUnsupportedException)
+    {
+        overflowed = true;
+    }
+    Check(overflowed, "LR 强化攻击命中数溢出应抛 FlashUnsupportedException");
+    FlashBattle reset = SliceBattle();
+    reset.Enemies[0].PoweredAttackHitsThisTurn = 3;
+    FlashKernel.Step(ref reset, FlashAction.EndTurn(), rules, out _);
+    Check(reset.Enemies[0].PoweredAttackHitsThisTurn == 0,
+        "LR 玩家回合开始应清零强化攻击命中数");
+
+    // Action choice capacity: WithChoice refuses the 33rd selection explicitly.
+    FlashAction choices = FlashAction.EndTurn();
+    for (int index = 0; index < FlashLimits.MaxChoices; index++)
+        choices = choices.WithChoice(1UL << (index & 63));
+    bool capacity = false;
+    try
+    {
+        choices.WithChoice(1);
+    }
+    catch (FlashCapacityException)
+    {
+        capacity = true;
+    }
+    Check(capacity, "LR 动作选择超出容量应抛 FlashCapacityException");
+
+    // VoidForm's free-play window: the late energy/star hooks zero the cost while fewer than Amount
+    // non-auto last-in-series plays happened this turn; the counter resets at the side turn start.
+    FlashBattle voidBattle = SliceBattle();
+    FlashExec voidExec = new(ref voidBattle, rules, default);
+    FlashKernel.ApplyPower(ref voidExec, FlashLimits.PlayerOwner, voidForm, 2, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref voidExec);
+    int voidIndex = FlashKernel.FindPower(voidBattle, FlashLimits.PlayerOwner, voidForm);
+    Check(voidIndex >= 0, "LR VoidFormPower 未施加");
+    FlashListener voidSelf = new(FlashListenerKind.Power, checked((byte)voidIndex), FlashLimits.PlayerOwner);
+    FlashPowerDef voidDef = FlashRegistry.Power(voidForm);
+    FlashCard strikeCard = FlashKernel.CreateCard(rules, strike);
+    Check(voidDef.TryModifyEnergyCostInCombatLate(voidBattle, rules, voidSelf, strikeCard, FlashPile.Hand, 3m) == 0m,
+        "LR VoidForm 首次出牌的能量费用应为 0");
+    Check(voidDef.TryModifyStarCost(voidBattle, rules, voidSelf,
+            FlashKernel.CreateCard(rules, starCard), FlashPile.Hand, 2m) == 0m,
+        "LR VoidForm 首次出牌的星能费用应为 0");
+    Check(voidDef.TryModifyEnergyCostInCombatLate(voidBattle, rules, voidSelf, strikeCard, FlashPile.Draw, 3m) == 3m,
+        "LR VoidForm 只应影响手牌与打出区");
+    FlashExec voidPlay = new(ref voidBattle, rules, default);
+    voidDef.AfterCardPlayed(ref voidPlay, voidSelf,
+        new FlashCardPlayInfo(strikeCard, FlashLimits.NoOwner, 0, 1, FlashPile.Discard));
+    Check(voidBattle.Powers[voidIndex].Aux0 == 1, "LR VoidForm 非自动最后一段出牌应计数");
+    voidPlay.CurrentPlayIsAutoPlay = true;
+    voidDef.AfterCardPlayed(ref voidPlay, voidSelf,
+        new FlashCardPlayInfo(strikeCard, FlashLimits.NoOwner, 0, 1, FlashPile.Discard));
+    Check(voidBattle.Powers[voidIndex].Aux0 == 1, "LR VoidForm 自动打出不应计数");
+    voidPlay.CurrentPlayIsAutoPlay = false;
+    voidDef.AfterCardPlayed(ref voidPlay, voidSelf,
+        new FlashCardPlayInfo(strikeCard, FlashLimits.NoOwner, 0, 2, FlashPile.Discard));
+    Check(voidBattle.Powers[voidIndex].Aux0 == 1, "LR VoidForm 非最后一段出牌不应计数");
+    Check(voidDef.TryModifyEnergyCostInCombatLate(voidBattle, rules, voidSelf, strikeCard, FlashPile.Hand, 3m) == 0m,
+        "LR VoidForm 第二次出牌仍在免费窗口内");
+    voidPlay.CurrentPlayIsAutoPlay = false;
+    voidDef.AfterCardPlayed(ref voidPlay, voidSelf,
+        new FlashCardPlayInfo(strikeCard, FlashLimits.NoOwner, 1, 2, FlashPile.Discard));
+    Check(voidBattle.Powers[voidIndex].Aux0 == 2, "LR VoidForm 最后一段出牌应计数");
+    Check(voidDef.TryModifyEnergyCostInCombatLate(voidBattle, rules, voidSelf, strikeCard, FlashPile.Hand, 3m) == 3m,
+        "LR VoidForm 免费窗口用尽后应恢复费用");
+    voidDef.BeforeSideTurnStart(ref voidPlay, voidSelf, participates: true);
+    Check(voidBattle.Powers[voidIndex].Aux0 == 0, "LR VoidForm 侧回合开始应清零出牌计数");
+    FlashBattle request = SliceBattle();
+    FlashKernel.RequestPlayerTurnEnd(ref request);
+    Check((request.Flags & FlashBattleFlags.PlayerTurnEndRequested) != 0,
+        "LR VoidForm 的结束回合请求应置位");
+
+    // TyrannyPower's turn-start exhaust choice is a PlayerTurnStart choice on EndTurn; replaying the
+    // action with the selection exhausts the chosen hand card and the power also increases the draw.
+    FlashBattle tyrannyBattle = SliceBattle();
+    FlashExec tyrannyExec = new(ref tyrannyBattle, rules, default);
+    FlashKernel.ApplyPower(ref tyrannyExec, FlashLimits.PlayerOwner, tyranny, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref tyrannyExec);
+    FlashBattle tyrannyParent = tyrannyBattle;
+    FlashAction endTurn = FlashAction.EndTurn();
+    Check(FlashKernel.Step(ref tyrannyBattle, endTurn, rules, out FlashChoiceRequest tyrannyRequest)
+        == FlashStepResult.NeedsChoice, "LR 暴政应在回合开始请求选牌");
+    Check(tyrannyRequest.Timing == FlashChoiceTiming.PlayerTurnStart
+        && tyrannyRequest.Effect == FlashChoiceEffect.Exhaust
+        && tyrannyRequest.Source == FlashPile.Hand
+        && tyrannyRequest.MinCount == 1 && tyrannyRequest.MaxCount == 1,
+        $"LR 暴政选择规格错误 timing={tyrannyRequest.Timing} effect={tyrannyRequest.Effect} "
+        + $"source={tyrannyRequest.Source} count={tyrannyRequest.MinCount}..{tyrannyRequest.MaxCount}");
+    FlashBattle tyrannyReplay = tyrannyParent;
+    Check(FlashKernel.Step(ref tyrannyReplay, endTurn.WithChoice(1UL), rules, out _)
+        == FlashStepResult.Completed, "LR 暴政选择后回合应完成");
+    Check(tyrannyReplay.ExhaustCount == 1, $"LR 暴政应消耗 1 张选中的手牌，实际 {tyrannyReplay.ExhaustCount}");
+
+    // ForegoneConclusionPower: its BeforeHandDraw choice moves draw cards to hand and removes the
+    // power; the empty-draw branch shuffles first and asks nothing.
+    FlashBattle foregoneBattle = SliceBattle();
+    FlashExec foregoneExec = new(ref foregoneBattle, rules, default);
+    FlashKernel.ApplyPower(ref foregoneExec, FlashLimits.PlayerOwner, foregone, 2, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref foregoneExec);
+    FlashBattle foregoneParent = foregoneBattle;
+    FlashAction foregoneEnd = FlashAction.EndTurn();
+    Check(FlashKernel.Step(ref foregoneBattle, foregoneEnd, rules, out FlashChoiceRequest foregoneRequest)
+        == FlashStepResult.NeedsChoice, "LR 先见之明应在摸牌前请求选牌");
+    Check(foregoneRequest.Timing == FlashChoiceTiming.PlayerTurnStart
+        && foregoneRequest.Effect == FlashChoiceEffect.MoveToHand
+        && foregoneRequest.Source == FlashPile.Draw
+        && foregoneRequest.MinCount == 2 && foregoneRequest.MaxCount == 2,
+        $"LR 先见之明选择规格错误 timing={foregoneRequest.Timing} effect={foregoneRequest.Effect} "
+        + $"source={foregoneRequest.Source} count={foregoneRequest.MinCount}..{foregoneRequest.MaxCount}");
+    FlashBattle foregoneReplay = foregoneParent;
+    Check(FlashKernel.Step(ref foregoneReplay, foregoneEnd.WithChoice(0b11UL), rules, out _)
+        == FlashStepResult.Completed, "LR 先见之明选择后回合应完成");
+    Check(FlashKernel.GetAmount(foregoneReplay, FlashLimits.PlayerOwner, foregone) == 0,
+        "LR 先见之明结算后应移除 Power");
+    Check(foregoneReplay.HandCount == 7,
+        $"LR 先见之明应先移入手牌再抽 5 张，实际手牌 {foregoneReplay.HandCount}");
+}
 
 static class Kg2TestLog
 {

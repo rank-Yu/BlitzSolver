@@ -95,6 +95,12 @@ public enum FlashChoiceEffect : byte
     /// <summary>Replace the selected cards with random cards from the transform pool (Entropy).</summary>
     Transform,
 
+    /// <summary>Add copies of the selected card to hand (Dual Wield, Heirloom Hammer).</summary>
+    Duplicate,
+
+    /// <summary>Auto-play the selected card a number of times (Decisions, Decisions).</summary>
+    AutoPlayRepeated,
+
     /// <summary>Give the selected cards single-turn Sly (<c>CardCmd.ApplySingleTurnSly</c>, Hand Trick).</summary>
     ApplySly,
 

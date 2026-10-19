@@ -16,7 +16,17 @@ public static partial class FlashKernel
     /// </summary>
     public static bool MoveCard(ref FlashBattle battle, FlashPile from, int index, FlashPile to,
         FlashPilePosition position = FlashPilePosition.Bottom)
+        => MoveCard(ref battle, from, index, to, position, out _, out _);
+
+    /// <summary>
+    /// The same move, also reporting the final pile (a full hand diverts to the discard pile) and the
+    /// inserted pile-local index. <paramref name="toIndex"/> is -1 when the move is refused.
+    /// </summary>
+    public static bool MoveCard(ref FlashBattle battle, FlashPile from, int index, FlashPile to,
+        FlashPilePosition position, out FlashPile toPile, out int toIndex)
     {
+        toPile = to;
+        toIndex = -1;
         if (IsEnding(battle) || battle.Player.IsDead)
             return false;
         FlashPile target = to == FlashPile.Hand && battle.HandCount >= battle.MaxHandSize ? FlashPile.Discard : to;
@@ -30,6 +40,8 @@ public static partial class FlashKernel
             _ => throw new ArgumentOutOfRangeException(nameof(position), position, null),
         };
         FlashPiles.Insert(ref battle, target, insert, card);
+        toPile = target;
+        toIndex = insert;
         return true;
     }
 

@@ -253,9 +253,15 @@ public sealed class IAmInvincible : FlashCardDef
     {
         if (self.Kind != FlashListenerKind.Card || self.Owner != FlashLimits.PlayerOwner)
             return;
-        // DrawPile.TopCard?.References(card): the card must be the top of the draw pile. Flash has no
-        // instance identity, so the listener's position is the identity; the hand segment precedes it.
-        if (self.Index != x.B.HandCount)
+        // DrawPile.TopCard?.References(card): the top of the draw pile is this card. Flash has no
+        // instance identity, so the hook does not test the listener's own position (it can be stale
+        // after an earlier copy was auto-played); instead it checks the current top value. Every copy
+        // anywhere is a listener, and there is at least one listener per draw-pile copy, so all
+        // consecutive I Am Invincible cards at the top are auto-played exactly once each.
+        if (x.B.DrawCount == 0)
+            return;
+        ref readonly FlashCard top = ref FlashPiles.At(ref x.B, FlashPile.Draw, 0);
+        if (top.Id != FlashRegistry.CardId<IAmInvincible>())
             return;
         FlashKernel.AutoPlayFromDrawPile(ref x, 1, forceExhaust: false);
     }

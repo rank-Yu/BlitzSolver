@@ -73,6 +73,12 @@ public sealed class FlashCardStats
     /// <summary>Native <c>Soul</c> token: the existing engine's <c>persistentBuffValue</c> counts these cards.</summary>
     public bool IsSoul { get; init; }
 
+    /// <summary>
+    /// Native <c>CardModel.VisualCardPool.IsColorless</c> (HeirloomHammer's hand filter). Frozen
+    /// separately from pool membership because token colorless cards are not in the generation pool.
+    /// </summary>
+    public bool IsColorless { get; init; }
+
     /// <summary>Base values of the native dynamic variables named by the card definition, in order.</summary>
     public required decimal[] Vars { get; init; }
 }

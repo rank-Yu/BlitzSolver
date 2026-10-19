@@ -95,6 +95,7 @@ internal sealed class FlashScorer
                     GetAmount(battle, _score.DoomPowerId, owner) / Var(card, stats, score.DoomThresholdVar)),
                 FlashCalculatedKind.TargetDoom => GetAmount(battle, _score.DoomPowerId, owner),
                 FlashCalculatedKind.NonHandDraws => battle.Counter(FlashCounter.NonHandDrawsThisTurn),
+                FlashCalculatedKind.GeneratedCardCount => battle.Counter(FlashCounter.CardsGeneratedThisCombat),
                 _ => 0,
             };
             decimal candidate = baseVar + extraVar * multiplier;
@@ -475,7 +476,8 @@ internal sealed class FlashScorer
             + retainedHandValue
             + FreeCardOpportunityValue(battle, FlashCardType.Attack, _score.FreeAttackPowerId)
             + FreeCardOpportunityValue(battle, FlashCardType.Skill, _score.FreeSkillPowerId)
-            + FreeCardOpportunityValue(battle, FlashCardType.Power, _score.FreePowerPowerId);
+            + FreeCardOpportunityValue(battle, FlashCardType.Power, _score.FreePowerPowerId)
+            + VoidFormOpportunityValue(battle);
 
         int delayedDamageValue = 0;
         for (int index = 0; index < battle.EnemyCount; index++)
@@ -1341,6 +1343,56 @@ internal sealed class FlashScorer
             int savedEnergy = Math.Max(0, normalCost - currentCost);
             double cardValue = CardValue(card, stats, _score.Card(card.Id, card.Upgrade));
             values[count++] = savedEnergy * 16
+                + Math.Min(16, Math.Max(1, (int)Math.Ceiling(cardValue)));
+        }
+        for (int index = 1; index < count; index++)
+        {
+            int value = values[index];
+            int position = index;
+            while (position > 0 && values[position - 1] < value)
+            {
+                values[position] = values[position - 1];
+                position--;
+            }
+            values[position] = value;
+        }
+        int total = 0;
+        for (int index = 0; index < Math.Min(freeUses, count); index++)
+            total += values[index];
+        return total;
+    }
+
+    /// <summary>
+    /// Port of <c>CombatBeamSolver.VoidFormOpportunityValue</c>: while VoidFormPower has free plays
+    /// left, every playable hand card without X cost saves its local cost minus the hook-modified cost
+    /// times 16 plus its star saving times 8 plus a card-value bonus; the best <c>freeUses</c> values
+    /// are summed. <see cref="FlashPower.Aux0"/> is the power's CardsPlayedThisTurn counter.
+    /// </summary>
+    private int VoidFormOpportunityValue(in FlashBattle battle)
+    {
+        if (_score.VoidFormPowerId == ushort.MaxValue)
+            return 0;
+        int powerIndex = FlashKernel.FindPower(battle, FlashLimits.PlayerOwner, _score.VoidFormPowerId);
+        if (powerIndex < 0)
+            return 0;
+        int freeUses = battle.Powers[powerIndex].Amount - battle.Powers[powerIndex].Aux0;
+        if (freeUses <= 0)
+            return 0;
+        Span<int> values = stackalloc int[FlashLimits.MaxHandSize];
+        int count = 0;
+        for (int hand = 0; hand < battle.HandCount; hand++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[hand];
+            FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+            if (stats.CostsX || stats.StarCostsX || !FlashKernel.CanPlayCard(battle, Rules, hand))
+                continue;
+            int normalEnergy = Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
+            int currentEnergy = Math.Max(0, FlashKernel.EnergyCostWithModifiers(battle, Rules, card, FlashPile.Hand));
+            int normalStars = Math.Max(0, stats.StarCost);
+            int currentStars = Math.Max(0, FlashKernel.StarCostWithModifiers(battle, Rules, card, FlashPile.Hand));
+            double cardValue = CardValue(card, stats, _score.Card(card.Id, card.Upgrade));
+            values[count++] = Math.Max(0, normalEnergy - currentEnergy) * 16
+                + Math.Max(0, normalStars - currentStars) * 8
                 + Math.Min(16, Math.Max(1, (int)Math.Ceiling(cardValue)));
         }
         for (int index = 1; index < count; index++)

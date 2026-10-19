@@ -10,10 +10,30 @@ public static partial class FlashKernel
     /// <returns>False when nothing was played or a nested choice is outstanding.</returns>
     public static bool AutoPlay(ref FlashExec x, FlashPile pile, int index, byte target = FlashLimits.NoOwner,
         bool skipXCapture = false)
+        => AutoPlay(ref x, pile, index, target, skipXCapture, out _);
+
+    /// <summary>
+    /// The same auto-play, also reporting the card's value after its tail hooks (the played value can
+    /// change during the play). A failed auto-play reports the value at the source position.
+    /// </summary>
+    public static bool AutoPlay(ref FlashExec x, FlashPile pile, int index, byte target, bool skipXCapture,
+        out FlashCard played)
+        => AutoPlay(ref x, pile, index, target, skipXCapture, out played, out _, out _);
+
+    /// <summary>
+    /// The same auto-play, reporting the card's post-tail value and its final pile/index (or
+    /// <see cref="FlashPile.Play"/>/-1 when it left combat or its pile position cannot be captured).
+    /// </summary>
+    public static bool AutoPlay(ref FlashExec x, FlashPile pile, int index, byte target, bool skipXCapture,
+        out FlashCard played, out FlashPile playedPile, out int playedIndex)
     {
+        playedPile = FlashPile.Play;
+        playedIndex = -1;
+        played = default;
         if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
             return false;
         FlashCard card = FlashPiles.At(ref x.B, pile, index);
+        played = card;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
         // A nested auto-play must not leave its own card as the exec's current play: the caller's
         // effect continues afterwards and reads its own card value (HiddenDaggers' Shivs var,
@@ -48,7 +68,9 @@ public static partial class FlashKernel
         x.Stats = stats;
         x.Target = target;
         x.CurrentPlayIsAutoPlay = true;
-        PlayFromPlay(ref x, moved, target, energyValue, playPosition, isAutoPlay: true);
+        PlayFromPlay(ref x, moved, target, energyValue, playPosition, isAutoPlay: true,
+            out playedPile, out playedIndex);
+        played = x.Card;
         bool completed = !x.NeedsChoice;
         if (completed)
         {

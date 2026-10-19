@@ -116,6 +116,31 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// <c>CardChoiceResolution.TransformSelectedCards</c>: replace each selected card with a canonical
+    /// card of <paramref name="cardId"/> (upgraded once when <paramref name="upgrade"/> is set) at the
+    /// same position. Transform hooks run between cards, so each card is located again
+    /// (<see cref="LocateSelected"/>).
+    /// </summary>
+    public static void TransformSelectedTo(ref FlashExec x, FlashPile pile, scoped ReadOnlySpan<int> selected,
+        ushort cardId, bool upgrade)
+    {
+        if (selected.IsEmpty || IsOverOrEnding(x.B))
+            return;
+        Span<SelectedCard> cards = stackalloc SelectedCard[selected.Length];
+        SnapshotSelected(x.B, pile, selected, cards);
+        for (int index = 0; index < cards.Length; index++)
+        {
+            int position = LocateSelected(x.B, pile, cards, index);
+            FlashCard replacement = CreateCard(x.R, cardId);
+            if (upgrade)
+                UpgradeCard(x.R, ref replacement);
+            ReplaceCard(ref x, pile, position, replacement);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
     /// Mirrors <c>TurnStartChoiceSupport.ContinueExhaustSelection</c>: exhausts the selected cards in
     /// selection order. Exhaust hooks run between cards, so each card is located again (<see cref="LocateSelected"/>).
     /// </summary>

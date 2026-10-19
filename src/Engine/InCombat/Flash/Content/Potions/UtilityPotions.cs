@@ -264,3 +264,32 @@ public sealed class SneckoOil : FlashPotionDef
         }
     }
 }
+
+[FlashContent("KINGS_COURAGE")]
+public sealed class KingsCourage : FlashPotionDef
+{
+    public override IReadOnlyList<string> VarNames => ["Forge"];
+
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards =>
+        [(FlashKernel.SovereignBladeId, 0)];
+
+    // KingsCourage: ForgeCmd.Forge(Forge variable, target.Player, this); the single-player target is
+    // the player (PotionOnUseSupport.Use case KingsCourage).
+    public override void OnUse(ref FlashExec x)
+    {
+        FlashKernel.Forge(ref x, (int)FlashKernel.PotionVar(x, this, 0));
+    }
+}
+
+[FlashContent("STAR_POTION")]
+public sealed class StarPotion : FlashPotionDef
+{
+    public override IReadOnlyList<string> VarNames => ["Stars"];
+
+    // StarPotion: PlayerCmd.GainStars(Stars variable, target.Player) through
+    // CombatPredictionSimulator.GainStars (PotionOnUseSupport.Use case StarPotion).
+    public override void OnUse(ref FlashExec x)
+    {
+        FlashKernel.GainStars(ref x, (int)FlashKernel.PotionVar(x, this, 0));
+    }
+}

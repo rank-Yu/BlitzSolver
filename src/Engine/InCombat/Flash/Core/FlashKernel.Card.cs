@@ -198,7 +198,13 @@ public static partial class FlashKernel
     /// </summary>
     private static void PlayFromPlay(ref FlashExec x, FlashCard card, byte target, int energyValue,
         int playPosition, bool isAutoPlay)
+        => PlayFromPlay(ref x, card, target, energyValue, playPosition, isAutoPlay, out _, out _);
+
+    private static void PlayFromPlay(ref FlashExec x, FlashCard card, byte target, int energyValue,
+        int playPosition, bool isAutoPlay, out FlashPile resultPile, out int resultIndex)
     {
+        resultPile = FlashPile.Play;
+        resultIndex = -1;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
         x.CurrentPlayEnergyValue = energyValue;
         FlashPile result = ResultLocation(x.B, x.R, card, stats, out bool removeFromCombat,
@@ -381,9 +387,18 @@ public static partial class FlashKernel
             {
                 AfterCardPlayedCleanup(ref FlashPiles.At(ref x.B, FlashPile.Play, playPosition));
                 if (result == FlashPile.Exhaust)
+                {
+                    int exhaustCount = x.B.ExhaustCount;
                     Exhaust(ref x, FlashPile.Play, playPosition);
-                else
-                    MoveCard(ref x.B, FlashPile.Play, playPosition, result, resultPosition);
+                    resultPile = FlashPile.Exhaust;
+                    resultIndex = exhaustCount;
+                }
+                else if (MoveCard(ref x.B, FlashPile.Play, playPosition, result, resultPosition,
+                             out FlashPile movedPile, out int movedIndex))
+                {
+                    resultPile = movedPile;
+                    resultIndex = movedIndex;
+                }
             }
         }
         // CombatManager.CheckForEmptyHand runs after the result-pile move. The existing engine

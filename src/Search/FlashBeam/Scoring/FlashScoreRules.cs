@@ -114,6 +114,9 @@ internal enum FlashCalculatedKind : byte
     /// <summary>TimesUp: the target's Doom amount.</summary>
     TargetDoom,
 
+    /// <summary>Supermassive: cards the player generated this combat.</summary>
+    GeneratedCardCount,
+
     /// <summary>DeathMarch: non-hand draws this turn.</summary>
     NonHandDraws,
 
@@ -297,6 +300,9 @@ internal sealed class FlashScoreRules
     public ushort StarNextTurnPowerId { get; init; } = ushort.MaxValue;
 
     public ushort FreeAttackPowerId { get; init; } = ushort.MaxValue;
+
+    /// <summary><c>VoidFormPower</c>: the free-play window and future-resource term.</summary>
+    public ushort VoidFormPowerId { get; init; } = ushort.MaxValue;
 
     public ushort FreeSkillPowerId { get; init; } = ushort.MaxValue;
 

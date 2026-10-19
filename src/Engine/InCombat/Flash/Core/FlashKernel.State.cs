@@ -111,6 +111,19 @@ public static partial class FlashKernel
 
     public static byte EnemyOwner(int enemyIndex) => checked((byte)(FlashLimits.FirstEnemyOwner + enemyIndex));
 
+    /// <summary>
+    /// <c>SimulatedCombatState.GetPoweredAttackHitsThisTurn(player, enemy)</c>: the enemy's
+    /// BeatIntoShape calculated-forge multiplier for the current player turn.
+    /// </summary>
+    public static int PoweredAttackHitsByPlayer(in FlashBattle battle, byte owner)
+        => IsEnemyOwner(owner) ? battle.Enemies[owner - FlashLimits.FirstEnemyOwner].PoweredAttackHitsThisTurn : 0;
+
+    /// <summary><c>SimulatedCombatState.RequestPlayerTurnEnd</c>: the action boundary ends the turn.</summary>
+    public static void RequestPlayerTurnEnd(ref FlashBattle battle)
+    {
+        battle.Flags |= FlashBattleFlags.PlayerTurnEndRequested;
+    }
+
     public static bool InRoster(in FlashBattle battle, byte owner)
     {
         int enemy = owner - FlashLimits.FirstEnemyOwner;

@@ -59,6 +59,9 @@ RG 的储君投影与惰性规则：
 - **星能遗物计数**：`GalacticDust.Counter` 与 `MiniRegent.Counter` 取 `StatefulRelicState.Current`（`SimulatedCombatState.StatefulRelicStateForFlash`，无条目时其构造器读的模型字段）；`Regalite.Counter` 取 `RegalitePredictionState.UsedThisTurn`（无条目时读 `_usedThisTurn`）；`BrilliantScarf.Counter` 取 `CounterPredictionState.Value`（无条目时读 `_cardsPlayedThisTurn`）。四者都只在对应遗物的 Hook 里读写。
 - **`_swordSageReplayBonuses` 的惰性规则**：`NormalizeSwordSageReplays` 会为每张君王之刃记录一条「已应用的重放加成」，没有 SwordSagePower 时全部为 0。SwordSagePower 没有 Flash 定义（根持有它时按 `UnsupportedPower` 拒绝），因此目标加成恒为 0，所有条目都处在目标值、没有 delta 可应用；每张牌的已应用加成已经体现在导入的 `BaseReplayCount` 里。只有「所有条目值为 0 且所有玩家的 SwordSagePower 层数为 0」时按惰性放过，否则仍按 `UnrepresentableState` 拒绝。读取点：`NormalizeSwordSageReplays` 只遍历当前牌堆的君王之刃；`FlashProjection` 的指纹/续接文本不参与结算。
 - **自动预打出**：`BOMBARDMENT` 的消耗堆捕获与 `MayhemPower` 的计划自动打出在 `FlashKernel.AutoPrePlay` 里复刻；尚未实现的 Imbued、HistoryCourse、WhisperingEarring 没有 Flash 定义，持有它们的根在准入拒绝。
+- **历史计数投影**：`CardsGeneratedThisCombat` 取 `CalculatedVarSpecRegistry.CountGeneratedCardsForFlash`（根历史 + 预测历史）；`FlashEnemy.PoweredAttackHitsThisTurn` 取 `GetPoweredAttackHitsThisTurn(player, enemy)`（在导入的私有 Fork 上读取，调用方状态不变），超过 255 按 `UnrepresentableState` 拒绝。
+- **`VoidFormPower.Aux0`**：取 `VoidFormPredictionState.CardsPlayedThisTurn`（`Claim` 认领）；没有条目时读模型内部数据的 `cardsPlayedThisTurn`。Power 归零退役后的残留条目按惰性处理：两个费用钩子与 `AfterCardPlayed` 只遍历正层 `EffectivePowers`，重新获得是新的原生实例。
+- **未实现的生成闭包**：`BundleOfJoy`、`Quasar`、`ManifestAuthority`、`SpectrumShift` 的候选池是 `ColorlessAll`，其中 Discovery/JackOfAllTrades/Splash 等又声明 `CharacterAll`；该池包含本批明确跳过的实例身份内容（Monologue、SwordSage、Orbit、PaleBlueDot、SummonForth），因此这些生成卡的根仍按 `UnsupportedCard`/`UnsupportedClosure` 拒绝。没有为它们写半成品定义；其余卡池补齐带来的准入变化见任务报告。
 
 退役条目的认领规则与现有实现：
 

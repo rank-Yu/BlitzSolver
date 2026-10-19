@@ -314,6 +314,10 @@ public sealed class InfestedPower : FlashPowerDef
 
     public override bool SpawnsPrimaryEnemyOnDeath => true;
 
+    // Native InfestedPower.ShouldStopCombatFromEnding: the parasite's death still spawns four
+    // primary Wrigglers, so the combat is not ending while its corpse is on the roster.
+    public override bool PreventsCombatEnding => true;
+
     public override void DeathTrigger(ref FlashExec x, FlashListener self, byte dead)
     {
         if (dead != self.Owner)

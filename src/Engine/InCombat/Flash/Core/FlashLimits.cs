@@ -30,7 +30,13 @@ public static class FlashLimits
     /// <see cref="FlashCapacityException"/> and falls back instead of truncating.
     /// </summary>
     public const int CardEnergyCostModifiers = 16;
-    public const int MaxChoices = 4;
+    // One action may carry a primary choice plus nested auto-play choices. Decisions, Decisions
+    // replays the chosen card up to its Repeat variable (3), and a chosen Decisions, Decisions can
+    // nest again for each skill in hand; the existing engine keeps those frames unbounded. Every
+    // beam node stores a whole FlashAction, so a deeper chain is a FlashCapacityException boundary
+    // (the branch is dropped and the existing solver keeps it) rather than a larger inline array:
+    // 32 slots cost about 10% more managed allocation on the starter-deck bench for no reached route.
+    public const int MaxChoices = 8;
 
     /// <summary>Options of one choice request; selections are bit sets over them.</summary>
     public const int MaxChoiceOptions = 64;

@@ -95,6 +95,7 @@ public static partial class FlashKernel
         FlashPiles.RemoveAt(ref x.B, pile, index);
         int insert = Math.Min(index, FlashPiles.Count(x.B, pile));
         FlashPiles.Insert(ref x.B, pile, insert, entered);
+        x.B.AddCounter(FlashCounter.CardsGeneratedThisCombat, 1);
         EnteredCombat(ref x, replacement, pile, insert);
         if (!x.NeedsChoice)
             AfterGeneratedForCombat(ref x, target: pile, insert, FlashLimits.PlayerOwner);
@@ -157,6 +158,7 @@ public static partial class FlashKernel
             card.Keywords = x.R.Card(card.Id, upgrade).Keywords | FlashKeywords.CreatedAfterRoot;
             int insert = Math.Min(removal[item], FlashPiles.Count(x.B, pile));
             FlashPiles.Insert(ref x.B, pile, insert, card);
+            x.B.AddCounter(FlashCounter.CardsGeneratedThisCombat, 1);
             EnteredCombat(ref x, card, pile, insert);
             if (x.NeedsChoice)
                 return;
@@ -191,16 +193,24 @@ public static partial class FlashKernel
     /// <summary>Mirrors <c>CombatPredictionSimulator.AddGeneratedCardsToCombat</c> for one card: insertion as
     /// <c>AddToPile</c> does for a card entering combat (full hand diverts to discard, random position
     /// from the Shuffle stream), then the entered-combat sink and <c>AfterCardGeneratedForCombat</c>.
-    /// Returns false when the card was not added.
+    /// Returns false only for a combat that is no longer in progress or a pending choice; an add
+    /// refused because the combat is ending still records the generation and returns true so the
+    /// caller continues exactly like <c>AddGeneratedCardsToCombat</c>.
     /// </summary>
     public static bool AddGeneratedCard(ref FlashExec x, in FlashCard card, FlashPile pile,
         FlashPilePosition position = FlashPilePosition.Bottom, byte creator = FlashLimits.PlayerOwner)
     {
         if (!IsInProgress(x.B))
             return false;
-        // History.CardGenerated: no tracked counter yet.
+        // CombatPredictionHistory.CardGenerated is recorded before AddToPile; a card refused because the
+        // combat is ending still counts as generated (HeirloomHammer clones a card on a killing blow).
+        // AddGeneratedCardsToCombat keeps looping and the card's OnPlay keeps running after the refused
+        // add, so this reports success without inserting the card: callers must not treat the value as
+        // being in a pile, and no generation hook runs for it.
+        if (creator == FlashLimits.PlayerOwner)
+            x.B.AddCounter(FlashCounter.CardsGeneratedThisCombat, 1);
         if (IsEnding(x.B) || x.B.Player.IsDead)
-            return false;
+            return true;
         FlashPile target = pile == FlashPile.Hand && x.B.HandCount >= x.B.MaxHandSize ? FlashPile.Discard : pile;
         int count = FlashPiles.Count(x.B, target);
         int index = position switch

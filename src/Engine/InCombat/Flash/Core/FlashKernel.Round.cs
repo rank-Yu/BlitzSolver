@@ -201,6 +201,10 @@ public static partial class FlashKernel
         if ((battle.Flags & FlashBattleFlags.OstyWasRootPet) != 0)
             battle.SetCounter(FlashCounter.OstyAttacksThisTurn, 0);
         battle.SetCounter(FlashCounter.DoomAppliedThisTurn, 0);
+        // SimulatedCombatState.BeginSideTurn(player) -> RemovePoweredAttackHitsDealtBy(player):
+        // BeatIntoShape's per-target hit count is a this-turn value keyed by the dealer's side.
+        for (int index = 0; index < battle.EnemyCount; index++)
+            battle.Enemies[index].PoweredAttackHitsThisTurn = 0;
     }
 
     /// <summary>Owners of the roster enemies in roster order.</summary>

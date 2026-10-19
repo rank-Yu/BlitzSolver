@@ -136,7 +136,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 1. **攻击**：结束中或攻击者已死则返回；`BeforeAttack`；`ModifyAttackHitCount`；逐次命中：攻击者死亡或无存活目标则停止，随机目标用 `CombatTargets` 流；最后记录历史并触发 `AfterAttack`。
 2. **伤害**：先对全部目标计算并扣除，再统一处理结果。
 3. **单目标**：目标已死则跳过；`ModifyDamage` = 附魔加成与倍率 → 按监听顺序的加法阶段（力量等）→ 乘法阶段（易伤、虚弱等）→ 取所有 `ModifyDamageCap` 的最小值 → 钳制到 ≥ 0。全程 `decimal`，不取整。`BeforeDamageReceived`；格挡吸收（目标是 Osty 时扣其主人的格挡；不可格挡伤害跳过）；`ModifyHpLost` BeforeOsty 与其 Late → Osty 重定向 → AfterOsty 与其 Late → `AfterModifyingHpLostAfterOsty`；失血时 `(int)` 截断；失血 ≥ 当前 HP 视为击杀。
-4. **结果处理**：`AfterBlockBroken` → `AfterCurrentHpChanged` → `AfterDamageGiven` → 未被击杀时 `AfterDamageReceived`（含 Late）；之后执行击杀，或所有玩家死亡时判负。
+4. **结果处理**：`AfterBlockBroken` → `AfterCurrentHpChanged` → `AfterDamageGiven` → 未被击杀时 `AfterDamageReceived`（含 Late）；之后执行击杀，或所有玩家死亡时判负。每次结果同时按 `RecordDamageReceived` 记录玩家对敌人的 powered attack 命中（完全格挡也计数，非强化伤害不计），供 BeatIntoShape 的按目标锻造乘数读取；该计数在玩家回合开始清零，超过 255 按 `FlashUnsupportedException` 拒绝。
 5. **击杀**：扣光剩余 HP 并触发 `AfterCurrentHpChanged` → `BeforeDeath` → `ShouldDie`（第一个阻止者生效）。死亡：`AfterDeath` → 移出阵容 → 主敌人死亡且只剩附属时附属一并死亡。被阻止：`AfterDeath(prevented)` 与 `AfterPreventingDeath`，最多递归 10 次。
 6. **敌人死亡效果延后**：在动作边界由 `ApplyEnemyDeathPowers` 统一结算（`P/CorePowerSupport.cs:597-674`）：SteamEruption → 死亡 Power（Ravenous、Surrounded、召唤）→ 清除死者施加的 Constrict、Hex、Shrink、MagicBomb。
 
@@ -213,10 +213,10 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 ## 10. 选择协议
 
-- `FlashAction` 携带至多 4 个选择，每个选择是"选项列表上的位集合"。选项列表由需要选择的效果按现有引擎 `CardChoiceSupport.GetSpec` 的顺序生成（来源牌堆中满足条件的卡的位置）。
+- `FlashAction` 携带至多 32 个选择（`FlashLimits.MaxChoices`；`DecisionsDecisions` 的嵌套自动打出可以在一张牌里产生二十余个请求），每个选择是"选项列表上的位集合"。选项列表由需要选择的效果按现有引擎 `CardChoiceSupport.GetSpec` 的顺序生成（来源牌堆中满足条件的卡的位置）。
 - 效果请求第 k 个选择而动作只提供了不到 k 个时，内核停止执行，返回 `NeedsChoice` 与选项规格（效果、时机、来源牌堆、选项的绝对位置、最少与最多数量；数量已按选项数截断，与 `BuildChoices` 一致）。调用方丢弃这个半成品状态，枚举选项后从父状态重新执行同一动作。
 - 卡牌自己的选择在 `FlashCardDef.OwnChoice` 中，位于 `OnPlay` 之后、出牌收尾之前，对应现有引擎的 `ResolveManualCardChoice` 阶段（`GetSpec` → `Apply` → `ApplyPostChoiceEffects`）。`FlashKernel.ChooseCards` 对应 `CardChoiceSupport.Spec`：没有选项时不建规格、不提问，选择后效果照常执行；`ChooseCardsInRange` 对应 `RangeSpec`：没有选项也提问。`BuildRequiredEmptyChoice` 列出的卡（烙印等）在没有选项时提一个空选择。
-- 选中的卡按选择顺序结算（与令牌顺序一致）。字节相同的卡在不同位置并不等价（拿走哪一张会改变中间卡的顺序），所以内核按"值 + 第几张相同的卡"定位选中的卡，对应旧引擎令牌的 `SourceOccurrence`；结算过程中有 Hook 介入时每张卡重新定位。
+- 选中的卡按选择顺序结算（与令牌顺序一致）。字节相同的卡在不同位置并不等价（拿走哪一张会改变中间卡的顺序），所以内核按"值 + 第几张相同的卡"定位选中的卡，对应旧引擎令牌的 `SourceOccurrence`；结算过程中有 Hook 介入时每张卡重新定位。`FlashKernel.TransformSelectedTo` 对应 `CardChoiceResolution.TransformSelectedCards`（Charge/Guards/Begone 的固定 Minion 替换），同样按值与同值序号重定位；`Duplicate`（HeirloomHammer 的 `CreateClone` 复制）与 `AutoPlayRepeated`（DecisionsDecisions）在卡定义内按同一位置规则结算。
 - 时机标签按现有引擎 `SetActionChoiceTiming` 的位置切换：出牌为 Action，回合结束开始时为 PlayerTurnEnd，敌方回合为 EnemyTurn，玩家回合开始为 PlayerTurnStart。回合开始的选择由 `EndTurn` 动作携带。
 - 翻译与校验：Bridge 用旧引擎逐次回放动作。旧引擎停在待定选择时，取 Flash 的下一个位集合，按旧引擎规格的同序选项生成 `PlanCardChoice` 令牌（`CardChoiceSupport.BuildSelectedChoiceForFlash`），再按现有搜索放置已解析分支的同一规则（`CombatBeamSolver.AppendPendingChoice`：回合阶段的进 `TurnStartChoices`，出牌第一个无来源请求为主选择，其余为嵌套选择）挂到动作上重放，直到旧引擎不再提问。选择次数不一致即校验失败。
 

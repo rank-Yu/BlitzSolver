@@ -216,7 +216,7 @@ public static partial class FlashKernel
         result.WasFullyBlocked = (props & FlashValueProps.Unblockable) == 0
             && (blocked > 0m || creature.Block > 0)
             && (int)unblocked == 0;
-        RecordDamageReceived(ref x.B, target, result);
+        RecordDamageReceived(ref x.B, target, dealer, result);
         results[count++] = result;
         return true;
     }
@@ -240,7 +240,7 @@ public static partial class FlashKernel
         redirectedResult.WasFullyBlocked = (props & FlashValueProps.Unblockable) == 0
             && (blocked > 0m || original.Block > 0)
             && (int)unblocked == 0;
-        RecordDamageReceived(ref x.B, redirect, redirectedResult);
+        RecordDamageReceived(ref x.B, redirect, dealer, redirectedResult);
         results[count++] = redirectedResult;
 
         decimal overflow = redirectedResult.OverkillDamage;
@@ -261,7 +261,7 @@ public static partial class FlashKernel
         originalResult.BlockedDamage = (int)blocked;
         originalResult.WasBlockBroken = redirectedResult.WasBlockBroken;
         originalResult.WasFullyBlocked = redirectedResult.WasFullyBlocked;
-        RecordDamageReceived(ref x.B, originalTarget, originalResult);
+        RecordDamageReceived(ref x.B, originalTarget, dealer, originalResult);
         results[count++] = originalResult;
         return true;
     }
@@ -506,11 +506,20 @@ public static partial class FlashKernel
 
     /// <summary>
     /// Mirrors the parts of <c>SimulatedCombatState.RecordDamageReceived</c> that Flash tracks: the
-    /// lost-HP-this-turn mark of every receiver and the player's cumulative HP loss. Powered attack
-    /// hit records are not tracked yet.
+    /// powered attack hits the player dealt to each enemy (BeatIntoShape's calculated-forge
+    /// multiplier), the lost-HP-this-turn mark of every receiver and the player's cumulative HP loss.
+    /// The hit is recorded even when the attack was fully blocked, exactly like the existing engine.
     /// </summary>
-    private static void RecordDamageReceived(ref FlashBattle battle, byte receiver, in FlashDamageResult result)
+    private static void RecordDamageReceived(ref FlashBattle battle, byte receiver, byte dealer,
+        in FlashDamageResult result)
     {
+        if (result.Props.IsPoweredAttack() && dealer == FlashLimits.PlayerOwner && IsEnemyOwner(receiver))
+        {
+            ref FlashEnemy enemy = ref battle.Enemies[receiver - FlashLimits.FirstEnemyOwner];
+            if (enemy.PoweredAttackHitsThisTurn == byte.MaxValue)
+                throw new FlashUnsupportedException("单个敌人的本回合强化攻击命中数超过 255，Flash 无法表示。");
+            enemy.PoweredAttackHitsThisTurn++;
+        }
         if (result.UnblockedDamage <= 0)
             return;
         battle.Creature(receiver).Flags |= FlashCreatureFlags.LostHpThisTurn;
