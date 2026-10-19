@@ -163,6 +163,13 @@ public sealed class FlashMonsterRules
     public required int[] StaticInts { get; init; }
 
     /// <summary>
+    /// Root power amounts named by <see cref="FlashMonsterDef.RootPowerAmountNames"/>, in order. They
+    /// are frozen at root import, matching the existing engine's <c>_rootPowerAmounts</c> baseline for
+    /// dynamic monster damage (<c>AdjustMonsterMoveDamage</c>).
+    /// </summary>
+    public int[] RootPowerAmounts { get; init; } = [];
+
+    /// <summary>
     /// Values of the monster-private integers named by <see cref="FlashMonsterDef.AiRegisterNames"/>
     /// on a freshly created monster, in order (captured through the same <c>GetMonsterInt</c> path).
     /// </summary>

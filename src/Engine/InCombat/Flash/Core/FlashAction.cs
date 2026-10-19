@@ -155,6 +155,7 @@ public struct FlashPowerAmountChange
 {
     public ushort PowerId;
     public byte Applier;
+    public byte Target;
     public int Delta;
 }
 
@@ -172,6 +173,9 @@ public ref struct FlashExec
 {
     public ref FlashBattle B;
     public readonly FlashRules R;
+
+    /// <summary>Unblocked-player hits in the current attack context (PainfulStabs after the attack).</summary>
+    public int AttackUnblockedHits;
     private readonly FlashChoiceSelections _choices;
     private readonly int _choiceCount;
     private int _choicesTaken;
@@ -199,10 +203,32 @@ public ref struct FlashExec
         GeneratedOptionCount = 0;
         PendingPowerChanges = default;
         PendingPowerChangeCount = 0;
+        CardDamageTotal = 0;
+        CardKilledTarget = false;
+        LastDamageTotal = 0;
+        LastDamageOverkill = 0;
     }
 
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
     public bool NeedsChoice;
+
+    /// <summary>
+    /// Sum of <c>TotalDamage + OverkillDamage</c> over the damage results of the current card play
+    /// (the <c>CombatPredictionDamageReceivedEntry</c> history the existing engine's Fisticuffs sums).
+    /// Reset when a card starts; transient, never part of the state.
+    /// </summary>
+    public int CardDamageTotal;
+
+    /// <summary>Whether the current card play killed its chosen target (HandOfGreed's WasFatalKill).</summary>
+    public bool CardKilledTarget;
+
+    /// <summary>
+    /// <c>TotalDamage + OverkillDamage</c> of the most recent <c>Damage</c> call, captured before its
+    /// result hooks run (Omnislice copies this amount to the other enemies).
+    /// </summary>
+    public int LastDamageTotal;
+
+    public int LastDamageOverkill;
 
     public FlashChoiceRequest Request;
 
@@ -248,7 +274,7 @@ public ref struct FlashExec
     public int PendingPowerChangeCount;
 
     /// <summary>Queues one applied power amount change for <see cref="FlashKernel.ResolvePowerAmountChanges"/>.</summary>
-    public void RecordPowerAmountChange(ushort powerId, int delta, byte applier)
+    public void RecordPowerAmountChange(ushort powerId, int delta, byte applier, byte target)
     {
         if (delta == 0)
             return;
@@ -258,6 +284,7 @@ public ref struct FlashExec
         {
             PowerId = powerId,
             Applier = applier,
+            Target = target,
             Delta = delta,
         };
     }

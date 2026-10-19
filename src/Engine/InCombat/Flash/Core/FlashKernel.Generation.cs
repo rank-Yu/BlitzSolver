@@ -67,7 +67,9 @@ public static partial class FlashKernel
     public static void MakeFreeThisTurn(FlashRules rules, ref FlashCard card)
     {
         FlashCardStats stats = rules.Card(card.Id, card.Upgrade);
-        if (!stats.CostsX && stats.EnergyCost >= 0)
+        // CardEnergyCost.SetThisTurnOrUntilPlayed: the modifier is added when cost != 0 or the
+        // canonical cost is >= 0, so X-cost cards (canonical 0) still receive it.
+        if (stats.EnergyCost >= 0)
         {
             if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
                 throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
@@ -147,8 +149,24 @@ public static partial class FlashKernel
         added.Keywords |= FlashKeywords.CreatedAfterRoot;
         FlashPiles.Insert(ref x.B, target, index, added);
         EnteredCombat(ref x, added, target, index);
-        // AfterCardGeneratedForCombat: no supported listeners yet.
-        return !x.NeedsChoice;
+        if (x.NeedsChoice)
+            return false;
+        // HookMirrors.AfterCardGeneratedForCombat runs after the card entered combat.
+        if ((FlashRegistry.AnyHooks & FlashHookMask.AfterCardGeneratedForCombat) != 0)
+        {
+            Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+            int listenerCount = FlashHooks.CollectListeners(x.B, FlashHookMask.AfterCardGeneratedForCombat, listeners);
+            for (int listener = 0; listener < listenerCount; listener++)
+            {
+                // The hook receives an absolute card position; `index` is pile-local.
+                FlashHooks.Definition(x.B, listeners[listener])
+                    .AfterCardGeneratedForCombat(ref x, listeners[listener],
+                        FlashPiles.Start(x.B, target) + index);
+                if (x.NeedsChoice)
+                    return false;
+            }
+        }
+        return true;
     }
 
     /// <summary>
@@ -192,6 +210,30 @@ public static partial class FlashKernel
         creature.MaxHp = Math.Clamp((int)(before + amount), 1, FlashLimits.ValueClamp);
         creature.CurrentHp = Math.Min(creature.CurrentHp, creature.MaxHp);
         Heal(ref x, owner, creature.MaxHp - before);
+    }
+
+    /// <summary>
+    /// Mirrors <c>AfterDamageGivenMirrors.HandlePaperCutsPower</c>'s max-HP loss: when the new maximum
+    /// is below the current HP, the difference is dealt as unblockable unpowered damage with no
+    /// dealer, then the maximum is clamped to at least 1.
+    /// </summary>
+    public static void LoseMaxHp(ref FlashExec x, byte owner, int amount)
+    {
+        if (amount <= 0)
+            return;
+        ref FlashCreature creature = ref x.B.Creature(owner);
+        int newMaxHp = creature.MaxHp - amount;
+        if (newMaxHp < creature.CurrentHp)
+        {
+            Span<byte> targets = stackalloc byte[1];
+            targets[0] = owner;
+            Damage(ref x, targets, creature.CurrentHp - newMaxHp,
+                FlashValueProps.Unblockable | FlashValueProps.Unpowered, FlashLimits.NoOwner,
+                hasCardSource: false, default);
+            if (x.NeedsChoice)
+                return;
+        }
+        x.B.Creature(owner).MaxHp = Math.Max(1, newMaxHp);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.GainEnergy</c> (no supported energy-gain modifiers yet).</summary>

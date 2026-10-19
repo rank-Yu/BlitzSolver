@@ -40,6 +40,20 @@ public sealed class ReattachPower : FlashPowerDef
     // Native ReattachPower.ShouldPowerBeRemovedAfterOwnerDeath: false.
     public override bool ShouldPowerBeRemovedAfterOwnerDeath => false;
 
+    // Native ReattachPower.ShouldOwnerDeathTriggerFatal: AreAllOtherSegmentsDead().
+    public override bool ShouldOwnerDeathTriggerFatal(in FlashBattle battle, FlashListener self)
+    {
+        for (int position = 0; position < battle.RosterCount; position++)
+        {
+            byte other = FlashKernel.EnemyOwner(battle.Roster[position]);
+            if (other == self.Owner || FlashKernel.GetAmount(battle, other, Id) <= 0)
+                continue;
+            if (!battle.Creature(other).IsDead)
+                return false;
+        }
+        return true;
+    }
+
     public override void DeathTrigger(ref FlashExec x, FlashListener self, byte dead)
     {
         if (dead != self.Owner)

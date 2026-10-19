@@ -282,3 +282,16 @@ public sealed class Duplicator : FlashPotionDef
         => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
             FlashRegistry.PowerId<Powers.DuplicationPower>(), 1, FlashLimits.PlayerOwner);
 }
+
+[FlashContent("GIGANTIFICATION_POTION")]
+public sealed class GigantificationPotion : FlashPotionDef
+{
+    public override IReadOnlyList<string> VarNames => ["GigantificationPower"];
+
+    public override IReadOnlyList<string> AppliedPowers => ["GIGANTIFICATION_POWER"];
+
+    public override void OnUse(ref FlashExec x)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+            FlashRegistry.PowerId<Powers.GigantificationPower>(),
+            (int)FlashKernel.PotionVar(x, this, 0), FlashLimits.PlayerOwner);
+}

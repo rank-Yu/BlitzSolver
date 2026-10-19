@@ -77,6 +77,7 @@ internal sealed class FlashScorer
                 FlashCalculatedKind.TargetVulnerable => GetAmount(battle, _score.VulnerablePowerId, owner),
                 FlashCalculatedKind.DrawPileCount => battle.DrawCount,
                 FlashCalculatedKind.TargetDebuffPowerCount => CountTargetDebuffPowers(battle, owner),
+                FlashCalculatedKind.FinishedCardPlays => battle.Counter(FlashCounter.FinishedCardPlays),
                 _ => 0,
             };
             decimal candidate = baseVar + extraVar * multiplier;
@@ -313,7 +314,17 @@ internal sealed class FlashScorer
                 strategicContext = needsExhaustDrawTiming
                     ? WithExhaustDrawTiming(context, battle, skillsExhaust) : context;
             }
-            StrategicEffectVector effect = EvaluateStrategic(rules.Kind, power.Amount, strategicContext.Value);
+            StrategicEffectContext effectContext = strategicContext.Value;
+            if (rules.Kind == FlashStrategicKind.RecurringEnergy)
+            {
+                int cardsLeft = power.Aux0;
+                int refundDraws = Math.Max(0, effectContext.ReachableCards - battle.HandCount);
+                int triggers = refundDraws < cardsLeft ? 0 : 1 + (refundDraws - cardsLeft) / 10;
+                (_, int capacity) = CaptureEnergyRefundWindow(battle, effectContext, skillsExhaust);
+                int gain = (int)Math.Min(capacity, (long)triggers * power.Amount);
+                effectContext = effectContext with { RecurringEnergyGain = gain };
+            }
+            StrategicEffectVector effect = EvaluateStrategic(rules.Kind, power.Amount, effectContext);
             strategicEffects += effect;
             offensivePersistentBuffValue += effect.DamagePotential + effect.ScalingPotential;
             persistentSetupTraits |= rules.Trait;
@@ -532,6 +543,21 @@ internal sealed class FlashScorer
     private int EffectiveEnemyHp(in FlashBattle battle, int index)
     {
         ref readonly FlashEnemy enemy = ref battle.Enemies[index];
+        // SimulatedCombatState.EffectiveEnemyHp's TestSubject branch: while Adaptable is alive, the
+        // remaining forms' HP is part of the effective HP even at full current HP.
+        if (_score.AdaptablePowerId != ushort.MaxValue
+            && HasPower(battle, _score.AdaptablePowerId, FlashKernel.EnemyOwner((byte)index))
+            && enemy.DeathPhase != FlashDeathPhase.PermanentlyDead
+            && FlashRegistry.Monster(enemy.MonsterId).HasAdaptableFormHp)
+        {
+            FlashMonsterRules rules = Rules.MonsterRule(enemy.Rules);
+            int remaining = Math.Max(0, enemy.Creature.CurrentHp);
+            if (enemy.Ai[0] < 1)
+                remaining += enemy.Ai[2];
+            if (enemy.Ai[0] < 2)
+                remaining += enemy.Ai[3];
+            return remaining;
+        }
         if (enemy.Creature.CurrentHp > 0)
             return enemy.Creature.CurrentHp;
         if (enemy.DeathPhase != FlashDeathPhase.Reviving)
@@ -633,10 +659,13 @@ internal sealed class FlashScorer
             for (int attackIndex = 0; attackIndex < move.Attacks.Length; attackIndex++)
             {
                 FlashMonsterAttack attack = move.Attacks[attackIndex];
-                int repeats = Math.Max(attack.Repeats, 1);
+                FlashMonsterDef def = FlashRegistry.Monster(enemy.MonsterId);
+                int baseDamage = def.ModifyAttackDamage(battle, Rules, owner, enemy.Move, attackIndex, attack.BaseDamage);
+                int repeats = Math.Max(
+                    def.ModifyAttackRepeats(battle, Rules, owner, enemy.Move, attackIndex, attack.Repeats), 1);
                 for (int hit = 0; hit < repeats; hit++)
                 {
-                    ProjectThreatHit(ref x, owner, attack.BaseDamage, ref block, ref hp, ref gambitActive, ref prevention);
+                    ProjectThreatHit(ref x, owner, baseDamage, ref block, ref hp, ref gambitActive, ref prevention);
                 }
             }
         }
@@ -843,11 +872,14 @@ internal sealed class FlashScorer
                 for (int attackIndex = 0; attackIndex < move.Attacks.Length; attackIndex++)
                 {
                     FlashMonsterAttack attack = move.Attacks[attackIndex];
-                    int repeats = Math.Max(attack.Repeats, 1);
+                    FlashMonsterDef def = FlashRegistry.Monster(enemy.MonsterId);
+                    int damage = def.ModifyAttackDamage(battle, Rules, owner, enemy.Move, attackIndex, attack.BaseDamage);
+                    int repeats = Math.Max(
+                        def.ModifyAttackRepeats(battle, Rules, owner, enemy.Move, attackIndex, attack.Repeats), 1);
                     for (int hit = 0; hit < repeats; hit++)
                     {
                         incomingHitCount++;
-                        currentThreat += Math.Max(0, attack.BaseDamage);
+                        currentThreat += Math.Max(0, damage);
                     }
                 }
             }
@@ -905,6 +937,9 @@ internal sealed class FlashScorer
         public int? AttackHits { get; init; }
         public int? ExhaustDrawPlays { get; init; }
         public int ReachableCards { get; init; }
+
+        /// <summary>Automation/Orbit recurring energy from the refund window (StrategicEffectModel).</summary>
+        public int RecurringEnergyGain { get; init; }
     }
 
     private static bool Contributes(in FlashPower power, FlashPowerScore rules)
@@ -1160,6 +1195,41 @@ internal sealed class FlashScorer
         return total;
     }
 
+    /// <summary>
+    /// Port of <c>CombatBeamSolver.CaptureEnergyRefundWindow</c> for Automation's recurring energy:
+    /// the energy the remaining live cards can consume this cycle, and the capacity left after the
+    /// current energy plus future turn resets. <c>liveCards</c> is every combat card in pile order.
+    /// </summary>
+    private (int Spend, int Capacity) CaptureEnergyRefundWindow(in FlashBattle battle,
+        StrategicEffectContext context, bool skillsExhaust)
+    {
+        int liveCount = battle.CardCount;
+        if (liveCount == 0 || context.ReachableCards == 0)
+            return (0, 0);
+        int maxEnergy = Math.Max(0, Rules.BaseMaxEnergy);
+        int handCount = battle.HandCount;
+        int futureTurns = Math.Min(Math.Max(0, context.RemainingTurns - 1),
+            (Math.Max(0, context.ReachableCards - handCount) + 5 - 1) / 5);
+        long energySupply = Math.Max(0, battle.Energy) + (long)maxEnergy * futureTurns;
+        double visits = (double)context.ReachableCards / liveCount;
+        double energyDemand = 0;
+        for (int index = 0; index < battle.CardCount; index++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[index];
+            FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+            if (card.HasKeyword(FlashKeywords.Unplayable) || skillsExhaust && stats.Type == FlashCardType.Skill)
+                continue;
+            int cost = (card.Flags & FlashCardFlags.CostsX) != 0
+                ? maxEnergy
+                : Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
+            bool singleUse = stats.Type == FlashCardType.Power || card.HasKeyword(FlashKeywords.Exhaust);
+            energyDemand += cost * (singleUse ? Math.Min(1, visits) : visits);
+        }
+        long demand = (long)Math.Ceiling(energyDemand);
+        return ((int)Math.Min(int.MaxValue, Math.Min(energySupply, demand)),
+            (int)Math.Min(int.MaxValue, Math.Max(0, demand - energySupply)));
+    }
+
     private int EnergyCost(in FlashBattle battle, in FlashCard card, FlashCardStats stats, FlashPile pile)
     {
         if ((card.Flags & FlashCardFlags.CostsX) != 0)
@@ -1323,6 +1393,7 @@ internal sealed class FlashScorer
             FlashStrategicKind.Curious => Resource(
                 Math.Min(context.PowerEnergySpend, amount * context.PowerPlays) * energyUnit),
             FlashStrategicKind.Corruption => Resource(context.SkillEnergySpend * energyUnit),
+            FlashStrategicKind.RecurringEnergy => Resource(context.RecurringEnergyGain * energyUnit),
             FlashStrategicKind.CreativeAi => CardAccess(
                 amount * context.RemainingTurns * cardAccessUnit),
             FlashStrategicKind.Iteration => CardAccess(

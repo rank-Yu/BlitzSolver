@@ -68,6 +68,7 @@ public static partial class FlashKernel
     {
         public FlashCard Card;
         public int Occurrence;
+        public int Position;
     }
 
     /// <summary>Records the selected pile indexes (ascending) by value and occurrence before any effect runs.</summary>
@@ -84,20 +85,22 @@ public static partial class FlashKernel
                 if (FlashFingerprint.Equal(battle.Cards[start + prior], card))
                     occurrence++;
             }
-            cards[index] = new SelectedCard { Card = card, Occurrence = occurrence };
+            cards[index] = new SelectedCard { Card = card, Occurrence = occurrence, Position = selected[index] };
         }
     }
 
     /// <summary>
-    /// Current pile index of the <paramref name="item"/>-th selected card. Earlier selected cards equal
-    /// to it were before it and have already left the pile, which lowers its occurrence by their count.
+    /// Current pile index of the <paramref name="item"/>-th selected card. A previously moved card
+    /// equal to it lowers its occurrence only when that card was originally before it; selections need
+    /// not be ascending (Anointed takes its cards in the shuffled order).
     /// </summary>
     private static int LocateSelected(in FlashBattle battle, FlashPile pile, scoped ReadOnlySpan<SelectedCard> cards, int item)
     {
         int occurrence = cards[item].Occurrence;
         for (int prior = 0; prior < item; prior++)
         {
-            if (FlashFingerprint.Equal(cards[prior].Card, cards[item].Card))
+            if (cards[prior].Position < cards[item].Position
+                && FlashFingerprint.Equal(cards[prior].Card, cards[item].Card))
                 occurrence--;
         }
         int start = FlashPiles.Start(battle, pile);
@@ -217,6 +220,49 @@ public static partial class FlashKernel
         FlashKeywords added = after.Keywords & ~before.Keywords;
         FlashKeywords removed = before.Keywords & ~after.Keywords;
         card.Keywords = (card.Keywords | added) & ~removed;
+    }
+
+    /// <summary>
+    /// Mirrors <c>CardCmd.Downgrade</c> → <c>CardModel.DowngradeInternal</c>: the original upgrade
+    /// level is recorded for DampenPower's restore, then the card returns to its level-0 dynamic
+    /// variables, base energy/star costs and canonical local keywords. Local cost modifiers,
+    /// replay count, card flags, enchantment and affliction stay as they are.
+    /// </summary>
+    public static void DowngradeCard(ref FlashExec x, int position)
+    {
+        if (IsOverOrEnding(x.B))
+            return;
+        if ((uint)position >= (uint)x.B.CardCount)
+            throw new ArgumentOutOfRangeException(nameof(position), position, "卡牌位置越界。");
+        ref FlashCard card = ref x.B.Cards[position];
+        if (card.Upgrade == 0)
+            return;
+        card.DampenOriginalUpgrade = checked((byte)(card.Upgrade + 1));
+        FlashCardStats stats = x.R.Card(card.Id, 0);
+        card.Upgrade = 0;
+        card.Var0 = 0;
+        card.Var1 = 0;
+        card.BaseCost = checked((sbyte)stats.EnergyCost);
+        card.BaseStarCost = checked((sbyte)stats.StarCost);
+        card.Keywords = stats.Keywords | (card.Keywords & FlashKeywords.CreatedAfterRoot);
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.RestoreDampenedCards</c>: every card DampenPower downgraded is upgraded
+    /// back to its recorded level, in storage order.
+    /// </summary>
+    public static void RestoreDampenedCards(ref FlashExec x)
+    {
+        for (int position = 0; position < x.B.CardCount; position++)
+        {
+            ref FlashCard card = ref x.B.Cards[position];
+            if (card.DampenOriginalUpgrade == 0)
+                continue;
+            int level = card.DampenOriginalUpgrade - 1;
+            card.DampenOriginalUpgrade = 0;
+            while (card.Upgrade < level)
+                UpgradeCard(x.R, ref card);
+        }
     }
 
     /// <summary>Upgrades the selected cards in selection order (no hook runs in between).</summary>

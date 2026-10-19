@@ -19,7 +19,7 @@ public static partial class FlashKernel
                     return false;
             }
         }
-        if (card.HasKeyword(FlashKeywords.Unplayable))
+        if (HasKeyword(battle, card, FlashKeywords.Unplayable))
             return false;
         int energyCost = EnergyCostWithModifiers(battle, rules, card, FlashPile.Hand);
         int starCost = StarCostWithModifiers(battle, card);
@@ -29,6 +29,25 @@ public static partial class FlashKernel
         if (!ShouldPlay(battle, rules, card))
             return false;
         return def.IsPlayable(battle, rules, card);
+    }
+
+    /// <summary>
+    /// The effective keyword set at a stable boundary: the card's local keywords, plus the Ethereal
+    /// that <c>HexPower.TryModifyKeywordsInCombat</c> grants to a Hexed card while the player holds
+    /// HexPower (the existing engine calls the native hook lazily, so the value is not stored).
+    /// </summary>
+    public static bool HasKeyword(in FlashBattle battle, in FlashCard card, FlashKeywords keyword)
+    {
+        if (card.HasKeyword(keyword))
+            return true;
+        if (keyword != FlashKeywords.Ethereal
+            || !FlashRegistry.TryAffliction("HEXED", out ushort hexed)
+            || !FlashRegistry.TryPower("HEX_POWER", out ushort hex)
+            || card.AfflictionId != hexed + 1)
+        {
+            return false;
+        }
+        return GetAmount(battle, FlashLimits.PlayerOwner, hex) > 0;
     }
 
     /// <summary>Native <c>ShouldPlay</c> through <c>HookMirrors.ShouldPlay</c>: any combat listener may forbid the play.</summary>
@@ -156,7 +175,7 @@ public static partial class FlashKernel
         int playPosition, bool isAutoPlay)
     {
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-        FlashPile result = ResultLocation(card, stats, out bool removeFromCombat);
+        FlashPile result = ResultLocation(x.B, card, stats, out bool removeFromCombat);
         // CardModel.GetResultLocationForCardPlay clears ExhaustOnNextPlay when the result is Exhaust
         // (Havoc/Cascade force-exhaust the auto-played card).
         if (result == FlashPile.Exhaust)
@@ -169,7 +188,7 @@ public static partial class FlashKernel
         // over the modifiers that changed the location.
         Span<FlashListener> locationModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
         FlashPile hooked = FlashHooks.ModifyCardPlayResultLocation(ref x, card, isAutoPlay, energyValue, result,
-            locationModifiers, out int locationModifierCount);
+            locationModifiers, out int locationModifierCount, out FlashPilePosition resultPosition);
         if (x.NeedsChoice)
             return;
         if (hooked != result)
@@ -180,6 +199,8 @@ public static partial class FlashKernel
                 throw new FlashUnsupportedException($"出牌去向修改返回了无效牌堆 {hooked}。");
             result = hooked;
         }
+        if (resultPosition != FlashPilePosition.Bottom && result is not (FlashPile.Draw or FlashPile.Discard or FlashPile.Hand))
+            throw new FlashUnsupportedException($"出牌去向位置对 {result} 无定义。");
         FlashHooks.AfterModifyingCardPlayResultLocation(ref x, card, result, locationModifiers[..locationModifierCount]);
         if (x.NeedsChoice)
             return;
@@ -195,6 +216,9 @@ public static partial class FlashKernel
         if (x.B.Player.IsDead)
             return;
 
+        // Per-play damage history used by Fisticuffs/Omnislice/HandOfGreed; never part of the state.
+        x.CardDamageTotal = 0;
+        x.CardKilledTarget = false;
         x.EffectDepth++;
         FlashGeneratedChoiceOptions savedOptionCards = x.GeneratedOptions;
         int savedGeneratedOptions = x.GeneratedOptionCount;
@@ -323,7 +347,7 @@ public static partial class FlashKernel
             if (result == FlashPile.Exhaust)
                 Exhaust(ref x, FlashPile.Play, playPosition);
             else
-                MoveCard(ref x.B, FlashPile.Play, playPosition, result);
+                MoveCard(ref x.B, FlashPile.Play, playPosition, result, resultPosition);
         }
         // AfterHandEmptied has no supported listeners yet.
     }
@@ -373,6 +397,8 @@ public static partial class FlashKernel
                 battle.AddCounter(FlashCounter.ShivsPlayedThisTurn, 1);
         }
         battle.AddCounter(FlashCounter.CardsPlayedThisTurn, 1);
+        // CardPlayFinished entry: CombatPredictionHistory records one per completed card play.
+        battle.AddCounter(FlashCounter.FinishedCardPlays, 1);
         if (stats.Type == FlashCardType.Skill)
         {
             battle.AddCounter(FlashCounter.SkillCardsPlayedThisTurn, 1);
@@ -429,7 +455,7 @@ public static partial class FlashKernel
     }
 
     /// <summary>Mirrors <c>CardResultLocationMirrors.GetResultLocation</c> for the supported cards.</summary>
-    private static FlashPile ResultLocation(in FlashCard card, FlashCardStats stats, out bool removeFromCombat)
+    private static FlashPile ResultLocation(in FlashBattle battle, in FlashCard card, FlashCardStats stats, out bool removeFromCombat)
     {
         removeFromCombat = false;
         if (stats.Type == FlashCardType.Power)
@@ -437,7 +463,7 @@ public static partial class FlashKernel
             removeFromCombat = true;
             return FlashPile.Play;
         }
-        if ((card.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0 || card.HasKeyword(FlashKeywords.Exhaust))
+        if ((card.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0 || HasKeyword(battle, card, FlashKeywords.Exhaust))
             return FlashPile.Exhaust;
         return FlashPile.Discard;
     }

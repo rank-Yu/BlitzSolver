@@ -112,7 +112,7 @@ public static partial class FlashKernel
         x.B.EnemyCount = checked((byte)(enemyIndex + 1));
         InsertIntoRoster(ref x.B, enemyIndex, slotIndex);
         FlashMonsterDef def = FlashRegistry.Monster(rules.MonsterId);
-        def.ApplyEntrancePowers(ref x, owner);
+        def.ApplyEntrancePowers(ref x, owner, source);
         if (x.NeedsChoice)
             return owner;
         PrepareSpawnedMonster(ref x, owner, rules);
@@ -275,15 +275,19 @@ public static partial class FlashKernel
             FlashHooks.Dispatch(ref x, ref before, gatedByEnding: true);
             if (x.NeedsChoice)
                 return x.B.Player.IsDead;
+            x.AttackUnblockedHits = 0;
             Span<byte> player = stackalloc byte[1];
             player[0] = FlashLimits.PlayerOwner;
+            int attackIndex = 0;
             foreach (FlashMonsterAttack attack in node.Attacks)
             {
-                int repeats = Math.Max(attack.Repeats, 1);
+                int baseDamage = def.ModifyAttackDamage(x.B, x.R, owner, moveNode, attackIndex, attack.BaseDamage);
+                int repeats = Math.Max(
+                    def.ModifyAttackRepeats(x.B, x.R, owner, moveNode, attackIndex, attack.Repeats), 1);
+                attackIndex++;
                 for (int hit = 0; hit < repeats; hit++)
                 {
-                    // AdjustMonsterMoveDamage has no supported special moves yet.
-                    if (Damage(ref x, player, attack.BaseDamage, FlashValueProps.Move, owner, hasCardSource: false, default))
+                    if (Damage(ref x, player, baseDamage, FlashValueProps.Move, owner, hasCardSource: false, default))
                         fullyBlockedAttack = true;
                     if (x.NeedsChoice)
                         return x.B.Player.IsDead;
@@ -339,6 +343,8 @@ public static partial class FlashKernel
         // MonsterMoveSemantics resolves the move's queued power amount changes before normalizing.
         if (!x.NeedsChoice)
             ResolvePowerAmountChanges(ref x);
+        if (!x.NeedsChoice)
+            NormalizeAeonglassWithers(ref x);
         if (!x.NeedsChoice)
             NormalizeCardAfflictions(ref x);
         return x.B.Player.IsDead;

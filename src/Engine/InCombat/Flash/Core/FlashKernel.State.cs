@@ -22,9 +22,20 @@ public static partial class FlashKernel
             return true;
         for (int index = 0; index < battle.RosterCount; index++)
         {
+            byte owner = EnemyOwner(battle.Roster[index]);
             ref readonly FlashEnemy enemy = ref battle.Enemies[battle.Roster[index]];
-            if (enemy.Creature.IsAlive && IsPrimaryEnemy(battle, EnemyOwner(battle.Roster[index])))
+            if (enemy.Creature.IsAlive && IsPrimaryEnemy(battle, owner))
                 return false;
+            // Native Hook.ShouldStopCombatFromEnding over the active listeners (Adaptable, Stock).
+            for (int power = 0; power < battle.PowerCount; power++)
+            {
+                ref readonly FlashPower candidate = ref battle.Powers[power];
+                if (candidate.Owner == owner && candidate.Amount > 0
+                    && FlashRegistry.Power(candidate.Id).PreventsCombatEnding)
+                {
+                    return false;
+                }
+            }
         }
         // Native Hook.ShouldStopCombatFromEnding iterates the active listeners, which no longer hold a
         // removed dead creature's powers, so the existing engine's equivalent stop is

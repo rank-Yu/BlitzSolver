@@ -43,7 +43,9 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 怪物（KM2、KA，2026-10-19）：KM2 补上空 `EncounterModel.Slots` 的槽位回退（未知槽名与现有引擎同为 -1）、失衡眩晕、沉睡、千足虫重接、寄生死亡未结算时阻止战斗结束、Surrounded 与 CurlUp 退役状态的惰性规则、猎杀者的 Tender 计数投影，实现碗虫（普通/弱）、沉睡甲虫、千足虫、异蛙寄生虫、猎杀者、Kaiser Crab、Louse Progenitor；KA 补上卡牌苦难与附魔（导入、施加/清除、归一化、附魔伤害/格挡/重放、尾部 OnPlay，18 个附魔），实现仪式兽、藤蔓蹒跚者、邪恶气体（LIVING_FOG）、注入棱晶与 MysticLighter。`coverage/fixtures/cards/flash-km2-*.json` 8 个、`flash-ka-*.json` 5 个及 12 个新遭遇的 FLASHM1/FLASHM2 自然根，每根 48 条游走零差异、`unsupported=0`。邪恶气体会反复生成毒气弹，极长的战斗可能超出 8 个已知敌人的容量，此时按容量边界回落。
 
-仍跳过：第一幕瀑布巨兽（动态攻击伤害、阻止战斗结束与评估特例）、穿着一件大衣的两只地精（偷窃）；第二幕如下。未实现的附魔（Imbued、Slither、SlumberingEssence、PerfectFit）仍在准入拒绝。
+第三幕（A3，2026-10-19）：实现荣耀的全部 18 个遭遇（25 种新怪物，含 Queen 的强制行动、Aeonglass 的力量与凋零计数、MagiKnight 的 Dampen 降级与恢复、Turret Operator、Soul Nexus、Living Shield 等），19 个 `coverage/fixtures/cards/flash-a3-*.json` 与 18 个遭遇的 FLASHM1/FLASHM2 自然根每根 48 条游走零差异；`FlashCard` 增加 `DampenOriginalUpgrade`，`FlashBattle` 12000 字节。第一、二幕剩余（P16）：剩余 16 张无色卡全部实现，AttackPotion、SkillPotion、PowerPotion、ColorlessPotion 补齐到 `PotionChoiceSupport` 的选择回放翻译后实现，另实现 GigantificationPotion；7 个 `flash-p16-*.json` 零差异。
+
+仍跳过：第一幕瀑布巨兽（动态攻击伤害、阻止战斗结束与评估特例）、穿着一件大衣的两只地精（偷窃）；EntropicBrew（战斗外药水池）；Thrash 的小数卡牌变量仍是显式边界；第二幕如下。未实现的附魔（Imbued、Slither、SlumberingEssence、PerfectFit）仍在准入拒绝。
 
 | 遭遇 | 缺失能力 | 机制位置 |
 | --- | --- | --- |

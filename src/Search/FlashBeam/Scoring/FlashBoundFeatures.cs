@@ -100,12 +100,16 @@ internal sealed class FlashBoundFeatures
 
     public FlashBoundValues Evaluate(in FlashBattle battle, int explicitPotionStrategicCost)
     {
-        int remaining = _config.Certificate switch
-        {
-            FlashHealingCertificate.Component => ComponentRemaining(battle),
-            FlashHealingCertificate.KnownNative => KnownNativeRemaining(battle),
-            _ => int.MaxValue,
-        };
+        // CombatBeamSolver.RemainingHealingPotentialCore: an unresolved risk invalidates the
+        // certificate and returns int.MaxValue regardless of the configured component.
+        int remaining = HasRisk(battle)
+            ? int.MaxValue
+            : _config.Certificate switch
+            {
+                FlashHealingCertificate.Component => ComponentRemaining(battle),
+                FlashHealingCertificate.KnownNative => KnownNativeRemaining(battle),
+                _ => int.MaxValue,
+            };
         int futureUsed = _config.RequireCertifiedHealingProof && _config.PruneEqualHp
             ? remaining
             : Math.Min(remaining, _config.FutureHealPotential);

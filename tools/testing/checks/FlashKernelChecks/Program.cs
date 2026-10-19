@@ -11,7 +11,7 @@ using CombatSolver.Engine.InCombat.Flash.Content.Relics;
 // Pure Flash kernel contracts (K0): no game, no CombatSolver assembly. Differential equivalence
 // with the existing engine is checked separately by the offline harness probe.
 
-Check(Unsafe.SizeOf<FlashCard>() == 90, $"FlashCard 应为 90 字节，实际 {Unsafe.SizeOf<FlashCard>()}");
+Check(Unsafe.SizeOf<FlashCard>() == 92, $"FlashCard 应为 92 字节，实际 {Unsafe.SizeOf<FlashCard>()}");
 Check(Unsafe.SizeOf<FlashEnemy>() == 64, $"FlashEnemy 应为 64 字节，实际 {Unsafe.SizeOf<FlashEnemy>()}");
 Check(Unsafe.SizeOf<FlashPower>() == 24, $"FlashPower 应为 24 字节，实际 {Unsafe.SizeOf<FlashPower>()}");
 Check(Unsafe.SizeOf<FlashRngState>() == 40, $"FlashRngState 应为 40 字节，实际 {Unsafe.SizeOf<FlashRngState>()}");
@@ -28,7 +28,9 @@ CheckKm2Kernel(rules);
 CheckMonsterSpawn(SpawnRules());
 CheckGenerationAndAutoPlay();
 CheckKg2Hooks(rules);
+CheckA3Kernel(rules);
 CheckKaAttachments();
+CheckP16Kernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -141,6 +143,39 @@ static void CheckPiles()
     Check(FlashFingerprint.Equal(copy, battle) && FlashFingerprint.Hash(copy) == FlashFingerprint.Hash(battle), "复制后应字节相同");
 }
 
+// P16 kernel capabilities: the return-to-hand card bit, X-cost SetToFreeThisTurn, and instanced
+// power row addressing.
+static void CheckP16Kernel(FlashRules rules)
+{
+    FlashCard card = new() { Id = 0 };
+    card.ReturnToHandNextTurn = true;
+    card.SetTemporaryStarCost(0, clearsAtTurnEnd: true, clearsWhenPlayed: true);
+    Check(card.ReturnToHandNextTurn, "临时星能费用不应清除 ReturnToHandNextTurn");
+    card.EnchantmentStatus = 3;
+    Check(card.ReturnToHandNextTurn && card.EnchantmentStatus == 3, "附魔状态不应清除 ReturnToHandNextTurn");
+    card.ClearTemporaryStarCost();
+    Check(card.ReturnToHandNextTurn, "费用清理不应清除 ReturnToHandNextTurn");
+    card.ReturnToHandNextTurn = false;
+    Check(!card.ReturnToHandNextTurn && card.EnchantmentStatus == 3, "清除 ReturnToHandNextTurn 不应影响附魔状态");
+
+    // CardEnergyCost.SetThisTurnOrUntilPlayed adds the modifier for X-cost cards (canonical 0).
+    FlashRegistry.TryCard("WHIRLWIND", out ushort whirlwind);
+    FlashCard xCard = FlashKernel.CreateCard(rules, whirlwind);
+    FlashKernel.MakeFreeThisTurn(rules, ref xCard);
+    Check(xCard.EnergyModifierCount == 1 && xCard.HasTemporaryStarCost,
+        "X 费卡的 SetToFreeThisTurn 也应添加 0 费修饰与临时星能费用");
+
+    // Instanced powers share (owner, id); occurrence addresses the exact row.
+    FlashBattle battle = default;
+    battle.PowerCount = 2;
+    battle.Powers[0] = new FlashPower { Id = 1, Owner = FlashLimits.PlayerOwner, Amount = 1 };
+    battle.Powers[1] = new FlashPower { Id = 1, Owner = FlashLimits.PlayerOwner, Amount = 2 };
+    Check(FlashKernel.FindPowerOccurrence(battle, FlashLimits.PlayerOwner, 1, 0) == 0
+        && FlashKernel.FindPowerOccurrence(battle, FlashLimits.PlayerOwner, 1, 1) == 1
+        && FlashKernel.FindLastPower(battle, FlashLimits.PlayerOwner, 1) == 1,
+        "实例 Power 的 occurrence 定位错误");
+}
+
 // Forced moves and the synthetic STUNNED node (SimulatedCombatState.MonsterAi.cs:58-128).
 static void CheckMonsterForcedMoves(FlashRules rules)
 {
@@ -236,9 +271,11 @@ static FlashRules SliceRules()
     FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike);
     FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend);
     FlashRegistry.TryCard("BASH", out ushort bash);
+    FlashRegistry.TryCard("WHIRLWIND", out ushort whirlwind);
     builder.SetCard(strike, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [6m]));
     builder.SetCard(defend, 0, Stats(FlashCardType.Skill, FlashTargetType.Self, 1, [5m]));
     builder.SetCard(bash, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [8m, 2m]));
+    builder.SetCard(whirlwind, 0, Stats(FlashCardType.Attack, FlashTargetType.AllEnemies, 0, [5m], costsX: true));
     FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable);
     builder.SetPowerVars(vulnerable, [1.5m]);
     FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
@@ -268,9 +305,10 @@ static FlashRules SliceRules()
     });
     return builder.Build();
 
-    static FlashCardStats Stats(FlashCardType type, FlashTargetType target, int cost, decimal[] vars) => new()
+    static FlashCardStats Stats(FlashCardType type, FlashTargetType target, int cost, decimal[] vars,
+        bool costsX = false) => new()
     {
-        Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = false,
+        Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = costsX,
         StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None, MaxUpgradeLevel = 1, Vars = vars,
     };
 }
@@ -742,6 +780,67 @@ static int ExpectedHp(ref FlashRngState niche, int minimum, int maximum, IReadOn
 
 // KG2: contracts for the new dispatch points. The helper definitions below are registered only in
 // this pure-kernel executable; they log call order and prove gate, listener scope and multi-pass order.
+static void CheckA3Kernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryPower("A3_TEST_RAMPART_POWER", out ushort rampart), "缺少 A3 Rampart 测试 Power");
+    Check(FlashRegistry.TryRelic("A3_TEST_GENERATED_RELIC", out ushort generatedRelic), "缺少 A3 生成遗物");
+    Check(FlashRegistry.TryPower("A3_TEST_ENDING_POWER", out ushort ending), "缺少 A3 终局测试 Power");
+    Check(FlashRegistry.TryPower("HEX_POWER", out ushort hex), "缺少 HEX_POWER");
+    Check(FlashRegistry.TryAffliction("HEXED", out ushort hexed), "缺少 HEXED");
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD");
+
+    // PersistentPowerSupport.TriggerRampart: the player-side turn start calls the Rampart hook.
+    FlashBattle battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashExec x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, rampart, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    Kg2TestLog.Clear();
+    Span<byte> player = stackalloc byte[1];
+    player[0] = FlashLimits.PlayerOwner;
+    FlashKernel.TriggerSideTurnStart(ref x, FlashSide.Player, player, decrementPlating: false);
+    Check(Kg2TestLog.Lines.Contains("rampart"), "A3 Rampart 派发未生效");
+
+    // AfterCardGeneratedForCombat receives the absolute card position.
+    FlashBattle generated = NewBattle();
+    generated.Flags |= FlashBattleFlags.PlayerHooksActive;
+    generated.RelicCount = 1;
+    generated.Relics[0] = new FlashRelic { Id = generatedRelic };
+    FlashExec g = new(ref generated, rules, default);
+    FlashPiles.Append(ref generated, FlashPile.Hand, FlashKernel.CreateCard(rules,
+        defend));
+    Kg2TestLog.Clear();
+    Check(FlashKernel.AddGeneratedCard(ref g,
+        FlashKernel.CreateCard(rules, defend), FlashPile.Discard),
+        "A3 生成卡加入失败");
+    Check(Kg2TestLog.Lines.Contains("generated-ok"), "A3 AfterCardGeneratedForCombat 位置错误");
+
+    // HexPower.TryModifyKeywordsInCombat gives a Hexed card Ethereal without storing it.
+    FlashBattle keywords = NewBattle();
+    FlashExec k = new(ref keywords, rules, default);
+    FlashCard hexedCard = FlashKernel.CreateCard(rules, defend);
+    hexedCard.AfflictionId = (byte)(hexed + 1);
+    Check(!FlashKernel.HasKeyword(keywords, hexedCard, FlashKeywords.Ethereal), "A3 无 Hex 时不应有 Ethereal");
+    FlashKernel.ApplyPower(ref k, FlashLimits.PlayerOwner, hex, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref k);
+    Check(FlashKernel.HasKeyword(keywords, hexedCard, FlashKeywords.Ethereal), "A3 Hex 未授予 Ethereal");
+
+    // ShouldStopCombatFromEnding: a positive flag keeps the ending check false.
+    FlashBattle endingBattle = NewBattle();
+    endingBattle.EnemyCount = 1;
+    endingBattle.RosterCount = 1;
+    endingBattle.Roster[0] = 0;
+    ref FlashEnemy enemy = ref endingBattle.Enemies[0];
+    enemy.Creature.Flags = FlashCreatureFlags.Present;
+    enemy.Creature.CurrentHp = 0;
+    enemy.Flags = FlashEnemyFlags.InCombat;
+    endingBattle.PowerCount = 1;
+    endingBattle.Powers[0] = new FlashPower { Id = ending, Owner = FlashLimits.FirstEnemyOwner, Amount = 1 };
+    Check(!FlashKernel.IsEnding(endingBattle), "A3 PreventsCombatEnding 未阻止终局");
+    endingBattle.Powers[0].Amount = 0;
+    Check(FlashKernel.IsEnding(endingBattle), "A3 无阻止 Power 时终局应成立");
+}
+
 static void CheckKg2Hooks(FlashRules rules)
 {
     Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD 定义");
@@ -792,8 +891,9 @@ static void CheckKg2Hooks(FlashRules rules)
     FlashKernel.ResolvePowerAmountChanges(ref x);
     Span<FlashListener> locationModifiers = stackalloc FlashListener[FlashHooks.MaxListenerCount];
     FlashPile location = FlashHooks.ModifyCardPlayResultLocation(ref x, card, false, 0, FlashPile.Discard,
-        locationModifiers, out int locationCount);
-    Check(location == FlashPile.Exhaust && locationCount == 1, "KG2 去向 Hook 未生效");
+        locationModifiers, out int locationCount, out FlashPilePosition locationPosition);
+    Check(location == FlashPile.Draw && locationPosition == FlashPilePosition.Top && locationCount == 1,
+        "KG2 去向 Hook 未生效（含 Draw/Top 位置）");
     FlashHooks.AfterModifyingCardPlayResultLocation(ref x, card, location, locationModifiers[..locationCount]);
     Check(Kg2TestLog.Lines.Contains("location-after"), "KG2 去向 After Hook 未派发");
 
@@ -820,6 +920,7 @@ static void CheckKg2Hooks(FlashRules rules)
         FlashLimits.PlayerOwner);
     FlashKernel.ResolvePowerAmountChanges(ref x);
     Check(Kg2TestLog.Lines.Contains("power-changed"), "KG2 AfterPowerAmountChanged 未派发");
+    Check(Kg2TestLog.Lines.Contains("power-changed-target"), "KG2 AfterPowerAmountChanged 未传目标");
     Check(!Kg2TestLog.Lines.Contains("power-changed-relic"), "KG2 AfterPowerAmountChanged 不应派发遗物");
 
     // AfterShuffle, ModifyXValue, ShouldPlayerResetEnergy, AfterCardEnteredCombat.
@@ -1056,7 +1157,11 @@ public sealed class Kg2TestResultLocationPower : FlashPowerDef
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
     public override FlashPile ModifyCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
-        bool isAutoPlay, int energyValue, FlashPile location) => FlashPile.Exhaust;
+        bool isAutoPlay, int energyValue, FlashPile location, out FlashPilePosition position)
+    {
+        position = FlashPilePosition.Top;
+        return FlashPile.Draw;
+    }
 
     public override void AfterModifyingCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
         FlashPile location) => Kg2TestLog.Add("location-after");
@@ -1084,14 +1189,53 @@ public sealed class Kg2TestPowerChangePower : FlashPowerDef
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
     public override void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
-        byte applier) => Kg2TestLog.Add("power-changed");
+        byte applier, byte target)
+    {
+        Kg2TestLog.Add("power-changed");
+        if (target == FlashLimits.FirstEnemyOwner)
+            Kg2TestLog.Add("power-changed-target");
+    }
 }
 
 [FlashContent("KG2_TEST_POWER_CHANGE_RELIC")]
 public sealed class Kg2TestPowerChangeRelic : FlashRelicDef
 {
     public override void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
-        byte applier) => Kg2TestLog.Add("power-changed-relic");
+        byte applier, byte target) => Kg2TestLog.Add("power-changed-relic");
+}
+
+[FlashContent("A3_TEST_RAMPART_POWER")]
+public sealed class A3TestRampartPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void Rampart(ref FlashExec x, FlashListener self) => Kg2TestLog.Add("rampart");
+}
+
+[FlashContent("A3_TEST_GENERATED_RELIC")]
+public sealed class A3TestGeneratedRelic : FlashRelicDef
+{
+    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position)
+    {
+        bool matches = (uint)position < (uint)x.B.CardCount
+            && FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort expected)
+            && x.B.Cards[position].Id == expected;
+        Kg2TestLog.Add(matches ? "generated-ok" : "generated-wrong-position");
+    }
+}
+
+[FlashContent("A3_TEST_ENDING_POWER")]
+public sealed class A3TestEndingPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override bool PreventsCombatEnding => true;
+
+    public override bool ShouldPowerBeRemovedAfterOwnerDeath => false;
 }
 
 [FlashContent("KG2_TEST_X_VALUE_RELIC")]

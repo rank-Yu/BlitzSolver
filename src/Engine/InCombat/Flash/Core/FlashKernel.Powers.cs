@@ -16,6 +16,58 @@ public static partial class FlashKernel
         return -1;
     }
 
+    /// <summary>
+    /// Index of the <paramref name="occurrence"/>-th instance of <paramref name="powerId"/> on
+    /// <paramref name="owner"/> in table order, or -1. Instanced powers share (owner, id), so a
+    /// listener snapshot must keep the occurrence to address the exact row after a removal.
+    /// </summary>
+    public static int FindPowerOccurrence(in FlashBattle battle, byte owner, ushort powerId, int occurrence)
+    {
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref battle.Powers[index];
+            if (power.Owner != owner || power.Id != powerId)
+                continue;
+            if (occurrence-- == 0)
+                return index;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Index of the most recently added instance of <paramref name="powerId"/> on <paramref name="owner"/>,
+    /// or -1. Used by a card after applying an instanced power to initialize that exact instance.
+    /// </summary>
+    public static int FindLastPower(in FlashBattle battle, byte owner, ushort powerId)
+    {
+        int found = -1;
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref battle.Powers[index];
+            if (power.Owner == owner && power.Id == powerId)
+                found = index;
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// <c>CorePowerSupport</c>'s <c>targetDeathTriggersFatal</c>: every power on the target allows its
+    /// owner's death to count as a fatal kill (HandOfGreed, Feed, TheHunt).
+    /// </summary>
+    public static bool TargetDeathTriggersFatal(in FlashBattle battle, byte owner)
+    {
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref battle.Powers[index];
+            if (power.Owner != owner)
+                continue;
+            if (!FlashRegistry.Power(power.Id).ShouldOwnerDeathTriggerFatal(battle,
+                    new FlashListener(FlashListenerKind.Power, (byte)index, owner)))
+                return false;
+        }
+        return true;
+    }
+
     /// <summary>Mirrors <c>SimulatedCombatState.GetAmount&lt;T&gt;</c>.</summary>
     public static int GetAmount(in FlashBattle battle, byte owner, ushort powerId)
     {
@@ -121,7 +173,7 @@ public static partial class FlashKernel
             RemovePowerAt(ref battle, index);
         // RecordPowerAmountChange: resolved later by ResolvePowerAmountChanges at the same points as
         // the existing engine (after card effects, turn phases, enemy moves and enemy death powers).
-        x.RecordPowerAmountChange(powerId, applied, applier);
+        x.RecordPowerAmountChange(powerId, applied, applier, target);
         return applied;
     }
 
@@ -152,6 +204,7 @@ public static partial class FlashKernel
                     PowerId = change.PowerId,
                     Delta = change.Delta,
                     Applier = change.Applier,
+                    Target = change.Target,
                 };
                 FlashHooks.DispatchPowerHook(ref x, ref hook);
                 if (x.NeedsChoice)

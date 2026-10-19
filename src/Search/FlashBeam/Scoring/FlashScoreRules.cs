@@ -29,6 +29,9 @@ internal enum FlashStrategicKind : byte
     Furnace,
     Thunder,
     LightningRod,
+
+    /// <summary>Automation/Orbit: recurring energy from the refund window (StrategicEffectModel).</summary>
+    RecurringEnergy,
 }
 
 /// <summary>Port of <c>StrategicEffectRequirements</c>; bit values must match the existing enum.</summary>
@@ -79,6 +82,7 @@ internal enum FlashCalculatedKind : byte
     TargetVulnerable,
     DrawPileCount,
     TargetDebuffPowerCount,
+    FinishedCardPlays,
 
     /// <summary>A registered calculated-damage card the port does not model; the root is rejected.</summary>
     Unsupported,
@@ -238,6 +242,8 @@ internal sealed class FlashScoreRules
     public ushort IllusionPowerId { get; init; } = ushort.MaxValue;
 
     public ushort ReattachPowerId { get; init; } = ushort.MaxValue;
+
+    public ushort AdaptablePowerId { get; init; } = ushort.MaxValue;
 
     public ushort BodySlamCardId { get; init; } = ushort.MaxValue;
 

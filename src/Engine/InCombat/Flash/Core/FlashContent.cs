@@ -170,6 +170,12 @@ public enum FlashHookMask : ulong
     AfterModifyingPowerAmountReceived = 1UL << 51,
     AfterCardEnteredCombat = 1UL << 52,
 
+    /// <summary><c>PersistentPowerSupport.TriggerRampart</c>: player-side turn start, after the owner passes.</summary>
+    Rampart = 1UL << 53,
+
+    /// <summary><c>HookMirrors.AfterCardGeneratedForCombat</c> (Aeonglass upgrades generated Withers).</summary>
+    AfterCardGeneratedForCombat = 1UL << 54,
+
     /// <summary>
     /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
     /// cards outside combat; a root whose deck holds a card implementing one of them is rejected.
@@ -250,6 +256,16 @@ public abstract class FlashContentDef
 /// </summary>
 public abstract class FlashListenerDef : FlashContentDef
 {
+    /// <summary>Case in <c>PersistentPowerSupport.TriggerRampart</c> (player-side turn start only).</summary>
+    public virtual void Rampart(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary><c>HookMirrors.AfterCardGeneratedForCombat</c> for the card at <paramref name="position"/>.</summary>
+    public virtual void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position)
+    {
+    }
+
     public virtual decimal ModifyDamageAdditive(ref FlashExec x, FlashListener self, in FlashDamageContext damage, decimal amount) => 0m;
 
     public virtual decimal ModifyDamageMultiplicative(ref FlashExec x, FlashListener self, in FlashDamageContext damage, decimal amount) => 1m;
@@ -402,10 +418,16 @@ public abstract class FlashListenerDef : FlashContentDef
 
     /// <summary>
     /// Native <c>ModifyCardPlayResultLocation</c> (<c>CardModel.OnPlayWrapper</c>), after the base
-    /// result location. <paramref name="energyValue"/> is <c>CardPlay.Resources.EnergyValue</c>.
+    /// result location. <paramref name="energyValue"/> is <c>CardPlay.Resources.EnergyValue</c>;
+    /// <paramref name="position"/> is the native <c>CardLocation.position</c> (Nostalgia returns to
+    /// the top of the draw pile; the base locations are Bottom).
     /// </summary>
     public virtual FlashPile ModifyCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
-        bool isAutoPlay, int energyValue, FlashPile location) => location;
+        bool isAutoPlay, int energyValue, FlashPile location, out FlashPilePosition position)
+    {
+        position = FlashPilePosition.Bottom;
+        return location;
+    }
 
     /// <summary>
     /// <c>CardModel.OnPlayWrapper</c>'s direct dispatch over the modifiers that changed the result
@@ -436,7 +458,7 @@ public abstract class FlashListenerDef : FlashContentDef
     /// <c>ApplyWithBeforeApplied</c>. The existing engine dispatches this over the current powers only.
     /// </summary>
     public virtual void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
-        byte applier)
+        byte applier, byte target)
     {
     }
 
@@ -646,10 +668,21 @@ public abstract class FlashPowerDef : FlashListenerDef
     public virtual bool PreventsRemovalAfterDeath => false;
 
     /// <summary>
+    /// Native <c>ShouldStopCombatFromEnding</c> for a power on a roster creature (Adaptable, Stock).
+    /// </summary>
+    public virtual bool PreventsCombatEnding => false;
+
+    /// <summary>
     /// Native <c>PowerModel.ShouldPowerBeRemovedAfterOwnerDeath</c>, read by
     /// <c>SimulatedCombatState.RemovePowersAfterDeath</c>.
     /// </summary>
     public virtual bool ShouldPowerBeRemovedAfterOwnerDeath => true;
+
+    /// <summary>
+    /// Native <c>PowerModel.ShouldOwnerDeathTriggerFatal</c> (true by default; MinionPower and a
+    /// ReattachPower with living segments return false). HandOfGreed reads it before gaining gold.
+    /// </summary>
+    public virtual bool ShouldOwnerDeathTriggerFatal(in FlashBattle battle, FlashListener self) => true;
 
     /// <summary>Native <c>ITemporaryPower</c>: a temporary debuff survives an illusion owner's death.</summary>
     public virtual bool IsTemporaryPower => false;
@@ -879,6 +912,13 @@ public abstract class FlashMonsterDef : FlashListenerDef
     public virtual IReadOnlyList<string> StaticIntNames => [];
 
     /// <summary>
+    /// Root-frozen power amounts (native power ids) compiled into
+    /// <see cref="FlashMonsterRules.RootPowerAmounts"/>, for dynamic move damage whose baseline is the
+    /// amount at root import (<c>SimulatedCombatState._rootPowerAmounts</c>).
+    /// </summary>
+    public virtual IReadOnlyList<string> RootPowerAmountNames => [];
+
+    /// <summary>
     /// Native ids of the monster types this monster can summon. The rule compiler closes over them
     /// transitively and compiles one rule entry per type.
     /// </summary>
@@ -913,6 +953,20 @@ public abstract class FlashMonsterDef : FlashListenerDef
     }
 
     /// <summary>
+    /// <see cref="ApplyEntrancePowers(ref FlashExec, byte)"/> with the summoning owner, for entrance
+    /// values that depend on the source (Axebot's replacement StockPower).
+    /// </summary>
+    public virtual void ApplyEntrancePowers(ref FlashExec x, byte owner, byte source)
+        => ApplyEntrancePowers(ref x, owner);
+
+    /// <summary>
+    /// Native <c>MonsterModel.StockAmount</c> used when the rule compiler creates this type's spawn
+    /// rule entry, or -1 to use the canonical model. Axebot's replacement starts from BOOT_UP_MOVE
+    /// and a +10 HP range, which requires a non-null StockAmount at compile time.
+    /// </summary>
+    public virtual int SpawnStockAmount => -1;
+
+    /// <summary>
     /// The part of a move the existing engine runs before its attacks
     /// (<c>MonsterMoveEffects.ApplyBeforeAttack</c>), for example Living Fog's BLOAT_MOVE summon.
     /// </summary>
@@ -927,6 +981,23 @@ public abstract class FlashMonsterDef : FlashListenerDef
     public virtual void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
     {
     }
+
+    /// <summary>
+    /// Test Subject style forms: the scorer's effective HP adds the later forms' HP from the AI
+    /// registers while AdaptablePower keeps the body in combat.
+    /// </summary>
+    public virtual bool HasAdaptableFormHp => false;
+
+    /// <summary>
+    /// Special attack damage (<c>SimulatedCombatState.AdjustMonsterMoveDamage</c>): the compiled base
+    /// damage plus the move's dynamic adjustment, clamped to zero by the damage pipeline.
+    /// </summary>
+    public virtual int ModifyAttackDamage(in FlashBattle battle, FlashRules rules, byte owner, int moveNode,
+        int attackIndex, int damage) => damage;
+
+    /// <summary>Special attack hit count (<c>BranchMonsterAi.CurrentMove</c>, Test Subject's MULTI_CLAW).</summary>
+    public virtual int ModifyAttackRepeats(in FlashBattle battle, FlashRules rules, byte owner, int moveNode,
+        int attackIndex, int repeats) => repeats;
 
     /// <summary>
     /// Special conditional-branch resolution (<c>BranchMonsterAi.ResolveConditional</c>); return -1

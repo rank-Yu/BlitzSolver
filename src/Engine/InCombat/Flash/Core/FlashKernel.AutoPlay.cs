@@ -15,7 +15,7 @@ public static partial class FlashKernel
             return false;
         FlashCard card = FlashPiles.At(ref x.B, pile, index);
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-        if (card.HasKeyword(FlashKeywords.Unplayable)
+        if (HasKeyword(x.B, card, FlashKeywords.Unplayable)
             || !ShouldPlay(x.B, x.R, card)
             || !TryResolveAutoPlayTarget(ref x.B, stats, ref target))
         {
@@ -51,7 +51,7 @@ public static partial class FlashKernel
         if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
             return false;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-        if (card.HasKeyword(FlashKeywords.Unplayable)
+        if (HasKeyword(x.B, card, FlashKeywords.Unplayable)
             || !ShouldPlay(x.B, x.R, card)
             || !TryResolveAutoPlayTarget(ref x.B, stats, ref target))
         {
@@ -180,7 +180,7 @@ public static partial class FlashKernel
                 return;
         }
         ref FlashCard stored = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
-        if ((stored.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0 || stored.HasKeyword(FlashKeywords.Exhaust))
+        if ((stored.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0 || HasKeyword(x.B, stored, FlashKeywords.Exhaust))
             Exhaust(ref x, FlashPile.Play, position);
         else
             MoveCard(ref x.B, FlashPile.Play, position, FlashPile.Discard);

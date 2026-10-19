@@ -117,6 +117,17 @@ public enum FlashCounter : byte
     /// <see cref="SkillCardsPlayedThisTurn"/>, which the evaluation and Letter Opener consume.
     /// </summary>
     SkillPlayedThisSideTurn,
+
+    /// <summary>
+    /// Combat-long finished card plays (<c>SimulatedCombatState.GetFinishedPlaysBeforePrediction</c>
+    /// plus every completed play in this search): the GoldAxe calculated-damage multiplier
+    /// (<c>CalculatedVarSpecRegistry.CountFinishedCardPlays</c>).
+    /// </summary>
+    FinishedCardPlays,
+    /// Bitmask of enemy owners whose MagiKnight applied DampenPower to the player
+    /// (<c>SimulatedCombatState._dampenCasters</c>), one bit per enemy owner index.
+    /// </summary>
+    DampenCasterMask,
 }
 
 /// <summary>
@@ -128,7 +139,7 @@ public enum FlashCounter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashBattle
 {
-    public const int ExpectedSize = 11808;
+    public const int ExpectedSize = 12000;
 
     public int Round;
     public int PlayerTurn;

@@ -105,6 +105,7 @@ public struct FlashCard
     private const byte TemporaryStarClearsAtTurnEndBit = 0x02;
     private const byte TemporaryStarClearsWhenPlayedBit = 0x04;
     private const byte CloneBit = 0x08;
+    private const byte ReturnToHandNextTurnBit = 0x10;
     private const int EnchantmentStatusShift = 5;
 
     public ushort Id;
@@ -118,9 +119,9 @@ public struct FlashCard
 
     /// <summary>
     /// Bit 0: temporary star cost present; bit 1: it clears at turn end; bit 2: it clears when
-    /// played; bit 3: <see cref="IsClone"/>; bit 4 unused; bits 5-7: native enchantment status. The
-    /// energy modifier count has its own byte so the capacity is not limited to the two bits the
-    /// packed state used to have.
+    /// played; bit 3: <see cref="IsClone"/>; bit 4: <see cref="ReturnToHandNextTurn"/>; bits 5-7:
+    /// native enchantment status. The energy modifier count has its own byte so the capacity is not
+    /// limited to the two bits the packed state used to have.
     /// </summary>
     public byte CostState;
 
@@ -140,6 +141,12 @@ public struct FlashCard
 
     /// <summary>Card-private counter (Claw, Rampage, GeneticAlgorithm and similar).</summary>
     public short Private;
+
+    /// <summary>
+    /// While MagiKnight's DampenPower has the card downgraded, the upgrade level before the downgrade
+    /// plus one (0 = not dampened). Restoring the caster's death re-applies that many upgrades.
+    /// </summary>
+    public byte DampenOriginalUpgrade;
 
     public int EnergyModifierCount
     {
@@ -161,6 +168,17 @@ public struct FlashCard
     {
         readonly get => (CostState & CloneBit) != 0;
         set => CostState = (byte)((CostState & ~CloneBit) | (value ? CloneBit : 0));
+    }
+
+    /// <summary>
+    /// Native <c>SimulatedCombatState._returnToHandNextTurn</c> membership (Bolas and ThrummingHatchet):
+    /// the card goes back to hand at the next player turn's BeforeHandDraw. The existing engine keeps
+    /// the played card object in a set; Flash carries the same membership on the card value.
+    /// </summary>
+    public bool ReturnToHandNextTurn
+    {
+        readonly get => (CostState & ReturnToHandNextTurnBit) != 0;
+        set => CostState = (byte)((CostState & ~ReturnToHandNextTurnBit) | (value ? ReturnToHandNextTurnBit : 0));
     }
 
     public readonly bool HasTemporaryStarCost => (CostState & TemporaryStarPresentBit) != 0;

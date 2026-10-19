@@ -43,6 +43,8 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 
 模型私有状态（`FlashStateProjections`）：`PredictionStateStore` 的每个条目都必须被某个投影认领（按 Power/遗物写入 `FlashPower.Aux*` 或遗物计数，值取条目，没有条目时取条目构造器会读取的模型数据），或被证明无效；其余条目一律拒绝。无效条目有下列几类：等于当前 Power 数量的 `PowerAmountPredictionState`（同步时只会被删除）；敌方生物离开战斗后其 Power 的任何条目（现有引擎只经由仍在战斗中的生物身上的 Power 读取条目，离场的敌人不会回来）；以及**退役条目**——Power 归零移除后残留、且其值已不可能再被任何结算读取的条目。新增投影与对应 Flash 定义一起提交，差分探针逐步比较投影值。
 
+P16 新增的投影：实例型 Power 每个原生实例导入为一行，`AutomationPower.Aux0` 取 `AutomationPredictionState.CardsLeft`（无条目时取 `DisplayAmount`），`PanachePower.Aux0/Aux1` 取 `PanachePredictionState.CardsLeft/AlreadyApplied`（无条目时由模型构造同类型状态读取），`TheBombPower.Aux0` 取 `DynamicVars.Damage`；`RollingBoulderPower` 只有 Amount。`_addedPowerInstances`/`_rootMultiInstancePowerClones` 不再整体拒绝，因为 `EffectivePowers()` 已给出每个实例，导入按监听顺序写行。`_returnToHandNextTurn` 按原牌对象投影到 `FlashCard.ReturnToHandNextTurn`。`GigantificationPower` 的私有 `State.CommandToModify` 在稳定边界必须为空，活着的实例由 `ProjectPower` 认领；最后 1 层结算后模型归零、条目仍空闲残留，按惰性处理（读取点只遍历正层 `EffectivePowers`，重新获得是新的原生实例）。
+
 退役条目的认领规则与现有实现：
 
 - `SurroundedPower`（KAISER_CRAB_BOSS）：玩家死亡时 `HandlePlayerDeath` 清空玩家 Power，`SurroundedPredictionState` 仍按退役的 Power 实例留在 store。`Facing` 只被 `BeforeCardPlayed` 与 `ModifyDamageMultiplicative` 读取，而这两个入口都只在玩家存活、Power 仍为正层时遍历 `EffectivePowers`；退役实例不可能再被遍历，因此按惰性处理（`RequireAllClaimed` 放过 `SurroundedPower { Amount: 0 }` 的 `SurroundedPredictionState`）。存活时其值由 `ProjectPower` 认领并写入 `FlashPower.Aux0`。
@@ -52,7 +54,15 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 
 `FlashKernel.ApplyEnemyDeathPowers` 在清空死亡 Power 之前按 `FlashPowerDef.DeathTrigger` 执行 `DeathPowerSupport.Trigger` 的死亡分支（Reattach、Infested、Surrounded 的朝向更新）；Reattach 段的导入允许 `Reviving` 阶段配原生 `DEAD_MOVE`/`REATTACH_MOVE`，只有幻象型怪物要求 `Reviving` 必须处于合成 `REVIVE_MOVE`。
 
-怪物私有整数（`_monsterIntStates`）走同一条认领规则：`FlashStateProjections.ProjectMonster` 按已知敌人的 `FlashMonsterDef.AiRegisterNames` 把值写入 `FlashEnemy.Ai`，并按 `InertMonsterIntNames` 认领只被状态指纹/续接文本读取的条目（目前是乐加维林族母与沉睡甲虫的 `_isAwake`）。寄存器取值调用现有 `GetMonsterInt`，即优先捕获条目、没有条目时读模型字段，所以惰性条目与缺失条目的投影相同。其余条目一律按 `UnrepresentableState` 拒绝；`DescribeFlashUnrepresentableState` 不再整体拒绝 `_monsterIntStates`。
+怪物私有整数（`_monsterIntStates`）走同一条认领规则：`FlashStateProjections.ProjectMonster` 按已知敌人的 `FlashMonsterDef.AiRegisterNames` 把值写入 `FlashEnemy.Ai`，并按 `InertMonsterIntNames` 认领只被状态指纹/续接文本读取的条目（目前是乐加维林族母与沉睡甲虫的 `_isAwake`）。寄存器取值调用现有 `GetMonsterInt`，即优先捕获条目、没有条目时读模型字段，所以惰性条目与缺失条目的投影相同。其余条目一律按 `UnrepresentableState` 拒绝；`DescribeFlashUnrepresentableState` 不再整体拒绝 `_monsterIntStates`。A3 的 `AiRegisterNames` 另外覆盖 Fabricator 的 `fabricator_last_spawn`（走 `GetFabricatorLastSpawn` 的模型字段映射）、TestSubject 的 `_respawns`/`_extraMultiClawCount`/`SecondFormHp`/`ThirdFormHp`，以及 Aeonglass 的 `AdditionalStrength`/`WitherUpgradeCount`（`GetMonsterIntForFlash` 对 Aeonglass 走 `ReadAeonglassCounter`：有分支字典条目取条目，否则读模型字段）。
+
+A3 的分支字典投影与退役规则：
+
+- **Aeonglass 计数器**：`_aeonglassAdditionalStrength`/`_aeonglassWitherUpgradeCount` 的每个键必须是已知的 Aeonglass，否则拒绝；值经 AI 寄存器投影。`NormalizeAeonglassWithers` 不读字典之外的状态，Wither 的伪升级只用卡牌 Damage 变量偏移表示（每级 +3，Wither 无其他变量来源）。
+- **Dampen**：`_dampenCasters` 投影为 `FlashCounter.DampenCasterMask`（每个 (玩家, 施法者) 一位），`_dampenOriginalUpgrades` 投影为每张卡的 `DampenOriginalUpgrade = 原等级 + 1`。每个施法者/卡牌条目都必须能在已知敌人/当前牌堆中找到，否则拒绝；最后施法者死亡时由卡牌字段恢复等级。
+- **Possess**：`_stolenStrength`/`_stolenDexterity` 的键必须是已知敌人与玩家，值投影到对应 Possess Power 的 Aux0；没有条目即构造器的 0。Power 死亡时按该值返还，条目随现有引擎的返还删除。
+- **Nemesis**：`_nemesisShouldApplyIntangible` 按生物投影到 `NEMESIS_POWER.Aux0`；键必须是已知敌人。Power 归零后条目仍按生物保留，重新获得同一 Power 时读同一值，因此不是丢弃状态。
+
 
 **退役状态的玩家死亡前提**：上面的惰性规则要求 `model.Amount == 0`、`model.Owner.Player` 存在且该玩家生物在模拟状态里已经死亡；存活玩家的退役 Power 状态仍被拒绝，不把“暂时归零但仍可能被读”的情况放宽。
 

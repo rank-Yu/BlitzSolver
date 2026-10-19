@@ -39,6 +39,7 @@ public static partial class FlashKernel
         byte attacker = FlashLimits.PlayerOwner;
         if (x.B.Creature(attacker).IsDead)
             return;
+        x.AttackUnblockedHits = 0;
         // BeginAttackContext: BeforeAttack iterates the combat listeners behind the ending gate
         // (HookMirrors.BeforeAttack). ModifyAttackHitCount has no supported listeners yet.
         BeforeAttackHook before = new() { Attacker = attacker, Props = props };
@@ -103,7 +104,33 @@ public static partial class FlashKernel
             if (!TryDamageTarget(ref x, target, amount, props, dealer, hasCardSource, cardSource, results, ref count))
                 return false;
         }
+        // Capture the damage before the result hooks run: a hook may deal nested damage and overwrite
+        // the "last damage" fields. Fisticuffs sums the whole card play; Omnislice reads this call's
+        // amount (TotalDamage + OverkillDamage) for the copied hit.
+        int total = 0;
+        int overkill = 0;
+        for (int index = 0; index < count; index++)
+        {
+            // Native DamageResult.TotalDamage is BlockedDamage + UnblockedDamage; OverkillDamage is
+            // the part beyond the target's HP. Fisticuffs sums TotalDamage + OverkillDamage.
+            total += results[index].BlockedDamage + results[index].UnblockedDamage;
+            overkill += results[index].OverkillDamage;
+            if (hasCardSource)
+            {
+                x.CardDamageTotal += results[index].BlockedDamage + results[index].UnblockedDamage
+                    + results[index].OverkillDamage;
+                if (results[index].WasTargetKilled && dealer == FlashLimits.PlayerOwner)
+                    x.CardKilledTarget = true;
+            }
+        }
+        x.LastDamageTotal = total;
+        x.LastDamageOverkill = overkill;
         ProcessDamageResults(ref x, results[..count], dealer);
+        for (int index = 0; index < count; index++)
+        {
+            if (results[index].Receiver == FlashLimits.PlayerOwner && results[index].UnblockedDamage > 0)
+                x.AttackUnblockedHits++;
+        }
         for (int index = 0; index < count; index++)
         {
             if (results[index].WasFullyBlocked)

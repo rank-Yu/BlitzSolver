@@ -25,12 +25,13 @@
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
 | Potions | 各槽药水 Id 与标志 | 5 |
 | Orbs | `FlashOrb`：球 Id、累积值；容量与数量 | 10 |
-| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除 | 48 |
+| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）、`FinishedCardPlays`（GoldAxe 的整场完成出牌数）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`CardDamageTotal` 等按次出牌伤害历史只在 `FlashExec`。 | 48 |
+| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`DampenCasterMask` 是 MagiKnight 对玩家施加 DampenPower 的施法者位集合（按敌人 owner 下标一位一个） | 48 |
 | Rng | 九条战斗 RNG：计数器加四个 64 位状态字 | 9 |
 
 ### 2.1 FlashCard
 
-`FlashCard` 是卡牌的完整值，当前 90 字节。字段集以旧引擎卡牌状态键（`CaptureCardStateFingerprintForTesting`、`CardChoiceSupport.ChoiceCardKey`）为准：
+`FlashCard` 是卡牌的完整值，当前 92 字节。字段集以旧引擎卡牌状态键（`CaptureCardStateFingerprintForTesting`、`CardChoiceSupport.ChoiceCardKey`）为准：
 
 - 卡牌 Id、升级等级、本地关键字位图；
 - 费用：基础费用（含 X 费标志）、费用修饰栈（本场、本回合、直到打出、临时；容量 16，Stomp 每打出一张攻击追加一条 EndOfTurn 修饰）、星能费用；修饰数量使用独立字节，不再压进 `CostState` 的两位；
@@ -39,7 +40,10 @@
 - 语义动态变量相对规则表基础值的增量（两格），以及少数卡牌的私有计数（Claw、Rampage、GeneticAlgorithm、Maul、MadScience、TheScythe 这类）；
 - 附魔 Id、数量、状态，以及 Glam、Momentum 这类附魔私有字段；
 - 苦难 Id 与数量；
+- `IsClone`（原版 `CardModel.IsClone`）：占用 `CostState` 的 bit 3（bit 0–2 是临时星能费用标志，bit 4 是 `ReturnToHandNextTurn`，bit 5–7 是附魔状态）；克隆卡跳过 `AfterCardEnteredCombat` 的卡牌专属部分（Stomp 等），由 `CloneCard` 置位，导入时从原版卡读取。
+- `ReturnToHandNextTurn`（Bolas/ThrummingHatchet，`CostState` bit 4）：对应 `SimulatedCombatState._returnToHandNextTurn` 的成员关系；导入时按原牌对象投影，`BeforeHandDraw` 的返回手牌阶段清位。
 - `IsClone`（原版 `CardModel.IsClone`）：占用 `CostState` 的 bit 3（bit 0–2 是临时星能费用标志，bit 5–7 是附魔状态）；克隆卡跳过 `AfterCardEnteredCombat` 的卡牌专属部分（Stomp 等），由 `CloneCard` 置位，导入时从原版卡读取。
+- `DampenOriginalUpgrade`：卡牌被 MagiKnight 的 DampenPower 降级前的升级等级加一（0 表示未降级）。`DowngradeCard` 在把卡牌重置到 0 级动态变量、基础费用与本地关键字时写入；`RestoreDampenedCards` 在最后一个施法者死亡时按该值逐级恢复。
 
 `FlashCardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`FlashKeywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸仍是 90 字节。
 
@@ -51,12 +55,12 @@
 
 ### 2.3 Power 顺序
 
-`Powers` 按持有者分组，组的顺序就是 Hook 监听顺序里各生物的顺序；组内按获得顺序排列。新 Power 追加到持有者组末尾，对应旧引擎"插在持有者最后一个 Power 之后"的规则。数量归零的 Power 立即移除并压实，之后重新获得时排在组末，对应旧引擎退休根槽位的语义。
+`Powers` 按持有者分组，组的顺序就是 Hook 监听顺序里各生物的顺序；组内按获得顺序排列。新 Power 追加到持有者组末尾，对应旧引擎"插在持有者最后一个 Power 之后"的规则。数量归零的 Power 立即移除并压实，之后重新获得时排在组末，对应旧引擎退休根槽位的语义。实例型 Power 每个原生实例一行，同一 `(owner, id)` 的多行按获得顺序排列；Hook 与阶段遍历保存 occurrence 以定位到确切实例，而不是只按 `(owner, id)` 取第一行。
 
 ### 2.4 编码约定
 
 - 药水槽、附魔、苦难存"内部 Id + 1"，0 表示空。卡牌、Power、遗物、怪物直接存内部 Id。
-- `FlashCard.CostState` 的 bit 3 是 `IsClone`；设置/清除临时星能费用和附魔状态时必须保留该位。
+- `FlashCard.CostState` 的 bit 3 是 `IsClone`、bit 4 是 `ReturnToHandNextTurn`；设置/清除临时星能费用和附魔状态时必须保留这两位。
 - 敌人是否为主要敌人不存标志，与旧引擎一样由其持有的 Power 推出（`OwnerIsSecondaryEnemy`）。
 - `FlashEnemy.Rules` 是 `FlashRules` 怪物规则表的下标。根已知敌人按 `KnownEnemies` 下标占据表的前 `RootEnemyCount` 项，之后每个可生成怪物类型一项；已知敌人数组只追加，所以新敌人的规则编号由怪物 Id 查可生成表（`FlashRules.SpawnRulesId`）。
 - `FlashEnemy.Slot` 是遭遇槽下标（`FlashRules.EncounterSlots` 的顺序），没有槽名时为 255。名单（`Roster`）按槽下标稳定升序，255 视作 -1 排在有名字的槽位之前；名单顺序就是 Hook 监听与敌方行动顺序。
@@ -92,6 +96,6 @@
 
 ## 6. 尺寸预算
 
-`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充。`FlashCard` 为 90 字节（96 张，费用修饰容量 16），`FlashBattle` 实测 11808 字节。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸。K0 在同一台机器上测得 `copyOnly` 约 307 ns、`copyStep` 约 1.85 µs。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，其余三个字节继续填充。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，新增 `DampenOriginalUpgrade`），`FlashBattle` 实测 12000 字节。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 307 ns、`copyStep` 约 1.85 µs。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
 
 Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。

@@ -432,11 +432,12 @@ public struct AfterPowerAmountChangedHook : IFlashActionHook
     public ushort PowerId;
     public int Delta;
     public byte Applier;
+    public byte Target;
 
     public static FlashHookMask Mask => FlashHookMask.AfterPowerAmountChanged;
 
     public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
-        => definition.AfterPowerAmountChanged(ref x, self, PowerId, Delta, Applier);
+        => definition.AfterPowerAmountChanged(ref x, self, PowerId, Delta, Applier, Target);
 }
 
 public struct AfterShuffleHook : IFlashActionHook

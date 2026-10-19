@@ -32,7 +32,7 @@ public static partial class FlashKernel
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
         if (!def.CanAfflictCardType(stats.Type))
             return;
-        if (card.HasKeyword(FlashKeywords.Unplayable) && !def.CanAfflictUnplayableCards)
+        if (HasKeyword(x.B, card, FlashKeywords.Unplayable) && !def.CanAfflictUnplayableCards)
             return;
         if (card.AfflictionId != 0)
         {
@@ -177,6 +177,38 @@ public static partial class FlashKernel
                     ApplyAffliction(ref x, position, smog, 1);
                     break;
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.NormalizeAeonglassWithers</c>: every Wither is upgraded to the
+    /// summed <c>WitherUpgradeCount</c> of the roster Aeonglass enemies. The fake upgrade adds 3 to the
+    /// Damage variable per level, and Wither's only dynamic-variable delta is that upgrade (base
+    /// 3, max upgrade level 0), so the Flash value is the delta itself.
+    /// </summary>
+    public static void NormalizeAeonglassWithers(ref FlashExec x)
+    {
+        if (!FlashRegistry.TryMonster("AEONGLASS", out ushort aeon))
+            return;
+        int expectedLevel = 0;
+        for (int position = 0; position < x.B.RosterCount; position++)
+        {
+            byte owner = EnemyOwner(x.B.Roster[position]);
+            if (x.B.Enemy(owner).MonsterId == aeon)
+                expectedLevel += x.B.Enemy(owner).Ai[1];
+        }
+        if (expectedLevel <= 0 || !FlashRegistry.TryCard("WITHER", out ushort wither))
+            return;
+        int expectedDamage = expectedLevel * 3;
+        if (expectedDamage > short.MaxValue)
+            throw new FlashUnsupportedException("Wither 的伪升级层数超出短整型表示。");
+        for (int position = 0; position < x.B.CardCount; position++)
+        {
+            ref FlashCard card = ref x.B.Cards[position];
+            if (card.Id == wither && card.Var0 < expectedDamage)
+            {
+                card.Var0 = (short)expectedDamage;
             }
         }
     }

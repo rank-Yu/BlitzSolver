@@ -254,3 +254,49 @@ public sealed class DuplicationPower : FlashPowerDef
             FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
+
+/// <summary>
+/// Native <c>GigantificationPower</c>: the next powered Attack card play deals triple damage and
+/// consumes one stack. BeforeAttack records the armed attack, ModifyDamageMultiplicative applies 3x
+/// while the same card's attack runs, AfterAttack decrements. Aux0 is the armed flag; CommandToModify's
+/// card identity is unambiguous because Flash resolves one card attack at a time.
+/// </summary>
+[FlashContent("GIGANTIFICATION_POWER")]
+public sealed class GigantificationPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Buff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    public override void BeforeAttack(ref FlashExec x, FlashListener self, byte attacker, FlashValueProps props)
+    {
+        if (self.Owner != attacker || !props.IsPoweredAttack())
+            return;
+        if (x.Card.Id == 0 || x.Stats?.Type != FlashCardType.Attack)
+            return;
+        if (x.B.Powers[self.Index].Amount > 0)
+            x.B.Powers[self.Index].Aux0 = 1;
+    }
+
+    public override decimal ModifyDamageMultiplicative(ref FlashExec x, FlashListener self,
+        in FlashDamageContext damage, decimal amount)
+    {
+        if (self.Owner != FlashLimits.PlayerOwner || x.B.Powers[self.Index].Aux0 == 0)
+            return 1m;
+        if (!damage.HasCardSource || !damage.Props.IsPoweredAttack())
+            return 1m;
+        return 3m;
+    }
+
+    public override void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
+    {
+        if (self.Owner != attacker)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Aux0 == 0)
+            return;
+        power.Aux0 = 0;
+        if (power.Amount > 0)
+            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, power.Amount - 1);
+    }
+}

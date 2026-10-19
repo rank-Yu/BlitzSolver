@@ -666,8 +666,9 @@ public sealed class CorruptionPower : FlashPowerDef
     }
 
     public override FlashPile ModifyCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
-        bool isAutoPlay, int energyValue, FlashPile location)
+        bool isAutoPlay, int energyValue, FlashPile location, out FlashPilePosition position)
     {
+        position = FlashPilePosition.Bottom;
         if (self.Owner != FlashLimits.PlayerOwner
             || x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
         {
@@ -764,7 +765,7 @@ public sealed class ViciousPower : FlashPowerDef
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
     public override void AfterPowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int delta,
-        byte applier)
+        byte applier, byte target)
     {
         if (self.Owner != FlashLimits.PlayerOwner
             || delta <= 0

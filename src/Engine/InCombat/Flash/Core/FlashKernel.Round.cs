@@ -239,7 +239,7 @@ public static partial class FlashKernel
             ref readonly FlashCard card = ref x.B.Cards[index];
             if (FlashRegistry.Card(card.Id).HasTurnEndInHandEffect)
                 turnEnd[turnEndCount++] = index;
-            else if (card.HasKeyword(FlashKeywords.Ethereal))
+            else if (HasKeyword(x.B, card, FlashKeywords.Ethereal))
                 ethereal[etherealCount++] = index;
         }
         Span<SelectedCard> etherealCards = stackalloc SelectedCard[etherealCount];
@@ -268,7 +268,7 @@ public static partial class FlashKernel
             if (position < 0 || FlashPiles.At(ref x.B, FlashPile.Play, position).Id != card.Id
                 || FlashPiles.At(ref x.B, FlashPile.Play, position).Upgrade != card.Upgrade)
                 throw new FlashUnsupportedException("回合末在手效果移动了打出区的卡。");
-            if (FlashPiles.At(ref x.B, FlashPile.Play, position).HasKeyword(FlashKeywords.Ethereal))
+            if (HasKeyword(x.B, FlashPiles.At(ref x.B, FlashPile.Play, position), FlashKeywords.Ethereal))
             {
                 Exhaust(ref x, FlashPile.Play, position, causedByEthereal: true);
                 if (x.NeedsChoice)
@@ -289,7 +289,7 @@ public static partial class FlashKernel
         for (int index = 0; flush && index < x.B.HandCount;)
         {
             ref FlashCard card = ref x.B.Cards[index];
-            bool retain = card.HasKeyword(FlashKeywords.Retain) || (card.Flags & FlashCardFlags.RetainThisTurn) != 0;
+            bool retain = HasKeyword(x.B, card, FlashKeywords.Retain) || (card.Flags & FlashCardFlags.RetainThisTurn) != 0;
             if (retain)
             {
                 index++;

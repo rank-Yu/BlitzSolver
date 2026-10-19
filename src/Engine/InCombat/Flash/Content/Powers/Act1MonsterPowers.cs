@@ -66,6 +66,9 @@ public sealed class MinionPower : FlashPowerDef
 
     // Native MinionPower.ShouldPowerBeRemovedAfterOwnerDeath: false.
     public override bool ShouldPowerBeRemovedAfterOwnerDeath => false;
+
+    // Native MinionPower.ShouldOwnerDeathTriggerFatal: false.
+    public override bool ShouldOwnerDeathTriggerFatal(in FlashBattle battle, FlashListener self) => false;
 }
 
 /// <summary>

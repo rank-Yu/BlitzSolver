@@ -36,3 +36,20 @@ public sealed class SmogAffliction : FlashAfflictionDef;
 /// </summary>
 [FlashContent("HEXED")]
 public sealed class HexedAffliction : FlashAfflictionDef;
+
+/// <summary>
+/// <c>Galvanized</c>: no card-type restriction, stackable. GalvanicPower afflicts newly entered
+/// Power cards (<c>NormalizeCardAfflictions</c>) and damages the owner when such a card is played.
+/// </summary>
+[FlashContent("GALVANIZED")]
+public sealed class GalvanizedAffliction : FlashAfflictionDef
+{
+    public override bool IsStackable => true;
+}
+
+/// <summary>
+/// <c>Bound</c>: no card-type restriction, not stackable. ChainsOfBindingPower applies and clears
+/// it and uses it for its play restriction.
+/// </summary>
+[FlashContent("BOUND")]
+public sealed class BoundAffliction : FlashAfflictionDef;

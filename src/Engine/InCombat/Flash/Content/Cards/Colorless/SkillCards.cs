@@ -298,3 +298,99 @@ public sealed class UltimateDefend : FlashCardDef
     public override void OnPlay(ref FlashExec x)
         => FlashCardEffects.GeneralBlock(ref x, 0);
 }
+
+[FlashContent("ANOINTED")]
+public sealed class Anointed : FlashCardDef
+{
+    // CardSelectionCardMirrors.AnointedOnPlay: hand-space many rare cards from the draw pile taken by
+    // TakeRandom (a full UnstableShuffle over the rare list, then the first cards) and put into hand.
+    public override void OnPlay(ref FlashExec x)
+    {
+        int space = x.B.MaxHandSize - x.B.HandCount;
+        if (space <= 0 || x.B.DrawCount == 0)
+            return;
+        Span<int> rares = stackalloc int[x.B.DrawCount];
+        int rareCount = 0;
+        for (int index = 0; index < x.B.DrawCount; index++)
+        {
+            FlashCard card = FlashPiles.At(ref x.B, FlashPile.Draw, index);
+            if (x.R.Card(card.Id, card.Upgrade).Rarity == FlashCardRarity.Rare)
+                rares[rareCount++] = index;
+        }
+        if (rareCount == 0)
+            return;
+        rares = rares[..rareCount];
+        ref FlashRngState rng = ref x.B.RngStream(FlashRngStream.CombatCardSelection);
+        for (int n = rares.Length; n > 1;)
+        {
+            n--;
+            int k = rng.NextInt(n + 1);
+            (rares[k], rares[n]) = (rares[n], rares[k]);
+        }
+        int take = Math.Min(space, rares.Length);
+        FlashKernel.MoveSelected(ref x.B, FlashPile.Draw, rares[..take], FlashPile.Hand, FlashPilePosition.Bottom);
+    }
+}
+
+[FlashContent("HIDDEN_GEM")]
+public sealed class HiddenGem : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Replay"];
+
+    // CardSelectionCardMirrors.HiddenGemOnPlay: CombatCardSelection.NextItem over the playable draw
+    // cards (Attack/Skill/Power preferred, else the others), then BaseReplayCount += Replay.
+    public override void OnPlay(ref FlashExec x)
+    {
+        if (x.B.DrawCount == 0)
+            return;
+        Span<int> eligible = stackalloc int[x.B.DrawCount];
+        Span<int> preferred = stackalloc int[x.B.DrawCount];
+        int eligibleCount = 0;
+        int preferredCount = 0;
+        for (int index = 0; index < x.B.DrawCount; index++)
+        {
+            FlashCard card = FlashPiles.At(ref x.B, FlashPile.Draw, index);
+            FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+            if (card.HasKeyword(FlashKeywords.Unplayable)
+                || stats.Type is FlashCardType.Curse or FlashCardType.Quest
+                || FlashKernel.EnchantedReplayCount(card) >= 1)
+                continue;
+            eligible[eligibleCount++] = index;
+            if (stats.Type is FlashCardType.Attack or FlashCardType.Skill or FlashCardType.Power)
+                preferred[preferredCount++] = index;
+        }
+        ReadOnlySpan<int> pool = preferredCount > 0 ? preferred[..preferredCount] : eligible[..eligibleCount];
+        if (pool.IsEmpty)
+            return;
+        int pick = pool[x.B.RngStream(FlashRngStream.CombatCardSelection).NextInt(0, pool.Length)];
+        int replay = (int)FlashCardEffects.Var(x, 0);
+        ref FlashCard chosen = ref FlashPiles.At(ref x.B, FlashPile.Draw, pick);
+        int next = chosen.ReplayCount + replay;
+        if ((uint)next > byte.MaxValue)
+            throw new FlashCapacityException("Card.ReplayCount", byte.MaxValue);
+        chosen.ReplayCount = (byte)next;
+    }
+}
+
+[FlashContent("THE_BOMB")]
+public sealed class TheBomb : FlashCardDef
+{
+    public override IReadOnlyList<string> VarNames => ["Turns", "BombDamage"];
+
+    // CardOnPlaySupport.Batch043's TheBomb case: AddPowerInstance<TheBombPower>(Turns) then
+    // SetDamage(BombDamage). Amount is the turn count; the damage lives in Aux0.
+    public override void OnPlay(ref FlashExec x)
+    {
+        ushort id = FlashRegistry.PowerId<Powers.TheBombPower>();
+        int turns = (int)FlashCardEffects.Var(x, 0);
+        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, id, turns, FlashLimits.PlayerOwner);
+        if (x.NeedsChoice)
+            return;
+        int index = FlashKernel.FindLastPower(x.B, FlashLimits.PlayerOwner, id);
+        if (index < 0)
+            return;
+        // SimulatedCombatState.AddPowerInstance sets _target = owner (unlike Apply<T>).
+        x.B.Powers[index].Target = FlashLimits.PlayerOwner;
+        x.B.Powers[index].Aux0 = (int)FlashCardEffects.Var(x, 1);
+    }
+}

@@ -126,28 +126,38 @@ public static partial class FlashKernel
         int count = x.B.PowerCount;
         if (count == 0)
             return;
-        Span<(byte Owner, ushort Id)> snapshot = stackalloc (byte, ushort)[count];
+        Span<(byte Owner, ushort Id, int Occurrence)> snapshot =
+            stackalloc (byte, ushort, int)[count];
         Span<byte> owners = stackalloc byte[FlashLimits.Enemies + 2];
         int ownerCount = ListenerCreatureOrder(x.B, owners);
         int taken = 0;
         // Listener order: creature order (player, Osty, roster enemies), then table order within an owner.
+        // Instanced powers share (owner, id), so the snapshot keeps the occurrence to address the exact row.
         for (int creature = 0; creature < ownerCount; creature++)
         {
             for (int index = 0; index < count; index++)
             {
                 ref readonly FlashPower power = ref x.B.Powers[index];
-                if (power.Owner == owners[creature])
-                    snapshot[taken++] = (power.Owner, power.Id);
+                if (power.Owner != owners[creature])
+                    continue;
+                int occurrence = 0;
+                for (int prior = 0; prior < index; prior++)
+                {
+                    ref readonly FlashPower earlier = ref x.B.Powers[prior];
+                    if (earlier.Owner == power.Owner && earlier.Id == power.Id)
+                        occurrence++;
+                }
+                snapshot[taken++] = (power.Owner, power.Id, occurrence);
             }
         }
         for (int entry = 0; entry < taken; entry++)
         {
-            (byte owner, ushort id) = snapshot[entry];
+            (byte owner, ushort id, int occurrence) = snapshot[entry];
             if (ownerFilter == PlayerSideOwners ? !IsPlayerSide(owner) : ownerFilter != FlashLimits.NoOwner && owner != ownerFilter)
                 continue;
             if (onlyId != ushort.MaxValue && id != onlyId || id == exceptA || id == exceptB)
                 continue;
-            int index = FindPower(x.B, owner, id);
+            int index = FindPowerOccurrence(x.B, owner, id, occurrence);
             if (index < 0 || x.B.Powers[index].Amount <= 0)
                 continue;
             InvokePowerPhase(ref x, phase, index, side, Contains(participants, owner), flag);
@@ -355,6 +365,26 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// <c>PersistentPowerSupport.TriggerRampart</c>: every positive RampartPower in listener order
+    /// grants its amount as Unpowered Block to each living Turret Operator.
+    /// </summary>
+    private static void RampartPass(ref FlashExec x)
+    {
+        if ((FlashRegistry.AnyHooks & FlashHookMask.Rampart) == 0)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        int count = FlashHooks.CollectListeners(x.B, FlashHookMask.Rampart, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (x.B.Powers[listeners[index].Index].Amount <= 0)
+                continue;
+            FlashHooks.Definition(x.B, listeners[index]).Rampart(ref x, listeners[index]);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
     /// <c>SimulatedCombatState.TriggerSideTurnStart</c>: base effects per participant, then
     /// <c>PersistentPowerSupport.TriggerAfterSideTurnStart</c>, <c>TurnStartPowerSupport.TriggerAfterSideTurnStart</c>
     /// and the relic <c>AfterSideTurnStart</c> batch.
@@ -373,7 +403,14 @@ public static partial class FlashKernel
             if (x.NeedsChoice)
                 return;
         }
-        // Rampart (player side, not an extra turn) is not supported yet.
+        // PersistentPowerSupport.TriggerAfterSideTurnStart: Rampart only at the player side turn
+        // start of a non-extra turn (Flash has no supported extra-turn source).
+        if (side == FlashSide.Player && Contains(participants, FlashLimits.PlayerOwner))
+        {
+            RampartPass(ref x);
+            if (x.NeedsChoice)
+                return;
+        }
         foreach (ushort id in GlobalAfterSideTurnStartIds.Value)
         {
             PowerListenerPass(ref x, PowerPhase.GlobalAfterSideTurnStart, side, participants, FlashLimits.NoOwner, id, ushort.MaxValue, ushort.MaxValue);
@@ -488,7 +525,85 @@ public static partial class FlashKernel
     internal static void BeforeHandDraw(ref FlashExec x)
     {
         PowerListenerPass(ref x, PowerPhase.BeforeHandDraw, FlashSide.Player, default, PlayerSideOwners, ushort.MaxValue, ushort.MaxValue, ushort.MaxValue);
-        // Relic and returning-card stages: not supported yet.
+        if (x.NeedsChoice)
+            return;
+        // Relic stage: the modelled BeforeHandDraw relics (Pendulum, PollinousCore) act through
+        // ModifyHandDraw, which the turn-start path reads separately.
+        ReturnCardsToHand(ref x);
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.PrepareBeforeHandDraw</c>'s returning-card stage: the cards played last
+    /// turn with Bolas/ThrummingHatchet (native <c>_returnToHandNextTurn</c>) move to hand in current
+    /// pile order. Their membership is carried on <see cref="FlashCard.ReturnToHandNextTurn"/>.
+    /// </summary>
+    private static void ReturnCardsToHand(ref FlashExec x)
+    {
+        int total = x.B.CardCount;
+        if (total == 0)
+            return;
+        Span<FlashCard> cards = stackalloc FlashCard[total];
+        Span<int> occurrences = stackalloc int[total];
+        int count = 0;
+        for (int position = 0; position < total; position++)
+        {
+            FlashCard card = x.B.Cards[position];
+            if (!card.ReturnToHandNextTurn)
+                continue;
+            int occurrence = 0;
+            for (int prior = 0; prior < position; prior++)
+            {
+                if (FlashFingerprint.Equal(x.B.Cards[prior], card))
+                    occurrence++;
+            }
+            cards[count] = card;
+            occurrences[count] = occurrence;
+            count++;
+        }
+        for (int item = 0; item < count; item++)
+        {
+            if (!TryLocateCard(x.B, cards[item], occurrences[item], out int position))
+                continue;
+            int handStart = FlashPiles.Start(x.B, FlashPile.Hand);
+            int handEnd = handStart + x.B.HandCount;
+            if (position >= handStart && position < handEnd)
+            {
+                x.B.Cards[position].ReturnToHandNextTurn = false;
+                continue;
+            }
+            FlashPile pile = FlashPile.Hand;
+            int index = position;
+            ReadOnlySpan<FlashPile> sources = [FlashPile.Draw, FlashPile.Discard, FlashPile.Exhaust, FlashPile.Play];
+            foreach (FlashPile candidate in sources)
+            {
+                int start = FlashPiles.Start(x.B, candidate);
+                int pileCount = FlashPiles.Count(x.B, candidate);
+                if (position < start || position >= start + pileCount)
+                    continue;
+                pile = candidate;
+                index = position - start;
+                break;
+            }
+            x.B.Cards[position].ReturnToHandNextTurn = false;
+            MoveCard(ref x.B, pile, index, FlashPile.Hand, FlashPilePosition.Bottom);
+        }
+    }
+
+    /// <summary>Position of the <paramref name="occurrence"/>-th byte-equal card over the whole battle.</summary>
+    private static bool TryLocateCard(in FlashBattle battle, in FlashCard card, int occurrence, out int position)
+    {
+        for (int index = 0; index < battle.CardCount; index++)
+        {
+            if (!FlashFingerprint.Equal(battle.Cards[index], card))
+                continue;
+            if (occurrence-- == 0)
+            {
+                position = index;
+                return true;
+            }
+        }
+        position = -1;
+        return false;
     }
 
     /// <summary><c>HookMirrors.AfterPlayerTurnStart</c> on the vanilla path: powers, then relics.</summary>
