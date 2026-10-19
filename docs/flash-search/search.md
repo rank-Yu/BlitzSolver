@@ -44,7 +44,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 3. 请求参数
 
-协调器宽度组合的成员（`DirectSearchPurpose.PrimaryBeam` 与 `RefinementBeam`）、Smart 药水梯度的直接审计（`DirectSearchPurpose.SmartPotionGradient`，经同一 `BeamSolveDispatch.Solve` 入口）以及“干净”的固定前缀续接请求经过 Flash。中途排序的 profile 变体按现有 `BeamRankScore` 移植：仅基础分成员只用基础分，权重扰动对非终局状态把指定项乘以系数；连续致命意图定价与上下文排序已移植，不再因这两个 profile 开关拒绝。`DevelopmentStrategy` 的 `Rank` 只读 `StrategyNodeFeatures`，其中每个值都能由 K4 核对过的 Flash 特征给出；但 `Prioritize` 依赖现有 `ActionCandidate`（含每个候选的伤害、格挡、消耗、归一化值与 `MaxCardBranchesPerNode` 截断），`Retain` 依赖 `RankBest` 的 `preserveDefensiveRoute`/`finalQualityFirst` 必保通道，Flash 没有这些结构与模式标志。只搬 `Rank` 会静默丢掉另外两个钩子的排序调整，因此本批仍拒绝；可选方案是为开发策略定义一份只含 Flash 特征的输入/接口（例如 `Rank` 与成员组织），由协调者决定。
+协调器宽度组合的成员（`DirectSearchPurpose.PrimaryBeam` 与 `RefinementBeam`）、Smart 药水梯度的直接审计（`DirectSearchPurpose.SmartPotionGradient`，经同一 `BeamSolveDispatch.Solve` 入口）、协调器直接药水审计点以及带药水约束的固定前缀续接请求经过 Flash。中途排序的 profile 变体按现有 `BeamRankScore` 移植：仅基础分成员只用基础分，权重扰动对非终局状态把指定项乘以系数；连续致命意图定价与上下文排序已移植，不再因这两个 profile 开关拒绝。`DevelopmentStrategy` 的 `Rank` 只读 `StrategyNodeFeatures`，其中每个值都能由 K4 核对过的 Flash 特征给出；但 `Prioritize` 依赖现有 `ActionCandidate`（含每个候选的伤害、格挡、消耗、归一化值与 `MaxCardBranchesPerNode` 截断），`Retain` 依赖 `RankBest` 的 `preserveDefensiveRoute`/`finalQualityFirst` 必保通道，Flash 没有这些结构与模式标志。只搬 `Rank` 会静默丢掉另外两个钩子的排序调整，因此本批仍拒绝；可选方案是为开发策略定义一份只含 Flash 特征的输入/接口（例如 `Rank` 与成员组织），由协调者决定。
 
 `BeamSolveRequest` 各字段在 Flash 中的处理：
 
@@ -56,16 +56,51 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 | `PrimaryIncumbent` | 支持：作为 FlashBeam 的初始 incumbent，`CombatEndedTurn` 从 `node.Turn` 换算到 Flash 玩家回合；共享的 `PrimaryIncumbents` 表不接入 |
 | `Purpose` | 决定是否查看模式，并作为物化求解器的工作量归因 |
 
-`CombatBeamSolver` 的其余构造参数（`maximumPotionUses`、`minimumPotionUses`、`earliestPotionTurn`、`fixedPrefixActions`、`potionFreePolicyBaseline`、`earlyTurnScout*`、`planCommitment`）在主搜索成员中不使用。Smart 梯度审计通过 `BeamSolveRequest.PotionFreePolicyBaseline`、`MaximumPotionUses`、`MinimumPotionUses` 携带精确层参数；`MinimumPotionUses` 与 `MaximumPotionUses` 必须等于同一个正数，否则分发点写 `status=boundary` 并回落。固定前缀续接通过第二个分发入口 `BeamSolveDispatch.SolveContinuation` 走同一 `FlashMode`；只有下列全部成立的“干净”请求才交给 Flash，其余直接调用现有求解器，不进入 Flash，也不记 `FLASH_FALLBACK`：
+`CombatBeamSolver` 的其余构造参数（`maximumPotionUses`、`minimumPotionUses`、`earliestPotionTurn`、`fixedPrefixActions`、`potionFreePolicyBaseline`、`earlyTurnScout*`、`planCommitment`）在主搜索成员中不使用。Smart 梯度审计通过 `BeamSolveRequest.PotionFreePolicyBaseline`、`MaximumPotionUses`、`MinimumPotionUses` 携带精确层参数；区间上下界、基线、最早用药回合、强制指令与 `RequireAtLeastOne` 均已移植（见 3.1）。固定前缀续接通过第二个分发入口 `BeamSolveDispatch.SolveContinuation` 走同一 `FlashMode`；药水相关的续接请求不再被“干净请求”门挡住，只有下列语义边界仍直接调用现有求解器：
 
-- `PotionPolicyOverride == Disabled`，或请求的有效药水政策（`PolicyOverride ?? Context.Policy` 的 `PotionPolicy` 与 `PotionStrategy`）等价于不用药；`RequireAtLeastOne` 或存在强制用药指令的请求不算。
-- `MaximumPotionUses` 为 null 或 0，`MinimumPotionUses` 为 null 或 0。
-- `PotionFreePolicyBaseline == null`、`Commitment == null`。
-- `EarlyTurnScoutDepth == 0`、`EarlyTurnScoutObserver == null`、`EarliestPotionTurn == null`。
+- `Commitment != null`（跨回合计划视野、`CopyPower` 代表席；由 PC 批次处理）。
+- `EarlyTurnScoutDepth != 0` 或 `EarlyTurnScoutObserver != null`（早期侦察前沿）。
+- 根不在普通玩家出牌阶段（`IncludeTurnSetup` 或阶段不是 `Play`；回合准备根协议留给后续批次）。
+- 药水上下界为负或 `MinimumPotionUses > MaximumPotionUses`（沿用现有求解器的参数校验）。
 
 `PolicyOverride` 作为求解政策使用；`PrimaryIncumbent` 按 SB 的口径传入。`ProgressCallbackOverride` 只影响现有求解器的进度报告，Flash 搜索期间不报告进度。`ResetFixedPrefixSchedulingBaseline` 对 Smart 药水后验请求转交给物化求解器，使固定前缀后的调度基线与现有搜索相同；其余续接请求仍不读取它。profile 中 Flash 不建模的开关（连续致命意图、上下文排序等）仍由准入拒绝并回落。
 
-`SmartOpeningPotionPosterior` 续接不受“干净请求”门限制，而由独立的 `PotionAuditBoundary` 判断：`PotionPolicyOverride` 必须是 `RequireAtLeastOne`、根政策是 `Smart` 且无强制用药、`MaximumPotionUses` 为正、`MinimumPotionUses` 不超上限；`PotionFreePolicyBaseline`、药水前缀、`PrimaryIncumbent` 均支持。计划承诺、早期回合侦察、最早药水回合、偷窃战与回合准备根仍按边界回落。`PlanCommitment` 不复用这套机制：它还需要跨回合计划视野 `PlanHorizonPolicy.ShouldExtend`、`CopyPower` 计划代表席、`AggressivePowerCommitment` 泳道与跨回合探测，FlashBeam 没有这些结构。
+### 3.1 放开的药水续接与精确层
+
+续接请求的 `MaximumPotionUses`/`MinimumPotionUses`、`PotionFreePolicyBaseline`、`EarliestPotionTurn`、`RequireAtLeastOne`（政策或覆盖）、`Smart` 政策无 `Disabled` 覆盖以及强制用药指令都交给 Flash。带任意一项药水约束、或续接的有效政策为 `Smart`（无 `Disabled` 覆盖）的请求打开 `FlashBeamOptions.AuditPotionPolicy`：Flash 按显式用药次数收集每档最佳终局候选，再用移植的 `FinalPlanOrdering.Select` 过滤与排序：
+
+- **区间**：`ExplicitPotionUseCount >= MinimumPotionUses`，扩展期由 `MaximumUses` 限制用药动作；两者不再要求相等。计数都包含固定前缀。
+- **基线**：`PotionFreePolicyBaseline` 作为审计后的无药基线；无覆盖时取本次搜索的最佳无药候选。
+- **排序键**：完整移植 `FinalPlanOrdering.Select` 已由 K4 核对的特征键（胜利、存活、死亡保护、偷窃恢复、战略失血、成长信用与收益、结束回合、政策失血、生命资源消耗、长期资源、愤怒复制、可选药水数、敌人 HP、分数、动作数）。卖血与边界原因两个键仍未移植（沿用原有缺口）。
+- **强制指令**：按 `(槽位, 药水身份)` 的集合逐条核对，等价于 `PotionStrategySnapshot.EvaluateForcedUses`；前缀已用的强制药水从固定前缀动作折入。未满足的路线不能通过终局过滤，同次数下不会遮蔽满足的路线。强制使用次数与战略成本从可选用药中扣除后再套用 `RequireAtLeastOne`/`Smart` 资格。
+- **最早用药回合**：`EarliestPotionTurn` 按请求根回合换算后限制 Flash 的用药动作；物化后再核对没有更早的用药动作。
+
+物化后的 `FlashPotionBridge.VerifyRoute` 复核动作与显式用药计数、最小/最大次数、最早回合、`RequireAtLeastOne` 与强制指令身份；任一不满足按 `ConstraintFailure` 回落现有求解器。现有求解器的 `FinalPlanOrdering` 仍会在物化阶段拒绝不合规路线（`materialize-potion-policy`）。
+
+本批新放开的请求如果带 Flash 尚未建模的保路开关（`SecondRankBand`、`AggressivePowerCommitment`），分发点保留原求解器并写 `FLASH_LEGACY reason=can-take-over:second-rank-band|aggressive-power-commitment`；不能让 Flash 静默忽略这些开关。`BaseScoreOnly` 已由评分桥移植，不触发该边界。此前已经是“干净请求”的续接保持原行为（其 profile 本来就会交给 Flash）。
+
+`SmartOpeningPotionPosterior` 续接由独立的 `PotionAuditBoundary` 判断：只保留“非 Smart 政策”和“根无可搜索药水”两个语义边界（前者表示该审计本身不适用，后者表示无药可审计）。计划承诺与早期回合侦察仍按上面的语义边界回落。
+
+### 3.2 `FLASH_LEGACY` 可观测性
+
+开启模式（`FlashMode == On`）下任何一次真正执行的原搜索都写一行稳定日志：
+
+```
+[CombatSolver/Flash] FLASH_LEGACY purpose=<用途> reason=<原因> ms=<整数毫秒>
+```
+
+关闭（Off）与对照（Shadow）模式不写。分发点覆盖 `SolveExisting`/`SolveExistingContinuation`；协调器里仍由原搜索直接执行的实验/救援位置（`NoveltyExploration`、`AdaptiveNoveltyRefinement`、`EarlyTurnScout`、`TurnBoundaryDiscovery` 的三个剖面变体中 Flash 未建模的两个）也写同一行。原因码使用 FI 盘点第 2 节的稳定前缀：
+
+| 原因 | 含义 |
+| --- | --- |
+| `potion-audit-boundary:<码>` | Smart 梯度/后验的语义边界（`potion-policy`、`no-searchable-potion` 等） |
+| `can-take-over:<码>` | 续接门保留的语义边界（`commitment`、`early-turn-scout`、`turn-setup`、`potion-bounds`、`second-rank-band`、`aggressive-power-commitment`） |
+| `direct:<用途>` | 协调器直接执行的原搜索（`direct:novelty-exploration`、`direct:early-turn-scout` 等） |
+| `flash-rejected:<码>` | Flash 有结果前拒绝或精确层/物化后核对失败（准入原因、`flash-potion-policy-no-route`、`materialize-potion-policy`、`route-*`） |
+| `flash-boundary` | Flash 内核边界（`FlashUnsupportedException`/`FlashCapacityException`） |
+| `flash-mismatch` | 逐步回放核对不一致 |
+| `turn-setup` | 回合准备根显式拒绝；完整支持留给后续批次 |
+
 
 固定前缀续接的搜索口径：
 
@@ -78,7 +113,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 4. BeamSolveDispatch 与模式
 
-`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam` 与干净续接查看 `FlashMode`；不干净的续接、补充审计、计划搜索与侦察不经过 Flash，仍直接使用 `CombatBeamSolver`。`SecondRankBand`、`AggressivePowerCommitment` 与分支上限只作用于现有搜索的保路泳道与分支截断，FlashBeam 没有这些结构，因此不读取它们（属于已记录的保留结构差异）。
+`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam`、`SmartPotionGradient` 以及协调器直接审计点 `PotionFreeAudit`、`RequiredPotionAudit`、`NarrowOpeningIncumbent`、`TurnBoundaryDiscovery` 查看 `FlashMode`；保留的语义边界（计划承诺、早期侦察、回合准备根）与实验路径仍直接使用 `CombatBeamSolver`，并在 On 模式写 `FLASH_LEGACY`。`SecondRankBand`、`AggressivePowerCommitment` 与分支上限只作用于现有搜索的保路泳道与分支截断，FlashBeam 没有这些结构，因此主搜索不读取它们（属于已记录的保留结构差异；新放开的药水请求按 3.1 的边界保留原搜索）；`RunForcedPotionOpeningRescue` 的三个剖面变体只有 `BaseScoreOnly` 由 Flash 执行，另外两个保留原搜索并记 `direct:turn-boundary-discovery:<开关>`。`NarrowOpeningIncumbent` 经分发点后使用 profileScale=1，保持原窄搜索宽度，不套用 Flash 常规 ×4。
 
 模式由 `SearchPolicySnapshot.FlashMode` 冻结，主线程从设置 `SolverSettingsData.FlashSearchMode` 读取（设置 > 性能 > 搜索预算 >「Flash 快速搜索（实验）」）。离线宿主可用 `OFFLINE_HARNESS_FLASH_MODE=Off|Shadow|On` 覆盖。
 

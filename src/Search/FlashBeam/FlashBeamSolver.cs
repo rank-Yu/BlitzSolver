@@ -45,6 +45,15 @@ internal sealed record FlashBeamOptions(
     /// <summary>The request's theft policy; <c>PreserveResources</c> adds the existing final ordering's recovery keys.</summary>
     public SolverTheftPolicy? TheftPolicy { get; init; }
 
+    /// <summary>
+    /// The request's forced potion directives, as canonical Flash potion ids. Only a request without a
+    /// potion-policy override enforces them, matching <c>CombatBeamSolver.EnforcesPotionDirectives</c>.
+    /// </summary>
+    public FlashForcedPotionDirectives ForcedPotionDirectives { get; init; } = FlashForcedPotionDirectives.None;
+
+    /// <summary>Whether the forced directives are part of the final policy filter (<c>potionPolicyOverride == null</c>).</summary>
+    public bool EnforceForcedPotionDirectives { get; init; }
+
     /// <summary>The request's minimum explicit potion uses; the primary member passes 0.</summary>
     public int MinimumPotionUses { get; init; }
 
@@ -102,14 +111,18 @@ internal sealed record FlashBeamOptions(
     public bool Act3BossStrategy { get; init; }
 }
 
-/// <summary>
-/// The request values of the existing search's HP-target stop (<c>CombatBeamSolver.SolveCore</c>,
-/// <c>MeetsHpTarget</c>): a complete victory without death saves, with at most
-/// <paramref name="EarlyStopPotionUses"/> explicit potion uses and with
-/// <paramref name="HpLostSoFar"/> plus its cumulative HP loss within
+/// <summary>The request's HP-target stop (<c>CombatBeamSolver.MeetsHpTarget</c>): a complete victory
+/// without death saves, with at least <paramref name="RequiredPotionUses"/> and at most
+/// <paramref name="EarlyStopPotionUses"/> explicit potion uses, satisfying the enforced forced
+/// directives, and with <paramref name="HpLostSoFar"/> plus its cumulative HP loss within
 /// <paramref name="AcceptableBattleHpLoss"/>, ends the search before the next parent.
 /// </summary>
-internal sealed record FlashHpTargetStop(int AcceptableBattleHpLoss, int HpLostSoFar, int EarlyStopPotionUses);
+internal sealed record FlashHpTargetStop(
+    int AcceptableBattleHpLoss,
+    int HpLostSoFar,
+    int EarlyStopPotionUses,
+    int RequiredPotionUses = 0,
+    bool EnforceForcedPotionDirectives = false);
 
 /// <summary>The root values <c>FinalPlanOrdering.Select</c> reads for the route keys FlashBeam ports.</summary>
 internal sealed record FlashRouteOrdering(
@@ -127,6 +140,23 @@ internal sealed record FlashRouteOrdering(
 internal sealed record FlashPotionPolicy(byte AllowedSlots, int EarliestPlayerTurn, int? MaximumUses, int[] SlotCosts)
 {
     public static FlashPotionPolicy Disabled { get; } = new(0, int.MaxValue, 0, new int[FlashLimits.PotionSlots]);
+}
+
+/// <summary>
+/// The request's forced potion directives (<c>PotionStrategySnapshot.Directives</c> with
+/// <see cref="SolverPotionDirective.Force"/>), resolved to canonical Flash potion ids. A directive is
+/// satisfied by one explicit use of that potion identity in its slot; the fixed prefix's uses are
+/// folded into <paramref name="AlreadyUsedMask"/> because they are not Flash nodes.
+/// </summary>
+internal sealed record FlashForcedPotionDirectives(
+    int[] Slots,
+    ushort[] PotionIds,
+    int AlreadyUsedMask,
+    int AlreadyUsedStrategicHpCost)
+{
+    public static FlashForcedPotionDirectives None { get; } = new([], [], 0, 0);
+
+    public int Count => Slots.Length;
 }
 
 internal sealed record FlashBeamResult(
@@ -179,6 +209,8 @@ internal sealed class FlashBeamSolver
     private readonly SolverPotionPolicy _effectivePotionPolicy;
     private readonly SolverTheftPolicy? _theftPolicy;
     private readonly bool _auditPotionPolicy;
+    private readonly FlashForcedPotionDirectives _forcedPotionDirectives;
+    private readonly bool _enforceForcedPotionDirectives;
     private readonly int _initialExplicitPotionUses;
     private readonly int _initialAutomaticPotionUses;
     private readonly PotionFreePolicyBaseline? _potionFreeBaseline;
@@ -231,6 +263,8 @@ internal sealed class FlashBeamSolver
         _effectivePotionPolicy = options.EffectivePotionPolicy;
         _theftPolicy = options.TheftPolicy;
         _auditPotionPolicy = options.AuditPotionPolicy;
+        _forcedPotionDirectives = options.ForcedPotionDirectives;
+        _enforceForcedPotionDirectives = options.EnforceForcedPotionDirectives;
         _initialExplicitPotionUses = options.InitialExplicitPotionUses;
         _initialAutomaticPotionUses = options.InitialAutomaticPotionUses;
         _potionFreeBaseline = options.PotionFreeBaseline;
@@ -290,7 +324,7 @@ internal sealed class FlashBeamSolver
                 ConsiderAudited(node, features, key);
             else
                 Consider(state, node, key);
-            TightenIncumbent(state, features, key);
+            TightenIncumbent(state, node, features, key);
         }
         void ConsiderTerminal(in FlashBattle state, int node, double score)
         {
@@ -305,6 +339,9 @@ internal sealed class FlashBeamSolver
                 && _scorer.GrowthTargetsSatisfied(features)
                 && _scorer.RelicTargetsSatisfied(features)
                 && features.ProjectedDeathSaveUseCount == 0
+                && explicitPotionUses >= stop.RequiredPotionUses
+                && (!stop.EnforceForcedPotionDirectives
+                    || EvaluateForcedUses(node, out _, out _, out _))
                 && explicitPotionUses <= stop.EarlyStopPotionUses
                 && stop.HpLostSoFar + features.CumulativePlayerHpLost <= stop.AcceptableBattleHpLoss)
             {
@@ -424,33 +461,113 @@ internal sealed class FlashBeamSolver
     {
         if (key.Won)
             _anyAuditedVictory = true;
+        bool forcedSatisfied = true;
+        int forcedCount = 0, forcedCost = 0, forcedAmbergris = 0;
+        if (_enforceForcedPotionDirectives && _forcedPotionDirectives.Count > 0)
+        {
+            forcedSatisfied = EvaluateForcedUses(node,
+                out forcedCount, out forcedCost, out forcedAmbergris);
+        }
+        int optionalPotionCount = Math.Max(0, features.ExplicitPotionUseCount - forcedCount);
+        int optionalPotionStrategicCost = OptionalPotionStrategicCost(
+            features.ExplicitPotionStrategicCost, optionalPotionCount, forcedCost);
+        SolverPotionPolicy effectivePotionPolicy = _effectivePotionPolicy switch
+        {
+            SolverPotionPolicy.RequireAtLeastOne when forcedCount > 0 => SolverPotionPolicy.Smart,
+            SolverPotionPolicy.Disabled when optionalPotionCount > 0 => SolverPotionPolicy.Smart,
+            _ => _effectivePotionPolicy,
+        };
+        int policyHpDeficit = effectivePotionPolicy == SolverPotionPolicy.RequireAtLeastOne
+            ? key.StrategicHpDeficit
+                + PotionUsePolicy.AdditionalRequiredUseStrategicHpCost(optionalPotionStrategicCost)
+            : key.StrategicHpDeficit;
+        RouteKey auditedKey = key with
+        {
+            OptionalPotionCount = optionalPotionCount,
+            PolicyHpDeficit = policyHpDeficit,
+        };
         Candidate candidate = new(
             node,
-            key,
+            auditedKey,
             features.ExplicitPotionUseCount,
             features.ExplicitPotionStrategicCost,
-            OptionalPotionStrategicCost(features.ExplicitPotionStrategicCost, key.OptionalPotionCount),
+            optionalPotionStrategicCost,
             AmbergrisUses(node),
             features.PlayerHp,
-            features.ProjectedDeathSaveUseCount);
+            features.ProjectedDeathSaveUseCount,
+            forcedSatisfied,
+            forcedCount,
+            forcedCost,
+            forcedAmbergris,
+            effectivePotionPolicy);
         if (candidate.ExplicitPotionUseCount == 0
             && (_bestPotionFree is not { } free || ComparePotionFree(candidate, free) < 0))
         {
             _bestPotionFree = candidate;
         }
         Dictionary<int, Candidate> bestByCount = _auditBestByPotionCount ??= new();
-        if (!bestByCount.TryGetValue(candidate.ExplicitPotionUseCount, out Candidate current)
+        // A route that does not satisfy a forced directive can never pass the policy filter, but it
+        // must not mask a satisfying route of the same explicit count.
+        int bucket = checked(candidate.ExplicitPotionUseCount * 2 + (forcedSatisfied ? 0 : 1));
+        if (!bestByCount.TryGetValue(bucket, out Candidate current)
             || CompareAudited(candidate, current) < 0)
         {
-            bestByCount[candidate.ExplicitPotionUseCount] = candidate;
+            bestByCount[bucket] = candidate;
         }
     }
 
-    private int OptionalPotionStrategicCost(int explicitPotionStrategicCost, int optionalPotionCount)
+    private int OptionalPotionStrategicCost(int explicitPotionStrategicCost, int optionalPotionCount,
+        int forcedPotionStrategicCost = 0)
         => PotionUsePolicy.ApplyReplacementCredit(
-            Math.Max(0, explicitPotionStrategicCost),
+            Math.Max(0, explicitPotionStrategicCost - forcedPotionStrategicCost),
             optionalPotionCount,
             _potionReplacementHpCredit);
+
+    /// <summary>
+    /// <c>PotionStrategySnapshot.EvaluateForcedUses(SearchNode)</c> over the Flash node chain: one
+    /// explicit use of each forced potion identity in its slot, with the fixed prefix's uses folded in.
+    /// Returns whether every forced directive was used.
+    /// </summary>
+    private bool EvaluateForcedUses(int node, out int count, out int strategicCost,
+        out int ambergrisCount)
+    {
+        FlashForcedPotionDirectives directives = _forcedPotionDirectives;
+        count = 0;
+        strategicCost = 0;
+        ambergrisCount = 0;
+        for (int index = 0; index < directives.Count; index++)
+        {
+            int slot = directives.Slots[index];
+            bool used = (directives.AlreadyUsedMask & (1 << index)) != 0;
+            if (!used)
+            {
+                ushort expected = checked((ushort)(directives.PotionIds[index] + 1));
+                for (int cursor = node; _nodes[cursor].Parent >= 0; cursor = _nodes[cursor].Parent)
+                {
+                    FlashAction action = _nodes[cursor].Action;
+                    if (action.Kind == FlashActionKind.UsePotion && action.PotionSlot == slot
+                        && _rootPotions[slot] == expected)
+                    {
+                        used = true;
+                        break;
+                    }
+                }
+            }
+            if (!used)
+                continue;
+            count++;
+            strategicCost += (directives.AlreadyUsedMask & (1 << index)) != 0
+                ? 0
+                : _options.Potions.SlotCosts[slot];
+            if (_ambergrisPotionId != ushort.MaxValue
+                && directives.PotionIds[index] == _ambergrisPotionId)
+            {
+                ambergrisCount++;
+            }
+        }
+        strategicCost += directives.AlreadyUsedStrategicHpCost;
+        return count == directives.Count;
+    }
 
     /// <summary>
     /// The existing <c>FinalPlanOrdering.Select</c> filter and ordering, applied to the best candidate
@@ -502,6 +619,8 @@ internal sealed class FlashBeamSolver
         int potionFreeDeficit, int potionFreePlayerHp, int potionFreeDeathSaves, int potionFreeOutstanding,
         bool anyRouteWon)
     {
+        if (!candidate.ForcedUsesSatisfied)
+            return false;
         if (candidate.ExplicitPotionUseCount < _options.MinimumPotionUses)
             return false;
         if (_options.Potions.MaximumUses is { } maximum
@@ -518,7 +637,7 @@ internal sealed class FlashBeamSolver
         bool recoversLoot = _theftPolicy == SolverTheftPolicy.PreserveResources
             && candidate.Key.OutstandingStolenResource < potionFreeOutstanding;
         bool passesSoftPolicy = PotionUsePolicy.IsEligible(
-                _effectivePotionPolicy,
+                candidate.EffectivePotionPolicy,
                 candidate.Key.OptionalPotionCount,
                 PotionUsePolicy.SmartRequiredHpSaved(
                     candidate.OptionalPotionStrategicCost, _ordering.BossHpRelief),
@@ -533,7 +652,7 @@ internal sealed class FlashBeamSolver
             || recoversLoot
             || PotionUsePolicy.MeetsAmbergrisRestriction(
                 hasPotionFree,
-                candidate.AmbergrisUses,
+                Math.Max(0, candidate.AmbergrisUses - candidate.ForcedAmbergrisCount),
                 candidate.OptionalPotionStrategicCost,
                 _ordering.InitialPlayerMaxHp,
                 potionFreePlayerHp,
@@ -628,7 +747,12 @@ internal sealed class FlashBeamSolver
         int OptionalPotionStrategicCost,
         int AmbergrisUses,
         int PlayerHp,
-        int ProjectedDeathSaveUseCount);
+        int ProjectedDeathSaveUseCount,
+        bool ForcedUsesSatisfied,
+        int ForcedUseCount,
+        int ForcedStrategicHpCost,
+        int ForcedAmbergrisCount,
+        SolverPotionPolicy EffectivePotionPolicy);
 
     private RouteKey Key(in FlashBattle state, in FlashScoreFeatures features, int actionCount)
     {
@@ -946,13 +1070,28 @@ internal sealed class FlashBeamSolver
     /// publishes a strictly better incumbent at the commit boundary, so the same layer's retention can
     /// use it. The shared <see cref="PrimaryIncumbentTable"/> is not connected.
     /// </summary>
-    private void TightenIncumbent(in FlashBattle state, in FlashScoreFeatures features, in RouteKey key)
+    private void TightenIncumbent(in FlashBattle state, int node, in FlashScoreFeatures features, in RouteKey key)
     {
+        // CombatBeamSolver.TightenPrimarySearchIncumbentAtTurnLayer: only a potion-free victory, or an
+        // exact audited layer with a baseline and no enforced directives, may establish the bound.
+        bool canEstablishPotionFree = _options.MinimumPotionUses == 0
+            && _effectivePotionPolicy is SolverPotionPolicy.Disabled or SolverPotionPolicy.Smart;
+        bool canEstablishExactPotion = _potionFreeBaseline != null
+            && _options.MinimumPotionUses > 0
+            && _options.Potions.MaximumUses == _options.MinimumPotionUses
+            && !_enforceForcedPotionDirectives;
+        if (!canEstablishPotionFree && !canEstablishExactPotion)
+            return;
         if (_bound == null || !key.Won || features.ProjectedDeathSaveUseCount > 0)
             return;
         int explicitPotionUses = features.ExplicitPotionUseCount;
         if (explicitPotionUses != _options.MinimumPotionUses)
             return;
+        if (_enforceForcedPotionDirectives && _forcedPotionDirectives.Count > 0
+            && !EvaluateForcedUses(node, out _, out _, out _))
+        {
+            return;
+        }
         int strategicHpDeficit = ActEndingBossPolicy.StrategicHpDeficit(
             features.CumulativePlayerHpLost,
             Math.Max(0, _options.InitialPlayerMaxHp - features.PlayerMaxHp),

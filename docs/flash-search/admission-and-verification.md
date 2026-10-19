@@ -13,7 +13,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | 原因码 | 条件 |
 | --- | --- |
 | `MultiPlayer` | 玩家数不是 1 |
-| `RootPhase` | 根不在玩家出牌阶段（F1–F3 不支持 `IncludeTurnSetup` 的回合准备根） |
+| `RootPhase` | 根不在玩家出牌阶段（`CurrentSide != Player` 或 `PlayerPhase != Play`）；F1–F3 不支持 `IncludeTurnSetup` 的回合准备根 |
 | `PendingChoice` | 根存在待处理选择或执行续接 |
 | `ThirdParty` | 存在第三方 gameplay 订阅者、BaseLib 卡牌修饰、未登记模型状态 |
 | `UnsupportedCard` 等 | 任一卡牌、附魔、苦难、Power、遗物、药水、球、怪物没有 Flash 定义 |
@@ -29,6 +29,8 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 怪物的可生成类型在 `FlashRulesCompiler` 中编译：每个类型在根模拟器的私有 Fork 上执行现有引擎的创建路径（`MonsterSpawnSupport.Create` + `AddPredictedMonster` + `PreparePredictedMonster`），状态机、静态值与初始私有整数都从这次创建结果读取，不手抄。规则表容量是 `FlashLimits.MonsterRules`，超出按 `Capacity` 拒绝。根持有 `Murderous` 修饰而闭包非空时拒绝（`UnsupportedClosure`，新敌人的入场力量未移植）；贤者之石、毛皮大衣没有 Flash 遗物定义，持有它们的根在导入阶段按 `UnsupportedRelic` 拒绝。
 
 准入只做判断，不修改任何状态。拒绝原因写入诊断，用于覆盖率统计。
+
+`RootPhase` 的检查发生在根导入的第一道门（`FlashStateImporter.Import(..., requirePlayPhase: true)`），先于 `PendingChoice` 与可表示性检查：回合准备根的 `Start` 阶段选择上下文不是 Flash 的协议，若按出牌阶段搜索会静默丢掉该选择。分发点在 On 模式下对 `IncludeTurnSetup` 根直接写 `FLASH_LEGACY ... reason=turn-setup` 并回落现有求解器；完整支持回合准备根需要内核保存准备选择帧、根动作数与选择令牌协议，留给后续批次。
 
 ## 2. 根导入与投影
 
