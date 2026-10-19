@@ -10,6 +10,7 @@ Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块
 | --- | --- |
 | [状态布局](state-layout.md) | `FlashBattle` 字段、容量、规范化与指纹 |
 | [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义方式、选择协议、怪物 AI |
+| [角色机制](kernel-characters.md) | 各角色专属的内核机制：弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [准入与校验](admission-and-verification.md) | 按场准入、根导入、差分测试、运行时回放核对 |
 | [搜索与接入](search.md) | FlashBeam、路线物化、`BeamSolveDispatch` 与 Off/Shadow/On 模式 |
 | [测试记录](testing.md) | 复跑入口、当前证据与未验证项 |
