@@ -511,6 +511,7 @@ internal sealed class FlashScorer
             MostVulnerableTargetCombatId = mostVulnerableTargetCombatId,
             EnemyVulnerableTurns = vulnerable,
             Energy = battle.Energy,
+            HandCount = battle.HandCount,
             PersistentBuffValue = persistentBuffValue,
             LatentSetupValue = latentSetupValue,
             FutureResourceValue = futureResourceValue,

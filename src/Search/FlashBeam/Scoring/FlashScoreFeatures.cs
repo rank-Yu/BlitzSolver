@@ -47,6 +47,7 @@ internal readonly record struct FlashScoreFeatures
 
     // BeamRankScore terms.
     public int Energy { get; init; }
+    public int HandCount { get; init; }
     public int PersistentBuffValue { get; init; }
     public int LatentSetupValue { get; init; }
     public int FutureResourceValue { get; init; }
@@ -110,6 +111,7 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(MostVulnerableTargetCombatId), old.MostVulnerableTargetCombatId, flash.MostVulnerableTargetCombatId);
         Check(nameof(EnemyVulnerableTurns), old.EnemyVulnerableTurns, flash.EnemyVulnerableTurns);
         Check(nameof(Energy), old.Energy, flash.Energy);
+        Check(nameof(HandCount), old.HandCount, flash.HandCount);
         Check(nameof(PersistentBuffValue), old.PersistentBuffValue, flash.PersistentBuffValue);
         Check(nameof(LatentSetupValue), old.LatentSetupValue, flash.LatentSetupValue);
         Check(nameof(FutureResourceValue), old.FutureResourceValue, flash.FutureResourceValue);

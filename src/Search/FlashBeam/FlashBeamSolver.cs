@@ -110,7 +110,7 @@ internal sealed class FlashBeamSolver
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
     private readonly FlashRouteOrdering _ordering;
-    private readonly List<(int Parent, int Depth, FlashAction Action)> _nodes = new(4096);
+    private readonly List<(int Parent, int Depth, FlashAction Action, int Lineage)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private readonly FlashBoundFeatures? _bound;
@@ -145,7 +145,7 @@ internal sealed class FlashBeamSolver
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
         _nodes.Clear();
-        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default));
+        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1));
         int width = Math.Max(1, _options.BeamWidth);
         // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended are bounded
         // by every kept state expanding every legal action, but a layer holds width x (actual legal actions),
@@ -200,8 +200,9 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        (double rootScore, double rootRank, int rootPotionCost) = Score(root, _options.InitialActionCount);
-        turnFrontier.Add(root, 0, rootScore, rootRank, rootPotionCost);
+        (double rootScore, double rootRank, int rootPotionCost, RetentionFacts rootFacts) =
+            Score(root, _options.InitialActionCount);
+        turnFrontier.Add(root, 0, rootScore, rootRank, rootPotionCost, rootFacts, -1);
         int turns = 0;
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch) && !hpTargetReached)
         {
@@ -361,16 +362,19 @@ internal sealed class FlashBeamSolver
         }
         int node = _nodes.Count;
         int depth = _nodes[parentNode].Depth + 1;
-        _nodes.Add((parentNode, depth, action));
-        (double score, double rank, int potionCost) = Score(child, depth);
+        // The existing search's root-action lineage groups every descendant by the first action
+        // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
+        int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
+        _nodes.Add((parentNode, depth, action, lineage));
+        (double score, double rank, int potionCost, RetentionFacts facts) = Score(child, depth);
         if (!FlashKernel.IsInProgress(child))
         {
             terminal(child, node, score);
             return;
         }
         bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
-            ? ended.Add(child, node, score, rank, potionCost)
-            : next.CommitReserved(node, score, rank, potionCost);
+            ? ended.Add(child, node, score, rank, potionCost, facts, lineage)
+            : next.CommitReserved(node, score, rank, potionCost, facts, lineage);
         if (!added)
             _duplicates++;
     }
@@ -493,12 +497,13 @@ internal sealed class FlashBeamSolver
     /// spent. The potion term is Flash-specific: the existing snapshot score does not include potion cost,
     /// so without it the beam would spend potions for free.
     /// </summary>
-    private (double Score, double Rank, int PotionCost) Score(in FlashBattle battle, int actionCount)
+    private (double Score, double Rank, int PotionCost, RetentionFacts Facts) Score(in FlashBattle battle, int actionCount)
     {
         FlashScoreFeatures features = _scorer.Features(battle, actionCount);
         double rank = _scorer.BeamRankScore(features)
             - UsedPotionCost(battle) * SolverWeights.Hp;
-        return (features.Score, rank, features.ExplicitPotionStrategicCost);
+        return (features.Score, rank, features.ExplicitPotionStrategicCost,
+            RetentionFacts.From(features, actionCount));
     }
 
     /// <summary>A slot still holds its root potion and the policy offers it now.</summary>
@@ -537,6 +542,170 @@ internal sealed class FlashBeamSolver
     }
 
     /// <summary>
+    /// The evaluation values the ported retention comparators read. Every member is already frozen by
+    /// <see cref="FlashScorer.Features"/> and checked field by field against the existing snapshot by K4,
+    /// so retention does not re-evaluate a state or introduce a second scoring path.
+    /// </summary>
+    private readonly record struct RetentionFacts(
+        int Depth,
+        int PotionCount,
+        int ProjectedPlayerHp,
+        int DefensiveBlockValue,
+        int AliveEnemyCount,
+        int RawEnemyHp,
+        int EnemyHp,
+        int RetainedAttackValue,
+        int SetupValue,
+        int SetupComboValue,
+        int LiveDeckSize,
+        int LiveDeckClutter,
+        long AttackDensity,
+        int EnemyStrengthSuppression,
+        int EnemyWeakTurns,
+        int OffensiveProgressValue,
+        double Score)
+    {
+        public static RetentionFacts From(in FlashScoreFeatures features, int depth) => new(
+            depth,
+            features.PotionUseCount,
+            features.ProjectedPlayerHp,
+            features.DefensiveBlockValue,
+            features.AliveEnemyCount,
+            features.RawEnemyHp,
+            features.EnemyHp,
+            features.RetainedAttackValue,
+            // BeamRetentionPolicy.SetupLaneValue: StrategicEffects.RetentionValue * 16
+            // + LatentSetupValue * 8 + ReplayPotentialValue * 16 + FutureResourceValue.
+            // FlashScoreFeatures.PersistentBuffValue is the strategic retention value (K4-checked).
+            features.PersistentBuffValue * 16
+                + features.LatentSetupValue * 8
+                + features.ReplayPotentialValue * 16
+                + features.FutureResourceValue,
+            // BeamRetentionPolicy.FindBestSetup: Scaling + Resource + Control lanes. The resource
+            // lane's Stars (always 0 for an admitted Ironclad root) and ReachableHandValue (no Flash
+            // feature yet) are omitted; every other term is the existing formula.
+            features.PersistentBuffValue * 16
+                + features.LatentSetupValue * 8
+                + features.ReplayPotentialValue * 16
+                + features.FutureResourceValue
+                + features.DelayedDamageValue
+                + features.Energy * 16
+                + features.HandCount
+                + features.FutureResourceValue
+                + features.EnemyStrengthSuppression * 32
+                + features.EnemyWeakTurns * 8
+                + features.FocusTargetVulnerableTurns * 4
+                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
+                + Math.Max(0, features.EnemyVulnerableTurns - features.FocusTargetVulnerableTurns)
+                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
+                + features.DelayedDamageValue
+                - features.LiveDeckClutter * 8,
+            features.LiveDeckSize,
+            features.LiveDeckClutter,
+            (long)features.RetainedAttackValue * 1024 / Math.Max(1, features.LiveDeckSize),
+            features.EnemyStrengthSuppression,
+            features.EnemyWeakTurns,
+            features.OffensiveProgressValue,
+            features.Score);
+    }
+
+    // The leader comparators below are the existing BeamRetentionPolicy.Ranking comparators with the
+    // same tie order. The Osty terms are constants here: Flash admission rejects roots that carry Osty,
+    // so SimulatedCombatState.GetOsty returns null and both values are 0 for every admitted state.
+    private static bool IsBetterDefensive(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+            || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                && (candidate.DefensiveBlockValue > current.DefensiveBlockValue
+                    || candidate.DefensiveBlockValue == current.DefensiveBlockValue
+                        && candidate.Score > current.Score);
+
+    private static bool IsBetterOffensive(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.AliveEnemyCount < current.AliveEnemyCount
+            || candidate.AliveEnemyCount == current.AliveEnemyCount
+                && (candidate.RawEnemyHp < current.RawEnemyHp
+                    || candidate.RawEnemyHp == current.RawEnemyHp
+                        && (candidate.EnemyHp < current.EnemyHp
+                            || candidate.EnemyHp == current.EnemyHp
+                                && (candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+                                    || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                                        && candidate.Score > current.Score)));
+
+    private static bool IsBetterSetup(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.SetupValue > current.SetupValue
+            || candidate.SetupValue == current.SetupValue
+                && (candidate.RetainedAttackValue > current.RetainedAttackValue
+                    || candidate.RetainedAttackValue == current.RetainedAttackValue
+                        && (candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+                            || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                                && candidate.Score > current.Score));
+
+    private static bool IsBetterSetupCombo(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.SetupComboValue > current.SetupComboValue
+            || candidate.SetupComboValue == current.SetupComboValue
+                && (candidate.RetainedAttackValue > current.RetainedAttackValue
+                    || candidate.RetainedAttackValue == current.RetainedAttackValue
+                        && (candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+                            || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                                && candidate.Score > current.Score));
+
+    private static bool IsBetterDeckCuration(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.AttackDensity > current.AttackDensity
+            || candidate.AttackDensity == current.AttackDensity
+                && (candidate.LiveDeckClutter < current.LiveDeckClutter
+                    || candidate.LiveDeckClutter == current.LiveDeckClutter
+                        && IsBetterSetup(candidate, current));
+
+    private static bool IsBetterCompressedDeck(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.LiveDeckSize < current.LiveDeckSize
+            || candidate.LiveDeckSize == current.LiveDeckSize
+                && (candidate.AttackDensity > current.AttackDensity
+                    || candidate.AttackDensity == current.AttackDensity
+                        && IsBetterSetup(candidate, current));
+
+    private static bool IsBetterUtilityDefensive(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+            || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                && candidate.Score > current.Score;
+
+    private static bool IsBetterEnemyStrengthControl(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.EnemyStrengthSuppression > current.EnemyStrengthSuppression
+            || candidate.EnemyStrengthSuppression == current.EnemyStrengthSuppression
+                && (candidate.EnemyWeakTurns > current.EnemyWeakTurns
+                    || candidate.EnemyWeakTurns == current.EnemyWeakTurns
+                        && IsBetterDefensive(candidate, current));
+
+    private static bool IsBetterEnemyWeakControl(in RetentionFacts candidate, in RetentionFacts current)
+        => candidate.EnemyWeakTurns > current.EnemyWeakTurns
+            || candidate.EnemyWeakTurns == current.EnemyWeakTurns
+                && (candidate.EnemyStrengthSuppression > current.EnemyStrengthSuppression
+                    || candidate.EnemyStrengthSuppression == current.EnemyStrengthSuppression
+                        && IsBetterDefensive(candidate, current));
+
+    private sealed class LineageLeaders
+    {
+        public int Leader = -1;
+        public int Defensive = -1;
+        public int Offensive = -1;
+        public int Setup = -1;
+        public int SetupCombo = -1;
+        public int Curation = -1;
+        public int Compressed = -1;
+    }
+
+    private sealed class PotionLeaders
+    {
+        public int Leader = -1;
+        public int Defensive = -1;
+        public int Offensive = -1;
+        public int Setup = -1;
+        public int SetupCombo = -1;
+        public int Curation = -1;
+        public int Compressed = -1;
+        public int Strength = -1;
+        public int Weak = -1;
+    }
+
+    /// <summary>
     /// State pool with byte-exact deduplication keeping the best score. It doubles on demand up to
     /// <c>maxCapacity</c>; exceeding that bound is a capacity rejection.
     /// </summary>
@@ -545,14 +714,23 @@ internal sealed class FlashBeamSolver
         private readonly int _maxCapacity;
         private FlashBattle[] _states;
         private int[] _nodes;
+        private int[] _lineages;
         private double[] _scores;
         private double[] _ranks;
         private ulong[] _hashes;
+        private RetentionFacts[] _facts;
         private int[] _table;
         private int[] _order;
-        private int[] _enemyHp;
+        private int[] _rankOrder;
+        private int[] _rankPosition;
         private int[] _potionCosts;
         private bool[] _taken;
+        private bool[] _required;
+        private readonly List<int> _selected = new();
+        private readonly List<int> _requiredScratch = new();
+        private readonly Dictionary<int, LineageLeaders> _lineageLeaders = new();
+        private readonly List<int> _lineageOrder = new();
+        private readonly Dictionary<int, PotionLeaders> _potionLeaders = new();
 
         public Pool(int initialCapacity, int maxCapacity)
         {
@@ -560,13 +738,17 @@ internal sealed class FlashBeamSolver
             int capacity = Math.Clamp(initialCapacity, 1, maxCapacity);
             _states = new FlashBattle[capacity];
             _nodes = new int[capacity];
+            _lineages = new int[capacity];
             _scores = new double[capacity];
             _ranks = new double[capacity];
             _hashes = new ulong[capacity];
+            _facts = new RetentionFacts[capacity];
             _order = new int[capacity];
-            _enemyHp = new int[capacity];
+            _rankOrder = new int[capacity];
+            _rankPosition = new int[capacity];
             _potionCosts = new int[capacity];
             _taken = new bool[capacity];
+            _required = new bool[capacity];
             _table = new int[TableSize(capacity)];
         }
 
@@ -585,13 +767,17 @@ internal sealed class FlashBeamSolver
             int capacity = (int)Math.Min(_maxCapacity, (long)_states.Length * 2);
             Array.Resize(ref _states, capacity);
             Array.Resize(ref _nodes, capacity);
+            Array.Resize(ref _lineages, capacity);
             Array.Resize(ref _scores, capacity);
             Array.Resize(ref _ranks, capacity);
             Array.Resize(ref _hashes, capacity);
+            Array.Resize(ref _facts, capacity);
             Array.Resize(ref _order, capacity);
-            Array.Resize(ref _enemyHp, capacity);
+            Array.Resize(ref _rankOrder, capacity);
+            Array.Resize(ref _rankPosition, capacity);
             Array.Resize(ref _potionCosts, capacity);
             Array.Resize(ref _taken, capacity);
+            Array.Resize(ref _required, capacity);
             _table = new int[TableSize(capacity)];
             int mask = _table.Length - 1;
             for (int index = 0; index < Count; index++)
@@ -623,10 +809,11 @@ internal sealed class FlashBeamSolver
         {
             _states[to] = _states[from];
             _nodes[to] = _nodes[from];
+            _lineages[to] = _lineages[from];
             _scores[to] = _scores[from];
             _ranks[to] = _ranks[from];
             _hashes[to] = _hashes[from];
-            _enemyHp[to] = _enemyHp[from];
+            _facts[to] = _facts[from];
             _potionCosts[to] = _potionCosts[from];
         }
 
@@ -658,14 +845,18 @@ internal sealed class FlashBeamSolver
         }
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
-        public bool CommitReserved(int node, double score, double rank, int potionCost)
-            => Insert(ref _states[Count], reserved: true, node, score, rank, potionCost);
+        public bool CommitReserved(int node, double score, double rank, int potionCost,
+            in RetentionFacts facts, int lineage)
+            => Insert(ref _states[Count], reserved: true, node, score, rank, potionCost, facts, lineage);
 
         /// <summary>Adds a state; returns false when an identical state was already present.</summary>
-        public bool Add(in FlashBattle state, int node, double score, double rank, int potionCost)
-            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false, node, score, rank, potionCost);
+        public bool Add(in FlashBattle state, int node, double score, double rank, int potionCost,
+            in RetentionFacts facts, int lineage)
+            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false,
+                node, score, rank, potionCost, facts, lineage);
 
-        private bool Insert(ref FlashBattle state, bool reserved, int node, double score, double rank, int potionCost)
+        private bool Insert(ref FlashBattle state, bool reserved, int node, double score, double rank,
+            int potionCost, in RetentionFacts facts, int lineage)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -681,6 +872,8 @@ internal sealed class FlashBeamSolver
                         _ranks[existing] = rank;
                         _nodes[existing] = node;
                         _potionCosts[existing] = potionCost;
+                        _facts[existing] = facts;
+                        _lineages[existing] = lineage;
                     }
                     return false;
                 }
@@ -695,23 +888,24 @@ internal sealed class FlashBeamSolver
             if (!reserved)
                 _states[index] = state;
             _nodes[index] = node;
+            _lineages[index] = lineage;
             _scores[index] = score;
             _ranks[index] = rank;
             _hashes[index] = hash;
+            _facts[index] = facts;
             _potionCosts[index] = potionCost;
             _table[slot] = index + 1;
-            int enemyHp = 0;
-            for (int enemy = 0; enemy < state.EnemyCount; enemy++)
-                enemyHp += Math.Max(0, state.Enemies[enemy].Creature.CurrentHp);
-            _enemyHp[index] = enemyHp;
             return true;
         }
 
         public void CopyTopTo(Pool target, int width) => CopyTopTo(target, width, 0d);
 
         /// <summary>
-        /// Keeps the best <paramref name="width"/> states: the score leaders, plus a reserved share of the
-        /// lowest-enemy-HP states so offensive lines survive a defensive score bias.
+        /// Keeps the best <paramref name="width"/> states. The score leaders and the reserved offensive
+        /// share are the same two lanes as before; on top of them the existing search's required
+        /// representatives (per potion count, global defensive/offensive/setup leaders and the strongest
+        /// root-action lineages) replace the last non-required score seat. The total width is unchanged:
+        /// a representative takes a seat, it does not widen the beam.
         /// </summary>
         public void CopyTopTo(Pool target, int width, double offensiveShare)
         {
@@ -722,44 +916,296 @@ internal sealed class FlashBeamSolver
             {
                 _order[index] = index;
                 _taken[index] = false;
+                _required[index] = false;
             }
-            double[] ranks = _ranks;
-            Array.Sort(_order, 0, count, Comparer<int>.Create((left, right) =>
-            {
-                int compare = ranks[right].CompareTo(ranks[left]);
-                return compare != 0 ? compare : left.CompareTo(right);
-            }));
+            SortByRank(count);
             int keep = Math.Min(width, count);
             int offensive = (int)(keep * offensiveShare);
             int byScore = keep - offensive;
+            List<int> selected = _selected;
+            selected.Clear();
             for (int index = 0; index < byScore; index++)
-                Take(target, _order[index]);
+            {
+                int source = _order[index];
+                selected.Add(source);
+                _taken[source] = true;
+            }
             if (offensive > 0)
             {
-                int[] enemyHp = _enemyHp;
-                Array.Sort(_order, 0, count, Comparer<int>.Create((left, right) =>
-                {
-                    int compare = enemyHp[left].CompareTo(enemyHp[right]);
-                    if (compare != 0)
-                        return compare;
-                    compare = ranks[right].CompareTo(ranks[left]);
-                    return compare != 0 ? compare : left.CompareTo(right);
-                }));
+                SortByEnemyHp(count);
                 int added = 0;
                 for (int index = 0; index < count && added < offensive; index++)
                 {
-                    if (_taken[_order[index]])
+                    int source = _order[index];
+                    if (_taken[source])
                         continue;
-                    Take(target, _order[index]);
+                    selected.Add(source);
+                    _taken[source] = true;
                     added++;
                 }
             }
+            List<int> required = _requiredScratch;
+            required.Clear();
+            // Representatives take priority over the mass offensive lane: when a required leader is
+            // not in the top seats it replaces the last non-required seat first (offensive seats are
+            // appended last), so the score leaders and then the required set are preserved.
+            CollectRepresentatives(required, count, width);
+            // BeamRetentionPolicy.RankBest: every required candidate not already ranked replaces the
+            // last ordinary seat, so all required members survive without widening the layer.
+            foreach (int source in required)
+            {
+                if (_taken[source])
+                    continue;
+                int replaceIndex = -1;
+                for (int index = selected.Count - 1; index >= 0; index--)
+                {
+                    if (_required[selected[index]])
+                        continue;
+                    replaceIndex = index;
+                    break;
+                }
+                if (replaceIndex < 0)
+                    break;
+                _taken[selected[replaceIndex]] = false;
+                selected[replaceIndex] = source;
+                _taken[source] = true;
+            }
+            selected.Sort((left, right) => _rankPosition[left].CompareTo(_rankPosition[right]));
+            for (int index = 0; index < selected.Count; index++)
+            {
+                int source = selected[index];
+                target.Add(_states[source], _nodes[source], _scores[source], _ranks[source],
+                    _potionCosts[source], _facts[source], _lineages[source]);
+            }
         }
 
-        private void Take(Pool target, int source)
+        private void AddRequired(List<int> required, int source, int width)
         {
-            _taken[source] = true;
-            target.Add(_states[source], _nodes[source], _scores[source], _ranks[source], _potionCosts[source]);
+            if (source < 0 || required.Count >= width || _required[source])
+                return;
+            _required[source] = true;
+            required.Add(source);
+        }
+
+        /// <summary>
+        /// The existing RankBest required set, restricted to the mechanisms whose inputs Flash already
+        /// evaluates exactly: one leader set per potion count, the global defensive/offensive/setup
+        /// leaders, and the strongest root-action lineages (clamp(width / 8, 4, 16)).
+        /// </summary>
+        private void CollectRepresentatives(List<int> required, int count, int width)
+        {
+            _lineageLeaders.Clear();
+            _potionLeaders.Clear();
+            int bestDefensive = -1, bestOffensive = -1, bestSetup = -1, bestUtilityDefensive = -1;
+            int bestSetupCombo = -1, bestCuration = -1, bestCompressed = -1;
+            int bestPotionFree = -1, bestPotionFreeDefensive = -1, bestPotionFreeOffensive = -1;
+            int bestPotionFreeSetup = -1, bestPotionFreeSetupCombo = -1, bestPotionFreeUtilityDefensive = -1;
+            int bestPotion = -1, bestPotionDefensive = -1, bestPotionOffensive = -1, bestPotionSetup = -1;
+            int bestPotionSetupCombo = -1;
+            for (int position = 0; position < count; position++)
+            {
+                int source = _rankOrder[position];
+                RetentionFacts facts = _facts[source];
+                int potionCount = facts.PotionCount;
+                if (!_potionLeaders.TryGetValue(potionCount, out PotionLeaders? potion))
+                {
+                    potion = new PotionLeaders { Leader = source };
+                    _potionLeaders.Add(potionCount, potion);
+                }
+                if (potion.Defensive < 0 || IsBetterDefensive(facts, _facts[potion.Defensive]))
+                    potion.Defensive = source;
+                if (potion.Offensive < 0 || IsBetterOffensive(facts, _facts[potion.Offensive]))
+                    potion.Offensive = source;
+                if (potion.Setup < 0 || IsBetterSetup(facts, _facts[potion.Setup]))
+                    potion.Setup = source;
+                if (potion.SetupCombo < 0 || IsBetterSetupCombo(facts, _facts[potion.SetupCombo]))
+                    potion.SetupCombo = source;
+                if (potion.Curation < 0 || IsBetterDeckCuration(facts, _facts[potion.Curation]))
+                    potion.Curation = source;
+                if (potion.Compressed < 0 || IsBetterCompressedDeck(facts, _facts[potion.Compressed]))
+                    potion.Compressed = source;
+                if (potion.Strength < 0 || IsBetterEnemyStrengthControl(facts, _facts[potion.Strength]))
+                    potion.Strength = source;
+                if (potion.Weak < 0 || IsBetterEnemyWeakControl(facts, _facts[potion.Weak]))
+                    potion.Weak = source;
+
+                int lineage = _lineages[source];
+                if (!_lineageLeaders.TryGetValue(lineage, out LineageLeaders? line))
+                {
+                    line = new LineageLeaders { Leader = source };
+                    _lineageLeaders.Add(lineage, line);
+                }
+                if (line.Defensive < 0 || IsBetterDefensive(facts, _facts[line.Defensive]))
+                    line.Defensive = source;
+                if (line.Offensive < 0 || IsBetterOffensive(facts, _facts[line.Offensive]))
+                    line.Offensive = source;
+                if (line.Setup < 0 || IsBetterSetup(facts, _facts[line.Setup]))
+                    line.Setup = source;
+                if (line.SetupCombo < 0 || IsBetterSetupCombo(facts, _facts[line.SetupCombo]))
+                    line.SetupCombo = source;
+                if (line.Curation < 0 || IsBetterDeckCuration(facts, _facts[line.Curation]))
+                    line.Curation = source;
+                if (line.Compressed < 0 || IsBetterCompressedDeck(facts, _facts[line.Compressed]))
+                    line.Compressed = source;
+
+                if (bestDefensive < 0 || IsBetterDefensive(facts, _facts[bestDefensive]))
+                    bestDefensive = source;
+                if (bestOffensive < 0 || IsBetterOffensive(facts, _facts[bestOffensive]))
+                    bestOffensive = source;
+                if (bestSetup < 0 || IsBetterSetup(facts, _facts[bestSetup]))
+                    bestSetup = source;
+                if (bestSetupCombo < 0 || IsBetterSetupCombo(facts, _facts[bestSetupCombo]))
+                    bestSetupCombo = source;
+                if (bestCuration < 0 || IsBetterDeckCuration(facts, _facts[bestCuration]))
+                    bestCuration = source;
+                if (bestCompressed < 0 || IsBetterCompressedDeck(facts, _facts[bestCompressed]))
+                    bestCompressed = source;
+                if (bestUtilityDefensive < 0
+                    || IsBetterUtilityDefensive(facts, _facts[bestUtilityDefensive]))
+                {
+                    bestUtilityDefensive = source;
+                }
+                if (potionCount == 0)
+                {
+                    if (bestPotionFree < 0)
+                        bestPotionFree = source;
+                    if (bestPotionFreeDefensive < 0
+                        || IsBetterDefensive(facts, _facts[bestPotionFreeDefensive]))
+                    {
+                        bestPotionFreeDefensive = source;
+                    }
+                    if (bestPotionFreeOffensive < 0
+                        || IsBetterOffensive(facts, _facts[bestPotionFreeOffensive]))
+                    {
+                        bestPotionFreeOffensive = source;
+                    }
+                    if (bestPotionFreeSetup < 0
+                        || IsBetterSetup(facts, _facts[bestPotionFreeSetup]))
+                    {
+                        bestPotionFreeSetup = source;
+                    }
+                    if (bestPotionFreeSetupCombo < 0
+                        || IsBetterSetupCombo(facts, _facts[bestPotionFreeSetupCombo]))
+                    {
+                        bestPotionFreeSetupCombo = source;
+                    }
+                    if (bestPotionFreeUtilityDefensive < 0
+                        || IsBetterUtilityDefensive(facts, _facts[bestPotionFreeUtilityDefensive]))
+                    {
+                        bestPotionFreeUtilityDefensive = source;
+                    }
+                }
+                else
+                {
+                    if (bestPotion < 0)
+                        bestPotion = source;
+                    if (bestPotionDefensive < 0
+                        || IsBetterDefensive(facts, _facts[bestPotionDefensive]))
+                    {
+                        bestPotionDefensive = source;
+                    }
+                    if (bestPotionOffensive < 0
+                        || IsBetterOffensive(facts, _facts[bestPotionOffensive]))
+                    {
+                        bestPotionOffensive = source;
+                    }
+                    if (bestPotionSetup < 0 || IsBetterSetup(facts, _facts[bestPotionSetup]))
+                        bestPotionSetup = source;
+                    if (bestPotionSetupCombo < 0
+                        || IsBetterSetupCombo(facts, _facts[bestPotionSetupCombo]))
+                    {
+                        bestPotionSetupCombo = source;
+                    }
+                }
+            }
+
+            for (int potionCount = 0; potionCount <= FlashLimits.PotionSlots; potionCount++)
+            {
+                if (!_potionLeaders.TryGetValue(potionCount, out PotionLeaders? potion))
+                    continue;
+                AddRequired(required, potion.Leader, width);
+                AddRequired(required, potion.Defensive, width);
+                AddRequired(required, potion.Offensive, width);
+                AddRequired(required, potion.Strength, width);
+                AddRequired(required, potion.Weak, width);
+                AddRequired(required, potion.Setup, width);
+                AddRequired(required, potion.SetupCombo, width);
+                AddRequired(required, potion.Curation, width);
+                AddRequired(required, potion.Compressed, width);
+            }
+            AddRequired(required, bestPotionFree, width);
+            AddRequired(required, bestPotionFreeDefensive, width);
+            AddRequired(required, bestPotionFreeOffensive, width);
+            AddRequired(required, bestPotionFreeSetup, width);
+            AddRequired(required, bestPotionFreeSetupCombo, width);
+            AddRequired(required, bestPotionFreeUtilityDefensive, width);
+            AddRequired(required, bestPotion, width);
+            AddRequired(required, bestPotionDefensive, width);
+            AddRequired(required, bestPotionOffensive, width);
+            AddRequired(required, bestPotionSetup, width);
+            AddRequired(required, bestPotionSetupCombo, width);
+            AddRequired(required, bestDefensive, width);
+            AddRequired(required, bestUtilityDefensive, width);
+            AddRequired(required, bestOffensive, width);
+            AddRequired(required, bestSetup, width);
+            AddRequired(required, bestSetupCombo, width);
+            AddRequired(required, bestCuration, width);
+            AddRequired(required, bestCompressed, width);
+
+            _lineageOrder.Clear();
+            foreach (int key in _lineageLeaders.Keys)
+                _lineageOrder.Add(key);
+            _lineageOrder.Sort((left, right) => _rankPosition[_lineageLeaders[left].Leader]
+                .CompareTo(_rankPosition[_lineageLeaders[right].Leader]));
+            int lineageLimit = Math.Clamp(width / 8, 4, 16);
+            for (int index = 0; index < _lineageOrder.Count && index < lineageLimit; index++)
+            {
+                LineageLeaders lineage = _lineageLeaders[_lineageOrder[index]];
+                AddRequired(required, lineage.Leader, width);
+                AddRequired(required, lineage.Defensive, width);
+                AddRequired(required, lineage.Offensive, width);
+                AddRequired(required, lineage.Setup, width);
+                AddRequired(required, lineage.SetupCombo, width);
+                AddRequired(required, lineage.Curation, width);
+                AddRequired(required, lineage.Compressed, width);
+            }
+        }
+
+        private void SortByRank(int count)
+        {
+            double[] ranks = _ranks;
+            RetentionFacts[] facts = _facts;
+            Array.Sort(_order, 0, count, Comparer<int>.Create((left, right) =>
+            {
+                // CombatBeamSolver.CompareBeamRankOrder: rank, then fewer actions, then offensive progress.
+                int comparison = ranks[right].CompareTo(ranks[left]);
+                if (comparison != 0)
+                    return comparison;
+                comparison = facts[left].Depth.CompareTo(facts[right].Depth);
+                if (comparison != 0)
+                    return comparison;
+                comparison = facts[right].OffensiveProgressValue.CompareTo(facts[left].OffensiveProgressValue);
+                return comparison != 0 ? comparison : left.CompareTo(right);
+            }));
+            for (int position = 0; position < count; position++)
+            {
+                int source = _order[position];
+                _rankOrder[position] = source;
+                _rankPosition[source] = position;
+            }
+        }
+
+        private void SortByEnemyHp(int count)
+        {
+            RetentionFacts[] facts = _facts;
+            int[] rankPosition = _rankPosition;
+            Array.Sort(_order, 0, count, Comparer<int>.Create((left, right) =>
+            {
+                int comparison = facts[left].EnemyHp.CompareTo(facts[right].EnemyHp);
+                return comparison != 0
+                    ? comparison
+                    : rankPosition[left].CompareTo(rankPosition[right]);
+            }));
         }
     }
 }
