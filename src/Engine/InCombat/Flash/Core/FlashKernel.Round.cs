@@ -63,9 +63,26 @@ public static partial class FlashKernel
         x.B.ShufflesCrossed += x.B.ShuffleEventCount - turnEndShuffleEvents;
         ApplyEnemyDeathPowers(ref x);
 
-        // ShouldTakeExtraTurn: no supported sources.
-        x.ChoiceTiming = FlashChoiceTiming.EnemyTurn;
-        RunEnemyTurn(ref x);
+        // HookMirrors.ShouldTakeExtraTurn after the player turn-end phases, before the enemy turn.
+        bool takingExtraTurn = ShouldTakeExtraTurnPass(ref x);
+        if (x.NeedsChoice)
+            return;
+        if (takingExtraTurn)
+        {
+            // An extra turn advances the player's turn number, so damage from the just-finished turn
+            // becomes Emotion Chip's "previous turn" window (recorded only when that relic is present).
+            AfterRelicRoundPass(ref x);
+            if (x.NeedsChoice)
+                return;
+            AfterTakingExtraTurnPass(ref x);
+            if (x.NeedsChoice)
+                return;
+        }
+        else
+        {
+            x.ChoiceTiming = FlashChoiceTiming.EnemyTurn;
+            RunEnemyTurn(ref x);
+        }
         // The performed-move marks only carry information within one enemy turn. The
         // forced-must-perform mark is the same kind of in-turn kernel state
         // (SimulatedCombatState.MonsterAi.cs:122-126): PrepareMonsterMovesForNextRound consumes it when
@@ -77,7 +94,7 @@ public static partial class FlashKernel
         }
         if (x.NeedsChoice || !IsInProgress(x.B))
             return;
-        AdvanceRoundPlayerStart(ref x);
+        AdvanceRoundPlayerStart(ref x, takingExtraTurn);
     }
 
     /// <summary>Mirrors the enemy-turn block of <c>CombatBeamSolver.AdvanceRound</c>.</summary>
@@ -188,6 +205,9 @@ public static partial class FlashKernel
             return;
         if (!x.NeedsChoice)
             NormalizeCardAfflictions(ref x);
+        AfterRelicRoundPass(ref x);
+        if (x.NeedsChoice)
+            return;
         if (CheckWinCondition(ref x.B))
             return;
         PrepareMonsterMovesForNextRound(ref x);
@@ -219,6 +239,29 @@ public static partial class FlashKernel
         if (battle.Side != side)
             ClearLostHpThisTurn(ref battle);
         battle.Side = side;
+    }
+
+    /// <summary>
+    /// <c>HasLostHpThisTurn</c> after <c>AdvancePlayerTurn</c>'s cache reset: only the root history's
+    /// per-creature answer remains (<see cref="FlashRules.RootLostHpMask"/>).
+    /// </summary>
+    private static void RestoreRootLostHp(ref FlashBattle battle, ushort mask)
+    {
+        SetLostHpFlag(ref battle.Player, (mask & (1 << FlashLimits.PlayerOwner)) != 0);
+        SetLostHpFlag(ref battle.Osty, (mask & (1 << FlashLimits.OstyOwner)) != 0);
+        for (int index = 0; index < battle.EnemyCount; index++)
+        {
+            SetLostHpFlag(ref battle.Enemies[index].Creature,
+                (mask & (1 << EnemyOwner(index))) != 0);
+        }
+    }
+
+    private static void SetLostHpFlag(ref FlashCreature creature, bool lost)
+    {
+        if (lost)
+            creature.Flags |= FlashCreatureFlags.LostHpThisTurn;
+        else
+            creature.Flags &= ~FlashCreatureFlags.LostHpThisTurn;
     }
 
     private static void ClearLostHpThisTurn(ref FlashBattle battle)
@@ -379,7 +422,12 @@ public static partial class FlashKernel
             FlashCard flushed = FlashPiles.RemoveAt(ref x.B, FlashPile.Hand, index);
             FlashPiles.Append(ref x.B, FlashPile.Discard, flushed);
         }
-        // Bookmark is not supported. End-of-turn cleanup for every combat card:
+        // CorePowerSupport.FlushPlayerHandAtTurnEnd runs the AfterFlush relics after the non-retained
+        // hand moved and before the end-of-turn card cleanup (Bookmark).
+        AfterFlushPass(ref x);
+        if (x.NeedsChoice)
+            return;
+        // End-of-turn cleanup for every combat card:
         int total = x.B.CardCount;
         for (int position = 0; position < total; position++)
             EndOfTurnCleanup(ref x.B.Cards[position]);
@@ -468,14 +516,21 @@ public static partial class FlashKernel
     /// Mirrors <c>CombatBeamSolver.AdvanceRoundPlayerStart</c> and <c>ContinuePlayerStart</c> for a
     /// round without turn-start choices.
     /// </summary>
-    private static void AdvanceRoundPlayerStart(ref FlashExec x)
+    private static void AdvanceRoundPlayerStart(ref FlashExec x, bool takingExtraTurn = false)
     {
         x.ChoiceTiming = FlashChoiceTiming.PlayerTurnStart;
         SetSide(ref x.B, FlashSide.Player);
-        x.B.Round++;
+        if (!takingExtraTurn)
+            x.B.Round++;
         x.B.PlayerTurn++;
-        // RoundNumber and AdvancePlayerTurn also clear the lost-HP marks; BeginSideTurn(player):
-        ClearLostHpThisTurn(ref x.B);
+        // RoundNumber and CurrentSide only clear the lost-HP marks when they change. An extra turn
+        // keeps the same round and side, and AdvancePlayerTurn only drops the prediction cache: the
+        // engine then answers HasLostHpThisTurn from the immutable root history. Restore exactly the
+        // root answer for an extra turn; a normal turn advances the round and clears everything.
+        if (takingExtraTurn)
+            RestoreRootLostHp(ref x.B, x.R.RootLostHpMask);
+        else
+            ClearLostHpThisTurn(ref x.B);
         BeginPlayerSideTurn(ref x.B);
         SnapshotPowerAmountsAtTurnStart(ref x.B, FlashLimits.PlayerOwner);
         ReadOnlySpan<byte> player = [FlashLimits.PlayerOwner];
@@ -532,7 +587,8 @@ public static partial class FlashKernel
         AfterPlayerTurnStart(ref x);
         if (x.NeedsChoice)
             return;
-        TriggerSideTurnStart(ref x, FlashSide.Player, player, decrementPlating: x.B.PlayerTurn != 1);
+        TriggerSideTurnStart(ref x, FlashSide.Player, player, decrementPlating: x.B.PlayerTurn != 1,
+            isExtraTurn: takingExtraTurn);
         if (x.NeedsChoice)
             return;
         ApplyEnemyDeathPowers(ref x);
@@ -552,4 +608,73 @@ public static partial class FlashKernel
         x.B.Phase = FlashPlayerPhase.Play;
         CheckWinCondition(ref x.B);
     }
+
+// This batch's turn-boundary relic hooks (FlashHookMaskExt bits 3-6). Each is dispatched at the
+// existing engine's position and over the same listener order as the action-hook dispatcher.
+
+/// <summary><c>CorePowerSupport.FlushPlayerHandAtTurnEnd</c>: <c>AfterFlush</c> over the combat listeners.</summary>
+internal static void AfterFlushPass(ref FlashExec x)
+{
+    if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.AfterFlush) == 0)
+        return;
+    Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+    int count = FlashHooks.CollectListeners(x.B, FlashHookMaskExt.AfterFlush, listeners);
+    for (int index = 0; index < count; index++)
+    {
+        FlashListener self = listeners[index];
+        FlashHooks.Definition(x.B, self).AfterFlush(ref x, self);
+        if (x.NeedsChoice)
+            return;
+    }
+}
+
+/// <summary><c>HookMirrors.ShouldTakeExtraTurn</c>: the first listener answering true wins.</summary>
+internal static bool ShouldTakeExtraTurnPass(ref FlashExec x)
+{
+    if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.ShouldTakeExtraTurn) == 0)
+        return false;
+    Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+    int count = FlashHooks.CollectListeners(x.B, FlashHookMaskExt.ShouldTakeExtraTurn, listeners);
+    for (int index = 0; index < count; index++)
+    {
+        FlashListener self = listeners[index];
+        if (FlashHooks.Definition(x.B, self).ShouldTakeExtraTurn(ref x, self))
+            return true;
+        if (x.NeedsChoice)
+            return false;
+    }
+    return false;
+}
+
+/// <summary><c>HookMirrors.AfterTakingExtraTurn</c>: a fixed listener snapshot, in dispatch order.</summary>
+internal static void AfterTakingExtraTurnPass(ref FlashExec x)
+{
+    if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.AfterTakingExtraTurn) == 0)
+        return;
+    Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+    int count = FlashHooks.CollectListeners(x.B, FlashHookMaskExt.AfterTakingExtraTurn, listeners);
+    for (int index = 0; index < count; index++)
+    {
+        FlashListener self = listeners[index];
+        FlashHooks.Definition(x.B, self).AfterTakingExtraTurn(ref x, self);
+        if (x.NeedsChoice)
+            return;
+    }
+}
+
+/// <summary><c>SimulatedCombatState.RecordRelicRoundDamage</c>: the per-round relic bookkeeping.</summary>
+internal static void AfterRelicRoundPass(ref FlashExec x)
+{
+    if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.AfterRelicRound) == 0)
+        return;
+    Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+    int count = FlashHooks.CollectListeners(x.B, FlashHookMaskExt.AfterRelicRound, listeners);
+    for (int index = 0; index < count; index++)
+    {
+        FlashListener self = listeners[index];
+        FlashHooks.Definition(x.B, self).AfterRelicRound(ref x, self);
+        if (x.NeedsChoice)
+            return;
+    }
+}
 }

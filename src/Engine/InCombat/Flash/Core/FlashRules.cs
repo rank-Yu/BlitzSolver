@@ -292,7 +292,10 @@ public sealed class FlashRules
         bool hasBeforeFlushEnchantment,
         bool hasTheftContent,
         bool hasDecimalCardVars,
-        bool hasInfiniteHpDisplayMonster)
+        bool hasInfiniteHpDisplayMonster,
+        bool hasPaelsLegion,
+        bool furCoatSpawnHpOne,
+        ushort rootLostHpMask)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -318,6 +321,9 @@ public sealed class FlashRules
         HasTheftContent = hasTheftContent;
         HasDecimalCardVars = hasDecimalCardVars;
         HasInfiniteHpDisplayMonster = hasInfiniteHpDisplayMonster;
+        HasPaelsLegion = hasPaelsLegion;
+        FurCoatSpawnHpOne = furCoatSpawnHpOne;
+        RootLostHpMask = rootLostHpMask;
     }
 
     public int BaseMaxEnergy { get; }
@@ -374,6 +380,27 @@ public sealed class FlashRules
     /// the capped infinite-life auto-play branch; roots without one skip that scan.
     /// </summary>
     public bool HasInfiniteHpDisplayMonster { get; }
+
+    /// <summary>
+    /// The root owns PaelsLegion, the only block hook that needs the per-play ledger. GainBlock
+    /// otherwise skips the changed-listener collection (identity content covers Vambrace only).
+    /// </summary>
+    public bool HasPaelsLegion { get; }
+
+    /// <summary>
+    /// The root's FurCoat mark covers the current map coordinate: every enemy created during this
+    /// combat starts at 1 current HP (<c>MonsterSpawnSupport.ApplyCreatureAddedRelics</c>).
+    /// </summary>
+    public bool FurCoatSpawnHpOne { get; }
+
+    /// <summary>
+    /// Creatures whose <c>HasLostHpThisTurn</c> was true at root capture, one bit per owner
+    /// (<see cref="FlashLimits.PlayerOwner"/>, <see cref="FlashLimits.OstyOwner"/> and enemy owners
+    /// 2..). The engine's history query after <c>AdvancePlayerTurn</c> falls back to the immutable root
+    /// history (prediction-time damage lives only in the cleared cache), so an extra turn restores
+    /// exactly these flags; a normal turn advances the round and clears them.
+    /// </summary>
+    public ushort RootLostHpMask { get; }
 
     /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
     public int BaseOrbSlotCount { get; }
@@ -516,6 +543,12 @@ public sealed class FlashRulesBuilder
 
     public bool HasInfiniteHpDisplayMonster { get; set; }
 
+    public bool HasPaelsLegion { get; set; }
+
+    public bool FurCoatSpawnHpOne { get; set; }
+
+    public ushort RootLostHpMask { get; set; }
+
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
         List<FlashCardStats?> levels = _cards[id] ??= [];
@@ -606,7 +639,8 @@ public sealed class FlashRulesBuilder
             (ushort[])_rootPotions.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
             RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent, HasShuffleOrderEnchantment,
-            HasBeforeFlushEnchantment, HasTheftContent, HasDecimalCardVars, HasInfiniteHpDisplayMonster);
+            HasBeforeFlushEnchantment, HasTheftContent, HasDecimalCardVars, HasInfiniteHpDisplayMonster,
+            HasPaelsLegion, FurCoatSpawnHpOne, RootLostHpMask);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

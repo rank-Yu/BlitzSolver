@@ -178,3 +178,12 @@ DX3 批次没有改变 `FlashBattle`/`FlashCard` 的尺寸，也没有新增 `Fl
 Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。搜索容器不属于状态布局；`FlashBattle` 本身仍是 12,408 字节。`FlashBeamSolver` 的四个池使用 64 槽状态块（794,112 B/块）与按类型 ≥ 85 KB 的元数据块，块按需分配且从不复制。块大小取舍：小于 85 KB 的数组会在 Gen0/Gen1 反复晋升，单块过大又难以在 LOH 中安置；64 槽约为 LOH 阈值的 9.3 倍，1 万个状态约 160 块，仍小于旧版一次倍增得到的百 MB 级数组。曾试过跨求解缓存 64 MiB 状态块；Medium 上能命中，但碎片 180 MB（基线 0.6 MB）、峰值 419 MB（分块无池 330–355 MB），故未保留，当前每次 `Solve` 新建池。
 
 CX 没有新增 `FlashCounter`、`FlashBattle` 或 `FlashCard` 字段：CX 本身保持 `FlashBattle` 12320 字节（TW 随后把 `DetachedCards` 扩到 3，见上，当前为 12408），`FlashCard` 仍为 92 字节。新增的两个派发点放在既有的 `FlashHookMaskExt`：`BeforeFlush`（bit 1，玩家回合末清手牌前逐张手牌附魔）与 `ModifyShuffleOrder`（bit 2，稳定洗牌后、写回抽牌堆前按监听顺序）。`SlumberingEssence` 的每回合 −1 与 `Slither` 的随机本场费用都追加到既有的 `FlashCard.EnergyModifiers`；`PerfectFit` 只改本次洗牌的局部列表，不写战斗状态。两个派发点分别由根级布尔 `FlashRules.HasShuffleOrderEnchantment` / `HasBeforeFlushEnchantment` 跳过：只有根战斗牌堆里的附魔实例实现了对应 Hook 时才收集监听者（附魔只在战斗外获得，根牌堆就是完整来源），因此没有这些附魔的根在洗牌与清手牌热路径上没有新增按监听表的扫描。`Imbued` 的自动预打出快照只在栈上的 `FlashExec` 路径里（绝对位置与稳定键），稳定边界不留下任何值。
+
+### 2.7 PR 批次（药水与遗物）
+
+本批没有改变 `FlashBattle`（12,472 字节）或 `FlashCard`（92 字节），也没有新增 `FlashCounter`。新增内容使用既有槽位：
+
+- `FlashExec` 的瞬态 `PlayIdentity`/`LastPlayIdentity`/`PlayIdentityCounter`/`MusicBoxPlayIdentity`：每次原生 `CardPlay` 一个单调编号，供 `PAELS_LEGION` 把 `AfterModifyingBlockAmount` 与同一次 `AfterCardPlayed` 配对、`MUSIC_BOX` 把 `BeforeCardPlayed` 与 `AfterCardPlayed` 配对。嵌套自动打出保存/恢复，稳定边界恒为 0/初值。
+- `FlashRelic.Counter`/`Aux` 的新用途：`MUSIC_BOX.Counter` 本回合已用；`THROWING_AXE.Counter` 本场已用；`METRONOME.Counter` 已充能次数；`PAELS_LEGION.Counter` 冷却、`Aux` 本次格挡所属 `PlayIdentity`、`FlashRelicFlags.UsedThisCombat` 为原版的显示锁存；`EMOTION_CHIP`/`PAELS_EYE` 的 `StatefulRelicState`（Current/Previous）。
+- `FlashRules` 三个根级字段（非战斗状态）：`HasPaelsLegion`（`GainBlock` 是否需要收集 changed-listener 列表；Vambrace 之外的新增格挡修正）、`FurCoatSpawnHpOne`（命中的生成敌人当前生命 1）、`RootLostHpMask`（根捕获时每个 owner 的 `HasLostHpThisTurn`，额外回合恢复用）。三者都不改变 `FlashBattle` 大小。
+- `PAELS_EYE` 的额外回合：`Round` 不变、`PlayerTurn` 加一；普通回合换轮时清零失血标记，额外回合按 `RootLostHpMask` 恢复根历史答案。

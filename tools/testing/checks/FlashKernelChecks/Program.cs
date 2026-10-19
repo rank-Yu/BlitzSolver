@@ -46,6 +46,7 @@ CheckIdKernel(rules);
 CheckCxKernel(rules);
 CheckDecimalVars(rules);
 CheckDx3Kernel(rules);
+CheckPrKernel();
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -2221,6 +2222,121 @@ static void CheckDx3Kernel(FlashRules rules)
     FlashKernel.ClearPendingPowerAmountStates(ref flagBattle);
     Check((flagBattle.Powers[0].Flags & FlashPowerFlags.PendingAmountState) == 0,
         "PendingAmountState 应在稳定边界清除");
+}
+
+// PR batch: the extra-turn pipeline (PaelsEye) must keep RoundNumber unchanged, advance the player
+// turn, exhaust the triggering hand and consume only the relic's once-per-combat latch.
+static void CheckPrKernel()
+{
+    FlashRegistry.TryRelic("PAELS_EYE", out ushort paelsEye);
+    FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike);
+    FlashRulesBuilder builder = new()
+    {
+        BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
+    };
+    builder.SetCard(strike, 0, new FlashCardStats
+    {
+        Type = FlashCardType.Attack, Target = FlashTargetType.AnyEnemy, Rarity = FlashCardRarity.Basic,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None,
+        MaxUpgradeLevel = 1, Vars = [6m],
+    });
+    FlashRules rules = builder.Build();
+    FlashBattle battle = NewBattle();
+    battle.Round = 1;
+    battle.PlayerTurn = 1;
+    battle.Side = FlashSide.Player;
+    battle.Phase = FlashPlayerPhase.Play;
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.MaxHandSize = 10;
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = paelsEye, Aux = 1 };
+    battle.Cards[0] = FlashKernel.CreateCard(rules, strike);
+    battle.HandCount = 1;
+    FlashExec x = new(ref battle, rules, FlashAction.EndTurn());
+    FlashKernel.AdvanceRound(ref x);
+    Check(!x.NeedsChoice, "PaelsEye 的额外回合不应产生待处理选择");
+    Check(battle.Round == 1, $"额外回合不应增加 RoundNumber（实际 {battle.Round}）");
+    Check(battle.PlayerTurn == 2, $"额外回合应推进玩家回合数（实际 {battle.PlayerTurn}）");
+    Check(battle.HandCount == 0, $"PaelsEye 应在回合末消耗整手牌（剩余 {battle.HandCount}）");
+    Check(battle.Relics[0].Counter == 1, "PaelsEye 的 AfterTakingExtraTurn 应置为已用");
+    Check(battle.Side == FlashSide.Player, "额外回合应直接开始新的玩家回合");
+
+    // PaelsLegion doubles a card's block while the cooldown is down; the root flag replaces the
+    // identity-content gate that used to skip the changed-block listener pass entirely.
+    FlashRegistry.TryRelic("PAELS_LEGION", out ushort paelsLegion);
+    FlashRulesBuilder blockBuilder = new()
+    {
+        BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
+        HasPaelsLegion = true,
+    };
+    blockBuilder.SetRelicVars(paelsLegion, [2m]);
+    FlashRules blockRules = blockBuilder.Build();
+    FlashBattle blockBattle = NewBattle();
+    blockBattle.Round = 1;
+    blockBattle.PlayerTurn = 1;
+    blockBattle.Side = FlashSide.Player;
+    blockBattle.Phase = FlashPlayerPhase.Play;
+    blockBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    blockBattle.RelicCount = 1;
+    blockBattle.Relics[0] = new FlashRelic { Id = paelsLegion };
+    FlashExec blockExec = new(ref blockBattle, blockRules, FlashAction.EndTurn());
+    decimal doubled = FlashKernel.GainBlock(ref blockExec, FlashLimits.PlayerOwner, 5m,
+        FlashValueProps.Move, fromCard: true);
+    Check(doubled == 10m, $"PaelsLegion 冷却结束时卡牌格挡应翻倍（实际 {doubled}）");
+    blockBattle.Relics[0].Counter = 2;
+    decimal normal = FlashKernel.GainBlock(ref blockExec, FlashLimits.PlayerOwner, 5m,
+        FlashValueProps.Move, fromCard: true);
+    Check(normal == 5m, $"PaelsLegion 冷却中不应加倍卡牌格挡（实际 {normal}）");
+
+    // FurCoat freezes the marked-coordinate check into the rules: a spawned enemy starts at 1 HP
+    // but keeps its rolled max HP (MonsterSpawnSupport.ApplyCreatureAddedRelics).
+    FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);
+    FlashRulesBuilder coatBuilder = new()
+    {
+        RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"],
+        FurCoatSpawnHpOne = true,
+    };
+    coatBuilder.SetMonster(0, SpawnMonsterRules(nibbit));
+    coatBuilder.AddSpawnableMonster(SpawnMonsterRules(nibbit));
+    FlashRules coatRules = coatBuilder.Build();
+    FlashBattle coatBattle = SpawnBattle();
+    FlashExec coatExec = new(ref coatBattle, coatRules, default);
+    byte spawnedOwner = FlashKernel.SpawnMonster(ref coatExec, FlashKernel.EnemyOwner(0), 1, slotIndex: 2, minion: false);
+    Check(coatBattle.Creature(spawnedOwner).CurrentHp == 1,
+        $"FurCoat 命中的生成敌人当前生命应为 1（实际 {coatBattle.Creature(spawnedOwner).CurrentHp}）");
+    Check(coatBattle.Creature(spawnedOwner).MaxHp is >= 17 and <= 21,
+        $"FurCoat 不应改写生成敌人的最大生命（实际 {coatBattle.Creature(spawnedOwner).MaxHp}）");
+
+    // Bookmark: a retained, non-X card with a positive local cost gets an until-played -1 after the
+    // flush (SimulatedCombatState.TriggerBookmarkAfterFlush).
+    FlashRegistry.TryRelic("BOOKMARK", out ushort bookmark);
+    FlashRegistry.TryCard("GOLD_AXE", out ushort goldAxe);
+    FlashRulesBuilder bookmarkBuilder = new()
+    {
+        BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
+    };
+    bookmarkBuilder.SetCard(goldAxe, 0, new FlashCardStats
+    {
+        Type = FlashCardType.Attack, Target = FlashTargetType.AnyEnemy, Rarity = FlashCardRarity.Rare,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false,
+        Keywords = FlashKeywords.Retain, MaxUpgradeLevel = 0, Vars = [],
+    });
+    FlashRules bookmarkRules = bookmarkBuilder.Build();
+    FlashBattle bookmarkBattle = NewBattle();
+    bookmarkBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    bookmarkBattle.RelicCount = 1;
+    bookmarkBattle.Relics[0] = new FlashRelic { Id = bookmark };
+    bookmarkBattle.Cards[0] = FlashKernel.CreateCard(bookmarkRules, goldAxe);
+    bookmarkBattle.HandCount = 1;
+    FlashExec bookmarkExec = new(ref bookmarkBattle, bookmarkRules, FlashAction.EndTurn());
+    FlashRegistry.Relic(bookmark).AfterFlush(ref bookmarkExec,
+        new FlashListener(FlashListenerKind.Relic, 0, FlashLimits.PlayerOwner));
+    Check(bookmarkBattle.Cards[0].EnergyModifierCount == 1,
+        $"Bookmark 应给保留牌追加一条费用修饰（实际 {bookmarkBattle.Cards[0].EnergyModifierCount}）");
+    Check(bookmarkBattle.Cards[0].EnergyModifiers[0].Type == FlashCostType.Relative
+        && bookmarkBattle.Cards[0].EnergyModifiers[0].Amount == -1
+        && bookmarkBattle.Cards[0].EnergyModifiers[0].Expiration == FlashCostExpiration.WhenPlayed,
+        "Bookmark 的费用修饰应为直到打出的 -1");
 }
 
 static FlashBattle NewBattle()

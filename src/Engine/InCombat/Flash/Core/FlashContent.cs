@@ -285,6 +285,32 @@ public enum FlashHookMaskExt : ulong
     /// front). Uses the batch's assigned bits 1-15.
     /// </summary>
     ModifyShuffleOrder = 1UL << 2,
+
+    /// <summary>
+    /// Native <c>AbstractModel.AfterFlush</c> (<c>CorePowerSupport.FlushPlayerHandAtTurnEnd</c> after the
+    /// non-retained hand moved to the discard pile; Bookmark picks a retained card). Uses this batch's
+    /// assigned bits 3-15.
+    /// </summary>
+    AfterFlush = 1UL << 3,
+
+    /// <summary>
+    /// Native <c>AbstractModel.ShouldTakeExtraTurn</c> (<c>HookMirrors.ShouldTakeExtraTurn</c>, after the
+    /// player turn-end phases and before the enemy turn; AmbergrisPower and PaelsEye). Uses bits 3-15.
+    /// </summary>
+    ShouldTakeExtraTurn = 1UL << 4,
+
+    /// <summary>
+    /// Native <c>AbstractModel.AfterTakingExtraTurn</c> (<c>HookMirrors.AfterTakingExtraTurn</c>, before
+    /// the extra player turn starts; AmbergrisPower decrements, PaelsEye marks itself used). Bits 3-15.
+    /// </summary>
+    AfterTakingExtraTurn = 1UL << 5,
+
+    /// <summary>
+    /// <c>SimulatedCombatState.RecordRelicRoundDamage</c>: the per-round relic bookkeeping after the
+    /// enemy turn (or before an extra turn starts). EmotionChip rotates its lost-HP window here.
+    /// Uses bits 3-15.
+    /// </summary>
+    AfterRelicRound = 1UL << 6,
 }
 
 /// <summary>
@@ -542,6 +568,39 @@ public abstract class FlashListenerDef : FlashContentDef
     /// End. HowlFromBeyond and StampedePower are the supported listeners.
     /// </summary>
     public virtual void AfterAutoPostPlayPhaseEntered(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>
+    /// Native <c>AfterFlush</c> (<c>CorePowerSupport.FlushPlayerHandAtTurnEnd</c>): after the
+    /// non-retained hand moved to the discard pile, before the end-of-turn card cleanup. Only the
+    /// player's relics observe it; Bookmark picks a retained non-X card and adds an until-played −1.
+    /// </summary>
+    public virtual void AfterFlush(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>
+    /// Native <c>ShouldTakeExtraTurn</c> (<c>HookMirrors.ShouldTakeExtraTurn</c>): whether the player
+    /// takes another turn instead of the enemy turn. Dispatched in combat listener order; the first
+    /// listener answering true wins.
+    /// </summary>
+    public virtual bool ShouldTakeExtraTurn(ref FlashExec x, FlashListener self) => false;
+
+    /// <summary>
+    /// Native <c>AfterTakingExtraTurn</c> (<c>HookMirrors.AfterTakingExtraTurn</c>): settles each
+    /// listener that grants an extra turn, on a fixed listener snapshot, before the turn starts.
+    /// </summary>
+    public virtual void AfterTakingExtraTurn(ref FlashExec x, FlashListener self)
+    {
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.RecordRelicRoundDamage</c>: the per-round relic bookkeeping the existing
+    /// engine runs after the enemy turn or before an extra player turn. EmotionChip rotates its
+    /// "lost HP last turn" window here.
+    /// </summary>
+    public virtual void AfterRelicRound(ref FlashExec x, FlashListener self)
     {
     }
 
@@ -1263,6 +1322,9 @@ public abstract class FlashRelicDef : FlashListenerDef
 
     /// <summary>Native <c>UnsettlingLamp</c> (the only listener of the two power-amount ext hooks).</summary>
     public virtual bool IsUnsettlingLamp => false;
+
+    /// <summary>Native <c>PaelsLegion</c>: the only block hook that needs the per-play ledger.</summary>
+    public virtual bool IsPaelsLegion => false;
 
     public virtual void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
     {

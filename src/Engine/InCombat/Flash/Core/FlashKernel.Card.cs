@@ -229,9 +229,13 @@ public static partial class FlashKernel
         // own power-application scope, which overwrites LastCardPowerSourceSerial. Restore the outer
         // play's completed scope so Vambrace's AfterCardPlayed still matches its triggering card.
         int outerLastSourceSerial = x.LastCardPowerSourceSerial;
+        int outerPlayIdentity = x.PlayIdentity;
+        int outerLastPlayIdentity = x.LastPlayIdentity;
         PlayFromPlayCore(ref x, card, target, energyValue, playPosition, isAutoPlay, out resultPile, out resultIndex);
         x.PlayPosition = outerPlayPosition;
         x.LastCardPowerSourceSerial = outerLastSourceSerial;
+        x.PlayIdentity = outerPlayIdentity;
+        x.LastPlayIdentity = outerLastPlayIdentity;
     }
 
     private static void PlayFromPlayCore(ref FlashExec x, FlashCard card, byte target, int energyValue,
@@ -242,6 +246,7 @@ public static partial class FlashKernel
         // The play-pile slot is fixed before the first effect runs (nested auto-plays append after
         // it), so OnPlay code can address its own live card with CurrentPlayCard.
         x.PlayPosition = playPosition;
+        x.PlayIdentity = ++x.PlayIdentityCounter;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
         x.CurrentPlayEnergyValue = energyValue;
         FlashPile result = ResultLocation(x.B, x.R, card, stats, out bool removeFromCombat,
@@ -430,6 +435,7 @@ public static partial class FlashKernel
             }
             // CardPlayFinished: no tracked counter yet. AfterCardPlayed runs its normal pass, then
             // re-reads the listeners for the late pass, without the ending gate.
+            x.LastPlayIdentity = x.PlayIdentity;
             AfterCardPlayedHook after = new() { Play = play };
             FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
             if (x.NeedsChoice)

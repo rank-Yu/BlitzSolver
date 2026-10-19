@@ -317,6 +317,10 @@ public ref struct FlashExec
         VambraceTriggerPosition = -1;
         VambraceTriggerSerial = 0;
         LastCardPowerSourceSerial = 0;
+        PlayIdentity = 0;
+        LastPlayIdentity = 0;
+        PlayIdentityCounter = 0;
+        MusicBoxPlayIdentity = 0;
         CurrentPlayIsAutoPlay = false;
         CurrentPlayEnergyValue = 0;
         CardDamageTotal = 0;
@@ -463,6 +467,23 @@ public ref struct FlashExec
 
     /// <summary>The just-completed play's power-source serial; valid during AfterCardPlayed.</summary>
     public int LastCardPowerSourceSerial;
+
+    /// <summary>
+    /// Identity of the card play whose effects are running (one value per native <c>CardPlay</c>).
+    /// Unlike <see cref="CardPowerSourceSerial"/> it is assigned for every play, including roots
+    /// without identity content, so relic ledgers can pair BeforeCardPlayed/block hooks with the
+    /// matching AfterCardPlayed. Transient: stable boundaries keep only the relic's finished flag.
+    /// </summary>
+    public int PlayIdentity;
+
+    /// <summary>The identity of the play whose AfterCardPlayed is running.</summary>
+    public int LastPlayIdentity;
+
+    /// <summary>Monotonic allocator for <see cref="PlayIdentity"/>.</summary>
+    public int PlayIdentityCounter;
+
+    /// <summary>MusicBox's remembered attack play (<see cref="PlayIdentity"/>; 0 = none).</summary>
+    public int MusicBoxPlayIdentity;
 
     /// <summary>Records one MonologuePower pending settlement; called at the start of a card's effects.</summary>
     public void PushMonologuePending(byte occurrence, int strength)

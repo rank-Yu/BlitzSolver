@@ -17,7 +17,9 @@ public static partial class FlashKernel
             return 0m;
         // BeforeBlockGained has no supported listeners yet.
         decimal modified;
-        if (x.R.HasIdentityContent)
+        // AfterModifyingBlockAmount only needs the changed-listener list when a listener can change the
+        // block: Vambrace (identity content) or PaelsLegion's x2 while its cooldown is down.
+        if (x.R.HasIdentityContent || x.R.HasPaelsLegion)
         {
             Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount];
             modified = FlashHooks.ModifyBlock(ref x, owner, amount, props, hasCardSource, cardSource, out _,

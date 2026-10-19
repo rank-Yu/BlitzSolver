@@ -452,7 +452,8 @@ public static partial class FlashKernel
     /// <c>PersistentPowerSupport.TriggerAfterSideTurnStart</c>, <c>TurnStartPowerSupport.TriggerAfterSideTurnStart</c>
     /// and the relic <c>AfterSideTurnStart</c> batch.
     /// </summary>
-    internal static void TriggerSideTurnStart(ref FlashExec x, FlashSide side, scoped ReadOnlySpan<byte> participants, bool decrementPlating)
+    internal static void TriggerSideTurnStart(ref FlashExec x, FlashSide side, scoped ReadOnlySpan<byte> participants,
+        bool decrementPlating, bool isExtraTurn = false)
     {
         foreach (byte owner in participants)
         {
@@ -467,8 +468,8 @@ public static partial class FlashKernel
                 return;
         }
         // PersistentPowerSupport.TriggerAfterSideTurnStart: Rampart only at the player side turn
-        // start of a non-extra turn (Flash has no supported extra-turn source).
-        if (side == FlashSide.Player && Contains(participants, FlashLimits.PlayerOwner))
+        // start of a non-extra turn.
+        if (side == FlashSide.Player && !isExtraTurn && Contains(participants, FlashLimits.PlayerOwner))
         {
             RampartPass(ref x);
             if (x.NeedsChoice)

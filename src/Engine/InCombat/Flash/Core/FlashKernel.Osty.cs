@@ -88,7 +88,21 @@ public static partial class FlashKernel
         }
         if (fatal <= 0 || !FlashRegistry.TryRelic("BOOK_REPAIR_KNIFE", out ushort knife))
             return;
-        decimal heal = x.R.RelicVar(knife, 0) * fatal;
+        // Only a present, unmelted relic reads its Heal variable; a root without the relic does not
+        // need the rule-table entry (K0 battles build partial tables).
+        decimal heal = 0m;
+        bool present = false;
+        for (int index = 0; index < x.B.RelicCount; index++)
+        {
+            ref readonly FlashRelic relic = ref x.B.Relics[index];
+            if (relic.Id != knife || (relic.Flags & FlashRelicFlags.Melted) != 0)
+                continue;
+            heal = x.R.RelicVar(knife, 0) * fatal;
+            present = true;
+            break;
+        }
+        if (!present)
+            return;
         for (int index = 0; index < x.B.RelicCount; index++)
         {
             ref readonly FlashRelic relic = ref x.B.Relics[index];

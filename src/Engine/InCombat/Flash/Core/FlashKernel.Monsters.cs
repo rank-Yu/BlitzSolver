@@ -144,6 +144,12 @@ public static partial class FlashKernel
         def.ApplyEntrancePowers(ref x, owner, source);
         if (x.NeedsChoice)
             return owner;
+        // MonsterSpawnSupport.ApplyCreatureAddedRelics: FurCoat sets a newly added enemy's current HP
+        // to 1 (never its max HP) after the entrance powers and before PreparePredictedMonster.
+        if (x.R.FurCoatSpawnHpOne)
+        {
+            x.B.Creature(owner).CurrentHp = 1;
+        }
         PrepareSpawnedMonster(ref x, owner, rules);
         if (x.NeedsChoice)
             return owner;
