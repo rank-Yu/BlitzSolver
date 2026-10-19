@@ -26,17 +26,25 @@ public enum FlashAttackTargeting : byte
 
 public static partial class FlashKernel
 {
-    private const int MaxDamageResults = FlashLimits.Enemies * 2 + 2;
+    // Every target may redirect once (Osty) and then spill over to the original receiver, so one
+    // Damage call over all enemies plus the player can produce two results per target.
+    private const int MaxDamageResults = (FlashLimits.Enemies + 1) * 2;
 
     /// <summary>
     /// Mirrors <c>CombatPredictionSimulator.ExecuteAttack</c> for a card attack.
     /// </summary>
     public static void CardAttack(ref FlashExec x, decimal damagePerHit, int hitCount, FlashAttackTargeting targeting,
-        byte singleTarget, FlashValueProps props = FlashValueProps.Move)
+        byte singleTarget, FlashValueProps props = FlashValueProps.Move, byte attacker = FlashLimits.PlayerOwner)
     {
+        // Single-target attacks read Creature(singleTarget); a missing target is an unsupported
+        // caller assumption, not an index error.
+        if (targeting == FlashAttackTargeting.Single && singleTarget == FlashLimits.NoOwner)
+            throw new FlashUnsupportedException("单体攻击需要目标 owner。");
         if (IsOverOrEnding(x.B))
             return;
-        byte attacker = FlashLimits.PlayerOwner;
+        // A card attack from Osty (<c>AttackCommand.FromOsty</c>) uses Osty as the attacker, so strength,
+        // weak and the attack history apply to the pet. The existing engine returns early while the
+        // attacker is dead.
         if (x.B.Creature(attacker).IsDead)
             return;
         x.AttackUnblockedHits = 0;
@@ -81,9 +89,13 @@ public static partial class FlashKernel
                 return;
         }
         // EndAttackContext(completed): RecordCreatureAttacked, then AfterAttack iterates the combat
-        // listeners without the ending gate.
+        // listeners without the ending gate. The per-creature attack counter is keyed by the attacker
+        // (<c>SimulatedCombatState.RecordCreatureAttacked</c>): the player's is PlayerAttacksThisTurn and
+        // Osty's is OstyAttacksThisTurn (Rattle).
         if (attacker == FlashLimits.PlayerOwner)
             x.B.AddCounter(FlashCounter.PlayerAttacksThisTurn, 1);
+        else if (attacker == FlashLimits.OstyOwner)
+            x.B.AddCounter(FlashCounter.OstyAttacksThisTurn, 1);
         AfterAttackHook after = new() { Attacker = attacker };
         FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
     }
@@ -140,7 +152,10 @@ public static partial class FlashKernel
         return false;
     }
 
-    /// <summary>Mirrors <c>CombatPredictionSimulator.TryDamageTarget</c>.</summary>
+    /// <summary>
+    /// Mirrors <c>CombatPredictionSimulator.TryDamageTarget</c>, including the <c>ModifyUnblockedDamageTarget</c>
+    /// redirect (Osty's <c>DieForYouPower</c>) and its overkill spill-over to the original receiver.
+    /// </summary>
     private static bool TryDamageTarget(ref FlashExec x, byte target, decimal amount, FlashValueProps props, byte dealer,
         bool hasCardSource, in FlashCard cardSource, scoped Span<FlashDamageResult> results, ref int count)
     {
@@ -158,17 +173,40 @@ public static partial class FlashKernel
         FlashHooks.Dispatch(ref x, ref before, gatedByEnding: false);
         if (x.NeedsChoice)
             return false;
+        // The block holder is the pet owner (CreatureCmd.UseBlockTarget): Osty's incoming damage spends
+        // the player's block.
         byte blockTarget = target == FlashLimits.OstyOwner ? FlashLimits.PlayerOwner : target;
         decimal blocked = DamageBlock(ref x.B.Creature(blockTarget), modified, props);
         decimal unblocked = Math.Max(modified - blocked, 0m);
-        // ModifyHpLost before the Osty redirect (ModifyUnblockedDamageTarget; Osty is rejected at admission),
-        // then after it, then AfterModifyingHpLostAfterOsty for the after-Osty changers.
-        if ((FlashRegistry.AnyHooks & HpLossHooks) != 0)
+        // ModifyHpLost's before-Osty phase is evaluated on the original target, then
+        // Hook.ModifyUnblockedDamageTarget chooses the HP-loss receiver, then the after-Osty phase runs
+        // on that receiver. A listener that changed the truncated amount is notified afterwards. The
+        // redirect query itself is dispatched even without HP-loss hooks (DieForYouPower has none).
+        FlashHpLossContext loss = new(target, props, dealer, hasCardSource, cardSource);
+        Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
+        bool hasHpLossHooks = (FlashRegistry.AnyHooks & HpLossHooks) != 0;
+        if (hasHpLossHooks)
         {
-            unblocked = ModifyHpLost(ref x, target, unblocked, props, dealer, hasCardSource, cardSource);
+            unblocked = FlashHooks.ModifyHpLost(ref x, loss, unblocked, afterOsty: false, changed, out _);
             if (x.NeedsChoice)
                 return false;
         }
+        byte redirect = FlashHooks.ModifyUnblockedDamageTarget(ref x, target, unblocked, props, dealer);
+        if (x.NeedsChoice)
+            return false;
+        if (hasHpLossHooks && (redirect == target
+                || (FlashRegistry.AnyHooks & AfterOstyHooks) != 0))
+        {
+            FlashHpLossContext redirectedLoss = new(redirect, props, dealer, hasCardSource, cardSource);
+            unblocked = FlashHooks.ModifyHpLost(ref x, redirectedLoss, unblocked, afterOsty: true, changed, out int changedCount);
+            FlashHooks.AfterModifyingHpLostAfterOsty(ref x, changed[..changedCount]);
+            if (x.NeedsChoice)
+                return false;
+        }
+        if (redirect != target)
+            return RecordRedirectedDamage(ref x, target, redirect, blocked, unblocked, props, dealer,
+                hasCardSource, cardSource, results, ref count);
+        target = redirect;
         ref FlashCreature creature = ref x.B.Creature(target);
         FlashDamageResult result = LoseHp(ref creature, target, unblocked, props);
         result.HasCardSource = hasCardSource;
@@ -183,19 +221,56 @@ public static partial class FlashKernel
         return true;
     }
 
+    /// <summary>
+    /// The two-result branch of <c>CombatPredictionSimulator.TryDamageTarget</c> when
+    /// <c>ModifyUnblockedDamageTarget</c> moved the HP loss off the original receiver: the redirected
+    /// receiver loses <paramref name="unblocked"/>, then the original receiver loses the modified overkill.
+    /// </summary>
+    private static bool RecordRedirectedDamage(ref FlashExec x, byte originalTarget, byte redirect,
+        decimal blocked, decimal unblocked, FlashValueProps props, byte dealer, bool hasCardSource,
+        in FlashCard cardSource, scoped Span<FlashDamageResult> results, ref int count)
+    {
+        ref FlashCreature redirected = ref x.B.Creature(redirect);
+        FlashDamageResult redirectedResult = LoseHp(ref redirected, redirect, unblocked, props);
+        redirectedResult.HasCardSource = hasCardSource;
+        redirectedResult.CardSource = cardSource;
+        redirectedResult.BlockedDamage = (int)blocked;
+        ref FlashCreature original = ref x.B.Creature(originalTarget);
+        redirectedResult.WasBlockBroken = original.Block <= 0 && blocked > 0m;
+        redirectedResult.WasFullyBlocked = (props & FlashValueProps.Unblockable) == 0
+            && (blocked > 0m || original.Block > 0)
+            && (int)unblocked == 0;
+        RecordDamageReceived(ref x.B, redirect, redirectedResult);
+        results[count++] = redirectedResult;
+
+        decimal overflow = redirectedResult.OverkillDamage;
+        if ((FlashRegistry.AnyHooks & HpLossHooks) != 0)
+        {
+            Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
+            FlashHpLossContext loss = new(originalTarget, props, dealer, hasCardSource, cardSource);
+            overflow = FlashHooks.ModifyHpLost(ref x, loss, overflow, afterOsty: true, changed, out int changedCount);
+            FlashHooks.AfterModifyingHpLostAfterOsty(ref x, changed[..changedCount]);
+            if (x.NeedsChoice)
+                return false;
+        }
+        FlashDamageResult originalResult = overflow > 0m
+            ? LoseHp(ref original, originalTarget, overflow, props)
+            : new FlashDamageResult { Receiver = originalTarget, Props = props };
+        originalResult.HasCardSource = hasCardSource;
+        originalResult.CardSource = cardSource;
+        originalResult.BlockedDamage = (int)blocked;
+        originalResult.WasBlockBroken = redirectedResult.WasBlockBroken;
+        originalResult.WasFullyBlocked = redirectedResult.WasFullyBlocked;
+        RecordDamageReceived(ref x.B, originalTarget, originalResult);
+        results[count++] = originalResult;
+        return true;
+    }
+
     private const FlashHookMask HpLossHooks = FlashHookMask.ModifyHpLostBeforeOsty | FlashHookMask.ModifyHpLostBeforeOstyLate
         | FlashHookMask.ModifyHpLostAfterOsty | FlashHookMask.ModifyHpLostAfterOstyLate | FlashHookMask.AfterModifyingHpLostAfterOsty;
 
-    private static decimal ModifyHpLost(ref FlashExec x, byte target, decimal unblocked, FlashValueProps props, byte dealer,
-        bool hasCardSource, in FlashCard cardSource)
-    {
-        FlashHpLossContext loss = new(target, props, dealer, hasCardSource, cardSource);
-        Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
-        unblocked = FlashHooks.ModifyHpLost(ref x, loss, unblocked, afterOsty: false, changed, out _);
-        unblocked = FlashHooks.ModifyHpLost(ref x, loss, unblocked, afterOsty: true, changed, out int changedCount);
-        FlashHooks.AfterModifyingHpLostAfterOsty(ref x, changed[..changedCount]);
-        return unblocked;
-    }
+    private const FlashHookMask AfterOstyHooks = FlashHookMask.ModifyHpLostAfterOsty | FlashHookMask.ModifyHpLostAfterOstyLate
+        | FlashHookMask.AfterModifyingHpLostAfterOsty;
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.ProcessDamageResults</c>.</summary>
     private static void ProcessDamageResults(ref FlashExec x, scoped ReadOnlySpan<FlashDamageResult> results, byte dealer)
@@ -333,10 +408,9 @@ public static partial class FlashKernel
         {
             HandlePlayerDeath(ref x);
         }
-        else
-        {
-            throw new FlashUnsupportedException("Osty 死亡尚未实现。");
-        }
+        // Osty: DieForYouPower.ShouldCreatureBeRemovedFromCombatAfterDeath keeps the pet in combat, and
+        // the existing engine's KillWithoutCheckingWinCondition runs no player-death flow for a pet, so
+        // the dead Osty stays in place with its powers (a later summon revives it). No extra work here.
     }
 
     /// <summary>Native <c>ShouldDie</c> then <c>ShouldDieLate</c> over the run listeners; the first refusal is the preventer.</summary>
@@ -391,6 +465,16 @@ public static partial class FlashKernel
         x.B.OrbCount = 0;
         for (int index = 0; index < FlashLimits.Orbs; index++)
             x.B.Orbs[index] = default;
+        // The native flow kills a still-alive Osty with force after clearing the orbs and before the
+        // player's hooks are deactivated (<c>HandlePlayerDeath</c> in CombatPredictionSimulator).
+        if ((x.B.Flags & FlashBattleFlags.OstyPresent) != 0 && x.B.Osty.IsAlive)
+        {
+            Span<byte> osty = stackalloc byte[1];
+            osty[0] = FlashLimits.OstyOwner;
+            Kill(ref x, osty, force: true);
+            if (x.NeedsChoice)
+                return;
+        }
         x.B.Flags &= ~FlashBattleFlags.PlayerHooksActive;
         // With every player dead the native flow does not remove the cards from combat.
     }

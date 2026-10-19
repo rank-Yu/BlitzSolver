@@ -90,6 +90,33 @@ internal enum FlashCalculatedKind : byte
     /// <summary>CrescentSpear: cards in the combat piles whose canonical star cost is ≥ 0 or X.</summary>
     StarCardCount,
 
+    /// <summary>Unleash: Osty's current HP.</summary>
+    OstyCurrentHp,
+
+    /// <summary>Protector: Osty's max HP.</summary>
+    OstyMaxHp,
+
+    /// <summary>Rattle: 1 + Osty's attacks this turn.</summary>
+    OstyAttacksPlusOne,
+
+    /// <summary>Squeeze: every other OstyAttack card in the combat piles.</summary>
+    OstyAttackCardsMinusSelf,
+
+    /// <summary>SoulStorm: Soul cards in the exhaust pile.</summary>
+    ExhaustSoulCount,
+
+    /// <summary>PullFromBelow: Ethereal card plays this combat.</summary>
+    EtherealPlays,
+
+    /// <summary>NoEscape: floor(target Doom / DoomThreshold).</summary>
+    DoomOverThreshold,
+
+    /// <summary>TimesUp: the target's Doom amount.</summary>
+    TargetDoom,
+
+    /// <summary>DeathMarch: non-hand draws this turn.</summary>
+    NonHandDraws,
+
     /// <summary>A registered calculated-damage card the port does not model; the root is rejected.</summary>
     Unsupported,
 }
@@ -143,6 +170,9 @@ internal sealed class FlashCardScore
     public sbyte CalculationBaseVar { get; init; } = -1;
 
     public sbyte CalculationExtraVar { get; init; } = -1;
+
+    /// <summary>NoEscape's <c>DoomThreshold</c> variable index, or -1.</summary>
+    public sbyte DoomThresholdVar { get; init; } = -1;
 
     public FlashAttackHitKind AttackHits { get; init; }
 
@@ -249,6 +279,12 @@ internal sealed class FlashScoreRules
     public ushort DemisePowerId { get; init; } = ushort.MaxValue;
 
     public ushort DoomPowerId { get; init; } = ushort.MaxValue;
+
+    /// <summary><c>SummonNextTurnPower</c>: its amount is the summon-next-turn future-resource term.</summary>
+    public ushort SummonNextTurnPowerId { get; init; } = ushort.MaxValue;
+
+    /// <summary><c>DieForYouPower</c>: the Osty redirect read by the threat projection.</summary>
+    public ushort DieForYouPowerId { get; init; } = ushort.MaxValue;
 
     public ushort SleightOfFleshPowerId { get; init; } = ushort.MaxValue;
 

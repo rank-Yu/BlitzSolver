@@ -18,9 +18,16 @@ public static partial class FlashHooks
 
     /// <summary>Collects the listeners whose definition overrides <paramref name="hook"/>, in dispatch order.</summary>
     public static int CollectListeners(in FlashBattle battle, FlashHookMask hook, Span<FlashListener> output)
+        => (FlashRegistry.AnyHooks & hook) == 0 ? 0 : CollectListeners(battle, new HookBits(hook, FlashHookMaskExt.None), output);
+
+    /// <summary>The <see cref="FlashHookMaskExt"/> counterpart of the overload above, in the same dispatch order.</summary>
+    public static int CollectListeners(in FlashBattle battle, FlashHookMaskExt hook, Span<FlashListener> output)
+        => (FlashRegistry.AnyHooksExt & hook) == 0 ? 0 : CollectListeners(battle, new HookBits(FlashHookMask.None, hook), output);
+
+    private readonly record struct HookBits(FlashHookMask Main, FlashHookMaskExt Ext);
+
+    private static int CollectListeners(in FlashBattle battle, HookBits hook, Span<FlashListener> output)
     {
-        if ((FlashRegistry.AnyHooks & hook) == 0)
-            return 0;
         int count = 0;
         bool playerHooks = (battle.Flags & FlashBattleFlags.PlayerHooksActive) != 0;
         int nextPower = 0;
@@ -126,6 +133,22 @@ public static partial class FlashHooks
             cap = Math.Min(cap, Definition(x.B, listeners[index]).ModifyDamageCap(ref x, listeners[index], context));
 
         return Math.Max(0, Math.Min(damage, cap));
+    }
+
+    /// <summary>
+    /// Mirrors <c>Hook.ModifyUnblockedDamageTarget</c>: every combat listener in dispatch order, each
+    /// receiving the target the previous listener returned, without the ending gate. Pure query.
+    /// </summary>
+    public static byte ModifyUnblockedDamageTarget(ref FlashExec x, byte target, decimal amount,
+        FlashValueProps props, byte dealer)
+    {
+        if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.ModifyUnblockedDamageTarget) == 0)
+            return target;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMaskExt.ModifyUnblockedDamageTarget, listeners);
+        for (int index = 0; index < count; index++)
+            target = Definition(x.B, listeners[index]).ModifyUnblockedDamageTarget(ref x, listeners[index], target, amount, props, dealer);
+        return target;
     }
 
     /// <summary>
@@ -547,7 +570,7 @@ public static partial class FlashHooks
         return false;
     }
 
-    private static int CollectPowers(in FlashBattle battle, byte owner, FlashHookMask hook, int start,
+    private static int CollectPowers(in FlashBattle battle, byte owner, HookBits hook, int start,
         Span<FlashListener> output, ref int count)
     {
         int index = 0;
@@ -564,5 +587,6 @@ public static partial class FlashHooks
         return index;
     }
 
-    private static bool Has(FlashContentDef def, FlashHookMask hook) => (def.Hooks & hook) != 0;
+    private static bool Has(FlashContentDef def, HookBits hook)
+        => (def.Hooks & hook.Main) != 0 || (def.HooksExt & hook.Ext) != 0;
 }

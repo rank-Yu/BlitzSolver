@@ -51,6 +51,13 @@ public sealed class VulnerablePower : FlashPowerDef
         // CrueltyPower.ModifyVulnerableMultiplier uses the same percentage divisor.
         if (damage.Dealer != FlashLimits.NoOwner)
             multiplier += (decimal)FlashKernel.GetAmount(x.B, damage.Dealer, FlashRegistry.PowerId<CrueltyPower>()) / 100m;
+        // ModifyDamageMirrors.HandleVulnerablePower applies DebilitatePower on the vulnerable target:
+        // multiplier += multiplier - 1.
+        if (FlashRegistry.TryPower("DEBILITATE_POWER", out ushort debilitate)
+            && FlashKernel.GetAmount(x.B, self.Owner, debilitate) > 0)
+        {
+            multiplier += multiplier - 1m;
+        }
         return multiplier;
     }
 
@@ -91,7 +98,15 @@ public sealed class WeakPower : FlashPowerDef
     {
         if (damage.Dealer != self.Owner || !damage.Props.IsPoweredAttack())
             return 1m;
-        return x.R.PowerVar(Id, 0);
+        decimal multiplier = x.R.PowerVar(Id, 0);
+        // ModifyDamageMirrors.HandleWeakPower folds in DebilitatePower on the attacking owner:
+        // multiplier -= 1 - multiplier.
+        if (FlashRegistry.TryPower("DEBILITATE_POWER", out ushort debilitate)
+            && FlashKernel.GetAmount(x.B, self.Owner, debilitate) > 0)
+        {
+            multiplier -= 1m - multiplier;
+        }
+        return multiplier;
     }
 }
 

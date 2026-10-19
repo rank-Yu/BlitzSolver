@@ -453,7 +453,10 @@ public static partial class FlashKernel
     /// <summary><c>CorePowerSupport.TriggerEnemySideTurnEndEffects</c>.</summary>
     internal static void TriggerEnemySideTurnEndEffects(ref FlashExec x, scoped ReadOnlySpan<byte> enemies)
     {
-        // TriggerVeryEarly (Asleep) and Doom: not supported yet.
+        // EndTurnPowerSupport.TriggerVeryEarly has no supported source (Asleep is rejected at admission).
+        TriggerEnemyDoom(ref x, enemies);
+        if (x.NeedsChoice)
+            return;
         foreach (byte owner in enemies)
         {
             PowerTypeSequence(ref x, PowerPhase.EnemySideTurnEnd, owner, EnemySideTurnEndIds.Value, FlashSide.Enemy, participates: true);
@@ -469,6 +472,27 @@ public static partial class FlashKernel
         TriggerTransientSideTurnEndPowers(ref x, FlashSide.Enemy, enemies);
         TickDurations(ref x.B);
         // AfterSideTurnEndLate: no supported listeners yet.
+    }
+
+    /// <summary>
+    /// <c>EndTurnPowerSupport.TriggerEnemyDoom</c>: every living participant whose Doom amount reaches
+    /// its current HP dies together (so <c>ReattachPower</c>'s fatal count sees the whole batch).
+    /// </summary>
+    private static void TriggerEnemyDoom(ref FlashExec x, scoped ReadOnlySpan<byte> enemies)
+    {
+        ushort doom = PowerIdOrMax("DOOM_POWER");
+        if (doom == ushort.MaxValue)
+            return;
+        Span<byte> doomed = stackalloc byte[FlashLimits.Enemies];
+        int count = 0;
+        foreach (byte owner in enemies)
+        {
+            ref readonly FlashCreature creature = ref x.B.Creature(owner);
+            if (creature.IsAlive && GetAmount(x.B, owner, doom) >= creature.CurrentHp)
+                doomed[count++] = owner;
+        }
+        if (count > 0)
+            DoomKill(ref x, doomed[..count]);
     }
 
     /// <summary>

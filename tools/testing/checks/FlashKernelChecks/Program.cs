@@ -33,6 +33,7 @@ CheckA3Kernel(rules);
 CheckKaAttachments();
 CheckP16Kernel(rules);
 CheckSkKernel();
+CheckNbKernel();
 CheckDfKernel(rules);
 CheckRgKernel(rules);
 var benchmark = Benchmark(rules);
@@ -519,6 +520,206 @@ static FlashRules SliceRules()
     {
         Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = costsX,
         StarCost = starCost, StarCostsX = false, Keywords = FlashKeywords.None, MaxUpgradeLevel = 1, Vars = vars,
+    };
+}
+
+
+// NB: contracts for the Necrobinder kernel capabilities. Osty's summon/revive ledger, the
+// DieForYou redirect and spill-over, the Osty attack dealer, Doom's side-turn-end kill, the
+// RightHandHand/Flatten/Flast cost-modifier hooks, EtherealPlays and the UnceasingTop special case.
+static void CheckNbKernel()
+{
+    FlashRules rules = NbRules();
+    Check(FlashRegistry.TryCard("STRIKE_NECROBINDER", out ushort strike), "缺少 STRIKE_NECROBINDER");
+    Check(FlashRegistry.TryCard("DEFEND_NECROBINDER", out ushort defend), "缺少 DEFEND_NECROBINDER");
+    Check(FlashRegistry.TryCard("BODYGUARD", out ushort bodyguard), "缺少 BODYGUARD");
+    Check(FlashRegistry.TryCard("SOUL", out ushort soul), "缺少 SOUL");
+    Check(FlashRegistry.TryCard("PARSE", out ushort parse), "缺少 PARSE");
+    Check(FlashRegistry.TryCard("FLATTEN", out ushort flatten), "缺少 FLATTEN");
+    Check(FlashRegistry.TryCard("HIGH_FIVE", out ushort highFive), "缺少 HIGH_FIVE");
+    Check(FlashRegistry.TryCard("RIGHT_HAND_HAND", out ushort rightHandHand), "缺少 RIGHT_HAND_HAND");
+    Check(FlashRegistry.TryPower("DIE_FOR_YOU_POWER", out ushort dieForYou), "缺少 DIE_FOR_YOU_POWER");
+    Check(FlashRegistry.TryPower("DOOM_POWER", out ushort doom), "缺少 DOOM_POWER");
+    Check(FlashRegistry.TryPower("OBLIVION_POWER", out ushort oblivion), "缺少 OBLIVION_POWER");
+    Check(FlashRegistry.TryRelic("UNCEASING_TOP", out ushort unceasingTop), "缺少 UNCEASING_TOP");
+
+    // Summon: the first call creates the pet at the requested HP, applies DieForYouPower 1 and consumes
+    // one CombatId; a later summon raises both HP values; a dead pet is revived with the new amount.
+    FlashBattle battle = NewBattle();
+    battle.NextCombatId = 7;
+    FlashExec x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 5);
+    Check((battle.Flags & FlashBattleFlags.OstyPresent) != 0, "召唤后 Osty 应存在");
+    Check(battle.Osty.CurrentHp == 5 && battle.Osty.MaxHp == 5, "首次召唤 HP 应为 5/5");
+    Check(battle.NextCombatId == 8, "创建 Osty 应消耗一个 CombatId");
+    Check(FlashKernel.GetAmount(battle, FlashLimits.OstyOwner, dieForYou) == 1, "首次召唤应获得 1 层 DieForYouPower");
+    x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 3);
+    Check(battle.Osty.CurrentHp == 8 && battle.Osty.MaxHp == 8, "存活 Osty 召唤应提高最大生命并治疗");
+    battle.Osty.CurrentHp = 0;
+    x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 4);
+    Check(battle.Osty.CurrentHp == 4 && battle.Osty.MaxHp == 4, "死亡 Osty 召唤应按新值复活");
+    x = new(ref battle, rules, default);
+    FlashKernel.HealOsty(ref x, 99);
+    Check(battle.Osty.CurrentHp == 4, "治疗 Osty 不得超过最大生命");
+
+    // Redirect: powered attack damage above Osty's HP spills over to the player; unpowered damage and
+    // a dead pet do not redirect.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 8);
+    battle.Player.CurrentHp = 50;
+    Span<byte> player = stackalloc byte[1];
+    player[0] = FlashLimits.PlayerOwner;
+    x = new(ref battle, rules, default);
+    FlashKernel.Damage(ref x, player, 20m, FlashValueProps.Move, FlashLimits.NoOwner, false, default);
+    Check(battle.Osty.CurrentHp == 0, "Osty 应吸收其全部 HP 的伤害");
+    Check(battle.Player.CurrentHp == 38, "Osty 死亡后的溢出伤害应打给玩家");
+    Check((battle.Player.Flags & FlashCreatureFlags.LostHpThisTurn) != 0, "溢出伤害应标记玩家本回合失血");
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 8);
+    battle.Player.CurrentHp = 50;
+    x = new(ref battle, rules, default);
+    FlashKernel.Damage(ref x, player, 20m, FlashValueProps.Move | FlashValueProps.Unpowered, FlashLimits.NoOwner,
+        false, default);
+    Check(battle.Osty.CurrentHp == 8 && battle.Player.CurrentHp == 30, "Unpowered 伤害不得重定向到 Osty");
+
+    // Osty attack: the pet is the dealer, so its attack history is recorded and the player's is not.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 8);
+    x.Card = FlashKernel.CreateCard(rules, flatten);
+    byte enemy = FlashKernel.EnemyOwner(0);
+    x = new(ref battle, rules, default);
+    FlashKernel.CardAttack(ref x, 6m, 1, FlashAttackTargeting.Single, enemy, FlashValueProps.Move,
+        FlashLimits.OstyOwner);
+    Check(battle.Enemies[0].Creature.CurrentHp == 94, "Osty 攻击应伤害目标");
+    Check(battle.Counter(FlashCounter.OstyAttacksThisTurn) == 1, "Osty 攻击应计入 Osty 本回合次数");
+    Check(battle.Counter(FlashCounter.PlayerAttacksThisTurn) == 0, "Osty 攻击不得计入玩家攻击次数");
+
+    // Assumption contract: a single-target attack without a target owner is unsupported, not an
+    // index crash. K0 pins the FlashUnsupportedException.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    bool missingTargetThrew = false;
+    try
+    {
+        FlashKernel.CardAttack(ref x, 6m, 1, FlashAttackTargeting.Single, FlashLimits.NoOwner);
+    }
+    catch (FlashUnsupportedException)
+    {
+        missingTargetThrew = true;
+    }
+    Check(missingTargetThrew, "单体攻击缺少目标应抛 FlashUnsupportedException");
+
+    // Doom: the enemy-side turn-end hook kills every doomed participant together.
+    battle = NewBattle();
+    battle.Enemies[0].Creature.CurrentHp = 20;
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, enemy, doom, 25, FlashLimits.PlayerOwner);
+    int doomIndex = FlashKernel.FindPower(battle, enemy, doom);
+    Check(doomIndex >= 0, "Doom 应已施加");
+    x = new(ref battle, rules, default);
+    FlashListener doomListener = new(FlashListenerKind.Power, checked((byte)doomIndex), enemy);
+    FlashRegistry.Power(doom).BeforeSideTurnEnd(ref x, doomListener, FlashSide.Enemy,
+        FlashKernel.ParticipantMask(enemy));
+    Check(battle.Enemies[0].Creature.IsDead, "Doom 达到生命值应在敌方回合末击杀");
+    Check(battle.RosterCount == 0, "被 Doom 击杀的敌人应离开名单");
+
+    // RightHandHand: any play whose energy value reaches its Energy variable returns the copy from the
+    // discard pile to hand.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 8);
+    battle.Energy = 3;
+    battle.Phase = FlashPlayerPhase.Play;
+    battle.Side = FlashSide.Player;
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, highFive));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, defend));
+    FlashPiles.Append(ref battle, FlashPile.Discard, FlashKernel.CreateCard(rules, rightHandHand));
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    Check(battle.HandCount == 2, "费用 >= RightHandHand 的 Energy 的打出应把弃牌堆的副本收回手牌");
+
+    // Flatten: after an Osty attack every Flatten copy in a combat pile gets an absolute zero
+    // EndOfTurn cost modifier.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.SummonOsty(ref x, 8);
+    battle.Energy = 3;
+    battle.Phase = FlashPlayerPhase.Play;
+    battle.Side = FlashSide.Player;
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, flatten));
+    FlashPiles.Append(ref battle, FlashPile.Discard, FlashKernel.CreateCard(rules, flatten));
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashKernel.EnemyOwner(0)), rules, out _);
+    Check(battle.DiscardCount == 2, "Flatten 应打出并进入弃牌堆");
+    int discardStart = FlashPiles.Start(battle, FlashPile.Discard);
+    Check(battle.Cards[discardStart].EnergyModifierCount == 1
+        && battle.Cards[discardStart + 1].EnergyModifierCount == 1,
+        "Osty 攻击后每张 Flatten 应各获得一个零费修饰");
+
+    // EtherealPlays and Oblivion: playing an Ethereal Soul counts the play and applies the Oblivion
+    // amount as Doom to its owner.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, enemy, oblivion, 5, FlashLimits.PlayerOwner);
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, dieForYou, 1, FlashLimits.NoOwner);
+    battle.Energy = 1;
+    battle.Phase = FlashPlayerPhase.Play;
+    battle.Side = FlashSide.Player;
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, parse));
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    Check(battle.Counter(FlashCounter.EtherealPlays) == 1, "打出 Ethereal 牌应计入 EtherealPlays");
+    Check(FlashKernel.GetAmount(battle, enemy, doom) == 5, "Oblivion 应在卡牌打出后施加等量 Doom");
+
+    // UnceasingTop: playing the last hand card with an empty hand and a non-empty draw pile draws one.
+    battle = NewBattle();
+    battle.Phase = FlashPlayerPhase.Play;
+    battle.Side = FlashSide.Player;
+    battle.Energy = 1;
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = unceasingTop };
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, defend));
+    FlashPiles.Append(ref battle, FlashPile.Draw, FlashKernel.CreateCard(rules, strike));
+    FlashKernel.Step(ref battle, FlashAction.PlayCard(0, FlashLimits.NoOwner), rules, out _);
+    Check(battle.HandCount == 1, "手牌打空后 UnceasingTop 应抽一张");
+    Check(battle.Cards[0].Id == strike, "UnceasingTop 应抽到抽牌堆顶");
+}
+
+static FlashRules NbRules()
+{
+    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1 };
+    FlashRegistry.TryCard("STRIKE_NECROBINDER", out ushort strike);
+    FlashRegistry.TryCard("DEFEND_NECROBINDER", out ushort defend);
+    FlashRegistry.TryCard("BODYGUARD", out ushort bodyguard);
+    FlashRegistry.TryCard("SOUL", out ushort soul);
+    FlashRegistry.TryCard("PARSE", out ushort parse);
+    FlashRegistry.TryCard("FLATTEN", out ushort flatten);
+    FlashRegistry.TryCard("HIGH_FIVE", out ushort highFive);
+    FlashRegistry.TryCard("RIGHT_HAND_HAND", out ushort rightHandHand);
+    builder.SetCard(strike, 0, NbStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [6m]));
+    builder.SetCard(strike, 1, NbStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [9m]));
+    builder.SetCard(defend, 0, NbStats(FlashCardType.Skill, FlashTargetType.Self, 1, [5m]));
+    builder.SetCard(defend, 1, NbStats(FlashCardType.Skill, FlashTargetType.Self, 1, [8m]));
+    builder.SetCard(bodyguard, 0, NbStats(FlashCardType.Skill, FlashTargetType.Self, 1, [5m]));
+    builder.SetCard(soul, 0, NbStats(FlashCardType.Skill, FlashTargetType.Self, 0, [2m], keywords: FlashKeywords.Exhaust));
+    builder.SetCard(parse, 0, NbStats(FlashCardType.Skill, FlashTargetType.Self, 1, [3m], keywords: FlashKeywords.Ethereal));
+    builder.SetCard(flatten, 0, NbStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [12m]));
+    builder.SetCard(flatten, 1, NbStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [15m]));
+    builder.SetCard(highFive, 0, NbStats(FlashCardType.Attack, FlashTargetType.AllEnemies, 2, [11m, 2m]));
+    builder.SetCard(rightHandHand, 0, NbStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [4m, 2m]));
+    return builder.Build();
+
+    static FlashCardStats NbStats(FlashCardType type, FlashTargetType target, int cost, decimal[] vars,
+        FlashKeywords keywords = FlashKeywords.None) => new()
+    {
+        Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = false,
+        StarCost = -1, StarCostsX = false, Keywords = keywords, MaxUpgradeLevel = 1, Vars = vars,
     };
 }
 

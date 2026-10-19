@@ -287,7 +287,7 @@ public static partial class FlashKernel
                 attackIndex++;
                 for (int hit = 0; hit < repeats; hit++)
                 {
-                    if (Damage(ref x, player, baseDamage, FlashValueProps.Move, owner, hasCardSource: false, default))
+                    if (DamagePlayerFromMonster(ref x, owner, player, baseDamage))
                         fullyBlockedAttack = true;
                     if (x.NeedsChoice)
                         return x.B.Player.IsDead;
@@ -348,6 +348,31 @@ public static partial class FlashKernel
         if (!x.NeedsChoice)
             NormalizeCardAfflictions(ref x);
         return x.B.Player.IsDead;
+    }
+
+    /// <summary>
+    /// <c>MonsterMoveSemantics.DamagePlayer</c>: a dead Osty whose <c>DieForYouPower</c> is still positive
+    /// has that power zeroed for the duration of the hit and restored afterwards, so a dead pet's
+    /// redirect listener cannot observe the attack.
+    /// </summary>
+    private static bool DamagePlayerFromMonster(ref FlashExec x, byte attacker, scoped ReadOnlySpan<byte> player,
+        int baseDamage)
+    {
+        ushort dieForYou = PowerIdOrMax("DIE_FOR_YOU_POWER");
+        int suppressed = -1;
+        if (dieForYou != ushort.MaxValue
+            && (x.B.Flags & FlashBattleFlags.OstyPresent) != 0
+            && x.B.Osty.IsDead
+            && GetAmount(x.B, FlashLimits.OstyOwner, dieForYou) > 0)
+        {
+            suppressed = GetAmount(x.B, FlashLimits.OstyOwner, dieForYou);
+            SetPowerAmount(ref x.B, FlashLimits.OstyOwner, dieForYou, 0);
+        }
+        bool fullyBlocked = Damage(ref x, player, baseDamage, FlashValueProps.Move, attacker,
+            hasCardSource: false, default);
+        if (suppressed >= 0)
+            SetPowerAmount(ref x.B, FlashLimits.OstyOwner, dieForYou, suppressed);
+        return fullyBlocked;
     }
 
     /// <summary>

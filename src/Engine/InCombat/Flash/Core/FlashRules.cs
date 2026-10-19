@@ -70,6 +70,9 @@ public sealed class FlashCardStats
     /// <summary>Canonical native tags (Strike, Defend, Minion, Osty attack, Shiv).</summary>
     public FlashCardTag Tags { get; init; }
 
+    /// <summary>Native <c>Soul</c> token: the existing engine's <c>persistentBuffValue</c> counts these cards.</summary>
+    public bool IsSoul { get; init; }
+
     /// <summary>Base values of the native dynamic variables named by the card definition, in order.</summary>
     public required decimal[] Vars { get; init; }
 }
@@ -466,5 +469,6 @@ public sealed class FlashRulesBuilder
             && left.StarCostsX == right.StarCostsX
             && left.Keywords == right.Keywords
             && left.Tags == right.Tags
+            && left.IsSoul == right.IsSoul
             && left.Vars.AsSpan().SequenceEqual(right.Vars);
 }

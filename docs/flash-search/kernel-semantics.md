@@ -18,7 +18,7 @@
 
 每类内容一个抽象基类：`FlashCardDef`、`FlashPowerDef`、`FlashRelicDef`、`FlashPotionDef`、`FlashMonsterDef`、`FlashOrbDef`、`FlashEnchantmentDef`、`FlashAfflictionDef`。具体内容是 `sealed` 子类，覆写需要的 Hook 虚方法。
 
-- 每个定义用特性声明原版 Id，例如 `[FlashContent("BASH")]`。注册表在首次使用时扫描定义，分配连续的 `ushort` 内部 Id，并按"覆写了哪些 Hook"建立每个 Hook 的监听位图，派发时跳过非监听者。
+- 每个定义用特性声明原版 Id，例如 `[FlashContent("BASH")]`。注册表在首次使用时扫描定义，分配连续的 `ushort` 内部 Id，并按"覆写了哪些 Hook"建立每个 Hook 的监听位图，派发时跳过非监听者。`FlashHookMask` 的 64 位已用满，此后新增的 Hook 放在 `FlashHookMaskExt`，两者用同一反射计算（`FlashContentDef.Hooks`/`HooksExt`），`FlashHooks.CollectListeners` 对两种掩码各有一个重载，收集顺序相同。
 - 定义对象不可变、无字段状态；所有可变值存在 `FlashBattle` 里。
 - 数值从 `FlashRules` 读取：`rules.Card(id, upgrade).Damage`、`rules.Monster(slot).Move(moveId).Hits` 等。只有原版数据里不存在、写在原版代码中的常量才允许出现在定义里，并注释原版出处。
 - 原版 Id 到内部 Id 的映射在 Bridge 建立；内核只把原版 Id 当元数据字符串，不引用原版类型。
@@ -322,3 +322,25 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 **重接复活**：`ReattachPower` 不阻止击杀命中，但阻止尸体离场（`PreventsRemovalAfterDeath`），`ShouldPowerBeRemovedAfterOwnerDeath` 为假。死亡效果清算时，若还有另一段能行动（存活或 `Reviving`）则死亡阶段改为 `Reviving` 并强制 `DEAD_MOVE`，否则所有段改为 `PermanentlyDead`。`REATTACH_MOVE` 由怪物的 `ResolveReviveMove` 处理：仍有一段能行动时按 `ReattachPower` 数量回血并清除 `Reviving`。Reviving 段的 `CurrentHp` 为 0，`IsHittable` 自然为假；评估的 `EffectiveEnemyHp` 在有其他未永久死亡段时取 `ReattachPower` 数量，否则为 0。
 
 **导入认领**：`_monsterIntStates` 的每个条目必须被某个已知敌人的 `AiRegisterNames` 或 `InertMonsterIntNames` 认领，否则按 `UnrepresentableState` 拒绝；声明为寄存器的名字取 `GetMonsterInt` 的值（有捕获条目用条目，没有时读模型字段），因此与现有引擎的无条目语义一致。乐加维林族母与沉睡甲虫的 `_isAwake` 由 `InertMonsterIntNames` 声明。A3 另把 Fabricator 的 `fabricator_last_spawn`（经 `GetFabricatorLastSpawn`）、TestSubject 的 `_respawns`/`_extraMultiClawCount`/`SecondFormHp`/`ThirdFormHp` 与 Aeonglass 的两个字典计数投影为 AI 寄存器。
+
+## 14. 亡灵契约师：Osty、Doom 与灵魂
+
+来源：`S/CombatPredictionSimulator.Damage.cs`/`Attack.cs`、`Q/SimulatedCombatState.CardLifecycle.cs`、`Q/SimulatedCombatState.Doom.cs`、`P/MonsterMoveSemantics.cs`、`P/BeforeSideTurnEndMirrors`、`P/EndTurnPowerSupport`、`P/PowerLifecycleSupport` 与各卡牌的 mirror/补偿位置。
+
+**状态**：`FlashBattle.Osty` 是玩家侧宠物；`OstyPresent` 表示宠物存在（死亡后仍在），`OstyWasRootPet` 表示根捕获时原生 `Player.Osty` 非空。Osty 的生命/格挡用 `FlashCreature`，Power 用 `FlashLimits.OstyOwner`，监听顺序在玩家 Power/遗物/药水之后、敌人之前。
+
+**召唤/治疗**：`SummonOsty` 对应 `OstyCmd.Summon` 的现有引擎实现：不存在时创建（消耗一个 `NextCombatId`、以 amount 初始化生命、施加 1 层 `DieForYouPower`，无 applier）；存活时提高最大生命并等量治疗；死亡时保留对象并按 amount 重置。`HealOsty` 只加当前生命且不超上限。Osty 死亡不触发玩家死亡、不移出战斗、不清 Power；玩家死亡时在清空球后以 `force` 击杀仍存活的 Osty。
+
+**代受伤害**：格挡按宠物主人取（Osty 被打消耗玩家格挡），before-Osty 的 `ModifyHpLost` 后由 `ModifyUnblockedDamageTarget` 链式选接收者（`DieForYouPower` 在 Osty 存活、目标是主人、powered attack 时返回 Osty），再对接收者跑 after-Osty 修正。接收者改变时产生两个 `DamageResult`：Osty 先承受，溢出的 `OverkillDamage` 经 after-Osty 修正后打给原目标；两者格挡字段来自原目标。怪物行动的攻击在 `Damage` 前临时清零“已死 Osty 的 DieForYou”再恢复（等价 `MonsterMoveSemantics.DamagePlayer`）；非攻击伤害不重定向。
+
+**Osty 攻击**：`CardTag.OstyAttack` 的卡以 `OstyOwner` 为 attacker 调 `CardAttack`，Strength/Weak/攻击历史归宠物；宠物死亡时直接返回。攻击结束给 `OstyAttacksThisTurn` 加一；该计数只在 `OstyWasRootPet` 时于玩家回合开始清零（现有引擎 `BeginSideTurn(player)` 走原生 `ownerPlayer.Osty`）。
+
+**Doom**：敌方侧回合末对每个存活参与者求该侧 Doom 总和，首名满足 `CurrentHp <= Doom` 的监听者触发一次成批 `DoomKill`（`TriggerEnemySideTurnEndEffects` 开头、Regen/Plating 之前）；玩家侧回合末走 `EndTurnRegular` 的单监听者 `Kill`。`DoomKill` 先统计每玩家 fatal 数（排除玩家、按 `ShouldOwnerDeathTriggerFatal`），逐个 `Kill`，再按已定义的 `BookRepairKnife` 治疗（否则准入拒绝该根）。`DoomAppliedThisTurn` 记录玩家本回合施加过正层 Doom（DeathsDoor），玩家回合开始清零。
+
+**其他计数**：`EtherealPlays` 战斗长，导入根历史后按每次打出完成时该卡本地 Ethereal 关键字加一（BansheesCry/PullFromBelow）。
+
+**Power 时机**：DieForYou/Calcify/Lethality/Haunt/Shroud/Countdown/Neurosurge/Oblivion/SicEm/NecroMastery/Debilitate/Veilpiercer/BorrowedTime/Friendship/EnfeeblingTouch/Demesne/SleightOfFlesh/SpiritOfAsh/DevourLife 逐条对应现有引擎 `HookMirrors`、`PowerLifecycleSupport`、`TurnStartPowerSupport`、`PersistentPowerSupport` 路径。Oblivion 在 `BeforeCardPlayed` 把当次层数放进栈上 `CardPlayPairs`（`OblivionDoom`），`AfterCardPlayed` 取出施加等量 Doom；稳定边界为空。Debilitate 的易伤/虚弱倍率并入 Vulnerable/Weak。SleightOfFlesh 在 `AfterPowerAmountChanged` 对“玩家施加给敌人的非临时减益”造成自身层数的 Unpowered 伤害。
+
+**AfterHandEmptied**：现有引擎没有通用遗物 Hook，`TriggerRelicsAfterHandEmptied` 特判 `UnceasingTop`；Flash 在卡牌结果堆移动后（最外层效果、允许的回合阶段内）做同样特判：手牌空且抽/弃牌堆非空时抽一张。
+
+**卡牌修正**：Flatten 在任意 Osty 攻击后给战斗区内每张 Flatten 追加一条 `SetThisTurn(0)`（Absolute/EndOfTurn，按次数累积）；进入战斗的 Flatten 在该回合已有 Osty 攻击时同样追加。RightHandHand 的 `AfterCardPlayedLate` 不校验打出的副本：任意一次能量值达到其 Energy 变量的打出，都把弃牌堆中的每个副本收回手牌（`HandleRightHandHand` 的同一条件）。

@@ -195,6 +195,12 @@ public static partial class FlashKernel
             battle.SetCounter(counter, 0);
         // BeginSideTurn's ResetTurnCounter(_starsGainedThisTurn) for the player.
         battle.SetCounter(FlashCounter.StarsGainedThisTurn, 0);
+        // SimulatedCombatState.BeginSideTurn(player): Osty's per-turn counters are reset through the
+        // native `ownerPlayer.Osty` pet field, which only exists for a pet that was already present when
+        // the root was captured. A pet created during the search keeps accumulating (existing behavior).
+        if ((battle.Flags & FlashBattleFlags.OstyWasRootPet) != 0)
+            battle.SetCounter(FlashCounter.OstyAttacksThisTurn, 0);
+        battle.SetCounter(FlashCounter.DoomAppliedThisTurn, 0);
     }
 
     /// <summary>Owners of the roster enemies in roster order.</summary>

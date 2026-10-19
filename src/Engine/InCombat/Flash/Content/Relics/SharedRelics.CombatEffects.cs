@@ -775,3 +775,11 @@ public sealed class GhostSeed : FlashRelicDef
             stored.Keywords |= FlashKeywords.Ethereal;
     }
 }
+
+/// <summary>
+/// <c>UnceasingTop</c>: the draw is a kernel special case in
+/// <c>SimulatedCombatState.TriggerRelicsAfterHandEmptied</c> (the existing engine does not dispatch a
+/// generic relic hook for it), so the definition only makes the relic admissible.
+/// </summary>
+[FlashContent("UNCEASING_TOP")]
+public sealed class UnceasingTop : FlashRelicDef;

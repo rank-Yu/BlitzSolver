@@ -879,6 +879,8 @@ internal sealed class FlashBeamSolver
         int Depth,
         int PotionCount,
         int ProjectedPlayerHp,
+        int OstyHp,
+        int OstyMaxHp,
         int DefensiveBlockValue,
         int AliveEnemyCount,
         int RawEnemyHp,
@@ -898,6 +900,8 @@ internal sealed class FlashBeamSolver
             depth,
             features.PotionUseCount,
             features.ProjectedPlayerHp,
+            features.OstyHp,
+            features.OstyMaxHp,
             features.DefensiveBlockValue,
             features.AliveEnemyCount,
             features.RawEnemyHp,
@@ -921,6 +925,8 @@ internal sealed class FlashBeamSolver
                 + features.Energy * 16
                 + features.HandCount
                 + features.FutureResourceValue
+                + features.OstyHp * 16
+                + features.OstyMaxHp * 4
                 + features.EnemyStrengthSuppression * 32
                 + features.EnemyWeakTurns * 8
                 + features.FocusTargetVulnerableTurns * 4
@@ -939,14 +945,18 @@ internal sealed class FlashBeamSolver
     }
 
     // The leader comparators below are the existing BeamRetentionPolicy.Ranking comparators with the
-    // same tie order. The Osty terms are constants here: Flash admission rejects roots that carry Osty,
-    // so SimulatedCombatState.GetOsty returns null and both values are 0 for every admitted state.
+    // same tie order. The Osty terms are imported from the pet state (IsBetterDefensive and the Resource
+    // lane), matching the existing engine's leader comparators.
     private static bool IsBetterDefensive(in RetentionFacts candidate, in RetentionFacts current)
         => candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
             || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
-                && (candidate.DefensiveBlockValue > current.DefensiveBlockValue
-                    || candidate.DefensiveBlockValue == current.DefensiveBlockValue
-                        && candidate.Score > current.Score);
+                && (candidate.OstyHp > current.OstyHp
+                    || candidate.OstyHp == current.OstyHp
+                        && (candidate.OstyMaxHp > current.OstyMaxHp
+                            || candidate.OstyMaxHp == current.OstyMaxHp
+                                && (candidate.DefensiveBlockValue > current.DefensiveBlockValue
+                                    || candidate.DefensiveBlockValue == current.DefensiveBlockValue
+                                        && candidate.Score > current.Score)));
 
     private static bool IsBetterOffensive(in RetentionFacts candidate, in RetentionFacts current)
         => candidate.AliveEnemyCount < current.AliveEnemyCount

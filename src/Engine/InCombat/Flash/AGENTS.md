@@ -8,3 +8,4 @@
 - 原版数据中已有的数值从 `FlashRules` 读取，不硬编码。
 - 溢出抛 `FlashCapacityException`，未知内容抛 `FlashUnsupportedException`；不截断、不跳过、不返回默认值，不写 `catch (Exception)`。
 - 修改 `FlashBattle` 字段时同步 `docs/flash-search/state-layout.md` 与布局尺寸断言。
+- `FlashHookMask` 的 64 位已用满：新 Hook 加在 `FlashHookMaskExt`，不复用、不重排已有位。

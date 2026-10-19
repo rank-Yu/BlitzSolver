@@ -218,6 +218,23 @@ public enum FlashHookMask : ulong
 }
 
 /// <summary>
+/// Hooks past the 64 bits of <see cref="FlashHookMask"/>, computed by the same reflection into
+/// <see cref="FlashContentDef.HooksExt"/> and collected by the matching
+/// <see cref="FlashHooks.CollectListeners(in FlashBattle, FlashHookMaskExt, Span{FlashListener})"/> overload.
+/// </summary>
+[Flags]
+public enum FlashHookMaskExt : ulong
+{
+    None = 0,
+
+    /// <summary>
+    /// Native <c>Hook.ModifyUnblockedDamageTarget</c>: a pure query chained over the combat listeners
+    /// while damage resolves, without the ending gate. Supports <c>DieForYouPower</c>'s Osty redirect.
+    /// </summary>
+    ModifyUnblockedDamageTarget = 1UL << 0,
+}
+
+/// <summary>
 /// Candidate lists frozen by the Bridge with the existing engine's own generation queries. A
 /// definition declaring one of these ids requires the rule table to contain the list and every
 /// candidate to have a Flash card definition (admission rejects the root otherwise).
@@ -253,6 +270,8 @@ public abstract class FlashContentDef
     public ushort Id { get; internal set; }
 
     public FlashHookMask Hooks { get; internal set; }
+
+    public FlashHookMaskExt HooksExt { get; internal set; }
 
     /// <summary>Native dynamic-variable names compiled into the rule table, in order.</summary>
     public virtual IReadOnlyList<string> VarNames => [];
@@ -372,6 +391,14 @@ public abstract class FlashListenerDef : FlashContentDef
         FlashValueProps props, byte dealer, bool hasCardSource, in FlashCard cardSource)
     {
     }
+
+    /// <summary>
+    /// Native <c>ModifyUnblockedDamageTarget</c> (<c>Hook.ModifyUnblockedDamageTarget</c>), chained over the
+    /// combat listeners without the ending gate: returns the receiver of the HP loss, which may differ from
+    /// <paramref name="target"/> (Osty's <c>DieForYouPower</c>). Pure: prediction and evaluation call it read-only.
+    /// </summary>
+    public virtual byte ModifyUnblockedDamageTarget(ref FlashExec x, FlashListener self, byte target,
+        decimal amount, FlashValueProps props, byte dealer) => target;
 
     public virtual void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
     {
@@ -1266,6 +1293,9 @@ public static class FlashRegistry
     /// <summary>Union of the hooks any registered definition overrides; dispatch skips the rest outright.</summary>
     public static FlashHookMask AnyHooks => Data.Value.AnyHooks;
 
+    /// <summary>Union of the <see cref="FlashHookMaskExt"/> hooks any registered definition overrides.</summary>
+    public static FlashHookMaskExt AnyHooksExt => Data.Value.AnyHooksExt;
+
     public static int PowerCount => Data.Value.Powers.Length;
 
     public static int RelicCount => Data.Value.Relics.Length;
@@ -1363,6 +1393,8 @@ public static class FlashRegistry
         Dictionary<Type, FlashContentDef> ByType)
     {
         public FlashHookMask AnyHooks { get; } = ByType.Values.Aggregate(FlashHookMask.None, (mask, def) => mask | def.Hooks);
+
+        public FlashHookMaskExt AnyHooksExt { get; } = ByType.Values.Aggregate(FlashHookMaskExt.None, (mask, def) => mask | def.HooksExt);
     }
 
     private static Tables Build()
@@ -1408,7 +1440,8 @@ public static class FlashRegistry
                 ?? throw new InvalidOperationException($"无法创建 Flash 定义 {type.FullName}。"));
             def.NativeId = nativeId;
             def.Id = (ushort)index;
-            def.Hooks = ComputeHooks(type);
+            def.Hooks = (FlashHookMask)ComputeHooks<FlashHookMask>(type);
+            def.HooksExt = (FlashHookMaskExt)ComputeHooks<FlashHookMaskExt>(type);
             if (!ids.TryAdd(nativeId, (ushort)index))
                 throw new InvalidOperationException($"原版 Id {nativeId} 有多个 Flash {typeof(T).Name} 定义。");
             defs[index] = def;
@@ -1422,14 +1455,15 @@ public static class FlashRegistry
     /// <see cref="FlashListenerDef"/> and whether the type overrides exactly that method (overloads with
     /// the same name on derived bases, such as phase methods, do not count).
     /// </summary>
-    private static FlashHookMask ComputeHooks(Type type)
+    private static ulong ComputeHooks<TMask>(Type type) where TMask : struct, Enum
     {
-        FlashHookMask mask = FlashHookMask.None;
+        ulong mask = 0;
         MethodInfo[] methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance);
-        foreach (FlashHookMask hook in Enum.GetValues<FlashHookMask>())
+        foreach (TMask hook in Enum.GetValues<TMask>())
         {
+            ulong bit = Convert.ToUInt64(hook);
             // Composite masks (RunListenerHooks and similar) name no single hook.
-            if (System.Numerics.BitOperations.PopCount((ulong)hook) != 1)
+            if (System.Numerics.BitOperations.PopCount(bit) != 1)
                 continue;
             MethodInfo baseMethod = typeof(FlashListenerDef).GetMethod(hook.ToString(), BindingFlags.Public | BindingFlags.Instance)
                 ?? throw new InvalidOperationException($"FlashListenerDef 没有与 Hook {hook} 同名的方法。");
@@ -1437,7 +1471,7 @@ public static class FlashRegistry
             {
                 if (method.DeclaringType != typeof(FlashListenerDef) && method.GetBaseDefinition() == baseMethod)
                 {
-                    mask |= hook;
+                    mask |= bit;
                     break;
                 }
             }

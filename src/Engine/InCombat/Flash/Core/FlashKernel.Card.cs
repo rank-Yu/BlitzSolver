@@ -186,6 +186,7 @@ public static partial class FlashKernel
         x.Card = card;
         x.Stats = stats;
         x.Target = target;
+        x.CurrentPlayEnergyValue = energyValue;
         x.CurrentPlayIsAutoPlay = false;
         PlayFromPlay(ref x, card, target, energyValue, playPosition, isAutoPlay: false);
     }
@@ -199,6 +200,7 @@ public static partial class FlashKernel
         int playPosition, bool isAutoPlay)
     {
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        x.CurrentPlayEnergyValue = energyValue;
         FlashPile result = ResultLocation(x.B, x.R, card, stats, out bool removeFromCombat,
             out FlashPilePosition basePosition);
         // CardModel.GetResultLocationForCardPlay clears ExhaustOnNextPlay when the result is Exhaust
@@ -346,6 +348,14 @@ public static partial class FlashKernel
                 break;
             }
             RecordCardPlayed(ref x.B, stats);
+            // CardPlayFinishedEntry.WasEthereal is `card.HasKeyword(State, Ethereal)`, which runs
+            // Hook.ModifyKeywords: a Hexed card counts as Ethereal while HexPower is up, so the
+            // battle-aware helper (local keyword plus Hexed+HexPower) is the source.
+            if ((uint)playPosition < (uint)x.B.PlayCount
+                && HasKeyword(x.B, FlashPiles.At(ref x.B, FlashPile.Play, playPosition), FlashKeywords.Ethereal))
+            {
+                x.B.AddCounter(FlashCounter.EtherealPlays, 1);
+            }
             // The tail fails when the owner died during the completion effects.
             if (x.B.Player.IsDead)
             {
@@ -366,15 +376,50 @@ public static partial class FlashKernel
             if (removeFromCombat)
             {
                 FlashPiles.RemoveAt(ref x.B, FlashPile.Play, playPosition);
-                return;
             }
-            AfterCardPlayedCleanup(ref FlashPiles.At(ref x.B, FlashPile.Play, playPosition));
-            if (result == FlashPile.Exhaust)
-                Exhaust(ref x, FlashPile.Play, playPosition);
             else
-                MoveCard(ref x.B, FlashPile.Play, playPosition, result, resultPosition);
+            {
+                AfterCardPlayedCleanup(ref FlashPiles.At(ref x.B, FlashPile.Play, playPosition));
+                if (result == FlashPile.Exhaust)
+                    Exhaust(ref x, FlashPile.Play, playPosition);
+                else
+                    MoveCard(ref x.B, FlashPile.Play, playPosition, result, resultPosition);
+            }
         }
-        // AfterHandEmptied has no supported listeners yet.
+        // CombatManager.CheckForEmptyHand runs after the result-pile move. The existing engine
+        // special-cases UnceasingTop in SimulatedCombatState.TriggerRelicsAfterHandEmptied (there is no
+        // generic AfterHandEmptied listener), so the kernel does the same after the outermost effect.
+        AfterHandEmptied(ref x);
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.TriggerRelicsAfterHandEmptied</c>: with an empty hand, a live
+    /// <c>UnceasingTop</c> and a non-empty draw or discard pile, draw one card. The existing engine
+    /// invokes this from the card/potion completion path only when no card or potion effect is running.
+    /// </summary>
+    private static void AfterHandEmptied(ref FlashExec x)
+    {
+        if (!IsInProgress(x.B) || x.EffectDepth != 0)
+            return;
+        if (x.B.Phase is not (FlashPlayerPhase.AutoPrePlay or FlashPlayerPhase.Play or FlashPlayerPhase.AutoPostPlay))
+            return;
+        if (x.B.HandCount != 0 || (x.B.DrawCount == 0 && x.B.DiscardCount == 0))
+            return;
+        if (!FlashRegistry.TryRelic("UNCEASING_TOP", out ushort top))
+            return;
+        bool hasTop = false;
+        for (int index = 0; index < x.B.RelicCount; index++)
+        {
+            ref readonly FlashRelic relic = ref x.B.Relics[index];
+            if (relic.Id == top && (relic.Flags & FlashRelicFlags.Melted) == 0)
+            {
+                hasTop = true;
+                break;
+            }
+        }
+        if (!hasTop)
+            return;
+        Draw(ref x, 1, fromHandDraw: false);
     }
 
     /// <summary>Mirrors <c>SimulatedCombatState.RecordCardPlayStarted</c> for a manual or auto play.</summary>

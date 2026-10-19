@@ -16,6 +16,8 @@ internal readonly record struct FlashScoreFeatures
     public int PlayerHp { get; init; }
     public int PlayerMaxHp { get; init; }
     public int PlayerBlock { get; init; }
+    public int OstyHp { get; init; }
+    public int OstyMaxHp { get; init; }
     public int CumulativePlayerHpLost { get; init; }
     public int RecoveredPlayerHp { get; init; }
     public int DeathSaveHpRestored { get; init; }
@@ -83,6 +85,8 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(PlayerHp), old.PlayerHp, flash.PlayerHp);
         Check(nameof(PlayerMaxHp), old.PlayerMaxHp, flash.PlayerMaxHp);
         Check(nameof(PlayerBlock), old.PlayerBlock, flash.PlayerBlock);
+        Check(nameof(OstyHp), old.OstyHp, flash.OstyHp);
+        Check(nameof(OstyMaxHp), old.OstyMaxHp, flash.OstyMaxHp);
         Check(nameof(CumulativePlayerHpLost), old.CumulativePlayerHpLost, flash.CumulativePlayerHpLost);
         Check(nameof(RecoveredPlayerHp), old.RecoveredPlayerHp, flash.RecoveredPlayerHp);
         Check(nameof(DeathSaveHpRestored), old.DeathSaveHpRestored, flash.DeathSaveHpRestored);

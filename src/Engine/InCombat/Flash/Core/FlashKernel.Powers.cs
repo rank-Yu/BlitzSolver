@@ -214,6 +214,13 @@ public static partial class FlashKernel
         resulting = power.Amount;
         if (def.MarksJustAppliedByEnemy && previous <= 0 && power.Amount > 0 && IsEnemyOwner(target))
             power.Flags |= FlashPowerFlags.WasJustAppliedByEnemy;
+        // SimulatedCombatState.ApplyWithBeforeApplied records every positive Doom application by the
+        // player for DeathsDoor's WasDoomAppliedThisTurn.
+        if (applied > 0 && applier == FlashLimits.PlayerOwner
+            && FlashRegistry.TryPower("DOOM_POWER", out ushort doomId) && powerId == doomId)
+        {
+            battle.SetCounter(FlashCounter.DoomAppliedThisTurn, 1);
+        }
         if (power.Amount == 0)
             RemovePowerAt(ref battle, index);
         // RecordPowerAmountChange: resolved later by ResolvePowerAmountChanges at the same points as

@@ -97,6 +97,15 @@ public enum FlashChoiceEffect : byte
 
     /// <summary>Give the selected cards single-turn Sly (<c>CardCmd.ApplySingleTurnSly</c>, Hand Trick).</summary>
     ApplySly,
+
+    /// <summary>Add the local Retain keyword to the selected cards (<c>CardCmd.ApplyKeyword</c>, Snap).</summary>
+    ApplyRetain,
+
+    /// <summary>Add the local Ethereal keyword to the selected cards (<c>CardCmd.ApplyKeyword</c>, SculptingStrike).</summary>
+    ApplyEthereal,
+
+    /// <summary>Modify the selected cards in place (Transfigure's cost and replay count).</summary>
+    Modify,
 }
 
 /// <summary>Phase the choice belongs to; mirrors <c>PlanChoiceTiming</c>.</summary>
@@ -182,6 +191,9 @@ public enum FlashCardPlayPairKind : byte
 
     /// <summary><c>SubroutinePower</c>: the power amount becomes energy after a Power play.</summary>
     SubroutineEnergy = 3,
+
+    /// <summary><c>OblivionPower</c>: the power amount at play start becomes Doom on its owner after the play.</summary>
+    OblivionDoom = 4,
 }
 
 /// <summary>
@@ -245,6 +257,7 @@ public ref struct FlashExec
         CardPlayPairs = default;
         CardPlayPairCount = 0;
         CurrentPlayIsAutoPlay = false;
+        CurrentPlayEnergyValue = 0;
         CardDamageTotal = 0;
         CardKilledTarget = false;
         LastDamageTotal = 0;
@@ -337,6 +350,12 @@ public ref struct FlashExec
     /// empty choice without asking; a manual play asks it.
     /// </summary>
     public bool CurrentPlayIsAutoPlay;
+
+    /// <summary>
+    /// <c>CardPlay.Resources.EnergyValue</c> of the play whose hooks are running: the energy the card paid
+    /// (<c>CardEnergyCost.GetAmountToSpend</c>), zero for an auto-play.
+    /// </summary>
+    public int CurrentPlayEnergyValue;
 
     /// <summary>Records one <c>BeforeCardPlayed</c> amount for its <c>AfterCardPlayed</c> consumer.</summary>
     public void PushCardPlayPair(FlashCardPlayPairKind kind, byte owner, ushort powerId, int amount)

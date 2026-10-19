@@ -46,6 +46,13 @@ public enum FlashBattleFlags : byte
     /// Monotonic for the rest of the combat.
     /// </summary>
     HasRisk = 1 << 4,
+
+    /// <summary>
+    /// Osty existed in the root's native <c>PlayerCombatState</c> (<c>Player.Osty != null</c>). The existing
+    /// engine's <c>BeginSideTurn(player)</c> resets Osty's per-turn counters only through that native pet
+    /// field, so an Osty created during the search never resets them. Constant for the solve; imported.
+    /// </summary>
+    OstyWasRootPet = 1 << 5,
 }
 
 /// <summary>Combat pile segments, in their storage order inside <see cref="FlashBattle.Cards"/>.</summary>
@@ -153,6 +160,26 @@ public enum FlashCounter : byte
     /// gains only): Radiate's CalculatedHits multiplier. Reset in the player side-turn begin.
     /// </summary>
     StarsGainedThisTurn,
+
+    /// <summary>
+    /// Creature attacks by Osty this turn (<c>SimulatedCombatState._creatureAttacksThisTurn</c> for the
+    /// Osty pet): the Rattle calculated-hit multiplier. Reset in <c>BeginSideTurn(player)</c> only when
+    /// <see cref="FlashBattleFlags.OstyWasRootPet"/> is set, matching the existing engine's
+    /// <c>ownerPlayer.Osty</c> lookup. Root history is imported.
+    /// </summary>
+    OstyAttacksThisTurn,
+
+    /// <summary>
+    /// The player applied DoomPower this turn (<c>SimulatedCombatState._doomAppliersThisTurn</c> for the
+    /// player): the DeathsDoor block-repeat condition. Reset at the player's turn start.
+    /// </summary>
+    DoomAppliedThisTurn,
+
+    /// <summary>
+    /// Combat-long Ethereal card plays by the player (<c>CountEtherealPlays</c>: root history plus each
+    /// <c>CardPlayFinishedEntry.WasEthereal</c>): the PullFromBelow multiplier. Only grows.
+    /// </summary>
+    EtherealPlays,
 }
 
 /// <summary>

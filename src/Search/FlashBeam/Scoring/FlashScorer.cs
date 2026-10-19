@@ -82,6 +82,19 @@ internal sealed class FlashScorer
                 FlashCalculatedKind.NegativeHandCount => -battle.HandCount,
                 FlashCalculatedKind.CardsDrawn => battle.Counter(FlashCounter.CardsDrawn),
                 FlashCalculatedKind.StarCardCount => CountStarCostCards(battle),
+                FlashCalculatedKind.OstyCurrentHp => (battle.Flags & FlashBattleFlags.OstyPresent) != 0
+                    && battle.Osty.IsAlive ? battle.Osty.CurrentHp : 0,
+                FlashCalculatedKind.OstyMaxHp => (battle.Flags & FlashBattleFlags.OstyPresent) != 0
+                    && battle.Osty.IsAlive ? battle.Osty.MaxHp : 0,
+                FlashCalculatedKind.OstyAttacksPlusOne => 1 + battle.Counter(FlashCounter.OstyAttacksThisTurn),
+                FlashCalculatedKind.OstyAttackCardsMinusSelf => CountCardsWithTag(battle, FlashCardTag.OstyAttack)
+                    - ((stats.Tags & FlashCardTag.OstyAttack) != 0 ? 1 : 0),
+                FlashCalculatedKind.ExhaustSoulCount => CountExhaustSoulCards(battle),
+                FlashCalculatedKind.EtherealPlays => battle.Counter(FlashCounter.EtherealPlays),
+                FlashCalculatedKind.DoomOverThreshold => Math.Floor(
+                    GetAmount(battle, _score.DoomPowerId, owner) / Var(card, stats, score.DoomThresholdVar)),
+                FlashCalculatedKind.TargetDoom => GetAmount(battle, _score.DoomPowerId, owner),
+                FlashCalculatedKind.NonHandDraws => battle.Counter(FlashCounter.NonHandDrawsThisTurn),
                 _ => 0,
             };
             decimal candidate = baseVar + extraVar * multiplier;
@@ -100,6 +113,59 @@ internal sealed class FlashScorer
             FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
             if (stats.StarCost >= 0 || stats.StarCostsX)
                 count++;
+        }
+        return count;
+    }
+
+    /// <summary><c>liveCards.Count(card => card.Preview is Soul)</c> over Discard, Draw and Hand.</summary>
+    private int CountLiveSoulCards(in FlashBattle battle)
+    {
+        int count = 0;
+        FlashPile[] piles = [FlashPile.Discard, FlashPile.Draw, FlashPile.Hand];
+        foreach (FlashPile pile in piles)
+        {
+            int start = FlashPiles.Start(battle, pile);
+            int size = FlashPiles.Count(battle, pile);
+            for (int offset = 0; offset < size; offset++)
+            {
+                ref readonly FlashCard card = ref battle.Cards[start + offset];
+                if (Rules.Card(card.Id, card.Upgrade).IsSoul)
+                    count++;
+            }
+        }
+        return count;
+    }
+
+    /// <summary><c>exhaustPile.Cards.Count(candidate =&gt; candidate.Preview is Soul)</c> (SoulStorm).</summary>
+    private int CountExhaustSoulCards(in FlashBattle battle)
+    {
+        int start = FlashPiles.Start(battle, FlashPile.Exhaust);
+        int count = FlashPiles.Count(battle, FlashPile.Exhaust);
+        int souls = 0;
+        for (int offset = 0; offset < count; offset++)
+        {
+            ref readonly FlashCard card = ref battle.Cards[start + offset];
+            if (Rules.Card(card.Id, card.Upgrade).IsSoul)
+                souls++;
+        }
+        return souls;
+    }
+
+    /// <summary><c>liveCards.Count(card =&gt; card.Preview.Tags.Contains(CardTag.OstyAttack))</c>.</summary>
+    private int CountLiveOstyAttackCards(in FlashBattle battle)
+    {
+        int count = 0;
+        FlashPile[] piles = [FlashPile.Discard, FlashPile.Draw, FlashPile.Hand];
+        foreach (FlashPile pile in piles)
+        {
+            int start = FlashPiles.Start(battle, pile);
+            int size = FlashPiles.Count(battle, pile);
+            for (int offset = 0; offset < size; offset++)
+            {
+                ref readonly FlashCard card = ref battle.Cards[start + offset];
+                if ((Rules.Card(card.Id, card.Upgrade).Tags & FlashCardTag.OstyAttack) != 0)
+                    count++;
+            }
         }
         return count;
     }
@@ -395,12 +461,17 @@ internal sealed class FlashScorer
                 1,
                 (int)Math.Ceiling(CardValue(card, stats, cardScore) * 2d)));
         }
-        // Free-card opportunity (FreeAttackPower), Void Form and summon next turn: Void Form and
-        // summon-next-turn powers have no admitted Flash content.
+        // Free-card opportunity (FreeAttackPower), Void Form and summon next turn. Void Form has no
+        // admitted Flash content.
+        int summonNextTurn = GetAmount(battle, _score.SummonNextTurnPowerId, FlashLimits.PlayerOwner);
+        int summonNextTurnValue = summonNextTurn == 0
+            ? 0
+            : summonNextTurn * (4 + Math.Min(12, CountLiveOstyAttackCards(battle) * 2));
         int futureResourceValue = GetAmount(battle, _score.EnergyNextTurnPowerId, FlashLimits.PlayerOwner) * 16
             + GetAmount(battle, _score.DrawCardsNextTurnPowerId, FlashLimits.PlayerOwner) * 8
             + GetAmount(battle, _score.StarNextTurnPowerId, FlashLimits.PlayerOwner) * 8
             + GetAmount(battle, _score.RetainHandPowerId, FlashLimits.PlayerOwner) * 4
+            + summonNextTurnValue
             + retainedHandValue
             + FreeCardOpportunityValue(battle, FlashCardType.Attack, _score.FreeAttackPowerId)
             + FreeCardOpportunityValue(battle, FlashCardType.Skill, _score.FreeSkillPowerId)
@@ -423,6 +494,7 @@ internal sealed class FlashScorer
                 : (int)Math.Min(currentHp, (long)cappedDoom * cappedDoom / currentHp);
             delayedDamageValue = checked(delayedDamageValue + poison + demise + doomProgress);
         }
+        persistentBuffValue += CountLiveSoulCards(battle);
         int reactiveDamageValue = Math.Max(0, GetAmount(battle, _score.SleightOfFleshPowerId, FlashLimits.PlayerOwner));
 
         bool hasBlockDamagePayoff = false;
@@ -530,6 +602,8 @@ internal sealed class FlashScorer
             PlayerHp = battle.Player.CurrentHp,
             PlayerMaxHp = battle.Player.MaxHp,
             PlayerBlock = battle.Player.Block,
+            OstyHp = (battle.Flags & FlashBattleFlags.OstyPresent) != 0 ? battle.Osty.CurrentHp : 0,
+            OstyMaxHp = (battle.Flags & FlashBattleFlags.OstyPresent) != 0 ? battle.Osty.MaxHp : 0,
             CumulativePlayerHpLost = cumulativePlayerHpLost,
             RecoveredPlayerHp = recoveredPlayerHp,
             DeathSaveHpRestored = deathSaveHpRestored,
@@ -678,6 +752,9 @@ internal sealed class FlashScorer
         int hp = battle.Player.CurrentHp;
         int block = battle.Player.Block;
         int originalBlock = block;
+        // CombatBeamSolver.ProjectHpAfterThreat's ostyHp: the pet absorbs redirected powered attacks
+        // until it dies; the remaining loss spills over to the player.
+        int ostyHp = (battle.Flags & FlashBattleFlags.OstyPresent) != 0 ? battle.Osty.CurrentHp : 0;
         ProjectedDeathPrevention prevention = new(battle, _score, Rules);
         // CombatBeamSolver.ProjectHpAfterThreat's gambitActive latch: the first unblocked damage from a
         // powered attack kills the owner through TheGambitPower, then death prevention may revive it.
@@ -703,7 +780,7 @@ internal sealed class FlashScorer
                     def.ModifyAttackRepeats(battle, Rules, owner, enemy.Move, attackIndex, attack.Repeats), 1);
                 for (int hit = 0; hit < repeats; hit++)
                 {
-                    ProjectThreatHit(ref x, owner, baseDamage, ref block, ref hp, ref gambitActive, ref prevention);
+                    ProjectThreatHit(ref x, owner, baseDamage, ref ostyHp, ref block, ref hp, ref gambitActive, ref prevention);
                 }
             }
         }
@@ -712,7 +789,7 @@ internal sealed class FlashScorer
     }
 
     private void ProjectThreatHit(ref FlashExec x, byte attacker, int baseDamage,
-        ref int block, ref int hp, ref bool gambitActive, ref ProjectedDeathPrevention prevention)
+        ref int ostyHp, ref int block, ref int hp, ref bool gambitActive, ref ProjectedDeathPrevention prevention)
     {
         decimal modified = FlashHooks.ModifyDamage(
             ref x, FlashLimits.PlayerOwner, attacker, baseDamage, FlashValueProps.Move, false, default);
@@ -725,12 +802,48 @@ internal sealed class FlashScorer
         Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
         decimal hpLoss = ProjectedModifyHpLost(
             ref x, loss, adjustedHit - blocked, afterOsty: false, changed, out _);
-        // The unblocked-damage target is the player: Osty is rejected at admission.
-        hpLoss = ProjectedModifyHpLost(ref x, loss, hpLoss, afterOsty: true, changed, out int changedCount);
+        // CombatBeamSolver.ProjectThreatHit: Hook.ModifyUnblockedDamageTarget, then the engine's explicit
+        // DieForYou fallback and dead-Osty guard, then the after-Osty modifiers on the chosen receiver.
+        byte target = FlashHooks.ModifyUnblockedDamageTarget(
+            ref x, FlashLimits.PlayerOwner, hpLoss, FlashValueProps.Move, attacker);
+        if (target == FlashLimits.PlayerOwner
+            && (x.B.Flags & FlashBattleFlags.OstyPresent) != 0
+            && ostyHp > 0
+            && GetAmount(x.B, _score.DieForYouPowerId, FlashLimits.OstyOwner) > 0)
+        {
+            target = FlashLimits.OstyOwner;
+        }
+        if (target == FlashLimits.OstyOwner && ostyHp <= 0)
+            target = FlashLimits.PlayerOwner;
+        FlashHpLossContext redirected = new(
+            target, FlashValueProps.Move, attacker, false, default);
+        hpLoss = ProjectedModifyHpLost(ref x, redirected, hpLoss, afterOsty: true, changed, out int changedCount);
         // The projected Buffer consumption is local to this forecast: notify the changed listeners so the
         // probe's Buffer amount drops, exactly as ProjectedHpLossModifiers.Consume does in the engine.
         FlashHooks.AfterModifyingHpLostAfterOsty(ref x, changed[..changedCount]);
         int damage = Math.Max(0, (int)Math.Floor(hpLoss));
+        if (target == FlashLimits.OstyOwner)
+        {
+            int absorbed = Math.Min(ostyHp, damage);
+            ostyHp -= absorbed;
+            // Native redirected damage applies the original receiver's AfterOsty modifiers to the
+            // overkill as a separate loss; the engine also filters Buffer there.
+            Span<FlashListener> overflowChanges = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
+            FlashHpLossContext overflow = new(
+                FlashLimits.PlayerOwner, FlashValueProps.Move, attacker, false, default);
+            decimal overflowLoss = ProjectedModifyHpLost(
+                ref x, overflow, damage - absorbed, afterOsty: true, overflowChanges, out int overflowCount);
+            FlashHooks.AfterModifyingHpLostAfterOsty(ref x, overflowChanges[..overflowCount]);
+            int playerLoss = Math.Max(0, (int)Math.Floor(overflowLoss));
+            hp -= playerLoss;
+            if (playerLoss > 0 && gambitActive)
+            {
+                gambitActive = false;
+                hp = 0;
+            }
+            prevention.TryRevive(ref hp);
+            return;
+        }
         hp -= damage;
         if (damage > 0 && gambitActive)
         {
