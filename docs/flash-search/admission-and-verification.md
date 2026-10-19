@@ -51,13 +51,18 @@ DF 新增的球与卡牌私有状态投影：
 - `LightningChannels` 取 `CalculatedVarSpecRegistry.CountLightningChannelsForFlash`（原版历史 + 预测历史）；`OrbChannels` 取预测历史中 `CombatPredictionOrbChanneledEntry` 的数量。二者都只增不减。
 - Claw 与 GeneticAlgorithm 的每卡累积值（`ExtraDamageFromClawPlays` / `IncreasedBlock`）在原版模型里是私有字段，但等于导入卡牌相对规则表基值的整数变量差。`FlashCardDef.ProjectPrivate` 在 Bridge 计算 `Var0/Var1` 之后把该差写进 `FlashCard.Private`；对应定义在 `AfterDowngraded` 中把它加回 `Var0`，与 `DowngradeCard` 重置变量、原版 `AfterDowngraded` 重新加成一致。
 - 满槽充能先激发最左侧球；若激发副作用同步充能又把槽填满，现有引擎记录 `MethodMirrorIncomplete` 风险并放弃本次预测。Flash 明确抛 `FlashUnsupportedException`，不追加激发。预测历史充能达到 1000 次同样按未支持边界拒绝。
-- `ReptileTrinket` 的 `AfterPotionUsed` 在药水效果之后、Power 数量结算与敌人死亡结算之前派发：玩家存活时按遗物变量施加 `ReptileTrinketPower`（临时力量 + 力量）。`UnsettlingLamp` 仍无定义：它依赖卡牌实例身份、`BeforePowerAmountChanged` 与 `ModifyPowerAmountGivenMultiplicative` 的逐卡翻倍账本。
+- `ReptileTrinket` 的 `AfterPotionUsed` 在药水效果之后、Power 数量结算与敌人死亡结算之前派发：玩家存活时按遗物变量施加 `ReptileTrinketPower`（临时力量 + 力量）。药水目标的 `SurroundedPower` 朝向由 `BeforePotionUsed` 的投影更新。`UnsettlingLamp`/`Vambrace` 由 ID 批次实现（见下）。
+
+ID 新增的实例身份投影与惰性规则：
+
+- **按卡记账**：`_swordSageReplayBonuses` 逐卡写入 `FlashCard.Private`（`_swordSageReplayBonuses` 缺失条目仍按 `UnrepresentableState` 拒绝）；`_fetchCardsPlayedThisTurn` 写入 `FlashCard.Private` 的 bit 0，只在当前牌堆中的卡上生效；`_nightmareSelections` 的选定卡完整值写入 `FlashBattle.DetachedCards`（每行 `NightmarePower.Aux0 = 槽位 + 1`），Power 移除时清空槽位；`_returnToHandNextTurn` 仍投影到卡上的位。离场卡或已移除 Power 的残留条目不再被任何结算读取，按惰性放过（读取点只遍历当前牌堆 / 正层 `EffectivePowers`）。Monologue/Vambrace/UnsettlingLamp 的触发卡只在一次出牌的 `FlashExec` 中存在，稳定边界必须为空，否则按 `UnrepresentableState` 拒绝。
+- **实例型 Power**：`MonologuePower`（Strength/StrengthApplied → Aux0/Aux1）、`OrbitPower`（energySpent%4 → Aux0）、`NightmarePower`（detached 槽位 → Aux0）各导入为一行；`PaleBlueDotPower` 的每回合锁存位导入为 Aux0。`_orbitEnergyRemainders`/`_paleBlueDotActivated` 的正层实例缺条目时拒绝，零层实例的残留条目惰性放过。
 
 RG 的储君投影与惰性规则：
 
 - **星能**：`FlashBattle.Stars` 直接取 `SimPlayerCombatState.Stars`；无星费的卡 `BaseStarCost` 为 -1，临时星费按最后一条投影（多条目不一致按容量拒绝）；`LastStarsSpent` 只存在出牌期的 `FlashExec`，不投影。
 - **星能遗物计数**：`GalacticDust.Counter` 与 `MiniRegent.Counter` 取 `StatefulRelicState.Current`（`SimulatedCombatState.StatefulRelicStateForFlash`，无条目时其构造器读的模型字段）；`Regalite.Counter` 取 `RegalitePredictionState.UsedThisTurn`（无条目时读 `_usedThisTurn`）；`BrilliantScarf.Counter` 取 `CounterPredictionState.Value`（无条目时读 `_cardsPlayedThisTurn`）。四者都只在对应遗物的 Hook 里读写。
-- **`_swordSageReplayBonuses` 的惰性规则**：`NormalizeSwordSageReplays` 会为每张君王之刃记录一条「已应用的重放加成」，没有 SwordSagePower 时全部为 0。SwordSagePower 没有 Flash 定义（根持有它时按 `UnsupportedPower` 拒绝），因此目标加成恒为 0，所有条目都处在目标值、没有 delta 可应用；每张牌的已应用加成已经体现在导入的 `BaseReplayCount` 里。只有「所有条目值为 0 且所有玩家的 SwordSagePower 层数为 0」时按惰性放过，否则仍按 `UnrepresentableState` 拒绝。读取点：`NormalizeSwordSageReplays` 只遍历当前牌堆的君王之刃；`FlashProjection` 的指纹/续接文本不参与结算。
+- **SwordSagePower**：`NormalizeSwordSageReplays` 为每张君王之刃把「已应用的重放加成」写入 `FlashCard.Private`，`FlashRules.RootSwordSageAmount` 冻结根层数作为新生成非克隆之刃的基线；`ReplayCount` 的每次变化与 `Private` 同步，克隆重置 `Private`。
 - **自动预打出**：`BOMBARDMENT` 的消耗堆捕获与 `MayhemPower` 的计划自动打出在 `FlashKernel.AutoPrePlay` 里复刻；尚未实现的 Imbued、HistoryCourse、WhisperingEarring 没有 Flash 定义，持有它们的根在准入拒绝。
 - **历史计数投影**：`CardsGeneratedThisCombat` 取 `CalculatedVarSpecRegistry.CountGeneratedCardsForFlash`（根历史 + 预测历史）；`FlashEnemy.PoweredAttackHitsThisTurn` 取 `GetPoweredAttackHitsThisTurn(player, enemy)`（在导入的私有 Fork 上读取，调用方状态不变），超过 255 按 `UnrepresentableState` 拒绝。
 - **`VoidFormPower.Aux0`**：取 `VoidFormPredictionState.CardsPlayedThisTurn`（`Claim` 认领）；没有条目时读模型内部数据的 `cardsPlayedThisTurn`。Power 归零退役后的残留条目按惰性处理：两个费用钩子与 `AfterCardPlayed` 只遍历正层 `EffectivePowers`，重新获得是新的原生实例。

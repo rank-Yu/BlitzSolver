@@ -173,14 +173,14 @@ public sealed class Inky : FlashEnchantmentDef
                 byte owner = FlashKernel.EnemyOwner(x.B.Roster[position]);
                 if (!FlashKernel.IsHittable(x.B, owner))
                     continue;
-                FlashKernel.ApplyPower(ref x, owner, weak, WeakAmount, FlashLimits.PlayerOwner);
+                FlashKernel.ApplyPowerFromCard(ref x, owner, weak, WeakAmount, FlashLimits.PlayerOwner, card);
                 if (x.NeedsChoice)
                     return;
             }
             return;
         }
         if (target != FlashLimits.NoOwner)
-            FlashKernel.ApplyPower(ref x, target, weak, WeakAmount, FlashLimits.PlayerOwner);
+            FlashKernel.ApplyPowerFromCard(ref x, target, weak, WeakAmount, FlashLimits.PlayerOwner, card);
     }
 }
 

@@ -36,6 +36,8 @@ public sealed class SentryMode : FlashCardDef
 [FlashContent("CALL_OF_THE_VOID")]
 public sealed class CallOfTheVoid : FlashCardDef
 {
+    public override bool MayGenerateIdentityContent => true;
+
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     public override IReadOnlyList<string> AppliedPowers => ["CALL_OF_THE_VOID_POWER"];

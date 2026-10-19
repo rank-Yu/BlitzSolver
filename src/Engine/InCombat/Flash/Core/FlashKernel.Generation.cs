@@ -2,6 +2,9 @@ namespace CombatSolver.Engine.InCombat.Flash;
 
 public static partial class FlashKernel
 {
+    /// <summary>Bit 0 of <see cref="FlashCard.Private"/>: this exact Fetch card played this turn.</summary>
+    internal const short FetchPlayedBit = 1;
+
     /// <summary>
     /// A fresh canonical card at <paramref name="upgrade"/>, as the existing engine creates generated
     /// cards (<c>PredictedCard.Create(CanonicalModels.Card&lt;T&gt;())</c>): canonical cost, star cost and
@@ -18,6 +21,8 @@ public static partial class FlashKernel
             BaseCost = checked((sbyte)(stats.CostsX ? 0 : stats.EnergyCost)),
             BaseStarCost = checked((sbyte)stats.StarCost),
         };
+        if (FlashRegistry.Card(cardId).UsesIdentityLedger)
+            card.Private = FlashLimits.UninitializedLedger;
         if (stats.CostsX)
             card.Flags |= FlashCardFlags.CostsX;
         if (stats.StarCostsX)
@@ -283,6 +288,14 @@ public static partial class FlashKernel
             | FlashCardFlags.RemovedFromState | FlashCardFlags.PowerAfflictionChecked);
         clone.Keywords |= FlashKeywords.CreatedAfterRoot;
         clone.IsClone = true;
+        // PredictedCard/CardModel clones are new objects: the existing engine's per-card dictionaries
+        // have no entry for them until their first normalization/play. Other cards keep Private (the
+        // native clone copies Claw/Rampage-style private counters).
+        FlashCardDef cloneDef = FlashRegistry.Card(card.Id);
+        if (cloneDef.UsesIdentityLedger)
+            clone.Private = FlashLimits.UninitializedLedger;
+        if (cloneDef.TracksFetchPlay)
+            clone.Private &= ~FetchPlayedBit;
         return clone;
     }
 

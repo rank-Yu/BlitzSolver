@@ -275,7 +275,10 @@ public sealed class FlashRules
         int rootEnemyCount,
         int baseMaxEnergy,
         int playerSlotIndex,
-        int baseOrbSlotCount)
+        int baseOrbSlotCount,
+        int rootSwordSageAmount,
+        ushort unsettlingLampRelicId,
+        bool hasIdentityContent)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -293,9 +296,36 @@ public sealed class FlashRules
         BaseMaxEnergy = baseMaxEnergy;
         PlayerSlotIndex = playerSlotIndex;
         BaseOrbSlotCount = baseOrbSlotCount;
+        RootSwordSageAmount = rootSwordSageAmount;
+        UnsettlingLampRelicId = unsettlingLampRelicId;
+        HasIdentityContent = hasIdentityContent;
     }
 
     public int BaseMaxEnergy { get; }
+
+    /// <summary>
+    /// Player's SwordSagePower amount at root capture (<c>_rootPowerAmounts</c> baseline of
+    /// <c>NormalizeSwordSageReplays</c>). Newly generated non-clone blades start their applied replay
+    /// bonus from this value.
+    /// </summary>
+    public int RootSwordSageAmount { get; }
+
+    /// <summary>
+    /// Root's UnsettlingLamp relic id, or <see cref="ushort.MaxValue"/> when the relic is absent. The
+    /// relic is the only listener of the two power-amount hooks, so a root without it skips both
+    /// dispatches entirely (the bench's Ironclad roots otherwise pay two listener scans per applied
+    /// power for nothing).
+    /// </summary>
+    public ushort UnsettlingLampRelicId { get; }
+
+
+    /// <summary>
+    /// The root can reach one of the ID batch's per-object ledgers or instance powers. Conservative:
+    /// true for a native identity card/power/relic, a card/relic that can generate one, or the
+    /// SwordSage root amount. Roots without it skip the identity scans entirely.
+    /// </summary>
+    public bool HasIdentityContent { get; }
+
 
     /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
     public int BaseOrbSlotCount { get; }
@@ -421,6 +451,14 @@ public sealed class FlashRulesBuilder
 
     public int BaseOrbSlotCount { get; set; }
 
+    public int RootSwordSageAmount { get; set; }
+
+    public ushort UnsettlingLampRelicId { get; set; } = ushort.MaxValue;
+
+
+    public bool HasIdentityContent { get; set; } = true;
+
+
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
         List<FlashCardStats?> levels = _cards[id] ??= [];
@@ -509,7 +547,8 @@ public sealed class FlashRulesBuilder
             (ushort[])_potionPool.Clone(),
             (ushort[])_outOfCombatPotionPool.Clone(),
             (ushort[])_rootPotions.Clone(),
-            HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount);
+            HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
+            RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

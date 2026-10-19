@@ -246,6 +246,31 @@ public enum FlashHookMaskExt : ulong
     /// SneckoSkull's Poison bonus). Uses the batch's assigned bits 16-31.
     /// </summary>
     ModifyPowerAmountGiven = 1UL << 16,
+
+    /// <summary>
+    /// Native <c>ModifyPowerAmountGivenMultiplicative</c>: a pure query after the additive given pass
+    /// and before the received-side pass (<c>UnsettlingLamp</c>'s per-card debuff doubling).
+    /// </summary>
+    ModifyPowerAmountGivenMultiplicative = 1UL << 17,
+
+    /// <summary>
+    /// Native <c>BeforePowerAmountChanged</c>: the observation pass at the start of
+    /// <c>SimulatedCombatState.ModifyPowerAmountForRelics</c> (UnsettlingLamp records the card and the
+    /// temporary power's internal type). Must not change the amount.
+    /// </summary>
+    BeforePowerAmountChanged = 1UL << 18,
+
+    /// <summary>
+    /// Native <c>AfterModifyingBlockAmount</c> for the listeners that changed the settled block,
+    /// dispatched before the block is added (<c>HookMirrors.ModifyBlock</c> / <c>GainBlock</c>).
+    /// </summary>
+    AfterModifyingBlockAmount = 1UL << 19,
+
+    /// <summary>
+    /// Native <c>AfterEnergySpent</c> (<c>CardModel.SpendResources</c>, before star spending):
+    /// <c>OrbitPower</c> accumulates spent energy and grants energy on each full cycle.
+    /// </summary>
+    AfterEnergySpent = 1UL << 20,
 }
 
 /// <summary>
@@ -364,6 +389,16 @@ public abstract class FlashListenerDef : FlashContentDef
     public virtual decimal ModifyBlockAdditive(ref FlashExec x, FlashListener self, in FlashBlockContext block, decimal amount) => 0m;
 
     public virtual decimal ModifyBlockMultiplicative(ref FlashExec x, FlashListener self, in FlashBlockContext block, decimal amount) => 1m;
+
+    /// <summary>
+    /// Native <c>AfterModifyingBlockAmount</c> for a listener that changed the settled block, before
+    /// the block is added. <paramref name="modified"/> is the final settled amount
+    /// (<c>HookMirrors.AfterModifyingBlockAmount</c>).
+    /// </summary>
+    public virtual void AfterModifyingBlockAmount(ref FlashExec x, FlashListener self, decimal modified,
+        in FlashBlockContext block)
+    {
+    }
 
     // HP loss modification (HookMirrors.ModifyHpLost over the run listeners, no ending gate): before the
     // Osty redirect, then after it, each with a Late pass. A listener that changes the truncated amount in an
@@ -588,6 +623,14 @@ public abstract class FlashListenerDef : FlashContentDef
     }
 
     /// <summary>
+    /// Native <c>AfterEnergySpent</c> (before star spending). The amount is the energy actually paid;
+    /// the existing engine calls the sink even for zero, whose <c>OrbitPower</c> case ignores it.
+    /// </summary>
+    public virtual void AfterEnergySpent(ref FlashExec x, FlashListener self, in FlashCard card, int amount)
+    {
+    }
+
+    /// <summary>
     /// <c>HookMirrors.AfterStarsGained</c> after <c>PlayerCmd.GainStars</c> mutates the player's
     /// stars. <paramref name="amount"/> is the requested gain (BlackHolePower ignores non-positive
     /// amounts).
@@ -645,6 +688,25 @@ public abstract class FlashListenerDef : FlashContentDef
     /// </summary>
     public virtual decimal ModifyPowerAmountGiven(in FlashBattle battle, FlashRules rules, FlashListener self,
         ushort powerId, byte giver, byte target, decimal amount) => 0m;
+
+    /// <summary>
+    /// Native <c>Hook.ModifyPowerAmountGivenMultiplicative</c>
+    /// (<c>UnsettlingLamp.ModifyPowerAmountGivenMultiplicative</c>): a pure query over the combat
+    /// listeners after the additive given pass. <paramref name="cardSourceSerial"/> is 0 when the
+    /// application has no card source.
+    /// </summary>
+    public virtual decimal ModifyPowerAmountGivenMultiplicative(ref FlashExec x, FlashListener self,
+        ushort powerId, byte giver, byte target, decimal amount, int cardSourceSerial) => 1m;
+
+    /// <summary>
+    /// Native <c>BeforePowerAmountChanged</c> at the start of
+    /// <c>SimulatedCombatState.ModifyPowerAmountForRelics</c>. UnsettlingLamp records the triggering
+    /// card and the temporary power's internal type; the amount must not be changed here.
+    /// </summary>
+    public virtual void BeforePowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId,
+        int amount, byte target, byte applier, int cardSourceSerial)
+    {
+    }
 
     public virtual bool TryModifyPowerAmountReceived(in FlashBattle battle, FlashRules rules, FlashListener self,
         ushort powerId, byte target, int amount, out int modified)
@@ -743,6 +805,62 @@ public abstract class FlashListenerDef : FlashContentDef
 public abstract class FlashCardDef : FlashListenerDef
 {
     /// <summary>
+    /// Cards whose power compensation lives in <c>CorePowerSupport.ApplyCardPowers</c>'s switch after
+    /// <c>ResolveMonologues</c>. The kernel resolves pending Monologue Strength before such a card's
+    /// first power application so the power table keeps the existing engine's acquisition order. The
+    /// list is the case-label set of that switch (the Flash content split is by native card id).
+    /// </summary>
+    public bool ResolvesMonologuesBeforeCompensation => NativeId is
+            "ABRASIVE"
+            or "ACCELERANT"
+            or "ACCURACY"
+            or "AFTERIMAGE"
+            or "AGGRESSION"
+            or "ANGER"
+            or "ANTICIPATE"
+            or "ASSASSINATE"
+            or "BARRICADE"
+            or "BASH"
+            or "BATTLE_TRANCE"
+            or "BEAM_CELL"
+            or "BIASED_COGNITION"
+            or "BREAK"
+            or "BUFFER"
+            or "BULK_UP"
+            or "CAPACITOR"
+            or "CORRUPTION"
+            or "CREATIVE_AI"
+            or "CRIMSON_MANTLE"
+            or "DARK_EMBRACE"
+            or "DEFRAGMENT"
+            or "DEMON_FORM"
+            or "DODGE_AND_ROLL"
+            or "DOMINATE"
+            or "ECHO_FORM"
+            or "ENVENOM"
+            or "FEAR"
+            or "FEEL_NO_PAIN"
+            or "FISTICUFFS"
+            or "FOOTWORK"
+            or "FRIENDSHIP"
+            or "FURNACE"
+            or "GAMMA_BLAST"
+            or "HIGH_FIVE"
+            or "INFLAME"
+            or "KNOW_THY_PLACE"
+            or "LEG_SWEEP"
+            or "METEOR_SHOWER"
+            or "PIERCING_WAIL"
+            or "PROWESS"
+            or "REFINE_BLADE"
+            or "RESONANCE"
+            or "SHOCKWAVE"
+            or "SIDESTEP"
+            or "SUCKER_PUNCH"
+            or "THUNDERCLAP"
+            or "TREMBLE";
+
+    /// <summary>
     /// Card effect in the existing engine's order: mirrored attack/block/draw first, then the
     /// compensated power/resource/generation effects.
     /// </summary>
@@ -765,6 +883,29 @@ public abstract class FlashCardDef : FlashListenerDef
 
     /// <summary>Native <c>CardModel.HasTurnEndInHandEffect</c>: the card runs <see cref="OnTurnEndInHand"/> at the turn end.</summary>
     public virtual bool HasTurnEndInHandEffect => false;
+
+    /// <summary>
+    /// This card uses <see cref="FlashCard.Private"/> as the per-object identity ledger the existing
+    /// engine keeps in a dictionary (<c>SwordSagePower</c>'s applied replay bonus; the same field's
+    /// bit 0 is Fetch's "this exact card was played this turn" bit).
+    /// </summary>
+    public virtual bool UsesIdentityLedger => false;
+
+    /// <summary>
+    /// Native <c>Fetch</c>: <c>SimulatedCombatState._fetchCardsPlayedThisTurn</c> records this exact
+    /// card object when the play completes. The kernel sets bit 0 of <see cref="FlashCard.Private"/>.
+    /// </summary>
+    public virtual bool TracksFetchPlay => false;
+
+    /// <summary>
+    /// This card can create a card whose identity the existing engine keeps in a per-object
+    /// dictionary (a random/selected card can be a Sovereign Blade, Fetch, or Nightmare target).
+    /// Used only to decide whether a root must enable the identity scans.
+    /// </summary>
+    public virtual bool MayGenerateIdentityContent => false;
+
+    /// <summary>This card is one of the ID batch's per-instance cards.</summary>
+    public virtual bool IsIdentityContent => false;
 
     /// <summary>
     /// The card's <c>CardOnTurnEndInHandMirrors</c> effect at the player's turn end, while it sits in the play
@@ -852,6 +993,9 @@ public enum FlashPowerStackType : byte
 
 public abstract class FlashPowerDef : FlashListenerDef
 {
+    /// <summary>This power is one of the ID batch's per-instance powers.</summary>
+    public virtual bool IsIdentityContent => false;
+
     public abstract FlashPowerType Type { get; }
 
     public abstract FlashPowerStackType StackType { get; }
@@ -860,6 +1004,19 @@ public abstract class FlashPowerDef : FlashListenerDef
 
     /// <summary>Native instanced powers get a new instance per application instead of stacking.</summary>
     public virtual bool IsInstanced => false;
+
+    /// <summary>
+    /// Native <c>PowerModel.IsVisible</c>. The single-player visibility test reduces to the hidden
+    /// internal override (only <c>AmbergrisPower</c> sets <c>IsVisibleInternal=false</c>); all visible
+    /// powers here return true.
+    /// </summary>
+    public virtual bool IsVisible => true;
+
+    /// <summary>
+    /// The instance carries a selected card value in <see cref="FlashBattle.DetachedCards"/>
+    /// (<see cref="FlashPower.Aux0"/> = slot + 1). Removing the power clears the slot.
+    /// </summary>
+    public virtual bool UsesDetachedCard => false;
 
     /// <summary>Native <c>GetTypeForAmount</c>: a negative amount of a buff that allows negatives is a debuff.</summary>
     public virtual FlashPowerType TypeForAmount(int amount)
@@ -1030,6 +1187,15 @@ public abstract class FlashPowerDef : FlashListenerDef
 /// <summary>A relic. Turn-phase methods are its cases in the named <c>TurnStartRelicSupport</c>/<c>PersistentRelicSupport</c> batches.</summary>
 public abstract class FlashRelicDef : FlashListenerDef
 {
+    /// <summary>This relic can create a card with per-object identity (Toolbox's colourless choice).</summary>
+    public virtual bool MayGenerateIdentityContent => false;
+
+    /// <summary>This relic has per-object identity state (Vambrace/UnsettlingLamp).</summary>
+    public virtual bool IsIdentityContent => false;
+
+    /// <summary>Native <c>UnsettlingLamp</c> (the only listener of the two power-amount ext hooks).</summary>
+    public virtual bool IsUnsettlingLamp => false;
+
     public virtual void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
     {
     }

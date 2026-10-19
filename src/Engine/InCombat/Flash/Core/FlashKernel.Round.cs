@@ -89,7 +89,14 @@ public static partial class FlashKernel
             acting[position] = EnemyOwner(x.B.Roster[position]);
 
         SetSide(ref x.B, FlashSide.Enemy);
-        // BeginSideTurn for the enemies: their per-turn counters are not tracked.
+        // BeginSideTurn for the enemies: their per-turn counters are not tracked, but
+        // ResetCardLifecycleTurn clears the single shared _fetchCardsPlayedThisTurn set.
+        for (int position = 0; position < x.B.CardCount; position++)
+        {
+            ref FlashCard card = ref x.B.Cards[position];
+            if (FlashRegistry.Card(card.Id).TracksFetchPlay)
+                card.Private &= ~FetchPlayedBit;
+        }
         for (int position = 0; position < x.B.RosterCount; position++)
             SnapshotPowerAmountsAtTurnStart(ref x.B, EnemyOwner(x.B.Roster[position]));
         // Each phase reads the live enemy list, as the existing engine passes simulatedCombat.Enemies.
@@ -201,6 +208,13 @@ public static partial class FlashKernel
         if ((battle.Flags & FlashBattleFlags.OstyWasRootPet) != 0)
             battle.SetCounter(FlashCounter.OstyAttacksThisTurn, 0);
         battle.SetCounter(FlashCounter.DoomAppliedThisTurn, 0);
+        // BeginSideTurn -> ResetCardLifecycleTurn: _fetchCardsPlayedThisTurn is cleared for this side.
+        for (int position = 0; position < battle.CardCount; position++)
+        {
+            ref FlashCard card = ref battle.Cards[position];
+            if (FlashRegistry.Card(card.Id).TracksFetchPlay)
+                card.Private &= ~FlashKernel.FetchPlayedBit;
+        }
         // SimulatedCombatState.BeginSideTurn(player) -> RemovePoweredAttackHitsDealtBy(player):
         // BeatIntoShape's per-target hit count is a this-turn value keyed by the dealer's side.
         for (int index = 0; index < battle.EnemyCount; index++)

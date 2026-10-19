@@ -31,6 +31,8 @@ public sealed class Supermassive : FlashCardDef
 [FlashContent("BEAT_INTO_SHAPE")]
 public sealed class BeatIntoShape : FlashCardDef
 {
+    public override bool MayGenerateIdentityContent => true;
+
     public override IReadOnlyList<string> VarNames => ["Damage", "CalculationBase", "CalculationExtra"];
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [(FlashKernel.SovereignBladeId, 0)];

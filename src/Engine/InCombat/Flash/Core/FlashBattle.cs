@@ -53,6 +53,7 @@ public enum FlashBattleFlags : byte
     /// field, so an Osty created during the search never resets them. Constant for the solve; imported.
     /// </summary>
     OstyWasRootPet = 1 << 5,
+
 }
 
 /// <summary>Combat pile segments, in their storage order inside <see cref="FlashBattle.Cards"/>.</summary>
@@ -222,7 +223,7 @@ public enum FlashCounter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashBattle
 {
-    public const int ExpectedSize = 12000;
+    public const int ExpectedSize = 12320;
 
     public int Round;
     public int PlayerTurn;
@@ -259,6 +260,13 @@ public struct FlashBattle
     private byte _padding0;
     private byte _padding1;
     private byte _padding2;
+
+    /// <summary>
+    /// Selected-card values of instanced powers that clone them at a later turn (NightmarePower).
+    /// Referenced by <see cref="FlashPower.Aux0"/> (slot + 1); a zeroed slot is free. Part of the
+    /// header byte image so both the fingerprint and equality cover it.
+    /// </summary>
+    public FlashDetachedCardArray DetachedCards;
 
     /// <summary>Indexes into <see cref="Enemies"/>, in native roster order.</summary>
     public FlashRoster Roster;

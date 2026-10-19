@@ -113,6 +113,9 @@ public enum FlashChoiceEffect : byte
     /// <summary>Add the local Ethereal keyword to the selected cards (<c>CardCmd.ApplyKeyword</c>, SculptingStrike).</summary>
     ApplyEthereal,
 
+    /// <summary>Select one hand card and store a clone as NightmarePower's selected card.</summary>
+    Nightmare,
+
     /// <summary>Modify the selected cards in place (Transfigure's cost and replay count).</summary>
     Modify,
 
@@ -234,6 +237,31 @@ public struct FlashCardPlayPairs
 }
 
 /// <summary>
+/// One MonologuePower instance whose Strength is due after the current card play
+/// (<c>CorePowerSupport</c>'s <c>CapturePendingMonologues</c>). The occurrence addresses the instance
+/// after rows shift; the strength is the value read before the card's effects.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct FlashMonologuePending
+{
+    public byte Occurrence;
+    public short Strength;
+}
+
+[InlineArray(FlashLimits.MonologuePending)]
+public struct FlashMonologuePendingArray
+{
+    private FlashMonologuePending _first;
+}
+
+/// <summary>Temporary Power ids doubled by UnsettlingLamp in the current card source scope.</summary>
+[InlineArray(FlashLimits.LampInternalPowerTypes)]
+public struct FlashLampInternalPowerTypes
+{
+    private ushort _first;
+}
+
+/// <summary>
 /// Stack-only execution context of one kernel step. Holds the battle by reference and the
 /// transient facts of the current action; nothing here survives the step.
 /// </summary>
@@ -274,6 +302,20 @@ public ref struct FlashExec
         PendingPowerChangeCount = 0;
         CardPlayPairs = default;
         CardPlayPairCount = 0;
+        MonologuePending = default;
+        MonologuePendingCount = 0;
+        CurrentMonologueBase = 0;
+        MonologuesResolved = false;
+        CardPowerSourceActive = false;
+        CardPowerSourceSerial = 0;
+        CardPowerSourceSerialCounter = 0;
+        LampTriggerSerial = 0;
+        LampInternalTypeCount = 0;
+        LampInternalTypes = default;
+        VambraceTriggerActive = false;
+        VambraceTriggerPosition = -1;
+        VambraceTriggerSerial = 0;
+        LastCardPowerSourceSerial = 0;
         CurrentPlayIsAutoPlay = false;
         CurrentPlayEnergyValue = 0;
         CardDamageTotal = 0;
@@ -367,6 +409,67 @@ public ref struct FlashExec
     public FlashCardPlayPairs CardPlayPairs;
 
     public int CardPlayPairCount;
+
+    /// <summary>
+    /// MonologuePower instances captured when the current card's effects started. Empty at every
+    /// stable boundary; nested auto-plays use the same stack with a saved base marker.
+    /// </summary>
+    public FlashMonologuePendingArray MonologuePending;
+
+    public int MonologuePendingCount;
+
+    /// <summary>Base index of the current card play's pending list (nested plays save/restore it).</summary>
+    public int CurrentMonologueBase;
+
+    /// <summary>Whether the current card play already resolved its pending Monologue Strength.</summary>
+    public bool MonologuesResolved;
+
+    /// <summary>
+    /// True while a card's OnPlay/compensated effects run (the existing engine's
+    /// <c>BeginCardPowerApplication</c> scope). Power applications then carry the card as their source.
+    /// </summary>
+    public bool CardPowerSourceActive;
+
+    /// <summary>Unique identity of the current card power-application scope (0 = no source).</summary>
+    public int CardPowerSourceSerial;
+
+    /// <summary>Monotonic serial allocator; saved/restored around nested plays.</summary>
+    public int CardPowerSourceSerialCounter;
+
+    /// <summary>UnsettlingLamp's triggering card source serial (0 = not triggered).</summary>
+    public int LampTriggerSerial;
+
+    public int LampInternalTypeCount;
+
+    public FlashLampInternalPowerTypes LampInternalTypes;
+
+    /// <summary>
+    /// Vambrace's <c>TriggeringCard</c> within the current play: the play's power-source serial plus
+    /// relative position. The serial identifies the card play without copying the full card value;
+    /// transient, stable boundaries keep only the relic's used bit.
+    /// </summary>
+    public bool VambraceTriggerActive;
+
+    public int VambraceTriggerPosition;
+
+    public int VambraceTriggerSerial;
+
+    /// <summary>The just-completed play's power-source serial; valid during AfterCardPlayed.</summary>
+    public int LastCardPowerSourceSerial;
+
+    /// <summary>Records one MonologuePower pending settlement; called at the start of a card's effects.</summary>
+    public void PushMonologuePending(byte occurrence, int strength)
+    {
+        if (MonologuePendingCount >= FlashLimits.MonologuePending)
+            throw new FlashCapacityException("MonologuePending", FlashLimits.MonologuePending);
+        if (strength is < short.MinValue or > short.MaxValue)
+            throw new FlashCapacityException("MonologuePending.Strength", short.MaxValue);
+        MonologuePending[MonologuePendingCount++] = new FlashMonologuePending
+        {
+            Occurrence = occurrence,
+            Strength = (short)strength,
+        };
+    }
 
     /// <summary>
     /// The play whose <c>OnPlay</c>/<c>OwnChoice</c> is running was started by <c>AutoPlay</c>

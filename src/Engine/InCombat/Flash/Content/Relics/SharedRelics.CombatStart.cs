@@ -139,7 +139,10 @@ public sealed class StoneCracker : FlashRelicDef;
 /// before the play-phase root.
 /// </summary>
 [FlashContent("TOOLBOX")]
-public sealed class Toolbox : FlashRelicDef;
+public sealed class Toolbox : FlashRelicDef
+{
+    public override bool MayGenerateIdentityContent => true;
+}
 
 /// <summary>
 /// <c>Vajra</c>: <c>AfterRoomEntered</c> applies Strength when entering a combat room, during combat

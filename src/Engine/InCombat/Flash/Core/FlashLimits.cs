@@ -7,7 +7,7 @@ namespace CombatSolver.Engine.InCombat.Flash;
 public static class FlashLimits
 {
     public const int Cards = 96;
-    public const int Enemies = 8;
+    public const int Enemies = 10;
     public const int Powers = 64;
     public const int Relics = 32;
     public const int PotionSlots = 5;
@@ -59,6 +59,25 @@ public static class FlashLimits
     /// the nesting depth of one action; overflow throws <see cref="FlashCapacityException"/>.
     /// </summary>
     public const int CardPlayPairs = 32;
+
+    /// <summary>
+    /// Selected-card values carried by instanced powers that clone them later (NightmarePower). The
+    /// existing engine keeps one detached <c>CardModel</c> clone per instance; Flash stores its full
+    /// value in a compact table. Exceeding the capacity throws <see cref="FlashCapacityException"/>
+    /// instead of evicting a live selection.
+    /// </summary>
+    public const int DetachedCards = 2;
+
+    /// <summary>Sentinel of the <see cref="FlashCard.Private"/> identity ledger: no applied entry yet.</summary>
+    public const short UninitializedLedger = short.MinValue;
+
+    /// <summary>
+    /// Per-creature temporary Power ids doubled by UnsettlingLamp within one card's power
+    /// application scope (<c>_unsettlingLampInternalPowerTypes</c>). A card applies at most a few
+    /// temporary stats; overflow throws <see cref="FlashCapacityException"/>.
+    /// </summary>
+    public const int LampInternalPowerTypes = 4;
+    public const int MonologuePending = 8;
 
     /// <summary>Owner index of the player in <see cref="FlashPower.Owner"/> and creature references.</summary>
     public const byte PlayerOwner = 0;

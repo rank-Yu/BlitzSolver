@@ -108,6 +108,45 @@ public static partial class FlashKernel
                 ClearAffliction(ref x.B, position);
         }
         NormalizePowerAfflictions(ref x);
+        NormalizeSwordSageReplays(ref x);
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.PowerLifecycle.cs:NormalizeSwordSageReplays</c>: keep every Sovereign
+    /// Blade's replay count at "canonical + current SwordSage amount". The per-card applied bonus lives
+    /// in <see cref="FlashCard.Private"/> and travels with the card; a freshly generated non-clone starts
+    /// from the frozen root amount, a clone from the current amount, exactly like the existing engine's
+    /// <c>rootAmount</c>/<c>desired</c> baseline.
+    /// </summary>
+    private static void NormalizeSwordSageReplays(ref FlashExec x)
+    {
+        if (!x.R.HasIdentityContent)
+            return;
+        if (!FlashRegistry.TryPower("SWORD_SAGE_POWER", out ushort swordSage))
+            return;
+        if (!FlashRegistry.TryCard(FlashKernel.SovereignBladeId, out ushort blade))
+            return;
+        int desired = GetAmount(x.B, FlashLimits.PlayerOwner, swordSage);
+        for (int position = 0; position < x.B.CardCount; position++)
+        {
+            ref FlashCard card = ref x.B.Cards[position];
+            if (card.Id != blade)
+                continue;
+            int applied = card.Private;
+            if (applied == FlashLimits.UninitializedLedger)
+            {
+                applied = card.IsClone ? desired : x.R.RootSwordSageAmount;
+                card.Private = checked((short)applied);
+            }
+            int delta = desired - applied;
+            if (delta == 0)
+                continue;
+            int replay = card.ReplayCount + delta;
+            if ((uint)replay > byte.MaxValue)
+                throw new FlashCapacityException("Card.ReplayCount", byte.MaxValue);
+            card.ReplayCount = (byte)replay;
+            card.Private = checked((short)desired);
+        }
     }
 
     /// <summary>

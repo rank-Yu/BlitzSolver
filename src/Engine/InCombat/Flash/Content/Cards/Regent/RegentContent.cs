@@ -7,6 +7,8 @@ namespace CombatSolver.Engine.InCombat.Flash.Content.Cards.Regent;
 /// </summary>
 public abstract class ForgeCardDef : FlashCardDef
 {
+    public override bool MayGenerateIdentityContent => true;
+
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [(FlashKernel.SovereignBladeId, 0)];
 }
 

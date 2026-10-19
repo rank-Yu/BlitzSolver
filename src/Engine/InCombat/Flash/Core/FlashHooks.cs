@@ -210,8 +210,19 @@ public static partial class FlashHooks
     /// <summary>Mirrors <c>HookMirrors.ModifyBlock</c> including the settlement overflow clamp.</summary>
     public static decimal ModifyBlock(ref FlashExec x, byte target, decimal block, FlashValueProps props,
         bool hasCardSource, in FlashCard cardSource, out bool anyModifier)
+        => ModifyBlock(ref x, target, block, props, hasCardSource, cardSource, out anyModifier,
+            Span<FlashListener>.Empty, out _);
+
+    /// <summary>
+    /// <c>HookMirrors.ModifyBlock</c> with the listeners whose additive/multiplicative value changed
+    /// (the input of <c>AfterModifyingBlockAmount</c>), in listener order.
+    /// </summary>
+    public static decimal ModifyBlock(ref FlashExec x, byte target, decimal block, FlashValueProps props,
+        bool hasCardSource, in FlashCard cardSource, out bool anyModifier,
+        scoped Span<FlashListener> changed, out int changedCount)
     {
         anyModifier = false;
+        changedCount = 0;
         bool overflowed = false;
         // HookMirrors.ModifyBlock: the source card's enchantment runs before every listener and is
         // part of the settlement overflow tracking.
@@ -232,6 +243,8 @@ public static partial class FlashHooks
             decimal additive = Definition(x.B, listeners[index]).ModifyBlockAdditive(ref x, listeners[index], context, block);
             block += additive;
             anyModifier |= additive != 0;
+            if (additive != 0 && !changed.IsEmpty)
+                changed[changedCount++] = listeners[index];
         }
 
         count = CollectListeners(x.B, FlashHookMask.ModifyBlockMultiplicative, listeners);
@@ -240,9 +253,32 @@ public static partial class FlashHooks
             decimal multiplier = Definition(x.B, listeners[index]).ModifyBlockMultiplicative(ref x, listeners[index], context, block);
             block = MultiplyBlockWithinSettlement(block, multiplier, ref overflowed);
             anyModifier |= multiplier != 1;
+            if (multiplier != 1 && !changed.IsEmpty)
+                changed[changedCount++] = listeners[index];
         }
 
         return overflowed ? Math.Clamp(block, 0m, FlashLimits.ValueClamp) : Math.Max(0, block);
+    }
+
+    /// <summary><c>HookMirrors.AfterModifyingBlockAmount</c> for the recorded listeners.</summary>
+    public static void AfterModifyingBlockAmount(ref FlashExec x, byte target, decimal modified,
+        FlashValueProps props, bool hasCardSource, in FlashCard cardSource,
+        scoped ReadOnlySpan<FlashListener> changed)
+    {
+        if (changed.IsEmpty)
+            return;
+        FlashBlockContext context = new(target, props, hasCardSource, cardSource);
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMaskExt.AfterModifyingBlockAmount, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            if (changed.Contains(listeners[index]))
+            {
+                Definition(x.B, listeners[index]).AfterModifyingBlockAmount(ref x, listeners[index], modified, context);
+                if (x.NeedsChoice)
+                    return;
+            }
+        }
     }
 
     /// <summary>Mirrors <c>HookMirrors.MultiplyBlockWithinSettlement</c>.</summary>
@@ -537,6 +573,62 @@ public static partial class FlashHooks
                 giver, target, amount);
         }
         return amount;
+    }
+
+    /// <summary>
+    /// <c>Hook.ModifyPowerAmountGivenMultiplicative</c>: a pure query after the additive given pass
+    /// (<c>SimulatedCombatState.ModifyPowerAmountForUnsettlingLamp</c> in the existing engine).
+    /// </summary>
+    public static decimal ModifyPowerAmountGivenMultiplicative(ref FlashExec x,
+        ushort powerId, byte giver, byte target, decimal amount, int cardSourceSerial)
+    {
+        if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.ModifyPowerAmountGivenMultiplicative) == 0)
+            return amount;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMaskExt.ModifyPowerAmountGivenMultiplicative, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            FlashListener listener = listeners[index];
+            amount *= Definition(x.B, listener).ModifyPowerAmountGivenMultiplicative(ref x, listener,
+                powerId, giver, target, amount, cardSourceSerial);
+        }
+        return amount;
+    }
+
+    /// <summary>
+    /// <c>Hook.BeforePowerAmountChanged</c>: the observation pass
+    /// (<c>SimulatedCombatState.ObserveUnsettlingLamp</c>) before the additive given pass.
+    /// </summary>
+    public static void BeforePowerAmountChanged(ref FlashExec x, ushort powerId, int amount, byte target,
+        byte applier, int cardSourceSerial)
+    {
+        if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.BeforePowerAmountChanged) == 0)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMaskExt.BeforePowerAmountChanged, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            FlashListener listener = listeners[index];
+            Definition(x.B, listener).BeforePowerAmountChanged(ref x, listener, powerId, amount, target, applier,
+                cardSourceSerial);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary><c>AfterEnergySpent</c> over the combat listeners, in listener order.</summary>
+    public static void AfterEnergySpent(ref FlashExec x, in FlashCard card, int amount)
+    {
+        if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.AfterEnergySpent) == 0)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[MaxListeners];
+        int count = CollectListeners(x.B, FlashHookMaskExt.AfterEnergySpent, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            Definition(x.B, listeners[index]).AfterEnergySpent(ref x, listeners[index], card, amount);
+            if (x.NeedsChoice)
+                return;
+        }
     }
 
     /// <summary>

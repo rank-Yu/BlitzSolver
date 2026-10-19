@@ -165,7 +165,13 @@ public static partial class FlashKernel
             battle.AddCounter(FlashCounter.EnergySpentThisTurn, energyValue);
         if (energyValue > 0)
             battle.Energy = (int)Math.Clamp((long)battle.Energy - energyValue, 0, FlashLimits.ValueClamp);
-        // AfterEnergySpent (Orbit) is not supported yet.
+        // CardModel.SpendResources: AfterEnergySpent runs before the star cost (OrbitPower).
+        if (x.R.HasIdentityContent)
+        {
+            FlashHooks.AfterEnergySpent(ref x, card, energyValue);
+            if (x.NeedsChoice)
+                return;
+        }
         if (starValue > 0)
         {
             battle.Stars = (int)Math.Clamp((long)battle.Stars - starValue, 0, FlashLimits.ValueClamp);
@@ -285,9 +291,45 @@ public static partial class FlashKernel
                 break;
             }
             RecordCardPlayStarted(ref x.B, stats, index, energyValue, isAutoPlay);
+            bool identityScope = x.R.HasIdentityContent;
+            int monologueBase = 0;
+            int outerSourceSerial = 0;
+            bool outerSourceActive = false;
+            int outerMonologueBase = 0;
+            bool outerMonologuesResolved = false;
+            if (identityScope)
+            {
+                monologueBase = x.MonologuePendingCount;
+                CaptureMonologuePending(ref x);
+                outerSourceSerial = x.CardPowerSourceSerial;
+                outerSourceActive = x.CardPowerSourceActive;
+                outerMonologueBase = x.CurrentMonologueBase;
+                outerMonologuesResolved = x.MonologuesResolved;
+                x.CurrentMonologueBase = monologueBase;
+                x.MonologuesResolved = false;
+                x.CardPowerSourceSerial = ++x.CardPowerSourceSerialCounter;
+                x.CardPowerSourceActive = true;
+            }
             FlashRegistry.Card(card.Id).OnPlay(ref x);
+            if (!x.NeedsChoice && identityScope)
+            {
+                if (!x.MonologuesResolved)
+                {
+                    ResolveMonologuePending(ref x, monologueBase);
+                    x.MonologuesResolved = true;
+                }
+                AfterCardPlayPowerLifecycle(ref x);
+            }
             if (x.NeedsChoice)
             {
+                if (identityScope)
+                {
+                    CompleteCardPowerSource(ref x);
+                    x.CardPowerSourceSerial = outerSourceSerial;
+                    x.CardPowerSourceActive = outerSourceActive;
+                    x.CurrentMonologueBase = outerMonologueBase;
+                    x.MonologuesResolved = outerMonologuesResolved;
+                }
                 completed = false;
                 break;
             }
@@ -296,6 +338,14 @@ public static partial class FlashKernel
             ResolvePowerAmountChanges(ref x);
             if (x.NeedsChoice)
             {
+                if (identityScope)
+                {
+                    CompleteCardPowerSource(ref x);
+                    x.CardPowerSourceSerial = outerSourceSerial;
+                    x.CardPowerSourceActive = outerSourceActive;
+                    x.CurrentMonologueBase = outerMonologueBase;
+                    x.MonologuesResolved = outerMonologuesResolved;
+                }
                 completed = false;
                 break;
             }
@@ -306,12 +356,30 @@ public static partial class FlashKernel
             ApplyEnemyDeathPowers(ref x);
             if (x.NeedsChoice)
             {
+                if (identityScope)
+                {
+                    CompleteCardPowerSource(ref x);
+                    x.CardPowerSourceSerial = outerSourceSerial;
+                    x.CardPowerSourceActive = outerSourceActive;
+                    x.CurrentMonologueBase = outerMonologueBase;
+                    x.MonologuesResolved = outerMonologuesResolved;
+                }
                 completed = false;
                 break;
             }
             // The existing engine normalizes card afflictions at the end of the compensated card
             // effects, before the card's own choice.
             NormalizeCardAfflictions(ref x);
+            // The card power-application scope ends after ApplyCardPlayEffects, before OwnChoice
+            // (CardExecutionContinuation's using block).
+            if (identityScope)
+            {
+                CompleteCardPowerSource(ref x);
+                x.CardPowerSourceSerial = outerSourceSerial;
+                x.CardPowerSourceActive = outerSourceActive;
+                x.CurrentMonologueBase = outerMonologueBase;
+                x.MonologuesResolved = outerMonologuesResolved;
+            }
             if (x.NeedsChoice)
             {
                 completed = false;
@@ -368,6 +436,13 @@ public static partial class FlashKernel
                 break;
             }
             RecordCardPlayed(ref x.B, stats);
+            // SimulatedCombatState.RecordCardLifecycle: the completed play records the exact Fetch
+            // object in _fetchCardsPlayedThisTurn. The value still sits in the play pile here.
+            if ((uint)playPosition < (uint)x.B.PlayCount
+                && FlashRegistry.Card(card.Id).TracksFetchPlay)
+            {
+                FlashPiles.At(ref x.B, FlashPile.Play, playPosition).Private |= FetchPlayedBit;
+            }
             // CardPlayFinishedEntry.WasEthereal is `card.HasKeyword(State, Ethereal)`, which runs
             // Hook.ModifyKeywords: a Hexed card counts as Ethereal while HexPower is up, so the
             // battle-aware helper (local keyword plus Hexed+HexPower) is the source.
@@ -606,5 +681,136 @@ public static partial class FlashKernel
         card.EnergyModifierCount = kept;
         if (card.HasTemporaryStarCost && card.TemporaryStarCostClearsWhenPlayed)
             card.ClearTemporaryStarCost();
+    }
+
+    /// <summary>
+    /// <c>CorePowerSupport.CapturePendingMonologues</c>: every positive MonologuePower instance on the
+    /// player, in table (listener) order. Captured before the card's effects; resolved afterwards.
+    /// </summary>
+    private static void CaptureMonologuePending(ref FlashExec x)
+    {
+        if (!x.R.HasIdentityContent)
+            return;
+        if (!FlashRegistry.TryPower("MONOLOGUE_POWER", out ushort id))
+            return;
+        byte occurrence = 0;
+        for (int index = 0; index < x.B.PowerCount; index++)
+        {
+            ref readonly FlashPower power = ref x.B.Powers[index];
+            if (power.Id != id || power.Owner != FlashLimits.PlayerOwner)
+                continue;
+            if (power.Amount > 0)
+                x.PushMonologuePending(occurrence, power.Aux0);
+            occurrence++;
+        }
+    }
+
+    /// <summary>
+    /// Resolves the current card's pending Monologue Strength before the first power application when
+    /// the card's compensation is the engine's post-Monologue switch. Cards whose powers are applied in
+    /// CardPowerOnPlaySupport keep the default (resolve after OnPlay).
+    /// </summary>
+    internal static void TryResolveMonologuesBeforeCompensation(ref FlashExec x)
+    {
+        if (x.MonologuesResolved
+            || x.CurrentMonologueBase >= x.MonologuePendingCount
+            || x.Card.Id == 0
+            || !FlashRegistry.Card(x.Card.Id).ResolvesMonologuesBeforeCompensation)
+        {
+            return;
+        }
+        x.MonologuesResolved = true;
+        ResolveMonologuePending(ref x, x.CurrentMonologueBase);
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.ResolveMonologues</c>: apply the captured Strength and accumulate the
+    /// instance's StrengthApplied. The Strength application is not gated on the power still existing
+    /// (the existing engine applies it to the captured model even after a removal).
+    /// </summary>
+    private static void ResolveMonologuePending(ref FlashExec x, int baseCount)
+    {
+        if (x.MonologuePendingCount <= baseCount)
+            return;
+        if (!FlashRegistry.TryPower("MONOLOGUE_POWER", out ushort monologue)
+            || !FlashRegistry.TryPower("STRENGTH_POWER", out ushort strength))
+        {
+            throw new FlashUnsupportedException("Monologue 结算需要 MONOLOGUE_POWER 与 STRENGTH_POWER。");
+        }
+        for (int entryIndex = baseCount; entryIndex < x.MonologuePendingCount; entryIndex++)
+        {
+            FlashMonologuePending entry = x.MonologuePending[entryIndex];
+            ApplyPower(ref x, FlashLimits.PlayerOwner, strength, entry.Strength, FlashLimits.PlayerOwner);
+            if (x.NeedsChoice)
+                break;
+            int row = FindPowerOccurrence(x.B, FlashLimits.PlayerOwner, monologue, entry.Occurrence);
+            if (row >= 0)
+                x.B.Powers[row].Aux1 = (int)Math.Clamp((long)x.B.Powers[row].Aux1 + entry.Strength,
+                    int.MinValue, int.MaxValue);
+        }
+        x.MonologuePendingCount = baseCount;
+    }
+
+    /// <summary>Marks the end of the current card power-application scope (UnsettlingLamp latch).</summary>
+    internal static void CompleteCardPowerSource(ref FlashExec x)
+    {
+        x.LastCardPowerSourceSerial = x.CardPowerSourceSerial;
+        if (x.LampTriggerSerial == 0 || x.LampTriggerSerial != x.CardPowerSourceSerial)
+            return;
+        if (FlashRegistry.TryRelic("UNSETTLING_LAMP", out ushort lamp))
+        {
+            for (int index = 0; index < x.B.RelicCount; index++)
+            {
+                if (x.B.Relics[index].Id == lamp && x.B.Relics[index].Counter == 0)
+                    x.B.Relics[index].Counter = 1;
+            }
+        }
+        x.LampTriggerSerial = 0;
+        x.LampInternalTypeCount = 0;
+    }
+
+    /// <summary>
+    /// <c>PowerLifecycleSupport.AfterCardPlayed</c>'s PaleBlueDot branch: every positive instance on the
+    /// player, when the fifth card of the turn has just been played, latches and grants next-turn draws.
+    /// </summary>
+    private static void AfterCardPlayPowerLifecycle(ref FlashExec x)
+    {
+        if (!x.R.HasIdentityContent)
+            return;
+        if (!FlashRegistry.TryPower("PALE_BLUE_DOT_POWER", out ushort paleBlueDot)
+            || !FlashRegistry.TryPower("DRAW_CARDS_NEXT_TURN_POWER", out ushort drawNextTurn))
+            return;
+        int cardsPlayed = x.B.Counter(FlashCounter.CardsPlayedThisTurn);
+        for (int index = 0; index < x.B.PowerCount; index++)
+        {
+            ref FlashPower power = ref x.B.Powers[index];
+            if (power.Id != paleBlueDot || power.Owner != FlashLimits.PlayerOwner || power.Amount <= 0)
+                continue;
+            if (power.Aux0 != 0 || cardsPlayed + 1 < 5)
+                continue;
+            power.Aux0 = 1;
+            ApplyPower(ref x, FlashLimits.PlayerOwner, drawNextTurn, power.Amount, FlashLimits.PlayerOwner);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.ApplyPowerFromSource</c> with a non-null card source outside the normal
+    /// OnPlay scope (Inky's enchantment OnPlay). Opens and completes a one-application source scope.
+    /// </summary>
+    public static int ApplyPowerFromCard(ref FlashExec x, byte target, ushort powerId, int amount, byte applier,
+        in FlashCard card)
+    {
+        _ = card;
+        int outerSerial = x.CardPowerSourceSerial;
+        bool outerActive = x.CardPowerSourceActive;
+        x.CardPowerSourceSerial = ++x.CardPowerSourceSerialCounter;
+        x.CardPowerSourceActive = true;
+        int applied = ApplyPower(ref x, target, powerId, amount, applier);
+        CompleteCardPowerSource(ref x);
+        x.CardPowerSourceSerial = outerSerial;
+        x.CardPowerSourceActive = outerActive;
+        return applied;
     }
 }

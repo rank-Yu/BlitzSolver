@@ -40,6 +40,7 @@ CheckMbKernel(rules);
 CheckDfKernel(rules);
 CheckRgKernel(rules);
 CheckLrKernel(rules);
+CheckIdKernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -591,6 +592,8 @@ static FlashRules SliceRules()
     builder.SetCard(defend, 0, Stats(FlashCardType.Skill, FlashTargetType.Self, 1, [5m]));
     builder.SetCard(bash, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [8m, 2m]));
     builder.SetCard(whirlwind, 0, Stats(FlashCardType.Attack, FlashTargetType.AllEnemies, 0, [5m], costsX: true));
+    FlashRegistry.TryCard("FETCH", out ushort fetch);
+    builder.SetCard(fetch, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 0, [3m, 1m]));
     // RG: the forge kernel creates SOVEREIGN_BLADE; the star-cost contract uses a synthetic card.
     FlashRegistry.TryCard("SOVEREIGN_BLADE", out ushort blade);
     builder.SetCard(blade, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [10m]));
@@ -663,6 +666,169 @@ static FlashRules SliceRules()
     };
 }
 
+
+
+// ID: card-instance ledgers and instance powers. Monologue's instance Strength, SwordSage's per-blade
+// applied replay bonus, Nightmare's detached selection, Orbit's energy remainder and the
+// UnsettlingLamp latch are the stable-boundary contract; Fetch's played bit and Vambrace's trigger are
+// per-card/per-play values and are asserted through their kernel setters.
+static void CheckIdKernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryCard("SOVEREIGN_BLADE", out ushort blade), "缺少 SOVEREIGN_BLADE 定义");
+    Check(FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD 定义");
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD 定义");
+    Check(FlashRegistry.TryCard("FETCH", out ushort fetch), "缺少 FETCH 定义");
+    Check(FlashRegistry.TryPower("MONOLOGUE_POWER", out ushort monologue), "缺少 MONOLOGUE_POWER");
+    Check(FlashRegistry.TryPower("STRENGTH_POWER", out ushort strength), "缺少 STRENGTH_POWER");
+    Check(FlashRegistry.TryPower("SWORD_SAGE_POWER", out ushort swordSage), "缺少 SWORD_SAGE_POWER");
+    Check(FlashRegistry.TryPower("NIGHTMARE_POWER", out ushort nightmare), "缺少 NIGHTMARE_POWER");
+    Check(FlashRegistry.TryPower("ORBIT_POWER", out ushort orbit), "缺少 ORBIT_POWER");
+    Check(FlashRegistry.TryPower("DRAW_CARDS_NEXT_TURN_POWER", out ushort drawNext), "缺少 DRAW_CARDS_NEXT_TURN_POWER");
+    Check(FlashRegistry.TryPower("WEAK_POWER", out ushort weak), "缺少 WEAK_POWER");
+    Check(FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable), "缺少 VULNERABLE_POWER");
+    Check(FlashRegistry.TryRelic("UNSETTLING_LAMP", out ushort lamp), "缺少 UNSETTLING_LAMP");
+
+    // Monologue: two instances keep separate Strength/StrengthApplied rows; a play applies both and the
+    // side turn end removes each and reverts its applied Strength.
+    FlashBattle monologueBattle = NewBattle();
+    FlashPiles.Append(ref monologueBattle, FlashPile.Hand, FlashKernel.CreateCard(rules, strike));
+    FlashExec monologueExec = new(ref monologueBattle, rules, default);
+    FlashKernel.ApplyPower(ref monologueExec, FlashLimits.PlayerOwner, monologue, 1, FlashLimits.PlayerOwner,
+        FlashLimits.PlayerOwner);
+    FlashKernel.ApplyPower(ref monologueExec, FlashLimits.PlayerOwner, monologue, 1, FlashLimits.PlayerOwner,
+        FlashLimits.PlayerOwner);
+    Check(monologueBattle.PowerCount == 2, "Monologue 应有两个实例行");
+    monologueBattle.Powers[0].Aux0 = 3;
+    monologueBattle.Powers[1].Aux0 = 5;
+    FlashKernel.ManualPlay(ref monologueExec, 0, FlashKernel.EnemyOwner(0));
+    Check(FlashKernel.GetAmount(monologueBattle, FlashLimits.PlayerOwner, strength) == 8,
+        "Monologue 应在出牌后施加两个实例的 Strength");
+    Check(monologueBattle.Powers[0].Aux1 == 3 && monologueBattle.Powers[1].Aux1 == 5,
+        "Monologue 的 StrengthApplied 应按实例累计");
+    // EndTurnPowerSupport.Batch048 visits each instance; removing the first shifts the second to row 0.
+    FlashPowerDef monologueDef = FlashRegistry.Power(monologue);
+    monologueDef.EndTurnBatch048(ref monologueExec, new FlashListener(FlashListenerKind.Power, 0,
+        FlashLimits.PlayerOwner), FlashSide.Player, participates: true);
+    monologueDef.EndTurnBatch048(ref monologueExec, new FlashListener(FlashListenerKind.Power, 0,
+        FlashLimits.PlayerOwner), FlashSide.Player, participates: true);
+    Check(FlashKernel.GetAmount(monologueBattle, FlashLimits.PlayerOwner, monologue) == 0
+          && FlashKernel.GetAmount(monologueBattle, FlashLimits.PlayerOwner, strength) == 0,
+        "Monologue 应在玩家回合末移除并归还 Strength");
+
+    // SwordSage: the per-blade applied bonus is a card value; normalization follows the power amount.
+    FlashBattle sageBattle = NewBattle();
+    FlashCard sageBlade = FlashKernel.CreateCard(rules, blade);
+    FlashPiles.Append(ref sageBattle, FlashPile.Hand, sageBlade);
+    FlashExec sageExec = new(ref sageBattle, rules, default);
+    FlashKernel.ApplyPower(ref sageExec, FlashLimits.PlayerOwner, swordSage, 2, FlashLimits.PlayerOwner);
+    FlashKernel.NormalizeCardAfflictions(ref sageExec);
+    Check(sageBattle.Cards[0].ReplayCount == 2 && sageBattle.Cards[0].Private == 2,
+        $"SwordSage 应把重放加到 2 并记录已应用值，实际 {sageBattle.Cards[0].ReplayCount}/{sageBattle.Cards[0].Private}");
+    FlashKernel.SetPowerAmount(ref sageBattle, FlashLimits.PlayerOwner, swordSage, 0);
+    FlashKernel.NormalizeCardAfflictions(ref sageExec);
+    Check(sageBattle.Cards[0].ReplayCount == 0 && sageBattle.Cards[0].Private == 0,
+        "SwordSage 移除应回退已应用的重放");
+    FlashCard sageClone = FlashKernel.CloneCard(sageBattle.Cards[0]);
+    Check(sageClone.Private == FlashLimits.UninitializedLedger,
+        "克隆卡应重置实例账本与 Fetch 位");
+
+    // Nightmare: the selected card lives in DetachedCards; BeforeHandDraw clones it Amount times,
+    // removes the instance and frees the slot.
+    FlashBattle nightmareBattle = NewBattle();
+    FlashExec nightmareExec = new(ref nightmareBattle, rules, default);
+    FlashKernel.ApplyPower(ref nightmareExec, FlashLimits.PlayerOwner, nightmare, 3, FlashLimits.PlayerOwner,
+        FlashLimits.PlayerOwner);
+    FlashCard selected = FlashKernel.CreateCard(rules, strike);
+    int slot = FlashKernel.AllocateDetachedCard(ref nightmareBattle, selected);
+    nightmareBattle.Powers[0].Aux0 = slot + 1;
+    FlashKernel.BeforeHandDraw(ref nightmareExec);
+    Check(nightmareBattle.HandCount == 3, $"Nightmare 应生成 3 张选定卡的克隆，实际手牌 {nightmareBattle.HandCount}");
+    Check(FlashKernel.GetAmount(nightmareBattle, FlashLimits.PlayerOwner, nightmare) == 0,
+        "Nightmare 结算后应移除实例");
+    Check(nightmareBattle.DetachedCards[slot].Id == 0, "Nightmare 实例移除应释放 detached 槽位");
+    for (int index = 0; index < nightmareBattle.HandCount; index++)
+    {
+        Check(nightmareBattle.Cards[index].Id == strike && nightmareBattle.Cards[index].IsClone,
+            "Nightmare 生成的卡应是选定卡的克隆");
+    }
+
+    // Orbit: spent energy accumulates in Aux0; each full 4 grants Amount energy.
+    FlashBattle orbitBattle = NewBattle();
+    orbitBattle.Energy = 0;
+    FlashExec orbitExec = new(ref orbitBattle, rules, default);
+    FlashKernel.ApplyPower(ref orbitExec, FlashLimits.PlayerOwner, orbit, 2, FlashLimits.PlayerOwner,
+        FlashLimits.PlayerOwner);
+    FlashCard energyCard = FlashKernel.CreateCard(rules, strike);
+    FlashHooks.AfterEnergySpent(ref orbitExec, energyCard, 3);
+    Check(orbitBattle.Powers[0].Aux0 == 3 && orbitBattle.Energy == 0,
+        $"Orbit 3 点能量应只留下余数 3，实际余数 {orbitBattle.Powers[0].Aux0} 能量 {orbitBattle.Energy}");
+    FlashHooks.AfterEnergySpent(ref orbitExec, energyCard, 1);
+    Check(orbitBattle.Powers[0].Aux0 == 0 && orbitBattle.Energy == 2,
+        $"Orbit 满 4 点应给 2 能量，实际余数 {orbitBattle.Powers[0].Aux0} 能量 {orbitBattle.Energy}");
+
+    // PaleBlueDot: the fifth completed play latches and grants next-turn draws once.
+    FlashBattle dotBattle = NewBattle();
+    FlashPiles.Append(ref dotBattle, FlashPile.Hand, FlashKernel.CreateCard(rules, strike));
+    dotBattle.SetCounter(FlashCounter.CardsPlayedThisTurn, 4);
+    FlashExec dotExec = new(ref dotBattle, rules, default);
+    FlashKernel.ApplyPower(ref dotExec, FlashLimits.PlayerOwner,
+        FlashRegistry.PowerId<PaleBlueDotPower>(), 2, FlashLimits.PlayerOwner);
+    FlashKernel.ManualPlay(ref dotExec, 0, FlashKernel.EnemyOwner(0));
+    Check(dotBattle.Powers[0].Aux0 == 1, "PaleBlueDot 第五次出牌应锁存");
+    Check(FlashKernel.GetAmount(dotBattle, FlashLimits.PlayerOwner, drawNext) == 2,
+        "PaleBlueDot 应给出 2 层下回合抽牌");
+
+    // UnsettlingLamp: the first card-sourced debuff is doubled once; the internal temporary type is
+    // exempt; completing the card power scope latches and clears the transient trigger.
+    FlashBattle lampBattle = NewBattle();
+    lampBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    lampBattle.RelicCount = 1;
+    lampBattle.Relics[0] = new FlashRelic { Id = lamp };
+    FlashExec lampExec = new(ref lampBattle, rules, default);
+    lampExec.CardPowerSourceActive = true;
+    lampExec.CardPowerSourceSerial = ++lampExec.CardPowerSourceSerialCounter;
+    int weakApplied = FlashKernel.ApplyPower(ref lampExec, FlashKernel.EnemyOwner(0), weak, 1,
+        FlashLimits.PlayerOwner);
+    Check(weakApplied == 2, $"UnsettlingLamp 应把首个减益翻倍，实际 {weakApplied}");
+    int vulnerableApplied = FlashKernel.ApplyPower(ref lampExec, FlashKernel.EnemyOwner(0), vulnerable, 1,
+        FlashLimits.PlayerOwner);
+    Check(vulnerableApplied == 2, $"同一张牌的第二个减益也应翻倍，实际 {vulnerableApplied}");
+    FlashKernel.CompleteCardPowerSource(ref lampExec);
+    Check(lampBattle.Relics[0].Counter == 1 && lampExec.LampTriggerSerial == 0,
+        "UnsettlingLamp 完成卡牌 Power 作用域后应锁存并清空触发");
+    lampExec.CardPowerSourceSerial = ++lampExec.CardPowerSourceSerialCounter;
+    int weakAgain = FlashKernel.ApplyPower(ref lampExec, FlashKernel.EnemyOwner(0), weak, 1,
+        FlashLimits.PlayerOwner);
+    Check(weakAgain == 1, $"已锁存的 UnsettlingLamp 不应再翻倍，实际 {weakAgain}");
+
+    // Fetch: completing a play sets the per-card bit; a clone starts clear.
+    FlashBattle fetchBattle = NewBattle();
+    FlashPiles.Append(ref fetchBattle, FlashPile.Hand, FlashKernel.CreateCard(rules, fetch));
+    FlashExec fetchExec = new(ref fetchBattle, rules, default);
+    FlashKernel.ManualPlay(ref fetchExec, 0, FlashKernel.EnemyOwner(0));
+    int fetchPosition = FlashPiles.Start(fetchBattle, FlashPile.Discard);
+    Check(fetchBattle.DiscardCount == 1 && fetchBattle.Cards[fetchPosition].Id == fetch,
+        "Fetch 应完成并进入弃牌堆");
+    Check((fetchBattle.Cards[fetchPosition].Private & FlashKernel.FetchPlayedBit) != 0,
+        "Fetch 完成一次出牌后应置本回合已打出位");
+    Check((FlashKernel.CloneCard(fetchBattle.Cards[fetchPosition]).Private & FlashKernel.FetchPlayedBit) == 0,
+        "Fetch 的克隆不应继承已打出位");
+
+    // Vambrace: the first card-sourced block of the combat is doubled; the relic latches on the
+    // matching AfterCardPlayed and never doubles again.
+    Check(FlashRegistry.TryRelic("VAMBRACE", out ushort vambrace), "缺少 VAMBRACE");
+    FlashBattle vambraceBattle = NewBattle();
+    vambraceBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    vambraceBattle.RelicCount = 1;
+    vambraceBattle.Relics[0] = new FlashRelic { Id = vambrace };
+    FlashExec vambraceExec = new(ref vambraceBattle, rules, default);
+    vambraceExec.Card = FlashKernel.CreateCard(rules, defend);
+    decimal doubled = FlashKernel.GainBlock(ref vambraceExec, FlashLimits.PlayerOwner, 5m, FlashValueProps.Move,
+        fromCard: true);
+    Check(doubled == 10m && vambraceBattle.Player.Block == 10,
+        $"Vambrace 应把首次格挡翻倍，实际 {doubled}/{vambraceBattle.Player.Block}");
+    Check(vambraceExec.VambraceTriggerActive, "Vambrace 应记录触发卡");
+}
 
 // LS: contracts for the remaining Silent/Necrobinder/Defect kernel capabilities: the power
 // amount-given pass, EchoingSlash attack waves, KnifeTrap's duplicate-Shiv auto-play and the

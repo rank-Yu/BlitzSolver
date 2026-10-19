@@ -8,6 +8,29 @@ public static partial class FlashKernel
     /// the potion's effect, <c>AfterPotionUsed</c> while the player lives, the enemy-death pass, then
     /// shuffle accounting, the win check and a requested turn end.
     /// </summary>
+    /// <summary>
+    /// <c>PowerLifecycleSupport.UpdateSurroundedForTarget</c> for a potion's target: the player's
+    /// SurroundedPower faces the back-attack marker of the targeted enemy.
+    /// </summary>
+    private static void UpdateSurroundedForPotionTarget(ref FlashExec x, byte target)
+    {
+        if (!FlashRegistry.TryPower("SURROUNDED_POWER", out ushort surrounded))
+            return;
+        bool left = FlashRegistry.TryPower("BACK_ATTACK_LEFT_POWER", out ushort backLeft)
+            && GetAmount(x.B, target, backLeft) > 0;
+        bool right = FlashRegistry.TryPower("BACK_ATTACK_RIGHT_POWER", out ushort backRight)
+            && GetAmount(x.B, target, backRight) > 0;
+        if (!left && !right)
+            return;
+        for (int index = 0; index < x.B.PowerCount; index++)
+        {
+            ref FlashPower power = ref x.B.Powers[index];
+            if (power.Id != surrounded || power.Owner != FlashLimits.PlayerOwner || power.Amount <= 0)
+                continue;
+            power.Aux0 = left ? 1 : 0;
+        }
+    }
+
     private static void UsePotionAction(ref FlashExec x, in FlashAction action)
     {
         if (action.PotionSlot >= x.B.PotionSlotCount)
@@ -40,6 +63,10 @@ public static partial class FlashKernel
         x.Target = action.Target;
         x.Card = default;
         x.Stats = null;
+        // SimulatedCombatState.BeforePotionUsed: SurroundedPower's facing follows the potion's target
+        // before the potion effect runs.
+        UpdateSurroundedForPotionTarget(ref x,
+            action.Target != FlashLimits.NoOwner ? action.Target : FlashLimits.PlayerOwner);
         x.EffectDepth++;
         def.OnUse(ref x);
         x.EffectDepth--;

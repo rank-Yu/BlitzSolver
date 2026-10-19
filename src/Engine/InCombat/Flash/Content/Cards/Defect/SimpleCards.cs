@@ -630,6 +630,8 @@ public sealed class AllForOne : FlashCardDef
 [FlashContent("WHITE_NOISE")]
 public sealed class WhiteNoise : FlashCardDef
 {
+    public override bool MayGenerateIdentityContent => true;
+
     public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterPowers];
 
     // CardGenerationCardMirrors.WhiteNoiseOnPlay: one free distinct Power card to hand.

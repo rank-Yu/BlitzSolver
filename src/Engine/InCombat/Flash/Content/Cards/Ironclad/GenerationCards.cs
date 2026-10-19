@@ -164,6 +164,8 @@ public sealed class Stoke : FlashCardDef
 [FlashContent("DISCOVERY")]
 public sealed class Discovery : FlashCardDef
 {
+    public override bool MayGenerateIdentityContent => true;
+
     public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAll];
 
     public override void OnPlay(ref FlashExec x)

@@ -82,12 +82,29 @@ public static partial class FlashKernel
     public static int ApplyPower(ref FlashExec x, byte target, ushort powerId, int amount, byte applier,
         byte powerTarget = FlashLimits.NoOwner)
     {
+        TryResolveMonologuesBeforeCompensation(ref x);
         if (amount == 0 || !CanReceivePowers(x.B, target))
             return 0;
         FlashPowerDef def = FlashRegistry.Power(powerId);
-        // ModifyPowerAmountForRelics: the given pass (SneckoSkull) runs first, then the received pass
-        // (Ruined Helmet), both before the Artifact check, exactly as the existing engine orders them.
+        // SimulatedCombatState.ModifyPowerAmountForRelics: ObserveUnsettlingLamp (the native
+        // BeforePowerAmountChanged pass), the additive given pass (SneckoSkull), the multiplicative
+        // given pass (UnsettlingLamp), then the received pass (Ruined Helmet), all before Artifact.
+        // UnsettlingLamp is the only listener of the two lamp-specific passes.
+        int cardSourceSerial = x.CardPowerSourceActive ? x.CardPowerSourceSerial : 0;
+        bool lampHooks = x.R.UnsettlingLampRelicId != ushort.MaxValue
+            || (x.R.HasIdentityContent && x.B.RelicCount != 0 && HasRelic(x.B, "UNSETTLING_LAMP"));
+        if (lampHooks)
+        {
+            FlashHooks.BeforePowerAmountChanged(ref x, powerId, amount, target, applier, cardSourceSerial);
+            if (x.NeedsChoice)
+                return 0;
+        }
         amount = (int)FlashHooks.ModifyPowerAmountGiven(x.B, x.R, powerId, applier, target, amount);
+        if (lampHooks)
+        {
+            amount = (int)FlashHooks.ModifyPowerAmountGivenMultiplicative(ref x, powerId, applier, target,
+                amount, cardSourceSerial);
+        }
         Span<FlashListener> received = stackalloc FlashListener[FlashHooks.MaxListenerCount];
         amount = FlashHooks.ModifyPowerAmountReceived(x.B, x.R, powerId, target, amount, received,
             out int receivedCount);
@@ -112,9 +129,21 @@ public static partial class FlashKernel
     /// </summary>
     public static int ApplyTemporaryStrength(ref FlashExec x, byte target, ushort temporaryId, int amount, byte applier, int sign)
     {
+        TryResolveMonologuesBeforeCompensation(ref x);
         if (amount == 0 || !CanReceivePowers(x.B, target))
             return 0;
         FlashPowerDef def = FlashRegistry.Power(temporaryId);
+        // ApplyWithBeforeApplied runs ModifyPowerAmountForRelics before the native BeforeApplied, so the
+        // modified amount is what the inner Strength change uses (and what UnsettlingLamp doubles).
+        Span<FlashListener> received = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        amount = ApplyTemporaryPowerAmountModifiers(ref x, temporaryId, amount, target, applier, received,
+            out int receivedCount);
+        if (receivedCount > 0)
+        {
+            FlashHooks.AfterModifyingPowerAmountReceived(ref x, temporaryId, target, received[..receivedCount]);
+            if (x.NeedsChoice)
+                return 0;
+        }
         if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref x.B, target))
             return 0;
         ushort strength = FlashRegistry.TryPower("STRENGTH_POWER", out ushort id)
@@ -137,9 +166,19 @@ public static partial class FlashKernel
     public static int ApplyTemporaryFocus(ref FlashExec x, byte target, ushort temporaryId, int amount,
         byte applier, int sign)
     {
+        TryResolveMonologuesBeforeCompensation(ref x);
         if (amount == 0 || !CanReceivePowers(x.B, target))
             return 0;
         FlashPowerDef def = FlashRegistry.Power(temporaryId);
+        Span<FlashListener> received = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        amount = ApplyTemporaryPowerAmountModifiers(ref x, temporaryId, amount, target, applier, received,
+            out int receivedCount);
+        if (receivedCount > 0)
+        {
+            FlashHooks.AfterModifyingPowerAmountReceived(ref x, temporaryId, target, received[..receivedCount]);
+            if (x.NeedsChoice)
+                return 0;
+        }
         if (def.TypeForAmount(amount) == FlashPowerType.Debuff && ConsumeArtifact(ref x.B, target))
             return 0;
         ushort focus = FlashRegistry.TryPower("FOCUS_POWER", out ushort id)
@@ -152,6 +191,24 @@ public static partial class FlashKernel
         if (alreadyApplied && applied != 0)
             ApplyPower(ref x, target, focus, sign * applied, applier);
         return applied;
+    }
+
+    /// <summary>
+    /// The relic part of <c>ApplyWithBeforeApplied</c> for a temporary stat power: the lamp observation,
+    /// additive/multiplicative given passes and the received pass. The caller runs Artifact after it.
+    /// </summary>
+    private static int ApplyTemporaryPowerAmountModifiers(ref FlashExec x,
+        ushort powerId, int amount, byte target, byte applier, scoped Span<FlashListener> received,
+        out int receivedCount)
+    {
+        int cardSourceSerial = x.CardPowerSourceActive ? x.CardPowerSourceSerial : 0;
+        FlashHooks.BeforePowerAmountChanged(ref x, powerId, amount, target, applier, cardSourceSerial);
+        amount = (int)FlashHooks.ModifyPowerAmountGiven(x.B, x.R, powerId, applier, target, amount);
+        amount = (int)FlashHooks.ModifyPowerAmountGivenMultiplicative(ref x, powerId, applier, target,
+            amount, cardSourceSerial);
+        amount = FlashHooks.ModifyPowerAmountReceived(x.B, x.R, powerId, target, amount, received,
+            out receivedCount);
+        return amount;
     }
 
     /// <summary>
@@ -427,11 +484,45 @@ public static partial class FlashKernel
     /// <summary>Removes a power and compacts the table, mirroring the retirement of its listener slot.</summary>
     public static void RemovePowerAt(ref FlashBattle battle, int index)
     {
+        if ((uint)index >= (uint)battle.PowerCount)
+            throw new ArgumentOutOfRangeException(nameof(index), index, "Power 行越界。");
+        ref FlashPower removed = ref battle.Powers[index];
+        if (FlashRegistry.Power(removed.Id).UsesDetachedCard && removed.Aux0 != 0)
+        {
+            int slot = removed.Aux0 - 1;
+            if ((uint)slot >= (uint)FlashLimits.DetachedCards)
+                throw new FlashUnsupportedException($"Power 行 {removed.Id} 的 detached 槽位 {removed.Aux0} 越界。");
+            battle.DetachedCards[slot] = default;
+        }
         int count = battle.PowerCount;
         for (int next = index + 1; next < count; next++)
             battle.Powers[next - 1] = battle.Powers[next];
         battle.Powers[count - 1] = default;
         battle.PowerCount--;
+    }
+
+    /// <summary>Allocates the first zero detached-card slot, or throws the capacity boundary.</summary>
+    public static int AllocateDetachedCard(ref FlashBattle battle, in FlashCard card)
+    {
+        for (int slot = 0; slot < FlashLimits.DetachedCards; slot++)
+        {
+            if (battle.DetachedCards[slot].Id != 0)
+                continue;
+            battle.DetachedCards[slot] = card;
+            return slot;
+        }
+        throw new FlashCapacityException("DetachedCards", FlashLimits.DetachedCards);
+    }
+
+    /// <summary>Reads the detached card referenced by <paramref name="power"/>.</summary>
+    public static FlashCard DetachedCard(in FlashBattle battle, in FlashPower power)
+    {
+        if (power.Aux0 == 0)
+            throw new FlashUnsupportedException($"Power 行 {power.Id} 没有 detached 卡。");
+        int slot = power.Aux0 - 1;
+        if ((uint)slot >= (uint)FlashLimits.DetachedCards)
+            throw new FlashUnsupportedException($"Power 行 {power.Id} 的 detached 槽位 {power.Aux0} 越界。");
+        return battle.DetachedCards[slot];
     }
 
     /// <summary>Mirrors <c>SimulatedCombatState.RemovePowersAfterDeath</c>: drops every power of the owner.</summary>
@@ -443,4 +534,17 @@ public static partial class FlashKernel
                 RemovePowerAt(ref battle, index);
         }
     }
+    private static bool HasRelic(in FlashBattle battle, string nativeId)
+    {
+        if (!FlashRegistry.TryRelic(nativeId, out ushort id))
+            return false;
+        for (int index = 0; index < battle.RelicCount; index++)
+        {
+            ref readonly FlashRelic relic = ref battle.Relics[index];
+            if (relic.Id == id && (relic.Flags & FlashRelicFlags.Melted) == 0)
+                return true;
+        }
+        return false;
+    }
+
 }

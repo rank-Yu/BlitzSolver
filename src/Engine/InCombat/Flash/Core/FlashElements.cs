@@ -405,6 +405,13 @@ public struct FlashCardArray
     private FlashCard _first;
 }
 
+/// <summary>Selected-card values of instanced powers (NightmarePower); a zeroed slot is free.</summary>
+[InlineArray(FlashLimits.DetachedCards)]
+public struct FlashDetachedCardArray
+{
+    private FlashCard _first;
+}
+
 [InlineArray(FlashLimits.Enemies)]
 public struct FlashEnemyArray
 {

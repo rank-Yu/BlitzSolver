@@ -387,6 +387,7 @@ internal sealed class FlashScorer
         FlashStrategicRequirements requirements = FlashStrategicRequirements.None;
         bool needsExhaustDrawTiming = false;
         bool skillsExhaust = false;
+        bool needsRecurringEnergy = false;
         for (int index = 0; index < battle.PowerCount; index++)
         {
             ref readonly FlashPower power = ref battle.Powers[index];
@@ -398,9 +399,12 @@ internal sealed class FlashScorer
             requirements |= rules.Requirements;
             needsExhaustDrawTiming |= rules.Kind == FlashStrategicKind.DarkEmbrace;
             skillsExhaust |= rules.Kind == FlashStrategicKind.Corruption;
+            needsRecurringEnergy |= rules.Kind is FlashStrategicKind.RecurringEnergy or FlashStrategicKind.OrbitEnergy;
         }
 
         StrategicEffectContext? strategicContext = null;
+        int refundSpend = 0, refundCapacity = 0, refundDraws = 0;
+        bool refundCaptured = false;
         for (int index = 0; index < battle.PowerCount; index++)
         {
             ref readonly FlashPower power = ref battle.Powers[index];
@@ -417,13 +421,27 @@ internal sealed class FlashScorer
                     ? WithExhaustDrawTiming(context, battle, skillsExhaust) : context;
             }
             StrategicEffectContext effectContext = strategicContext.Value;
+            if (needsRecurringEnergy && !refundCaptured)
+            {
+                (refundSpend, refundCapacity) = CaptureEnergyRefundWindow(battle, effectContext, skillsExhaust);
+                refundDraws = Math.Max(0, effectContext.ReachableCards - battle.HandCount);
+                refundCaptured = true;
+            }
             if (rules.Kind == FlashStrategicKind.RecurringEnergy)
             {
                 int cardsLeft = power.Aux0;
-                int refundDraws = Math.Max(0, effectContext.ReachableCards - battle.HandCount);
                 int triggers = refundDraws < cardsLeft ? 0 : 1 + (refundDraws - cardsLeft) / 10;
-                (_, int capacity) = CaptureEnergyRefundWindow(battle, effectContext, skillsExhaust);
-                int gain = (int)Math.Min(capacity, (long)triggers * power.Amount);
+                int gain = (int)Math.Min(refundCapacity, (long)triggers * power.Amount);
+                refundCapacity -= gain;
+                effectContext = effectContext with { RecurringEnergyGain = gain };
+            }
+            else if (rules.Kind == FlashStrategicKind.OrbitEnergy)
+            {
+                // CombatBeamSolver.StateEvaluation's Orbit branch: spend + remainder over 4, times the
+                // energy granted per trigger. The shared refund capacity decreases per instance.
+                int gain = (int)Math.Min(refundCapacity,
+                    ((long)refundSpend + power.Aux0) / 4 * power.Amount);
+                refundCapacity -= gain;
                 effectContext = effectContext with { RecurringEnergyGain = gain };
             }
             StrategicEffectVector effect = EvaluateStrategic(rules.Kind, power.Amount, effectContext);
@@ -1690,7 +1708,8 @@ internal sealed class FlashScorer
             FlashStrategicKind.Curious => Resource(
                 Math.Min(context.PowerEnergySpend, amount * context.PowerPlays) * energyUnit),
             FlashStrategicKind.Corruption => Resource(context.SkillEnergySpend * energyUnit),
-            FlashStrategicKind.RecurringEnergy => Resource(context.RecurringEnergyGain * energyUnit),
+            FlashStrategicKind.RecurringEnergy or FlashStrategicKind.OrbitEnergy
+                => Resource(context.RecurringEnergyGain * energyUnit),
             FlashStrategicKind.CreativeAi => CardAccess(
                 amount * context.RemainingTurns * cardAccessUnit),
             FlashStrategicKind.Iteration => CardAccess(

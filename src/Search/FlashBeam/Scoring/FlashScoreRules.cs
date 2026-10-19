@@ -30,8 +30,11 @@ internal enum FlashStrategicKind : byte
     Thunder,
     LightningRod,
 
-    /// <summary>Automation/Orbit: recurring energy from the refund window (StrategicEffectModel).</summary>
+    /// <summary>Automation: recurring energy from drawn cards in the refund window.</summary>
     RecurringEnergy,
+
+    /// <summary>Orbit: recurring energy from the refund window's energy spend plus the remainder.</summary>
+    OrbitEnergy,
 }
 
 /// <summary>Port of <c>StrategicEffectRequirements</c>; bit values must match the existing enum.</summary>

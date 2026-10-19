@@ -124,6 +124,8 @@ public sealed class SovereignBlade : FlashCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
+    public override bool UsesIdentityLedger => true;
+
     public override FlashTargetType TargetType(in FlashBattle battle, FlashRules rules, in FlashCard card)
         => RegentContent.HasSeekingEdge(battle) ? FlashTargetType.AllEnemies : FlashTargetType.AnyEnemy;
 

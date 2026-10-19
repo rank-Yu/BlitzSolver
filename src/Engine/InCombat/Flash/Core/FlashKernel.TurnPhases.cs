@@ -150,6 +150,33 @@ public static partial class FlashKernel
                 snapshot[taken++] = (power.Owner, power.Id, occurrence);
             }
         }
+        if (!x.R.HasIdentityContent)
+        {
+            for (int entry = 0; entry < taken; entry++)
+            {
+                (byte owner, ushort id, int occurrence) = snapshot[entry];
+                if (ownerFilter == PlayerSideOwners
+                        ? !IsPlayerSide(owner)
+                        : ownerFilter != FlashLimits.NoOwner && owner != ownerFilter)
+                    continue;
+                if (onlyId != ushort.MaxValue && id != onlyId || id == exceptA || id == exceptB)
+                    continue;
+                int index = FindPowerOccurrence(x.B, owner, id, occurrence);
+                if (index < 0 || x.B.Powers[index].Amount <= 0)
+                    continue;
+                InvokePowerPhase(ref x, phase, index, side, Contains(participants, owner), flag);
+                if (x.NeedsChoice)
+                    return;
+            }
+            return;
+        }
+        // A phase can remove its own instanced row (Nightmare before hand draw, Monologue at the side
+        // turn end), which shifts the occurrence of later same-(owner,id) rows. Track removals per key;
+        // the listener snapshot is by object, so the original occurrence is authoritative.
+        Span<byte> keyOwners = stackalloc byte[taken];
+        Span<ushort> keyIds = stackalloc ushort[taken];
+        Span<int> keyRemoved = stackalloc int[taken];
+        int keyCount = 0;
         for (int entry = 0; entry < taken; entry++)
         {
             (byte owner, ushort id, int occurrence) = snapshot[entry];
@@ -157,13 +184,46 @@ public static partial class FlashKernel
                 continue;
             if (onlyId != ushort.MaxValue && id != onlyId || id == exceptA || id == exceptB)
                 continue;
+            int key = -1;
+            for (int existing = 0; existing < keyCount; existing++)
+            {
+                if (keyOwners[existing] == owner && keyIds[existing] == id)
+                {
+                    key = existing;
+                    break;
+                }
+            }
+            if (key < 0)
+            {
+                key = keyCount++;
+                keyOwners[key] = owner;
+                keyIds[key] = id;
+                keyRemoved[key] = 0;
+            }
+            occurrence -= keyRemoved[key];
             int index = FindPowerOccurrence(x.B, owner, id, occurrence);
             if (index < 0 || x.B.Powers[index].Amount <= 0)
                 continue;
+            int before = CountPowers(x.B, owner, id);
             InvokePowerPhase(ref x, phase, index, side, Contains(participants, owner), flag);
             if (x.NeedsChoice)
                 return;
+            int after = CountPowers(x.B, owner, id);
+            if (after < before)
+                keyRemoved[key] += before - after;
         }
+    }
+
+    /// <summary>Number of rows of one (owner, id), including zeroed rows not yet compacted.</summary>
+    private static int CountPowers(in FlashBattle battle, byte owner, ushort id)
+    {
+        int count = 0;
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            if (battle.Powers[index].Owner == owner && battle.Powers[index].Id == id)
+                count++;
+        }
+        return count;
     }
 
     /// <summary>Fixed type sequence for one owner: each listed type the owner holds with a positive amount.</summary>
@@ -584,31 +644,23 @@ public static partial class FlashKernel
     /// </summary>
     private static void ReturnCardsToHand(ref FlashExec x)
     {
-        int total = x.B.CardCount;
-        if (total == 0)
-            return;
-        Span<FlashCard> cards = stackalloc FlashCard[total];
-        Span<int> occurrences = stackalloc int[total];
-        int count = 0;
-        for (int position = 0; position < total; position++)
+        // The existing engine moves every card in _returnToHandNextTurn (a set keyed by the played
+        // object) to the hand bottom. Re-scan for the next flagged value instead of capturing
+        // positions: moving an earlier card shifts the later ones, and a captured occurrence no longer
+        // addresses the same card when two returning copies are byte-equal.
+        while (true)
         {
-            FlashCard card = x.B.Cards[position];
-            if (!card.ReturnToHandNextTurn)
-                continue;
-            int occurrence = 0;
-            for (int prior = 0; prior < position; prior++)
+            int position = -1;
+            for (int candidate = 0; candidate < x.B.CardCount; candidate++)
             {
-                if (FlashFingerprint.Equal(x.B.Cards[prior], card))
-                    occurrence++;
+                if (x.B.Cards[candidate].ReturnToHandNextTurn)
+                {
+                    position = candidate;
+                    break;
+                }
             }
-            cards[count] = card;
-            occurrences[count] = occurrence;
-            count++;
-        }
-        for (int item = 0; item < count; item++)
-        {
-            if (!TryLocateCard(x.B, cards[item], occurrences[item], out int position))
-                continue;
+            if (position < 0)
+                return;
             int handStart = FlashPiles.Start(x.B, FlashPile.Hand);
             int handEnd = handStart + x.B.HandCount;
             if (position >= handStart && position < handEnd)

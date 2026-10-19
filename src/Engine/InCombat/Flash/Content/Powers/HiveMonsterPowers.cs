@@ -114,7 +114,7 @@ public sealed class BurrowedPower : FlashPowerDef
 [FlashContent("SANDPIT_POWER")]
 public sealed class SandpitPower : FlashPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override FlashPowerType Type => FlashPowerType.Buff;
 
     public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
 
