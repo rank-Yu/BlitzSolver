@@ -162,9 +162,11 @@ public sealed class Inky : FlashEnchantmentDef
 
     public override void OnPlay(ref FlashExec x, in FlashCard card, byte target)
     {
-        FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        // Inky.cs branches on the native CardModel.TargetType, which is dynamic (Shiv targets all
+        // enemies while FanOfKnivesPower is present).
+        FlashTargetType targetType = FlashRegistry.Card(card.Id).TargetType(x.B, x.R, card);
         ushort weak = FlashRegistry.PowerId<Powers.WeakPower>();
-        if (stats.Target == FlashTargetType.AllEnemies)
+        if (targetType == FlashTargetType.AllEnemies)
         {
             for (int position = 0; position < x.B.RosterCount; position++)
             {

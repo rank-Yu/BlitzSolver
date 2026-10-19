@@ -99,7 +99,9 @@ public static partial class FlashKernel
         TriggerSideTurnStart(ref x, FlashSide.Enemy, participants[..RosterOwners(x.B, participants)], decrementPlating: x.B.Round > 1);
         if (x.NeedsChoice)
             return;
-        // TriggerPoison: Poison is not supported.
+        // CorePowerSupport.TriggerPoison over the current enemies, before the deferred death pass.
+        if (!TriggerPoison(ref x, participants[..RosterOwners(x.B, participants)]))
+            return;
         ApplyEnemyDeathPowers(ref x);
         if (CheckWinCondition(ref x.B))
             return;
@@ -131,7 +133,11 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
         ApplyEnemyDeathPowers(ref x);
-        // Player poison and NoDraw: not supported.
+        // CorePowerSupport.TriggerPoison over the player, then ClearNoDraw (no supported sources).
+        Span<byte> players = stackalloc byte[1];
+        players[0] = FlashLimits.PlayerOwner;
+        if (!TriggerPoison(ref x, players))
+            return;
         if (!x.NeedsChoice)
             NormalizeCardAfflictions(ref x);
         if (CheckWinCondition(ref x.B))
@@ -377,7 +383,10 @@ public static partial class FlashKernel
         // next turn follow.
         if (FlashHooks.ShouldPlayerResetEnergy(x.B, x.R, FlashLimits.PlayerOwner))
             x.B.Energy = 0;
-        x.B.Energy = (int)Math.Clamp((long)x.B.Energy + Math.Max(0, ModifiedMaxEnergy(ref x)), 0, FlashLimits.ValueClamp);
+        // CombatBeamSolver.RoundTransition: GainEnergy(modified max energy + ConsumeEnergyNextTurn).
+        int energyNextTurn = ConsumeEnergyNextTurn(ref x.B);
+        x.B.Energy = (int)Math.Clamp((long)x.B.Energy + Math.Max(0, ModifiedMaxEnergy(ref x)) + energyNextTurn,
+            0, FlashLimits.ValueClamp);
         PowersAfterEnergyReset(ref x);
         if (x.NeedsChoice)
             return;
@@ -401,8 +410,9 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
         x.B.ShufflesCrossed += x.B.ShuffleEventCount - beforeHandShuffles;
-        // ConsumeModifiedHandDraw: draw-next-turn sources are not supported yet.
-        int drawCount = ModifiedHandDraw(ref x, BaseHandDrawCount);
+        // ConsumeModifiedHandDraw: base + the not-yet-snapshotted DrawCardsNextTurn amount, then the
+        // listener passes (DrawCardsNextTurnPower.ModifyHandDraw adds its snapshotted amount).
+        int drawCount = ModifiedHandDraw(ref x, BaseHandDrawCount + DrawNextTurnNotYetSnapshotted(x.B));
         int effectiveDraw = Math.Min(drawCount, x.B.MaxHandSize - x.B.HandCount);
         bool willShuffle = effectiveDraw > x.B.DrawCount && x.B.DiscardCount != 0;
         Draw(ref x, drawCount, fromHandDraw: true);

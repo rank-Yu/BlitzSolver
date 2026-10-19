@@ -176,6 +176,9 @@ public enum FlashHookMask : ulong
     /// <summary><c>HookMirrors.AfterCardGeneratedForCombat</c> (Aeonglass upgrades generated Withers).</summary>
     AfterCardGeneratedForCombat = 1UL << 54,
 
+    /// <summary><c>HookMirrors.AfterCardDiscarded</c> (<c>CombatPredictionSimulator.Discard</c>).</summary>
+    AfterCardDiscarded = 1UL << 55,
+
     /// <summary>
     /// Hooks the existing engine dispatches over the run listeners, which also include the deck versions of
     /// cards outside combat; a root whose deck holds a card implementing one of them is rejected.
@@ -523,6 +526,16 @@ public abstract class FlashListenerDef : FlashContentDef
     {
     }
 
+    /// <summary>
+    /// Native <c>AfterCardDiscarded</c> (<c>HookMirrors.AfterCardDiscarded</c>), dispatched after a
+    /// card effect moved a card to the discard pile (Tingsha, ToughBandages) and before its Sly
+    /// auto-play. The turn-end hand flush does not dispatch it, matching
+    /// <c>CorePowerSupport.FlushPlayerHandAtTurnEnd</c>.
+    /// </summary>
+    public virtual void AfterCardDiscarded(ref FlashExec x, FlashListener self, in FlashCard card)
+    {
+    }
+
     public virtual void AfterBlockGained(ref FlashExec x, FlashListener self, byte owner, decimal amount, FlashValueProps props, bool fromCard)
     {
     }
@@ -596,6 +609,13 @@ public abstract class FlashCardDef : FlashListenerDef
 
     /// <summary>Card-specific playability (<c>CardIsPlayableMirrors</c>); most cards are always playable.</summary>
     public virtual bool IsPlayable(in FlashBattle battle, FlashRules rules, in FlashCard card) => true;
+
+    /// <summary>
+    /// Native <c>CardModel.TargetType</c>. The rule table freezes the canonical value; a card whose
+    /// native override is dynamic (Shiv while the owner holds <c>FanOfKnivesPower</c>) overrides this.
+    /// </summary>
+    public virtual FlashTargetType TargetType(in FlashBattle battle, FlashRules rules, in FlashCard card)
+        => rules.Card(card.Id, card.Upgrade).Target;
 
     /// <summary>
     /// A card's native <c>CalculatedDamage</c> formula for another effect that reads this card's damage

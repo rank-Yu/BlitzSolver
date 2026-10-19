@@ -29,6 +29,9 @@ public static class FlashCardEffects
             1 => x.Card.Var1,
             _ => 0,
         };
+        if ((uint)index >= (uint)stats.Vars.Length)
+            throw new FlashUnsupportedException(
+                $"卡牌 {FlashRegistry.Card(x.Card.Id).NativeId} 定义读取第 {index} 个动态变量，但规则表只有 {stats.Vars.Length} 个。");
         return stats.Vars[index] + delta;
     }
 
@@ -43,12 +46,13 @@ public static class FlashCardEffects
     public static void Attack(ref FlashExec x, decimal damage, int hitCount = 1)
     {
         FlashCardStats stats = x.Stats ?? throw new InvalidOperationException("当前没有正在打出的卡。");
-        FlashAttackTargeting targeting = stats.Target switch
+        FlashTargetType targetType = FlashRegistry.Card(x.Card.Id).TargetType(x.B, x.R, x.Card);
+        FlashAttackTargeting targeting = targetType switch
         {
             FlashTargetType.AnyEnemy => FlashAttackTargeting.Single,
             FlashTargetType.AllEnemies => FlashAttackTargeting.AllOpponents,
             FlashTargetType.RandomEnemy => FlashAttackTargeting.Random,
-            _ => throw new FlashUnsupportedException($"攻击目标类型 {stats.Target} 尚未实现。"),
+            _ => throw new FlashUnsupportedException($"攻击目标类型 {targetType} 尚未实现。"),
         };
         FlashKernel.CardAttack(ref x, damage, hitCount, targeting, x.Target);
     }
@@ -105,6 +109,13 @@ public static class FlashCardEffects
             return;
         FlashKernel.ApplyPower(ref x, x.Target, powerId, (int)Var(x, amountVar), FlashLimits.PlayerOwner);
     }
+
+    /// <summary>
+    /// The common compensation <c>combat.Apply&lt;T&gt;(owner, card.DynamicVars.X.IntValue, owner)</c>.
+    /// </summary>
+    public static void ApplyToOwner(ref FlashExec x, ushort powerId, int amountVar)
+        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, powerId, (int)Var(x, amountVar),
+            FlashLimits.PlayerOwner);
 
     /// <summary>
     /// The common compensation <c>combat.Apply&lt;T&gt;(enemy, ...)</c> over

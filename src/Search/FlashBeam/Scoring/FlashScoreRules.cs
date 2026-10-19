@@ -83,6 +83,9 @@ internal enum FlashCalculatedKind : byte
     DrawPileCount,
     TargetDebuffPowerCount,
     FinishedCardPlays,
+    CardsDiscardedThisTurn,
+    NegativeHandCount,
+    CardsDrawn,
 
     /// <summary>A registered calculated-damage card the port does not model; the root is rejected.</summary>
     Unsupported,
@@ -237,7 +240,13 @@ internal sealed class FlashScoreRules
 
     public ushort RetainHandPowerId { get; init; } = ushort.MaxValue;
 
+    public ushort EnergyNextTurnPowerId { get; init; } = ushort.MaxValue;
+
+    public ushort DrawCardsNextTurnPowerId { get; init; } = ushort.MaxValue;
+
     public ushort FreeAttackPowerId { get; init; } = ushort.MaxValue;
+
+    public ushort FreeSkillPowerId { get; init; } = ushort.MaxValue;
 
     public ushort IllusionPowerId { get; init; } = ushort.MaxValue;
 

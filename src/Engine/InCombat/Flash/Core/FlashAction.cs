@@ -94,6 +94,9 @@ public enum FlashChoiceEffect : byte
 
     /// <summary>Replace the selected cards with random cards from the transform pool (Entropy).</summary>
     Transform,
+
+    /// <summary>Give the selected cards single-turn Sly (<c>CardCmd.ApplySingleTurnSly</c>, Hand Trick).</summary>
+    ApplySly,
 }
 
 /// <summary>Phase the choice belongs to; mirrors <c>PlanChoiceTiming</c>.</summary>
@@ -165,6 +168,35 @@ public struct FlashPowerAmountChanges
     private FlashPowerAmountChange _first;
 }
 
+/// <summary>Which <c>AfterCardPlayed</c> listener snapshotted the amount at <c>BeforeCardPlayed</c>.</summary>
+public enum FlashCardPlayPairKind : byte
+{
+    /// <summary><c>AfterimagePower</c>: the power amount becomes Unpowered block after the play.</summary>
+    AfterimageBlock = 0,
+
+    /// <summary><c>StranglePower</c>: the power amount is dealt to its owner after the play.</summary>
+    StrangleDamage = 1,
+}
+
+/// <summary>
+/// One <c>BeforeCardPlayed</c> amount snapshot, keyed by the play index it belongs to (the existing
+/// engine keys <c>CardPlayPairPredictionState</c> by the <c>CardPlay</c> object).
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct FlashCardPlayPair
+{
+    public ushort PowerId;
+    public byte Owner;
+    public FlashCardPlayPairKind Kind;
+    public int Amount;
+}
+
+[InlineArray(FlashLimits.CardPlayPairs)]
+public struct FlashCardPlayPairs
+{
+    private FlashCardPlayPair _first;
+}
+
 /// <summary>
 /// Stack-only execution context of one kernel step. Holds the battle by reference and the
 /// transient facts of the current action; nothing here survives the step.
@@ -203,6 +235,9 @@ public ref struct FlashExec
         GeneratedOptionCount = 0;
         PendingPowerChanges = default;
         PendingPowerChangeCount = 0;
+        CardPlayPairs = default;
+        CardPlayPairCount = 0;
+        CurrentPlayIsAutoPlay = false;
         CardDamageTotal = 0;
         CardKilledTarget = false;
         LastDamageTotal = 0;
@@ -272,6 +307,57 @@ public ref struct FlashExec
     public FlashPowerAmountChanges PendingPowerChanges;
 
     public int PendingPowerChangeCount;
+
+    /// <summary>
+    /// <c>BeforeCardPlayed</c> amount snapshots waiting for the matching <c>AfterCardPlayed</c>
+    /// listener. A nested auto-play pushes above the outer play's entries and consumes its own first;
+    /// empty outside a card play, so it never reaches a stable boundary.
+    /// </summary>
+    public FlashCardPlayPairs CardPlayPairs;
+
+    public int CardPlayPairCount;
+
+    /// <summary>
+    /// The play whose <c>OnPlay</c>/<c>OwnChoice</c> is running was started by <c>AutoPlay</c>
+    /// (<c>CardPlay.IsAutoPlay</c>). The existing engine's nested-choice sink applies a required
+    /// empty choice without asking; a manual play asks it.
+    /// </summary>
+    public bool CurrentPlayIsAutoPlay;
+
+    /// <summary>Records one <c>BeforeCardPlayed</c> amount for its <c>AfterCardPlayed</c> consumer.</summary>
+    public void PushCardPlayPair(FlashCardPlayPairKind kind, byte owner, ushort powerId, int amount)
+    {
+        if (CardPlayPairCount >= FlashLimits.CardPlayPairs)
+            throw new FlashCapacityException("CardPlayPairs", FlashLimits.CardPlayPairs);
+        CardPlayPairs[CardPlayPairCount++] = new FlashCardPlayPair
+        {
+            PowerId = powerId,
+            Owner = owner,
+            Kind = kind,
+            Amount = amount,
+        };
+    }
+
+    /// <summary>
+    /// Takes the most recent matching snapshot. Entries are keyed by the play index (the nested play's
+    /// entries sit above the outer play's), and there is at most one per (kind, owner, power).
+    /// </summary>
+    public bool TryTakeCardPlayPair(FlashCardPlayPairKind kind, byte owner, ushort powerId, out int amount)
+    {
+        for (int index = CardPlayPairCount - 1; index >= 0; index--)
+        {
+            FlashCardPlayPair pair = CardPlayPairs[index];
+            if (pair.Kind != kind || pair.Owner != owner || pair.PowerId != powerId)
+                continue;
+            amount = pair.Amount;
+            for (int move = index + 1; move < CardPlayPairCount; move++)
+                CardPlayPairs[move - 1] = CardPlayPairs[move];
+            CardPlayPairCount--;
+            return true;
+        }
+        amount = 0;
+        return false;
+    }
 
     /// <summary>Queues one applied power amount change for <see cref="FlashKernel.ResolvePowerAmountChanges"/>.</summary>
     public void RecordPowerAmountChange(ushort powerId, int delta, byte applier, byte target)

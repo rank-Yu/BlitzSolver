@@ -15,9 +15,16 @@ public static partial class FlashKernel
             return false;
         FlashCard card = FlashPiles.At(ref x.B, pile, index);
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        // A nested auto-play must not leave its own card as the exec's current play: the caller's
+        // effect continues afterwards and reads its own card value (HiddenDaggers' Shivs var,
+        // StormOfSteel's upgrade level).
+        FlashCard callerCard = x.Card;
+        FlashCardStats? callerStats = x.Stats;
+        byte callerTarget = x.Target;
+        bool callerAutoPlay = x.CurrentPlayIsAutoPlay;
         if (HasKeyword(x.B, card, FlashKeywords.Unplayable)
             || !ShouldPlay(x.B, x.R, card)
-            || !TryResolveAutoPlayTarget(ref x.B, stats, ref target))
+            || !TryResolveAutoPlayTarget(ref x.B, x.R, card, ref target))
         {
             MoveToResultPileWithoutPlaying(ref x, card, pile, index, inPile: true);
             return false;
@@ -36,8 +43,17 @@ public static partial class FlashKernel
         x.Card = moved;
         x.Stats = stats;
         x.Target = target;
+        x.CurrentPlayIsAutoPlay = true;
         PlayFromPlay(ref x, moved, target, energyValue, playPosition, isAutoPlay: true);
-        return !x.NeedsChoice;
+        bool completed = !x.NeedsChoice;
+        if (completed)
+        {
+            x.Card = callerCard;
+            x.Stats = callerStats;
+            x.Target = callerTarget;
+            x.CurrentPlayIsAutoPlay = callerAutoPlay;
+        }
+        return completed;
     }
 
     /// <summary>
@@ -51,9 +67,13 @@ public static partial class FlashKernel
         if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
             return false;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        FlashCard callerCard = x.Card;
+        FlashCardStats? callerStats = x.Stats;
+        byte callerTarget = x.Target;
+        bool callerAutoPlay = x.CurrentPlayIsAutoPlay;
         if (HasKeyword(x.B, card, FlashKeywords.Unplayable)
             || !ShouldPlay(x.B, x.R, card)
-            || !TryResolveAutoPlayTarget(ref x.B, stats, ref target))
+            || !TryResolveAutoPlayTarget(ref x.B, x.R, card, ref target))
         {
             MoveToResultPileWithoutPlaying(ref x, card, FlashPile.Play, 0, inPile: false);
             return false;
@@ -73,8 +93,17 @@ public static partial class FlashKernel
         x.Card = moved;
         x.Stats = stats;
         x.Target = target;
+        x.CurrentPlayIsAutoPlay = true;
         PlayFromPlay(ref x, moved, target, energyValue, playPosition, isAutoPlay: true);
-        return !x.NeedsChoice;
+        bool completed = !x.NeedsChoice;
+        if (completed)
+        {
+            x.Card = callerCard;
+            x.Stats = callerStats;
+            x.Target = callerTarget;
+            x.CurrentPlayIsAutoPlay = callerAutoPlay;
+        }
+        return completed;
     }
 
     /// <summary>
@@ -192,9 +221,10 @@ public static partial class FlashKernel
     /// <c>NextItem</c> does not advance the stream. Single-player has no other ally, so AnyAlly only
     /// succeeds when the caller already supplied a target.
     /// </summary>
-    private static bool TryResolveAutoPlayTarget(ref FlashBattle battle, FlashCardStats stats, ref byte target)
+    private static bool TryResolveAutoPlayTarget(ref FlashBattle battle, FlashRules rules, in FlashCard card, ref byte target)
     {
-        switch (stats.Target)
+        FlashTargetType targetType = FlashRegistry.Card(card.Id).TargetType(battle, rules, card);
+        switch (targetType)
         {
             case FlashTargetType.AnyEnemy:
                 if (target == FlashLimits.NoOwner)

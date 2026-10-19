@@ -393,6 +393,16 @@ public struct AfterCardExhaustedHook : IFlashActionHook
         => definition.AfterCardExhausted(ref x, self, Card, CausedByEthereal);
 }
 
+public struct AfterCardDiscardedHook : IFlashActionHook
+{
+    public FlashCard Card;
+
+    public static FlashHookMask Mask => FlashHookMask.AfterCardDiscarded;
+
+    public readonly void Invoke(ref FlashExec x, FlashListenerDef definition, FlashListener self)
+        => definition.AfterCardDiscarded(ref x, self, Card);
+}
+
 public struct AfterBlockGainedHook : IFlashActionHook
 {
     public byte Owner;

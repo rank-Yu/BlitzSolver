@@ -163,6 +163,7 @@ public static partial class FlashKernel
         x.Card = card;
         x.Stats = stats;
         x.Target = target;
+        x.CurrentPlayIsAutoPlay = false;
         PlayFromPlay(ref x, card, target, energyValue, playPosition, isAutoPlay: false);
     }
 
@@ -466,6 +467,21 @@ public static partial class FlashKernel
         if ((card.Flags & FlashCardFlags.ExhaustOnNextPlay) != 0 || HasKeyword(battle, card, FlashKeywords.Exhaust))
             return FlashPile.Exhaust;
         return FlashPile.Discard;
+    }
+
+    /// <summary>
+    /// Appends one native <c>LocalCostModifier</c> to a card value
+    /// (<c>CardEnergyCost.AddThisCombat</c>/<c>AddThisTurn</c>/<c>SetThisCombat</c>).
+    /// </summary>
+    public static void AddEnergyCostModifier(ref FlashCard card, int amount, FlashCostType type,
+        FlashCostExpiration expiration, bool reduceOnly)
+    {
+        if (amount == 0)
+            return;
+        if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
+            throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
+        card.EnergyModifiers[card.EnergyModifierCount] = FlashCostModifier.Create(amount, type, expiration, reduceOnly);
+        card.EnergyModifierCount++;
     }
 
     /// <summary>Mirrors <c>CardEnergyCost.AfterCardPlayedCleanup</c> and the temporary star cost cleanup.</summary>

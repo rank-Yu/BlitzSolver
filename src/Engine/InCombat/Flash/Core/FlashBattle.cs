@@ -128,6 +128,13 @@ public enum FlashCounter : byte
     /// (<c>SimulatedCombatState._dampenCasters</c>), one bit per enemy owner index.
     /// </summary>
     DampenCasterMask,
+
+    /// <summary>
+    /// Combat-long cards drawn by the player, including the root history
+    /// (<c>SimulatedCombatState.GetCardsDrawnBeforePrediction</c>): the Murder calculated-damage
+    /// multiplier (<c>CalculatedVarSpecRegistry.CountDrawnCards</c>).
+    /// </summary>
+    CardsDrawn,
 }
 
 /// <summary>

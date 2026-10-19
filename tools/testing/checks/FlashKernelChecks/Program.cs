@@ -31,6 +31,7 @@ CheckKg2Hooks(rules);
 CheckA3Kernel(rules);
 CheckKaAttachments();
 CheckP16Kernel(rules);
+CheckSkKernel();
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -341,6 +342,172 @@ static FlashBattle SliceBattle()
     }
     return battle;
 }
+
+// SK: contracts for the Silent kernel capabilities. Discard pipeline + AfterCardDiscarded + Sly
+// auto-play, the poison trigger, the dynamic Shiv target, the card-play pair snapshot and the
+// next-turn draw/energy terms.
+static void CheckSkKernel()
+{
+    FlashRules rules = SilentRules();
+    Check(FlashRegistry.TryCard("KS_DISCARD_TARGET", out ushort targetCard), "缺少 KS_DISCARD_TARGET");
+    Check(FlashRegistry.TryCard("KS_SLY_CARD", out ushort slyCard), "缺少 KS_SLY_CARD");
+    Check(FlashRegistry.TryCard("SHIV", out ushort shiv), "缺少 SHIV");
+    Check(FlashRegistry.TryPower("POISON_POWER", out ushort poison), "缺少 POISON_POWER");
+    Check(FlashRegistry.TryPower("ACCELERANT_POWER", out ushort accelerant), "缺少 ACCELERANT_POWER");
+    Check(FlashRegistry.TryPower("FAN_OF_KNIVES_POWER", out ushort fan), "缺少 FAN_OF_KNIVES_POWER");
+    Check(FlashRegistry.TryPower("AFTERIMAGE_POWER", out ushort afterimage), "缺少 AFTERIMAGE_POWER");
+    Check(FlashRegistry.TryPower("DRAW_CARDS_NEXT_TURN_POWER", out ushort drawNext), "缺少 DRAW_CARDS_NEXT_TURN_POWER");
+    Check(FlashRegistry.TryPower("ENERGY_NEXT_TURN_POWER", out ushort energyNext), "缺少 ENERGY_NEXT_TURN_POWER");
+    Check(FlashRegistry.TryRelic("KS_TEST_DISCARD_RELIC", out ushort discardRelic), "缺少 KS_TEST_DISCARD_RELIC");
+    Check(FlashRegistry.TryRelic("KS_TEST_SLY_RELIC", out ushort slyRelic), "缺少 KS_TEST_SLY_RELIC");
+
+    // Discard: the card moves, the counter grows and AfterCardDiscarded reaches the relic listener.
+    FlashBattle battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.RelicCount = 2;
+    battle.Relics[0] = new FlashRelic { Id = discardRelic };
+    battle.Relics[1] = new FlashRelic { Id = slyRelic };
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, targetCard));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, slyCard));
+    FlashExec x = new(ref battle, rules, default);
+    KsTestLog.Clear();
+    FlashKernel.Discard(ref x, FlashPile.Hand, 1);
+    Check(battle.Counter(FlashCounter.CardsDiscardedThisTurn) == 1, "弃牌计数应为 1");
+    Check(KsTestLog.Lines.Contains("discarded"), "AfterCardDiscarded 未派发");
+    Check(KsTestLog.Lines.Contains("sly-play"), "Sly 弃牌未自动打出");
+
+    // Discard-and-draw with a Sly card: the draw may shuffle the Sly card out of the discard pile;
+    // the auto-play locates it anywhere in the battle instead of assuming the discard pile.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.RelicCount = 2;
+    battle.Relics[0] = new FlashRelic { Id = discardRelic };
+    battle.Relics[1] = new FlashRelic { Id = slyRelic };
+    // The draw pile starts empty, so Draw shuffles the discard (containing the Sly card) into the
+    // draw pile before the auto-play locates it.
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, targetCard));
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, slyCard));
+    battle.RngStream(FlashRngStream.Shuffle) = FlashRngState.FromSerializable(0, 1, 2, 3, 4);
+    x = new(ref battle, rules, default);
+    KsTestLog.Clear();
+    Span<int> selected = stackalloc int[2];
+    selected[0] = 0;
+    selected[1] = 1;
+    FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, selected, 1);
+    Check(battle.Counter(FlashCounter.CardsDiscardedThisTurn) == 2, "批量弃牌计数应为 2");
+    Check(KsTestLog.Lines.Count(line => line == "discarded") == 2, "批量弃牌应派发两次 AfterCardDiscarded");
+    Check(KsTestLog.Lines.Contains("sly-play"), "批量弃牌后 Sly 未自动打出");
+
+    // An AfterCardDiscarded listener that moves the card out of every pile makes the Sly auto-play
+    // target unrepresentable: the kernel must surface a FlashUnsupportedException, not guess a slot.
+    battle = NewBattle();
+    battle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    battle.RelicCount = 1;
+    battle.Relics[0] = new FlashRelic { Id = discardRelic };
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, slyCard));
+    x = new(ref battle, rules, default);
+    KsTestLog.Clear();
+    KsTestDiscardRelic.RemoveDiscardedCard = true;
+    bool unsupported = false;
+    try
+    {
+        FlashKernel.Discard(ref x, FlashPile.Hand, 0);
+    }
+    catch (FlashUnsupportedException)
+    {
+        unsupported = true;
+    }
+    finally
+    {
+        KsTestDiscardRelic.RemoveDiscardedCard = false;
+    }
+    Check(unsupported, "Sly 目标离开所有牌堆时应抛 FlashUnsupportedException");
+
+    // Poison: min(amount, 1 + opponents' Accelerant) hits of the current amount, decrementing while
+    // alive (CorePowerSupport.TriggerPoison).
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    byte enemy = FlashKernel.EnemyOwner(0);
+    FlashKernel.ApplyPower(ref x, enemy, poison, 3, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    Span<byte> enemies = stackalloc byte[1];
+    enemies[0] = enemy;
+    FlashKernel.TriggerPoison(ref x, enemies);
+    // TriggerCount = min(amount, 1 + opponents' Accelerant): no Accelerant means one hit.
+    Check(battle.Enemies[0].Creature.CurrentHp == 97, $"毒应造成 3 点伤害，实际血量 {battle.Enemies[0].Creature.CurrentHp}");
+    Check(FlashKernel.GetAmount(battle, enemy, poison) == 2, "毒应递减到 2");
+
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, enemy, poison, 3, FlashLimits.PlayerOwner);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, accelerant, 1, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    FlashKernel.TriggerPoison(ref x, enemies);
+    Check(battle.Enemies[0].Creature.CurrentHp == 95, $"加速毒应触发 2 次，实际血量 {battle.Enemies[0].Creature.CurrentHp}");
+    Check(FlashKernel.GetAmount(battle, enemy, poison) == 1, "加速毒应剩余 1 层");
+
+    // Shiv's dynamic target: all enemies only while the player holds FanOfKnivesPower.
+    FlashCard shivCard = FlashKernel.CreateCard(rules, shiv);
+    Check(FlashRegistry.Card(shiv).TargetType(battle, rules, shivCard) == FlashTargetType.AnyEnemy,
+        "无飞刀扇时 Shiv 应单体");
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, fan, 1, FlashLimits.PlayerOwner);
+    Check(FlashRegistry.Card(shiv).TargetType(battle, rules, shivCard) == FlashTargetType.AllEnemies,
+        "飞刀扇在场时 Shiv 应打全体");
+
+    // Card-play pair: BeforeCardPlayed snapshots the Afterimage amount for AfterCardPlayed.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, afterimage, 2, FlashLimits.PlayerOwner);
+    FlashKernel.ResolvePowerAmountChanges(ref x);
+    int afterimageIndex = FlashKernel.FindPower(battle, FlashLimits.PlayerOwner, afterimage);
+    Check(afterimageIndex >= 0, "Afterimage 未施加");
+    FlashListenerDef afterimageDef = FlashRegistry.Power(afterimage);
+    FlashListener self = new(FlashListenerKind.Power, (byte)afterimageIndex, FlashLimits.PlayerOwner);
+    FlashCardPlayInfo play = new(FlashKernel.CreateCard(rules, targetCard), FlashLimits.NoOwner, 0, 1, FlashPile.Discard);
+    afterimageDef.BeforeCardPlayed(ref x, self, play);
+    Check(x.TryTakeCardPlayPair(FlashCardPlayPairKind.AfterimageBlock, FlashLimits.PlayerOwner, afterimage,
+        out int pairAmount) && pairAmount == 2, "Afterimage 快照金额错误");
+    Check(!x.TryTakeCardPlayPair(FlashCardPlayPairKind.AfterimageBlock, FlashLimits.PlayerOwner, afterimage,
+        out _), "Afterimage 快照只应消费一次");
+
+    // Next-turn draw/energy: DrawCardsNextTurn adds only its snapshotted amount; EnergyNextTurn is
+    // consumed by the turn-start reset.
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, drawNext, 2, FlashLimits.PlayerOwner);
+    int drawIndex = FlashKernel.FindPower(battle, FlashLimits.PlayerOwner, drawNext);
+    battle.Powers[drawIndex].AmountOnTurnStart = 2;
+    Check(FlashKernel.ModifiedHandDraw(ref x, 5) == 7, "下回合抽牌应加 2");
+    battle.Powers[drawIndex].AmountOnTurnStart = 0;
+    Check(FlashKernel.ModifiedHandDraw(ref x, 5) == 5, "未快照的下回合抽牌不应由监听者加");
+
+    battle = NewBattle();
+    x = new(ref battle, rules, default);
+    FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, energyNext, 2, FlashLimits.PlayerOwner);
+    Check(FlashKernel.ConsumeEnergyNextTurn(ref battle) == 2, "下回合能量应为 2");
+    Check(FlashKernel.GetAmount(battle, FlashLimits.PlayerOwner, energyNext) == 0, "下回合能量应被消费");
+}
+
+static FlashRules SilentRules()
+{
+    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 0 };
+    FlashRegistry.TryCard("KS_DISCARD_TARGET", out ushort targetCard);
+    FlashRegistry.TryCard("KS_SLY_CARD", out ushort slyCard);
+    FlashRegistry.TryCard("SHIV", out ushort shiv);
+    builder.SetCard(targetCard, 0, SilentStats(FlashCardType.Skill, FlashTargetType.Self, 0));
+    builder.SetCard(slyCard, 0, SilentStats(FlashCardType.Skill, FlashTargetType.Self, 0, FlashKeywords.Sly));
+    builder.SetCard(shiv, 0, SilentStats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 0));
+    return builder.Build();
+
+    static FlashCardStats SilentStats(FlashCardType type, FlashTargetType target, int cost,
+        FlashKeywords keywords = FlashKeywords.None) => new()
+    {
+        Type = type, Target = target, Rarity = FlashCardRarity.Basic, EnergyCost = cost, CostsX = false,
+        StarCost = -1, StarCostsX = false, Keywords = keywords, MaxUpgradeLevel = 1, Vars = [],
+    };
+}
+
+
 
 // Beam-shaped workload: copy parent into a preallocated slot, step in place, hash. Reports the
 // mean per transition; zero managed allocation is asserted on the measured loop.
@@ -1301,3 +1468,48 @@ sealed class Keyed(FlashCard card) : IComparable<Keyed>
         return id != 0 ? id : Card.Upgrade.CompareTo(other.Card.Upgrade);
     }
 }
+
+static class KsTestLog
+{
+    public static List<string> Lines { get; } = [];
+
+    public static void Clear() => Lines.Clear();
+}
+
+[FlashContent("KS_DISCARD_TARGET")]
+public sealed class KsDiscardTarget : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+    {
+    }
+}
+
+[FlashContent("KS_SLY_CARD")]
+public sealed class KsSlyCard : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x) => KsTestLog.Lines.Add("sly-play");
+}
+
+[FlashContent("KS_TEST_DISCARD_RELIC")]
+public sealed class KsTestDiscardRelic : FlashRelicDef
+{
+    public static bool RemoveDiscardedCard { get; set; }
+
+    public override void AfterCardDiscarded(ref FlashExec x, FlashListener self, in FlashCard card)
+    {
+        KsTestLog.Lines.Add("discarded");
+        if (!RemoveDiscardedCard)
+            return;
+        for (int index = 0; index < x.B.DiscardCount; index++)
+        {
+            if (!FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Discard, index), card))
+                continue;
+            // Leave every pile: removing without inserting models the unrepresentable target.
+            FlashPiles.RemoveAt(ref x.B, FlashPile.Discard, index);
+            return;
+        }
+    }
+}
+
+[FlashContent("KS_TEST_SLY_RELIC")]
+public sealed class KsTestSlyRelic : FlashRelicDef;

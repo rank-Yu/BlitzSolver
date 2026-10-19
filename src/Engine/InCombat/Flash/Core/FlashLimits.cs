@@ -46,6 +46,14 @@ public static class FlashLimits
     public const int MaxGeneratedChoiceOptions = 8;
     public const int MaxHandSize = 10;
 
+    /// <summary>
+    /// Power amounts snapshotted at <c>BeforeCardPlayed</c> for the <c>AfterCardPlayed</c> consumer
+    /// (the existing engine's <c>CardPlayPairPredictionState</c>): one entry per listener and play
+    /// index. Nested auto-plays push their own entries above the outer play's, so the stack bounds
+    /// the nesting depth of one action; overflow throws <see cref="FlashCapacityException"/>.
+    /// </summary>
+    public const int CardPlayPairs = 32;
+
     /// <summary>Owner index of the player in <see cref="FlashPower.Owner"/> and creature references.</summary>
     public const byte PlayerOwner = 0;
 

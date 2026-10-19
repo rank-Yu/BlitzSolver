@@ -78,6 +78,9 @@ internal sealed class FlashScorer
                 FlashCalculatedKind.DrawPileCount => battle.DrawCount,
                 FlashCalculatedKind.TargetDebuffPowerCount => CountTargetDebuffPowers(battle, owner),
                 FlashCalculatedKind.FinishedCardPlays => battle.Counter(FlashCounter.FinishedCardPlays),
+                FlashCalculatedKind.CardsDiscardedThisTurn => battle.Counter(FlashCounter.CardsDiscardedThisTurn),
+                FlashCalculatedKind.NegativeHandCount => -battle.HandCount,
+                FlashCalculatedKind.CardsDrawn => battle.Counter(FlashCounter.CardsDrawn),
                 _ => 0,
             };
             decimal candidate = baseVar + extraVar * multiplier;
@@ -371,9 +374,12 @@ internal sealed class FlashScorer
         }
         // Free-card opportunity (FreeAttackPower), Void Form and summon next turn: Void Form and
         // summon-next-turn powers have no admitted Flash content.
-        int futureResourceValue = GetAmount(battle, _score.RetainHandPowerId, FlashLimits.PlayerOwner) * 4
+        int futureResourceValue = GetAmount(battle, _score.EnergyNextTurnPowerId, FlashLimits.PlayerOwner) * 16
+            + GetAmount(battle, _score.DrawCardsNextTurnPowerId, FlashLimits.PlayerOwner) * 8
+            + GetAmount(battle, _score.RetainHandPowerId, FlashLimits.PlayerOwner) * 4
             + retainedHandValue
-            + FreeAttackOpportunityValue(battle);
+            + FreeCardOpportunityValue(battle, FlashCardType.Attack, _score.FreeAttackPowerId)
+            + FreeCardOpportunityValue(battle, FlashCardType.Skill, _score.FreeSkillPowerId);
 
         int delayedDamageValue = 0;
         for (int index = 0; index < battle.EnemyCount; index++)
@@ -1154,9 +1160,9 @@ internal sealed class FlashScorer
     /// Attack in hand without X cost, the local cost minus the hook-modified cost times 16 plus a card
     /// value bonus; the best <c>freeUses</c> values are summed.
     /// </summary>
-    private int FreeAttackOpportunityValue(in FlashBattle battle)
+    private int FreeCardOpportunityValue(in FlashBattle battle, FlashCardType cardType, ushort powerId)
     {
-        int freeUses = GetAmount(battle, _score.FreeAttackPowerId, FlashLimits.PlayerOwner);
+        int freeUses = GetAmount(battle, powerId, FlashLimits.PlayerOwner);
         if (freeUses <= 0)
             return 0;
         Span<int> values = stackalloc int[FlashLimits.MaxHandSize];
@@ -1165,7 +1171,7 @@ internal sealed class FlashScorer
         {
             ref readonly FlashCard card = ref battle.Cards[index];
             FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-            if (stats.Type != FlashCardType.Attack
+            if (stats.Type != cardType
                 || (card.Flags & FlashCardFlags.CostsX) != 0
                 || !FlashKernel.CanPlayCard(battle, Rules, index))
             {

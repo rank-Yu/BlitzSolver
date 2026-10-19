@@ -88,8 +88,9 @@ public static partial class FlashKernel
         {
             if (!CanPlayCard(battle, rules, hand))
                 continue;
-            FlashCardStats stats = rules.Card(battle.Cards[hand].Id, battle.Cards[hand].Upgrade);
-            if (stats.Target == FlashTargetType.AnyEnemy)
+            FlashTargetType targetType = FlashRegistry.Card(battle.Cards[hand].Id)
+                .TargetType(battle, rules, battle.Cards[hand]);
+            if (targetType == FlashTargetType.AnyEnemy)
             {
                 for (int position = 0; position < battle.RosterCount; position++)
                 {

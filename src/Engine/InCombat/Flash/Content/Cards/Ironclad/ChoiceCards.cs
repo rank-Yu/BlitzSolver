@@ -139,10 +139,21 @@ public sealed class Brand : FlashCardDef
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        int chosen;
-        bool answered = options.IsEmpty
-            ? FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.Exhaust, FlashPile.Hand, options, 0, 0, selected, out chosen)
-            : FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Exhaust, FlashPile.Hand, options, 1, selected, out chosen);
+        int chosen = 0;
+        bool answered = true;
+        if (options.IsEmpty)
+        {
+            // ResolveNestedCardChoice applies the required empty choice without asking during an
+            // auto-play; a manual play asks it.
+            if (!x.CurrentPlayIsAutoPlay)
+                answered = FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.Exhaust, FlashPile.Hand,
+                    options, 0, 0, selected, out chosen);
+        }
+        else
+        {
+            answered = FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Exhaust, FlashPile.Hand, options, 1,
+                selected, out chosen);
+        }
         if (!answered)
             return;
         FlashKernel.ExhaustSelected(ref x, FlashPile.Hand, selected[..chosen]);

@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，P13 合入后）：FlashKernelChecks 通过；51 个自然遭遇根（铁甲战士初始牌组，含第二幕 9 个遭遇的 FLASHM1/FLASHM2）与 77 个固定根（`coverage/fixtures/cards/flash-*.json`）每根 32 条随机游走，K1 单步、K2 游走与 K4 评估全部零差异，没有准入拒绝。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，SK 合入后）：FlashKernelChecks 通过；116 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有 6 条静默猎手初始牌组根）、161 个固定根（`coverage/fixtures/cards/flash-*.json`）与 33 个生成牌组（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；只有含 Thrash 的 `deck-IRONCLAD-02`/`18` 按小数卡牌变量边界记 `unsupported`。
 
 ### 2.1 覆盖缺口
 
@@ -65,6 +65,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 卡牌（铁甲战士剩余 24 张，P14）：实现 Aggression、StoneArmor、Unmovable、Rupture 与 AggressionPower、UnmovablePower、RupturePower（StoneArmor 复用 PlatingPower）；4 个 `coverage/fixtures/cards/flash-p14-*.json` 每根 48 条游走零差异。RupturePower 的 Aux0..2 只在出牌期间存放待结算力量与伤害来源标记，稳定边界为 0，投影只认领空的 `RupturePredictionState`。跳过 20 张：自动打出（Cascade、Havoc、Hellraiser、HowlFromBeyond、Stampede）、卡池随机生成（InfernalBlade、Stoke）、变化（PrimalForce）、改费用（Corruption、Unrelenting、Stomp，后者另需扩充 `CardEnergyCostModifiers` 容量）、出牌次数（OneTwoPunch）、AfterPowerAmountChanged（Vicious）、战斗全程未格挡受伤计数（TearAsunder）、跨卡计算伤害（Thrash）、多人专用（Blaze、DemonicShield、Midnight、Outrage、Tank）。
 
 卡牌（无色卡池，P15）：新增 28 张无色卡（含 Finesse、Impatience、Production、Salvo、SecretTechnique、DarkShackles 等）与 5 个 Power（DarkShackles、Fasten、NoBlock、PrepTime、TheGambit），8 个 `coverage/fixtures/cards/flash-p15-*.json` 每根 48 条游走 K1/K2/K4/K5 零差异；MindBlast 与 Rend 的计算伤害乘数、TheGambit 的死亡预测按现有评估补进 FlashScorer/FlashScoreBridge。跳过 37 张：多人专用 12、自动打出 3（BeatDown、Catastrophe、Mayhem）、卡池随机生成/变化 7（Alchemize、Calamity、Discovery、Entropy、JackOfAllTrades、Jackpot、Splash）、随机抽样与回手历史 5、伤害/击杀历史 4、按实例区分的 Power 4（Automation、Panache、RollingBoulder、TheBomb）、尚未派发的 Hook 2（Nostalgia、Stratagem）。
+
+角色（静默猎手，SK，2026-10-19）：内核补上弃牌管线与 `AfterCardDiscarded`（Sly 按弃置顺序自动打出）、中毒（`TriggerPoison` 与 Accelerant）、Shiv 生成与动态全体目标、下回合抽牌/能量、Blur、DoubleDamage、出牌期金额快照（Afterimage、Strangle）与多选卡牌选择的接线；实现初始牌组、RingOfTheSnake、73 张静默猎手卡牌（含 Shiv）与 21 个 Power，MementoMori、PreciseCut、Murder 的计算伤害照现有评估移植。7 个 `coverage/fixtures/cards/flash-sk-*.json` 与 NIBBITS/SLIMES/CULTISTS 的静默猎手初始牌组 FLASHM1/FLASHM2 自然根每根 48 条游走 K1/K2/K4/K5 零差异、`unsupported=0`；K0 增加弃牌/Sly/中毒/动态目标/快照/下回合资源合同，`FlashBattle` 仍为 12000 字节。跳过 15 张卡（TheHunt、KnifeTrap、EchoingSlash、Anointed、Burst、Mirage、ToolsOfTheTrade、Entropy、Nightmare、Shadowmeld、Nostalgia、Stratagem、Omnislice、PhantomBlades、RollingBoulder）与 9 个遗物（UnsettlingLamp、SneckoSkull、PaperKrane、UnceasingTop、ReptileTrinket、Vambrace、Tingsha、HelicalDart、BeltBuckle），缺失能力按项记录在 `.local` 任务报告中，主要是战斗内奖励、牌堆筛选后取样/自动打出、单次攻击多轮伤害、计算格挡、回合开始选择、实例型 Power 与 Power 给予数量修正 Hook。故障机器人、储君、亡灵契约师仍全部在准入阶段拒绝（各 30 个随机牌组准入 0）。
 
 遗物（R2）：新增 122 个遗物定义（34 个有战斗行为，88 个只在战斗外或根之前生效、逐个注明原版 Hook）与 SelfFormingClayPower；PaperPhrog 的效果由易伤倍率承载。7 个 `coverage/fixtures/cards/flash-r2-*.json` 每根 48 条游走零差异。跳过的遗物：TheAbacus（AfterShuffle 未派发）、MysticLighter（附魔伤害修正）、IceCream（能量重置）、ChemicalX（ModifyXValue）、RuinedHelmet（Power 数量修正 Hook）、GhostSeed（遗物的 AfterCardEnteredCombat）。目标 8 个药水全部跳过（随机生成与自动打出待 KG1，Duplicator 需出牌次数修改，Gigantification 需对象身份）。
 

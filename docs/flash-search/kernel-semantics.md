@@ -51,7 +51,8 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 内核为下列 Hook 提供派发点，名称与原版一致；内容需要新的 Hook 时在内核增加派发点并补差分测试：
 
-- 出牌：`TryModifyEnergyCostInCombat`（含 Late；Corruption、FreeAttackPower）、`ModifyStarCost`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount` / `AfterModifyingCardPlayCount`（OneTwoPunchPower、DuplicationPower）、`ModifyCardPlayResultLocation` / `AfterModifyingCardPlayResultLocation`（Corruption；Nostalgia 还返回 `Draw` 的 `Top` 位置）、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterHandEmptied`。
+- 出牌：`TryModifyEnergyCostInCombat`（含 Late；Corruption、FreeAttackPower、FreeSkillPower）、`ModifyStarCost`、`ShouldPlay`、`BeforeCardPlayed`、`ModifyCardPlayCount` / `AfterModifyingCardPlayCount`（OneTwoPunchPower、DuplicationPower）、`ModifyCardPlayResultLocation` / `AfterModifyingCardPlayResultLocation`（Corruption；Nostalgia 还返回 `Draw` 的 `Top` 位置）、`AfterCardPlayed`（含 Late）、`AfterEnergySpent`、`AfterStarsSpent`、`AfterCardExhausted`、`AfterCardDiscarded`、`AfterHandEmptied`。
+- 卡牌目标：`FlashCardDef.TargetType` 覆写原生 `CardModel.TargetType`。规则表冻结规范目标；`Shiv` 在持有 `FanOfKnivesPower` 时返回 `AllEnemies`，合法动作枚举、自动打出目标解析与卡牌攻击都读这个动态值。
 - 攻击与伤害：`BeforeAttack`、`ModifyAttackHitCount`、`AfterAttack`、`ModifyDamageAdditive`、`ModifyDamageMultiplicative`、`ModifyDamageCap`、`BeforeDamageReceived`、`ModifyHpLostBeforeOsty`（含 Late）、`ModifyHpLostAfterOsty`（含 Late）、`AfterModifyingHpLostAfterOsty`、`AfterBlockBroken`、`AfterCurrentHpChanged`、`AfterDamageGiven`、`AfterDamageReceived`（含 Late）。
 - 格挡：`BeforeBlockGained`、`ModifyBlockAdditive`、`ModifyBlockMultiplicative`、`AfterModifyingBlockAmount`、`AfterBlockGained`、`ShouldClearBlock`、`AfterBlockCleared`。
 - 死亡：`BeforeDeath`、`ShouldDie`（含 Late）、`AfterDeath`、`AfterPreventingDeath`。
@@ -127,6 +128,17 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - **HandOfGreed**：镜像攻击后检查本次出牌是否击杀目标且目标所有 Power 都允许致命（`ShouldOwnerDeathTriggerFatal`），成功则加金币与 `LongTermResourceValue`。金币修正遗物（BowlerHat/Ectoplasm/DragonFruit）尚未进入 Flash 定义，含有它们的根不在本批证据内。
 - **GoldAxe**：`FinishedCardPlays` 计数器导入根历史的 `GetFinishedPlaysBeforePrediction` 并在每次完成出牌时 +1，作为 `CalculatedVarSpecRegistry` 的乘数。
 - **回手。** Bolas/ThrummingHatchet 打出后把 `FlashCard.ReturnToHandNextTurn`（`CostState` bit 4）置位；玩家下回合 `BeforeHandDraw` 的返回手牌阶段按当前牌堆顺序把这些牌移回手牌并清位，对应 `SimulatedCombatState._returnToHandNextTurn` 与 `PrepareBeforeHandDraw`。根导入把 `_returnToHandNextTurn` 的成员投影到对应卡值。
+- **出牌期金额快照。** Afterimage 与 Strangle 在 `BeforeCardPlayed` 记下能力层数、在 `AfterCardPlayed` 消费（现有引擎 `CardPlayPairPredictionState`，以 `CardPlay` 对象为键）。Flash 把它放在栈上的 `FlashExec.CardPlayPairs`（容量 `FlashLimits.CardPlayPairs`），嵌套自动打出的条目压在外层之上并先被消费；稳定边界为空，不进入 `FlashBattle`。
+
+### 4.4 弃牌与 Sly
+
+来源：`S/CombatPredictionSimulator.Card.cs` 的 `Discard`、`S/CombatPredictionSimulator.DiscardContinuation.cs`、`Q/SimulatedCombatState.ActionChoices.cs`、`Q/CardChoiceResolution.cs`。
+
+- `FlashKernel.Discard` 对应 `CardCmd.Discard(choiceContext, CardModel)`：强制结束/已死时返回；卡移到弃牌堆底，`CardsDiscardedThisTurn + 1`，派发 `AfterCardDiscarded`，然后若该牌 `IsSlyThisTurn`（关键字 Sly 或单回合标记）立即自动打出。
+- `FlashKernel.DiscardAndDraw` 对应多张 `CardCmd.Discard` / `DiscardAndDraw`：按选择顺序逐张弃置并派发钩子，然后抽牌，最后按弃置顺序自动打出“弃置时为 Sly”的牌。弃置后可能洗牌，所以自动打出按“值 + 同值第几张”在**整个战斗牌堆**里重新定位；同值序号在全部弃置完成后按弃置顺序分配，先行自动打出移走同值低序号后逐个下调。找不到时抛 `FlashUnsupportedException`（K0 合同）。
+- 回合末手牌清理（`CorePowerSupport.FlushPlayerHandAtTurnEnd`）直接用 `AddToPile` 移入弃牌堆，**不**派发 `AfterCardDiscarded`、也不触发 Sly；Flash 保持相同行为。
+- 卡牌自身选择的空选项：`BuildRequiredEmptyChoice` 列出的牌（HiddenDaggers、Brand）在手牌为空时，手动打出会提出 0..0 的空选择；自动打出中的嵌套选择由 `ResolveNestedCardChoice` **直接结算**同一个空选择、不提问。Flash 用 `FlashExec.CurrentPlayIsAutoPlay` 区分这两种情形，随后照常执行 `ApplyPostChoiceEffects`。
+- 手牌触发（`AfterCardDrawn` 中的 `CorrosiveWavePower`、`SpeedsterPower` 等）与弃牌触发都在上面的位置派发；多张弃置的 `AfterCardDiscarded` 之间可以出现待处理选择，Flash 丢弃半成品状态、从父状态带选择重执行。
 
 ## 5. 伤害管线
 
@@ -145,7 +157,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不能接受 Power 时返回 → 遗物修正（`TryModifyPowerAmountReceived` 普通阶段记录被修改的监听者，随后在 Artifact 检查前对它们派发 `AfterModifyingPowerAmountReceived`；RuinedHelmet 在此翻倍并标记本场已用）→ 目标有人工制品且是减益时抵消一层并返回 → 实例型 Power 新建实例，其余按（持有者、类型）叠加并钳制 → 玩家侧新获得的虚弱、易伤、脆弱标记跳过下次衰减 → 更新监听顺序 → 把非零变化放进待处理队列。旧引擎**没有**通用的 `AfterApplied`，只有少数 Power 初始化。
 
-衰减：虚弱、易伤、脆弱、无实体、NoBlock 在**敌方回合结束时对所有生物**衰减并尊重跳过标记；Blur 在己方回合开始衰减；DoubleDamage 在每方回合结束衰减；瞬时 Power 在己方回合结束清除；临时力量、敏捷、集中在 `TriggerRegular` 中按监听顺序退回。`FlashPowerDef.PreventsCombatEnding` 对应原版 `ShouldStopCombatFromEnding`：战斗结束判定会遍历仍在阵容中的生物的正层 Power，AdaptablePower、StockPower 等返回真时 `IsEnding` 保持假（TestSubject 的复活窗口）。
+衰减：虚弱、易伤、脆弱、无实体、NoBlock 在**敌方回合结束时对所有生物**衰减并尊重跳过标记；Blur 在己方回合开始衰减且该回合开始不清格挡；DoubleDamage 在每方回合结束衰减；瞬时 Power 在己方回合结束清除；临时力量、敏捷、集中在 `TriggerRegular` 中按监听顺序退回。`FlashPowerDef.PreventsCombatEnding` 对应原版 `ShouldStopCombatFromEnding`：战斗结束判定会遍历仍在阵容中的生物的正层 Power，AdaptablePower、StockPower 等返回真时 `IsEnding` 保持假（TestSubject 的复活窗口）。
 
 ## 7. 回合流程
 
@@ -173,9 +185,9 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 1. 轮次 +1（额外回合不加）；重置计数；记录 `AmountOnTurnStart`；`BeforeSideTurnStart`（原版：先遗物批次，再 Power）。
 2. 清格挡与 `AfterBlockCleared`。
-3. 能量：`ShouldPlayerResetEnergy`（IceCream 从第 2 回合起拒绝重置；否则清零）→ 加修正后的最大能量与下回合能量；`AfterEnergyReset`、遗物 `AfterEnergyReset`、`AfterEnergyResetLate`。
+3. 能量：`ShouldPlayerResetEnergy`（IceCream 从第 2 回合起拒绝重置；否则清零）→ 加修正后的最大能量与 `ConsumeEnergyNextTurn`（`EnergyNextTurnPower` 的层数直接消费并清零）；`AfterEnergyReset`、遗物 `AfterEnergyReset`、`AfterEnergyResetLate`。
 4. `BeforeHandDraw`：Power → 遗物 → 返回手牌的卡。返回手牌阶段处理 `FlashCard.ReturnToHandNextTurn`（Bolas/ThrummingHatchet），牌已在手牌时只清位。
-5. 抽牌数 = 5 + 下回合抽牌 + DrawCardsNextTurn → `ModifyHandDraw` → Late；抽牌。
+5. 抽牌数 = 5 + 下回合抽牌 + DrawCardsNextTurn → `ModifyHandDraw` → Late；抽牌。`ConsumeModifiedHandDraw` 的“尚未快照”项（`DrawCardsNextTurnPower` 的 `AmountOnTurnStart == 0`）在监听者之前直接加到基础抽牌数；已快照的层数由该 Power 的 `ModifyHandDraw` 加。`DrawCardsNextTurnPower` 在 `TriggerBaseSideTurnStart` 清零。
 6. `AfterPlayerTurnStart`（原版：先 Power，再遗物）。
 7. 玩家己方回合开始效果在抽牌**之后**执行；若回合开始有选择，则在该选择之前执行。
 8. 敌人死亡效果 → 附魔与球 Hook → 自动预打出 → 胜负判定。

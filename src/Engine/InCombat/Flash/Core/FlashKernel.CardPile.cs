@@ -95,6 +95,7 @@ public static partial class FlashKernel
     /// <summary>Mirrors <c>SimulatedCombatState.RecordCardDrawn</c>.</summary>
     private static void RecordCardDrawn(ref FlashExec x, in FlashCard card, bool fromHandDraw)
     {
+        x.B.AddCounter(FlashCounter.CardsDrawn, 1);
         if (!fromHandDraw)
             x.B.AddCounter(FlashCounter.NonHandDrawsThisTurn, 1);
         if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Status)
