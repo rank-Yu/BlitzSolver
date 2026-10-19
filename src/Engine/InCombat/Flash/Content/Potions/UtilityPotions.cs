@@ -83,10 +83,26 @@ public sealed class CureAll : FlashPotionDef
 [FlashContent("DROPLET_OF_PRECOGNITION")]
 public sealed class DropletOfPrecognition : FlashPotionDef
 {
-    // DropletOfPrecognition is a no-op in PotionOnUseSupport.Use: the current search does not
-    // resolve its draw-pile selection.
+    // DropletOfPrecognition is a no-op in PotionOnUseSupport.Use; its whole effect is
+    // PotionChoiceSupport.GetSpec/Apply: ExactSpec(MoveToHand, Draw, the complete draw pile) and
+    // AddToPile(selected, Hand, Bottom). The option order is the draw pile order (index 0 is the top,
+    // which is also FlashPile.Draw's order). A card played into a full hand goes to the discard pile
+    // inside AddToPile, which FlashKernel.MoveCard reproduces.
     public override void OnUse(ref FlashExec x)
     {
+        if (x.B.DrawCount == 0)
+            return;
+        Span<int> options = stackalloc int[x.B.DrawCount];
+        for (int index = 0; index < x.B.DrawCount; index++)
+            options[index] = index;
+        Span<int> selected = stackalloc int[1];
+        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.MoveToHand, FlashPile.Draw,
+                options, 1, selected, out int chosen))
+        {
+            return;
+        }
+        FlashKernel.MoveSelected(ref x.B, FlashPile.Draw, selected[..chosen], FlashPile.Hand,
+            FlashPilePosition.Bottom);
     }
 }
 
