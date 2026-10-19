@@ -223,9 +223,11 @@ internal sealed class FlashBeamSolver
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
         int width = Math.Max(1, _options.BeamWidth);
-        // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended are bounded
-        // by every kept state expanding every legal action, but a layer holds width x (actual legal actions),
-        // so they start small and grow toward that bound.
+        // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended receive
+        // children built in the scratch/free slot; their chunks are allocated on first write and never
+        // copied, so a duplicate or terminal child does not grow them. The capacity bound below is an
+        // explicit rejection boundary, not a true upper bound for ended: ended accumulates one end-turn
+        // child per action layer, and a deep single turn can add more layers than MaxLegalActions.
         int maxChildren = checked(width * (FlashKernel.MaxLegalActions + 1));
         int initialChildren = Math.Min(maxChildren, Math.Max(64, width * 8));
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
@@ -1306,26 +1308,72 @@ internal sealed class FlashBeamSolver
     }
 
     /// <summary>
-    /// State pool with byte-exact deduplication keeping the best score. It doubles on demand up to
-    /// <c>maxCapacity</c>; exceeding that bound is a capacity rejection.
+    /// A fixed-size chunked array. Chunks are allocated on first write and never copied, so growing a
+    /// pool has no reallocation. Every chunk is made at least 85,000 bytes (except the state chunks,
+    /// which are deliberately larger; see <see cref="ComputeShift"/>) so it lands in the LOH instead of
+    /// being promoted repeatedly through Gen0/Gen1.
+    /// </summary>
+    private sealed class ChunkedArray<T>
+    {
+        private static readonly int Shift = ComputeShift();
+        public static int ChunkSize => 1 << Shift;
+        public static int ChunkMask => ChunkSize - 1;
+
+        private readonly T[]?[] _chunks;
+
+        public ChunkedArray(int maxCapacity)
+            => _chunks = new T[]?[(maxCapacity + ChunkSize - 1) >> Shift];
+
+        public ref T this[int index]
+        {
+            get
+            {
+                int chunkIndex = index >> Shift;
+                T[] chunk = _chunks[chunkIndex] ??= CreateChunk();
+                return ref chunk[index & ChunkMask];
+            }
+        }
+
+        private static T[] CreateChunk() => new T[ChunkSize];
+
+        private static int ComputeShift()
+        {
+            int size = Unsafe.SizeOf<T>();
+            int shift = 0;
+            while ((1 << shift) * size < 85_000)
+                shift++;
+            // FlashBattle is 12,408 bytes. 64 states (794,112 bytes) halve the LOH object count of
+            // the 32-state variant while remaining small enough to place as one block.
+            if (typeof(T) == typeof(FlashBattle) && shift < 6)
+                shift = 6;
+            return shift;
+        }
+    }
+
+    /// <summary>
+    /// State pool with byte-exact deduplication keeping the best score. State and parallel metadata
+    /// live in fixed-size chunks that are allocated on demand and never reallocated; exceeding
+    /// <c>maxCapacity</c> is a capacity rejection.
     /// </summary>
     private sealed class Pool
     {
         private readonly int _maxCapacity;
-        private FlashBattle[] _states;
-        private int[] _nodes;
-        private int[] _lineages;
-        private double[] _scores;
-        private double[] _ranks;
-        private ulong[] _hashes;
-        private RetentionFacts[] _facts;
+        private readonly ChunkedArray<FlashBattle> _states;
+        private readonly ChunkedArray<int> _nodes;
+        private readonly ChunkedArray<int> _lineages;
+        private readonly ChunkedArray<double> _scores;
+        private readonly ChunkedArray<double> _ranks;
+        private readonly ChunkedArray<ulong> _hashes;
+        private readonly ChunkedArray<RetentionFacts> _facts;
+        private readonly ChunkedArray<int> _potionCosts;
         private int[] _table;
-        private int[] _order;
-        private int[] _rankOrder;
-        private int[] _rankPosition;
-        private int[] _potionCosts;
-        private bool[] _taken;
-        private bool[] _required;
+        private readonly int[] _order;
+        private readonly int[] _rankOrder;
+        private readonly int[] _rankPosition;
+        private readonly bool[] _taken;
+        private readonly bool[] _required;
+        private FlashBattle _scratch;
+        private bool _scratchReserved;
         private readonly List<int> _selected = new();
         private readonly List<int> _requiredScratch = new();
         private readonly Dictionary<int, LineageLeaders> _lineageLeaders = new();
@@ -1343,21 +1391,23 @@ internal sealed class FlashBeamSolver
             _maxCapacity = maxCapacity;
             _preserveTheft = preserveTheft;
             _scorer = scorer;
-            int capacity = Math.Clamp(initialCapacity, 1, maxCapacity);
-            _states = new FlashBattle[capacity];
-            _nodes = new int[capacity];
-            _lineages = new int[capacity];
-            _scores = new double[capacity];
-            _ranks = new double[capacity];
-            _hashes = new ulong[capacity];
-            _facts = new RetentionFacts[capacity];
-            _order = new int[capacity];
-            _rankOrder = new int[capacity];
-            _rankPosition = new int[capacity];
-            _potionCosts = new int[capacity];
-            _taken = new bool[capacity];
-            _required = new bool[capacity];
-            _table = new int[TableSize(capacity)];
+            _states = new ChunkedArray<FlashBattle>(maxCapacity);
+            _nodes = new ChunkedArray<int>(maxCapacity);
+            _lineages = new ChunkedArray<int>(maxCapacity);
+            _scores = new ChunkedArray<double>(maxCapacity);
+            _ranks = new ChunkedArray<double>(maxCapacity);
+            _hashes = new ChunkedArray<ulong>(maxCapacity);
+            _facts = new ChunkedArray<RetentionFacts>(maxCapacity);
+            _potionCosts = new ChunkedArray<int>(maxCapacity);
+            // The rank/selection scratch stays contiguous because Span.Sort needs a single span. It is
+            // sized to the capacity bound once (three int arrays plus two flags, ~1 MB at width 512)
+            // instead of being reallocated while the beam grows.
+            _order = new int[maxCapacity];
+            _rankOrder = new int[maxCapacity];
+            _rankPosition = new int[maxCapacity];
+            _taken = new bool[maxCapacity];
+            _required = new bool[maxCapacity];
+            _table = new int[TableSize(Math.Clamp(initialCapacity, 1, maxCapacity))];
         }
 
         private static int TableSize(int capacity)
@@ -1368,36 +1418,27 @@ internal sealed class FlashBeamSolver
             return size;
         }
 
-        private void Grow()
-        {
-            if (_states.Length >= _maxCapacity)
-                throw new FlashCapacityException("FlashBeam.Pool", _maxCapacity);
-            int capacity = (int)Math.Min(_maxCapacity, (long)_states.Length * 2);
-            Array.Resize(ref _states, capacity);
-            Array.Resize(ref _nodes, capacity);
-            Array.Resize(ref _lineages, capacity);
-            Array.Resize(ref _scores, capacity);
-            Array.Resize(ref _ranks, capacity);
-            Array.Resize(ref _hashes, capacity);
-            Array.Resize(ref _facts, capacity);
-            Array.Resize(ref _order, capacity);
-            Array.Resize(ref _rankOrder, capacity);
-            Array.Resize(ref _rankPosition, capacity);
-            Array.Resize(ref _potionCosts, capacity);
-            Array.Resize(ref _taken, capacity);
-            Array.Resize(ref _required, capacity);
-            _table = new int[TableSize(capacity)];
-            int mask = _table.Length - 1;
-            for (int index = 0; index < Count; index++)
-                _table[FreeSlot(_hashes[index], mask)] = index + 1;
-        }
-
         private int FreeSlot(ulong hash, int mask)
         {
             int slot = (int)(hash & (ulong)mask);
             while (_table[slot] != 0)
                 slot = (slot + 1) & mask;
             return slot;
+        }
+
+        private void GrowTable()
+        {
+            int[] table = new int[_table.Length * 2];
+            int mask = table.Length - 1;
+            for (int index = 0; index < Count; index++)
+            {
+                ulong hash = _hashes[index];
+                int slot = (int)(hash & (ulong)mask);
+                while (table[slot] != 0)
+                    slot = (slot + 1) & mask;
+                table[slot] = index + 1;
+            }
+            _table = table;
         }
 
         public int Count { get; private set; }
@@ -1442,35 +1483,53 @@ internal sealed class FlashBeamSolver
         }
 
         /// <summary>
-        /// The first free slot, for building a state in place before <see cref="CommitReserved"/>. Any
-        /// other call on this pool invalidates the returned reference.
+        /// The first free slot, for building a state in place before <see cref="CommitReserved"/>. A
+        /// chunk boundary or the capacity bound uses the scratch slot instead, so a duplicate or a
+        /// terminal child never allocates a chunk. Any other call on this pool invalidates the
+        /// returned reference.
         /// </summary>
         public ref FlashBattle Reserve()
         {
-            if (Count >= _states.Length)
-                Grow();
-            return ref _states[Count];
+            // At the explicit capacity bound the whole Flash attempt is about to be rejected. Fail
+            // before building another child, exactly like the former array growth did, so a full
+            // ended pool cannot keep expanding (and holding) more children until a unique commit.
+            if (Count >= _maxCapacity)
+                throw new FlashCapacityException("FlashBeam.Pool", _maxCapacity);
+            if ((Count & ChunkedArray<FlashBattle>.ChunkMask) != 0)
+            {
+                _scratchReserved = false;
+                return ref _states[Count];
+            }
+            _scratchReserved = true;
+            return ref _scratch;
         }
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
         public bool CommitReserved(int node, double score, double rank, int potionCost,
             in FlashScoreFeatures features, int depth, int lineage)
-            => Insert(ref _states[Count], reserved: true, node, score, rank, potionCost,
+        {
+            if (_scratchReserved)
+            {
+                return Insert(ref _scratch, inPlace: false, node, score, rank, potionCost,
+                    features, default, factsReady: false, depth, lineage);
+            }
+            return Insert(ref _states[Count], inPlace: true, node, score, rank, potionCost,
                 features, default, factsReady: false, depth, lineage);
+        }
 
         /// <summary>Adds a scored state and computes its retention-only values when it is stored.</summary>
         public bool AddScored(in FlashBattle state, int node, double score, double rank, int potionCost,
             in FlashScoreFeatures features, int depth, int lineage)
-            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false,
+            => Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, potionCost, features, default, factsReady: false, depth, lineage);
 
         /// <summary>Adds a state whose retention facts are already computed (pool-to-pool copies).</summary>
         public bool Add(in FlashBattle state, int node, double score, double rank, int potionCost,
             in RetentionFacts facts, int lineage)
-            => Insert(ref System.Runtime.CompilerServices.Unsafe.AsRef(in state), reserved: false,
+            => Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, potionCost, default, facts, factsReady: true, facts.Depth, lineage);
 
-        private bool Insert(ref FlashBattle state, bool reserved, int node, double score, double rank,
+        private bool Insert(ref FlashBattle state, bool inPlace, int node, double score, double rank,
             int potionCost, in FlashScoreFeatures features, in RetentionFacts knownFacts, bool factsReady,
             int depth, int lineage)
         {
@@ -1500,6 +1559,10 @@ internal sealed class FlashBeamSolver
                 }
                 slot = (slot + 1) & mask;
             }
+            // The capacity bound is checked only after the state is known to be unique: a duplicate or a
+            // terminal child built in the scratch slot never needs a seat.
+            if (Count >= _maxCapacity)
+                throw new FlashCapacityException("FlashBeam.Pool", _maxCapacity);
             RetentionFacts facts = knownFacts;
             if (!factsReady)
             {
@@ -1508,22 +1571,20 @@ internal sealed class FlashBeamSolver
                 facts = RetentionFacts.From(
                     features, depth, reachableHandValue, zeroCostPlayableCount);
             }
-            if (Count >= _states.Length)
-            {
-                Grow();
-                slot = FreeSlot(hash, _table.Length - 1);
-            }
-            int index = Count++;
-            if (!reserved)
-                _states[index] = state;
-            _nodes[index] = node;
-            _lineages[index] = lineage;
-            _scores[index] = score;
-            _ranks[index] = rank;
-            _hashes[index] = hash;
-            _facts[index] = facts;
-            _potionCosts[index] = potionCost;
-            _table[slot] = index + 1;
+            if ((Count + 1) * 2 > _table.Length)
+                GrowTable();
+            ref FlashBattle destination = ref _states[Count];
+            if (!inPlace)
+                destination = state;
+            _nodes[Count] = node;
+            _lineages[Count] = lineage;
+            _scores[Count] = score;
+            _ranks[Count] = rank;
+            _hashes[Count] = hash;
+            _facts[Count] = facts;
+            _potionCosts[Count] = potionCost;
+            _table[FreeSlot(hash, _table.Length - 1)] = Count + 1;
+            Count++;
             return true;
         }
 
@@ -1944,10 +2005,10 @@ internal sealed class FlashBeamSolver
 
         private readonly struct RankOrderComparer : IComparer<int>
         {
-            private readonly double[] _ranks;
-            private readonly RetentionFacts[] _facts;
+            private readonly ChunkedArray<double> _ranks;
+            private readonly ChunkedArray<RetentionFacts> _facts;
 
-            public RankOrderComparer(double[] ranks, RetentionFacts[] facts)
+            public RankOrderComparer(ChunkedArray<double> ranks, ChunkedArray<RetentionFacts> facts)
             {
                 _ranks = ranks;
                 _facts = facts;
@@ -1969,10 +2030,10 @@ internal sealed class FlashBeamSolver
 
         private readonly struct EnemyHpOrderComparer : IComparer<int>
         {
-            private readonly RetentionFacts[] _facts;
+            private readonly ChunkedArray<RetentionFacts> _facts;
             private readonly int[] _rankPosition;
 
-            public EnemyHpOrderComparer(RetentionFacts[] facts, int[] rankPosition)
+            public EnemyHpOrderComparer(ChunkedArray<RetentionFacts> facts, int[] rankPosition)
             {
                 _facts = facts;
                 _rankPosition = rankPosition;
