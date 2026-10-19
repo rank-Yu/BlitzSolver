@@ -165,3 +165,24 @@ public sealed class Void : FlashCardDef
         FlashKernel.LoseEnergy(ref x, x.R.Card(drawn.Id, drawn.Upgrade).Vars[0]);
     }
 }
+
+/// <summary>
+/// Native <c>FranticEscape</c> (TheInsatiable's LIQUIFY_GROUND): when played, increments the Sandpit
+/// targeting counter of its owner and adds one to its own combat energy cost
+/// (<c>P/CardOnPlaySupport.Batch042.cs:64</c>, the existing engine's compensation; its native
+/// damage/effect hooks are otherwise out of scope). The played card is the last entry of the play
+/// pile while OnPlay runs, matching UpMySleeve's handling.
+/// </summary>
+[FlashContent("FRANTIC_ESCAPE")]
+public sealed class FranticEscape : FlashCardDef
+{
+    public override void OnPlay(ref FlashExec x)
+    {
+        FlashKernel.IncrementSandpitTargeting(ref x, FlashLimits.PlayerOwner);
+        int position = x.B.PlayCount - 1;
+        if (position < 0)
+            throw new InvalidOperationException("夺路而逃没有正在打出的卡。");
+        FlashKernel.AddEnergyCostModifier(ref FlashPiles.At(ref x.B, FlashPile.Play, position), 1,
+            FlashCostType.Relative, FlashCostExpiration.EndOfCombat, reduceOnly: false);
+    }
+}

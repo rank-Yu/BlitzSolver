@@ -213,6 +213,9 @@ public sealed class FlashPotionStats
 
     public required FlashPotionRarity Rarity { get; init; }
 
+    /// <summary><c>PotionUsePolicy.StrategicHpCost</c> of the canonical potion.</summary>
+    public required int StrategicCost { get; init; }
+
     public required decimal[] Vars { get; init; }
 
     /// <summary>Value props of each named variable (damage and block variables carry them; others are None).</summary>
@@ -240,6 +243,8 @@ public sealed class FlashRules
     private readonly Dictionary<ushort, int> _spawnRules;
     private readonly Dictionary<string, FlashCardPool> _cardPools;
     private readonly ushort[] _potionPool;
+    private readonly ushort[] _outOfCombatPotionPool;
+    private readonly ushort[] _rootPotions;
     private readonly string[] _encounterSlots;
 
     internal FlashRules(
@@ -251,6 +256,8 @@ public sealed class FlashRules
         Dictionary<ushort, int> spawnRules,
         Dictionary<string, FlashCardPool> cardPools,
         ushort[] potionPool,
+        ushort[] outOfCombatPotionPool,
+        ushort[] rootPotions,
         bool hasEncounter,
         string[] encounterSlots,
         int rootEnemyCount,
@@ -266,6 +273,8 @@ public sealed class FlashRules
         _spawnRules = spawnRules;
         _cardPools = cardPools;
         _potionPool = potionPool;
+        _outOfCombatPotionPool = outOfCombatPotionPool;
+        _rootPotions = rootPotions;
         HasEncounter = hasEncounter;
         _encounterSlots = encounterSlots;
         RootEnemyCount = rootEnemyCount;
@@ -324,6 +333,19 @@ public sealed class FlashRules
     /// <summary>Root-frozen random-potion candidates, in the existing engine's option order.</summary>
     public IReadOnlyList<ushort> PotionPool => _potionPool;
 
+    /// <summary>
+    /// <c>PotionFactory.CreateRandomPotionOutOfCombat</c>'s candidates: every unlocked character and
+    /// shared potion (no <c>CanBeGeneratedInCombat</c> filter), in the same order.
+    /// </summary>
+    public IReadOnlyList<ushort> OutOfCombatPotionPool => _outOfCombatPotionPool;
+
+    /// <summary>
+    /// Root potion ids by slot, encoded as internal id + 1 (0 = empty). Used by the kernel to tell a
+    /// generated potion from a root potion when accounting <c>PotionUseCount</c>.
+    /// </summary>
+    public ushort RootPotion(int slot)
+        => (uint)slot < (uint)_rootPotions.Length ? _rootPotions[slot] : (ushort)0;
+
     /// <summary>A canonical dynamic variable of a relic, in the order its definition names them.</summary>
     public decimal RelicVar(ushort relicId, int index)
     {
@@ -371,6 +393,8 @@ public sealed class FlashRulesBuilder
     private readonly Dictionary<ushort, int> _spawnRules = [];
     private readonly Dictionary<string, FlashCardPool> _cardPools = new(StringComparer.Ordinal);
     private ushort[] _potionPool = [];
+    private ushort[] _outOfCombatPotionPool = [];
+    private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private int _monsterRuleCount;
 
     public int BaseMaxEnergy { get; set; }
@@ -419,6 +443,15 @@ public sealed class FlashRulesBuilder
 
     public void SetPotionPool(ushort[] potions) => _potionPool = potions;
 
+    public void SetOutOfCombatPotionPool(ushort[] potions) => _outOfCombatPotionPool = potions;
+
+    public void SetRootPotion(int slot, ushort id)
+    {
+        if ((uint)slot >= (uint)FlashLimits.PotionSlots)
+            throw new FlashCapacityException("PotionSlots", FlashLimits.PotionSlots);
+        _rootPotions[slot] = checked((ushort)(id + 1));
+    }
+
     public void SetRelicVars(ushort id, decimal[] vars) => _relicVars[id] = vars;
 
     public void SetMonster(int enemyIndex, FlashMonsterRules rules)
@@ -462,6 +495,8 @@ public sealed class FlashRulesBuilder
             (FlashMonsterRules?[])_monsters.Clone(), new Dictionary<ushort, int>(_spawnRules),
             new Dictionary<string, FlashCardPool>(_cardPools, StringComparer.Ordinal),
             (ushort[])_potionPool.Clone(),
+            (ushort[])_outOfCombatPotionPool.Clone(),
+            (ushort[])_rootPotions.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount);
     }
 

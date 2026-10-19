@@ -78,6 +78,9 @@ public enum FlashChoiceKind : byte
 {
     None = 0,
     SelectCards = 1,
+
+    /// <summary>Pick one of a fixed option list (Knowledge Demon's curse cards).</summary>
+    SelectOption = 2,
 }
 
 /// <summary>What the selected cards undergo; mirrors the supported <c>PlanChoiceEffect</c> values.</summary>
@@ -112,6 +115,12 @@ public enum FlashChoiceEffect : byte
 
     /// <summary>Modify the selected cards in place (Transfigure's cost and replay count).</summary>
     Modify,
+
+    /// <summary>
+    /// Knowledge Demon's CURSE_OF_KNOWLEDGE: the selected card option applies its curse power to the
+    /// player and advances the demon's <c>_curseOfKnowledgeCounter</c>.
+    /// </summary>
+    ApplyKnowledgeCurse,
 }
 
 /// <summary>Phase the choice belongs to; mirrors <c>PlanChoiceTiming</c>.</summary>

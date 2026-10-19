@@ -59,6 +59,38 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// A fixed option list (Knowledge Demon's curse cards): exactly one option is selected. Options are
+    /// carried by value in <see cref="FlashChoiceRequest.GeneratedOptions"/> because they never enter a
+    /// pile. Returns false when the action carried no choice for it.
+    /// </summary>
+    public static bool ChooseOption(ref FlashExec x, FlashChoiceEffect effect, scoped ReadOnlySpan<FlashCard> options,
+        out int selected)
+    {
+        if (options.IsEmpty)
+            throw new FlashUnsupportedException("固定选项选择没有候选。");
+        if (options.Length > FlashLimits.MaxGeneratedChoiceOptions)
+            throw new FlashCapacityException("Choice.GeneratedOptions", FlashLimits.MaxGeneratedChoiceOptions);
+        FlashChoiceRequest request = new()
+        {
+            Kind = FlashChoiceKind.SelectOption,
+            Effect = effect,
+            Timing = x.ChoiceTiming,
+            SourceIsNone = true,
+            OptionsAreGenerated = true,
+            OptionCount = checked((byte)options.Length),
+            MinCount = 1,
+            MaxCount = 1,
+        };
+        for (int index = 0; index < options.Length; index++)
+            request.GeneratedOptions[index] = options[index];
+        selected = 0;
+        if (!x.TryTakeChoice(request, out ulong selection))
+            return false;
+        selected = System.Numerics.BitOperations.TrailingZeroCount(selection);
+        return true;
+    }
+
+    /// <summary>
     /// A selected card remembered by value and by occurrence: it is the <see cref="Occurrence"/>-th card
     /// byte-equal to <see cref="Card"/> in its pile. Equal cards at different positions are not
     /// interchangeable (removing one or the other leaves the pile in a different order), so the

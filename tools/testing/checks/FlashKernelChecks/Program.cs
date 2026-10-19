@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CombatSolver.Engine.InCombat.Flash;
 using CombatSolver.Engine.InCombat.Flash.Content.Afflictions;
+using CombatSolver.Engine.InCombat.Flash.Content.Cards.Status;
 using CombatSolver.Engine.InCombat.Flash.Content.Enchantments;
 using CombatSolver.Engine.InCombat.Flash.Content.Powers;
 using CombatSolver.Engine.InCombat.Flash.Content.Relics;
@@ -34,6 +35,7 @@ CheckKaAttachments();
 CheckP16Kernel(rules);
 CheckSkKernel();
 CheckNbKernel();
+CheckMbKernel(rules);
 CheckDfKernel(rules);
 CheckRgKernel(rules);
 CheckLrKernel(rules);
@@ -460,6 +462,112 @@ static void CheckDfKernel(FlashRules rules)
         "临时力量首次施加应同时获得 3 力量");
 }
 
+// MB: contracts for the fixed-option choice protocol (Knowledge Demon's curse), the instanced
+// targeted SandpitPower (exact-instance decrement), and EntropicBrew's out-of-combat pool with the
+// freeFromEntropic slot mask and generated-use counter.
+static void CheckMbKernel(FlashRules battleRules)
+{
+    Check(FlashRegistry.TryPower("SANDPIT_POWER", out ushort sandpit), "缺少 SANDPIT_POWER");
+    FlashBattle battle = NewBattle();
+    FlashAction noChoice = default;
+    FlashExec x = new(ref battle, battleRules, noChoice);
+    Check(FlashKernel.ApplyPowerTargeted(ref x, FlashLimits.FirstEnemyOwner, FlashLimits.PlayerOwner,
+        sandpit, 4, FlashLimits.FirstEnemyOwner) == 4, "沙坑首次施加应为 4 层");
+    Check(FlashKernel.ApplyPowerTargeted(ref x, FlashLimits.FirstEnemyOwner, FlashLimits.PlayerOwner,
+        sandpit, 4, FlashLimits.FirstEnemyOwner) == 4, "沙坑第二次施加应为独立实例");
+    Check(FlashKernel.GetAmount(battle, FlashLimits.FirstEnemyOwner, sandpit) == 4,
+        "GetAmount 读取第一个沙坑实例应为 4 层");
+    int first = FlashKernel.FindPower(battle, FlashLimits.FirstEnemyOwner, sandpit);
+    int last = FlashKernel.FindLastPower(battle, FlashLimits.FirstEnemyOwner, sandpit);
+    Check(first != last && battle.Powers[first].Target == FlashLimits.PlayerOwner
+        && battle.Powers[last].Target == FlashLimits.PlayerOwner,
+        "沙坑的两个实例都应记录玩家目标");
+    FlashKernel.IncrementSandpitTargeting(ref x, FlashLimits.PlayerOwner);
+    Check(battle.Powers[first].Amount == 5 && battle.Powers[last].Amount == 4,
+        "FranticEscape 应只增加第一个沙坑实例");
+    FlashKernel.SetPowerAmountAt(ref battle, first, 1);
+    Check(battle.Powers[first].Amount == 1 && battle.Powers[last].Amount == 4,
+        "沙坑计数应只改访问到的实例");
+    FlashKernel.SetPowerAmountAt(ref battle, first, 0);
+    Check(battle.PowerCount == 1 && battle.Powers[0].Amount == 4,
+        "沙坑归零应只移除该实例");
+
+    // Fixed option list: exactly one bit is selected and the request carries the option values.
+    FlashBattle optionBattle = NewBattle();
+    FlashAction optionAction = FlashAction.EndTurn().WithChoice(0b10);
+    FlashExec optionExec = new(ref optionBattle, battleRules, optionAction);
+    Span<FlashCard> options = stackalloc FlashCard[2];
+    options[0] = FlashKernel.CreateCard(battleRules, FlashRegistry.CardId<Disintegration>());
+    options[1] = FlashKernel.CreateCard(battleRules, FlashRegistry.CardId<MindRot>());
+    Check(FlashKernel.ChooseOption(ref optionExec, FlashChoiceEffect.ApplyKnowledgeCurse, options, out int selected),
+        "固定选项选择应被动作满足");
+    Check(selected == 1 && !optionExec.NeedsChoice, "固定选项应选中第二个选项");
+    FlashExec missing = new(ref optionBattle, battleRules, default);
+    Check(!FlashKernel.ChooseOption(ref missing, FlashChoiceEffect.ApplyKnowledgeCurse, options, out _),
+        "动作没有选择时固定选项应返回 NeedsChoice");
+    Check(missing.NeedsChoice && missing.Request.Kind == FlashChoiceKind.SelectOption
+        && missing.Request.OptionCount == 2 && missing.Request.MinCount == 1 && missing.Request.MaxCount == 1,
+        "固定选项请求应为 2 项单选");
+    FlashExec invalid = new(ref optionBattle, battleRules, FlashAction.EndTurn().WithChoice(0b11));
+    bool rejected = false;
+    try
+    {
+        FlashKernel.ChooseOption(ref invalid, FlashChoiceEffect.ApplyKnowledgeCurse, options, out _);
+    }
+    catch (InvalidOperationException)
+    {
+        rejected = true;
+    }
+    Check(rejected, "固定选项选择两个或零个选项应被拒绝");
+
+    // EntropicBrew: out-of-combat pool generation fills an open slot with freeFromEntropic set; using
+    // that generated potion records one generated use and clears the slot's free bit.
+    FlashRules rules = MbPotionRules();
+    Check(FlashRegistry.TryPotion("ENTROPIC_BREW", out ushort brew), "缺少 ENTROPIC_BREW");
+    Check(FlashRegistry.TryPotion("FIRE_POTION", out ushort fire), "缺少 FIRE_POTION");
+    FlashBattle potionBattle = NewBattle();
+    potionBattle.PotionSlotCount = 1;
+    potionBattle.Potions[0] = (ushort)(brew + 1);
+    // The pool has a single Common potion; this recorded state's first rarity roll is 0.875.
+    potionBattle.RngStream(FlashRngStream.CombatPotionGeneration) = FlashRngState.FromSerializable(
+        0, 0x161922C645CE50E8, 0xAD760CAFA1697B60, 0x3501FF44902CA50D, 0x417CB9A826D831DF);
+    FlashKernel.Step(ref potionBattle, FlashAction.UsePotion(0, FlashLimits.NoOwner), rules, out _);
+    Check(potionBattle.Potions[0] == (ushort)(fire + 1) && potionBattle.Potions[0] != brew + 1,
+        "EntropicBrew 应把随机战斗外药水放入空槽");
+    Check((potionBattle.Counter(FlashCounter.EntropicFreePotionMask) & 0b1) != 0,
+        "EntropicBrew 生成的药水槽应标记为 free");
+    int enemyHp = potionBattle.Enemies[0].Creature.CurrentHp;
+    FlashKernel.Step(ref potionBattle, FlashAction.UsePotion(0, FlashLimits.FirstEnemyOwner), rules, out _);
+    Check(potionBattle.Potions[0] == 0 && potionBattle.Counter(FlashCounter.GeneratedPotionUseCount) == 1,
+        "使用免费药水应记录一次生成药水使用");
+    Check(potionBattle.Counter(FlashCounter.GeneratedPotionStrategicCost) == 0,
+        "免费药水不应计入生成药水战略成本");
+    Check(potionBattle.Counter(FlashCounter.EntropicFreePotionMask) == 0, "使用后应清除免费位");
+    Check(potionBattle.Enemies[0].Creature.CurrentHp < enemyHp, "免费药水效果应正常结算");
+}
+
+static FlashRules MbPotionRules()
+{
+    FlashRulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, BaseOrbSlotCount = 0 };
+    Check(FlashRegistry.TryPotion("ENTROPIC_BREW", out ushort brew), "缺少 ENTROPIC_BREW");
+    Check(FlashRegistry.TryPotion("FIRE_POTION", out ushort fire), "缺少 FIRE_POTION");
+    builder.SetPotion(brew, new FlashPotionStats
+    {
+        Target = FlashTargetType.Self, Rarity = FlashPotionRarity.Rare, StrategicCost = 0,
+        Vars = [], VarProps = [],
+    });
+    builder.SetPotion(fire, new FlashPotionStats
+    {
+        Target = FlashTargetType.AnyEnemy, Rarity = FlashPotionRarity.Common, StrategicCost = 9,
+        Vars = [20m], VarProps = [FlashValueProps.None],
+    });
+    builder.SetPotionPool([fire]);
+    builder.SetOutOfCombatPotionPool([fire]);
+    builder.SetRootPotion(0, brew);
+    FlashRules built = builder.Build();
+    return built;
+}
+
 static FlashRules SliceRules()
 {
     FlashRulesBuilder builder = new()
@@ -511,6 +619,12 @@ static FlashRules SliceRules()
     LrCard("KINGLY_KICK", FlashCardType.Attack, FlashTargetType.AnyEnemy, 4, [27m]);
     LrCard("KINGLY_PUNCH", FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [8m, 4m]);
     LrCard("VOID_FORM", FlashCardType.Power, FlashTargetType.Self, 3, [2m]);
+
+    // MB: Knowledge Demon's fixed curse options only need canonical card values.
+    FlashRegistry.TryCard("DISINTEGRATION", out ushort disintegration);
+    builder.SetCard(disintegration, 0, Stats(FlashCardType.Status, FlashTargetType.Self, -1, []));
+    FlashRegistry.TryCard("MIND_ROT", out ushort mindRot);
+    builder.SetCard(mindRot, 0, Stats(FlashCardType.Status, FlashTargetType.Self, -1, []));
     FlashRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable);
     builder.SetPowerVars(vulnerable, [1.5m]);
     FlashRegistry.TryMonster("NIBBIT", out ushort nibbit);

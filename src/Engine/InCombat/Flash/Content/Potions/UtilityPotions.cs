@@ -293,3 +293,37 @@ public sealed class StarPotion : FlashPotionDef
         FlashKernel.GainStars(ref x, (int)FlashKernel.PotionVar(x, this, 0));
     }
 }
+
+/// <summary>
+/// Native <c>EntropicBrew</c>: while the player has an open potion slot, draw a random potion from
+/// <c>PotionFactory.CreateRandomPotionOutOfCombat</c> (the unfiltered character + shared pool) and
+/// procure it with <c>freeFromEntropic: true</c>; stop when procurement fails
+/// (<c>PotionOnUseSupport.Use</c> EntropicBrew case). The free flag matters only for the later
+/// use's strategic cost, so procurement marks the slot in <see cref="FlashCounter.EntropicFreePotionMask"/>.
+/// </summary>
+[FlashContent("ENTROPIC_BREW")]
+public sealed class EntropicBrew : FlashPotionDef
+{
+    public override bool GeneratesOutOfCombatPotion => true;
+
+    public override void OnUse(ref FlashExec x)
+    {
+        for (int guard = 0; guard < FlashLimits.PotionSlots; guard++)
+        {
+            bool open = false;
+            for (int slot = 0; slot < x.B.PotionSlotCount; slot++)
+            {
+                if (x.B.Potions[slot] == 0)
+                {
+                    open = true;
+                    break;
+                }
+            }
+            if (!open)
+                return;
+            ushort potion = FlashKernel.GenerateRandomPotionOutOfCombat(ref x.B, x.R);
+            if (!FlashKernel.TryProcurePotion(ref x.B, potion, freeFromEntropic: true))
+                return;
+        }
+    }
+}

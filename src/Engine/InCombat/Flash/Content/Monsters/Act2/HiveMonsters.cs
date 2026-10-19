@@ -297,3 +297,152 @@ public sealed class Tunneler : FlashMonsterDef
         FlashKernel.GainBlock(ref x, owner, rules.StaticInts[BlockGain], FlashValueProps.Move, fromCard: false);
     }
 }
+/// <summary>
+/// TheInsatiable: "SALIVATE_MOVE" applies <c>SalivateStrength</c> Strength to itself;
+/// "LIQUIFY_GROUND_MOVE" applies 4 targeted Sandpit to the player and adds three FranticEscape to a
+/// random draw position and three to a random discard position (<c>P/MonsterMoveEffects.cs:938</c>,
+/// the existing engine's compensation). Attacks and branch weights come from the compiled state
+/// machine; THRASH/LUNGING_BITE have no extra effect.
+/// </summary>
+[FlashContent("THE_INSATIABLE")]
+public sealed class TheInsatiable : FlashMonsterDef
+{
+    private const int LiquifySandpit = 4;
+    private const int LiquifyCardsPerPile = 3;
+
+    public override IReadOnlyList<string> StaticIntNames => ["SalivateStrength"];
+
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("FRANTIC_ESCAPE", 0)];
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        switch (rules.Nodes[moveNode].NativeId)
+        {
+            case "SALIVATE_MOVE":
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                    rules.StaticInts[0], owner);
+                break;
+            case "LIQUIFY_GROUND_MOVE":
+                FlashKernel.ApplyPowerTargeted(ref x, owner, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.SandpitPower>(), LiquifySandpit, owner);
+                for (int index = 0; index < LiquifyCardsPerPile; index++)
+                {
+                    FlashKernel.AddGeneratedCard(ref x,
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.FranticEscape>()),
+                        FlashPile.Draw, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
+                }
+                for (int index = 0; index < LiquifyCardsPerPile; index++)
+                {
+                    FlashKernel.AddGeneratedCard(ref x,
+                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.FranticEscape>()),
+                        FlashPile.Discard, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
+                }
+                break;
+        }
+    }
+}
+
+/// <summary>
+/// KnowledgeDemon: "CURSE_OF_KNOWLEDGE_MOVE" asks the player to choose one of two curse cards and
+/// immediately applies its power (<c>P/KnowledgeDemonChoiceSupport.cs</c>); the native
+/// <c>_curseOfKnowledgeCounter</c> selects the option set, gates the PONDER branch and is advanced
+/// after the choice. "PONDER_MOVE" heals 30 and gains <c>PonderStrength</c>
+/// (<c>MonsterMoveEffects.Apply</c>); SLAP and KNOWLEDGE_OVERWHELMING are pure attacks. The branch
+/// after PONDER reads the counter (<c>BranchMonsterAi.Advance</c>): below three it returns to CURSE,
+/// otherwise SLAP.
+/// </summary>
+[FlashContent("KNOWLEDGE_DEMON")]
+public sealed class KnowledgeDemon : FlashMonsterDef
+{
+    private const int CurseSetCount = 3;
+    private const int PonderHeal = 30;
+    private const int DisintegrationBase = 6;
+    private const int MindRotAmount = 1;
+    private const int SlothAmount = 3;
+    private const int WasteAwayAmount = 1;
+
+    public override IReadOnlyList<string> StaticIntNames => ["PonderStrength"];
+
+    // _monsterIntStates: the native KnowledgeDemon._curseOfKnowledgeCounter, read by the option set,
+    // the PONDER conditional branch and the choice resolution.
+    public override IReadOnlyList<string> AiRegisterNames => ["_curseOfKnowledgeCounter"];
+
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards =>
+        [("DISINTEGRATION", 0), ("MIND_ROT", 0), ("SLOTH", 0), ("WASTE_AWAY", 0)];
+
+    public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
+    {
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        if (rules.Nodes[branchNode].NativeId != "CurseOfKnowledgeBranch")
+            return -1;
+        int counter = x.B.Enemy(owner).Ai[0];
+        return rules.NodeIndex(counter < CurseSetCount ? "CURSE_OF_KNOWLEDGE_MOVE" : "SLAP_MOVE");
+    }
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        switch (rules.Nodes[moveNode].NativeId)
+        {
+            case "CURSE_OF_KNOWLEDGE_MOVE":
+                ResolveCurseChoice(ref x, owner);
+                break;
+            case "PONDER_MOVE":
+                FlashKernel.Heal(ref x, owner, PonderHeal);
+                if (x.NeedsChoice)
+                    return;
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                    rules.StaticInts[0], owner);
+                break;
+        }
+    }
+
+    private static void ResolveCurseChoice(ref FlashExec x, byte owner)
+    {
+        int counter = x.B.Enemy(owner).Ai[0];
+        if ((uint)counter >= (uint)CurseSetCount)
+            throw new FlashUnsupportedException($"知识恶魔诅咒计数超出范围：{counter}。");
+
+        Span<ushort> optionIds = stackalloc ushort[2];
+        optionIds[0] = FlashRegistry.CardId<Cards.Status.Disintegration>();
+        optionIds[1] = counter switch
+        {
+            0 => FlashRegistry.CardId<Cards.Status.MindRot>(),
+            1 => FlashRegistry.CardId<Cards.Status.Sloth>(),
+            _ => FlashRegistry.CardId<Cards.Status.WasteAway>(),
+        };
+        Span<FlashCard> options = stackalloc FlashCard[2];
+        for (int index = 0; index < options.Length; index++)
+            options[index] = FlashKernel.CreateCard(x.R, optionIds[index]);
+        if (!FlashKernel.ChooseOption(ref x, FlashChoiceEffect.ApplyKnowledgeCurse, options, out int selected))
+            return;
+
+        ushort card = optionIds[selected];
+        if (card == FlashRegistry.CardId<Cards.Status.Disintegration>())
+        {
+            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+                FlashRegistry.PowerId<Powers.DisintegrationPower>(), DisintegrationBase + counter, FlashLimits.PlayerOwner);
+        }
+        else if (card == FlashRegistry.CardId<Cards.Status.MindRot>())
+        {
+            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+                FlashRegistry.PowerId<Powers.MindRotPower>(), MindRotAmount, FlashLimits.PlayerOwner);
+        }
+        else if (card == FlashRegistry.CardId<Cards.Status.Sloth>())
+        {
+            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+                FlashRegistry.PowerId<Powers.SlothPower>(), SlothAmount, FlashLimits.PlayerOwner);
+        }
+        else if (card == FlashRegistry.CardId<Cards.Status.WasteAway>())
+        {
+            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
+                FlashRegistry.PowerId<Powers.WasteAwayPower>(), WasteAwayAmount, FlashLimits.PlayerOwner);
+        }
+        else
+        {
+            throw new FlashUnsupportedException($"知识恶魔诅咒 {FlashRegistry.Card(card).NativeId} 没有模拟效果。");
+        }
+        x.B.Enemy(owner).Ai[0] = counter + 1;
+    }
+}

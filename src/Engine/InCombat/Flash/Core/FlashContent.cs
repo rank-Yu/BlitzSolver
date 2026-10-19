@@ -232,6 +232,13 @@ public enum FlashHookMaskExt : ulong
     /// while damage resolves, without the ending gate. Supports <c>DieForYouPower</c>'s Osty redirect.
     /// </summary>
     ModifyUnblockedDamageTarget = 1UL << 0,
+
+    /// <summary>
+    /// Native <c>AbstractModel.AfterSideTurnEndLate</c>: the fresh-listener late pass after the regular
+    /// end-of-side hooks (DisintegrationPower). Dispatch is in combat listener order, as
+    /// <c>HookMirrors.AfterSideTurnEndLate</c>.
+    /// </summary>
+    AfterSideTurnEndLate = 1UL << 32,
 }
 
 /// <summary>
@@ -309,6 +316,14 @@ public abstract class FlashContentDef
 /// </summary>
 public abstract class FlashListenerDef : FlashContentDef
 {
+    /// <summary>
+    /// Native <c>AbstractModel.AfterSideTurnEndLate</c>: the late pass with a fresh combat-listener
+    /// snapshot. <paramref name="participates"/> is <c>participants.Contains(self.Owner)</c>.
+    /// </summary>
+    public virtual void AfterSideTurnEndLate(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+    }
+
     /// <summary>Case in <c>PersistentPowerSupport.TriggerRampart</c> (player-side turn start only).</summary>
     public virtual void Rampart(ref FlashExec x, FlashListener self)
     {
@@ -1022,6 +1037,13 @@ public abstract class FlashPotionDef : FlashListenerDef
     /// offer still needs a definition to be held in a slot, but produces no action.
     /// </summary>
     public virtual bool Searchable => true;
+
+    /// <summary>
+    /// True when this potion can create a random potion with
+    /// <c>PotionFactory.CreateRandomPotionOutOfCombat</c> (EntropicBrew): the rule compiler freezes the
+    /// unfiltered character + shared potion pool, including potions that cannot be generated in combat.
+    /// </summary>
+    public virtual bool GeneratesOutOfCombatPotion => false;
 
     /// <summary>
     /// The potion's case in <c>PotionOnUseSupport.Use</c>. <see cref="FlashExec.Target"/> holds the chosen

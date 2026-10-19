@@ -36,6 +36,18 @@ public sealed class FairyInABottle : FlashPotionDef
     public override void AfterPreventingDeath(ref FlashExec x, FlashListener self, byte creature)
     {
         // PotionOnUseMirrors consume the slot, then the native OnUse heals max(1, 30% max HP).
+        int freeMask = x.B.Counter(FlashCounter.EntropicFreePotionMask);
+        int slotBit = 1 << self.Index;
+        bool freeFromEntropic = (freeMask & slotBit) != 0;
+        if (freeFromEntropic)
+            x.B.SetCounter(FlashCounter.EntropicFreePotionMask, freeMask & ~slotBit);
+        ushort storedPotion = x.B.Potions[self.Index];
+        if (storedPotion != x.R.RootPotion(self.Index))
+        {
+            x.B.AddCounter(FlashCounter.GeneratedPotionUseCount, 1);
+            FlashKernel.RecordGeneratedPotionStrategicCost(ref x.B,
+                freeFromEntropic ? 0 : x.R.Potion((ushort)(storedPotion - 1)).StrategicCost, automatic: true);
+        }
         x.B.Potions[self.Index] = 0;
         x.B.AddCounter(FlashCounter.AutomaticPotionUseCount, 1);
         decimal amount = Math.Max(1m, x.B.Creature(creature).MaxHp * 0.3m);

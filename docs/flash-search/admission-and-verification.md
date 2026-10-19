@@ -86,6 +86,14 @@ A3 的分支字典投影与退役规则：
 
 **退役状态的玩家死亡前提**：上面的惰性规则要求 `model.Amount == 0`、`model.Owner.Player` 存在且该玩家生物在模拟状态里已经死亡；存活玩家的退役 Power 状态仍被拒绝，不把“暂时归零但仍可能被读”的情况放宽。
 
+MB 新增的投影与惰性规则：
+
+- **Knowledge Demon 的诅咒计数**：`SimulatedCombatState._knowledgeDemonCurseCounters` 的每个键必须是已知的 KnowledgeDemon；值由该怪物的 `FlashMonsterDef.AiRegisterNames`（`_curseOfKnowledgeCounter`）认领并写入 `FlashEnemy.Ai`。没有分支字典条目时取原版模型字段 `_curseOfKnowledgeCounter`（`FlashStateProjections.GetMonsterIntForFlash` 的 KnowledgeDemon 分支），与现有引擎 `GetKnowledgeDemonCurseCounter` 的“条目优先、否则模型字段”一致。`_monsterIntStates` 中同名条目同样优先。
+- **AutomationPower 的退役计数**：`AutomationPredictionState` 的正层实例由 `ProjectPower` 认领到 `FlashPower.Aux0`；Power 归零移除后条目仍按退役模型留在 store。它的读取点（续发能量评估、指纹）只遍历正层 `EffectivePowers`，重新获得是新的原生实例，因此 `AutomationPower { Amount: 0 }` 的该条目按惰性处理。
+- **SlothPower 的退役计数**：`CounterPredictionState` 的正层实例由 `ProjectPower` 认领到 `FlashPower.Aux0`（无条目时读原生 `_cardsPlayedThisTurn`）。Power 归零移除后条目仍按退役模型留在 store；它的读取点（`ShouldPlay`、`BeforeCardPlayed`、状态指纹）只遍历正层 `EffectivePowers`，重新获得是新的原生实例，因此 `SlothPower { Amount: 0 }` 的该条目按惰性处理。
+- **EntropicBrew 的免费药水**：`_freeEntropicPotions` 的每个 `true` 条目投影为 `FlashCounter.EntropicFreePotionMask` 的对应槽位；使用该槽时清除。`PredictedPotionUse` 的每次使用按“该槽是否仍持有根药水”投影：不是根药水的使用计入 `GeneratedPotionUseCount`，其 `StrategicHpCost` 按自动/显式打包进 `GeneratedPotionStrategicCost`（免费 Entropic 药水的成本已经是 0），补上根药水槽 diff 看不到的 `PotionUseCount` 与成本。`false` 条目是使用后留下的退役标志，没有读取点。
+- **随机药水闭包**：随机药水池（战斗内与 EntropicBrew 的战斗外池）的每个候选都要有 Flash 药水定义；候选药水自身的 `GeneratedCards`/`GeneratedCardPools`/`AppliedPowers` 也进入闭包，避免“随机到一瓶会生成卡牌的药水”时缺规则表。闭包冻结后再展开，直到没有新增内容。
+
 **卡牌苦难与附魔投影（KA）**：`FlashStateImporter.Card` 读取 `Preview.Affliction`（Id、Amount）与 `Preview.Enchantment`（Id、Amount、Status、私有值），只接受 `FlashRegistry` 中已登记的苦难/附魔，其余按 `UnsupportedAffliction`/`UnsupportedEnchantment` 拒绝；Id 以 `+1` 编码，0 表示无。附魔私有值复用 `EnchantmentStateSupport.TryGetPrivateValue`（`Glam._usedThisCombat`、`Momentum._extraDamage`，与状态指纹同一读取口径），桥接层不新增反射。根卡牌的 `PowerAfflictionChecked` 置位，表示它们已参与现有引擎的一次性进场检查。`SimulatedCombatState.LastNormalizedVitalSparkAmountForFlash` 是只读访问器，导入 `VitalSparkNormalizedAmount`（`int.MinValue` 表示 null）；`SkillPlayedThisSideTurn` 从 `HasPlayedSkillThisTurn` 导入。已实现 18 个附魔：Sharp、Instinct、Corrupted、Momentum、Nimble、Goopy、TezcatarasEmber、Vigorous、Adroit、Inky、Sown、Swift、Glam、Spiral、Clone、Steady、RoyallyApproved、SoulsPower；Imbued、Slither、SlumberingEssence、PerfectFit 仍按未支持附魔拒绝（分别需要自动预打出、抽牌随机费用、BeforeFlush、按实例的洗牌顺序）。
 
 投影只读不写：旧引擎的本回合计数读取器首次读取时会从根历史填充缓存，因此 `FlashStateImporter` 先 Fork 一份私有模拟器再读取，调用方持有的状态（可能正被其他工作线程 Fork）保持不变。

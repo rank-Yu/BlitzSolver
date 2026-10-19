@@ -551,8 +551,24 @@ internal sealed class FlashScorer
             }
         }
 
-        // Sandpit is not admitted in the Flash content closure.
+        // CombatBeamSolver.StateEvaluation: positive Sandpit stacks targeting this player whose owner is
+        // alive, summed with checked overflow. The existing engine visits EffectivePowers (live roster
+        // powers); dead owners have their powers removed by ApplyEnemyDeathPowers.
         int sandpitRemaining = 0;
+        if (_score.SandpitPowerId != ushort.MaxValue)
+        {
+            for (int index = 0; index < battle.PowerCount; index++)
+            {
+                ref readonly FlashPower power = ref battle.Powers[index];
+                if (power.Id != _score.SandpitPowerId
+                    || power.Target != FlashLimits.PlayerOwner
+                    || !battle.Creature(power.Owner).IsAlive)
+                {
+                    continue;
+                }
+                sandpitRemaining = checked(sandpitRemaining + Math.Max(0, power.Amount));
+            }
+        }
 
         int vulnerableAttackWindow = Math.Min(
             SolverWeights.VulnerableAttackWindowCap,
@@ -587,6 +603,15 @@ internal sealed class FlashScorer
             }
         }
         int automaticPotionUseCount = battle.Counter(FlashCounter.AutomaticPotionUseCount);
+        // Generated potions never occupied a root slot, so the slot diff cannot see their use. The
+        // packed cost distinguishes explicit from automatic uses (Fairy in a Bottle); the free
+        // EntropicBrew uses carry zero.
+        potionUseCount = checked(potionUseCount + battle.Counter(FlashCounter.GeneratedPotionUseCount));
+        int generatedCosts = battle.Counter(FlashCounter.GeneratedPotionStrategicCost);
+        int generatedExplicitCost = generatedCosts & 0xFFFF;
+        int generatedAutomaticCost = (int)((uint)generatedCosts >> 16);
+        potionStrategicCost = checked(potionStrategicCost + generatedExplicitCost + generatedAutomaticCost);
+        explicitPotionStrategicCost = checked(explicitPotionStrategicCost + generatedExplicitCost);
         // A fixed prefix may already have spent potions; the search root's frozen counters keep these
         // cumulative values equal to the existing snapshot's instead of restarting at the prefix end.
         potionUseCount = checked(potionUseCount + _score.InitialPotionUseCount);
@@ -754,6 +779,22 @@ internal sealed class FlashScorer
         int hp = battle.Player.CurrentHp;
         int block = battle.Player.Block;
         int originalBlock = block;
+        // CombatBeamSolver.ProjectHpAfterThreat: a one-stack Sandpit targeting this player expires at
+        // the enemy side turn start and force-kills the player before the attack intent. Block and
+        // one-shot death saves cannot make standing pat survive that boundary.
+        if (_score.SandpitPowerId != ushort.MaxValue)
+        {
+            for (int index = 0; index < battle.PowerCount; index++)
+            {
+                ref readonly FlashPower power = ref battle.Powers[index];
+                if (power.Id == _score.SandpitPowerId && power.Amount == 1
+                    && power.Target == FlashLimits.PlayerOwner
+                    && battle.Creature(power.Owner).IsAlive)
+                {
+                    return new ThreatProjection(0, 0, 0);
+                }
+            }
+        }
         // CombatBeamSolver.ProjectHpAfterThreat's ostyHp: the pet absorbs redirected powered attacks
         // until it dies; the remaining loss spills over to the player.
         int ostyHp = (battle.Flags & FlashBattleFlags.OstyPresent) != 0 ? battle.Osty.CurrentHp : 0;
@@ -1420,27 +1461,45 @@ internal sealed class FlashScorer
     private (int Spend, int Capacity) CaptureEnergyRefundWindow(in FlashBattle battle,
         StrategicEffectContext context, bool skillsExhaust)
     {
-        int liveCount = battle.CardCount;
+        // CombatBeamSolver.CaptureEnergyRefundWindow's liveCards are Discard, Draw and Hand only;
+        // the played and exhausted piles do not participate in the projected cycle.
+        int liveCount = battle.HandCount + battle.DrawCount + battle.DiscardCount;
         if (liveCount == 0 || context.ReachableCards == 0)
             return (0, 0);
-        int maxEnergy = Math.Max(0, Rules.BaseMaxEnergy);
+        // PersistentPowerSupport.GetModifiedMaxEnergy: WasteAway and other ModifyMaxEnergy listeners
+        // reduce the future-turn energy supply. Probe a copy because the evaluation must not mutate
+        // the battle being scored.
+        FlashBattle probe = battle;
+        FlashExec probeExec = new(ref probe, Rules, default);
+        int maxEnergy = Math.Max(0, FlashKernel.ModifiedMaxEnergy(ref probeExec));
         int handCount = battle.HandCount;
         int futureTurns = Math.Min(Math.Max(0, context.RemainingTurns - 1),
             (Math.Max(0, context.ReachableCards - handCount) + 5 - 1) / 5);
         long energySupply = Math.Max(0, battle.Energy) + (long)maxEnergy * futureTurns;
         double visits = (double)context.ReachableCards / liveCount;
         double energyDemand = 0;
-        for (int index = 0; index < battle.CardCount; index++)
+        for (int pile = 0; pile < 3; pile++)
         {
-            ref readonly FlashCard card = ref battle.Cards[index];
-            FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-            if (card.HasKeyword(FlashKeywords.Unplayable) || skillsExhaust && stats.Type == FlashCardType.Skill)
-                continue;
-            int cost = (card.Flags & FlashCardFlags.CostsX) != 0
-                ? maxEnergy
-                : Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
-            bool singleUse = stats.Type == FlashCardType.Power || card.HasKeyword(FlashKeywords.Exhaust);
-            energyDemand += cost * (singleUse ? Math.Min(1, visits) : visits);
+            FlashPile segment = pile switch
+            {
+                0 => FlashPile.Discard,
+                1 => FlashPile.Draw,
+                _ => FlashPile.Hand,
+            };
+            int start = FlashPiles.Start(battle, segment);
+            int count = FlashPiles.Count(battle, segment);
+            for (int offset = 0; offset < count; offset++)
+            {
+                ref readonly FlashCard card = ref battle.Cards[start + offset];
+                FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+                if (card.HasKeyword(FlashKeywords.Unplayable) || skillsExhaust && stats.Type == FlashCardType.Skill)
+                    continue;
+                int cost = (card.Flags & FlashCardFlags.CostsX) != 0
+                    ? maxEnergy
+                    : Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
+                bool singleUse = stats.Type == FlashCardType.Power || card.HasKeyword(FlashKeywords.Exhaust);
+                energyDemand += cost * (singleUse ? Math.Min(1, visits) : visits);
+            }
         }
         long demand = (long)Math.Ceiling(energyDemand);
         return ((int)Math.Min(int.MaxValue, Math.Min(energySupply, demand)),

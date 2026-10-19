@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR 合入后）：FlashKernelChecks 通过；134 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条）、187 个固定根（`coverage/fixtures/cards/flash-*.json`）与 33 个生成牌组（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；只有含 Thrash 的 `deck-IRONCLAD-02`/`18` 按小数卡牌变量边界记 `unsupported`。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB 合入后）：FlashKernelChecks 通过；138 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条）、190 个固定根（`coverage/fixtures/cards/flash-*.json`）与 33 个生成牌组（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；只有含 Thrash 的 `deck-IRONCLAD-02`/`18` 按小数卡牌变量边界记 `unsupported`。
 
 ### 2.1 覆盖缺口
 
@@ -54,12 +54,12 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 第三幕（A3，2026-10-19）：实现荣耀的全部 18 个遭遇（25 种新怪物，含 Queen 的强制行动、Aeonglass 的力量与凋零计数、MagiKnight 的 Dampen 降级与恢复、Turret Operator、Soul Nexus、Living Shield 等），19 个 `coverage/fixtures/cards/flash-a3-*.json` 与 18 个遭遇的 FLASHM1/FLASHM2 自然根每根 48 条游走零差异；`FlashCard` 增加 `DampenOriginalUpgrade`，`FlashBattle` 12000 字节。第一、二幕剩余（P16）：剩余 16 张无色卡全部实现，AttackPotion、SkillPotion、PowerPotion、ColorlessPotion 补齐到 `PotionChoiceSupport` 的选择回放翻译后实现，另实现 GigantificationPotion；7 个 `flash-p16-*.json` 零差异。
 
-仍跳过：第一幕瀑布巨兽（动态攻击伤害、阻止战斗结束与评估特例）、穿着一件大衣的两只地精（偷窃）；EntropicBrew（战斗外药水池）；Thrash 的小数卡牌变量仍是显式边界；第二幕如下。未实现的附魔（Imbued、Slither、SlumberingEssence、PerfectFit）仍在准入拒绝。
+剩余怪物（MB，2026-10-19）：知识恶魔的怪物行动现在产生待处理的固定选项选择（`FlashChoiceKind.SelectOption`，接入选择翻译、回放与差分比较），实现四个诅咒 Power 与诅咒卡（只作为选项）并投影 `_knowledgeDemonCurseCounters`；无餍者的目标化 SandpitPower（敌方回合开始按行减层、归零击杀目标）、FranticEscape、评估中的 `SandpitRemaining` 与“1 层流沙必死”威胁特例；新 Hook `AfterSideTurnEndLate`（`FlashHookMaskExt`）。EntropicBrew 按现有引擎冻结战斗外随机药水池，免费药水与生成药水的用量和战略成本进入评估（K4 覆盖）。两个首领的 FLASHM1/FLASHM2 自然根与 `flash-mb-*` 固定根零差异。
+
+仍跳过：第一幕瀑布巨兽（SteamEruption 的死亡改写与爆发阶段、动态攻击伤害、阻止战斗结束与评估特例）；偷窃（穿着一件大衣的两只地精与 THIEVING_HOPPER：被偷卡牌身份与回收、Heist/Surprise 死亡生成、评估中的被偷资源）；Thrash 的小数卡牌变量仍是显式边界。未实现的附魔（Imbued、Slither、SlumberingEssence、PerfectFit）仍在准入拒绝。
 
 | 遭遇 | 缺失能力 | 机制位置 |
 | --- | --- | --- |
-| `KNOWLEDGE_DEMON_BOSS` | 其他（怪物选择协议）；状态无法用整数槽表达（`_knowledgeDemonCurseCounters`） | `S/SimulatedCombatState.KnowledgeDemon.cs`、`P/KnowledgeDemonChoiceSupport.cs`、`P/BranchMonsterAi.cs:160-170`、`P/MonsterMoveEffects.cs:341`；Flash 怪物行动不能产生待处理选择。 |
-| `THE_INSATIABLE_BOSS` | 其他（SandpitPower 的 AfterSideTurnStartLate/目标/击杀）；评估侧缺口 | `P/MonsterMoveEffects.cs:938`、`P/TurnStartPowerSupport.cs:449`、`P/CardOnPlaySupport.Batch042.cs:64`、`S/SimulatedCombatState.IncrementSandpitTargeting`；Flash 没有 `AfterSideTurnStartLate` 与目标化 Power。`FlashScorer.cs:415` 把 `SandpitRemaining` 固定为 0，而 `FlashScoreProjection` 比较该字段。 |
 | `THIEVING_HOPPER_WEAK` | 偷窃；评估侧缺口 | `P/MonsterMoveEffects.cs:170-220` 的 THIEVERY/ESCAPE、`S/SimulatedCombatState.RecordThievery`；`FlashScoreBridge.cs:103 TheftApplicable` 拒绝，`FlashScorer.cs:227-230` 把 `OutstandingStolenResource` 固定为 0。 |
 
 卡牌（铁甲战士剩余 24 张，P14）：实现 Aggression、StoneArmor、Unmovable、Rupture 与 AggressionPower、UnmovablePower、RupturePower（StoneArmor 复用 PlatingPower）；4 个 `coverage/fixtures/cards/flash-p14-*.json` 每根 48 条游走零差异。RupturePower 的 Aux0..2 只在出牌期间存放待结算力量与伤害来源标记，稳定边界为 0，投影只认领空的 `RupturePredictionState`。跳过 20 张：自动打出（Cascade、Havoc、Hellraiser、HowlFromBeyond、Stampede）、卡池随机生成（InfernalBlade、Stoke）、变化（PrimalForce）、改费用（Corruption、Unrelenting、Stomp，后者另需扩充 `CardEnergyCostModifiers` 容量）、出牌次数（OneTwoPunch）、AfterPowerAmountChanged（Vicious）、战斗全程未格挡受伤计数（TearAsunder）、跨卡计算伤害（Thrash）、多人专用（Blaze、DemonicShield、Midnight、Outrage、Tank）。

@@ -7,7 +7,7 @@
 ## 1. 归属原则
 
 - **进入 `FlashBattle`**：会随分支变化、并影响后续合法动作或结算的值。范围以 AGENTS.md 第 5 节的状态清单和旧引擎状态键（`BuildStateKey`、`SimulatedCombatState.AppendFingerprint`）为下限；旧状态键漏掉但影响未来结算的值（例如回合数、Power 的 `AmountOnTurnStart`）同样进入。
-- **进入 `FlashRules`**：根导入时冻结、整场搜索不变的值。包括卡牌各升级等级的基础数值与费用、怪物行动的静态参数与编译后的状态机、可生成怪物的闭包条目、遭遇槽名、根监听前缀顺序、最大能量基础值、手牌上限、药水槽数、卡牌洗牌排序键、角色基础球槽数（`BaseOrbSlotCount`）。`FlashRules` 是不可变引用类型，所有分支共享。
+- **进入 `FlashRules`**：根导入时冻结、整场搜索不变的值。包括卡牌各升级等级的基础数值与费用、怪物行动的静态参数与编译后的状态机、可生成怪物的闭包条目、遭遇槽名、根监听前缀顺序、最大能量基础值、手牌上限、药水槽数、根药水槽（用于区分生成药水与根药水）、随机药水池（战斗内与战斗外）、卡牌洗牌排序键、角色基础球槽数（`BaseOrbSlotCount`）。`FlashRules` 是不可变引用类型，所有分支共享。
 - **都不进入**：纯 UI、日志、显示名、派生启发式值。历史日志只保留会影响结算的计数器。
 
 ## 2. 结构
@@ -25,7 +25,7 @@
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
 | Potions | 各槽药水 Id 与标志 | 5 |
 | Orbs | `FlashOrb`：球 Id、`Aux`（Dark 的 `_evokeVal` / Glass 的 `_passiveVal`）；`OrbCount`、`OrbCapacity` | 10 |
-| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持；`StarsGainedThisTurn` 是本回合获得的正星能，供 Radiate 的 CalculatedHits 读取，同样在玩家回合开始清零）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。充能球另有两个战斗长计数器：`LightningChannels`（Voltaic 的闪电充能数，导入原版历史）与 `OrbChannels`（预测历史中的充能次数，对应 1000 次安全上限）。亡灵契约师的 `OstyAttacksThisTurn`（Rattle；仅当根捕获时原生 `Player.Osty` 存在才在玩家回合开始清零）、`DoomAppliedThisTurn`（DeathsDoor；玩家回合开始清零）、`EtherealPlays`（BansheesCry/PullFromBelow；战斗长、导入根历史）与 `CardsGeneratedThisCombat`（Supermassive 的生成卡乘数；导入 `CountGeneratedCards`，每次 `CardGenerated` 加一，包含战斗结束时被拒绝加入的生成卡）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`DampenCasterMask` 是 MagiKnight 对玩家施加 DampenPower 的施法者位集合（按敌人 owner 下标一位一个） | 48 |
+| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持；`StarsGainedThisTurn` 是本回合获得的正星能，供 Radiate 的 CalculatedHits 读取，同样在玩家回合开始清零）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。充能球另有两个战斗长计数器：`LightningChannels`（Voltaic 的闪电充能数，导入原版历史）与 `OrbChannels`（预测历史中的充能次数，对应 1000 次安全上限）。亡灵契约师的 `OstyAttacksThisTurn`（Rattle；仅当根捕获时原生 `Player.Osty` 存在才在玩家回合开始清零）、`DoomAppliedThisTurn`（DeathsDoor；玩家回合开始清零）、`EtherealPlays`（BansheesCry/PullFromBelow；战斗长、导入根历史）与 `CardsGeneratedThisCombat`（Supermassive 的生成卡乘数；导入 `CountGeneratedCards`，每次 `CardGenerated` 加一，包含战斗结束时被拒绝加入的生成卡）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`DampenCasterMask` 是 MagiKnight 对玩家施加 DampenPower 的施法者位集合（按敌人 owner 下标一位一个）。MB 追加三个：`GeneratedPotionUseCount` 统计本场生成后又被使用的药水（生成 = 使用时的槽位药水不等于根药水；评分加入 `PotionUseCount`），`GeneratedPotionStrategicCost` 低 16 位打包显式用药的战略成本、高 16 位打包自动用药（Fairy in a Bottle）的成本，`EntropicFreePotionMask` 是 5 个药水槽的免费位（第 i 位对应槽 i；使用该槽时清除，免费药水成本为 0） | 48 |
 | Rng | 九条战斗 RNG：计数器加四个 64 位状态字 | 9 |
 
 ### 2.1 FlashCard
@@ -63,6 +63,8 @@
 - 敌人是否为主要敌人不存标志，与旧引擎一样由其持有的 Power 推出（`OwnerIsSecondaryEnemy`）。
 - Osty 只在 `Osty` 区块与 `OstyPresent` 标志中表示（死亡后对象仍在，`Osty.CurrentHp <= 0` 即死亡）；`OstyWasRootPet`（`FlashBattleFlags` bit 5）表示根捕获时原生 `Player.Osty` 非空，供 `BeginSideTurn(player)` 的宠物计数清零语义使用，整场不变。`Osty` 的 Power 与其他生物一样占 `Powers` 行，`Owner = FlashLimits.OstyOwner`。
 - `OblivionPower` 的“本张牌打出时的层数”只存在栈上的 `FlashExec.CardPlayPairs`（`FlashCardPlayPairKind.OblivionDoom`）；稳定边界为空，不进入布局。
+- `SandpitPower` 的原生实例型目标存在 `FlashPower.Target`（`byte` owner，`NoOwner` 表示无目标）；每个原生 `ApplyTargeted` 实例一行。`FlashKernel.SetPowerAmountAt` 按行精确减层，避免同 (owner, id) 的实例互相覆盖。
+- Knowledge Demon 的固定选项选择（两张诅咒卡）不进入牌堆：候选值只存在栈上的 `FlashChoiceRequest.GeneratedOptions`，选择后从父状态重执行。选择种类为 `FlashChoiceKind.SelectOption`，`FlashChoiceEffect.ApplyKnowledgeCurse`。
 - `FlashEnemy.Rules` 是 `FlashRules` 怪物规则表的下标。根已知敌人按 `KnownEnemies` 下标占据表的前 `RootEnemyCount` 项，之后每个可生成怪物类型一项；已知敌人数组只追加，所以新敌人的规则编号由怪物 Id 查可生成表（`FlashRules.SpawnRulesId`）。
 - `FlashEnemy.Slot` 是遭遇槽下标（`FlashRules.EncounterSlots` 的顺序），没有槽名时为 255。名单（`Roster`）按槽下标稳定升序，255 视作 -1 排在有名字的槽位之前；名单顺序就是 Hook 监听与敌方行动顺序。
 - `FlashEnemyFlags.PerformedMoveThisRound`、`ForcedMustPerformAfterMove` 与 `ActingThisRound` 只在敌方回合内部使用，任何稳定边界上都为 0。

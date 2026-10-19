@@ -283,6 +283,9 @@ internal sealed class FlashScoreRules
 
     public ushort DoomPowerId { get; init; } = ushort.MaxValue;
 
+    /// <summary><c>SandpitPower</c>: the enemy-side turn-start countdown read by the control term.</summary>
+    public ushort SandpitPowerId { get; init; } = ushort.MaxValue;
+
     /// <summary><c>SummonNextTurnPower</c>: its amount is the summon-next-turn future-resource term.</summary>
     public ushort SummonNextTurnPowerId { get; init; } = ushort.MaxValue;
 

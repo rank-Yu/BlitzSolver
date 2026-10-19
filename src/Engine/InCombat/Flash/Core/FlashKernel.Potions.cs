@@ -17,6 +17,22 @@ public static partial class FlashKernel
             throw new InvalidOperationException($"药水槽位 {action.PotionSlot} 为空。");
         FlashPotionDef def = FlashRegistry.Potion((ushort)(stored - 1));
         int shuffleEvents = x.B.ShuffleEventCount;
+        // SimulatedCombatState.ConsumePotion: a freeFromEntropic slot records a zero strategic cost and
+        // clears its free flag. The root-slot diff cannot see generated potions, so the scorer adds the
+        // generated-use counter; this explicit use is one of them.
+        int freeMask = x.B.Counter(FlashCounter.EntropicFreePotionMask);
+        int slotBit = 1 << action.PotionSlot;
+        bool freeFromEntropic = (freeMask & slotBit) != 0;
+        if (freeFromEntropic)
+            x.B.SetCounter(FlashCounter.EntropicFreePotionMask, freeMask & ~slotBit);
+        // SimulatedCombatState.PotionUses records every use; a potion that is not the root potion of
+        // this slot was generated in combat and its use is invisible to the root-slot diff.
+        if (stored != x.R.RootPotion(action.PotionSlot))
+        {
+            x.B.AddCounter(FlashCounter.GeneratedPotionUseCount, 1);
+            RecordGeneratedPotionStrategicCost(ref x.B,
+                freeFromEntropic ? 0 : x.R.Potion(def.Id).StrategicCost, automatic: false);
+        }
 
         // Prepare: ConsumePotion (the slot empties; the use record only feeds search scoring), then
         // BeforePotionUsed, which has no supported listeners yet.
@@ -56,6 +72,24 @@ public static partial class FlashKernel
         }
     }
 
+    /// <summary>
+    /// Accumulates the packed strategic cost of generated potion uses
+    /// (<see cref="FlashCounter.GeneratedPotionStrategicCost"/>): low 16 bits explicit, high 16 bits
+    /// automatic. Free-from-Entropic uses pass zero.
+    /// </summary>
+    public static void RecordGeneratedPotionStrategicCost(ref FlashBattle battle, int cost, bool automatic)
+    {
+        if (cost < 0 || cost > 0xFFFF)
+            throw new FlashCapacityException("GeneratedPotionStrategicCost", 0xFFFF);
+        int packed = battle.Counter(FlashCounter.GeneratedPotionStrategicCost);
+        int total = automatic ? (int)((uint)packed >> 16) : packed & 0xFFFF;
+        if (total > 0xFFFF - cost)
+            throw new FlashCapacityException("GeneratedPotionStrategicCost", 0xFFFF);
+        total += cost;
+        battle.SetCounter(FlashCounter.GeneratedPotionStrategicCost,
+            automatic ? (total << 16) | (packed & 0xFFFF) : (packed & unchecked((int)0xFFFF0000)) | total);
+    }
+
     /// <summary>A variable of the potion being used, from the rule table.</summary>
     public static decimal PotionVar(in FlashExec x, FlashPotionDef def, int index) => x.R.Potion(def.Id).Vars[index];
 
@@ -67,8 +101,19 @@ public static partial class FlashKernel
     /// <c>NextItem</c> draw over the candidates of that rarity in frozen pool order.
     /// </summary>
     public static ushort GenerateRandomPotion(ref FlashBattle battle, FlashRules rules)
+        => GenerateRandomPotionFromPool(ref battle, rules, rules.PotionPool);
+
+    /// <summary>
+    /// Mirrors <c>PotionFactory.CreateRandomPotionOutOfCombat</c> (EntropicBrew): the same rarity and
+    /// <c>NextItem</c> draws as <see cref="GenerateRandomPotion"/>, but over the unfiltered character +
+    /// shared pool frozen at admission (potions that cannot be generated in combat are included).
+    /// </summary>
+    public static ushort GenerateRandomPotionOutOfCombat(ref FlashBattle battle, FlashRules rules)
+        => GenerateRandomPotionFromPool(ref battle, rules, rules.OutOfCombatPotionPool);
+
+    private static ushort GenerateRandomPotionFromPool(ref FlashBattle battle, FlashRules rules,
+        IReadOnlyList<ushort> pool)
     {
-        IReadOnlyList<ushort> pool = rules.PotionPool;
         if (pool.Count == 0)
             throw new FlashUnsupportedException("随机药水池为空。");
         ref FlashRngState rng = ref battle.RngStream(FlashRngStream.CombatPotionGeneration);
@@ -94,12 +139,23 @@ public static partial class FlashKernel
     /// reactions have no Flash definitions, so roots holding them are rejected at admission.
     /// </summary>
     public static bool TryProcurePotion(ref FlashBattle battle, ushort potionId)
+        => TryProcurePotion(ref battle, potionId, freeFromEntropic: false);
+
+    /// <summary>
+    /// <see cref="TryProcurePotion(ref FlashBattle, ushort)"/> with the native <c>freeFromEntropic</c>
+    /// flag: the slot is marked in <see cref="FlashCounter.EntropicFreePotionMask"/> so a later use
+    /// records zero strategic cost.
+    /// </summary>
+    public static bool TryProcurePotion(ref FlashBattle battle, ushort potionId, bool freeFromEntropic)
     {
         for (int slot = 0; slot < battle.PotionSlotCount; slot++)
         {
             if (battle.Potions[slot] != 0)
                 continue;
             battle.Potions[slot] = (ushort)(potionId + 1);
+            if (freeFromEntropic)
+                battle.SetCounter(FlashCounter.EntropicFreePotionMask,
+                    battle.Counter(FlashCounter.EntropicFreePotionMask) | (1 << slot));
             return true;
         }
         return false;

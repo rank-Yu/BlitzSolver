@@ -445,7 +445,9 @@ public static partial class FlashKernel
             return;
         TriggerTransientSideTurnEndPowers(ref x, FlashSide.Player, participants);
         RelicPass(ref x, RelicPhase.AfterSideTurnEnd, FlashSide.Player);
-        // AfterSideTurnEndLate: no supported listeners yet.
+        if (x.NeedsChoice)
+            return;
+        AfterSideTurnEndLatePass(ref x, FlashSide.Player, participants);
         if (!x.NeedsChoice)
             NormalizeCardAfflictions(ref x);
     }
@@ -471,7 +473,26 @@ public static partial class FlashKernel
             return;
         TriggerTransientSideTurnEndPowers(ref x, FlashSide.Enemy, enemies);
         TickDurations(ref x.B);
-        // AfterSideTurnEndLate: no supported listeners yet.
+        AfterSideTurnEndLatePass(ref x, FlashSide.Enemy, enemies);
+    }
+
+    /// <summary>
+    /// <c>HookMirrors.AfterSideTurnEndLate</c>: a fresh combat-listener snapshot after the regular
+    /// end-of-side hooks; only listeners whose definition overrides the Ext hook run.
+    /// </summary>
+    private static void AfterSideTurnEndLatePass(ref FlashExec x, FlashSide side, scoped ReadOnlySpan<byte> participants)
+    {
+        if ((FlashRegistry.AnyHooksExt & FlashHookMaskExt.AfterSideTurnEndLate) == 0)
+            return;
+        Span<FlashListener> listeners = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+        int count = FlashHooks.CollectListeners(x.B, FlashHookMaskExt.AfterSideTurnEndLate, listeners);
+        for (int index = 0; index < count; index++)
+        {
+            FlashListener self = listeners[index];
+            FlashHooks.Definition(x.B, self).AfterSideTurnEndLate(ref x, self, side, Contains(participants, self.Owner));
+            if (x.NeedsChoice)
+                return;
+        }
     }
 
     /// <summary>

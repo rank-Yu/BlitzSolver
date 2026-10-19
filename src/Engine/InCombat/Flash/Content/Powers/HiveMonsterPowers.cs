@@ -104,3 +104,42 @@ public sealed class BurrowedPower : FlashPowerDef
             FlashKernel.MonsterRules(ref x, self.Owner).NodeIndex("BITE_MOVE"));
     }
 }
+/// <summary>
+/// Native <c>SandpitPower</c> (TheInsatiable's LIQUIFY_GROUND): a target-marking debuff. The existing
+/// engine's compensation runs it in <c>TurnStartPowerSupport.TriggerAfterSideTurnStart</c> on the
+/// enemy side (<c>S/../Prediction/TurnStartPowerSupport.cs:449</c>): decrement the exact stack, and
+/// when it reaches zero force-kill the recorded target through the damage pipeline while both the
+/// owner and the target are alive. The native screen/music hooks are out of scope.
+/// </summary>
+[FlashContent("SANDPIT_POWER")]
+public sealed class SandpitPower : FlashPowerDef
+{
+    public override FlashPowerType Type => FlashPowerType.Debuff;
+
+    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+
+    // SimulatedCombatState.ApplyTargeted branches on PowerInstanceType.Instanced: every LIQUIFY_GROUND
+    // adds a fresh native Sandpit instance instead of stacking into the previous one.
+    public override bool IsInstanced => true;
+
+    public override void GlobalAfterSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    {
+        if (side != FlashSide.Enemy || !participates)
+            return;
+        ref FlashPower power = ref x.B.Powers[self.Index];
+        if (power.Amount <= 0)
+            return;
+        byte target = power.Target;
+        int remaining = power.Amount - 1;
+        FlashKernel.SetPowerAmountAt(ref x.B, self.Index, remaining);
+        if (remaining > 0)
+            return;
+        if (target == FlashLimits.NoOwner)
+            throw new FlashUnsupportedException("流沙坑归零时没有目标。");
+        if (!x.B.Creature(self.Owner).IsAlive || !x.B.Creature(target).IsAlive)
+            return;
+        Span<byte> victims = stackalloc byte[1];
+        victims[0] = target;
+        FlashKernel.Kill(ref x, victims, force: true);
+    }
+}

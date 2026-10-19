@@ -189,6 +189,28 @@ public enum FlashCounter : byte
     /// path that records <c>CombatPredictionHistory.CardGenerated</c>.
     /// </summary>
     CardsGeneratedThisCombat,
+
+    /// <summary>
+    /// Potions generated during this combat and then used (they never occupied a root slot). The
+    /// existing snapshot's <c>PotionUseCount</c> counts every <c>PredictedPotionUse</c>; the scorer
+    /// adds this counter because the root-slot diff cannot see generated uses.
+    /// </summary>
+    GeneratedPotionUseCount,
+
+    /// <summary>
+    /// Packed strategic cost of generated potion uses: low 16 bits explicit uses, high 16 bits
+    /// automatic uses. <c>generated = the slot's potion is not the root potion for that slot</c>;
+    /// <c>freeFromEntropic</c> potions cost zero. The split keeps automatic uses out of
+    /// <c>ExplicitPotionStrategicCost</c> exactly as the root-slot diff does.
+    /// </summary>
+    GeneratedPotionStrategicCost,
+
+    /// <summary>
+    /// Bit i set when potion slot i holds a potion procured with <c>freeFromEntropic: true</c>
+    /// (<c>SimulatedCombatState._freeEntropicPotions</c>). Consuming the slot clears the bit; a used
+    /// free potion contributes zero <c>PotionUsePolicy.StrategicHpCost</c>.
+    /// </summary>
+    EntropicFreePotionMask,
 }
 
 /// <summary>

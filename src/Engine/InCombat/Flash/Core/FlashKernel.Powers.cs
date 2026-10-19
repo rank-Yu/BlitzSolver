@@ -293,6 +293,20 @@ public static partial class FlashKernel
             RemovePowerAt(ref battle, index);
     }
 
+    /// <summary>
+    /// <c>SimulatedCombatState.SetPowerAmount</c> addressed by table row rather than (owner, id):
+    /// instanced powers share both keys, and the existing engine's Sandpit decrement targets the exact
+    /// instance it is visiting.
+    /// </summary>
+    public static void SetPowerAmountAt(ref FlashBattle battle, int index, int amount)
+    {
+        if ((uint)index >= (uint)battle.PowerCount)
+            throw new ArgumentOutOfRangeException(nameof(index), index, "Power 行越界。");
+        battle.Powers[index].Amount = Clamp(amount);
+        if (battle.Powers[index].Amount == 0)
+            RemovePowerAt(ref battle, index);
+    }
+
     /// <summary>Mirrors <c>SimulatedCombatState.TickDuration&lt;T&gt;</c>.</summary>
     public static void TickDuration(ref FlashBattle battle, byte owner, ushort powerId)
     {
@@ -337,6 +351,46 @@ public static partial class FlashKernel
             return false;
         SetPowerAmount(ref battle, target, artifact, amount - 1);
         return true;
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.ApplyTargeted</c>: the same stacking/Artifact path as
+    /// <see cref="ApplyPower"/>, then writes the native <c>PowerModel._target</c> on the resulting row.
+    /// A zero amount or an Artifact consumption leaves the target untouched, exactly like the native
+    /// early returns.
+    /// </summary>
+    public static int ApplyPowerTargeted(ref FlashExec x, byte owner, byte powerTarget, ushort powerId,
+        int amount, byte applier)
+    {
+        if (amount == 0)
+            return 0;
+        int applied = ApplyPower(ref x, owner, powerId, amount, applier);
+        if (applied == 0 || x.NeedsChoice)
+            return applied;
+        int index = FindLastPower(x.B, owner, powerId);
+        if (index >= 0)
+            x.B.Powers[index].Target = powerTarget;
+        return applied;
+    }
+
+    /// <summary>
+    /// Mirrors <c>SimulatedCombatState.IncrementSandpitTargeting</c>: the first positive Sandpit power
+    /// owned by a roster creature and targeting <paramref name="target"/> gains one stack.
+    /// </summary>
+    public static void IncrementSandpitTargeting(ref FlashExec x, byte target)
+    {
+        if (!FlashRegistry.TryPower("SANDPIT_POWER", out ushort sandpit))
+            return;
+        for (int index = 0; index < x.B.PowerCount; index++)
+        {
+            ref FlashPower power = ref x.B.Powers[index];
+            if (power.Id != sandpit || power.Amount <= 0 || power.Target != target)
+                continue;
+            if (!IsEnemyOwner(power.Owner) || !InRoster(x.B, power.Owner))
+                continue;
+            SetPowerAmountAt(ref x.B, index, power.Amount + 1);
+            return;
+        }
     }
 
     /// <summary>Inserts a zero-amount power after the owner's last power, keeping the table grouped by owner.</summary>
