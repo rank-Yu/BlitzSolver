@@ -25,7 +25,7 @@
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
 | Potions | 各槽药水 Id 与标志 | 5 |
 | Orbs | `FlashOrb`：球 Id、`Aux`（Dark 的 `_evokeVal` / Glass 的 `_passiveVal`）；`OrbCount`、`OrbCapacity` | 10 |
-| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持；`StarsGainedThisTurn` 是本回合获得的正星能，供 Radiate 的 CalculatedHits 读取，同样在玩家回合开始清零）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。充能球另有两个战斗长计数器：`LightningChannels`（Voltaic 的闪电充能数，导入原版历史）与 `OrbChannels`（预测历史中的充能次数，对应 1000 次安全上限）。亡灵契约师的 `OstyAttacksThisTurn`（Rattle；仅当根捕获时原生 `Player.Osty` 存在才在玩家回合开始清零）、`DoomAppliedThisTurn`（DeathsDoor；玩家回合开始清零）、`EtherealPlays`（BansheesCry/PullFromBelow；战斗长、导入根历史）与 `CardsGeneratedThisCombat`（Supermassive 的生成卡乘数；导入 `CountGeneratedCards`，每次 `CardGenerated` 加一，包含战斗结束时被拒绝加入的生成卡）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`DampenCasterMask` 是 MagiKnight 对玩家施加 DampenPower 的施法者位集合（按敌人 owner 下标一位一个）。MB 追加三个：`GeneratedPotionUseCount` 统计本场生成后又被使用的药水（生成 = 使用时的槽位药水不等于根药水；评分加入 `PotionUseCount`），`GeneratedPotionStrategicCost` 低 16 位打包显式用药的战略成本、高 16 位打包自动用药（Fairy in a Bottle）的成本，`EntropicFreePotionMask` 是 5 个药水槽的免费位（第 i 位对应槽 i；使用该槽时清除，免费药水成本为 0） | 48 |
+| Counters | 按 `FlashCounter` 编号的玩家整数计数器：本回合计数（打出、开始打出、攻击、技能、格挡牌、消耗、弃牌、攻击次数、花费能量；玩家回合开始的 `BeginSideTurn` 清零，敌方回合保持；`StarsGainedThisTurn` 是本回合获得的正星能，供 Radiate 的 CalculatedHits 读取，同样在玩家回合开始清零）与本场累计失血、回复量、玩家未格挡受伤事件数（TearAsunder）。充能球另有两个战斗长计数器：`LightningChannels`（Voltaic 的闪电充能数，导入原版历史）与 `OrbChannels`（预测历史中的充能次数，对应 1000 次安全上限）。亡灵契约师的 `OstyAttacksThisTurn`（Rattle；仅当根捕获时原生 `Player.Osty` 存在才在玩家回合开始清零）、`DoomAppliedThisTurn`（DeathsDoor；玩家回合开始清零）、`EtherealPlays`（BansheesCry/PullFromBelow；战斗长、导入根历史）与 `CardsGeneratedThisCombat`（Supermassive 的生成卡乘数；导入 `CountGeneratedCards`，每次 `CardGenerated` 加一，包含战斗结束时被拒绝加入的生成卡）。另有两个苦难归一化计数：`VitalSparkNormalizedAmount`（`_lastNormalizedVitalSparkAmount`，`int.MinValue` 表示 null）与 `SkillPlayedThisSideTurn`（`_skillsPlayedThisTurn`，本侧回合末清零）。生物的本回合失血标记在 `FlashCreatureFlags.LostHpThisTurn`，换边或换轮清除；`DampenCasterMask` 是 MagiKnight 对玩家施加 DampenPower 的施法者位集合（按敌人 owner 下标一位一个）。MB 追加三个：`GeneratedPotionUseCount` 统计本场生成后又被使用的药水（生成 = 使用时的槽位药水不等于根药水；评分加入 `PotionUseCount`），`GeneratedPotionStrategicCost` 低 16 位打包显式用药的战略成本、高 16 位打包自动用药（Fairy in a Bottle）的成本，`EntropicFreePotionMask` 是 5 个药水槽的免费位（第 i 位对应槽 i；使用该槽时清除，免费药水成本为 0）。TW 追加两个：`OutstandingStolenGold`（`_outstandingStolenGold`：`ThieveryPower` 的 Gold 账本加所有 `HeistPower` 层数）与 `OutstandingStolenCards`（`_outstandingStolenCards`：每个持有被偷卡的 `SwipePower` 一行） | 48 |
 | Rng | 九条战斗 RNG：计数器加四个 64 位状态字 | 9 |
 
 ### 2.1 FlashCard
@@ -67,10 +67,12 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 - `OblivionPower` 的“本张牌打出时的层数”只存在栈上的 `FlashExec.CardPlayPairs`（`FlashCardPlayPairKind.OblivionDoom`）；稳定边界为空，不进入布局。
 - `SandpitPower` 的原生实例型目标存在 `FlashPower.Target`（`byte` owner，`NoOwner` 表示无目标）；每个原生 `ApplyTargeted` 实例一行。`FlashKernel.SetPowerAmountAt` 按行精确减层，避免同 (owner, id) 的实例互相覆盖。
 - Knowledge Demon 的固定选项选择（两张诅咒卡）不进入牌堆：候选值只存在栈上的 `FlashChoiceRequest.GeneratedOptions`，选择后从父状态重执行。选择种类为 `FlashChoiceKind.SelectOption`，`FlashChoiceEffect.ApplyKnowledgeCurse`。
+- 逃跑（`CreatureEscaped`）会从已知敌人数组与名单中移除该敌人；Flash 同步左移两个数组、递减后续 owner 的 `FlashPower.Owner`/`Applier`/`Target` 下标，并移除该敌人的全部 Power（从而释放其 detached 槽位）。被偷金币/卡牌计数不因逃跑变化。
 - `FlashEnemy.Rules` 是 `FlashRules` 怪物规则表的下标。根已知敌人按 `KnownEnemies` 下标占据表的前 `RootEnemyCount` 项，之后每个可生成怪物类型一项；已知敌人数组只追加，所以新敌人的规则编号由怪物 Id 查可生成表（`FlashRules.SpawnRulesId`）。
 - `FlashEnemy.Slot` 是遭遇槽下标（`FlashRules.EncounterSlots` 的顺序），没有槽名时为 255。名单（`Roster`）按槽下标稳定升序，255 视作 -1 排在有名字的槽位之前；名单顺序就是 Hook 监听与敌方行动顺序。
 - `FlashEnemyFlags.PerformedMoveThisRound`、`ForcedMustPerformAfterMove` 与 `ActingThisRound` 只在敌方回合内部使用，任何稳定边界上都为 0。
 - `FlashEnemy.ForcedMove` 是合成 STUNNED 或 REVIVE_MOVE 节点的动态后继（原版 `MoveState("STUNNED"/"REVIVE_MOVE").FollowUpStateId`），当前节点不是这两个合成节点时恒为 255。布局不因此改变。
+- `FlashEnemy.SteamPhase` 是 Waterfall Giant 的 `_steamEruptionPhases` 条目（0 none、1 about-to-blow、2 explode），占用原 `_padding1` 的第一个字节；其余怪物恒为 0。`_pressureGunBonus`/`_steamEruptionDamage` 作为该怪物的两个 AI 寄存器（`PressureGunBonus`/`SteamEruptionDamage`）投影。
 - `FlashOrb.Aux` 是球唯一的私有整数：DarkOrb 的 `_evokeVal`（初始 6，被动累加）或 GlassOrb 的 `_passiveVal`（初始 4，被动后递减）；Lightning/Frost/Plasma 恒为 0。导入时要求它是可表示的整数；未用槽位清零。球的顺序就是 `OrbQueue.Orbs` 的顺序，容量来自 `SimOrbQueue.Capacity`。
 - `FlashBattle.NextCombatId` 是旧引擎的 `_nextCreatureId`；生成敌人时先取当前值再递增。
 - 怪物行动日志存"曾经用过的行动位集"加最近 8 条；原版重复规则只读这两部分。冷却或连续次数超出 8 的状态机在运行时抛 `FlashUnsupportedException`。
@@ -93,6 +95,7 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 | `_unsettlingLampTriggeringCards` / `_unsettlingLampInternalPowerTypes` | 不进入状态；`FlashExec` 保存触发卡的 source serial 与本次已翻倍的临时 Power 内部 Id 集合 | `CompleteCardPowerApplication` 时清除；锁存位（`RelicStatus`/`_isFinishedTriggering` 的引擎状态）持久化为 `FlashRelic.Counter` |
 | Fetch 的 `_fetchCardsPlayedThisTurn` | `FlashCard.Private` 的 bit 0 | 随卡值移动；`RecordCardPlayed` 置位，玩家回合开始清零；生成的卡/克隆不清位复制 |
 | `_nightmareSelections`（`Dictionary<NightmarePower,PredictedCard>`） | `FlashBattle.DetachedCards` 的小数组：`FlashPower.Aux0 = 槽位 + 1`，槽位存选定卡的完整 `FlashCard` 值 | Power 移除时清空槽位；每个 `NightmarePower` 实例一行，按获得顺序 |
+| `SwipePower.StolenCard`（被 THIEVERY 移除的卡） | `FlashBattle.DetachedCards` 的同一小数组：`FlashPower.Aux0 = 槽位 + 1`，槽位存被偷卡的完整 `FlashCard` 值（含 `DeckCard`/`RemovedFromState`） | THIEVERY 从抽牌/弃牌堆移出时分配；击杀飞贼时 `RecoverStolenResources` 回收并清槽；逃跑移除 Power 时只清槽、不回收 |
 
 **瞬态值不进入指纹。** `FlashExec` 的 Monologue/Vambrace/UnsettlingLamp 数据在每次动作结束前排空，稳定边界的字节里没有它们。`NightmarePower` 的选定卡是真正的跨回合值：它在下一次 `BeforeHandDraw` 要被克隆 `Amount` 次，因此进入 `DetachedCards`。
 
@@ -109,6 +112,9 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 
 - `MonologuePower`：`Amount=1`，`Aux0=Strength`（应用时从卡变量写入），`Aux1=StrengthApplied`。
 - `NightmarePower`：`Amount=3`，`Aux0=DetachedCards` 槽位 + 1。
+- `ThieveryPower`：`Aux0=DynamicVars.Gold`（被偷金币账本，`SurprisePower` 死亡转移时读取）。
+- `SwipePower`：`Amount=1`，`Aux0=DetachedCards` 槽位 + 1（被偷卡的完整值）。
+- `HeistPower`：被偷金币就是 `Amount`，无需私有槽。
 - `OrbitPower`：`Amount=每次触发的能量`，`Aux0=energySpent % 4`（现有引擎的 `_orbitEnergyRemainders`，`DisplayAmount = 4 - remainder`）。
 - `AutomationPower`/`PanachePower`/`TheBombPower`：沿用 P16 的 `Aux0/Aux1` 投影；`RollingBoulderPower` 只有 `Amount`。
 - `PhantomBladesPower`/`PaleBlueDotPower` 不是实例型；`PaleBlueDotPower.Aux0` 保存每回合锁存位（0/1），每次玩家侧回合末清 0。
@@ -128,7 +134,7 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 - Orbit/PaleBlueDot 的现有键是无序集合（owner + 剩余/锁存）；Flash 的 Power 行顺序是获得顺序，同一 `(owner,id)` 多实例的交换在 Flash 中会少合并。Nightmare 选定卡在现有键里按 `ChoiceCardKey` 归一化，Flash 用完整卡值（更保守）。这些都只会减少合并、不会把不同局面误合并。
 - Monologue/Vambrace/UnsettlingLamp 的瞬态数据不进入字节，稳定边界与现有键一致；`AmountOnTurnStart` 等既有归一化规则不变。
 
-**容量与回落。** `DetachedCards` 容量 2；第 3 个并存 Nightmare 实例按 `FlashCapacityException` 回落（不覆盖、不逐出）。`FlashExec.MonologuePending` 容量 8；更多同时等候结算的 Monologue 实例按同一异常回落。`FlashRules.HasIdentityContent` 为假（根牌组/Power/遗物与可生成内容都不涉及身份）时，整批身份扫描跳过；它只是优化前提，为真时仍按上述语义逐项结算。`Private` 是 `short`：SwordSage 已应用层数或 `ReplayCount` 增量超出 `short` 范围时按 `FlashCapacityException`；`ReplayCount` 本身仍按 `byte` 容量（现有 `FlashCard` 字段）。Fetch 只用 bit 0，其余位保持 0。所有退役条目只按惰性放行，不写回、不清理活实例。
+**容量与回落。** `DetachedCards` 容量 3（Nightmare 的两个实例与被偷卡共用；同一场战斗里 ThievingHopper 只有一个且 THIEVERY 只发生一次，逃跑/死亡后槽位释放）；第 4 个并存卡片按 `FlashCapacityException` 回落（不覆盖、不逐出）。`FlashExec.MonologuePending` 容量 8；更多同时等候结算的 Monologue 实例按同一异常回落。`FlashRules.HasIdentityContent` 为假（根牌组/Power/遗物与可生成内容都不涉及身份）时，整批身份扫描跳过；它只是优化前提，为真时仍按上述语义逐项结算。`Private` 是 `short`：SwordSage 已应用层数或 `ReplayCount` 增量超出 `short` 范围时按 `FlashCapacityException`；`ReplayCount` 本身仍按 `byte` 容量（现有 `FlashCard` 字段）。Fetch 只用 bit 0，其余位保持 0。所有退役条目只按惰性放行，不写回、不清理活实例。
 
 ## 3. 规范化
 
@@ -156,7 +162,7 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 
 ## 6. 尺寸预算
 
-`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，`PoweredAttackHitsThisTurn`（BeatIntoShape 的每目标本回合强化攻击命中数，0..255，溢出显式拒绝）占用原 `_padding` 的第二个字节，剩余两个字节继续填充。`FlashOrb` 为 8 字节（`Id` + `Aux`），DF 没有改变它的大小。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，`DampenOriginalUpgrade`；ID 复用 `Private` 账本），`FlashBattle` 实测 12320 字节。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 350 ns、`copyStep` 约 2.2 µs（`HasIdentityContent=false` 的自然根路径）。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，`PoweredAttackHitsThisTurn`（BeatIntoShape 的每目标本回合强化攻击命中数，0..255，溢出显式拒绝）占用原 `_padding` 的第二个字节，`SteamPhase` 占用第三个字节（原 `_padding1` 的第一个字节），最后一个字节继续填充。`FlashOrb` 为 8 字节（`Id` + `Aux`），DF 没有改变它的大小。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，`DampenOriginalUpgrade`；ID 复用 `Private` 账本）。TW 把 `DetachedCards` 从 2 扩到 3，`FlashBattle` 从 12320 增至 12408 字节；其他区块尺寸不变。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 350 ns、`copyStep` 约 2.2 µs（`HasIdentityContent=false` 的自然根路径）。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
 
 Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。
 

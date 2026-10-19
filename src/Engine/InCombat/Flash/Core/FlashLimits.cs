@@ -66,7 +66,7 @@ public static class FlashLimits
     /// value in a compact table. Exceeding the capacity throws <see cref="FlashCapacityException"/>
     /// instead of evicting a live selection.
     /// </summary>
-    public const int DetachedCards = 2;
+    public const int DetachedCards = 3;
 
     /// <summary>Sentinel of the <see cref="FlashCard.Private"/> identity ledger: no applied entry yet.</summary>
     public const short UninitializedLedger = short.MinValue;

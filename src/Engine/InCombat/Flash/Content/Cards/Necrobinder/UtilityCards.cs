@@ -213,6 +213,11 @@ public sealed class Fear : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
+        // and before the card-specific compensation, so the debuff sees the post-death target.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
@@ -229,6 +234,11 @@ public sealed class Hang : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0);
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
+        // and before the card-specific compensation, so the debuff sees the post-death target.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         if (x.NeedsChoice || x.Target == FlashLimits.NoOwner)
             return;
         ushort hang = FlashRegistry.PowerId<Powers.HangPower>();
@@ -293,6 +303,11 @@ public sealed class Debilitate : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0);
+        if (x.NeedsChoice)
+            return;
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
+        // and before the card-specific compensation, so the debuff sees the post-death target.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
         FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.DebilitatePower>(), 1);

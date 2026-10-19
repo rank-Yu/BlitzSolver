@@ -280,7 +280,8 @@ public sealed class FlashRules
         ushort unsettlingLampRelicId,
         bool hasIdentityContent,
         bool hasShuffleOrderEnchantment,
-        bool hasBeforeFlushEnchantment)
+        bool hasBeforeFlushEnchantment,
+        bool hasTheftContent)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -303,6 +304,7 @@ public sealed class FlashRules
         HasIdentityContent = hasIdentityContent;
         HasShuffleOrderEnchantment = hasShuffleOrderEnchantment;
         HasBeforeFlushEnchantment = hasBeforeFlushEnchantment;
+        HasTheftContent = hasTheftContent;
     }
 
     public int BaseMaxEnergy { get; }
@@ -339,6 +341,13 @@ public sealed class FlashRules
 
     /// <summary>The root's combat card values include an enchantment implementing <c>BeforeFlush</c> (SlumberingEssence).</summary>
     public bool HasBeforeFlushEnchantment { get; }
+
+    /// <summary>
+    /// The root is a theft encounter or holds a theft power/monster (the two thief encounters).
+    /// The outstanding-stolen-resource counters and the evaluation's theft fields are zero for every
+    /// other root, so those per-node scans are skipped there.
+    /// </summary>
+    public bool HasTheftContent { get; }
 
     /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
     public int BaseOrbSlotCount { get; }
@@ -475,6 +484,7 @@ public sealed class FlashRulesBuilder
 
     public bool HasBeforeFlushEnchantment { get; set; }
 
+    public bool HasTheftContent { get; set; }
 
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
@@ -566,7 +576,7 @@ public sealed class FlashRulesBuilder
             (ushort[])_rootPotions.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
             RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent, HasShuffleOrderEnchantment,
-            HasBeforeFlushEnchantment);
+            HasBeforeFlushEnchantment, HasTheftContent);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

@@ -383,8 +383,15 @@ internal sealed class FlashScorer
         }
         score += liveDeckClutter * SolverWeights.LiveDeckClutterPenalty;
 
-        // Theft content is rejected at admission; a PreserveResources policy therefore always reads 0.
+        // SimulatedCombatState's outstanding-stolen-resource counters. Only theft roots carry them; the
+        // root flag keeps every other root off these per-node scans.
         int outstandingStolenResource = 0;
+        int minimumOutstandingStolenResource = 0;
+        if (Rules.HasTheftContent)
+        {
+            outstandingStolenResource = FlashKernel.OutstandingStolenResource(battle);
+            minimumOutstandingStolenResource = FlashKernel.MinimumOutstandingStolenResource(battle);
+        }
         if (_score.TheftPolicy == SolverTheftPolicy.PreserveResources)
             score += outstandingStolenResource * SolverWeights.OutstandingStolenResourcePenalty;
 
@@ -725,6 +732,7 @@ internal sealed class FlashScorer
             LiveDeckClutter = liveDeckClutter,
             LiveDeckSize = liveCardCount,
             OutstandingStolenResource = outstandingStolenResource,
+            MinimumOutstandingStolenResource = minimumOutstandingStolenResource,
             RetainedAttackValue = retainedAttackValue,
             FocusTargetCombatId = focus.CombatId,
             FocusTargetPressure = focus.Pressure,
@@ -762,6 +770,9 @@ internal sealed class FlashScorer
     private int EffectiveEnemyHp(in FlashBattle battle, int index)
     {
         ref readonly FlashEnemy enemy = ref battle.Enemies[index];
+        // SimulatedCombatState.EffectiveEnemyHp: an armed Steam Eruption phase counts as zero HP.
+        if (enemy.SteamPhase != FlashSteamPhase.None)
+            return 0;
         // SimulatedCombatState.EffectiveEnemyHp's TestSubject branch: while Adaptable is alive, the
         // remaining forms' HP is part of the effective HP even at full current HP.
         if (_score.AdaptablePowerId != ushort.MaxValue
@@ -891,8 +902,16 @@ internal sealed class FlashScorer
                 continue;
             if ((enemy.Flags & FlashEnemyFlags.SkipNextMove) != 0)
                 continue;
-            // Forced moves are not part of the admitted Act-1 content closure; a forced node would have
-            // been rejected at admission.
+            // SimulatedCombatState.TryGetForcedMoveId: about-to-blow has no damage intent; explode
+            // projects its recorded damage once, without the normal move's attacks.
+            if (enemy.SteamPhase == FlashSteamPhase.AboutToBlow)
+                continue;
+            if (enemy.SteamPhase == FlashSteamPhase.Explode)
+            {
+                ProjectThreatHit(ref x, owner, enemy.Ai[FlashKernel.SteamEruptionDamageRegister],
+                    ref ostyHp, ref block, ref hp, ref gambitActive, ref prevention);
+                continue;
+            }
             FlashMonsterNode move = Rules.MonsterRule(enemy.Rules).Nodes[enemy.Move];
             for (int attackIndex = 0; attackIndex < move.Attacks.Length; attackIndex++)
             {

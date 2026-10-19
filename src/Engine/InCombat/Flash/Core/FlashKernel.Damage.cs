@@ -623,6 +623,15 @@ public static partial class FlashKernel
                 enemy.Flags |= FlashEnemyFlags.DeathProcessed;
                 continue;
             }
+            // CorePowerSupport.ApplyEnemyDeathPowers: a dead Waterfall Giant still holding Steam
+            // Eruption is rewritten to its forced phase before the death powers run; it is alive again
+            // after the rewrite, so it is neither marked processed nor visited by DeathPowerSupport.
+            if (TryTriggerSteamEruptionDeath(ref x, EnemyOwner((byte)index)))
+            {
+                if (x.NeedsChoice)
+                    return;
+                continue;
+            }
             newlyDead[count++] = (byte)index;
         }
         for (int index = 0; index < count; index++)
@@ -635,6 +644,9 @@ public static partial class FlashKernel
             TriggerDeathPowers(ref x, owner);
             if (x.NeedsChoice)
                 return;
+            // DeathPowerSupport.Trigger: stolen resources are recovered after the death cases and
+            // before the dead owner's powers are removed.
+            RecoverStolenResources(ref x.B, owner);
             RemovePowersAfterDeath(ref x, owner);
             ref FlashEnemy enemy = ref x.B.Enemies[newlyDead[index]];
             if (enemy.DeathPhase != FlashDeathPhase.Reviving)
@@ -682,12 +694,15 @@ public static partial class FlashKernel
     /// (<c>SimulatedCombatState.DeathLifecycle.cs</c>): an illusion owner keeps its buffs and
     /// temporary debuffs; every other power follows
     /// <see cref="FlashPowerDef.ShouldPowerBeRemovedAfterOwnerDeath"/>. A creature no longer in the
-    /// roster loses everything.
+    /// roster loses every power that does not explicitly survive its owner (FlutterPower keeps the
+    /// existing engine's mirrored pending amount row); the row-addressed setter matches the native
+    /// per-instance cleanup and releases detached slots.
     /// </summary>
     private static void RemovePowersAfterDeath(ref FlashExec x, byte owner)
     {
+        bool ownerInRoster = InRoster(x.B, owner);
         bool illusionHook = false;
-        if (InRoster(x.B, owner))
+        if (ownerInRoster)
         {
             for (int index = 0; index < x.B.PowerCount; index++)
             {
@@ -702,17 +717,19 @@ public static partial class FlashKernel
         }
         for (int index = x.B.PowerCount - 1; index >= 0; index--)
         {
-            ref readonly FlashPower power = ref x.B.Powers[index];
+            FlashPower power = x.B.Powers[index];
             if (power.Owner != owner || power.Amount == 0)
                 continue;
             FlashPowerDef def = FlashRegistry.Power(power.Id);
-            bool keep = !def.ShouldPowerBeRemovedAfterOwnerDeath;
-            if (illusionHook)
+            bool keep = ownerInRoster
+                ? !def.ShouldPowerBeRemovedAfterOwnerDeath
+                : def.PowerRemainsAfterOwnerLeavesRoster;
+            if (ownerInRoster && illusionHook)
                 keep = def.Type != FlashPowerType.Debuff || def.IsTemporaryPower;
+            // The existing engine's cleanup addresses the exact native instance (GetMutablePowerInstance),
+            // so use the row-addressed setter for instanced powers and to release a detached slot.
             if (!keep)
-                SetPowerAmount(ref x.B, owner, power.Id, 0);
+                SetPowerAmountAt(ref x.B, index, 0);
         }
-        if (!InRoster(x.B, owner))
-            RemovePowersOf(ref x.B, owner);
     }
 }

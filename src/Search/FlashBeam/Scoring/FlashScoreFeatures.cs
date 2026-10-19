@@ -38,6 +38,13 @@ internal readonly record struct FlashScoreFeatures
     public int LiveDeckClutter { get; init; }
     public int LiveDeckSize { get; init; }
     public int OutstandingStolenResource { get; init; }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.MinimumOutstandingStolenResource</c>: the part of the outstanding loot
+    /// that is already irrecoverable. The existing engine reads it only for the primary incumbent's
+    /// loot bucket; K4 compares it on every matched state.
+    /// </summary>
+    public int MinimumOutstandingStolenResource { get; init; }
     public int RetainedAttackValue { get; init; }
     public uint? FocusTargetCombatId { get; init; }
     public int FocusTargetPressure { get; init; }
@@ -113,6 +120,8 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(LiveDeckClutter), old.LiveDeckClutter, flash.LiveDeckClutter);
         Check(nameof(LiveDeckSize), old.LiveDeckSize, flash.LiveDeckSize);
         Check(nameof(OutstandingStolenResource), old.OutstandingStolenResource, flash.OutstandingStolenResource);
+        Check(nameof(MinimumOutstandingStolenResource), old.MinimumOutstandingStolenResource,
+            flash.MinimumOutstandingStolenResource);
         Check(nameof(RetainedAttackValue), old.RetainedAttackValue, flash.RetainedAttackValue);
         Check(nameof(FocusTargetCombatId), old.FocusTargetCombatId, flash.FocusTargetCombatId);
         Check(nameof(FocusTargetPressure), old.FocusTargetPressure, flash.FocusTargetPressure);

@@ -197,6 +197,11 @@ public sealed class BlightStrike : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0);
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
+        // and before the card-specific compensation, so the debuff sees the post-death target.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         if (x.NeedsChoice || x.Target == FlashLimits.NoOwner)
             return;
         int damage = x.LastDamageTotal;

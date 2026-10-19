@@ -84,31 +84,59 @@ public static partial class FlashKernel
     /// </summary>
     public static byte SpawnMonster(ref FlashExec x, byte source, int rulesId, int slotIndex, bool minion)
     {
+        FlashEnemy pending = default;
+        CreateMonster(ref x, rulesId, slotIndex, int.MinValue, ref pending);
+        return AddCreatedMonster(ref x, source, ref pending, minion);
+    }
+
+    /// <summary>
+    /// The creation half of <c>MonsterSpawnSupport.Create</c> + <c>CreatePredictedMonster</c>: validate
+    /// the rule/slot, roll the initial HP (or use <paramref name="initialHp"/>), assign the CombatId
+    /// from <see cref="FlashBattle.NextCombatId"/>, write the compiled initial AI registers and return
+    /// the row value on the stack. The creature is not in the known-enemy array or roster yet; this
+    /// split preserves the native order for Surprise (fat gremlin created before the sneaky one, both
+    /// added afterwards) and the Niche/CombatId draw order.
+    /// </summary>
+    public static void CreateMonster(ref FlashExec x, int rulesId, int slotIndex, int initialHp,
+        ref FlashEnemy pending)
+    {
         if (rulesId < 0 || rulesId >= FlashLimits.MonsterRules)
             throw new ArgumentOutOfRangeException(nameof(rulesId), rulesId, "怪物规则条目越界。");
         FlashMonsterRules rules = x.R.MonsterRule(checked((byte)rulesId));
         if (slotIndex != NoSlot && (uint)slotIndex >= (uint)x.R.EncounterSlots.Count)
             throw new ArgumentOutOfRangeException(nameof(slotIndex), slotIndex, "遭遇槽位越界。");
+        if (x.B.EnemyCount >= FlashLimits.Enemies)
+            throw new FlashCapacityException("Enemies", FlashLimits.Enemies);
+        if (rules.InitialAiRegisters.Length > FlashLimits.EnemyAiRegisters)
+            throw new FlashCapacityException("Enemy.Ai", FlashLimits.EnemyAiRegisters);
+        pending = default;
+        pending.MonsterId = rules.MonsterId;
+        pending.Rules = checked((byte)rulesId);
+        pending.Slot = checked((byte)slotIndex);
+        pending.CombatId = x.B.NextCombatId++;
+        int rolledHp = initialHp == int.MinValue ? RollInitialHp(ref x.B, rules) : initialHp;
+        pending.Creature.CurrentHp = rolledHp;
+        pending.Creature.MaxHp = rolledHp;
+        pending.Creature.Flags = FlashCreatureFlags.Present;
+        pending.Flags = FlashEnemyFlags.InCombat;
+        for (int register = 0; register < rules.InitialAiRegisters.Length; register++)
+            pending.Ai[register] = rules.InitialAiRegisters[register];
+    }
+
+    /// <summary>
+    /// The add half of <c>MonsterSpawnSupport.AddCreated</c>: append the created row to the known
+    /// enemies, insert it into the roster in encounter-slot order, apply the compiled entrance powers
+    /// and initial action, then Minion.
+    /// </summary>
+    public static byte AddCreatedMonster(ref FlashExec x, byte source, ref FlashEnemy pending, bool minion)
+    {
         int enemyIndex = x.B.EnemyCount;
         if (enemyIndex >= FlashLimits.Enemies)
             throw new FlashCapacityException("Enemies", FlashLimits.Enemies);
         byte owner = EnemyOwner(enemyIndex);
-        ref FlashEnemy enemy = ref x.B.Enemies[enemyIndex];
-        enemy = default;
-        enemy.MonsterId = rules.MonsterId;
-        enemy.Rules = checked((byte)rulesId);
-        enemy.Slot = checked((byte)slotIndex);
-        enemy.CombatId = x.B.NextCombatId++;
-        enemy.Creature.CurrentHp = RollInitialHp(ref x.B, rules);
-        enemy.Creature.MaxHp = enemy.Creature.CurrentHp;
-        enemy.Creature.Flags = FlashCreatureFlags.Present;
-        enemy.Flags = FlashEnemyFlags.InCombat;
-        if (rules.InitialAiRegisters.Length > FlashLimits.EnemyAiRegisters)
-            throw new FlashCapacityException("Enemy.Ai", FlashLimits.EnemyAiRegisters);
-        for (int register = 0; register < rules.InitialAiRegisters.Length; register++)
-            enemy.Ai[register] = rules.InitialAiRegisters[register];
-        for (int register = rules.InitialAiRegisters.Length; register < FlashLimits.EnemyAiRegisters; register++)
-            enemy.Ai[register] = 0;
+        int slotIndex = pending.Slot == NoSlot ? NoSlot : pending.Slot;
+        FlashMonsterRules rules = x.R.MonsterRule(pending.Rules);
+        x.B.Enemies[enemyIndex] = pending;
         x.B.EnemyCount = checked((byte)(enemyIndex + 1));
         InsertIntoRoster(ref x.B, enemyIndex, slotIndex);
         FlashMonsterDef def = FlashRegistry.Monster(rules.MonsterId);
@@ -118,7 +146,6 @@ public static partial class FlashKernel
         PrepareSpawnedMonster(ref x, owner, rules);
         if (x.NeedsChoice)
             return owner;
-        // The summoning move applies Minion after CreatureCmd.Add and its entrance hooks finish.
         if (minion && FlashRegistry.TryPower("MINION_POWER", out ushort minionPower)
             && GetAmount(x.B, owner, minionPower) <= 0)
         {
@@ -246,18 +273,37 @@ public static partial class FlashKernel
     /// </summary>
     public static bool ExecuteMonsterMove(ref FlashExec x, byte owner)
     {
+        uint combatId = x.B.Enemy(owner).CombatId;
         x.B.Enemy(owner).Flags |= FlashEnemyFlags.ActingThisRound;
         bool playerDied = ExecuteMonsterMoveCore(ref x, owner);
-        ref FlashEnemy enemy = ref x.B.Enemy(owner);
+        // Escape (CreatureEscaped) compacts the known-enemy array, so the owner index may belong to a
+        // different row now (or be past the end). The escaped creature no longer needs its in-turn
+        // flags cleared; both flags are zero at stable boundaries.
+        int row = FindEnemyIndex(x.B, combatId);
+        if (row < 0)
+            return playerDied;
+        ref FlashEnemy enemy = ref x.B.Enemies[row];
         enemy.Flags &= ~FlashEnemyFlags.ActingThisRound;
         if (enemy.Creature.IsAlive)
             enemy.Flags &= ~FlashEnemyFlags.DeathProcessed;
         return playerDied;
     }
 
+    /// <summary>Index of the known enemy with <paramref name="combatId"/>, or -1.</summary>
+    public static int FindEnemyIndex(in FlashBattle battle, uint combatId)
+    {
+        for (int index = 0; index < battle.EnemyCount; index++)
+        {
+            if (battle.Enemies[index].CombatId == combatId)
+                return index;
+        }
+        return -1;
+    }
+
     private static bool ExecuteMonsterMoveCore(ref FlashExec x, byte owner)
     {
         FlashMonsterRules rules = MonsterRules(ref x, owner);
+        uint combatId = x.B.Enemy(owner).CombatId;
         int moveNode = x.B.Enemy(owner).Move;
         FlashMonsterNode node = rules.Nodes[moveNode];
         FlashMonsterDef def = FlashRegistry.Monster(x.B.Enemy(owner).MonsterId);
@@ -335,8 +381,13 @@ public static partial class FlashKernel
         def.ApplyMoveEffects(ref x, owner, moveNode);
         if (x.NeedsChoice)
             return x.B.Player.IsDead;
-        if (ownerAliveBefore && x.B.Creature(owner).IsDead
-            && (x.B.Enemy(owner).Flags & FlashEnemyFlags.DeathProcessed) == 0)
+        // Escape compacts the known-enemy array; resolve the owner again before reading its vitals.
+        int resolved = FindEnemyIndex(x.B, combatId);
+        if (resolved < 0)
+            return x.B.Player.IsDead;
+        byte resolvedOwner = EnemyOwner(resolved);
+        if (ownerAliveBefore && x.B.Creature(resolvedOwner).IsDead
+            && (x.B.Enemies[resolved].Flags & FlashEnemyFlags.DeathProcessed) == 0)
         {
             ApplyEnemyDeathPowers(ref x);
         }
@@ -431,6 +482,30 @@ public static partial class FlashKernel
         enemy.ForcedMove = checked((byte)nextNode);
         enemy.Move = checked((byte)rules.StunnedNode);
         enemy.Flags &= ~FlashEnemyFlags.NeedsInitialRoll;
+    }
+
+    /// <summary>
+    /// <c>FlutterPower.AfterDamageReceived</c>: when the last stack is consumed, the owner is stunned
+    /// with the next state of its most recently logged move (<c>StateLog.Last().GetNextState</c>),
+    /// not the logged move itself. A follow-up that is not a direct move node (a conditional or random
+    /// branch) is not modeled and rejects explicitly.
+    /// </summary>
+    public static void ForceStunnedAfterLastMove(ref FlashExec x, byte owner)
+    {
+        FlashMonsterRules rules = MonsterRules(ref x, owner);
+        ref readonly FlashEnemy enemy = ref x.B.Enemy(owner);
+        int recent = Math.Min((int)enemy.LoggedMoves, FlashLimits.EnemyRecentMoves);
+        if (recent == 0)
+            throw new FlashUnsupportedException("振翅眩晕缺少最近行动记录。");
+        FlashMonsterNode last = rules.Nodes[enemy.RecentMoves[recent - 1]];
+        if (last.Kind != FlashMonsterNodeKind.Move || last.FollowUp < 0)
+            throw new FlashUnsupportedException($"振翅眩晕的后继 {last.NativeId} 不是直接行动节点。");
+        int next = last.FollowUp;
+        if (next == rules.StunnedNode || next == rules.ReviveNode)
+            throw new FlashUnsupportedException("振翅眩晕的后继是合成节点。");
+        if (rules.Nodes[next].Kind != FlashMonsterNodeKind.Move)
+            throw new FlashUnsupportedException($"振翅眩晕的后继 {rules.Nodes[next].NativeId} 不是直接行动节点。");
+        ForceStunnedMove(ref x, owner, next);
     }
 
     private static int DefaultStunnedFollowUp(in FlashEnemy enemy, in FlashMonsterRules rules)

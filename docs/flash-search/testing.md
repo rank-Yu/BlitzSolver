@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX 合入后）：FlashKernelChecks 通过；138 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条）、206 个固定根（`coverage/fixtures/cards/flash-*.json`）与 53 个生成牌组（含 20 个非铁甲战士牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；只有含 Thrash 的 `deck-IRONCLAD-02`/`18` 按小数卡牌变量边界记 `unsupported`。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW 合入后）：FlashKernelChecks 通过；144 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条）、210 个固定根（`coverage/fixtures/cards/flash-*.json`）与 53 个生成牌组（含 20 个非铁甲战士牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；只有含 Thrash 的 `deck-IRONCLAD-02`/`18` 按小数卡牌变量边界记 `unsupported`。
 
 ### 2.1 覆盖缺口
 
@@ -56,11 +56,9 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 剩余怪物（MB，2026-10-19）：知识恶魔的怪物行动现在产生待处理的固定选项选择（`FlashChoiceKind.SelectOption`，接入选择翻译、回放与差分比较），实现四个诅咒 Power 与诅咒卡（只作为选项）并投影 `_knowledgeDemonCurseCounters`；无餍者的目标化 SandpitPower（敌方回合开始按行减层、归零击杀目标）、FranticEscape、评估中的 `SandpitRemaining` 与“1 层流沙必死”威胁特例；新 Hook `AfterSideTurnEndLate`（`FlashHookMaskExt`）。EntropicBrew 按现有引擎冻结战斗外随机药水池，免费药水与生成药水的用量和战略成本进入评估（K4 覆盖）。两个首领的 FLASHM1/FLASHM2 自然根与 `flash-mb-*` 固定根零差异。
 
-仍跳过：第一幕瀑布巨兽（SteamEruption 的死亡改写与爆发阶段、动态攻击伤害、阻止战斗结束与评估特例）；偷窃（穿着一件大衣的两只地精与 THIEVING_HOPPER：被偷卡牌身份与回收、Heist/Surprise 死亡生成、评估中的被偷资源）；Thrash 的小数卡牌变量仍是显式边界。
+偷窃与瀑布巨兽（TW，2026-10-19）：实现 THIEVING_HOPPER_WEAK、GREMLIN_MERC_NORMAL 与 WATERFALL_GIANT_BOSS，三幕遭遇全部覆盖。偷窃：THIEVERY 按 `ThievingHopper._stealPriorities` 的稀有度优先从抽牌堆与弃牌堆取牌组卡并移出战斗，被偷卡的完整值存进 `FlashBattle.DetachedCards`（容量 2 → 3，与 Nightmare 共用），击杀回收、逃跑不回收；ThieveryPower 的金币、HeistPower、SurprisePower 的死亡生成与 Heist 转移、逃跑时已知敌人的压实与下标重映射；`OutstandingStolenResource` 进入评分与路线键，`MinimumOutstandingStolenResource` 纳入 K4，偷窃根照现有引擎以 `theft_policy` 禁用 incumbent 下界，`PreserveResources` 策略下的资源保全代表只在偷窃根比较。瀑布巨兽：SteamEruption 的死亡改写（HP 钳制、强制 ABOUT_TO_BLOW、保留本 Power 并清其余 Power）、ABOUT_TO_BLOW/EXPLODE 强制行动、压力枪的动态伤害、爆发阶段 `EffectiveEnemyHp` 为 0 与阻止战斗结束；`FlashEnemy.SteamPhase` 使用原填充字节，`FlashBattle` 12320 → 12408 字节。瀑布巨兽的死亡改写暴露 11 个卡牌定义漏掉的时机：照 `CorePowerSupport.ApplyCardPowers` 在镜像攻击之后、专属补偿施加敌方 Power 之前结算敌人死亡 Power（Bash、Uppercut、Thunderclap、SuckerPunch、PoisonedStab、Comet 等）。4 个 `coverage/fixtures/cards/flash-tw-*.json` 与 6 个自然根 48 条游走零差异，临时计数确认偷窃、回收、逃跑、Surprise 生成与蒸汽三阶段在游走中触发；强制 THIEVING_HOPPER_WEAK 的 180 个生成牌组中 165 个零差异，8 个在 Hopper 逃跑后现有引擎仍保留 FlutterPower（持有者已离开已知敌人）而无法投影，按缺失能力记录。48 根基准路线与每根转移数逐根不变。
 
-| 遭遇 | 缺失能力 | 机制位置 |
-| --- | --- | --- |
-| `THIEVING_HOPPER_WEAK` | 偷窃；评估侧缺口 | `P/MonsterMoveEffects.cs:170-220` 的 THIEVERY/ESCAPE、`S/SimulatedCombatState.RecordThievery`；`FlashScoreBridge.cs:103 TheftApplicable` 拒绝，`FlashScorer.cs:227-230` 把 `OutstandingStolenResource` 固定为 0。 |
+仍跳过：Thrash 的小数卡牌变量仍是显式边界（现有引擎把 `ModifyDamage` 的小数结果写进卡牌变量，Flash 的整数变量没有可逐位复刻的取整点）。
 
 卡牌（铁甲战士剩余 24 张，P14）：实现 Aggression、StoneArmor、Unmovable、Rupture 与 AggressionPower、UnmovablePower、RupturePower（StoneArmor 复用 PlatingPower）；4 个 `coverage/fixtures/cards/flash-p14-*.json` 每根 48 条游走零差异。RupturePower 的 Aux0..2 只在出牌期间存放待结算力量与伤害来源标记，稳定边界为 0，投影只认领空的 `RupturePredictionState`。跳过 20 张：自动打出（Cascade、Havoc、Hellraiser、HowlFromBeyond、Stampede）、卡池随机生成（InfernalBlade、Stoke）、变化（PrimalForce）、改费用（Corruption、Unrelenting、Stomp，后者另需扩充 `CardEnergyCostModifiers` 容量）、出牌次数（OneTwoPunch）、AfterPowerAmountChanged（Vicious）、战斗全程未格挡受伤计数（TearAsunder）、跨卡计算伤害（Thrash）、多人专用（Blaze、DemonicShield、Midnight、Outrage、Tank）。
 

@@ -83,10 +83,13 @@ public static partial class FlashKernel
     /// <summary>Mirrors the enemy-turn block of <c>CombatBeamSolver.AdvanceRound</c>.</summary>
     private static void RunEnemyTurn(ref FlashExec x)
     {
-        Span<byte> acting = stackalloc byte[FlashLimits.Enemies];
+        Span<uint> acting = stackalloc uint[FlashLimits.Enemies];
+        Span<byte> steamPlayer = stackalloc byte[1];
+        Span<byte> steamSelf = stackalloc byte[1];
+        steamPlayer[0] = FlashLimits.PlayerOwner;
         int actingCount = x.B.RosterCount;
         for (int position = 0; position < actingCount; position++)
-            acting[position] = EnemyOwner(x.B.Roster[position]);
+            acting[position] = x.B.Enemies[x.B.Roster[position]].CombatId;
 
         SetSide(ref x.B, FlashSide.Enemy);
         // BeginSideTurn for the enemies: their per-turn counters are not tracked, but
@@ -122,8 +125,13 @@ public static partial class FlashKernel
 
         for (int index = 0; index < actingCount; index++)
         {
-            byte owner = acting[index];
-            ref FlashEnemy enemy = ref x.B.Enemy(owner);
+            // The acting snapshot is by CombatId: an escaped creature compacts the known array, and a
+            // stored owner index would otherwise name a different enemy for every later slot.
+            int actingRow = FindEnemyIndex(x.B, acting[index]);
+            if (actingRow < 0)
+                continue;
+            byte owner = EnemyOwner(actingRow);
+            ref FlashEnemy enemy = ref x.B.Enemies[actingRow];
             if (!CanPerformMonsterMove(enemy))
                 continue;
             if ((enemy.Flags & FlashEnemyFlags.SkipNextMove) != 0)
@@ -134,9 +142,35 @@ public static partial class FlashKernel
                     return;
                 continue;
             }
-            // Forced moves (Steam Eruption) are not supported.
+            // CombatBeamSolver.Expansion.Replay: the Steam Eruption forced phase is consumed after
+            // the stun skip and before the normal move. It replaces the move entirely; the performed
+            // mark still advances the state machine at the end of the turn.
+            if (TryConsumeSteamForcedMove(ref x, owner, out bool steamExploded, out int steamDamage))
+            {
+                // The performed move is the one captured before the forced phase replaces it.
+                x.B.Enemy(owner).Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+                if (steamExploded)
+                {
+                    DamagePlayerFromMonster(ref x, owner, steamPlayer, steamDamage);
+                    if (x.NeedsChoice)
+                        return;
+                    steamSelf[0] = owner;
+                    Kill(ref x, steamSelf, force: true);
+                    if (x.NeedsChoice)
+                        return;
+                    ApplyEnemyDeathPowers(ref x);
+                    if (x.NeedsChoice)
+                        return;
+                }
+                if (CheckWinCondition(ref x.B))
+                    return;
+                continue;
+            }
+            uint actingCombatId = enemy.CombatId;
             bool playerDied = ExecuteMonsterMove(ref x, owner);
-            x.B.Enemy(owner).Flags |= FlashEnemyFlags.PerformedMoveThisRound;
+            int performedRow = FindEnemyIndex(x.B, actingCombatId);
+            if (performedRow >= 0)
+                x.B.Enemies[performedRow].Flags |= FlashEnemyFlags.PerformedMoveThisRound;
             if (x.NeedsChoice)
                 return;
             if (CheckWinCondition(ref x.B) || playerDied)

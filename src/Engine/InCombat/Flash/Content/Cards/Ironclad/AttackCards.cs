@@ -97,6 +97,11 @@ public sealed class Break : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
+        // and before the card-specific compensation, so the debuff sees the post-death target.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
@@ -226,6 +231,11 @@ public sealed class MoltenFist : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
+        // and before the card-specific compensation, so the debuff sees the post-death target.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
         if (x.Target == FlashLimits.NoOwner || !x.B.Creature(x.Target).IsAlive)
             return;
         ushort vulnerablePower = FlashRegistry.PowerId<Powers.VulnerablePower>();
@@ -243,6 +253,11 @@ public sealed class FightMe : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         FlashCardEffects.GeneralAttack(ref x, 0, hitCount: (int)FlashCardEffects.Var(x, 1));
+        if (x.NeedsChoice)
+            return;
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
+        // and before the card-specific compensation, so the debuff sees the post-death target.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
         ushort strength = FlashRegistry.PowerId<Powers.StrengthPower>();

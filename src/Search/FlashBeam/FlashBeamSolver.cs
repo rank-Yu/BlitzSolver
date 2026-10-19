@@ -40,6 +40,9 @@ internal sealed record FlashBeamOptions(
     /// <summary>The existing primary member's effective potion policy, used to qualify incumbent tightening.</summary>
     public SolverPotionPolicy EffectivePotionPolicy { get; init; } = SolverPotionPolicy.Smart;
 
+    /// <summary>The request's theft policy; <c>PreserveResources</c> adds the existing final ordering's recovery keys.</summary>
+    public SolverTheftPolicy? TheftPolicy { get; init; }
+
     /// <summary>The request's minimum explicit potion uses; the primary member passes 0.</summary>
     public int MinimumPotionUses { get; init; }
 
@@ -166,6 +169,7 @@ internal sealed class FlashBeamSolver
     private readonly bool _pruneEqualHp;
     private readonly bool _preservePotionCostOpportunities;
     private readonly SolverPotionPolicy _effectivePotionPolicy;
+    private readonly SolverTheftPolicy? _theftPolicy;
     private readonly bool _auditPotionPolicy;
     private readonly int _initialExplicitPotionUses;
     private readonly int _initialAutomaticPotionUses;
@@ -197,6 +201,7 @@ internal sealed class FlashBeamSolver
         _pruneEqualHp = _bound?.PruneEqualHp ?? false;
         _preservePotionCostOpportunities = _bound?.RequireCertifiedHealingProof ?? false;
         _effectivePotionPolicy = options.EffectivePotionPolicy;
+        _theftPolicy = options.TheftPolicy;
         _auditPotionPolicy = options.AuditPotionPolicy;
         _initialExplicitPotionUses = options.InitialExplicitPotionUses;
         _initialAutomaticPotionUses = options.InitialAutomaticPotionUses;
@@ -223,10 +228,11 @@ internal sealed class FlashBeamSolver
         // so they start small and grow toward that bound.
         int maxChildren = checked(width * (FlashKernel.MaxLegalActions + 1));
         int initialChildren = Math.Min(maxChildren, Math.Max(64, width * 8));
-        Pool current = new(width, width);
-        Pool next = new(initialChildren, maxChildren);
-        Pool ended = new(initialChildren, maxChildren);
-        Pool turnFrontier = new(width, width);
+        bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
+        Pool current = new(width, width, preserveTheft);
+        Pool next = new(initialChildren, maxChildren, preserveTheft);
+        Pool ended = new(initialChildren, maxChildren, preserveTheft);
+        Pool turnFrontier = new(width, width, preserveTheft);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -415,6 +421,7 @@ internal sealed class FlashBeamSolver
         int potionFreePlayerHp = _potionFreeBaseline?.PlayerHp ?? _bestPotionFree?.PlayerHp ?? 0;
         int potionFreeDeathSaves = _potionFreeBaseline?.DeathSaveUseCount
             ?? (_bestPotionFree is { } free ? free.ProjectedDeathSaveUseCount : int.MaxValue);
+        int potionFreeOutstanding = _bestPotionFree?.Key.OutstandingStolenResource ?? int.MaxValue;
         bool anyRouteWon = potionFreeWon || _anyAuditedVictory;
         Candidate? selected = null;
         if (_auditBestByPotionCount is { } bestByCount)
@@ -422,7 +429,7 @@ internal sealed class FlashBeamSolver
             foreach (Candidate candidate in bestByCount.Values)
             {
                 if (!IsAuditedPolicyEligible(candidate, hasPotionFree, potionFreeWon, potionFreeDeficit,
-                        potionFreePlayerHp, potionFreeDeathSaves, anyRouteWon))
+                        potionFreePlayerHp, potionFreeDeathSaves, potionFreeOutstanding, anyRouteWon))
                 {
                     continue;
                 }
@@ -446,7 +453,8 @@ internal sealed class FlashBeamSolver
     }
 
     private bool IsAuditedPolicyEligible(Candidate candidate, bool hasPotionFree, bool potionFreeWon,
-        int potionFreeDeficit, int potionFreePlayerHp, int potionFreeDeathSaves, bool anyRouteWon)
+        int potionFreeDeficit, int potionFreePlayerHp, int potionFreeDeathSaves, int potionFreeOutstanding,
+        bool anyRouteWon)
     {
         if (candidate.ExplicitPotionUseCount < _options.MinimumPotionUses)
             return false;
@@ -459,6 +467,10 @@ internal sealed class FlashBeamSolver
             && _effectivePotionPolicy != SolverPotionPolicy.Disabled
             && candidate.Key.OptionalPotionCount > 0
             && candidate.ProjectedDeathSaveUseCount < potionFreeDeathSaves;
+        // FinalPlanOrdering.Select: under the preserve policy, more potion use is allowed when it
+        // recovers outstanding loot.
+        bool recoversLoot = _theftPolicy == SolverTheftPolicy.PreserveResources
+            && candidate.Key.OutstandingStolenResource < potionFreeOutstanding;
         bool passesSoftPolicy = PotionUsePolicy.IsEligible(
                 _effectivePotionPolicy,
                 candidate.Key.OptionalPotionCount,
@@ -469,8 +481,10 @@ internal sealed class FlashBeamSolver
                 anyRouteWon,
                 candidate.Key.Won,
                 candidate.Key.StrategicHpDeficit)
-            || protectsDeathSave;
+            || protectsDeathSave
+            || recoversLoot;
         bool passesAmbergris = protectsDeathSave
+            || recoversLoot
             || PotionUsePolicy.MeetsAmbergrisRestriction(
                 hasPotionFree,
                 candidate.AmbergrisUses,
@@ -490,7 +504,8 @@ internal sealed class FlashBeamSolver
 
     /// <summary>
     /// <c>CombatBeamSolver.FinalPlanOrdering.ComparePotionFreePolicyBaselines</c> restricted to the
-    /// admitted keys (growth, theft and sold HP are zero/rejected); the route index breaks exact ties.
+    /// admitted keys (growth and sold HP are zero/rejected; the theft recovery key is included); the
+    /// route index breaks exact ties.
     /// </summary>
     private int ComparePotionFree(in Candidate left, in Candidate right)
     {
@@ -503,6 +518,11 @@ internal sealed class FlashBeamSolver
         }
         comparison = left.Key.DeathSaveUseCount.CompareTo(right.Key.DeathSaveUseCount);
         if (comparison != 0) return comparison;
+        if (_theftPolicy == SolverTheftPolicy.PreserveResources)
+        {
+            comparison = left.Key.OutstandingStolenResource.CompareTo(right.Key.OutstandingStolenResource);
+            if (comparison != 0) return comparison;
+        }
         comparison = left.Key.StrategicHpDeficit.CompareTo(right.Key.StrategicHpDeficit);
         if (comparison != 0) return comparison;
         comparison = left.Key.CombatEndedTurn.CompareTo(right.Key.CombatEndedTurn);
@@ -528,12 +548,14 @@ internal sealed class FlashBeamSolver
     /// <summary>
     /// The keys of the existing final ordering (<c>FinalPlanOrdering.Select</c>) that the admitted requests
     /// reach. Growth and relic-counter credits are zero because their settings are rejected at admission;
-    /// the theft key and the sold-HP and boundary tie-breakers are not ported yet.
+    /// the sold-HP and boundary tie-breakers are not ported yet. The theft recovery key is carried only
+    /// under <c>PreserveResources</c>, matching <c>TheftEncounterStrategy.CompareRecovery</c>.
     /// </summary>
     private readonly record struct RouteKey(
         bool Won,
         bool Survives,
         int DeathSaveUseCount,
+        int OutstandingStolenResource,
         int StrategicHpDeficit,
         int CombatEndedTurn,
         int PolicyHpDeficit,
@@ -583,6 +605,7 @@ internal sealed class FlashBeamSolver
             won,
             !features.PlayerDead && features.ProjectedPlayerHp > 0,
             features.ProjectedDeathSaveUseCount,
+            _theftPolicy == SolverTheftPolicy.PreserveResources ? features.OutstandingStolenResource : 0,
             strategicHpDeficit,
             won ? state.PlayerTurn : int.MaxValue,
             policyHpDeficit,
@@ -596,7 +619,7 @@ internal sealed class FlashBeamSolver
     }
 
     /// <summary>Negative when <paramref name="left"/> is the better route.</summary>
-    private static int CompareRoutes(in RouteKey left, in RouteKey right)
+    private int CompareRoutes(in RouteKey left, in RouteKey right)
     {
         int comparison = right.Won.CompareTo(left.Won);
         if (comparison != 0) return comparison;
@@ -604,6 +627,12 @@ internal sealed class FlashBeamSolver
         if (comparison != 0) return comparison;
         comparison = left.DeathSaveUseCount.CompareTo(right.DeathSaveUseCount);
         if (comparison != 0) return comparison;
+        // TheftEncounterStrategy.CompareRecovery: only the preserve policy ranks the unrecovered loot.
+        if (_theftPolicy == SolverTheftPolicy.PreserveResources)
+        {
+            comparison = left.OutstandingStolenResource.CompareTo(right.OutstandingStolenResource);
+            if (comparison != 0) return comparison;
+        }
         comparison = left.StrategicHpDeficit.CompareTo(right.StrategicHpDeficit);
         if (comparison != 0) return comparison;
         comparison = left.CombatEndedTurn.CompareTo(right.CombatEndedTurn);
@@ -919,6 +948,7 @@ internal sealed class FlashBeamSolver
         int DelayedDamageValue,
         PersistentSetupTraits SetupTraits,
         int OffensiveProgressValue,
+        int OutstandingStolenResource,
         double Score)
     {
         public static RetentionFacts From(in FlashScoreFeatures features, int depth) => new(
@@ -963,6 +993,7 @@ internal sealed class FlashBeamSolver
             features.DelayedDamageValue,
             features.PersistentSetupTraits,
             features.OffensiveProgressValue,
+            features.OutstandingStolenResource,
             features.Score);
 
         /// <summary>
@@ -1234,6 +1265,7 @@ internal sealed class FlashBeamSolver
         public int Weak = -1;
         public int Tactical = -1;
         public int TurnBoundary = -1;
+        public int Resource = -1;
         public readonly int[] Lanes = new int[8];
 
         public PotionLeaders()
@@ -1288,9 +1320,12 @@ internal sealed class FlashBeamSolver
         private readonly Dictionary<(int Potion, uint? Target), FocusLeaders> _focusLeaders = new();
         private readonly List<(int Potion, uint? Target)> _focusOrder = new();
 
-        public Pool(int initialCapacity, int maxCapacity)
+        private readonly bool _preserveTheft;
+
+        public Pool(int initialCapacity, int maxCapacity, bool preserveTheft)
         {
             _maxCapacity = maxCapacity;
+            _preserveTheft = preserveTheft;
             int capacity = Math.Clamp(initialCapacity, 1, maxCapacity);
             _states = new FlashBattle[capacity];
             _nodes = new int[capacity];
@@ -1563,7 +1598,7 @@ internal sealed class FlashBeamSolver
             int bestPotionFreeSetup = -1, bestPotionFreeSetupCombo = -1, bestPotionFreeUtilityDefensive = -1;
             int bestPotion = -1, bestPotionDefensive = -1, bestPotionOffensive = -1, bestPotionSetup = -1;
             int bestPotionSetupCombo = -1;
-            int bestLongTermResource = -1, bestHpInvestment = -1;
+            int bestLongTermResource = -1, bestHpInvestment = -1, bestResourcePreserving = -1;
             for (int position = 0; position < count; position++)
             {
                 int source = _rankOrder[position];
@@ -1596,6 +1631,11 @@ internal sealed class FlashBeamSolver
                     || IsBetterTurnBoundaryHand(facts, _facts[potion.TurnBoundary]))
                 {
                     potion.TurnBoundary = source;
+                }
+                if (_preserveTheft
+                    && (potion.Resource < 0 || IsBetterResourcePreserving(facts, _facts[potion.Resource])))
+                {
+                    potion.Resource = source;
                 }
                 for (int lane = 0; lane < RetainedLanes.Length; lane++)
                 {
@@ -1702,6 +1742,12 @@ internal sealed class FlashBeamSolver
                 {
                     bestUtilityDefensive = source;
                 }
+                if (_preserveTheft
+                    && (bestResourcePreserving < 0
+                        || IsBetterResourcePreserving(facts, _facts[bestResourcePreserving])))
+                {
+                    bestResourcePreserving = source;
+                }
                 if (potionCount == 0)
                 {
                     if (bestPotionFree < 0)
@@ -1772,6 +1818,8 @@ internal sealed class FlashBeamSolver
                 AddRequired(required, potion.Compressed, width);
                 if (turnBoundary)
                     AddRequired(required, potion.TurnBoundary, width);
+                if (_preserveTheft)
+                    AddRequired(required, potion.Resource, width);
                 for (int lane = 0; lane < potion.Lanes.Length; lane++)
                     AddRequired(required, potion.Lanes[lane], width);
             }
@@ -1831,6 +1879,8 @@ internal sealed class FlashBeamSolver
             AddRequired(required, bestCompressed, width);
             AddRequired(required, bestLongTermResource, width);
             AddRequired(required, bestHpInvestment, width);
+            if (_preserveTheft)
+                AddRequired(required, bestResourcePreserving, width);
 
             _lineageOrder.Clear();
             foreach (int key in _lineageLeaders.Keys)
@@ -1852,6 +1902,17 @@ internal sealed class FlashBeamSolver
                 AddRequired(required, lineage.TargetPressure, width);
             }
         }
+
+        /// <summary>
+        /// BeamRetentionPolicy.Ranking.IsBetterResourcePreserving: fewer outstanding stolen resources,
+        /// then higher projected HP, then a higher score.
+        /// </summary>
+        private static bool IsBetterResourcePreserving(in RetentionFacts candidate, in RetentionFacts current)
+            => candidate.OutstandingStolenResource < current.OutstandingStolenResource
+                || candidate.OutstandingStolenResource == current.OutstandingStolenResource
+                    && (candidate.ProjectedPlayerHp > current.ProjectedPlayerHp
+                        || candidate.ProjectedPlayerHp == current.ProjectedPlayerHp
+                            && candidate.Score > current.Score);
 
         private void SortByRank(int count)
         {

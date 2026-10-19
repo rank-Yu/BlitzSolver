@@ -37,6 +37,7 @@ CheckSkKernel();
 CheckLsKernel();
 CheckNbKernel();
 CheckMbKernel(rules);
+CheckTwKernel();
 CheckDfKernel(rules);
 CheckRgKernel(rules);
 CheckLrKernel(rules);
@@ -280,6 +281,253 @@ static void CheckKm2Kernel(FlashRules rules)
 // channel evokes the leftmost orb first, Dark evokes its raw accumulation (no ModifyOrbValue), Glass
 // decays its private passive by one after a positive passive, Focus modifies passive/evoke values,
 // Plasma's passive fires at turn start, and GoldPlatedCables adds one passive trigger to the first orb.
+const int TwStunnedNode = 2;
+
+// TW: theft and Waterfall Giant kernel capabilities. The contracts cover the detached stolen-card
+// table, the outstanding-resource ledger, escape compaction, the Steam Eruption death rewrite/forced
+// phases and the explicit rejection of a Flutter stun whose last move leads to a branch node.
+static void CheckTwKernel()
+{
+    FlashRules rules = TwRules();
+    Check(Unsafe.SizeOf<FlashEnemy>() == 64, "FlashEnemy 加入蒸汽阶段后仍应为 64 字节");
+    Check(Unsafe.SizeOf<FlashBattle>() == FlashBattle.ExpectedSize, "FlashBattle 尺寸应与 ExpectedSize 一致");
+
+    // Detached table: three live slots (two Nightmare instances plus one stolen card), no eviction;
+    // removing the referencing power frees its slot.
+    FlashBattle detached = TwBattle(rules);
+    FlashCard value = new() { Id = 1, BaseCost = 1 };
+    int firstSlot = -1;
+    for (int index = 0; index < FlashLimits.DetachedCards; index++)
+    {
+        int slot = FlashKernel.AllocateDetachedCard(ref detached, value);
+        if (index == 0)
+            firstSlot = slot;
+    }
+    bool overflow = false;
+    try
+    {
+        FlashKernel.AllocateDetachedCard(ref detached, value);
+    }
+    catch (FlashCapacityException)
+    {
+        overflow = true;
+    }
+    Check(overflow, "DetachedCards 满后应抛 FlashCapacityException");
+    FlashExec detachExec = new(ref detached, rules, default);
+    FlashKernel.ApplyPower(ref detachExec, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SwipePower>(), 1, 0);
+    int swipeRow = FlashKernel.FindPower(detached, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SwipePower>());
+    detached.Powers[swipeRow].Aux0 = firstSlot + 1;
+    FlashKernel.SetPowerAmount(ref detached, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SwipePower>(), 0);
+    Check(detached.DetachedCards[firstSlot].Id == 0, "移除 SwipePower 应释放 detached 槽位");
+
+    // GremlinMerc: min(power amount, gold), the private gold ledger and the outstanding counter.
+    FlashBattle thievery = TwBattle(rules);
+    thievery.Gold = 50;
+    FlashExec thiefExec = new(ref thievery, rules, default);
+    FlashKernel.ApplyPowerTargeted(ref thiefExec, FlashKernel.EnemyOwner(0), FlashLimits.PlayerOwner,
+        FlashRegistry.PowerId<ThieveryPower>(), 20, FlashKernel.EnemyOwner(0));
+    FlashKernel.RecordThievery(ref thiefExec, FlashKernel.EnemyOwner(0));
+    Check(thievery.Gold == 30, $"首次偷窃应拿走 20 金币，实际余额 {thievery.Gold}");
+    Check(thievery.Counter(FlashCounter.OutstandingStolenGold) == 20, "未追回金币应为 20");
+    int thieveryLedgerRow = FlashKernel.FindPower(thievery, FlashKernel.EnemyOwner(0),
+        FlashRegistry.PowerId<ThieveryPower>());
+    Check(thieveryLedgerRow >= 0 && thievery.Powers[thieveryLedgerRow].Aux0 == 20,
+        "ThieveryPower 的私有金币账本应为 20");
+    thievery.Gold = 5;
+    FlashKernel.RecordThievery(ref thiefExec, FlashKernel.EnemyOwner(0));
+    Check(thievery.Gold == 0 && thievery.Counter(FlashCounter.OutstandingStolenGold) == 25,
+        "第二次偷窃应受剩余金币限制并为 5");
+    int thieveryRow = FlashKernel.FindPower(thievery, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<ThieveryPower>());
+    thievery.Powers[thieveryRow].Target = FlashLimits.NoOwner;
+    int before = thievery.Counter(FlashCounter.OutstandingStolenGold);
+    FlashKernel.RecordThievery(ref thiefExec, FlashKernel.EnemyOwner(0));
+    Check(thievery.Counter(FlashCounter.OutstandingStolenGold) == before, "缺少目标时不应偷窃");
+
+    // RecoverStolenResources: killing the Swipe/Heist owner returns the card and gold; the detached
+    // value is dropped with the power.
+    FlashBattle recovered = TwBattle(rules);
+    FlashExec recoverExec = new(ref recovered, rules, default);
+    int stolenSlot = FlashKernel.AllocateDetachedCard(ref recovered, value);
+    FlashKernel.ApplyPowerTargeted(ref recoverExec, FlashKernel.EnemyOwner(0), FlashLimits.PlayerOwner,
+        FlashRegistry.PowerId<SwipePower>(), 1, FlashKernel.EnemyOwner(0));
+    int recoverSwipe = FlashKernel.FindPower(recovered, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SwipePower>());
+    recovered.Powers[recoverSwipe].Aux0 = stolenSlot + 1;
+    FlashKernel.ApplyPowerTargeted(ref recoverExec, FlashKernel.EnemyOwner(0), FlashLimits.PlayerOwner,
+        FlashRegistry.PowerId<HeistPower>(), 7, FlashKernel.EnemyOwner(0));
+    recovered.SetCounter(FlashCounter.OutstandingStolenCards, 1);
+    recovered.SetCounter(FlashCounter.OutstandingStolenGold, 7);
+    recovered.Enemies[0].Creature.CurrentHp = 0;
+    FlashKernel.ApplyEnemyDeathPowers(ref recoverExec);
+    Check(recovered.Counter(FlashCounter.OutstandingStolenCards) == 0
+        && recovered.Counter(FlashCounter.OutstandingStolenGold) == 0, "击杀飞贼应追回被偷卡与金币");
+    Check(recovered.DetachedCards[stolenSlot].Id == 0, "追回后 detached 槽位应清空");
+    Check(FlashKernel.FindPower(recovered, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SwipePower>()) < 0,
+        "死亡清理应移除 SwipePower");
+
+    // Owner-left-roster cleanup: MinionPower (native keep-on-death) is removed once the creature
+    // leaves the roster; FlutterPower keeps its observed pending row (PowerRemainsAfterOwnerLeavesRoster).
+    FlashBattle roster = TwBattle(rules);
+    FlashExec rosterExec = new(ref roster, rules, default);
+    FlashKernel.ApplyPower(ref rosterExec, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<MinionPower>(), 1,
+        FlashKernel.EnemyOwner(0));
+    FlashKernel.ApplyPower(ref rosterExec, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<FlutterPower>(), 1,
+        FlashKernel.EnemyOwner(0));
+    roster.Enemies[0].Creature.CurrentHp = 0;
+    FlashKernel.RemoveFromRoster(ref roster, FlashKernel.EnemyOwner(0));
+    FlashKernel.ApplyEnemyDeathPowers(ref rosterExec);
+    Check(FlashKernel.FindPower(roster, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<MinionPower>()) < 0,
+        "离开名单的死者应移除 MinionPower");
+    Check(FlashKernel.FindPower(roster, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<FlutterPower>()) >= 0,
+        "离开名单的 Hopper 应保留 FlutterPower 的既有 pending 行");
+
+    // Escape compacts the known-enemy array and remaps later owners, but does not recover loot.
+    FlashBattle escaped = TwBattle(rules);
+    escaped.EnemyCount = 2;
+    escaped.RosterCount = 2;
+    escaped.Roster[0] = 0;
+    escaped.Roster[1] = 1;
+    escaped.Enemies[1] = escaped.Enemies[0];
+    escaped.Enemies[1].CombatId = 2;
+    escaped.Enemies[1].Creature = new FlashCreature { CurrentHp = 40, MaxHp = 40, Flags = FlashCreatureFlags.Present };
+    escaped.Enemies[1].Flags = FlashEnemyFlags.InCombat;
+    FlashExec escapeExec = new(ref escaped, rules, default);
+    int escapeSlot = FlashKernel.AllocateDetachedCard(ref escaped, value);
+    FlashKernel.ApplyPowerTargeted(ref escapeExec, FlashKernel.EnemyOwner(0), FlashLimits.PlayerOwner,
+        FlashRegistry.PowerId<SwipePower>(), 1, FlashKernel.EnemyOwner(0));
+    int escapeSwipe = FlashKernel.FindPower(escaped, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SwipePower>());
+    escaped.Powers[escapeSwipe].Aux0 = escapeSlot + 1;
+    escaped.SetCounter(FlashCounter.OutstandingStolenCards, 1);
+    FlashKernel.ApplyPower(ref escapeExec, FlashKernel.EnemyOwner(1), FlashRegistry.PowerId<StrengthPower>(), 2,
+        FlashKernel.EnemyOwner(1));
+    FlashKernel.EscapeEnemy(ref escapeExec, FlashKernel.EnemyOwner(0));
+    Check(escaped.EnemyCount == 1 && escaped.RosterCount == 1 && escaped.Roster[0] == 0,
+        "逃跑应压实已知敌人与名单");
+    Check(escaped.DetachedCards[escapeSlot].Id == 0, "逃跑移除 SwipePower 应释放槽位");
+    Check(escaped.Counter(FlashCounter.OutstandingStolenCards) == 1, "逃跑后未追回卡数应保持不变");
+    int shifted = FlashKernel.FindPower(escaped, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<StrengthPower>());
+    Check(shifted >= 0 && escaped.Powers[shifted].Owner == FlashKernel.EnemyOwner(0),
+        "后续敌人的 Power owner 应随下标前移");
+
+    // A surviving power that names the escaped creature as applier cannot be projected.
+    FlashBattle referenced = TwBattle(rules);
+    referenced.EnemyCount = 2;
+    referenced.RosterCount = 2;
+    referenced.Roster[1] = 1;
+    referenced.Enemies[1] = referenced.Enemies[0];
+    referenced.Enemies[1].CombatId = 2;
+    referenced.Enemies[1].Flags = FlashEnemyFlags.InCombat;
+    FlashExec referencedExec = new(ref referenced, rules, default);
+    FlashKernel.ApplyPowerFromMonster(ref referencedExec, FlashLimits.PlayerOwner, FlashRegistry.PowerId<WeakPower>(), 1,
+        FlashKernel.EnemyOwner(0));
+    bool rejected = false;
+    try
+    {
+        FlashKernel.EscapeEnemy(ref referencedExec, FlashKernel.EnemyOwner(0));
+    }
+    catch (FlashUnsupportedException)
+    {
+        rejected = true;
+    }
+    Check(rejected, "逃跑生物仍被 Power 引用时应显式拒绝");
+
+    // Steam Eruption: a dead owner is rewritten to the forced about-to-blow phase, the power is kept by
+    // the death cleanup, and the two forced consumptions record then deal the explosion damage.
+    FlashBattle steam = TwBattle(rules);
+    FlashExec steamExec = new(ref steam, rules, default);
+    FlashKernel.ApplyPower(ref steamExec, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SteamEruptionPower>(), 18,
+        FlashKernel.EnemyOwner(0));
+    steam.Enemies[0].Creature.CurrentHp = 0;
+    FlashKernel.ApplyEnemyDeathPowers(ref steamExec);
+    Check(steam.Enemies[0].Creature.CurrentHp == FlashLimits.ValueClamp
+        && steam.Enemies[0].Creature.MaxHp == FlashLimits.ValueClamp, "蒸汽爆发的死亡改写应把 HP/最大 HP 设为钳制值");
+    Check(steam.Enemies[0].SteamPhase == FlashSteamPhase.AboutToBlow, "死亡改写应进入 AboutToBlow 阶段");
+    Check(steam.Enemies[0].Move == 0, $"死亡改写应强制 ABOUT_TO_BLOW_MOVE，实际节点 {steam.Enemies[0].Move}");
+    Check(FlashKernel.GetAmount(steam, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SteamEruptionPower>()) == 18,
+        "死亡清理应保留 SteamEruptionPower");
+    Check(!FlashKernel.IsEnding(steam), "有水火巨兽时战斗不应结束");
+    Check(FlashKernel.TryConsumeSteamForcedMove(ref steamExec, FlashKernel.EnemyOwner(0), out bool explode1, out _)
+        && !explode1 && steam.Enemies[0].SteamPhase == FlashSteamPhase.Explode, "第一次强制行动应进入 Explode 阶段");
+    Check(FlashKernel.GetAmount(steam, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<SteamEruptionPower>()) == 0
+        && steam.Enemies[0].Ai[FlashKernel.SteamEruptionDamageRegister] == 18, "AboutToBlow 应记录爆发伤害并移除 Power");
+    Check(FlashKernel.TryConsumeSteamForcedMove(ref steamExec, FlashKernel.EnemyOwner(0), out bool explode2, out int damage)
+        && explode2 && damage == 18, "第二次强制行动应报告 18 点爆发伤害");
+
+    // Flutter: the last stack resolves the next state of the last logged move. A direct move is
+    // accepted; a branch follow-up is an explicit boundary (the assumption contract).
+    FlashBattle flutter = TwBattle(rules);
+    flutter.Enemies[0].Move = 0;
+    FlashKernel.LogMonsterMove(ref flutter.Enemies[0], 0);
+    FlashExec flutterExec = new(ref flutter, rules, default);
+    FlashKernel.ApplyPower(ref flutterExec, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<FlutterPower>(), 1,
+        FlashKernel.EnemyOwner(0));
+    FlashKernel.Damage(ref flutterExec, [FlashKernel.EnemyOwner(0)], 5m, FlashValueProps.Move, FlashLimits.PlayerOwner,
+        hasCardSource: false, default);
+    Check(flutter.Enemies[0].Move == TwStunnedNode && flutter.Enemies[0].ForcedMove == 1,
+        "振翅归零应以最近行动的下一状态进入 STUNNED");
+    FlashBattle branch = TwBattle(rules);
+    branch.Enemies[0].Move = 3;
+    FlashKernel.LogMonsterMove(ref branch.Enemies[0], 3);
+    FlashExec branchExec = new(ref branch, rules, default);
+    FlashKernel.ApplyPower(ref branchExec, FlashKernel.EnemyOwner(0), FlashRegistry.PowerId<FlutterPower>(), 1,
+        FlashKernel.EnemyOwner(0));
+    bool branchRejected = false;
+    try
+    {
+        FlashKernel.Damage(ref branchExec, [FlashKernel.EnemyOwner(0)], 5m, FlashValueProps.Move, FlashLimits.PlayerOwner,
+            hasCardSource: false, default);
+    }
+    catch (FlashUnsupportedException)
+    {
+        branchRejected = true;
+    }
+    Check(branchRejected, "振翅眩晕的后继是分支节点时应显式拒绝");
+}
+
+static FlashBattle TwBattle(FlashRules rules)
+{
+    FlashBattle battle = NewBattle();
+    battle.Gold = 0;
+    battle.Enemies[0].MonsterId = FlashRegistry.MonsterId<CombatSolver.Engine.InCombat.Flash.Content.Monsters.Act1.WaterfallGiant>();
+    battle.Enemies[0].Rules = 0;
+    battle.Enemies[0].Move = 0;
+    battle.Enemies[0].ForcedMove = byte.MaxValue;
+    return battle;
+}
+
+static FlashRules TwRules()
+{
+    FlashRegistry.TryMonster("WATERFALL_GIANT", out ushort waterfall);
+    FlashRulesBuilder builder = new() { RootEnemyCount = 1, HasTheftContent = true };
+    FlashMonsterNode[] nodes =
+    [
+        new FlashMonsterNode
+        {
+            NativeId = "ABOUT_TO_BLOW_MOVE", Kind = FlashMonsterNodeKind.Move, FollowUp = 1,
+            MustPerformOnceBeforeTransitioning = true,
+        },
+        new FlashMonsterNode { NativeId = "EXPLODE_MOVE", Kind = FlashMonsterNodeKind.Move, FollowUp = 1 },
+        new FlashMonsterNode { NativeId = "STUNNED", Kind = FlashMonsterNodeKind.Move },
+        new FlashMonsterNode { NativeId = "FLUTTER_TEST_MOVE", Kind = FlashMonsterNodeKind.Move, FollowUp = 4 },
+        new FlashMonsterNode
+        {
+            NativeId = "TEST_BRANCH", Kind = FlashMonsterNodeKind.ConditionalBranch, ConditionalTarget = 1,
+        },
+    ];
+    builder.SetMonster(0, new FlashMonsterRules
+    {
+        MonsterId = waterfall,
+        Nodes = nodes,
+        InitialNode = 0,
+        PendingInitialMoveNode = 0,
+        StunnedNode = TwStunnedNode,
+        InitialHpMin = 100,
+        InitialHpMax = 100,
+        StaticInts = [],
+    });
+    builder.SetPowerVars(FlashRegistry.PowerId<FlutterPower>(), [50m]);
+    return builder.Build();
+}
+
 static void CheckDfKernel(FlashRules rules)
 {
     Check(FlashRegistry.TryOrb("LIGHTNING_ORB", out ushort lightning), "缺少 LIGHTNING_ORB");

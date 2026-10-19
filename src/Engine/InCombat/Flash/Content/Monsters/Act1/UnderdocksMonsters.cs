@@ -284,3 +284,65 @@ public sealed class TwoTailedRat : FlashMonsterDef
         return true;
     }
 }
+
+/// <summary>
+/// Native <c>GremlinMerc</c> (GREMLIN_MERC_NORMAL): room-entry SurprisePower 1 and ThieveryPower 20,
+/// then the GIMME / DOUBLE_SMASH / HEHE cycle. Each move records the stolen gold after its attack;
+/// DOUBLE_SMASH also applies Weak 2 and HEHE Strength 2.
+/// </summary>
+[FlashContent("GREMLIN_MERC")]
+public sealed class GremlinMerc : FlashMonsterDef
+{
+    public override IReadOnlyList<string> SpawnedMonsterIds => ["FAT_GREMLIN", "SNEAKY_GREMLIN"];
+
+    public override void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    {
+        // GremlinMerc.AfterAddedToRoom: SurprisePower 1, then one ThieveryPower 20 per player with
+        // the player creature as Target. Single-player has exactly one player.
+        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.SurprisePower>(), 1, owner);
+        FlashKernel.ApplyPowerTargeted(ref x, owner, FlashLimits.PlayerOwner,
+            FlashRegistry.PowerId<Powers.ThieveryPower>(), 20, owner);
+    }
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        {
+            case "GIMME_MOVE":
+                FlashKernel.RecordThievery(ref x, owner);
+                break;
+            case "DOUBLE_SMASH_MOVE":
+                FlashKernel.RecordThievery(ref x, owner);
+                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
+                    FlashRegistry.PowerId<Powers.WeakPower>(), 2, owner);
+                break;
+            case "HEHE_MOVE":
+                FlashKernel.RecordThievery(ref x, owner);
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                break;
+        }
+    }
+}
+
+/// <summary>
+/// Native <c>FatGremlin</c> (created by SurprisePower with slot "fat", or the flee-phase monster):
+/// SPAWNED_MOVE does nothing in prediction, FLEE_MOVE escapes through
+/// <c>SimulatedCombatState.CreatureEscaped</c>. Its HeistPower (transferred stolen gold) is removed by
+/// the escape without being recovered.
+/// </summary>
+[FlashContent("FAT_GREMLIN")]
+public sealed class FatGremlin : FlashMonsterDef
+{
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "FLEE_MOVE")
+            FlashKernel.EscapeEnemy(ref x, owner);
+    }
+}
+
+/// <summary>
+/// Native <c>SneakyGremlin</c> (created by SurprisePower with slot "sneaky"): SPAWNED_MOVE does
+/// nothing in prediction and TACKLE_MOVE is a plain compiled attack.
+/// </summary>
+[FlashContent("SNEAKY_GREMLIN")]
+public sealed class SneakyGremlin : FlashMonsterDef;

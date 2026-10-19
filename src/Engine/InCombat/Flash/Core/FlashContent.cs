@@ -1110,6 +1110,14 @@ public abstract class FlashPowerDef : FlashListenerDef
     public virtual bool ShouldPowerBeRemovedAfterOwnerDeath => true;
 
     /// <summary>
+    /// The existing engine's death cleanup removes every power of a creature that already left the
+    /// roster (the second <c>RemovePowersAfterDeath</c> loop). A later power-amount synchronization can
+    /// still restore a power whose mirrored amount was pending; FlutterPower is the observed case and
+    /// keeps its row here. Default false mirrors the cleanup.
+    /// </summary>
+    public virtual bool PowerRemainsAfterOwnerLeavesRoster => false;
+
+    /// <summary>
     /// Native <c>PowerModel.ShouldOwnerDeathTriggerFatal</c> (true by default; MinionPower and a
     /// ReattachPower with living segments return false). HandOfGreed reads it before gaining gold.
     /// </summary>

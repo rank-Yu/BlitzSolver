@@ -250,6 +250,18 @@ public enum FlashDeathPhase : byte
     PermanentlyDead = 2,
 }
 
+/// <summary>
+/// Waterfall Giant's <c>SimulatedCombatState._steamEruptionPhases</c> entry. Zero means no forced
+/// Steam Eruption action; the two values are the forced <c>ABOUT_TO_BLOW_MOVE</c> and
+/// <c>EXPLODE_MOVE</c> phases (<c>SimulatedCombatState.TryConsumeForcedMonsterMove</c>).
+/// </summary>
+public enum FlashSteamPhase : byte
+{
+    None = 0,
+    AboutToBlow = 1,
+    Explode = 2,
+}
+
 [Flags]
 public enum FlashEnemyFlags : byte
 {
@@ -330,7 +342,13 @@ public struct FlashEnemy
     /// </summary>
     public byte PoweredAttackHitsThisTurn;
 
-    private short _padding1;
+    /// <summary>
+    /// Waterfall Giant's forced Steam Eruption phase (<c>SimulatedCombatState._steamEruptionPhases</c>).
+    /// Stored in the former padding byte; zero for every other monster and while no eruption is armed.
+    /// </summary>
+    public FlashSteamPhase SteamPhase;
+
+    private byte _padding1;
 
     /// <summary>Bit i set when move node i has ever been logged (native "use only once" rule).</summary>
     public ulong EverUsedMoves;

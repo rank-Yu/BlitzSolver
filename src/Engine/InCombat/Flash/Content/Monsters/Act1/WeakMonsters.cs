@@ -34,3 +34,42 @@ public sealed class Nibbit : FlashMonsterDef
         }
     }
 }
+
+/// <summary>
+/// Native <c>ThievingHopper</c> (THIEVING_HOPPER_WEAK). THIEVERY steals a deck card before its
+/// attack (<c>MonsterMoveEffects.ApplyBeforeAttack</c>); FLUTTER gains FlutterPower; ESCAPE removes
+/// the hopper from combat through <c>SimulatedCombatState.CreatureEscaped</c>. The room-entry
+/// EscapeArtistPower 5 is applied by the root capture; the override keeps a summoned instance
+/// consistent (no encounter summons one today).
+/// </summary>
+[FlashContent("THIEVING_HOPPER")]
+public sealed class ThievingHopper : FlashMonsterDef
+{
+    public override void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    {
+        // ThievingHopper.AfterAddedToRoom: PowerCmd.Apply<EscapeArtistPower>(..., 5m, ...).
+        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.EscapeArtistPower>(), 5, owner);
+    }
+
+    public override void BeforeMove(ref FlashExec x, byte owner, int moveNode)
+    {
+        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "THIEVERY_MOVE")
+            FlashKernel.StealCardForThievery(ref x, owner);
+    }
+
+    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    {
+        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        {
+            case "FLUTTER_MOVE":
+                // MonsterMoveEffects.Apply: Apply<FlutterPower>(5).
+                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.FlutterPower>(), 5, owner);
+                break;
+            case "ESCAPE_MOVE":
+                // MonsterMoveEffects.Apply: combat.CreatureEscaped(move.Owner); the stolen SwipePower
+                // is removed without recovering its card.
+                FlashKernel.EscapeEnemy(ref x, owner);
+                break;
+        }
+    }
+}

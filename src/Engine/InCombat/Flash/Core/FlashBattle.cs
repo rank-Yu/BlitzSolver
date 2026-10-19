@@ -212,6 +212,21 @@ public enum FlashCounter : byte
     /// free potion contributes zero <c>PotionUsePolicy.StrategicHpCost</c>.
     /// </summary>
     EntropicFreePotionMask,
+
+    /// <summary>
+    /// Stolen gold still held by a living thief (<c>SimulatedCombatState._outstandingStolenGold</c>):
+    /// <c>ThieveryPower.DynamicVars.Gold</c> plus every <c>HeistPower</c> amount. Incremented when
+    /// <c>RecordThievery</c> steals gold, decremented when a <c>HeistPower</c> owner dies
+    /// (<c>RecoverStolenResources</c>); escaping leaves it outstanding.
+    /// </summary>
+    OutstandingStolenGold,
+
+    /// <summary>
+    /// Stolen cards still held by a living thief (<c>SimulatedCombatState._outstandingStolenCards</c>):
+    /// one per <c>SwipePower</c> with a stolen card. Incremented by THIEVERY, decremented by
+    /// <c>RecoverStolenResources</c> when the thief dies; escaping leaves it outstanding.
+    /// </summary>
+    OutstandingStolenCards,
 }
 
 /// <summary>
@@ -223,7 +238,7 @@ public enum FlashCounter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashBattle
 {
-    public const int ExpectedSize = 12320;
+    public const int ExpectedSize = 12408;
 
     public int Round;
     public int PlayerTurn;
