@@ -68,6 +68,16 @@ public static class FlashLimits
     /// </summary>
     public const int DetachedCards = 3;
 
+    /// <summary>
+    /// Exact decimal card-variable deltas (Thrash's <c>DynamicVars.Damage.BaseValue</c> is changed by
+    /// a decimal <c>ModifyDamage</c> result). The value table lives in the header; a card references
+    /// a slot through <see cref="FlashCard.Private"/>. Slots are canonicalized in card order at every
+    /// stable boundary, so the byte image does not depend on allocation history. The existing engine
+    /// keeps one decimal per card object; four simultaneous live values cover the Thrash copies in the admitted decks,
+    /// and a fifth distinct value falls back through <see cref="FlashCapacityException"/>.
+    /// </summary>
+    public const int DecimalCardVars = 4;
+
     /// <summary>Sentinel of the <see cref="FlashCard.Private"/> identity ledger: no applied entry yet.</summary>
     public const short UninitializedLedger = short.MinValue;
 

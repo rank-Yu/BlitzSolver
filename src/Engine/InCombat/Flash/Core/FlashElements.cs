@@ -148,6 +148,14 @@ public struct FlashCard
     /// </summary>
     public byte DampenOriginalUpgrade;
 
+    /// <summary>
+    /// One-action identity mark used by BeatDown to follow a card object after an earlier auto-play
+    /// moves it out of the discard pile. 0 means unmarked. The field occupies existing tail padding;
+    /// card size stays 92 bytes. BeatDown clears every mark before its OnPlay returns, so a stable
+    /// boundary never contains a nonzero value. Gameplay clones and generated cards start at 0.
+    /// </summary>
+    public byte TransientMark;
+
     public int EnergyModifierCount
     {
         readonly get => ModifierCount;
@@ -428,6 +436,16 @@ public struct FlashCardArray
 public struct FlashDetachedCardArray
 {
     private FlashCard _first;
+}
+
+/// <summary>
+/// Exact decimal card-variable deltas referenced by <see cref="FlashCard.Private"/> (slot + 1).
+/// Canonicalized in detached-card then card storage order at every stable boundary.
+/// </summary>
+[InlineArray(FlashLimits.DecimalCardVars)]
+public struct FlashDecimalVarArray
+{
+    private decimal _first;
 }
 
 [InlineArray(FlashLimits.Enemies)]

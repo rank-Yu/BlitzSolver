@@ -288,6 +288,8 @@ public static partial class FlashKernel
             | FlashCardFlags.RemovedFromState | FlashCardFlags.PowerAfflictionChecked);
         clone.Keywords |= FlashKeywords.CreatedAfterRoot;
         clone.IsClone = true;
+        // The clone is a new native object; a BeatDown transient mark belongs to the original.
+        clone.TransientMark = 0;
         // PredictedCard/CardModel clones are new objects: the existing engine's per-card dictionaries
         // have no entry for them until their first normalization/play. Other cards keep Private (the
         // native clone copies Claw/Rampage-style private counters).

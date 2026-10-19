@@ -16,7 +16,7 @@
 
 | 区块 | 内容 | 首版容量 |
 | --- | --- | --- |
-| Header | 回合数、轮次、当前方、玩家阶段、终局结果、`ShufflesCrossed`、下一个 CombatId、标志位（玩家 Hook 激活、回合结束请求、正在结束） | — |
+| Header | 回合数、轮次、当前方、玩家阶段、终局结果、`ShufflesCrossed`、下一个 CombatId、标志位（玩家 Hook 激活、回合结束请求、正在结束）、小数卡牌变量表（4 个 `decimal`，`DecimalVarCount` 为已用项数） | — |
 | Player | `FlashCreature`（HP、MaxHP、格挡、标志）、能量、星能、金币、手牌上限 | 1 |
 | Osty | `FlashCreature` 与存在标志 | 1 |
 | Enemies | `FlashEnemy`：`FlashCreature`、怪物 Id、规则条目下标、CombatId、遭遇槽下标、死亡阶段、当前状态机节点、最近行动日志、私有 AI 寄存器、跳过行动/强制行动标志 | 10 |
@@ -44,7 +44,7 @@
 - `IsClone`（原版 `CardModel.IsClone`）：占用 `CostState` 的 bit 3（bit 0–2 是临时星能费用标志，bit 5–7 是附魔状态）；克隆卡跳过 `AfterCardEnteredCombat` 的卡牌专属部分（Stomp 等），由 `CloneCard` 置位，导入时从原版卡读取。
 - `DampenOriginalUpgrade`：卡牌被 MagiKnight 的 DampenPower 降级前的升级等级加一（0 表示未降级）。`DowngradeCard` 在把卡牌重置到 0 级动态变量、基础费用与本地关键字时写入；`RestoreDampenedCards` 在最后一个施法者死亡时按该值逐级恢复。
 
-`FlashCardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`FlashKeywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸为 92 字节。
+`FlashCardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`FlashKeywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸为 92 字节。`TransientMark` 是 BeatDown 一次动作内的对象身份标记，占用原有尾部填充字节；0 表示未标记，动作结束前清除，稳定边界恒为 0，克隆与生成卡从 0 开始。
 
 LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`FlashCard`/`FlashBattle` 尺寸不变。`AmountOnTurnStart` 只对三个会被结算读取的 Power 保存（`DrawCardsNextTurnPower`、`SummonNextTurnPower`、`HelloWorldPower`），其余 Power 在导入与回合开始快照时保持 0；这是把原生模型里“镜像扣层尚未同步”的滞后值归一化，避免 Flash 立即扣层后与旧投影差异（依据见 [准入](admission-and-verification.md)）。
 
@@ -81,6 +81,8 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 - 出牌期间的金额快照（Afterimage/Strangle，现有引擎的 `CardPlayPairPredictionState`）只存在栈上的 `FlashExec.CardPlayPairs`（容量 `FlashLimits.CardPlayPairs`）；稳定边界为空，不改变布局。弃牌与 Sly 自动打出只移动既有牌值、使用既有 `CardsDiscardedThisTurn` 计数器，也不改变布局。
 
 ### 2.5 卡牌实例身份与实例型 Power
+
+**小数卡牌变量。** 现有引擎的 `Thrash.OnPlay` 把 `ModifyDamage` 的 `decimal` 结果同时加进 `DynamicVars.Damage.BaseValue` 与私有 `ExtraDamage`；`AfterDowngraded` 再把 `ExtraDamage` 加回，克隆按模型字段复制。Flash 在头部 `DecimalVars` 保存“当前 BaseValue 减规则表规范值”的精确 `decimal`，卡上的 `Private` 存槽位加一（0 表示无偏移）。`FlashDecimalVars.Assign` 只在值变化时移动槽位；值相同的卡共享槽位，更新一张不会改写另一张。稳定边界按“`DetachedCards` 顺序、再卡牌存储顺序”重建槽位并对相同位模式去重，所以字节表示与分配历史无关，导入投影与内核走同一函数。槽位不足抛 `FlashCapacityException`；未声明 `UsesDecimalDamageVar` 的卡收到小数偏移仍是显式 `FlashUnsupportedException`。Thrash 的伤害读取走同一个 `decimal`（`FlashCardEffects.Var`），`FlashScorer` 也先按 `decimal` 相加再转 `double`，与现有 `CardChoiceSupport.CardValue` 的取整点一致。
 
 现有引擎用 `CardModel`/`PredictedCard` 对象做键的账本和同一 `(owner, id)` 的多个 Power 实例，Flash 的表示如下。设计原则仍是“按值随卡移动，不维护全局引用表”：卡牌在 `FlashBattle.Cards` 中搬动时整块值一起移动；新对象（生成、复制、变化）从零开始，对应现有引擎“新对象不在字典里”的语义。
 
@@ -162,7 +164,7 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 
 ## 6. 尺寸预算
 
-`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，`PoweredAttackHitsThisTurn`（BeatIntoShape 的每目标本回合强化攻击命中数，0..255，溢出显式拒绝）占用原 `_padding` 的第二个字节，`SteamPhase` 占用第三个字节（原 `_padding1` 的第一个字节），最后一个字节继续填充。`FlashOrb` 为 8 字节（`Id` + `Aux`），DF 没有改变它的大小。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，`DampenOriginalUpgrade`；ID 复用 `Private` 账本）。TW 把 `DetachedCards` 从 2 扩到 3，`FlashBattle` 从 12320 增至 12408 字节；其他区块尺寸不变。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 350 ns、`copyStep` 约 2.2 µs（`HasIdentityContent=false` 的自然根路径）。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，`PoweredAttackHitsThisTurn`（BeatIntoShape 的每目标本回合强化攻击命中数，0..255，溢出显式拒绝）占用原 `_padding` 的第二个字节，`SteamPhase` 占用第三个字节（原 `_padding1` 的第一个字节），最后一个字节继续填充。`FlashOrb` 为 8 字节（`Id` + `Aux`），DF 没有改变它的大小。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，`DampenOriginalUpgrade`，`TransientMark` 复用尾部填充；ID 复用 `Private` 账本）。TW 把 `DetachedCards` 从 2 扩到 3，`FlashBattle` 从 12320 增至 12408 字节；KB 在头部末尾追加 4 个 `decimal` 的 `DecimalVars`（64 字节），`FlashBattle` 增至 12472 字节，`FlashCard` 不变。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 350 ns、`copyStep` 约 2.2 µs（`HasIdentityContent=false` 的自然根路径）。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
 
 Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。搜索容器不属于状态布局；`FlashBattle` 本身仍是 12,408 字节。`FlashBeamSolver` 的四个池使用 64 槽状态块（794,112 B/块）与按类型 ≥ 85 KB 的元数据块，块按需分配且从不复制。块大小取舍：小于 85 KB 的数组会在 Gen0/Gen1 反复晋升，单块过大又难以在 LOH 中安置；64 槽约为 LOH 阈值的 9.3 倍，1 万个状态约 160 块，仍小于旧版一次倍增得到的百 MB 级数组。曾试过跨求解缓存 64 MiB 状态块；Medium 上能命中，但碎片 180 MB（基线 0.6 MB）、峰值 419 MB（分块无池 330–355 MB），故未保留，当前每次 `Solve` 新建池。
 

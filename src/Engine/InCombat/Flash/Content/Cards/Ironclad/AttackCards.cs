@@ -505,6 +505,11 @@ public sealed class Thrash : FlashCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
+    // The native card adds ModifyDamage's decimal result to DynamicVars.Damage.BaseValue and to
+    // the private ExtraDamage field, and AfterDowngraded re-adds ExtraDamage. Flash keeps the
+    // exact delta in the battle's decimal table; downgrade leaves the table untouched.
+    public override bool UsesDecimalDamageVar => true;
+
     public override void OnPlay(ref FlashExec x)
     {
         // Thrash.cs: two hits, then a random Attack in hand is read for its damage, that value is
@@ -555,13 +560,7 @@ public sealed class Thrash : FlashCardDef
             string name = def.VarNames[index];
             if (name is not ("Damage" or "OstyDamage"))
                 continue;
-            decimal delta = index switch
-            {
-                0 => card.Var0,
-                1 => card.Var1,
-                _ => 0,
-            };
-            return stats.Vars[index] + delta;
+            return stats.Vars[index] + FlashDecimalVars.Delta(in x.B, in card, index);
         }
         throw new FlashUnsupportedException($"Thrash 选中的攻击 {def.NativeId} 没有 Damage 变量。");
     }

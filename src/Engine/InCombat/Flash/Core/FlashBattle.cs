@@ -238,7 +238,7 @@ public enum FlashCounter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashBattle
 {
-    public const int ExpectedSize = 12408;
+    public const int ExpectedSize = 12472;
 
     public int Round;
     public int PlayerTurn;
@@ -272,7 +272,12 @@ public struct FlashBattle
     public byte OrbCount;
     public byte OrbCapacity;
     public byte PotionSlotCount;
-    private byte _padding0;
+
+    /// <summary>
+    /// Used entries of <see cref="DecimalCardVars"/> (canonical: contiguous 0..count-1). Reuses a
+    /// former header padding byte so the count does not add to the layout.
+    /// </summary>
+    public byte DecimalVarCount;
     private byte _padding1;
     private byte _padding2;
 
@@ -282,6 +287,13 @@ public struct FlashBattle
     /// header byte image so both the fingerprint and equality cover it.
     /// </summary>
     public FlashDetachedCardArray DetachedCards;
+
+    /// <summary>
+    /// Exact decimal card-variable deltas (Thrash). A card references a slot through
+    /// <see cref="FlashCard.Private"/> (slot + 1); values are canonicalized in detached-card then
+    /// card storage order at every stable boundary. Part of the header byte image.
+    /// </summary>
+    public FlashDecimalVarArray DecimalVars;
 
     /// <summary>Indexes into <see cref="Enemies"/>, in native roster order.</summary>
     public FlashRoster Roster;

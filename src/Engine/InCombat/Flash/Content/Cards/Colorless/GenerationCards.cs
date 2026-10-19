@@ -20,6 +20,8 @@ public sealed class BeatDown : FlashCardDef
     public override void OnPlay(ref FlashExec x)
     {
         int count = (int)FlashCardEffects.Var(x, 0);
+        if (count <= 0)
+            return;
         int pileCount = x.B.DiscardCount;
         Span<FlashCard> candidates = stackalloc FlashCard[pileCount];
         Span<int> origins = stackalloc int[pileCount];
@@ -41,34 +43,70 @@ public sealed class BeatDown : FlashCardDef
         origins = origins[..candidateCount];
         BeatDownStableShuffle(candidates, origins, x.R, ref x.B);
         int take = Math.Min(count, candidates.Length);
+        if (take == 0)
+            return;
+        // The existing engine keeps the selected CardModel objects, so a card that an earlier
+        // auto-play moves (drawn into hand, shuffled into the draw pile, exhausted, ...) is still
+        // played from its new pile. Flash marks each selected card with a one-action identity byte;
+        // the mark travels with the card value through every pile move and is cleared in finally.
+        int discardStart = FlashPiles.Start(x.B, FlashPile.Discard);
         for (int item = 0; item < take; item++)
         {
-            if (FlashKernel.IsOverOrEnding(x.B))
-                return;
-            FlashCard selected = candidates[item];
-            FlashCardStats stats = x.R.Card(selected.Id, selected.Upgrade);
-            byte target = FlashLimits.NoOwner;
-            if (stats.Target == FlashTargetType.AnyEnemy)
-            {
-                // BeatDown resolves the target before AutoPlay's playability check.
-                target = FlashKernel.RandomHittableEnemy(ref x.B);
-            }
-            // Cards played earlier in this loop were removed from their recorded index; returned
-            // cards are appended at the bottom, so they never shift the remaining origins.
-            int removedBefore = 0;
-            for (int prior = 0; prior < item; prior++)
-            {
-                if (origins[prior] < origins[item])
-                    removedBefore++;
-            }
-            int position = origins[item] - removedBefore;
-            if (position < 0 || position >= x.B.DiscardCount
-                || !FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Discard, position), selected))
-                throw new FlashUnsupportedException("BeatDown 选中的弃牌在结算前离开了弃牌堆。");
-            FlashKernel.AutoPlay(ref x, FlashPile.Discard, position, target);
-            if (x.NeedsChoice)
-                return;
+            ref FlashCard marked = ref x.B.Cards[discardStart + origins[item]];
+            marked.TransientMark = checked((byte)(item + 1));
         }
+        try
+        {
+            for (int item = 0; item < take; item++)
+            {
+                if (FlashKernel.IsOverOrEnding(x.B))
+                    return;
+                FlashCard selected = candidates[item];
+                FlashCardStats stats = x.R.Card(selected.Id, selected.Upgrade);
+                byte target = FlashLimits.NoOwner;
+                if (stats.Target == FlashTargetType.AnyEnemy)
+                {
+                    // BeatDown resolves the target before AutoPlay's playability check.
+                    target = FlashKernel.RandomHittableEnemy(ref x.B);
+                }
+                if (!TryFindMarked(ref x.B, (byte)(item + 1), out FlashPile pile, out int position))
+                {
+                    // The selected CardModel left every combat pile (removed from state, transformed
+                    // or detached). The existing engine would still play that object; Flash has no
+                    // pile-free executing card representation, so this is an explicit boundary.
+                    throw new FlashUnsupportedException("BeatDown 选中的弃牌在结算前离开了战斗牌堆。");
+                }
+                FlashKernel.AutoPlay(ref x, pile, position, target);
+                if (x.NeedsChoice)
+                    return;
+            }
+        }
+        finally
+        {
+            ClearTransientMarks(ref x.B);
+        }
+    }
+
+    private static bool TryFindMarked(ref FlashBattle battle, byte mark, out FlashPile pile, out int index)
+    {
+        for (int absolute = 0; absolute < battle.CardCount; absolute++)
+        {
+            if (battle.Cards[absolute].TransientMark != mark)
+                continue;
+            pile = FlashPiles.PileOf(battle, absolute, out index);
+            return true;
+        }
+        pile = FlashPile.Hand;
+        index = -1;
+        return false;
+    }
+
+    private static void ClearTransientMarks(ref FlashBattle battle)
+    {
+        for (int position = 0; position < battle.CardCount; position++)
+            battle.Cards[position].TransientMark = 0;
+        for (int slot = 0; slot < FlashLimits.DetachedCards; slot++)
+            battle.DetachedCards[slot].TransientMark = 0;
     }
 
     private static void BeatDownStableShuffle(Span<FlashCard> cards, Span<int> origins, FlashRules rules,

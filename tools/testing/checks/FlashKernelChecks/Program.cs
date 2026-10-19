@@ -43,6 +43,7 @@ CheckRgKernel(rules);
 CheckLrKernel(rules);
 CheckIdKernel(rules);
 CheckCxKernel(rules);
+CheckDecimalVars(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -839,7 +840,11 @@ static FlashRules SliceRules()
     FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend);
     FlashRegistry.TryCard("BASH", out ushort bash);
     FlashRegistry.TryCard("WHIRLWIND", out ushort whirlwind);
+    FlashRegistry.TryCard("THRASH", out ushort thrash);
     builder.SetCard(strike, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [6m]));
+    builder.SetCard(thrash, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [4m]));
+    builder.SetCard(thrash, 1, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [6m]));
+    builder.HasDecimalCardVars = true;
     builder.SetCard(defend, 0, Stats(FlashCardType.Skill, FlashTargetType.Self, 1, [5m]));
     builder.SetCard(bash, 0, Stats(FlashCardType.Attack, FlashTargetType.AnyEnemy, 2, [8m, 2m]));
     builder.SetCard(whirlwind, 0, Stats(FlashCardType.Attack, FlashTargetType.AllEnemies, 0, [5m], costsX: true));
@@ -1978,6 +1983,88 @@ static void CheckGenerationAndAutoPlay()
     Check(notPlayed.ExhaustCount == 1, "无目标的强制消耗自动打出应进入消耗堆");
     Check((FlashPiles.At(ref notPlayed, FlashPile.Exhaust, 0).Flags & FlashCardFlags.ExhaustOnNextPlay) != 0,
         "未打出的强制消耗标记应保留");
+}
+
+// KB: decimal card variables (Thrash) use an exact value table keyed from FlashCard.Private. The
+// contracts pin canonical slot order, clone sharing, upgrade/downgrade retention, orphan removal,
+// capacity, the fractional-delta boundary on a card that did not opt in, and the transient
+// BeatDown mark's clone semantics.
+static void CheckDecimalVars(FlashRules rules)
+{
+    Check(FlashRegistry.TryCard("THRASH", out ushort thrash), "缺少 THRASH 定义");
+    FlashBattle battle = NewBattle();
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CreateCard(rules, thrash));
+    FlashDecimalVars.Assign(ref battle, ref battle.Cards[0], 0.75m);
+    Check(battle.DecimalVarCount == 1 && battle.Cards[0].Private == 1,
+        $"Thrash 的小数变量应占用第一个槽位，实际 count={battle.DecimalVarCount} private={battle.Cards[0].Private}");
+    Check(FlashDecimalVars.Delta(in battle, in battle.Cards[0], 0) == 0.75m, "小数变量应精确保存 0.75");
+
+    // A gameplay clone inherits the value; updating one card must not change the other.
+    FlashPiles.Append(ref battle, FlashPile.Hand, FlashKernel.CloneCard(battle.Cards[0]));
+    Check(FlashDecimalVars.Delta(in battle, in battle.Cards[1], 0) == 0.75m, "克隆应继承小数变量");
+    FlashDecimalVars.Assign(ref battle, ref battle.Cards[0], 1.5m);
+    Check(FlashDecimalVars.Delta(in battle, in battle.Cards[0], 0) == 1.5m, "更新后原卡应为 1.5");
+    Check(FlashDecimalVars.Delta(in battle, in battle.Cards[1], 0) == 0.75m, "共享槽位的克隆不应被改写");
+    Check(battle.DecimalVarCount == 2, "两个不同值应占两个槽位");
+
+    // Upgrade keeps the delta; Downgrade resets Var0 and keeps the private ExtraDamage equivalent.
+    FlashKernel.UpgradeCard(rules, ref battle.Cards[0]);
+    Check(FlashDecimalVars.Delta(in battle, in battle.Cards[0], 0) == 1.5m, "升级不应改变小数变量偏移");
+    Check(battle.Cards[0].Var0 == 0, "小数变量卡不应同时写 Var0");
+    FlashExec x = new(ref battle, rules, default);
+    FlashKernel.DowngradeCard(ref x, 0);
+    Check(FlashDecimalVars.Delta(in battle, in battle.Cards[0], 0) == 1.5m,
+        "降级后应保留 ExtraDamage 等价的小数偏移");
+    Check(battle.Cards[0].Var0 == 0, "降级不应把小数偏移写入 Var0");
+
+    // An orphaned value disappears during canonicalization.
+    FlashPiles.RemoveAt(ref battle, FlashPile.Hand, 1);
+    FlashDecimalVars.Canonicalize(ref battle);
+    Check(battle.DecimalVarCount == 1, $"移除引用后应只留一个槽位，实际 {battle.DecimalVarCount}");
+
+    // Fractional deltas on a card that did not opt into the table remain an explicit boundary.
+    FlashBattle strikeBattle = NewBattle();
+    FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike);
+    FlashPiles.Append(ref strikeBattle, FlashPile.Play, FlashKernel.CreateCard(rules, strike));
+    FlashExec strikeExec = new(ref strikeBattle, rules, default)
+    {
+        Card = strikeBattle.Cards[0],
+        Stats = rules.Card(strike, 0),
+    };
+    bool fractionalRejected = false;
+    try
+    {
+        FlashCardEffects.AddCurrentCardVar(ref strikeExec, 0, 0.5m);
+    }
+    catch (FlashUnsupportedException)
+    {
+        fractionalRejected = true;
+    }
+    Check(fractionalRejected, "未声明小数变量的卡收到小数偏移时应抛 FlashUnsupportedException");
+
+    // Every distinct live value fits; the next one throws FlashCapacityException.
+    FlashBattle capacity = NewBattle();
+    for (int index = 0; index < FlashLimits.DecimalCardVars; index++)
+    {
+        FlashPiles.Append(ref capacity, FlashPile.Hand, FlashKernel.CreateCard(rules, thrash));
+        FlashDecimalVars.Assign(ref capacity, ref capacity.Cards[index], 0.25m * (index + 1));
+    }
+    Check(capacity.DecimalVarCount == FlashLimits.DecimalCardVars, "全部小数变量槽位应被占满");
+    FlashPiles.Append(ref capacity, FlashPile.Hand, FlashKernel.CreateCard(rules, thrash));
+    bool capacityRejected = false;
+    try
+    {
+        FlashDecimalVars.Assign(ref capacity, ref capacity.Cards[FlashLimits.DecimalCardVars], 99m);
+    }
+    catch (FlashCapacityException)
+    {
+        capacityRejected = true;
+    }
+    Check(capacityRejected, "超出容量的小数变量应抛 FlashCapacityException");
+
+    FlashCard marked = FlashKernel.CreateCard(rules, thrash);
+    marked.TransientMark = 5;
+    Check(FlashKernel.CloneCard(marked).TransientMark == 0, "克隆应清除 BeatDown 瞬态标记");
 }
 
 static FlashBattle NewBattle()

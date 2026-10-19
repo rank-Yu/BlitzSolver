@@ -281,7 +281,8 @@ public sealed class FlashRules
         bool hasIdentityContent,
         bool hasShuffleOrderEnchantment,
         bool hasBeforeFlushEnchantment,
-        bool hasTheftContent)
+        bool hasTheftContent,
+        bool hasDecimalCardVars)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -305,6 +306,7 @@ public sealed class FlashRules
         HasShuffleOrderEnchantment = hasShuffleOrderEnchantment;
         HasBeforeFlushEnchantment = hasBeforeFlushEnchantment;
         HasTheftContent = hasTheftContent;
+        HasDecimalCardVars = hasDecimalCardVars;
     }
 
     public int BaseMaxEnergy { get; }
@@ -348,6 +350,12 @@ public sealed class FlashRules
     /// other root, so those per-node scans are skipped there.
     /// </summary>
     public bool HasTheftContent { get; }
+
+    /// <summary>
+    /// The root or a reachable generated/transform card uses <see cref="FlashCardDef.UsesDecimalDamageVar"/>.
+    /// When false, the kernel skips decimal-table canonicalization at every stable boundary.
+    /// </summary>
+    public bool HasDecimalCardVars { get; }
 
     /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
     public int BaseOrbSlotCount { get; }
@@ -486,6 +494,8 @@ public sealed class FlashRulesBuilder
 
     public bool HasTheftContent { get; set; }
 
+    public bool HasDecimalCardVars { get; set; }
+
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
     {
         List<FlashCardStats?> levels = _cards[id] ??= [];
@@ -576,7 +586,7 @@ public sealed class FlashRulesBuilder
             (ushort[])_rootPotions.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
             RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent, HasShuffleOrderEnchantment,
-            HasBeforeFlushEnchantment, HasTheftContent);
+            HasBeforeFlushEnchantment, HasTheftContent, HasDecimalCardVars);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

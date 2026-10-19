@@ -20,6 +20,8 @@ public static class FlashFingerprint
     private static readonly int RelicsOffset = Offset(static (ref FlashBattle b) => ref Unsafe.As<FlashRelic, byte>(ref b.Relics[0]));
     private static readonly int OrbsOffset = Offset(static (ref FlashBattle b) => ref Unsafe.As<FlashOrb, byte>(ref b.Orbs[0]));
     private static readonly int CardsOffset = Offset(static (ref FlashBattle b) => ref Unsafe.As<FlashCard, byte>(ref b.Cards[0]));
+    private static readonly int DecimalVarsOffset = Offset(static (ref FlashBattle b) => ref Unsafe.As<decimal, byte>(ref b.DecimalVars[0]));
+    private static readonly int DecimalVarsEndOffset = DecimalVarsOffset + FlashLimits.DecimalCardVars * Unsafe.SizeOf<decimal>();
 
     private delegate ref byte FieldSelector(ref FlashBattle battle);
 
@@ -30,7 +32,14 @@ public static class FlashFingerprint
     {
         ReadOnlySpan<byte> all = Bytes(battle);
         ulong hash = Prime3;
-        hash = Mix(hash, all[..EnemiesOffset]);
+        // Roots without decimal card content keep the table zero. Hash the header in two pieces so
+        // those roots do not pay for 4 * sizeof(decimal) bytes on every state hash; equality still
+        // compares the complete byte image.
+        hash = Mix(hash, all[..DecimalVarsOffset]);
+        int decimalBytes = battle.DecimalVarCount * Unsafe.SizeOf<decimal>();
+        if (decimalBytes > 0)
+            hash = Mix(hash, all.Slice(DecimalVarsOffset, decimalBytes));
+        hash = Mix(hash, all[DecimalVarsEndOffset..EnemiesOffset]);
         hash = Mix(hash, all.Slice(EnemiesOffset, battle.EnemyCount * Unsafe.SizeOf<FlashEnemy>()));
         hash = Mix(hash, all.Slice(PowersOffset, battle.PowerCount * Unsafe.SizeOf<FlashPower>()));
         hash = Mix(hash, all.Slice(RelicsOffset, battle.RelicCount * Unsafe.SizeOf<FlashRelic>()));

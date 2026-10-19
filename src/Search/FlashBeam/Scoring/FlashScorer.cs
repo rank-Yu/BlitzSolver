@@ -28,41 +28,46 @@ internal sealed class FlashScorer
     // Card values (CardChoiceSupport.CardValue / DynamicVarBaseValue, plus BranchCardValue extras).
 
     /// <summary>Current value of variable <paramref name="index"/>: canonical value plus the instance delta.</summary>
-    private static decimal Var(in FlashCard card, FlashCardStats stats, int index)
+    private static decimal Var(in FlashBattle battle, in FlashCard card, FlashCardStats stats, int index)
     {
-        if (index < 0)
+        if (index < 0 || index >= stats.Vars.Length)
             return 0m;
-        decimal delta = index switch
-        {
-            0 => card.Var0,
-            1 => card.Var1,
-            _ => 0,
-        };
+        decimal delta = card.Private > 0
+            ? FlashDecimalVars.Delta(in battle, in card, index)
+            : index switch { 0 => card.Var0, 1 => card.Var1, _ => 0m };
         return stats.Vars[index] + delta;
     }
 
-    /// <summary>Port of <c>CardChoiceSupport.CardValue</c> with the instance's variable deltas applied.</summary>
-    private double CardValue(in FlashCard card, FlashCardStats stats, FlashCardScore score)
-        => score.BaseDamage + DeltaDouble(card, score.DamageVar)
-            + (score.BaseBlock + DeltaDouble(card, score.BlockVar)) * 0.8d
-            + (score.BaseCards + DeltaDouble(card, score.CardsVar)) * 3d
+    /// <summary>
+    /// Port of <c>CardChoiceSupport.CardValue</c> with the instance's variable deltas applied. The
+    /// existing engine converts each completed decimal <c>BaseValue</c> to double once; adding a
+    /// double delta to a double base would round differently for decimals such as 0.75.
+    /// </summary>
+    private double CardValue(in FlashBattle battle, in FlashCard card, FlashCardStats stats, FlashCardScore score)
+        => VarDouble(battle, card, stats, score.DamageVar, score.BaseDamage)
+            + VarDouble(battle, card, stats, score.BlockVar, score.BaseBlock) * 0.8d
+            + VarDouble(battle, card, stats, score.CardsVar, score.BaseCards) * 3d
             + (score.IsPower ? 8d : 0d);
 
-    private static double DeltaDouble(in FlashCard card, int index) => index switch
+    private static double VarDouble(in FlashBattle battle, in FlashCard card, FlashCardStats stats, int index,
+        double fallback)
     {
-        0 => card.Var0,
-        1 => card.Var1,
-        _ => 0d,
-    };
+        if (index < 0)
+            return fallback;
+        decimal delta = card.Private > 0
+            ? FlashDecimalVars.Delta(in battle, in card, index)
+            : index switch { 0 => card.Var0, 1 => card.Var1, _ => 0m };
+        return (double)(stats.Vars[index] + delta);
+    }
 
     /// <summary>Port of <c>CombatBeamSolver.BranchCardValue</c> (calculated damage where registered).</summary>
     private double BranchCardValue(in FlashBattle battle, in FlashCard card, FlashCardStats stats, FlashCardScore score)
     {
-        double value = CardValue(card, stats, score);
+        double value = CardValue(battle, card, stats, score);
         if (stats.Type != FlashCardType.Attack || score.Calculated == FlashCalculatedKind.None)
             return value;
-        decimal baseVar = Var(card, stats, score.CalculationBaseVar);
-        decimal extraVar = Var(card, stats, score.CalculationExtraVar);
+        decimal baseVar = Var(battle, card, stats, score.CalculationBaseVar);
+        decimal extraVar = Var(battle, card, stats, score.CalculationExtraVar);
         decimal damage = 0m;
         for (int position = 0; position < battle.RosterCount; position++)
         {
@@ -93,7 +98,7 @@ internal sealed class FlashScorer
                 FlashCalculatedKind.ExhaustSoulCount => CountExhaustSoulCards(battle),
                 FlashCalculatedKind.EtherealPlays => battle.Counter(FlashCounter.EtherealPlays),
                 FlashCalculatedKind.DoomOverThreshold => Math.Floor(
-                    GetAmount(battle, _score.DoomPowerId, owner) / Var(card, stats, score.DoomThresholdVar)),
+                    GetAmount(battle, _score.DoomPowerId, owner) / Var(battle, card, stats, score.DoomThresholdVar)),
                 FlashCalculatedKind.TargetDoom => GetAmount(battle, _score.DoomPowerId, owner),
                 FlashCalculatedKind.NonHandDraws => battle.Counter(FlashCounter.NonHandDrawsThisTurn),
                 FlashCalculatedKind.GeneratedCardCount => battle.Counter(FlashCounter.CardsGeneratedThisCombat),
@@ -552,7 +557,7 @@ internal sealed class FlashScorer
             FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
             retainedHandValue = checked(retainedHandValue + Math.Max(
                 1,
-                (int)Math.Ceiling(CardValue(card, stats, cardScore) * 2d)));
+                (int)Math.Ceiling(CardValue(battle, card, stats, cardScore) * 2d)));
         }
         // Free-card opportunity (FreeAttackPower), Void Form and summon next turn. Void Form has no
         // admitted Flash content.
@@ -1347,7 +1352,7 @@ internal sealed class FlashScorer
                 int cardValue = 0;
                 if (needsAllCardValues || (needsAttackValues && cardType == FlashCardType.Attack))
                 {
-                    cardValue = Math.Max(1, (int)Math.Ceiling(CardValue(card, stats, cardScore)));
+                    cardValue = Math.Max(1, (int)Math.Ceiling(CardValue(battle, card, stats, cardScore)));
                     if (needsAllCardValues)
                     {
                         totalCardValue += cardValue;
@@ -1364,7 +1369,7 @@ internal sealed class FlashScorer
                         if (requirements.HasFlag(FlashStrategicRequirements.AttackHits)
                             && !cardScore.HasOstyAttackTag && !cardScore.HasShivTag)
                         {
-                            attackHitCount += AttackHits(cardScore, card, stats);
+                            attackHitCount += AttackHits(battle, cardScore, card, stats);
                         }
                         break;
                     case FlashCardType.Skill:
@@ -1399,7 +1404,7 @@ internal sealed class FlashScorer
                         if (!hasExhaustKeyword)
                             reusableShivCount++;
                     }
-                    int generated = ImmediateShivSupply(cardScore, card, stats);
+                    int generated = ImmediateShivSupply(battle, cardScore, card, stats);
                     generatedShivCount += generated;
                     if (generated > 0)
                         shivGeneratorCount++;
@@ -1507,7 +1512,7 @@ internal sealed class FlashScorer
             int normalCost = Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
             int currentCost = Math.Max(0, FlashKernel.EnergyCostWithModifiers(battle, Rules, card, FlashPile.Hand));
             int savedEnergy = Math.Max(0, normalCost - currentCost);
-            double cardValue = CardValue(card, stats, _score.Card(card.Id, card.Upgrade));
+            double cardValue = CardValue(battle, card, stats, _score.Card(card.Id, card.Upgrade));
             values[count++] = savedEnergy * 16
                 + Math.Min(16, Math.Max(1, (int)Math.Ceiling(cardValue)));
         }
@@ -1556,7 +1561,7 @@ internal sealed class FlashScorer
             int currentEnergy = Math.Max(0, FlashKernel.EnergyCostWithModifiers(battle, Rules, card, FlashPile.Hand));
             int normalStars = Math.Max(0, stats.StarCost);
             int currentStars = Math.Max(0, FlashKernel.StarCostWithModifiers(battle, Rules, card, FlashPile.Hand));
-            double cardValue = CardValue(card, stats, _score.Card(card.Id, card.Upgrade));
+            double cardValue = CardValue(battle, card, stats, _score.Card(card.Id, card.Upgrade));
             values[count++] = Math.Max(0, normalEnergy - currentEnergy) * 16
                 + Math.Max(0, normalStars - currentStars) * 8
                 + Math.Min(16, Math.Max(1, (int)Math.Ceiling(cardValue)));
@@ -1644,19 +1649,21 @@ internal sealed class FlashScorer
             ? 0
             : Math.Max(1, (int)Math.Ceiling((double)matchingCards * reachableCards / deckSize));
 
-    private static int AttackHits(FlashCardScore score, in FlashCard card, FlashCardStats stats)
+    private static int AttackHits(in FlashBattle battle, FlashCardScore score, in FlashCard card,
+        FlashCardStats stats)
         => score.AttackHits switch
         {
             FlashAttackHitKind.Two => 2,
-            FlashAttackHitKind.RepeatVar => Math.Max(0, (int)Var(card, stats, score.RepeatVar)),
+            FlashAttackHitKind.RepeatVar => Math.Max(0, (int)Var(battle, card, stats, score.RepeatVar)),
             _ => 1,
         };
 
-    private static int ImmediateShivSupply(FlashCardScore score, in FlashCard card, FlashCardStats stats)
+    private static int ImmediateShivSupply(in FlashBattle battle, FlashCardScore score, in FlashCard card,
+        FlashCardStats stats)
         => score.ShivSupply switch
         {
-            FlashShivSupplyKind.CardsVar => Math.Max(0, (int)Var(card, stats, score.ShivCardsVar)),
-            FlashShivSupplyKind.ShivsVar => Math.Max(0, (int)Var(card, stats, score.ShivShivsVar)),
+            FlashShivSupplyKind.CardsVar => Math.Max(0, (int)Var(battle, card, stats, score.ShivCardsVar)),
+            FlashShivSupplyKind.ShivsVar => Math.Max(0, (int)Var(battle, card, stats, score.ShivShivsVar)),
             _ => 0,
         };
 

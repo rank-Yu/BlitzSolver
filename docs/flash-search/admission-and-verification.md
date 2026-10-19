@@ -102,6 +102,10 @@ MB 新增的投影与惰性规则：
 - **EntropicBrew 的免费药水**：`_freeEntropicPotions` 的每个 `true` 条目投影为 `FlashCounter.EntropicFreePotionMask` 的对应槽位；使用该槽时清除。`PredictedPotionUse` 的每次使用按“该槽是否仍持有根药水”投影：不是根药水的使用计入 `GeneratedPotionUseCount`，其 `StrategicHpCost` 按自动/显式打包进 `GeneratedPotionStrategicCost`（免费 Entropic 药水的成本已经是 0），补上根药水槽 diff 看不到的 `PotionUseCount` 与成本。`false` 条目是使用后留下的退役标志，没有读取点。
 - **随机药水闭包**：随机药水池（战斗内与 EntropicBrew 的战斗外池）的每个候选都要有 Flash 药水定义；候选药水自身的 `GeneratedCards`/`GeneratedCardPools`/`AppliedPowers` 也进入闭包，避免“随机到一瓶会生成卡牌的药水”时缺规则表。闭包冻结后再展开，直到没有新增内容。
 
+KB 的新投影与瞬态身份规则：
+
+- **Thrash 的小数变量**：`FlashStateImporter.Card` 把 `DynamicVars[VarNames[0]].BaseValue − 规则表规范值` 的精确 `decimal` 写进 `FlashBattle.DecimalVars`，卡上 `Private` 存槽位加一；导入结束与每个稳定边界都按“`DetachedCards`、再卡牌存储顺序”规范化槽位并对相同位模式去重。它不经过 `PredictionStateStore`，也不改变其他卡牌的整数 `Var0/Var1`。克隆共享槽位，任一克隆更新时走值集合的写时复制，因此与现有引擎“克隆复制 `ExtraDamage`、之后互不影响”一致；降级保留该偏移，对应 `AfterDowngraded` 把 `ExtraDamage` 加回。K4 的卡牌估值先做 `decimal` 加法再转 `double`，与 `CardChoiceSupport.CardValue` 的取整点相同。
+- **BeatDown 的选中卡对象**：现有引擎持有 `CardModel` 引用并对每个选中卡调用 `AutoPlay`；前一张自动打出的摸牌/洗牌/消耗把后续选中卡移到别的牌堆后，旧引擎仍按对象引用从新牌堆打出。Flash 在 `OnPlay` 开始时给每张选中卡写 `TransientMark = 序号 + 1`，每轮按该字节在整个 `Cards` 数组定位并调用 `AutoPlay`；`finally` 清除标记（以及 `DetachedCards` 里的残留），稳定边界字节恒为 0。克隆与生成卡从 0 开始，不能冒充被选中的原对象。若标记在所有牌堆中都找不到（卡已移出战斗或被转化），搜索期按显式 `FlashUnsupportedException` 回落（根导入阶段同类状态为 `UnrepresentableState`），不按值猜一张牌。
 TW（偷窃与瀑布巨兽）新增的投影与惰性规则：
 
 - **被偷卡牌**：`SwipePower.StolenCard` 的完整卡值导入 `FlashBattle.DetachedCards`，Power 行 `Aux0 = 槽位 + 1`；THIEVERY 在搜索中从抽牌/弃牌堆移除卡时现场分配槽位（`CardPileCmd.RemoveFromCombat` 的 `HasBeenRemovedFromState` 投影为卡值标志）。击杀飞贼时 `RecoverStolenResources` 回收卡数并随 Power 移除清槽；逃跑只移除 Power、不回收。
@@ -154,7 +158,7 @@ K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一
 Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](search.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
 
 - 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式回落旧后端，Shadow 模式记为 `status=mismatch`。
-- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时同样回落旧后端，记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。当前明确边界之一是 Thrash：现有引擎把 `ModifyDamage` 的小数结果写进卡牌 `DynamicVars.Damage`，而 `FlashCard` 的语义变量是整数；没有可以精确复现的整数化/取整规则，因此该路径抛 `FlashUnsupportedException`，不截断、不近似。
+- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时同样回落旧后端，记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
 - 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。
 - Smart 药水审计（`SmartPotionGradient` 与 `SmartOpeningPotionPosterior`）在物化时把同一 `PotionFreePolicyBaseline`、`minimum/maximumPotionUses` 与 `RequireAtLeastOne` 交回现有 `CombatBeamSolver`，由现有 `FinalPlanOrdering.Select` 再做一次筛选。物化后 `FlashPotionBridge.VerifyRoute` 核对路线的显式用药次数：动作里的 `UsePotion` 数必须等于 `PotionUses` 的非自动计数，且满足最小/最大次数与 `RequireAtLeastOne` 至少一次；任一不满足都返回 `ConstraintFailure` 回落，不把 Flash 的“没找到”写成现有求解器的 `PotionPolicyUnsatisfiedException`。现有终局筛选自己抛出的 `PotionPolicyUnsatisfiedException` 也在物化点捕获并回落。
 - 固定前缀可以由药水动作开头：前缀先经现有 `ApplyFixedPrefix` 回放，Flash 只从回放后的搜索根展开；搜索根快照的累计药水计数冻结进评分与下界，因此前缀用药不丢失。

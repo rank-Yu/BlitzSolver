@@ -942,6 +942,13 @@ public abstract class FlashCardDef : FlashListenerDef
     public virtual bool IsIdentityContent => false;
 
     /// <summary>
+    /// The card's variable 0 is a decimal delta stored in <see cref="FlashBattle.DecimalVars"/>
+    /// instead of <see cref="FlashCard.Var0"/> (Thrash's <c>DynamicVars.Damage</c> receives a
+    /// decimal <c>ModifyDamage</c> result). The card's <c>Private</c> field holds the slot.
+    /// </summary>
+    public virtual bool UsesDecimalDamageVar => false;
+
+    /// <summary>
     /// The card's <c>CardOnTurnEndInHandMirrors</c> effect at the player's turn end, while it sits in the play
     /// pile (<c>CombatPredictionSimulator.DoTurnEndCards</c>); <see cref="FlashExec.Card"/> holds its value.
     /// </summary>

@@ -107,6 +107,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 4. 目标：`AnyEnemy` 用 `CombatTargets` 流从 `HittableEnemies`（名单顺序、排除复活/永久死亡）取随机目标，候选为空时不消耗流；单人没有其他队友，`AnyAlly` 只有调用方已给出目标才成立；其他目标类型直接通过。
 5. `AutoPlayFromDrawPile` 先按现有引擎把最多 `count` 张抽牌堆顶牌移到打出区，再按顺序逐张自动打出；每张打出前写入 `ExhaustOnNextPlay = forceExhaust`（false 也写入）。打出的卡结果去向为消耗堆时清除该标志（`CardModel.GetResultLocationForCardPlay`），未打出而直接移入去向时保留（`MoveToResultPileWithoutPlaying`）。自动打出中战斗结束/正在结束时，现有引擎仍对**剩余队列的每张卡**写入该标志，然后 `AutoPlay` 立即返回；Flash 在队列仍连续位于 `start` 的前提下复刻这一写入并停止。`count` 超过 `FlashLimits.Cards` 时抛 `FlashCapacityException`。
 6. 自动打出中的卡牌自身选择走现有嵌套选择协议：`OwnChoice` 请求选择、动作未携带时返回 `NeedsChoice`，调用方从父状态带选择重执行。生成选项（Discovery/Splash）的选择协议见 4.2。
+7. **BeatDown 的对象身份。** 现有引擎先收集选中的 `CardModel` 引用再逐张 `AutoPlay`；前一张把后续选中卡移入手牌、抽牌堆或消耗堆后，仍按对象引用从新牌堆打出。Flash 在一次动作内给每张选中卡写 `TransientMark`（序号 + 1），每轮按该字节在 `Cards` 中重新定位后 `AutoPlay`，`finally` 清零；完全移出战斗牌堆或被转化的卡没有无牌堆执行表示，按显式 `FlashUnsupportedException` 回落，不按值猜牌。
 
 ### 4.2 卡池随机生成与变化
 
@@ -141,7 +142,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 1. **攻击**：结束中或攻击者已死则返回；`BeforeAttack`；`ModifyAttackHitCount`；逐次命中：攻击者死亡或无存活目标则停止，随机目标用 `CombatTargets` 流；最后记录历史并触发 `AfterAttack`。EchoingSlash 走 `CardAttackRepeating`：同一上下文内多波伤害，每波结束后结算当前名单的死亡，击杀数追加波数。
 2. **伤害**：先对全部目标计算并扣除，再统一处理结果。
-3. **单目标**：目标已死则跳过；`ModifyDamage` = 附魔加成与倍率 → 按监听顺序的加法阶段（力量等）→ 乘法阶段（易伤、虚弱等）→ 取所有 `ModifyDamageCap` 的最小值 → 钳制到 ≥ 0。全程 `decimal`，不取整。`BeforeDamageReceived`；格挡吸收（目标是 Osty 时扣其主人的格挡；不可格挡伤害跳过）；`ModifyHpLost` BeforeOsty 与其 Late → Osty 重定向 → AfterOsty 与其 Late → `AfterModifyingHpLostAfterOsty`；失血时 `(int)` 截断；失血 ≥ 当前 HP 视为击杀。
+3. **单目标**：目标已死则跳过；`ModifyDamage` = 附魔加成与倍率 → 按监听顺序的加法阶段（力量等）→ 乘法阶段（易伤、虚弱等）→ 取所有 `ModifyDamageCap` 的最小值 → 钳制到 ≥ 0。全程 `decimal`，不取整。卡牌动态变量同样按现有引擎的 `decimal` 读取：Thrash 的 `Damage` 偏移存在 `FlashBattle.DecimalVars`，`FlashCardEffects.Var` 返回同一个 `decimal`；只有 HP 损失按现有引擎的位置 `(int)` 截断，评估先做 `decimal` 加法再转 `double`。`BeforeDamageReceived`；格挡吸收（目标是 Osty 时扣其主人的格挡；不可格挡伤害跳过）；`ModifyHpLost` BeforeOsty 与其 Late → Osty 重定向 → AfterOsty 与其 Late → `AfterModifyingHpLostAfterOsty`；失血时 `(int)` 截断；失血 ≥ 当前 HP 视为击杀。
 4. **结果处理**：`AfterBlockBroken` → `AfterCurrentHpChanged` → `AfterDamageGiven` → 未被击杀时 `AfterDamageReceived`（含 Late）；之后执行击杀，或所有玩家死亡时判负。每次结果同时按 `RecordDamageReceived` 记录玩家对敌人的 powered attack 命中（完全格挡也计数，非强化伤害不计），供 BeatIntoShape 的按目标锻造乘数读取；该计数在玩家回合开始清零，超过 255 按 `FlashUnsupportedException` 拒绝。
 5. **击杀**：扣光剩余 HP 并触发 `AfterCurrentHpChanged` → `BeforeDeath` → `ShouldDie`（第一个阻止者生效）。死亡：`AfterDeath` → 移出阵容 → 主敌人死亡且只剩附属时附属一并死亡。被阻止：`AfterDeath(prevented)` 与 `AfterPreventingDeath`，最多递归 10 次。
 6. **敌人死亡效果延后**：在动作边界由 `ApplyEnemyDeathPowers` 统一结算（`P/CorePowerSupport.cs:597-674`）：SteamEruption → 死亡 Power（Ravenous、Surrounded、召唤）→ 清除死者施加的 Constrict、Hex、Shrink、MagicBomb。

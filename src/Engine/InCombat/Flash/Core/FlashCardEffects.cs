@@ -23,16 +23,10 @@ public static class FlashCardEffects
     public static decimal Var(in FlashExec x, int index)
     {
         FlashCardStats stats = x.Stats ?? throw new InvalidOperationException("当前没有正在打出的卡。");
-        decimal delta = index switch
-        {
-            0 => x.Card.Var0,
-            1 => x.Card.Var1,
-            _ => 0,
-        };
         if ((uint)index >= (uint)stats.Vars.Length)
             throw new FlashUnsupportedException(
                 $"卡牌 {FlashRegistry.Card(x.Card.Id).NativeId} 定义读取第 {index} 个动态变量，但规则表只有 {stats.Vars.Length} 个。");
-        return stats.Vars[index] + delta;
+        return stats.Vars[index] + FlashDecimalVars.Delta(in x.B, in x.Card, index);
     }
 
     /// <summary>Mirrors <c>GeneralCardMirrors.GeneralAttackOnPlay</c> for a plain damage variable and one hit.</summary>
@@ -146,16 +140,30 @@ public static class FlashCardEffects
     {
         if (delta == 0m)
             return;
-        // FlashCard variables are integers. The existing engine keeps decimal dynamic variables (Thrash adds a
-        // ModifyDamage result, which multipliers can make fractional); such a state is outside Flash.
-        if (delta != decimal.Truncate(delta))
-            throw new FlashUnsupportedException($"卡牌变量偏移 {delta} 不是整数，Flash 卡牌变量无法表示。");
         int position = x.B.PlayCount - 1;
         if (position < 0)
             throw new InvalidOperationException("当前没有正在打出的卡。");
         ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
         if (played.Id != x.Card.Id || played.Upgrade != x.Card.Upgrade)
             throw new InvalidOperationException("打出堆顶不是当前卡。");
+        if (index == 0 && FlashDecimalVars.IsTracked(in played))
+        {
+            decimal current = FlashDecimalVars.TryGet(in x.B, in played, out decimal existing) ? existing : 0m;
+            decimal decimalValue = current + delta;
+            // DynamicVar.BaseValue's setter clamps at 999,999,999m while Thrash.ExtraDamage is not
+            // clamped; a clamped offset could no longer reproduce AfterDowngraded. Keep the clamp as
+            // an explicit boundary instead of storing a value the native field would have truncated.
+            FlashCardStats decimalStats = x.R.Card(played.Id, played.Upgrade);
+            if (decimalStats.Vars.Length > 0 && decimalStats.Vars[0] + decimalValue > FlashLimits.ValueClamp)
+                throw new FlashUnsupportedException("Thrash 的小数伤害变量超过 DynamicVar.BaseValue 的 999999999 钳制上限。");
+            FlashDecimalVars.Assign(ref x.B, ref played, decimalValue);
+            x.Card.Private = played.Private;
+            return;
+        }
+        // FlashCard's integer variable slots are the representation for every other card. A
+        // fractional delta on a card that did not opt into the decimal table is a kernel boundary.
+        if (delta != decimal.Truncate(delta))
+            throw new FlashUnsupportedException($"卡牌变量偏移 {delta} 不是整数，Flash 卡牌变量无法表示。");
         short value = checked((short)(index switch
         {
             0 => played.Var0,
