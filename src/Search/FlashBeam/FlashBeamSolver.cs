@@ -109,7 +109,60 @@ internal sealed record FlashBeamOptions(
     /// expansion of a fetched, payable power before the layer is ranked.
     /// </summary>
     public bool Act3BossStrategy { get; init; }
+
+    /// <summary>
+    /// The plan commitment of a <c>ContinuationPurpose.PlanCommitment</c> member
+    /// (<c>CombatBeamSolver.Expansion</c>'s <c>_planCommitment</c>): the payoff evidence counted
+    /// along a route and the CopyPower representative seats. Null for every other request.
+    /// </summary>
+    public FlashPlanCommitment? PlanCommitment { get; init; }
+
+    /// <summary>
+    /// Payoff evidence already realized by the fixed prefix. The existing search starts its node chain
+    /// at the request root, so its <c>CountRealizedPayoffs</c> includes prefix plays; FlashBeam starts at
+    /// the prefix end and seeds this count instead.
+    /// </summary>
+    public int InitialPlanPayoffCount { get; init; }
+
+    /// <summary>
+    /// <c>CombatBeamSolver</c>'s <c>earlyTurnScoutDepth</c>: stop after this many searched turn layers
+    /// and report each completed layer's frontier. Zero disables the scout.
+    /// </summary>
+    public int EarlyTurnScoutDepth { get; init; }
+
+    /// <summary>
+    /// The request root's combat turn (before a fixed prefix), matching the existing solver's
+    /// <c>_startTurnNumber</c> for the scout's turn filter.
+    /// </summary>
+    public int InitialPlayerTurn { get; init; }
 }
+
+/// <summary>
+/// The payoff evidence kinds FlashBeam ports. <c>RegisteredPowerBenefit</c> reads the existing
+/// <c>PowerCommitment.RealizedEvidence</c>, which FlashBeam does not model; requests using it are
+/// rejected at the dispatch boundary.
+/// </summary>
+internal enum FlashPlanPayoffKind : byte
+{
+    CardPlayed,
+}
+
+/// <summary>
+/// A <see cref="PlanCommitment"/> reduced to the values FlashBeam reads: the CopyPower representative
+/// seats and the per-route payoff count. The card is a Flash content id resolved by the bridge.
+/// </summary>
+internal sealed record FlashPlanCommitment(
+    bool CopyPowerSeats,
+    int OpenedTurn,
+    int EarliestTurn,
+    FlashPlanPayoffKind PayoffKind,
+    ushort PayoffCardId);
+
+/// <summary>One early-turn scout candidate: the route from the request root and its existing score.</summary>
+internal sealed record FlashScoutCandidate(FlashAction[] Actions, double Score);
+
+/// <summary>The candidates the existing search's observer reports after one searched turn layer.</summary>
+internal sealed record FlashScoutLayer(int Turns, IReadOnlyList<FlashScoutCandidate> Candidates);
 
 /// <summary>The request's HP-target stop (<c>CombatBeamSolver.MeetsHpTarget</c>): a complete victory
 /// without death saves, with at least <paramref name="RequiredPotionUses"/> and at most
@@ -178,6 +231,16 @@ internal sealed record FlashBeamResult(
     public int SmartPotionPruned { get; init; }
 
     /// <summary>
+    /// The selected route's plan payoff evidence count, including
+    /// <see cref="FlashBeamOptions.InitialPlanPayoffCount"/>. Zero when the request has no plan
+    /// commitment or none was realized.
+    /// </summary>
+    public int BestPayoffCount { get; init; }
+
+    /// <summary>The scout layers reported by an early-turn scout request, in searched order.</summary>
+    public IReadOnlyList<FlashScoutLayer> ScoutLayers { get; init; } = [];
+
+    /// <summary>
     /// False when an audited request found no route satisfying the ported potion policy. The caller
     /// falls back to the existing solver: "Flash found none" is not the existing search's verdict.
     /// </summary>
@@ -196,11 +259,14 @@ internal sealed class FlashBeamSolver
     /// <summary>Selections explored per choice request (lexicographic within each size).</summary>
     private const int MaxChoiceBranches = 32;
 
+    /// <summary>The existing <c>EarlyTurnCandidatesPerLayer</c>.</summary>
+    private const int EarlyTurnCandidatesPerLayer = 24;
+
     private readonly FlashRules _rules;
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
     private readonly FlashRouteOrdering _ordering;
-    private readonly List<(int Parent, int Depth, FlashAction Action, int Lineage)> _nodes = new(4096);
+    private readonly List<(int Parent, int Depth, FlashAction Action, int Lineage, int PayoffCount)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private readonly FlashBoundFeatures? _bound;
@@ -247,6 +313,11 @@ internal sealed class FlashBeamSolver
     /// </summary>
     private readonly FlashAction[] _commitmentActions = new FlashAction[FlashKernel.MaxLegalActions];
 
+    private readonly FlashPlanCommitment? _planCommitment;
+    private readonly int _earlyTurnScoutDepth;
+    private readonly int _initialPlayerTurn;
+    private readonly List<FlashScoutLayer> _scoutLayers = [];
+
     private Stopwatch? _solveWatch;
 
     public FlashBeamSolver(FlashRules rules, FlashBeamOptions options)
@@ -272,6 +343,9 @@ internal sealed class FlashBeamSolver
         _smartPotionEligibilityHpCeiling = options.SmartPotionEligibilityHpCeiling;
         _ambergrisPotionId = options.AmbergrisPotionId;
         _initialAmbergrisUses = options.InitialAmbergrisUses;
+        _planCommitment = options.PlanCommitment;
+        _earlyTurnScoutDepth = Math.Max(0, options.EarlyTurnScoutDepth);
+        _initialPlayerTurn = options.InitialPlayerTurn;
         if (_smartPotionEligibilityHpCeiling != null && _bound == null)
             throw new InvalidOperationException("Smart 药水资格上界需要启用下界输入。");
         _incumbent = _bound == null ? null : options.Incumbent;
@@ -294,12 +368,10 @@ internal sealed class FlashBeamSolver
         int maxChildren = checked(width * (FlashKernel.MaxLegalActions + 1));
         int initialChildren = Math.Min(maxChildren, Math.Max(64, width * 8));
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
-        Pool current = new(width, width, preserveTheft, _scorer);
-        Pool next = new(initialChildren, maxChildren, preserveTheft, _scorer);
-        Pool ended = new(initialChildren, maxChildren, preserveTheft, _scorer);
-        Pool turnFrontier = new(width, width, preserveTheft, _scorer);
-        _nodes.Clear();
-        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1));
+        Pool current = new(width, width, preserveTheft, _scorer, _planCommitment);
+        Pool next = new(initialChildren, maxChildren, preserveTheft, _scorer, _planCommitment);
+        Pool ended = new(initialChildren, maxChildren, preserveTheft, _scorer, _planCommitment);
+        Pool turnFrontier = new(width, width, preserveTheft, _scorer, _planCommitment);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -357,15 +429,22 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        (double rootScore, double rootRank, int rootPotionCost, FlashScoreFeatures rootFeatures) =
+        (double rootScore, double rootRank, double rootPureRank, int rootPotionCost,
+            FlashScoreFeatures rootFeatures) =
             Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
+        _nodes.Clear();
+        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1,
+            _options.InitialPlanPayoffCount));
         (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
         RetentionFacts rootFacts = RetentionFacts.From(
             rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
-        turnFrontier.Add(root, 0, rootScore, rootRank, rootPotionCost, rootFacts, -1);
+        turnFrontier.Add(root, 0, rootScore, rootRank, rootPureRank, rootPotionCost, rootFacts, -1,
+            _options.InitialPlanPayoffCount);
         TerminalSink terminal = ConsiderTerminal;
         int turns = 0;
-        while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch) && !hpTargetReached)
+        while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch)
+            && !hpTargetReached
+            && (_earlyTurnScoutDepth == 0 || turns < _earlyTurnScoutDepth))
         {
             turns++;
             current.Clear();
@@ -394,6 +473,8 @@ internal sealed class FlashBeamSolver
                 next.CopyTopTo(current, width, _options.OffensiveShare);
                 PrunePool(current);
             }
+            if (_earlyTurnScoutDepth > 0 && turns <= _earlyTurnScoutDepth)
+                CollectEarlyTurnScout(ended, turns, root);
             turnFrontier.Clear();
             // BeamRetentionPolicy.RankBest at the end-turn frontier: the turn-boundary hand leader is
             // a required representative of every potion group.
@@ -430,6 +511,8 @@ internal sealed class FlashBeamSolver
                 CapacityPruned = _capacityPruned,
                 SmartPotionPruned = _smartPruned,
                 PotionPolicySatisfied = best is not null,
+                BestPayoffCount = _nodes[bestNode].PayoffCount,
+                ScoutLayers = _scoutLayers,
             };
             return audited;
         }
@@ -453,6 +536,8 @@ internal sealed class FlashBeamSolver
         {
             CapacityPruned = _capacityPruned,
             SmartPotionPruned = _smartPruned,
+            BestPayoffCount = _nodes[bestNode].PayoffCount,
+            ScoutLayers = _scoutLayers,
         };
         return result;
     }
@@ -903,9 +988,10 @@ internal sealed class FlashBeamSolver
         // The existing search's root-action lineage groups every descendant by the first action
         // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
         int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
-        _nodes.Add((parentNode, depth, action, lineage));
+        int payoffCount = NextPayoffCount(parentNode, parent, action);
+        _nodes.Add((parentNode, depth, action, lineage, payoffCount));
         bool isTerminal = !FlashKernel.IsInProgress(child);
-        (double score, double rank, int potionCost, FlashScoreFeatures features) =
+        (double score, double rank, double pureRank, int potionCost, FlashScoreFeatures features) =
             Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
         if (isTerminal)
         {
@@ -927,8 +1013,10 @@ internal sealed class FlashBeamSolver
         // The retention-only hand values are computed by the pool only when the state is actually
         // stored (a duplicate keeps its existing values); a terminal state never needs them.
         bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
-            ? ended.AddScored(child, node, score, rank, potionCost, features, depth, lineage)
-            : next.CommitReserved(node, score, rank, potionCost, features, depth, lineage);
+            ? ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth, lineage,
+                payoffCount)
+            : next.CommitReserved(node, score, rank, pureRank, potionCost, features, depth, lineage,
+                payoffCount);
         if (!added)
             _duplicates++;
     }
@@ -1064,6 +1152,107 @@ internal sealed class FlashBeamSolver
         return [.. route];
     }
 
+    private readonly record struct FlashScoutOpening(
+        FlashActionKind Kind, ushort CardId, ushort PotionId, uint? TargetCombatId);
+
+    /// <summary>
+    /// <c>CombatBeamSolver.EarlyTurnStrategyKey</c> without <c>SearchRouteTraits</c>: FlashBeam does not
+    /// model the accumulated route trait flags, so the scout groups by the K4-checked setup traits and
+    /// the remaining existing bands. The omission can only merge groups; it never invents a candidate.
+    /// </summary>
+    private readonly record struct FlashScoutStrategy(
+        FlashScoutOpening Opening,
+        PersistentSetupTraits SetupTraits,
+        int PotionCount,
+        int PersistentBuffBand,
+        int HandValueBand,
+        uint? FocusTargetId);
+
+    private sealed record FlashScoutEntry(int Node, FlashScoutStrategy Strategy, double Score);
+
+    /// <summary>
+    /// <c>CombatBeamSolver.SelectEarlyTurnFrontier</c> over the ended pool: filter the completed turn,
+    /// keep the top two scores per strategy key, group by opening, then round-robin the opening groups
+    /// up to 24 candidates. The pool already holds one representative per byte-identical state.
+    /// </summary>
+    private void CollectEarlyTurnScout(Pool ended, int completedTurns, in FlashBattle root)
+    {
+        List<FlashScoutEntry> entries = new(ended.Count);
+        for (int index = 0; index < ended.Count; index++)
+        {
+            ref FlashBattle state = ref ended.State(index);
+            if (state.PlayerTurn != _initialPlayerTurn + completedTurns)
+                continue;
+            int node = ended.Node(index);
+            FlashScoutOpening opening = ScoutOpening(root, node);
+            RetentionFacts facts = ended.Facts(index);
+            FlashScoutStrategy strategy = new(
+                opening,
+                facts.SetupTraits,
+                Math.Min(3, facts.PotionCount),
+                facts.PersistentBuffValue / 8,
+                facts.ReachableHandValue / 8,
+                facts.FocusTargetCombatId);
+            entries.Add(new(node, strategy, facts.Score));
+        }
+        FlashScoutEntry[][] openings = entries
+            .GroupBy(entry => entry.Strategy)
+            .SelectMany(group => group.OrderByDescending(entry => entry.Score).Take(2))
+            .GroupBy(entry => entry.Strategy.Opening)
+            .Select(group => group.OrderByDescending(entry => entry.Score).ToArray())
+            .OrderByDescending(group => group[0].Score)
+            .ToArray();
+        List<FlashScoutCandidate> selected = [];
+        for (int rank = 0; selected.Count < EarlyTurnCandidatesPerLayer; rank++)
+        {
+            bool found = false;
+            foreach (FlashScoutEntry[] opening in openings)
+            {
+                if (rank >= opening.Length)
+                    continue;
+                found = true;
+                FlashScoutEntry entry = opening[rank];
+                selected.Add(new FlashScoutCandidate(Route(entry.Node), entry.Score));
+                if (selected.Count == EarlyTurnCandidatesPerLayer)
+                    break;
+            }
+            if (!found)
+                break;
+        }
+        _scoutLayers.Add(new FlashScoutLayer(completedTurns, selected));
+    }
+
+    /// <summary>
+    /// The opening key of the existing <c>FirstAction</c>: the first action taken from the search root.
+    /// The scout is only admitted for an empty fixed prefix, so its parent state is the battle root.
+    /// </summary>
+    private FlashScoutOpening ScoutOpening(in FlashBattle root, int node)
+    {
+        int first = node;
+        while (_nodes[first].Parent >= 0)
+            first = _nodes[first].Parent;
+        FlashAction action = _nodes[first].Action;
+        ushort cardId = 0;
+        ushort potionId = 0;
+        uint? target = null;
+        if (action.Kind == FlashActionKind.PlayCard)
+        {
+            if (action.HandIndex < root.HandCount)
+                cardId = root.Cards[action.HandIndex].Id;
+        }
+        else if (action.Kind == FlashActionKind.UsePotion)
+        {
+            if (action.PotionSlot < root.PotionSlotCount)
+                potionId = root.Potions[action.PotionSlot];
+        }
+        if (action.Target >= FlashLimits.FirstEnemyOwner
+            && action.Target - FlashLimits.FirstEnemyOwner < root.EnemyCount)
+        {
+            target = root.Enemies[action.Target - FlashLimits.FirstEnemyOwner].CombatId;
+        }
+        return new FlashScoutOpening(action.Kind, cardId, potionId, target);
+    }
+
     /// <summary>
     /// The existing primary member's terminal-victory tightening
     /// (<c>TightenPrimarySearchIncumbentAtTurnLayer</c>): a complete, risk-free, potion-free victory
@@ -1176,16 +1365,40 @@ internal sealed class FlashBeamSolver
     /// spent. The potion term is Flash-specific: the existing snapshot score does not include potion cost,
     /// so without it the beam would spend potions for free.
     /// </summary>
-    private (double Score, double Rank, int PotionCost, FlashScoreFeatures Features) Score(
+    private (double Score, double Rank, double PureRank, int PotionCost, FlashScoreFeatures Features) Score(
         in FlashBattle battle, int actionCount, bool terminal, bool isEndTurn)
     {
         // ReachableHandValue / ZeroCostPlayableCount feed only the retention comparators, not Score,
         // BeamRankScore or RouteKey. The retention pool computes them when a state is stored, which
         // skips duplicate and terminal children.
         FlashScoreFeatures features = _scorer.Features(battle, actionCount, includeRetentionOnly: false);
-        double rank = _scorer.BeamRankScore(battle, features, terminal, isEndTurn)
-            - UsedPotionCost(battle) * SolverWeights.Hp;
-        return (features.Score, rank, features.ExplicitPotionStrategicCost, features);
+        // The plan representative seats keep the existing MaxBy(BeamRankScore) tie order, which does
+        // not include Flash's potion-cost rank penalty. The two values differ only by that term.
+        double pureRank = _scorer.BeamRankScore(battle, features, terminal, isEndTurn);
+        double rank = pureRank - UsedPotionCost(battle) * SolverWeights.Hp;
+        return (features.Score, rank, pureRank, features.ExplicitPotionStrategicCost, features);
+    }
+
+    /// <summary>
+    /// The route's realized plan payoff count up to this action, mirroring
+    /// <c>PlanCommitment.CountRealizedPayoffs</c>: a matching card play on or after the payoff turn.
+    /// The count starts at <see cref="FlashBeamOptions.InitialPlanPayoffCount"/>, so prefix plays are
+    /// included exactly as the existing search's node chain includes them.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int NextPayoffCount(int parentNode, in FlashBattle parent, in FlashAction action)
+    {
+        if (_planCommitment is not { PayoffKind: FlashPlanPayoffKind.CardPlayed } plan)
+            return 0;
+        int count = _nodes[parentNode].PayoffCount;
+        if (parent.PlayerTurn < plan.EarliestTurn
+            || action.Kind != FlashActionKind.PlayCard
+            || action.HandIndex >= parent.HandCount
+            || parent.Cards[action.HandIndex].Id != plan.PayoffCardId)
+        {
+            return count;
+        }
+        return checked(count + 1);
     }
 
     /// <summary>A slot still holds its root potion and the policy offers it now.</summary>
@@ -1281,6 +1494,7 @@ internal sealed class FlashBeamSolver
         int ReplayPotentialValue,
         int DelayedDamageValue,
         PersistentSetupTraits SetupTraits,
+        int PersistentBuffValue,
         int OffensiveProgressValue,
         int OutstandingStolenResource,
         double Score)
@@ -1327,6 +1541,7 @@ internal sealed class FlashBeamSolver
             features.ReplayPotentialValue,
             features.DelayedDamageValue,
             features.PersistentSetupTraits,
+            features.PersistentBuffValue,
             features.OffensiveProgressValue,
             features.OutstandingStolenResource,
             features.Score);
@@ -1683,6 +1898,8 @@ internal sealed class FlashBeamSolver
         private readonly ChunkedArray<ulong> _hashes;
         private readonly ChunkedArray<RetentionFacts> _facts;
         private readonly ChunkedArray<int> _potionCosts;
+        private readonly ChunkedArray<double> _pureRanks;
+        private readonly ChunkedArray<int> _payoffs;
         private int[] _table;
         private readonly int[] _order;
         private readonly int[] _rankOrder;
@@ -1702,12 +1919,17 @@ internal sealed class FlashBeamSolver
         private readonly List<(int Potion, uint? Target)> _focusOrder = new();
         private readonly FlashScorer _scorer;
         private readonly bool _preserveTheft;
+        private readonly FlashPlanCommitment? _planCommitment;
+        private readonly bool _trackPlanSeats;
 
-        public Pool(int initialCapacity, int maxCapacity, bool preserveTheft, FlashScorer scorer)
+        public Pool(int initialCapacity, int maxCapacity, bool preserveTheft, FlashScorer scorer,
+            FlashPlanCommitment? planCommitment)
         {
             _maxCapacity = maxCapacity;
             _preserveTheft = preserveTheft;
             _scorer = scorer;
+            _planCommitment = planCommitment;
+            _trackPlanSeats = planCommitment is { CopyPowerSeats: true };
             _states = new ChunkedArray<FlashBattle>(maxCapacity);
             _nodes = new ChunkedArray<int>(maxCapacity);
             _lineages = new ChunkedArray<int>(maxCapacity);
@@ -1716,6 +1938,8 @@ internal sealed class FlashBeamSolver
             _hashes = new ChunkedArray<ulong>(maxCapacity);
             _facts = new ChunkedArray<RetentionFacts>(maxCapacity);
             _potionCosts = new ChunkedArray<int>(maxCapacity);
+            _pureRanks = new ChunkedArray<double>(maxCapacity);
+            _payoffs = new ChunkedArray<int>(maxCapacity);
             // The rank/selection scratch stays contiguous because Span.Sort needs a single span. It is
             // sized to the capacity bound once (three int arrays plus two flags, ~1 MB at width 512)
             // instead of being reallocated while the beam grows.
@@ -1770,6 +1994,8 @@ internal sealed class FlashBeamSolver
 
         public int PotionCost(int index) => _potionCosts[index];
 
+        public RetentionFacts Facts(int index) => _facts[index];
+
         /// <summary>Copies one retained entry to a lower slot; used by the incumbent compaction.</summary>
         public void Move(int from, int to)
         {
@@ -1781,6 +2007,11 @@ internal sealed class FlashBeamSolver
             _hashes[to] = _hashes[from];
             _facts[to] = _facts[from];
             _potionCosts[to] = _potionCosts[from];
+            if (_trackPlanSeats)
+            {
+                _pureRanks[to] = _pureRanks[from];
+                _payoffs[to] = _payoffs[from];
+            }
         }
 
         /// <summary>Drops the tail after an incumbent bound; removed seats are not refilled.</summary>
@@ -1822,33 +2053,35 @@ internal sealed class FlashBeamSolver
         }
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
-        public bool CommitReserved(int node, double score, double rank, int potionCost,
-            in FlashScoreFeatures features, int depth, int lineage)
+        public bool CommitReserved(int node, double score, double rank, double pureRank, int potionCost,
+            in FlashScoreFeatures features, int depth, int lineage, int payoffCount)
         {
             if (_scratchReserved)
             {
-                return Insert(ref _scratch, inPlace: false, node, score, rank, potionCost,
-                    features, default, factsReady: false, depth, lineage);
+                return Insert(ref _scratch, inPlace: false, node, score, rank, pureRank, potionCost,
+                    features, default, factsReady: false, depth, lineage, payoffCount);
             }
-            return Insert(ref _states[Count], inPlace: true, node, score, rank, potionCost,
-                features, default, factsReady: false, depth, lineage);
+            return Insert(ref _states[Count], inPlace: true, node, score, rank, pureRank, potionCost,
+                features, default, factsReady: false, depth, lineage, payoffCount);
         }
 
         /// <summary>Adds a scored state and computes its retention-only values when it is stored.</summary>
-        public bool AddScored(in FlashBattle state, int node, double score, double rank, int potionCost,
-            in FlashScoreFeatures features, int depth, int lineage)
+        public bool AddScored(in FlashBattle state, int node, double score, double rank, double pureRank,
+            int potionCost, in FlashScoreFeatures features, int depth, int lineage, int payoffCount)
             => Insert(ref Unsafe.AsRef(in state), inPlace: false,
-                node, score, rank, potionCost, features, default, factsReady: false, depth, lineage);
+                node, score, rank, pureRank, potionCost, features, default, factsReady: false, depth,
+                lineage, payoffCount);
 
         /// <summary>Adds a state whose retention facts are already computed (pool-to-pool copies).</summary>
-        public bool Add(in FlashBattle state, int node, double score, double rank, int potionCost,
-            in RetentionFacts facts, int lineage)
+        public bool Add(in FlashBattle state, int node, double score, double rank, double pureRank,
+            int potionCost, in RetentionFacts facts, int lineage, int payoffCount)
             => Insert(ref Unsafe.AsRef(in state), inPlace: false,
-                node, score, rank, potionCost, default, facts, factsReady: true, facts.Depth, lineage);
+                node, score, rank, pureRank, potionCost, default, facts, factsReady: true, facts.Depth,
+                lineage, payoffCount);
 
         private bool Insert(ref FlashBattle state, bool inPlace, int node, double score, double rank,
-            int potionCost, in FlashScoreFeatures features, in RetentionFacts knownFacts, bool factsReady,
-            int depth, int lineage)
+            double pureRank, int potionCost, in FlashScoreFeatures features, in RetentionFacts knownFacts,
+            bool factsReady, int depth, int lineage, int payoffCount)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -1864,6 +2097,11 @@ internal sealed class FlashBeamSolver
                         _ranks[existing] = rank;
                         _nodes[existing] = node;
                         _potionCosts[existing] = potionCost;
+                        if (_trackPlanSeats)
+                        {
+                            _pureRanks[existing] = pureRank;
+                            _payoffs[existing] = payoffCount;
+                        }
                         _facts[existing] = factsReady
                             ? knownFacts
                             // The byte-identical state has the same retention-only hand values; only
@@ -1897,6 +2135,11 @@ internal sealed class FlashBeamSolver
             _lineages[Count] = lineage;
             _scores[Count] = score;
             _ranks[Count] = rank;
+            if (_trackPlanSeats)
+            {
+                _pureRanks[Count] = pureRank;
+                _payoffs[Count] = payoffCount;
+            }
             _hashes[Count] = hash;
             _facts[Count] = facts;
             _potionCosts[Count] = potionCost;
@@ -1977,12 +2220,89 @@ internal sealed class FlashBeamSolver
                 selected[replaceIndex] = source;
                 _taken[source] = true;
             }
+            if (_planCommitment is { CopyPowerSeats: true })
+                AdmitPlanCommitmentSeats(selected, required, width);
             CollectionsMarshal.AsSpan(selected).Sort(new RankPositionComparer(_rankPosition));
             for (int index = 0; index < selected.Count; index++)
             {
                 int source = selected[index];
                 target.Add(_states[source], _nodes[source], _scores[source], _ranks[source],
-                    _potionCosts[source], _facts[source], _lineages[source]);
+                    _trackPlanSeats ? _pureRanks[source] : 0d, _potionCosts[source],
+                    _facts[source], _lineages[source],
+                    _trackPlanSeats ? _payoffs[source] : 0);
+            }
+        }
+
+        /// <summary>
+        /// <c>BeamRetentionPolicy.AdmitPlanCommitmentRepresentatives</c>: a CopyPower plan keeps the
+        /// best-ranked state of the three highest realized-payoff progress bands. A representative
+        /// replaces only a selected non-required state with strictly lower progress (the existing
+        /// <c>FindLastIndex</c>), so equal-progress seats are not displaced.
+        /// </summary>
+        private void AdmitPlanCommitmentSeats(List<int> selected, List<int> required, int width)
+        {
+            // The existing selection takes the three highest distinct progress bands, then each
+            // band's MaxBy(BeamRankScore). Collect the bands first; the best member is scanned below.
+            Span<int> progressBands = stackalloc int[3];
+            int bandCount = 0;
+            for (int index = 0; index < Count; index++)
+            {
+                int progress = _payoffs[index];
+                if (progress <= 0)
+                    continue;
+                int insert = 0;
+                while (insert < bandCount && progressBands[insert] > progress)
+                    insert++;
+                if (insert < bandCount && progressBands[insert] == progress)
+                    continue;
+                if (insert >= 3)
+                    continue;
+                int moveTo = Math.Min(bandCount, 2);
+                while (moveTo > insert)
+                {
+                    progressBands[moveTo] = progressBands[moveTo - 1];
+                    moveTo--;
+                }
+                progressBands[insert] = progress;
+                if (bandCount < 3)
+                    bandCount++;
+            }
+            // Pick the best pure-rank member of every retained progress band. The scan is bounded by
+            // the pool and runs only for a CopyPower plan member.
+            for (int group = 0; group < bandCount; group++)
+            {
+                int progress = progressBands[group];
+                int best = -1;
+                for (int index = 0; index < Count; index++)
+                {
+                    if (_payoffs[index] != progress)
+                        continue;
+                    if (best < 0 || _pureRanks[index] > _pureRanks[best])
+                        best = index;
+                }
+                int candidate = best;
+                int candidateProgress = progress;
+                if (selected.Contains(candidate))
+                {
+                    AddRequired(required, candidate, width);
+                    continue;
+                }
+                int replaceIndex = -1;
+                for (int index = selected.Count - 1; index >= 0; index--)
+                {
+                    int node = selected[index];
+                    if (!_required[node] && _payoffs[node] < candidateProgress)
+                    {
+                        replaceIndex = index;
+                        break;
+                    }
+                }
+                if (replaceIndex < 0)
+                    continue;
+                _taken[selected[replaceIndex]] = false;
+                selected[replaceIndex] = candidate;
+                _taken[candidate] = true;
+                AddRequired(required, candidate, width);
             }
         }
 
