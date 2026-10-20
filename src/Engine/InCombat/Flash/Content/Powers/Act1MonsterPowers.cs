@@ -97,6 +97,9 @@ public sealed class IllusionPower : FlashPowerDef
     {
         if (wasRemovalPrevented || creature != self.Owner)
             return;
+        // The existing engine's IllusionPower death dispatch is not mirrored and records
+        // MethodNotMirrored risk even though BeginIllusionRevive applies the same state.
+        x.HistoryRisk = true;
         FlashKernel.BeginIllusionRevive(ref x, self.Owner);
     }
 }

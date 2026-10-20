@@ -444,6 +444,17 @@ public static partial class FlashKernel
             return;
         }
         bool remove = ShouldRemoveAfterDeath(x.B, owner);
+        // HookMirrors.AfterDeath iterates every run hook listener on any death; a listener whose
+        // dispatch is inferred/unsupported records a MethodNotMirrored history entry even when the
+        // compensation path applies the same state. The flag is transient (pure input only).
+        for (int index = 0; index < x.B.PowerCount; index++)
+        {
+            if (x.R.PowerRecordsDeathHistoryRisk(x.B.Powers[index].Id))
+            {
+                x.HistoryRisk = true;
+                break;
+            }
+        }
         AfterDeathHook after = new() { Creature = owner, WasRemovalPrevented = false };
         FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
         if (x.NeedsChoice)

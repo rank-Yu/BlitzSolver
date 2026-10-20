@@ -46,16 +46,16 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT、CT 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、255 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT、CT、RS3 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、255 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
-### 2.1 当前状态（DX6 合入后）
+### 2.1 当前状态（RS3 合入后）
 
 - 覆盖：五个角色的卡池、296 个遗物、65 种药水、三幕全部遭遇与第三幕首领策略、事件卡牌与事件遭遇。不支持的内容在准入时给出类别：多人专用、Mock、废弃内容，以及现有引擎同样不支持的 BYRDPIP。
 - 默认语料的协调器对照（Medium、宽度组合、120 秒，Off 为固定基线）：
-  - 四角色 46 个牌组：On 相对 Off 13 好 / 26 同 / 7 差，战略失血差合计 −86（同为 120 秒预算）；SILENT-C-13 的关闭模式在 120 秒预算下被截断（约需 129 秒，240 秒预算下胜利、失血 56），按关闭模式不受截断的口径为 −72。开启模式 SILENT-C-13 约 22 秒取胜、失血 45。
-  - 铁甲战士 33 个牌组：10 好 / 19 同 / 4 差，−22。DX6 修正现有引擎的已完成攻击计数后，IRONCLAD-50 的关闭模式失血 73 → 48、开启模式 31 → 29，合计差额因此缩小 23。
-  - 79 根全部 `FLASH_ADOPTED`。开启模式仍调用原搜索的只有 2 次 `SmartPotionGradient` 的 `flash-potion-policy-no-route`，现有求解器在该根上同样没有满足策略的路线。
-- 48 根基准（10 秒）：Flash 相对现有主搜索 14 好 / 28 同 / 6 差，失血合计 −34。
+  - 四角色 46 个牌组：On 相对 Off 11 好 / 30 同 / 5 差，战略失血差合计 −102（同为 120 秒预算）；SILENT-C-13 的关闭模式在 120 秒预算下被截断（约需 129 秒，240 秒预算下胜利、失血 56），按关闭模式不受截断的口径为 −88。开启模式 SILENT-C-13 约 22 秒取胜、失血 45。
+  - 铁甲战士 33 个牌组：9 好 / 19 同 / 5 差，−17。DX6 修正现有引擎的已完成攻击计数后，IRONCLAD-50 的关闭模式失血 73 → 48；该根开启模式在同一代码的重复测量中为 29–33。
+  - 79 根全部 `FLASH_ADOPTED`。开启模式仍调用原搜索的只有 IRONCLAD-27 与 IRONCLAD-53 各 2 次 `SmartPotionGradient` 的 `flash-potion-policy-no-route`，现有求解器在这两根上同样没有满足策略的路线（`acceptable=False`）。
+- 48 根基准（10 秒）：Flash 相对现有主搜索 14 好 / 29 同 / 5 差，失血合计 −34。
 - 其余仍由原搜索执行的请求形态与原因码见 [搜索与接入](search.md) 3.2 节。
 
 ### 2.2 批次记录
@@ -83,6 +83,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 致命击杀判定改读分支状态（LH，2026-10-20）：现有引擎的 The Hunt、Feed、HandOfGreed 与 BookRepairKnife 致命判定原经原版 `ReattachPower.ShouldOwnerDeathTriggerFatal`/`AreAllOtherSegmentsDead` 读取根上 live 生物的生命，分支内其他千足虫节段已死时仍判为不致命；改为 `SimulatedCombatState.ShouldOwnerDeathTriggerFatal` 按分支 Power 与分支死亡状态计算，同一修正把 Surrounded/BackAttack 与 FrostOrb/Hibernate 的 Power 存在性读取改为分支查询。The Hunt 与 BookRepairKnife 的 actual/simulated 严格差分修正前分别差 `TheHuntPower` 1 层与治疗 3 点，修正后完整快照一致；HS 发现的 SILENT-C-13 第 56 步核对不一致消失，默认 79 根开启模式核对不一致为 0、逐根不变；关闭模式 79 根只有 SILENT-C-13 改变（The Hunt 奖励从 0 变为 1，120 秒预算内不再取胜），基线已更新。Doom 击杀的致命计数时机由 DT 修正。
 
 Doom 击杀的致命计数时机（DT，2026-10-20）：原版 `DoomPower.DoomKill` 逐个击杀（每次击杀内完成死亡 Hook、移出阵容与 Power 移除），全部击杀后才调用 `AfterDiedToDoom`；现有引擎与 Flash 原先在击杀前统计致命数。两边都改为逐个击杀并补跑该次死亡效果、全部击杀后再按分支状态统计并治疗（`AfterDiedToDoom` 只有书本修复刀订阅）。新增无人测试合同 `DOOM-FATAL-TIMING-V0111`（三个千足虫节段同批 Doom 击杀，修正前模拟治疗 0、实机 9）与 `flash-dt-doom-fatal-timing`；默认 79 根关闭与开启模式逐根不变。
+
+保留结构收尾（RS3，2026-10-20）：FlashBeam 移植回合边界整理代表、有序牌堆评估与代表（`ProjectedShuffleOrderValue`）、路由上下文 Pareto 与 direct extremes、Art of War 8 回合窗口、路由签名的来源与敌人分布指纹、药水次数超过槽位的分组和 `pure` 分派输入；stand-pat 探测遇到回合开始选择时按自动政策作答（手牌来源升序、其余降序）。新增 K4 字段（有序牌堆值、Art of War 触发、两类敌人分布指纹）全量回归零失败；原始 history-pure 与生产 pure 的差单列为 `pureRefMismatch` 诊断（0.20% 的出牌，来自补偿路径的状态相关分派）。默认 79 根相对合入前 4 好 / 2 差：REGENT-C-07/V-07 54 → 46 与关闭模式同分（路由上下文 Pareto 与 direct extremes 贡献，单结构消融关掉即回到 54），DEFECT-C-05 49 → 48，NECROBINDER-V-07 20 → 19；SILENT-C-14 38 → 40、IRONCLAD-17 56 → 59（同一组路由结构，签名维度之间有交互，未能隔离到单一结构）。药水矩阵 DEFECT-C-05 至少一瓶 30 → 23 与原搜索同分，SILENT-C-08 强制用药仍为 20（原搜索 16）。关闭模式 79 根逐根不变；48 根基准路线逐根不变、耗时 −0.3%。尚未移植：有序变动组合（`OrderedMutation*`）、结束回合压缩谱系与完整胜利分组代表；路由签名的 `ContextId` 恒为 0，`UnorderedPileKey` 用 Flash 卡字节哈希，只保持等价类。
 
 ### 2.3 无人测试实机部署（2026-10-19）
 

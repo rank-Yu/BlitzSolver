@@ -55,6 +55,14 @@ internal sealed class FlashScorer
     }
 
     /// <summary>
+    /// <c>CardChoiceSupport.CardValue</c> for one stored card, used by the stand-pat probe's
+    /// rule-based automatic turn-start answer (the same ordering <c>BuildAutomaticPolicyChoice</c>
+    /// uses: ascending hand values, descending pile/generated values).
+    /// </summary>
+    internal double AutomaticChoiceValue(in FlashBattle battle, in FlashCard card)
+        => CardValue(battle, card, Rules.Card(card.Id, card.Upgrade), _score.Card(card.Id, card.Upgrade));
+
+    /// <summary>
     /// Port of <c>CardChoiceSupport.CardValue</c> with the instance's variable deltas applied. The
     /// existing engine converts each completed decimal <c>BaseValue</c> to double once; adding a
     /// double delta to a double base would round differently for decimals such as 0.75.
@@ -409,6 +417,7 @@ internal sealed class FlashScorer
                 aliveEnemyMask |= 1UL << index;
             }
         }
+
 
         bool dead = battle.Player.IsDead || battle.Outcome == FlashOutcome.Defeat;
         bool won = !dead && battle.Outcome == FlashOutcome.Victory;
@@ -832,6 +841,7 @@ internal sealed class FlashScorer
             }
         }
 
+
         // the existing search's StateEvaluation: positive Sandpit stacks targeting this player whose owner is
         // alive, summed with checked overflow. The existing engine visits EffectivePowers (live roster
         // powers); dead owners have their powers removed by ApplyEnemyDeathPowers.
@@ -901,6 +911,11 @@ internal sealed class FlashScorer
             explicitPotionStrategicCost + _score.InitialExplicitPotionStrategicCost);
 
         int defensiveBlockValue = MeasureDefensiveBlockReserve(battle, blockConsumed);
+
+        // Retention-only projections (the existing search's StateEvaluation): the projected shuffle
+        // order, the unordered pile multiset and the Art of War next-turn window. None of these enter
+        // Score, BeamRankScore or the route key, so a plain scored state skips them.
+        FlashRetentionValues retention = includeRetentionOnly ? RetentionValues(battle) : default;
 
         return new FlashScoreFeatures
         {
@@ -993,7 +1008,181 @@ internal sealed class FlashScorer
             AutomaticPotionUseCount = automaticPotionUseCount,
             ExplicitPotionStrategicCost = explicitPotionStrategicCost,
             ExplicitPotionUseCount = checked(potionUseCount - automaticPotionUseCount),
+            ProjectedShuffleOrderValue = retention.ProjectedShuffleOrderValue,
+            ProjectedShuffleOrderKeyFirst = retention.ProjectedShuffleOrderKeyFirst,
+            ProjectedShuffleOrderKeySecond = retention.ProjectedShuffleOrderKeySecond,
+            CanTriggerArtOfWarNextTurn = retention.CanTriggerArtOfWarNextTurn,
+            EnemyCombatDistributionFirst = retention.EnemyCombatDistributionFirst,
+            EnemyCombatDistributionSecond = retention.EnemyCombatDistributionSecond,
+            EnemyControlDistributionFirst = retention.EnemyControlDistributionFirst,
+            EnemyControlDistributionSecond = retention.EnemyControlDistributionSecond,
+            UnorderedPileKeyFirst = retention.UnorderedPileKeyFirst,
+            UnorderedPileKeySecond = retention.UnorderedPileKeySecond,
         };
+    }
+
+    /// <summary>
+    /// Retention-only values shared by K4 and the retention facts. Computed once per stored state (and
+    /// once per K4-checked state), never on the plain score path.
+    /// </summary>
+    internal readonly record struct FlashRetentionValues(
+        int ProjectedShuffleOrderValue,
+        ulong ProjectedShuffleOrderKeyFirst,
+        ulong ProjectedShuffleOrderKeySecond,
+        bool CanTriggerArtOfWarNextTurn,
+        ulong EnemyCombatDistributionFirst,
+        ulong EnemyCombatDistributionSecond,
+        ulong EnemyControlDistributionFirst,
+        ulong EnemyControlDistributionSecond,
+        ulong UnorderedPileKeyFirst,
+        ulong UnorderedPileKeySecond);
+
+    internal FlashRetentionValues RetentionValues(in FlashBattle battle)
+    {
+        (int value, ulong projectedFirst, ulong projectedSecond) = CaptureProjectedShuffleOrder(battle);
+        (ulong unorderedFirst, ulong unorderedSecond) = CaptureUnorderedPileKey(battle);
+        (ulong combatFirst, ulong combatSecond) = CaptureEnemyCombatDistribution(battle);
+        (ulong controlFirst, ulong controlSecond) = CaptureEnemyControlDistribution(battle);
+        bool artOfWar = false;
+        ushort artOfWarId = FlashRegistry.ArtOfWarRelicId;
+        if (artOfWarId != 0)
+        {
+            for (int index = 0; index < battle.RelicCount; index++)
+            {
+                ref readonly FlashRelic relic = ref battle.Relics[index];
+                if (relic.Id == artOfWarId && (relic.Flags & FlashRelicFlags.Melted) == 0
+                    && relic.Counter == 0)
+                {
+                    artOfWar = true;
+                    break;
+                }
+            }
+        }
+        return new FlashRetentionValues(value, projectedFirst, projectedSecond, artOfWar,
+            combatFirst, combatSecond, controlFirst, controlSecond, unorderedFirst, unorderedSecond);
+    }
+
+    /// <summary>
+    /// <c>SearchEvaluator</c>'s enemy combat distribution: per known enemy, in list order,
+    /// (CombatId, current HP, block, effective HP, containment).
+    /// </summary>
+    private (ulong First, ulong Second) CaptureEnemyCombatDistribution(in FlashBattle battle)
+    {
+        StateFingerprintBuilder key = new();
+        for (int index = 0; index < battle.EnemyCount; index++)
+        {
+            ref readonly FlashEnemy enemy = ref battle.Enemies[index];
+            key.Add(enemy.CombatId);
+            key.Add(enemy.Creature.CurrentHp);
+            key.Add(enemy.Creature.Block);
+            key.Add(EffectiveEnemyHp(battle, index));
+            key.Add((enemy.Flags & FlashEnemyFlags.InCombat) != 0);
+        }
+        StateFingerprint finish = key.Finish();
+        return (finish.First, finish.Second);
+    }
+
+    /// <summary>
+    /// <c>SearchEvaluator</c>'s enemy control distribution: per living, contained enemy,
+    /// (CombatId, strength suppression, weak turns, vulnerable turns).
+    /// </summary>
+    private (ulong First, ulong Second) CaptureEnemyControlDistribution(in FlashBattle battle)
+    {
+        StateFingerprintBuilder key = new();
+        for (int index = 0; index < battle.EnemyCount; index++)
+        {
+            ref readonly FlashEnemy enemy = ref battle.Enemies[index];
+            if ((enemy.Flags & FlashEnemyFlags.InCombat) == 0 || !enemy.Creature.IsAlive)
+                continue;
+            byte owner = FlashKernel.EnemyOwner((byte)index);
+            key.Add(enemy.CombatId);
+            key.Add(-GetAmount(battle, _score.StrengthPowerId, owner));
+            key.Add(Math.Max(0, GetAmount(battle, _score.WeakPowerId, owner)));
+            key.Add(Math.Max(0, GetAmount(battle, _score.VulnerablePowerId, owner)));
+        }
+        StateFingerprint finish = key.Finish();
+        return (finish.First, finish.Second);
+    }
+
+    /// <summary>
+    /// <c>SearchEvaluator.BuildProjectedShuffleOrder</c>: discard + draw + hand in that order, the
+    /// native stable-shuffle projection (unstable sort by card id/upgrade, then Fisher-Yates from the
+    /// end on a copy of the shuffle RNG), then the value sum and a card-state key. The existing key
+    /// hashes the existing engine's per-card fingerprint; Flash hashes the card byte image instead.
+    /// </summary>
+    private (int Value, ulong KeyFirst, ulong KeySecond) CaptureProjectedShuffleOrder(in FlashBattle battle)
+    {
+        int total = battle.DiscardCount + battle.DrawCount + battle.HandCount;
+        Span<FlashCard> cards = stackalloc FlashCard[FlashLimits.Cards];
+        cards = cards[..total];
+        int discardCount = battle.DiscardCount;
+        int drawCount = battle.DrawCount;
+        FlashPiles.ReadCards(battle, FlashPile.Discard).CopyTo(cards);
+        FlashPiles.ReadCards(battle, FlashPile.Draw).CopyTo(cards[discardCount..]);
+        FlashPiles.ReadCards(battle, FlashPile.Hand).CopyTo(cards[(discardCount + drawCount)..]);
+        FlashCardSort.Sort(cards, Rules);
+        FlashRngState shuffle = battle.RngStream(FlashRngStream.Shuffle);
+        int shuffleCounter = shuffle.Counter;
+        for (int n = total; n > 1;)
+        {
+            n--;
+            int k = shuffle.NextInt(n + 1);
+            (cards[k], cards[n]) = (cards[n], cards[k]);
+        }
+        StateFingerprintBuilder key = new();
+        key.Add(shuffleCounter);
+        key.Add(total);
+        int value = 0;
+        for (int index = 0; index < total; index++)
+        {
+            FlashCard card = cards[index];
+            FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+            FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
+            // CardChoiceSupport.CardValue reads the live DynamicVars BaseValue, which some cards
+            // (SovereignBlade's forged damage) grow per instance; the instance deltas are the same
+            // values the score table's CardValue applies.
+            double cardValue = CardValue(battle, card, stats, cardScore);
+            value += (int)Math.Round(cardValue * (total - index));
+            ulong hash = FlashFingerprint.HashCard(card);
+            key.Add(StateFingerprintBuilder.MixFirst(hash));
+            key.Add(StateFingerprintBuilder.MixSecond(hash));
+        }
+        StateFingerprint finish = key.Finish();
+        return (value, finish.First, finish.Second);
+    }
+
+    /// <summary>
+    /// <c>SearchEvaluator.BuildUnorderedPileKey</c>: per pile (hand, draw, discard, exhaust, in that
+    /// order) the order-invariant sum of the mixed per-card hashes, followed by the pile marker, count
+    /// and both sums. The existing engine hashes its own card fingerprint; the equivalence class is
+    /// the same card-state multiset.
+    /// </summary>
+    private (ulong First, ulong Second) CaptureUnorderedPileKey(in FlashBattle battle)
+    {
+        StateFingerprintBuilder unordered = new();
+        AppendUnorderedPile(ref unordered, battle, FlashPile.Hand, 'H');
+        AppendUnorderedPile(ref unordered, battle, FlashPile.Draw, 'D');
+        AppendUnorderedPile(ref unordered, battle, FlashPile.Discard, 'C');
+        AppendUnorderedPile(ref unordered, battle, FlashPile.Exhaust, 'X');
+        StateFingerprint finish = unordered.Finish();
+        return (finish.First, finish.Second);
+    }
+
+    private static void AppendUnorderedPile(ref StateFingerprintBuilder unordered, in FlashBattle battle,
+        FlashPile pile, char marker)
+    {
+        ReadOnlySpan<FlashCard> cards = FlashPiles.ReadCards(battle, pile);
+        ulong first = 0, second = 0;
+        for (int index = 0; index < cards.Length; index++)
+        {
+            ulong hash = FlashFingerprint.HashCard(cards[index]);
+            first += StateFingerprintBuilder.MixFirst(hash);
+            second += StateFingerprintBuilder.MixSecond(hash);
+        }
+        unordered.Add(marker);
+        unordered.Add(cards.Length);
+        unordered.Add(first);
+        unordered.Add(second);
     }
 
     private int EffectiveEnemyHp(in FlashBattle battle, int index)

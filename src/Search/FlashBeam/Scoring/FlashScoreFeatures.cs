@@ -153,6 +153,48 @@ internal readonly record struct FlashScoreFeatures
     public int ExplicitPotionStrategicCost { get; init; }
     public int ExplicitPotionUseCount { get; init; }
 
+    /// <summary>
+    /// <c>Snapshot.ProjectedShuffleOrderValue</c>: the value of the live pile after the stable shuffle
+    /// projection (base card value weighted by the projected position). Retention-only; K4 compares it
+    /// on every projected state.
+    /// </summary>
+    public int ProjectedShuffleOrderValue { get; init; }
+
+    /// <summary>
+    /// Flash-side projected-shuffle key. The existing key hashes the existing engine's per-card state
+    /// fingerprint; Flash hashes the complete <see cref="FlashCard"/> byte image instead. It partitions
+    /// the exact projected card sequence the same way (equal sequence of equal card states), which is
+    /// what the ordered-pile cohorts consume; the numeric hash is not comparable across engines.
+    /// </summary>
+    public ulong ProjectedShuffleOrderKeyFirst { get; init; }
+    public ulong ProjectedShuffleOrderKeySecond { get; init; }
+
+    /// <summary><c>SimulatedCombatState.CanTriggerArtOfWarNextTurn</c>: an unmelted Art of War relic
+    /// whose current-turn attack flag is still zero.</summary>
+    public bool CanTriggerArtOfWarNextTurn { get; init; }
+
+    /// <summary>
+    /// <c>Snapshot.EnemyCombatDistributionKey</c>: per known enemy (CombatId, current HP, block,
+    /// effective HP, containment) in <see cref="FlashBattle.Enemies"/> order. K4 compares both halves.
+    /// </summary>
+    public ulong EnemyCombatDistributionFirst { get; init; }
+    public ulong EnemyCombatDistributionSecond { get; init; }
+
+    /// <summary>
+    /// <c>Snapshot.EnemyControlDistributionKey</c>: per living, contained enemy (CombatId, strength
+    /// suppression, weak turns, vulnerable turns). K4 compares both halves.
+    /// </summary>
+    public ulong EnemyControlDistributionFirst { get; init; }
+    public ulong EnemyControlDistributionSecond { get; init; }
+
+    /// <summary>
+    /// Flash-side unordered pile key: the order-invariant multiset hash over hand, draw, discard and
+    /// exhaust. The existing key sums the existing per-card state fingerprints; the numeric value is
+    /// therefore not comparable, but the equivalence class (same multiset of equal card states) is.
+    /// </summary>
+    public ulong UnorderedPileKeyFirst { get; init; }
+    public ulong UnorderedPileKeySecond { get; init; }
+
     /// <summary>One line per member that differs, as <c>name old=… flash=…</c>.</summary>
     public static List<string> Diff(in FlashScoreFeatures old, in FlashScoreFeatures flash)
     {
@@ -259,6 +301,18 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(AutomaticPotionUseCount), old.AutomaticPotionUseCount, flash.AutomaticPotionUseCount);
         Check(nameof(ExplicitPotionStrategicCost), old.ExplicitPotionStrategicCost, flash.ExplicitPotionStrategicCost);
         Check(nameof(ExplicitPotionUseCount), old.ExplicitPotionUseCount, flash.ExplicitPotionUseCount);
+        Check(nameof(ProjectedShuffleOrderValue), old.ProjectedShuffleOrderValue,
+            flash.ProjectedShuffleOrderValue);
+        Check(nameof(CanTriggerArtOfWarNextTurn), old.CanTriggerArtOfWarNextTurn,
+            flash.CanTriggerArtOfWarNextTurn);
+        Check(nameof(EnemyCombatDistributionFirst), old.EnemyCombatDistributionFirst,
+            flash.EnemyCombatDistributionFirst);
+        Check(nameof(EnemyCombatDistributionSecond), old.EnemyCombatDistributionSecond,
+            flash.EnemyCombatDistributionSecond);
+        Check(nameof(EnemyControlDistributionFirst), old.EnemyControlDistributionFirst,
+            flash.EnemyControlDistributionFirst);
+        Check(nameof(EnemyControlDistributionSecond), old.EnemyControlDistributionSecond,
+            flash.EnemyControlDistributionSecond);
         return lines;
     }
 }

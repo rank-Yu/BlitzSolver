@@ -290,6 +290,7 @@ public sealed class SeekerStrike : FlashCardDef
         // CardChoiceSupport.BuildSeekerSpec records RecordRisk(UnresolvedPlayerChoice); the risk is
         // not in the compensated catalog, so the snapshot flips HasRisk and Flash must follow.
         x.B.Flags |= FlashBattleFlags.HasRisk;
+        x.HistoryRisk = true;
         Span<int> selected = stackalloc int[1];
         if (!FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.MoveToHand, FlashPile.Draw,
                 options[..optionCount], 1, 1, selected, out int selectedCount))

@@ -1731,6 +1731,14 @@ public static class FlashRegistry
     public static ushort PaelsEyeRelicId
         => Data.Value.RelicIds.TryGetValue("PAELS_EYE", out ushort id) ? id : (ushort)0;
 
+    /// <summary>
+    /// Canonical id of the Art of War relic (0 when the content is absent). <c>CanTriggerArtOfWarNextTurn</c>
+    /// reads the same <c>StatefulRelicState.Current == 0</c>; the Flash definition keeps it in
+    /// <see cref="FlashRelic.Counter"/>.
+    /// </summary>
+    public static ushort ArtOfWarRelicId
+        => Data.Value.RelicIds.TryGetValue("ART_OF_WAR", out ushort id) ? id : (ushort)0;
+
     public static bool TryPotion(string nativeId, out ushort id) => Data.Value.PotionIds.TryGetValue(nativeId, out id);
 
     public static bool TryMonster(string nativeId, out ushort id) => Data.Value.MonsterIds.TryGetValue(nativeId, out id);

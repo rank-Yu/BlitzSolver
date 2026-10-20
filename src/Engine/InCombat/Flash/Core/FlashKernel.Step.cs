@@ -9,6 +9,15 @@ public static partial class FlashKernel
     /// </summary>
     public static FlashStepResult Step(ref FlashBattle battle, in FlashAction action, FlashRules rules,
         out FlashChoiceRequest request)
+        => Step(ref battle, action, rules, out request, out _);
+
+    /// <summary>
+    /// As <see cref="Step(ref FlashBattle, in FlashAction, FlashRules, out FlashChoiceRequest)"/>, also
+    /// reporting whether a mirrored path recorded a prediction risk history entry during the action
+    /// (used by the routing trait's pure input; transient, not battle state).
+    /// </summary>
+    public static FlashStepResult Step(ref FlashBattle battle, in FlashAction action, FlashRules rules,
+        out FlashChoiceRequest request, out bool historyRisk)
     {
         if (!IsInProgress(battle))
             throw new InvalidOperationException("战斗已经结束，不能再执行动作。");
@@ -52,6 +61,7 @@ public static partial class FlashKernel
             // the doubled-attack latch; no later settlement can read it and the importer projects 0.
             battle.Relics[rules.PenNibRelicIndex].Aux = 0;
         }
+        historyRisk = x.HistoryRisk;
         if (x.NeedsChoice)
         {
             request = x.Request;

@@ -284,6 +284,7 @@ public ref struct FlashExec
         _choiceCount = action.ChoiceCount;
         _choicesTaken = 0;
         NeedsChoice = false;
+        HistoryRisk = false;
         Request = default;
         Card = default;
         Stats = null;
@@ -332,6 +333,13 @@ public ref struct FlashExec
 
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
     public bool NeedsChoice;
+
+    /// <summary>
+    /// Set by content whose existing-engine dispatch records a prediction risk history entry even
+    /// when the compensating path applies the same effect (compensated risk, e.g. IllusionPower's
+    /// death dispatch). Transient per action; never part of the battle state or fingerprint.
+    /// </summary>
+    public bool HistoryRisk;
 
     /// <summary>
     /// Sum of <c>TotalDamage + OverkillDamage</c> over the damage results of the current card play

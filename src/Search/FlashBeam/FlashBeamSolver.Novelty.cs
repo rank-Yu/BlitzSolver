@@ -195,10 +195,12 @@ internal sealed partial class FlashBeamSolver
         bool checkPotionQuota = _effectivePotionPolicy != SolverPotionPolicy.Disabled;
         Pool next = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
-            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
+            _options.PreserveReplayAllocatorOpening);
         Pool ended = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
-            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
+            _options.PreserveReplayAllocatorOpening);
 
         void Terminal(in FlashBattle state, int node, double score)
         {
@@ -217,7 +219,7 @@ internal sealed partial class FlashBeamSolver
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
             _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
                 _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
-                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d));
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0));
             bool terminalRoot = !FlashKernel.IsInProgress(root);
             ObserveNoveltySeed(root, rootIndex, rootFeatures);
             if (terminalRoot)

@@ -97,6 +97,13 @@ public sealed class FlashCardStats
     /// </summary>
     public bool IsColorless { get; init; }
 
+    /// <summary>
+    /// The existing engine's OnPlay mirror dispatch is inferred or unsupported for this card, so every
+    /// play records a prediction risk history entry (<c>MethodMirrorIncomplete</c>/<c>MethodNotMirrored</c>).
+    /// The routing trait's <c>pure</c> input is false for such a play.
+    /// </summary>
+    public bool PlaysRecordRisk { get; init; }
+
     /// <summary>Base values of the native dynamic variables named by the card definition, in order.</summary>
     public required decimal[] Vars { get; init; }
 }
@@ -273,6 +280,7 @@ public sealed class FlashRules
     private readonly ushort[] _outOfCombatPotionPool;
     private readonly ushort[] _rootPotions;
     private readonly string[] _encounterSlots;
+    private readonly bool[] _powerDeathHistoryRisk;
 
     internal FlashRules(
         FlashCardStats?[][] cards,
@@ -285,6 +293,7 @@ public sealed class FlashRules
         ushort[] potionPool,
         ushort[] outOfCombatPotionPool,
         ushort[] rootPotions,
+        bool[] powerDeathHistoryRisk,
         bool hasEncounter,
         string[] encounterSlots,
         int rootEnemyCount,
@@ -315,6 +324,7 @@ public sealed class FlashRules
         _potionPool = potionPool;
         _outOfCombatPotionPool = outOfCombatPotionPool;
         _rootPotions = rootPotions;
+        _powerDeathHistoryRisk = powerDeathHistoryRisk;
         HasEncounter = hasEncounter;
         _encounterSlots = encounterSlots;
         RootEnemyCount = rootEnemyCount;
@@ -458,6 +468,13 @@ public sealed class FlashRules
         return stats;
     }
 
+    /// <summary>
+    /// <c>AfterDeathMirrors</c> dispatch for this power type is Inferred/Unsupported: every death
+    /// records a MethodNotMirrored history entry while it is in combat.
+    /// </summary>
+    public bool PowerRecordsDeathHistoryRisk(ushort powerId)
+        => powerId < _powerDeathHistoryRisk.Length && _powerDeathHistoryRisk[powerId];
+
     public decimal PowerVar(ushort powerId, int index)
     {
         decimal[] vars = powerId < _powerVars.Length ? _powerVars[powerId] : [];
@@ -528,6 +545,7 @@ public sealed class FlashRulesBuilder
 {
     private readonly List<FlashCardStats?>[] _cards = new List<FlashCardStats?>[FlashRegistry.CardCount];
     private readonly decimal[]?[] _powerVars = new decimal[]?[FlashRegistry.PowerCount];
+    private readonly bool[] _powerDeathHistoryRisk = new bool[FlashRegistry.PowerCount];
     private readonly FlashPotionStats?[] _potions = new FlashPotionStats?[FlashRegistry.PotionCount];
     private readonly decimal[]?[] _relicVars = new decimal[]?[FlashRegistry.RelicCount];
     private readonly FlashMonsterRules?[] _monsters = new FlashMonsterRules?[FlashLimits.MonsterRules];
@@ -599,6 +617,8 @@ public sealed class FlashRulesBuilder
 
     public bool HasPowerVars(ushort id) => _powerVars[id] != null;
 
+    public void SetPowerDeathHistoryRisk(ushort id, bool value) => _powerDeathHistoryRisk[id] = value;
+
     public void SetPotion(ushort id, FlashPotionStats stats) => _potions[id] = stats;
 
     public void SetCardPool(string key, ushort[] cards)
@@ -665,6 +685,7 @@ public sealed class FlashRulesBuilder
             (ushort[])_potionPool.Clone(),
             (ushort[])_outOfCombatPotionPool.Clone(),
             (ushort[])_rootPotions.Clone(),
+            (bool[])_powerDeathHistoryRisk.Clone(),
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
             RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent, HasShuffleOrderEnchantment,
             HasBeforeFlushEnchantment, HasTheftContent, HasDecimalCardVars, HasInfiniteHpDisplayMonster,

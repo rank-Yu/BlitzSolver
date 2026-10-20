@@ -64,6 +64,14 @@ public static class FlashFingerprint
         => MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in left, 1))
             .SequenceEqual(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in right, 1)));
 
+    /// <summary>
+    /// Stable card-state hash used by retention-only projection keys (the projected shuffle order and
+    /// the unordered pile multiset). It hashes the complete card byte image, so byte-identical cards
+    /// hash equally without reading model references.
+    /// </summary>
+    public static ulong HashCard(in FlashCard card)
+        => Mix(Prime3, MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in card, 1)));
+
     /// <summary>Four independent lanes over 32-byte blocks, then single words, then the byte tail.</summary>
     private static ulong Mix(ulong seed, ReadOnlySpan<byte> data)
     {
