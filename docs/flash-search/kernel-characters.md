@@ -59,7 +59,7 @@
 
 **消耗。** `ManualPlay` 在卡进入打出区之前重算星费，写入 `StarValue`，扣星能后派发 `AfterStarsSpent`。现有引擎的顺序不是监听者顺序：先 `TriggerRelicsAfterStarsSpent`（GalacticDust、MiniRegent 按遗物表顺序），再按 `EffectivePowers()` 顺序跑 `ChildOfTheStarsPower`；Flash 因此用「先遗物、后 Power」两遍派发。自动打出不支付星能，但同样在 `skipXCapture` 为假时捕获 `StarValue`。
 
-**锻造。** `FlashKernel.Forge` 对应 `PersistentPowerSupport.Forge`：有待处理选择时不执行；手牌/抽牌堆/弃牌堆/打出区都没有未消耗的 `SOVEREIGN_BLADE` 时创建一张规范 0 级君王之刃到手中（走 `AddGeneratedCardToCombat` 的进战斗与生成卡 Hook）；然后给**所有**牌堆里的非复制君王之刃的伤害变量加 amount（`Var0`）。`CreatedThroughForge` 只驱动原版视觉，不进入 Flash 状态。君王之刃的攻击次数来自 `Repeat` 变量（恒为 1，无原版效果调用 `SetRepeats`），`SeekingEdgePower` 把它改为全体目标，`ParryPower` 提供格挡。锻造卡与 `FurnacePower` 在 `GeneratedCards` 里声明君王之刃，规则闭包因此冻结它的两级数值。
+**锻造。** `FlashKernel.Forge` 对应 `PersistentPowerSupport.Forge`：有待处理选择时不执行；手牌/抽牌堆/弃牌堆/打出区都没有未消耗的 `SOVEREIGN_BLADE` 时创建一张规范 0 级君王之刃到手中（走 `AddGeneratedCardToCombat` 的进战斗与生成卡 Hook）；然后给**所有**牌堆里的非复制君王之刃的伤害变量加 amount（`Var0`）。`CreatedThroughForge` 只驱动原版视觉，不进入 Flash 状态。君王之刃的攻击次数来自 `Repeat` 变量（恒为 1，无原版效果调用 `SetRepeats`），`SeekingEdgePower` 把它改为全体目标，`ParryPower` 提供格挡。`SwordSagePower` 的重放加成按现有引擎 `NormalizeSwordSageReplays`：根快照内的刀带冻结根层数，根之后由锻造生成的非克隆刀从 0 起算、再由当前层数补差，克隆从当前层数起算；`FlashCard.Private` 记录已应用加成。锻造卡与 `FurnacePower` 在 `GeneratedCards` 里声明君王之刃，规则闭包因此冻结它的两级数值。
 
 **AutoPrePlay。** 玩家回合开始、`AfterTurnStartOrbs` 之后：`Phase = AutoPrePlay`；先按消耗堆顺序自动打出阶段开始时在消耗堆的 `BOMBARDMENT`（每次打出后回到消耗堆，捕获数量与当前数量必须一致，否则显式拒绝）；再按 `MayhemPower` 层数把抽牌堆顶牌移到打出区后依次自动打出（对应 `MoveCardsForAutoPlay` 与 `TriggerScheduledAutoPlays`），随后每个未熔化的 `HISTORY_COURSE` 复制上一玩家回合最后一张攻击牌并自动打出（DX5，详见[状态布局](state-layout.md#29-dx5-追加的结局与跨回合卡值槽)）；再执行 Imbued 的附魔自动打出。完成阶段后 `Phase = Play` 并做胜负判定。
 

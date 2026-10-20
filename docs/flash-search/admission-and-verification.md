@@ -65,7 +65,7 @@ RG 的储君投影与惰性规则：
 
 - **星能**：`FlashBattle.Stars` 直接取 `SimPlayerCombatState.Stars`；无星费的卡 `BaseStarCost` 为 -1，临时星费按最后一条投影（多条目不一致按容量拒绝）；`LastStarsSpent` 只存在出牌期的 `FlashExec`，不投影。
 - **星能遗物计数**：`GalacticDust.Counter` 与 `MiniRegent.Counter` 取 `StatefulRelicState.Current`（`SimulatedCombatState.StatefulRelicStateForFlash`，无条目时其构造器读的模型字段）；`Regalite.Counter` 取 `RegalitePredictionState.UsedThisTurn`（无条目时读 `_usedThisTurn`）；`BrilliantScarf.Counter` 取 `CounterPredictionState.Value`（无条目时读 `_cardsPlayedThisTurn`）。四者都只在对应遗物的 Hook 里读写。
-- **SwordSagePower**：`NormalizeSwordSageReplays` 为每张君王之刃把「已应用的重放加成」写入 `FlashCard.Private`，`FlashRules.RootSwordSageAmount` 冻结根层数作为新生成非克隆之刃的基线；`ReplayCount` 的每次变化与 `Private` 同步，克隆重置 `Private`。
+- **SwordSagePower**：`NormalizeSwordSageReplays` 为每张君王之刃把「已应用的重放加成」写入 `FlashCard.Private`；根快照内的刀以 `FlashRules.RootSwordSageAmount` 冻结的根层数为基线，根之后由锻造生成的非克隆刀从 0 起算、再由当前层数补差（对应现有引擎 `_swordSageCardsInitialized` 之后的 `rootAmount=0`），克隆从当前层数起算。`ReplayCount` 的每次变化与 `Private` 同步。
 - **自动预打出**：`BOMBARDMENT` 的消耗堆捕获、`MayhemPower` 的计划自动打出、HistoryCourse 的上一回合最后攻击复制品（DX5）与 Imbued 的附魔自动打出在 `FlashKernel.AutoPrePlay` 里按现有引擎的阶段顺序复刻；WhisperingEarring 的触发没有战斗内状态，定义只保留最大能量。
 - **历史计数投影**：`CardsGeneratedThisCombat` 取 `CalculatedVarSpecRegistry.CountGeneratedCardsForFlash`（根历史 + 预测历史）；`FlashEnemy.PoweredAttackHitsThisTurn` 取 `GetPoweredAttackHitsThisTurn(player, enemy)`（在导入的私有 Fork 上读取，调用方状态不变），超过 255 按 `UnrepresentableState` 拒绝。
 - **`VoidFormPower.Aux0`**：取 `VoidFormPredictionState.CardsPlayedThisTurn`（`Claim` 认领）；没有条目时读模型内部数据的 `cardsPlayedThisTurn`。Power 归零退役后的残留条目按惰性处理：两个费用钩子与 `AfterCardPlayed` 只遍历正层 `EffectivePowers`，重新获得是新的原生实例。

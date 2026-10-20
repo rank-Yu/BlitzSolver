@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、252 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、253 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
 ### 2.1 当前状态（LH 合入后）
 
@@ -81,6 +81,8 @@ Linux 无头游戏（Medium 档位、宽度组合、`Instant / 0 秒`，铁甲�
 第三幕首领（A3B 与 K4C 合入后，铁甲战士初始牌组，`--act-index-for-test 2` 使首领策略开启）：QUEEN_BOSS 与 AEONGLASS_BOSS 在首领生命 150、玩家生命 999 下 On 胜利（第 26、15 回合），TEST_SUBJECT_BOSS 会分阶段以原生命复活，按 `--expected-player-death` 在原生命下运行至玩家第 5 回合死亡；三场均 Passed、计划外重算 0。问题包各有 6、4、8 行 `FLASH_ADOPTED`，全部 `status=verified`，没有回落，`diagnostics` 记录 `"act3BossStrategy": true`。最后一项为带 `--cleanup-instance-on-exit` 的短战斗，启动器删除了实例目录。
 
 多样化牌组的开启模式整场（HS，2026-10-20，`fb042139` 之后）：从 `rq-set`、`coverage/corpora/flash-decks` 与第三幕调查根中选 40 个场景（五个角色、三幕、普通/精英/首领、带药水与回合开始选择遗物），Linux 无头游戏 `Instant / 0 秒`、玩家 200 生命、敌人原生满血、开启模式整场部署：38 场 Passed，2 场为第三幕 QUEEN_BOSS 下玩家战死（关闭模式同样战死），全部计划外重算 0；问题包中 453 行 `FLASH_ADOPTED` 全部 `status=verified`。实机暴露两处核对不一致：ChainsOfBinding 本回合被缚卡计数在回合末被 Flash 提前清零（已按现有引擎改为下一玩家回合开始清零，`flash-hs-chains-turn-reset`）；SILENT-C-13 上 The Hunt 的致命判定由现有引擎经原版 `ReattachPower.ShouldOwnerDeathTriggerFatal` 读取了 live 生物生命（违反后台搜索不读 live 值的约束），Flash 读分支状态，交由现有引擎修正。10 对开启/关闭对照胜负全部相同，剩余生命开启 6 好 / 1 差 / 2 同。无人测试请求默认向手牌注入一张 `STRIKE_IRONCLAD`，用显式牌组建局时需传 `--cards-json []`。
+
+第二轮（HS2，2026-10-20，`66c8c3f0` 之后）：另选 60 个未跑过的场景（第三幕精英与三个最终首领 16 场、事件遭遇 5 场、24 场带 2 瓶药水、回合开始选择遗物 10 场），开启模式整场 59 场 Passed（8 场按预期战死）、1 场因 1 次部署漂移重算判 Failed；问题包 567 行 `FLASH_ADOPTED` 全部核对通过。修正 SwordSagePower 下锻造生成的君王之刃重放基线（生成的刀从 0 补当前层数，`flash-hs2-sword-sage-forge`）。另报告并交后续批次：`--flash-search-mode-for-test` 晚于回合开始选择根的设置捕获；TurnBoundaryRescue 采用路线缺一个回合的续接戳导致一次重算；IRONCLAD-50 计划中 STOMP 的费用修正列表与实机差一项导致部署漂移；act3-SILENT-19 两个敌人同时差 3 点伤害的核对不一致；部分战死局问题包缺 `replay/recent/session.json`。
 
 ## 3. 已知限制与未验证项
 

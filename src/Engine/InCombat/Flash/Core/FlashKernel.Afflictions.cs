@@ -114,9 +114,11 @@ public static partial class FlashKernel
     /// <summary>
     /// <c>SimulatedCombatState.PowerLifecycle.cs:NormalizeSwordSageReplays</c>: keep every Sovereign
     /// Blade's replay count at "canonical + current SwordSage amount". The per-card applied bonus lives
-    /// in <see cref="FlashCard.Private"/> and travels with the card; a freshly generated non-clone starts
-    /// from the frozen root amount, a clone from the current amount, exactly like the existing engine's
-    /// <c>rootAmount</c>/<c>desired</c> baseline.
+    /// in <see cref="FlashCard.Private"/> and travels with the card. A card already present in the root
+    /// snapshot carries the captured root bonus; a blade generated after the root starts at zero and the
+    /// delta adds the current amount, while a clone carries its source's bonus and starts from the
+    /// current amount. This mirrors the existing engine's <c>rootAmount</c>/<c>desired</c> baseline
+    /// (<c>_swordSageCardsInitialized</c> makes later generated non-clones use zero).
     /// </summary>
     private static void NormalizeSwordSageReplays(ref FlashExec x)
     {
@@ -135,7 +137,14 @@ public static partial class FlashKernel
             int applied = card.Private;
             if (applied == FlashLimits.UninitializedLedger)
             {
-                applied = card.IsClone ? desired : x.R.RootSwordSageAmount;
+                // Existing engine: root cards start from the captured root amount, a card generated
+                // after the root from zero (the delta below then adds the current amount), and a clone
+                // from the current amount because it copied its source's replay state on entry.
+                applied = card.IsClone
+                    ? desired
+                    : (card.Keywords & FlashKeywords.CreatedAfterRoot) != 0
+                        ? 0
+                        : x.R.RootSwordSageAmount;
                 card.Private = checked((short)applied);
             }
             int delta = desired - applied;
