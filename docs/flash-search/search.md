@@ -123,6 +123,21 @@ SP2 复核了 DX4 在第三幕五个牌组上看到的 16 个 `flash-potion-poli
 
 回放与物化求解器照常向 `policy.RequestWorkTotals` 记录工作量，FlashBeam 自身的节点与转移不计入。接管请求只在物化求解器中响应，FlashBeam 搜索期间不响应。
 
+### 3.3 Flash 对原搜索类的剩余依赖
+
+Flash 路径自身的探针已迁到 `src/Search/Probes/`，不再经过 `CombatBeamSolver`。其余对原搜索类的直接依赖按批次归属如下（下一批处理 Bridge 与物化）：
+
+| 位置 | 依赖 | 归属 |
+| --- | --- | --- |
+| `FlashBeam/Bridge/FlashRouteMaterializer.cs` | 构造原求解器做前缀/整条路线物化与校验 | SR 合入后的下一批 |
+| `FlashBeam/Bridge/FlashChoiceTranslator.cs` | 用原求解器回放选择分支 | 下一批 |
+| `FlashBeam/Bridge/FlashScoreBridge.cs` | `CombatBeamSolver.CapturePotionUsageForFlash` 静态根捕获 | 下一批 |
+| `FlashBeam/FlashBeamSolver.cs` | `TryTightenPrimarySearchIncumbent` / `ShouldPruneByPrimaryIncumbent` 静态下界入口 | 下一批（或随原搜索删除） |
+| `BeamSolveDispatch.cs` | 关闭/回落模式构造 `CombatBeamSolver` 求解 | 保留原搜索期间 |
+| `CombatSearchCoordinator.NoveltyPortfolio.cs` / `.EarlyTurnExploration.cs` / `.PostSearch.cs` | 本批范围外的直接求解成员 | 保留到对应批次 |
+
+`OpeningProbe`、`SearchEvaluator`、三个开局续接来源与协调器探针调用点不在此表；结构门禁禁止 `src/Search/Probes/**` 引用 `CombatBeamSolver`。
+
 ## 4. BeamSolveDispatch 与模式
 
 `src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam`、`SmartPotionGradient` 以及协调器直接审计点 `PotionFreeAudit`、`RequiredPotionAudit`、`NarrowOpeningIncumbent`、`TurnBoundaryDiscovery` 查看 `FlashMode`；保留的语义边界（计划阶段以外的早期侦察、非法药水上下界、不支持的根阶段）与实验路径仍直接使用 `CombatBeamSolver`，并在 On 模式写 `FLASH_LEGACY`。回合准备根（`Player/Start` + `IncludeTurnSetup`）由 Flash 接管。`SecondRankBand`、`AggressivePowerCommitment` 与 `BaseScoreOnly` 已由 FlashBeam 执行，分发点不再因它们保留原搜索；带药水上下界与 `RequireAtLeastOne` 的计划成员同样交给 Flash。`RunForcedPotionOpeningRescue` 的三个剖面变体都经 `BeamSolveDispatch.Solve`。`NarrowOpeningIncumbent` 经分发点后使用 profileScale=1，保持原窄搜索宽度，不套用 Flash 常规 ×4；次段成员保留 ×4 宽度，只用 profile W 作次段边界；多个回合准备根作为同一首层的并列根送入 `Solve(IReadOnlyList<FlashBattle>)`。计划成员与计划阶段的深度 1 侦察（PC）同样查看 `FlashMode`。

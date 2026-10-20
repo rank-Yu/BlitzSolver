@@ -51,6 +51,7 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / 不准入：Comba
 - `src/Search/FlashBeam/`：Flash 搜索与衔接，可以引用 Search、Prediction、Engine 和游戏程序集。
   - `Bridge/`：准入、规则编译、根导入、动作翻译、路线物化。
   - 根目录：`FlashBeamSolver`、评分与搜索容器。
+- `src/Search/Probes/`：协调器与续接来源共享的开局/前缀探针与评估；不引用 `CombatBeamSolver`。
 - `src/Search/BeamSolveDispatch.cs`：协调器调用 `Solve()` 的唯一分派点。
 
 依赖方向固定为 `Flash 内核 ← FlashBeam ← BeamSolveDispatch ← CombatSearchCoordinator`。内核与 FlashBeam 不反向依赖分派点或协调器；这条边界写入两端结构门禁。

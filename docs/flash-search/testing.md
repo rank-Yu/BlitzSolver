@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、251 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、251 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
 ### 2.1 当前状态（SR 合入后）
 
@@ -65,6 +65,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 开启模式剩余的内核回落（DX5，2026-10-20）：SILENT-C-20 的路线核对差 9 点，根因是 Pen Nib 第十次攻击的加倍锁存泄漏到 Dagger Throw 弃牌后嵌套自动打出的 Sly 牌 Flick-Flack；锁存改按 `FlashExec.PlayIdentity` 记账，与现有引擎按卡牌对象比较一致（`flash-dx5-pen-nib-sly` 撤掉修正时 K1 差 9）。战损假人时限的最后一层补上 `FlashOutcome.EventDefeat`：跳过后续阶段、威胁投影按现有引擎、终局键追加 `PolicyBoundaryRank`；三个战损假人遭遇的自然根全部走到事件失败，协调器开启模式 `FLASH_ADOPTED:verified` 且与关闭模式同分。HISTORY_COURSE 用新增的跨回合卡值槽 `FlashBattle.HistoryCourseCard`（12,600 → 12,696 字节），自动预打出阶段克隆上一玩家回合最后一张攻击并自动打出，复制品移出战斗。6 个 `flash-dx5-*` 固定根零差异；默认 79 根与第三幕 150 根的协调器开启模式中核对不一致、内核不支持与内核边界均为 0；默认 79 根战略结果逐根不变，48 根基准质量不变、耗时 +0.2%。
 
 保路开关与能力承诺（SR，2026-10-20）：`SecondRankBand` 与 `AggressivePowerCommitment` 改由 FlashBeam 执行，分发点删除这两个拒绝。次段剪枝在全局剪枝后执行（必保、承诺与计划席位不变）；力量承诺的席位配额、2/3 回合寿命与代表置换按原语义移植，承诺是路线节点元数据，不进 `FlashBattle` 与状态键；逐卡触发证据、开局投影与静默猎手的专用进展/兑现证据按现有引擎移植（`FlashPowerEvidence`），`RegisteredPowerBenefit` 计划收益放开；多个回合准备根的首步谱系按现有签名跨根合并（单根保持按节点分组，见 search.md）。默认 79 根相对 SR 之前 6 好 / 71 同 / 2 差、失血合计 +14：IRONCLAD-17 17 → 56 与关闭模式相同（此前 Flash 忽略承诺泳道），SILENT-C-13 +2；IRONCLAD-50 56 → 36。药水矩阵不再有 `second-rank-band` 回落，但 SILENT-C-08 强制用药 16 → 20、DEFECT-C-05 至少一瓶 23 → 30 变差，与 IRONCLAD-17 一并归因于 Flash 缺少原搜索与承诺席位平衡的保留泳道，留给后续保留结构批次。48 根基准路线逐根不变。
+
+开局探针抽离原搜索类（B1，2026-10-20）：协调器约 40 处 `Build*` 开局/前缀探针与四个续接来源改持 `src/Search/Probes/OpeningProbe`，不再实例化 `CombatBeamSolver`；评分、指纹与威胁投影抽成原搜索与探针共用的 `SearchEvaluator`，回合推进、动作枚举、候选分类、固定前缀与选牌规格各只保留一份实现（`SearchRoundExecution`、`SearchExpansionShared`、`SearchProbeHelpers`），结构门禁禁止 `src/Search/Probes/**` 引用 `CombatBeamSolver`，并禁止这些方法在 `CombatBeamSolver*.cs` 中再有方法体。`Replay`/`ReplayAction`/`ReplayTurnSetup` 仍是原搜索与探针各一份算法体，下一批统一。合入后默认 79 根关闭与开启模式均与改动前逐根相同（路线与质量），48 根基准路线逐根相同，8 个探针相关无人测试合同 Passed；`CARD-CONTINUATION-CONTRACT` 在改动前的基线上同样失败（找不到 `DAGGER_THROW` 弃牌堆实例），属于既有问题。
 
 ### 2.3 无人测试实机部署（2026-10-19）
 
