@@ -132,16 +132,63 @@ internal sealed record FlashBeamOptions(
     /// <c>_startTurnNumber</c> for the scout's turn filter.
     /// </summary>
     public int InitialPlayerTurn { get; init; }
+
+    /// <summary>
+    /// <c>SolverSearchProfile.SecondRankBand</c>: the global prune's ordinary seats come from score
+    /// ranks W+1..2W instead of the top W. Required representatives, power-commitment seats and plan
+    /// seats are unchanged. Only the members that explicitly set the profile switch read it.
+    /// </summary>
+    public bool SecondRankBand { get; init; }
+
+    /// <summary>
+    /// The existing profile's band width (<c>effectiveLimit</c> in <c>RankBest</c>). Zero means the Flash
+    /// layer width. The bridge freezes the request profile's width so the Flash-only 4x width does not
+    /// move the W+1..2W band.
+    /// </summary>
+    public int SecondRankBandWidth { get; init; }
+
+    /// <summary>
+    /// <c>SolverSearchProfile.AggressivePowerCommitment</c>: raise the power-commitment seat quota to
+    /// half the beam and extend a commitment's lifetime from two round transitions to three. The
+    /// per-node commitment metadata is route history, not <see cref="FlashBattle"/> state.
+    /// </summary>
+    public bool AggressivePowerCommitment { get; init; }
+
+    /// <summary>
+    /// <c>CombatRootSnapshot.HasUnusedCardReplayAllocator</c>: the existing root-action lineage also
+    /// keys the route's first played card when the allocator is unused.
+    /// </summary>
+    public bool PreserveReplayAllocatorOpening { get; init; }
+
+    /// <summary>
+    /// Per-card power-commitment descriptors compiled by the bridge, plus the request's frozen
+    /// <c>TotalFloor</c>. Null when the root holds no registered power card: the existing solver also
+    /// skips the whole lane for such roots.
+    /// </summary>
+    public FlashPowerCommitmentCatalog? PowerCommitments { get; init; }
 }
 
+/// <summary>One registered power card's existing commitment descriptor.</summary>
+internal readonly record struct FlashPowerCommitmentRule(
+    PowerCommitmentFamily Family,
+    PowerRoutePriority Priority,
+    PowerRouteAdmissionPolicy Admission,
+    int Index);
+
 /// <summary>
-/// The payoff evidence kinds FlashBeam ports. <c>RegisteredPowerBenefit</c> reads the existing
-/// <c>PowerCommitment.RealizedEvidence</c>, which FlashBeam does not model; requests using it are
-/// rejected at the dispatch boundary.
+/// The root-frozen power-commitment catalog. Indexed by the kernel's card id; entries with
+/// <see cref="PowerCommitmentFamily.None"/> are not registered as commitments.
 /// </summary>
+internal sealed record FlashPowerCommitmentCatalog(
+    FlashPowerCommitmentRule[] Rules,
+    int TotalFloor);
+
+/// <summary>The payoff evidence kinds FlashBeam ports from <see cref="PlanCommitment"/>.</summary>
 internal enum FlashPlanPayoffKind : byte
 {
     CardPlayed,
+    FreePotionUsed,
+    RegisteredPowerBenefit,
 }
 
 /// <summary>
@@ -153,7 +200,9 @@ internal sealed record FlashPlanCommitment(
     int OpenedTurn,
     int EarliestTurn,
     FlashPlanPayoffKind PayoffKind,
-    ushort PayoffCardId);
+    ushort PayoffCardId,
+    ushort PayoffPotionId = ushort.MaxValue,
+    int PayoffCardBit = -1);
 
 /// <summary>One early-turn scout candidate: the route from the request root and its existing score.</summary>
 internal sealed record FlashScoutCandidate(FlashAction[] Actions, double Score)
@@ -326,8 +375,20 @@ internal sealed class FlashBeamSolver
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
     private readonly FlashRouteOrdering _ordering;
-    private readonly List<(int Parent, int Depth, FlashAction Action, int Lineage, int PayoffCount,
-        ushort PotionId)> _nodes = new(4096);
+    private readonly List<(int Parent, int Depth, FlashAction Action, ulong RootActionKey,
+        ulong Lineage, int PayoffCount, ushort PotionId, ushort FirstCardId, int FirstCardTarget,
+        int Commitment)> _nodes = new(4096);
+
+    /// <summary>
+    /// Route-node power-commitment metadata (1-based node field; 0 means no commitment). The existing
+    /// search holds <c>PowerCommitment</c> on <c>SearchNode</c>, not in the simulated state, so this list
+    /// never enters <see cref="FlashBattle"/>, the fingerprint or the state key.
+    /// </summary>
+    private readonly List<FlashPowerCommitmentState> _commitments = new(256);
+    private readonly FlashPowerCommitmentCatalog? _powerCommitments;
+    private readonly bool _aggressivePowerCommitment;
+    private readonly bool _preserveReplayAllocatorOpening;
+    private bool _singleRoot;
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private readonly FlashBoundFeatures? _bound;
@@ -411,6 +472,9 @@ internal sealed class FlashBeamSolver
         _planCommitment = options.PlanCommitment;
         _earlyTurnScoutDepth = Math.Max(0, options.EarlyTurnScoutDepth);
         _initialPlayerTurn = options.InitialPlayerTurn;
+        _powerCommitments = options.PowerCommitments is { Rules.Length: > 0 } catalog ? catalog : null;
+        _aggressivePowerCommitment = options.AggressivePowerCommitment;
+        _preserveReplayAllocatorOpening = options.PreserveReplayAllocatorOpening;
         if (_smartPotionEligibilityHpCeiling != null && _bound == null)
             throw new InvalidOperationException("Smart 药水资格上界需要启用下界输入。");
         _incumbent = _bound == null ? null : options.Incumbent;
@@ -428,6 +492,7 @@ internal sealed class FlashBeamSolver
     {
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
+        _singleRoot = roots.Count == 1;
         Stopwatch watch = Stopwatch.StartNew();
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
@@ -460,10 +525,16 @@ internal sealed class FlashBeamSolver
         _endedCompressedStates = 0;
         _capacityDropped.Clear();
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
-        Pool current = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment);
-        Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment);
-        Pool ended = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment);
-        Pool turnFrontier = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment);
+        int bandWidth = _options.SecondRankBandWidth > 0
+            ? _options.SecondRankBandWidth : width;
+        Pool current = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+        Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+        Pool ended = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+        Pool turnFrontier = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -522,19 +593,20 @@ internal sealed class FlashBeamSolver
         }
 
         _nodes.Clear();
+        _commitments.Clear();
         for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++)
         {
             FlashBattle root = roots[rootIndex];
             (double rootScore, double rootRank, double rootPureRank, int rootPotionCost,
                 FlashScoreFeatures rootFeatures) =
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
-            _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1,
-                _options.InitialPlanPayoffCount, ushort.MaxValue));
+            _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
+                _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0));
             (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
             RetentionFacts rootFacts = RetentionFacts.From(
                 rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
-            turnFrontier.Add(root, rootIndex, rootScore, rootRank, rootPureRank, rootPotionCost, rootFacts, -1,
-                _options.InitialPlanPayoffCount);
+            turnFrontier.Add(root, rootIndex, rootScore, rootRank, rootPureRank, rootPotionCost, rootFacts,
+                0, _options.InitialPlanPayoffCount, 0);
         }
         TerminalSink terminal = ConsiderTerminal;
         int turns = 0;
@@ -562,7 +634,8 @@ internal sealed class FlashBeamSolver
                     {
                         if (_actions[actionIndex].Kind == FlashActionKind.UsePotion && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
                             continue;
-                        ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, terminal);
+                        ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, terminal,
+                            current.Facts(index));
                     }
                 }
                 current.Clear();
@@ -1033,13 +1106,14 @@ internal sealed class FlashBeamSolver
         return comparison != 0 ? comparison : left.ActionCount.CompareTo(right.ActionCount);
     }
 
-    private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next, Pool ended, TerminalSink terminal)
-        => ExpandAction(ref parent, parentNode, action, next, ended, terminal,
+    private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next,
+        Pool ended, TerminalSink terminal, in RetentionFacts parentFacts)
+        => ExpandAction(ref parent, parentNode, action, next, ended, terminal, parentFacts,
             null, default, allowFetchedPowerCommit: true);
 
     private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next, Pool ended,
-        TerminalSink terminal, FlashChoiceEffect? primaryEffect, scoped ReadOnlySpan<FlashCard> selectedPowers,
-        bool allowFetchedPowerCommit)
+        TerminalSink terminal, in RetentionFacts parentFacts, FlashChoiceEffect? primaryEffect,
+        scoped ReadOnlySpan<FlashCard> selectedPowers, bool allowFetchedPowerCommit)
     {
         ushort usedPotion = ushort.MaxValue;
         if (action.Kind == FlashActionKind.UsePotion
@@ -1097,8 +1171,8 @@ internal sealed class FlashBeamSolver
                     }
                     try
                     {
-                        ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended, terminal,
-                            effect, chosenPowers, allowFetchedPowerCommit);
+                        ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended,
+                            terminal, parentFacts, effect, chosenPowers, allowFetchedPowerCommit);
                     }
                     catch (FlashCapacityException ex)
                     {
@@ -1107,16 +1181,22 @@ internal sealed class FlashBeamSolver
                 }
                 return;
             }
-            int node = _nodes.Count;
             int depth = _nodes[parentNode].Depth + 1;
-            // The existing search's root-action lineage groups every descendant by the first action
-            // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
-            int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
-            int payoffCount = NextPayoffCount(parentNode, parent, action);
-            _nodes.Add((parentNode, depth, action, lineage, payoffCount, usedPotion));
             bool isTerminal = !FlashKernel.IsInProgress(child);
             (double score, double rank, double pureRank, int potionCost, FlashScoreFeatures features) =
                 Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
+            // Power-commitment metadata is route history; it is computed before the node is published
+            // so the pool can store the 1-based commitment index with the seat. Terminal children
+            // carry none.
+            int commitment = isTerminal
+                ? 0
+                : AttachPowerCommitment(parentNode, parent, child, action, parentFacts, features, depth);
+            int node = _nodes.Count;
+            ulong lineage = NextLineage(parentNode, parent, action, node,
+                out ulong rootActionKey, out ushort firstCardId, out int firstCardTarget);
+            int payoffCount = NextPayoffCount(parentNode, parent, action, features, parentFacts, commitment);
+            _nodes.Add((parentNode, depth, action, rootActionKey, lineage, payoffCount, usedPotion,
+                firstCardId, firstCardTarget, commitment));
             if (isTerminal)
             {
                 terminal(child, node, score);
@@ -1138,9 +1218,9 @@ internal sealed class FlashBeamSolver
             // stored (a duplicate keeps its existing values); a terminal state never needs them.
             bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
                 ? AddEndTurnChild(ended, child, node, score, rank, pureRank, potionCost, features, depth,
-                    lineage, payoffCount)
+                    lineage, payoffCount, commitment)
                 : next.CommitReserved(node, score, rank, pureRank, potionCost, features, depth, lineage,
-                    payoffCount);
+                    payoffCount, commitment);
             if (!added)
                 _duplicates++;
         }
@@ -1151,19 +1231,106 @@ internal sealed class FlashBeamSolver
     }
 
     /// <summary>
+    /// The existing <c>BeamRetentionPolicy.BuildRootActionLineageSignature</c> over Flash actions.
+    /// The root action's kind/card/potion/target is frozen on the first step; when the root has an
+    /// unused card replay allocator the route's first played card is part of the signature too. The
+    /// signature is a stable value, so equal first actions from different turn-setup roots group
+    /// together exactly as the existing search groups them.
+    /// </summary>
+    private ulong NextLineage(int parentNode, in FlashBattle parent, in FlashAction action, int node,
+        out ulong rootActionKey, out ushort firstCardId, out int firstCardTarget)
+    {
+        (int Parent, int Depth, FlashAction Action, ulong RootActionKey, ulong Lineage, int PayoffCount,
+            ushort PotionId, ushort FirstCardId, int FirstCardTarget, int Commitment) entry = _nodes[parentNode];
+        rootActionKey = entry.RootActionKey;
+        firstCardId = entry.FirstCardId;
+        firstCardTarget = entry.FirstCardTarget;
+        if (entry.Parent >= 0)
+        {
+            if (_preserveReplayAllocatorOpening && firstCardId == ushort.MaxValue
+                && action.Kind == FlashActionKind.PlayCard && action.HandIndex < parent.HandCount)
+            {
+                firstCardId = parent.Cards[action.HandIndex].Id;
+                firstCardTarget = TargetCombatId(parent, action);
+                return CombineLineage(rootActionKey, firstCardId, firstCardTarget);
+            }
+            return entry.Lineage;
+        }
+        rootActionKey = RootActionSignature(parent, action);
+        firstCardId = ushort.MaxValue;
+        firstCardTarget = int.MinValue;
+        if (_preserveReplayAllocatorOpening && action.Kind == FlashActionKind.PlayCard
+            && action.HandIndex < parent.HandCount)
+        {
+            firstCardId = parent.Cards[action.HandIndex].Id;
+            firstCardTarget = TargetCombatId(parent, action);
+        }
+        // With one root every first action used to carry its own lineage. Keep that exact behavior:
+        // the signature grouping is only needed to join the same opening across turn-setup roots,
+        // and changing a single-root grouping would change the retained representatives.
+        return _singleRoot ? (ulong)node : CombineLineage(rootActionKey, firstCardId, firstCardTarget);
+    }
+
+    private static ulong RootActionSignature(in FlashBattle parent, in FlashAction action)
+    {
+        ulong kind = action.Kind switch
+        {
+            FlashActionKind.PlayCard => 1UL,
+            FlashActionKind.UsePotion => 2UL,
+            _ => 3UL,
+        };
+        ulong cardId = 0;
+        ulong potionId = 0;
+        if (action.Kind == FlashActionKind.PlayCard && action.HandIndex < parent.HandCount)
+            cardId = parent.Cards[action.HandIndex].Id;
+        if (action.Kind == FlashActionKind.UsePotion
+            && (uint)action.PotionSlot < (uint)parent.PotionSlotCount
+            && parent.Potions[action.PotionSlot] != 0)
+        {
+            potionId = (ushort)(parent.Potions[action.PotionSlot] - 1);
+        }
+        int target = TargetCombatId(parent, action);
+        ulong hash = 1469598103934665603UL;
+        hash = MixLineage(hash, kind);
+        hash = MixLineage(hash, cardId);
+        hash = MixLineage(hash, potionId);
+        hash = MixLineage(hash, target == int.MinValue ? 0UL : (ulong)(uint)target + 1UL);
+        return hash;
+    }
+
+    private static ulong CombineLineage(ulong rootActionKey, ushort firstCardId, int firstCardTarget)
+    {
+        ulong hash = MixLineage(rootActionKey, firstCardId == ushort.MaxValue ? 0UL : (ulong)firstCardId + 1UL);
+        return MixLineage(hash, firstCardTarget == int.MinValue ? 0UL : (ulong)(uint)firstCardTarget + 1UL);
+    }
+
+    private static ulong MixLineage(ulong hash, ulong value) => (hash ^ value) * 1099511628211UL;
+
+    /// <summary>The existing <c>PlanAction.TargetCombatId</c> for a Flash target owner.</summary>
+    private static int TargetCombatId(in FlashBattle parent, in FlashAction action)
+    {
+        if (action.Target == FlashLimits.NoOwner)
+            return int.MinValue;
+        int enemy = action.Target - FlashLimits.FirstEnemyOwner;
+        if ((uint)enemy >= (uint)parent.EnemyCount)
+            return int.MinValue;
+        return (int)parent.Enemies[enemy].CombatId;
+    }
+
+    /// <summary>
     /// The cumulative end-turn layer is the only pool that can reach its bound (the per-action-layer
     /// pool is cleared each layer and receives at most <c>width * MaxLegalActions</c> children). When
     /// a unique end-turn child no longer fits, compact the pool with the same retention rule the
     /// turn boundary uses, then add the child. Duplicates never reach the bound and stay free.
     /// </summary>
     private bool AddEndTurnChild(Pool ended, in FlashBattle child, int node, double score, double rank,
-        double pureRank, int potionCost, in FlashScoreFeatures features, int depth, int lineage,
-        int payoffCount)
+        double pureRank, int potionCost, in FlashScoreFeatures features, int depth, ulong lineage,
+        int payoffCount, int commitment)
     {
         try
         {
             return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
-                lineage, payoffCount);
+                lineage, payoffCount, commitment);
         }
         catch (FlashCapacityException) when (ended.IsFull)
         {
@@ -1171,7 +1338,7 @@ internal sealed class FlashBeamSolver
             _endedCompactions++;
             _endedCompressedStates += dropped;
             return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
-                lineage, payoffCount);
+                lineage, payoffCount, commitment);
         }
     }
 
@@ -1197,6 +1364,14 @@ internal sealed class FlashBeamSolver
     {
         _expanded++;
         FlashBattle state = commitment;
+        // The intermediate selection state is the parent of every successor. Its retention facts are
+        // computed once; the retained state itself is never committed.
+        int commitmentDepth = Depth(commitmentNode);
+        FlashScoreFeatures commitmentFeatures =
+            _scorer.Features(state, commitmentDepth, includeRetentionOnly: true);
+        (int commitmentReachable, int commitmentZeroCost) = _scorer.ReachableHandPotential(state);
+        RetentionFacts commitmentFacts = RetentionFacts.From(commitmentFeatures, commitmentDepth,
+            commitmentReachable, commitmentZeroCost);
         int count = FlashKernel.LegalActions(state, _rules, _commitmentActions);
         for (int index = 0; index < count; index++)
         {
@@ -1206,7 +1381,7 @@ internal sealed class FlashBeamSolver
                 continue;
             // ExpandAction handles a capacity overflow for this successor as its own child; a
             // sibling's overflow never cancels the rest of the commitment batch.
-            ExpandAction(ref state, commitmentNode, action, next, ended, terminal,
+            ExpandAction(ref state, commitmentNode, action, next, ended, terminal, commitmentFacts,
                 null, default, allowFetchedPowerCommit: false);
             if (!CommitmentBudgetAvailable())
                 break;
@@ -1564,19 +1739,59 @@ internal sealed class FlashBeamSolver
     /// included exactly as the existing search's node chain includes them.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int NextPayoffCount(int parentNode, in FlashBattle parent, in FlashAction action)
+    private int NextPayoffCount(int parentNode, in FlashBattle parent, in FlashAction action,
+        in FlashScoreFeatures childFeatures, in RetentionFacts parentFacts, int commitment)
     {
-        if (_planCommitment is not { PayoffKind: FlashPlanPayoffKind.CardPlayed } plan)
+        if (_planCommitment is not { } plan)
             return 0;
         int count = _nodes[parentNode].PayoffCount;
-        if (parent.PlayerTurn < plan.EarliestTurn
-            || action.Kind != FlashActionKind.PlayCard
-            || action.HandIndex >= parent.HandCount
-            || parent.Cards[action.HandIndex].Id != plan.PayoffCardId)
+        switch (plan.PayoffKind)
         {
-            return count;
+            case FlashPlanPayoffKind.CardPlayed:
+                if (parent.PlayerTurn < plan.EarliestTurn
+                    || action.Kind != FlashActionKind.PlayCard
+                    || action.HandIndex >= parent.HandCount
+                    || parent.Cards[action.HandIndex].Id != plan.PayoffCardId)
+                {
+                    return count;
+                }
+                return checked(count + 1);
+            case FlashPlanPayoffKind.FreePotionUsed:
+                if (parent.PlayerTurn < plan.EarliestTurn
+                    || action.Kind != FlashActionKind.UsePotion
+                    || action.PotionSlot >= parent.PotionSlotCount
+                    || parent.Potions[action.PotionSlot] == 0
+                    || parent.Potions[action.PotionSlot] - 1 != plan.PayoffPotionId
+                    || childFeatures.PotionStrategicCost != parentFacts.PotionStrategicCost)
+                {
+                    return count;
+                }
+                return checked(count + 1);
+            case FlashPlanPayoffKind.RegisteredPowerBenefit:
+                if (commitment <= 0 || childFeatures.Turn < plan.EarliestTurn)
+                    return count;
+                FlashPowerCommitmentState state = _commitments[commitment - 1];
+                int bit = plan.PayoffCardBit;
+                if (bit < 0 && _powerCommitments is { } catalog
+                    && plan.PayoffCardId < catalog.Rules.Length)
+                {
+                    bit = catalog.Rules[plan.PayoffCardId].Index;
+                }
+                if (state.RealizedEvidence > 0 && CommitmentHasCard(state, bit))
+                    return Math.Max(count, state.RealizedEvidence);
+                return count;
+            default:
+                throw new InvalidOperationException("未知的计划收益证据类型。");
         }
-        return checked(count + 1);
+    }
+
+    private static bool CommitmentHasCard(in FlashPowerCommitmentState state, int bit)
+    {
+        if (bit is < 0 or >= 128)
+            return false;
+        return bit < 64
+            ? (state.CardsLow & (1UL << bit)) != 0
+            : (state.CardsHigh & (1UL << (bit - 64))) != 0;
     }
 
     /// <summary>
@@ -1622,6 +1837,219 @@ internal sealed class FlashBeamSolver
     }
 
     /// <summary>
+    /// A route node's power-commitment metadata: the ported <c>PowerCommitment</c> without its string
+    /// card list. Registered cards are indexed in the bridge catalog, so the played set is an exact
+    /// 128-bit mask (87 registered powers today). This is route history and never enters
+    /// <see cref="FlashBattle"/>, the fingerprint or the state key.
+    /// </summary>
+    /// <summary>
+    /// <c>CombatBeamSolver.AttachPowerCommitment</c> over a Flash route node. Returns the 1-based
+    /// <see cref="_commitments"/> index, or 0 when the child carries no commitment. A child whose parent
+    /// has no commitment and that does not play a registered power returns immediately, so the lane
+    /// costs nothing on ordinary transitions.
+    /// </summary>
+    private int AttachPowerCommitment(int parentNode, in FlashBattle parent, in FlashBattle child,
+        in FlashAction action, in RetentionFacts parentFacts, in FlashScoreFeatures childFeatures,
+        int depth)
+    {
+        if (_powerCommitments is not { } catalog)
+            return 0;
+        int parentIndex = _nodes[parentNode].Commitment;
+        FlashPowerCommitmentState parentState = parentIndex > 0
+            ? _commitments[parentIndex - 1]
+            : default;
+        bool powerPlay = action.Kind == FlashActionKind.PlayCard
+            && action.HandIndex < parent.HandCount;
+        FlashPowerCommitmentRule rule = default;
+        if (powerPlay)
+            powerPlay = TryRegisteredPower(parent, parent.Cards[action.HandIndex], catalog, out rule);
+        if (!powerPlay && parentIndex == 0)
+            return 0;
+
+        int progress = 0, realized = 0;
+        RetentionFacts childFacts = default;
+        FlashPowerEvidence.View childView = new(child, childFeatures, _rules, _scorer);
+        ushort playedCardId = powerPlay && action.HandIndex < parent.HandCount
+            ? parent.Cards[action.HandIndex].Id
+            : ushort.MaxValue;
+        if (parentIndex > 0)
+        {
+            (int reachableHandValue, int zeroCostPlayableCount) = _scorer.ReachableHandPotential(child);
+            childFacts = RetentionFacts.From(childFeatures, depth,
+                reachableHandValue, zeroCostPlayableCount);
+            FlashPowerEvidence.View parentView = new(parent, default, _rules, _scorer);
+            progress = FlashPowerEvidence.SilentProgress(parentState, parentView, childView);
+            int specialized = FlashPowerEvidence.SilentRealized(parentState,
+                parentFacts.PlayerBlock, parentFacts.ProjectedPlayerHp, parentFacts.ReachableHandValue,
+                parentFacts.Turn, childFacts.PlayerBlock, childFacts.ProjectedPlayerHp,
+                childFacts.ReachableHandValue, childFacts.Turn, childFacts.AliveEnemyCount,
+                parent, child, playedCardId, action.Kind == FlashActionKind.PlayCard,
+                childView, out bool handled);
+            realized = handled
+                ? specialized
+                : GenericPowerCommitmentRealized(parentFacts, childFacts);
+        }
+
+        bool attached = false;
+        FlashPowerCommitmentState commitment = parentState;
+        if (powerPlay)
+        {
+            int spentEnergy = Math.Max(0, parentFacts.Energy - childFeatures.Energy);
+            int turnOffset = Math.Max(0, childFeatures.Turn - _initialPlayerTurn);
+            int investment = PowerActivationInvestmentPolicy.EnergyInvestment(
+                spentEnergy, catalog.TotalFloor, turnOffset);
+            investment = SaturatingCommitmentAdd(investment,
+                Math.Max(0, childFeatures.CumulativePlayerHpLost - parentFacts.CumulativePlayerHpLost));
+            int setupGain = PowerCommitmentSetupGain(parentFacts, childFeatures);
+            int projectedPotential = FlashPowerEvidence.ProjectionPotential(playedCardId, childView, parent);
+            int triggerFloor = FlashPowerEvidence.TriggerProjectionFloor(playedCardId, childView);
+            PowerRouteAdmissionResult admission = PowerRouteAdmission.Evaluate(new(
+                CardId: FlashRegistry.Card(playedCardId).NativeId,
+                IsAutoPlay: false,
+                SpentEnergy: spentEnergy,
+                RemainingEnergy: childFeatures.Energy,
+                HasTriggerEvidence: FlashPowerEvidence.HasTriggerEvidence(playedCardId, parent, childView),
+                ImmediateDefenseGain: Math.Max(0,
+                    childFeatures.ProjectedPlayerHp - parentFacts.ProjectedPlayerHp),
+                SetupGain: setupGain,
+                ProjectedPotential: projectedPotential,
+                TriggerProjectionFloor: triggerFloor,
+                Investment: investment), rule.Admission);
+            if (admission.Admitted)
+            {
+                int cardBit = rule.Index;
+                if (parentIndex == 0)
+                {
+                    commitment = new(rule.Family, rule.Priority,
+                        cardBit < 64 ? 1UL << cardBit : 0UL,
+                        cardBit >= 64 ? 1UL << (cardBit - 64) : 0UL,
+                        0, childFeatures.Turn, investment, admission.Potential, 0, 0, depth);
+                }
+                else
+                {
+                    commitment = AddPowerCommitment(parentState, rule, cardBit,
+                        investment, admission.Potential, progress, realized, childFeatures.Turn);
+                }
+                attached = true;
+            }
+        }
+
+        if (!attached)
+        {
+            if (parentIndex == 0)
+                return 0;
+            FlashPowerCommitmentState? advanced = AdvancePowerCommitment(parentState,
+                parent.PlayerTurn, child.PlayerTurn,
+                _aggressivePowerCommitment ? 3 : 2, progress, realized);
+            if (advanced is not { } next)
+                return 0;
+            commitment = next;
+        }
+        _commitments.Add(commitment);
+        return _commitments.Count;
+    }
+
+    private bool TryRegisteredPower(in FlashBattle battle, in FlashCard card,
+        FlashPowerCommitmentCatalog catalog, out FlashPowerCommitmentRule rule)
+    {
+        rule = default;
+        return card.Id < catalog.Rules.Length
+            && (rule = catalog.Rules[card.Id]).Family != PowerCommitmentFamily.None
+            && FlashKernel.CardType(battle, _rules, card) == FlashCardType.Power;
+    }
+
+    private static FlashPowerCommitmentState AddPowerCommitment(
+        in FlashPowerCommitmentState commitment,
+        in FlashPowerCommitmentRule rule,
+        int cardBit,
+        int investment,
+        int potential,
+        int progressEvidence,
+        int realizedEvidence,
+        int turn)
+    {
+        int unrealizedPriorPotential = Math.Max(0,
+            commitment.ProvisionalPotential - realizedEvidence);
+        ulong cardsLow = commitment.CardsLow;
+        ulong cardsHigh = commitment.CardsHigh;
+        if (cardBit < 64)
+            cardsLow |= 1UL << cardBit;
+        else
+            cardsHigh |= 1UL << (cardBit - 64);
+        return commitment with
+        {
+            Family = commitment.Family | rule.Family,
+            Priority = rule.Priority > commitment.Priority ? rule.Priority : commitment.Priority,
+            CardsLow = cardsLow,
+            CardsHigh = cardsHigh,
+            Investment = SaturatingCommitmentAdd(commitment.Investment, investment),
+            ProvisionalPotential = SaturatingCommitmentAdd(unrealizedPriorPotential, potential),
+            ProgressEvidence = SaturatingCommitmentAdd(commitment.ProgressEvidence, progressEvidence),
+            RealizedEvidence = SaturatingCommitmentAdd(commitment.RealizedEvidence, realizedEvidence),
+            LastEvidenceTurn = progressEvidence > 0 || realizedEvidence > 0
+                ? turn
+                : commitment.LastEvidenceTurn,
+        };
+    }
+
+    /// <summary><c>PowerCommitmentLifecycle.Advance</c>; null means expired or realized.</summary>
+    private static FlashPowerCommitmentState? AdvancePowerCommitment(
+        in FlashPowerCommitmentState commitment,
+        int parentTurn,
+        int childTurn,
+        int maximumTransitions,
+        int progressEvidence,
+        int realizedEvidence)
+    {
+        int roundTransitions = commitment.RoundTransitions
+            + Math.Max(0, childTurn - parentTurn);
+        bool hasEvidence = progressEvidence > 0 || realizedEvidence > 0;
+        int lastEvidenceTurn = hasEvidence ? childTurn : commitment.LastEvidenceTurn;
+        if (roundTransitions > maximumTransitions
+            || roundTransitions > 0 && childTurn - lastEvidenceTurn > 1)
+        {
+            return null;
+        }
+        int remainingPotential = Math.Max(0,
+            commitment.ProvisionalPotential - realizedEvidence);
+        if (remainingPotential == 0 && realizedEvidence > 0)
+            return null;
+        return commitment with
+        {
+            RoundTransitions = roundTransitions,
+            LastEvidenceTurn = lastEvidenceTurn,
+            ProgressEvidence = SaturatingCommitmentAdd(commitment.ProgressEvidence, progressEvidence),
+            RealizedEvidence = SaturatingCommitmentAdd(commitment.RealizedEvidence, realizedEvidence),
+            ProvisionalPotential = remainingPotential,
+        };
+    }
+
+    /// <summary><c>PowerCommitmentSetupGain</c> over the K4-checked feature deltas.</summary>
+    private static int PowerCommitmentSetupGain(in RetentionFacts before, in FlashScoreFeatures after)
+    {
+        long gain = Math.Max(0, after.PersistentBuffValue - before.PersistentBuffValue);
+        gain += Math.Max(0, after.StrategicRetentionValue - before.StrategicRetentionValue);
+        gain += Math.Max(0, after.FutureResourceValue - before.FutureResourceValue);
+        gain += Math.Max(0, after.LatentSetupValue - before.LatentSetupValue);
+        return (int)Math.Min(int.MaxValue, gain);
+    }
+
+    /// <summary><c>PowerCommitmentProgressEvidence</c> generic fallback (no specialized card table).</summary>
+    private static int GenericPowerCommitmentProgress(in RetentionFacts before, in RetentionFacts after)
+        => (int)Math.Min(int.MaxValue,
+            (long)Math.Max(0, after.OffensiveProgressValue - before.OffensiveProgressValue)
+            + Math.Max(0, after.ReachableHandValue - before.ReachableHandValue)
+            + Math.Max(0, after.ZeroCostPlayableCount - before.ZeroCostPlayableCount) * 4L
+            + Math.Max(0, after.ProjectedPlayerHp - before.ProjectedPlayerHp));
+
+    /// <summary><c>GenericPowerCommitmentEvidence</c>, also used as the realized signal.</summary>
+    private static int GenericPowerCommitmentRealized(in RetentionFacts before, in RetentionFacts after)
+        => GenericPowerCommitmentProgress(before, after);
+
+    private static int SaturatingCommitmentAdd(int left, int right)
+        => (int)Math.Clamp((long)left + right, 0L, int.MaxValue);
+
+    /// <summary>
     /// The evaluation values the ported retention comparators read. Every member is already frozen by
     /// <see cref="FlashScorer.Features"/> and checked field by field against the existing snapshot by K4,
     /// so retention does not re-evaluate a state or introduce a second scoring path.
@@ -1630,6 +2058,7 @@ internal sealed class FlashBeamSolver
         int Depth,
         int PotionCount,
         int ProjectedPlayerHp,
+        int PlayerBlock,
         int OstyHp,
         int OstyMaxHp,
         int DefensiveBlockValue,
@@ -1670,6 +2099,9 @@ internal sealed class FlashBeamSolver
         int PersistentBuffValue,
         int OffensiveProgressValue,
         int OutstandingStolenResource,
+        int Turn,
+        int CumulativePlayerHpLost,
+        int PotionStrategicCost,
         double Score)
     {
         public static RetentionFacts From(in FlashScoreFeatures features, int depth,
@@ -1677,6 +2109,7 @@ internal sealed class FlashBeamSolver
             depth,
             features.PotionUseCount,
             features.ProjectedPlayerHp,
+            features.PlayerBlock,
             features.OstyHp,
             features.OstyMaxHp,
             features.DefensiveBlockValue,
@@ -1717,6 +2150,9 @@ internal sealed class FlashBeamSolver
             features.PersistentBuffValue,
             features.OffensiveProgressValue,
             features.OutstandingStolenResource,
+            features.Turn,
+            features.CumulativePlayerHpLost,
+            features.PotionStrategicCost,
             features.Score);
 
         /// <summary>
@@ -2065,7 +2501,7 @@ internal sealed class FlashBeamSolver
         private readonly int _maxCapacity;
         private readonly ChunkedArray<FlashBattle> _states;
         private readonly ChunkedArray<int> _nodes;
-        private readonly ChunkedArray<int> _lineages;
+        private readonly ChunkedArray<ulong> _lineages;
         private readonly ChunkedArray<double> _scores;
         private readonly ChunkedArray<double> _ranks;
         private readonly ChunkedArray<ulong> _hashes;
@@ -2073,6 +2509,7 @@ internal sealed class FlashBeamSolver
         private readonly ChunkedArray<int> _potionCosts;
         private readonly ChunkedArray<double> _pureRanks;
         private readonly ChunkedArray<int> _payoffs;
+        private readonly ChunkedArray<int> _commitment;
         private int[] _table;
         private readonly int[] _order;
         private readonly int[] _rankOrder;
@@ -2083,8 +2520,8 @@ internal sealed class FlashBeamSolver
         private bool _scratchReserved;
         private readonly List<int> _selected = new();
         private readonly List<int> _requiredScratch = new();
-        private readonly Dictionary<int, LineageLeaders> _lineageLeaders = new();
-        private readonly List<int> _lineageOrder = new();
+        private readonly Dictionary<ulong, LineageLeaders> _lineageLeaders = new();
+        private readonly List<ulong> _lineageOrder = new();
         private readonly Dictionary<int, PotionLeaders> _potionLeaders = new();
         private readonly Dictionary<(int Potion, PersistentSetupTraits Traits), TraitLeaders> _traitLeaders = new();
         private readonly List<(int Potion, PersistentSetupTraits Traits)> _traitOrder = new();
@@ -2094,18 +2531,35 @@ internal sealed class FlashBeamSolver
         private readonly bool _preserveTheft;
         private readonly FlashPlanCommitment? _planCommitment;
         private readonly bool _trackPlanSeats;
+        private readonly bool _secondRankBand;
+        private readonly int _secondRankBandWidth;
+        private readonly bool _aggressivePowerCommitment;
+        private readonly bool _trackPowerCommitments;
+        private readonly List<FlashPowerCommitmentState> _commitmentStates;
+        private readonly Dictionary<CommitmentGroupKey, CommitmentGroupLeader> _commitmentGroups = new();
+        private readonly List<CommitmentGroupKey> _commitmentGroupOrder = new();
+        private readonly List<int> _powerRepresentatives = new();
+        private readonly bool[] _representative;
+        private bool _hasCommitments;
 
         public Pool(int initialCapacity, int maxCapacity, bool preserveTheft, FlashScorer scorer,
-            FlashPlanCommitment? planCommitment)
+            FlashPlanCommitment? planCommitment, bool secondRankBand, int secondRankBandWidth,
+            bool aggressivePowerCommitment, FlashPowerCommitmentCatalog? powerCommitments,
+            List<FlashPowerCommitmentState> commitmentStates)
         {
             _maxCapacity = maxCapacity;
             _preserveTheft = preserveTheft;
             _scorer = scorer;
             _planCommitment = planCommitment;
             _trackPlanSeats = planCommitment is { CopyPowerSeats: true };
+            _secondRankBand = secondRankBand;
+            _secondRankBandWidth = secondRankBandWidth;
+            _aggressivePowerCommitment = aggressivePowerCommitment;
+            _trackPowerCommitments = powerCommitments is { Rules.Length: > 0 };
+            _commitmentStates = commitmentStates;
             _states = new ChunkedArray<FlashBattle>(maxCapacity);
             _nodes = new ChunkedArray<int>(maxCapacity);
-            _lineages = new ChunkedArray<int>(maxCapacity);
+            _lineages = new ChunkedArray<ulong>(maxCapacity);
             _scores = new ChunkedArray<double>(maxCapacity);
             _ranks = new ChunkedArray<double>(maxCapacity);
             _hashes = new ChunkedArray<ulong>(maxCapacity);
@@ -2113,6 +2567,7 @@ internal sealed class FlashBeamSolver
             _potionCosts = new ChunkedArray<int>(maxCapacity);
             _pureRanks = new ChunkedArray<double>(maxCapacity);
             _payoffs = new ChunkedArray<int>(maxCapacity);
+            _commitment = new ChunkedArray<int>(maxCapacity);
             // The rank/selection scratch stays contiguous because Span.Sort needs a single span. It is
             // sized to the capacity bound once (three int arrays plus two flags, ~1 MB at width 512)
             // instead of being reallocated while the beam grows.
@@ -2121,6 +2576,7 @@ internal sealed class FlashBeamSolver
             _rankPosition = new int[maxCapacity];
             _taken = new bool[maxCapacity];
             _required = new bool[maxCapacity];
+            _representative = new bool[maxCapacity];
             _table = new int[TableSize(Math.Clamp(initialCapacity, 1, maxCapacity))];
         }
 
@@ -2180,6 +2636,7 @@ internal sealed class FlashBeamSolver
             _hashes[to] = _hashes[from];
             _facts[to] = _facts[from];
             _potionCosts[to] = _potionCosts[from];
+            _commitment[to] = _commitment[from];
             if (_trackPlanSeats)
             {
                 _pureRanks[to] = _pureRanks[from];
@@ -2205,6 +2662,7 @@ internal sealed class FlashBeamSolver
         public void Clear()
         {
             Count = 0;
+            _hasCommitments = false;
             Array.Clear(_table);
         }
 
@@ -2236,34 +2694,35 @@ internal sealed class FlashBeamSolver
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
         public bool CommitReserved(int node, double score, double rank, double pureRank, int potionCost,
-            in FlashScoreFeatures features, int depth, int lineage, int payoffCount)
+            in FlashScoreFeatures features, int depth, ulong lineage, int payoffCount, int commitment)
         {
             if (_scratchReserved)
             {
                 return Insert(ref _scratch, inPlace: false, node, score, rank, pureRank, potionCost,
-                    features, default, factsReady: false, depth, lineage, payoffCount);
+                    features, default, factsReady: false, depth, lineage, payoffCount, commitment);
             }
             return Insert(ref _states[Count], inPlace: true, node, score, rank, pureRank, potionCost,
-                features, default, factsReady: false, depth, lineage, payoffCount);
+                features, default, factsReady: false, depth, lineage, payoffCount, commitment);
         }
 
         /// <summary>Adds a scored state and computes its retention-only values when it is stored.</summary>
         public bool AddScored(in FlashBattle state, int node, double score, double rank, double pureRank,
-            int potionCost, in FlashScoreFeatures features, int depth, int lineage, int payoffCount)
+            int potionCost, in FlashScoreFeatures features, int depth, ulong lineage, int payoffCount,
+            int commitment)
             => Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, pureRank, potionCost, features, default, factsReady: false, depth,
-                lineage, payoffCount);
+                lineage, payoffCount, commitment);
 
         /// <summary>Adds a state whose retention facts are already computed (pool-to-pool copies).</summary>
         public bool Add(in FlashBattle state, int node, double score, double rank, double pureRank,
-            int potionCost, in RetentionFacts facts, int lineage, int payoffCount)
+            int potionCost, in RetentionFacts facts, ulong lineage, int payoffCount, int commitment)
             => Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, pureRank, potionCost, default, facts, factsReady: true, facts.Depth,
-                lineage, payoffCount);
+                lineage, payoffCount, commitment);
 
         private bool Insert(ref FlashBattle state, bool inPlace, int node, double score, double rank,
             double pureRank, int potionCost, in FlashScoreFeatures features, in RetentionFacts knownFacts,
-            bool factsReady, int depth, int lineage, int payoffCount)
+            bool factsReady, int depth, ulong lineage, int payoffCount, int commitment)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -2291,6 +2750,8 @@ internal sealed class FlashBeamSolver
                             : RetentionFacts.From(features, depth,
                                 _facts[existing].ReachableHandValue, _facts[existing].ZeroCostPlayableCount);
                         _lineages[existing] = lineage;
+                        _commitment[existing] = commitment;
+                        _hasCommitments |= commitment > 0;
                     }
                     return false;
                 }
@@ -2325,6 +2786,8 @@ internal sealed class FlashBeamSolver
             _hashes[Count] = hash;
             _facts[Count] = facts;
             _potionCosts[Count] = potionCost;
+            _commitment[Count] = commitment;
+            _hasCommitments |= commitment > 0;
             _table[FreeSlot(hash, _table.Length - 1)] = Count + 1;
             Count++;
             return true;
@@ -2348,7 +2811,7 @@ internal sealed class FlashBeamSolver
                 target.Add(_states[source], _nodes[source], _scores[source], _ranks[source],
                     _trackPlanSeats ? _pureRanks[source] : 0d, _potionCosts[source],
                     _facts[source], _lineages[source],
-                    _trackPlanSeats ? _payoffs[source] : 0);
+                    _trackPlanSeats ? _payoffs[source] : 0, _commitment[source]);
             }
         }
 
@@ -2400,6 +2863,12 @@ internal sealed class FlashBeamSolver
             }
             SortByRank(count);
             int seats = Math.Min(width, count);
+            // BeamRetentionPolicy.RankBest: a band member rotates the score-leading width to the tail
+            // before the ordinary seats are taken, so ranks W+1..2W win (with the original order as
+            // backfill when fewer than 2W candidates exist). Required representatives, the power
+            // commitment seats and the plan seats are collected/added below and are unaffected.
+            if (_secondRankBand && count > seats)
+                RotateLeadingBandToTail(count, Math.Clamp(_secondRankBandWidth, 1, seats));
             int offensive = (int)(seats * offensiveShare);
             int byScore = seats - offensive;
             for (int index = 0; index < byScore; index++)
@@ -2449,6 +2918,8 @@ internal sealed class FlashBeamSolver
                 selected[replaceIndex] = source;
                 _taken[source] = true;
             }
+            if (_trackPowerCommitments && _hasCommitments)
+                AdmitPowerCommitmentSeats(selected, required, width);
             if (_planCommitment is { CopyPowerSeats: true })
                 AdmitPlanCommitmentSeats(selected, required, width);
             CollectionsMarshal.AsSpan(selected).Sort(new RankPositionComparer(_rankPosition));
@@ -2525,6 +2996,163 @@ internal sealed class FlashBeamSolver
                 selected[replaceIndex] = candidate;
                 _taken[candidate] = true;
                 AddRequired(required, candidate, width);
+            }
+        }
+
+        /// <summary>Left-rotate <c>_order[0..count)</c> by <paramref name="bandWidth"/> in place.</summary>
+        private void RotateLeadingBandToTail(int count, int bandWidth)
+        {
+            Span<int> order = _order.AsSpan(0, count);
+            order.Reverse();
+            order[..(count - bandWidth)].Reverse();
+            order[(count - bandWidth)..].Reverse();
+        }
+
+        /// <summary>
+        /// <c>BeamRetentionPolicy.AdmitPowerCommitmentRepresentatives</c>. The pool is the existing
+        /// <c>quotaPool</c> (score order); the quota is half the beam for aggressive members and
+        /// <c>clamp(W/12, 2, 12)</c> otherwise. Representatives replace the last non-required,
+        /// non-representative seat and are marked required. The beam width is unchanged.
+        /// </summary>
+        private void AdmitPowerCommitmentSeats(List<int> selected, List<int> required, int width)
+        {
+            int quota = PowerCommitmentSeatPolicy.SeatQuota(width, _aggressivePowerCommitment);
+            if (quota <= 0)
+                return;
+            _commitmentGroups.Clear();
+            _commitmentGroupOrder.Clear();
+            _powerRepresentatives.Clear();
+            // Existing RankRepresentatives receives the score-ordered quota pool; walk the same
+            // rank order so a first-occurrence tie in the group keys matches.
+            for (int position = 0; position < Count; position++)
+            {
+                int index = _rankOrder[position];
+                int commitmentIndex = _commitment[index];
+                if (commitmentIndex <= 0)
+                    continue;
+                FlashPowerCommitmentState commitment = _commitmentStates[commitmentIndex - 1];
+                RetentionFacts facts = _facts[index];
+                CommitmentGroupKey key = new(
+                    (int)commitment.Family,
+                    facts.PotionCount,
+                    facts.Turn,
+                    commitment.CardsLow,
+                    commitment.CardsHigh);
+                if (_commitmentGroups.TryGetValue(key, out CommitmentGroupLeader leader))
+                {
+                    if (IsBetterPowerRepresentative(index, leader.Winner))
+                        _commitmentGroups[key] = leader with { Winner = index };
+                }
+                else
+                {
+                    // The existing GroupBy keeps the first occurrence order; record it for the stable
+                    // subgroup ordering after the primary keys tie.
+                    _commitmentGroups.Add(key, new CommitmentGroupLeader(index, position));
+                    _commitmentGroupOrder.Add(key);
+                }
+            }
+            if (_commitmentGroupOrder.Count == 0)
+                return;
+            _commitmentGroupOrder.Sort(new CommitmentGroupComparer(this));
+            int take = Math.Min(quota, _commitmentGroupOrder.Count);
+            for (int index = 0; index < take; index++)
+                _powerRepresentatives.Add(_commitmentGroups[_commitmentGroupOrder[index]].Winner);
+            for (int index = 0; index < _powerRepresentatives.Count; index++)
+                _representative[_powerRepresentatives[index]] = true;
+            foreach (int candidate in _powerRepresentatives)
+            {
+                if (selected.Contains(candidate))
+                {
+                    AddRequired(required, candidate, width);
+                    continue;
+                }
+                int replaceIndex = -1;
+                for (int index = selected.Count - 1; index >= 0; index--)
+                {
+                    int node = selected[index];
+                    if (!_required[node] && !_representative[node])
+                    {
+                        replaceIndex = index;
+                        break;
+                    }
+                }
+                if (replaceIndex < 0)
+                    continue;
+                _taken[selected[replaceIndex]] = false;
+                selected[replaceIndex] = candidate;
+                _taken[candidate] = true;
+                AddRequired(required, candidate, width);
+            }
+            foreach (int candidate in _powerRepresentatives)
+                _representative[candidate] = false;
+        }
+
+        /// <summary><c>PowerCommitmentRetention.RankRepresentatives</c> in-group order.</summary>
+        private bool IsBetterPowerRepresentative(int candidate, int current)
+        {
+            FlashPowerCommitmentState a = _commitmentStates[_commitment[candidate] - 1];
+            FlashPowerCommitmentState b = _commitmentStates[_commitment[current] - 1];
+            if (a.RealizedEvidence != b.RealizedEvidence)
+                return a.RealizedEvidence > b.RealizedEvidence;
+            if (a.Priority != b.Priority)
+                return a.Priority > b.Priority;
+            if (a.ProgressEvidence != b.ProgressEvidence)
+                return a.ProgressEvidence > b.ProgressEvidence;
+            if (a.NetUnrealizedValue != b.NetUnrealizedValue)
+                return a.NetUnrealizedValue > b.NetUnrealizedValue;
+            if (a.OpenedActionCount != b.OpenedActionCount)
+                return a.OpenedActionCount < b.OpenedActionCount;
+            if (a.RoundTransitions != b.RoundTransitions)
+                return a.RoundTransitions < b.RoundTransitions;
+            if (_facts[candidate].ProjectedPlayerHp != _facts[current].ProjectedPlayerHp)
+                return _facts[candidate].ProjectedPlayerHp > _facts[current].ProjectedPlayerHp;
+            if (_facts[candidate].OffensiveProgressValue != _facts[current].OffensiveProgressValue)
+                return _facts[candidate].OffensiveProgressValue > _facts[current].OffensiveProgressValue;
+            if (_scores[candidate] != _scores[current])
+                return _scores[candidate] > _scores[current];
+            return _facts[candidate].Depth < _facts[current].Depth;
+        }
+
+        private readonly record struct CommitmentGroupKey(
+            int Family, int PotionCount, int Turn, ulong CardsLow, ulong CardsHigh);
+
+        private readonly record struct CommitmentGroupLeader(int Winner, int Position);
+
+        /// <summary>The existing representative ordering: descending keys, then ascending family.</summary>
+        private readonly struct CommitmentGroupComparer : IComparer<CommitmentGroupKey>
+        {
+            private readonly Pool _pool;
+
+            public CommitmentGroupComparer(Pool pool) => _pool = pool;
+
+            public int Compare(CommitmentGroupKey left, CommitmentGroupKey right)
+            {
+                int leftWinner = _pool._commitmentGroups[left].Winner;
+                int rightWinner = _pool._commitmentGroups[right].Winner;
+                FlashPowerCommitmentState a = _pool._commitmentStates[_pool._commitment[leftWinner] - 1];
+                FlashPowerCommitmentState b = _pool._commitmentStates[_pool._commitment[rightWinner] - 1];
+                int comparison = b.RealizedEvidence.CompareTo(a.RealizedEvidence);
+                if (comparison != 0) return comparison;
+                comparison = ((int)b.Priority).CompareTo((int)a.Priority);
+                if (comparison != 0) return comparison;
+                comparison = b.ProgressEvidence.CompareTo(a.ProgressEvidence);
+                if (comparison != 0) return comparison;
+                comparison = b.NetUnrealizedValue.CompareTo(a.NetUnrealizedValue);
+                if (comparison != 0) return comparison;
+                comparison = a.OpenedActionCount.CompareTo(b.OpenedActionCount);
+                if (comparison != 0) return comparison;
+                comparison = a.RoundTransitions.CompareTo(b.RoundTransitions);
+                if (comparison != 0) return comparison;
+                comparison = _pool._facts[rightWinner].ProjectedPlayerHp
+                    .CompareTo(_pool._facts[leftWinner].ProjectedPlayerHp);
+                if (comparison != 0) return comparison;
+                comparison = _pool._scores[rightWinner].CompareTo(_pool._scores[leftWinner]);
+                if (comparison != 0) return comparison;
+                comparison = left.Family.CompareTo(right.Family);
+                return comparison != 0
+                    ? comparison
+                    : _pool._commitmentGroups[left].Position
+                        .CompareTo(_pool._commitmentGroups[right].Position);
             }
         }
 
@@ -2646,7 +3274,7 @@ internal sealed class FlashBeamSolver
                         leader.Setup = source;
                 }
 
-                int lineage = _lineages[source];
+                ulong lineage = _lineages[source];
                 if (!_lineageLeaders.TryGetValue(lineage, out LineageLeaders? line))
                 {
                     line = new LineageLeaders { Leader = source };
@@ -2832,7 +3460,7 @@ internal sealed class FlashBeamSolver
                 AddRequired(required, bestResourcePreserving, width);
 
             _lineageOrder.Clear();
-            foreach (int key in _lineageLeaders.Keys)
+            foreach (ulong key in _lineageLeaders.Keys)
                 _lineageOrder.Add(key);
             CollectionsMarshal.AsSpan(_lineageOrder).Sort(new LineageOrderComparer(_lineageLeaders, _rankPosition));
             int lineageLimit = Math.Clamp(width / 8, 4, 16);
@@ -2948,18 +3576,18 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        private readonly struct LineageOrderComparer : IComparer<int>
+        private readonly struct LineageOrderComparer : IComparer<ulong>
         {
-            private readonly Dictionary<int, LineageLeaders> _leaders;
+            private readonly Dictionary<ulong, LineageLeaders> _leaders;
             private readonly int[] _rankPosition;
 
-            public LineageOrderComparer(Dictionary<int, LineageLeaders> leaders, int[] rankPosition)
+            public LineageOrderComparer(Dictionary<ulong, LineageLeaders> leaders, int[] rankPosition)
             {
                 _leaders = leaders;
                 _rankPosition = rankPosition;
             }
 
-            public int Compare(int left, int right)
+            public int Compare(ulong left, ulong right)
                 => _rankPosition[_leaders[left].Leader]
                     .CompareTo(_rankPosition[_leaders[right].Leader]);
         }

@@ -1863,6 +1863,55 @@ internal sealed class FlashScorer
     /// <c>PersistentPowerSupport.GetModifiedHandDraw</c> through a copy. The base draw is the game's
     /// <c>CombatManager.baseHandDrawCount</c> (5), the same literal the existing capture uses.
     /// </summary>
+    /// <summary><c>PersistentPowerSupport.GetModifiedHandDraw</c> for the commitment evidence port.</summary>
+    internal int ModifiedHandDrawForEvidence(in FlashBattle battle) => ModifiedHandDraw(battle);
+
+    /// <summary><c>PersistentPowerSupport.GetModifiedMaxEnergy</c> for the commitment evidence port.</summary>
+    internal int ModifiedMaxEnergyForEvidence(in FlashBattle battle)
+    {
+        FlashBattle probe = battle;
+        FlashExec probeExec = new(ref probe, Rules, default);
+        return Math.Max(0, FlashKernel.ModifiedMaxEnergy(ref probeExec));
+    }
+
+    /// <summary><c>CardChoiceSupport.CardValue</c> of a live card, with its current variables.</summary>
+    internal double CardValueForEvidence(in FlashBattle battle, in FlashCard card)
+    {
+        FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+        FlashCardScore score = _score.Cards[card.Id]?[card.Upgrade]
+            ?? throw new InvalidOperationException($"评分表缺少卡牌 {card.Id}+{card.Upgrade}。");
+        return CardValue(battle, card, stats, score);
+    }
+
+    /// <summary>A named dynamic variable's current value for the commitment evidence port.</summary>
+    internal int VarForEvidence(in FlashBattle battle, in FlashCard card, int index)
+    {
+        FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+        FlashCardScore score = CardScoreForEvidence(card.Id, card.Upgrade);
+        return (int)Var(battle, card, stats, index);
+    }
+
+    /// <summary><c>CardMechanismFacts.AttackHits</c> for the commitment evidence port.</summary>
+    internal int AttackHitsForEvidence(in FlashBattle battle, in FlashCard card)
+    {
+        FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+        FlashCardScore score = CardScoreForEvidence(card.Id, card.Upgrade);
+        return AttackHits(battle, score, card, stats);
+    }
+
+    /// <summary><c>CardMechanismFacts.ImmediateShivSupply</c> for the commitment evidence port.</summary>
+    internal int ImmediateShivSupplyForEvidence(in FlashBattle battle, in FlashCard card)
+    {
+        FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
+        FlashCardScore score = CardScoreForEvidence(card.Id, card.Upgrade);
+        return ImmediateShivSupply(battle, score, card, stats);
+    }
+
+    /// <summary>The compiled per-card score definition, for variable indexes and block/debuff flags.</summary>
+    internal FlashCardScore CardScoreForEvidence(ushort id, int upgrade)
+        => _score.Cards[id]?[upgrade]
+            ?? throw new InvalidOperationException($"评分表缺少卡牌 {id}+{upgrade}。");
+
     private int ModifiedHandDraw(in FlashBattle battle)
     {
         FlashBattle probe = battle;
