@@ -169,6 +169,19 @@ public sealed class ChainsOfBindingPower : FlashPowerDef
         }
     }
 
+    /// <summary>
+    /// Native keeps the per-turn <c>CardAfflictedEntry</c> count until the player turn number
+    /// changes; only the play mark and the Bound afflictions are cleared at the side turn end.
+    /// Reset the count at the next player side start instead of here, so the turn-end state still
+    /// reports this turn's count like <c>ChainsOfBindingPredictionState</c>.
+    /// </summary>
+    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, bool participates)
+    {
+        if (!participates || self.Owner != FlashLimits.PlayerOwner)
+            return;
+        x.B.Powers[self.Index].Aux1 = 0;
+    }
+
     public override void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
     {
         if (side != FlashSide.Player
@@ -178,7 +191,6 @@ public sealed class ChainsOfBindingPower : FlashPowerDef
             return;
         }
         x.B.Powers[self.Index].Aux0 = 0;
-        x.B.Powers[self.Index].Aux1 = 0;
         FlashKernel.ClearAfflictions(ref x.B, FlashRegistry.AfflictionId<Afflictions.BoundAffliction>());
     }
 }
