@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、255 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT、CT 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、255 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
 ### 2.1 当前状态（DX6 合入后）
 
@@ -75,6 +75,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 第二轮实机问题（DX6，2026-10-20）：Flash 的 Echoing Slash 每波沿用出牌时的伤害值，第一波击杀最后一个 Dampen 施法者、牌的升级等级恢复后，第二波仍按旧值结算（act3-SILENT-19 两敌各差 3 点）；改为每波从实时打出的牌读取伤害（`flash-dx6-dampen-echoing`）。现有引擎的“本回合已完成攻击/Shiv 数”原在 `AfterCardPlayed` 之后才递增，而原版在 `AfterCardPlayed` 之前记录 `CardPlayFinished`，Calamity 在攻击的 `AfterCardPlayed` 中生成的 Stomp 因此少算一次减费（IRONCLAD-50 部署漂移）；现有引擎与 Flash 都改为在 `AfterCardPlayed` 之前递增，无头重跑计划外重算为 0。测试侧：`--*-for-test` 的设置覆盖在第一次搜索根捕获前生效；战斗结束后导出的问题包先完成取证会话再归档。默认 79 根中只有 IRONCLAD-50 改变（关闭与开启模式均变好），基线已更新。
 
 测试工具与诊断（TT，2026-10-20）：`--theft-policy-for-test` 改在 `BeginCombat` 消费预登记策略，回合开始选择的根也读到测试策略；`CARD-CONTINUATION-CONTRACT` 的既有失败查明为夹具沿用了默认 1 生命的敌人，Dagger Throw 击杀后战斗进入收尾、牌按生产语义不能移入弃牌堆，夹具改为把敌人生命抬到 5000 后恢复 Passed；续接戳本身已含有序费用修正层，对账诊断改为先单独列出 `cost-state` 子差异（原先被 180 字符截断），`DEPLOY_REPLAN card_missing` 增加计划状态键，匹配规则不变（新增 `CONTINUATION-COST-STATE-DIAGNOSTIC`）；无头实例的进程标记与租约不是原子发布，启动器对已验证身份的活标记重建缺失的租约（`HEADLESS_LEASE_RECREATED`），连续 10 个请求复用同一实例通过。
+
+剩余请求形态（CT，2026-10-20）：分发点删除 `can-take-over:*` 与 `potion-audit-boundary:*`，计划成员（带无药基线、最早用药回合、药水上下界、强制指令或早期侦察）、计划侦察（带承诺、前缀、药水约束）、带侦察的普通续接、以及审计不适用时的普通请求都由 Flash 执行；非法药水上下界在开启模式下抛出与原搜索同类型、同消息的参数异常。`root-phase` 保留为显式边界：生产只捕获 `Player/Play` 与回合开始选择的 `Player/Start` 两种根。强制结束回合的卡（如 Void Form）翻译为计划动作时补上回合结束标记，修正 TurnBoundaryRescue 路线缺一个回合续接戳的问题（REGENT-V-28 续接戳 `[2..9]`）。探针构造的 15 种形态全部 `FLASH_ADOPTED:verified`；第三幕 150 根 `can-take-over:commitment` 10 → 0、逐根质量不变；默认 79 根与 48 根基准逐根不变。
 
 新颖度探索与早期回合侦察（XP，2026-10-20）：新颖度探索、自适应新颖度精炼与早期回合侦察三个协调器成员改走 `BeamSolveDispatch`，开启模式由 FlashBeam 执行（`FlashBeamSolver.Novelty.cs`）：BFWS 开放队列按（新颖宽度、−分数、序号）排序，新颖事实与分区照现有 `CaptureNoveltyFacts`（`FlashNoveltyFacts`，新增 6 个 K4 字段逐事实核对），熟悉子状态共享祖先的逃逸预算，停止条件与诊断字段与原搜索同口径；早期回合侦察按原策略键每层取 24 个候选，物化并核对后才回报观察者；计划侦察的深度限制放开。这三个成员默认关闭，默认 79 根逐根不变；另选 DEFECT-C-05、IRONCLAD-04、SILENT-C-14 三根在两种配置下稳定触发并全部 `FLASH_ADOPTED`（相对关闭模式 1 好 / 2 差、失血合计 +4，变差来自既有保留结构差异），新颖度控制合同与早期回合无头合同开启/关闭模式均 Passed。尚未移植：新颖度终局的 `RankFinal` 预筛、搜索中途的接管响应（Flash 只在搜索结束时响应）、早期回合续搜的工作量记账。
 

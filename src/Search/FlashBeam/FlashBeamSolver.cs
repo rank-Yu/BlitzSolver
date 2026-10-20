@@ -135,9 +135,16 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>
     /// The request root's combat turn (before a fixed prefix), matching the existing solver's
-    /// <c>_startTurnNumber</c> for the scout's turn filter.
+    /// <c>_startTurnNumber</c> for the power-commitment turn offset.
     /// </summary>
     public int InitialPlayerTurn { get; init; }
+
+    /// <summary>
+    /// The first searched turn layer's combat turn, i.e. the search root after a fixed prefix. The
+    /// existing scout filters each completed layer by <c>_startTurnNumber + searchedTurnLayers</c> over
+    /// nodes that already include the prefix; with no prefix this equals <see cref="InitialPlayerTurn"/>.
+    /// </summary>
+    public int InitialSearchTurn { get; init; }
 
     /// <summary>
     /// <c>SolverSearchProfile.SecondRankBand</c>: the global prune's ordinary seats come from score
@@ -494,6 +501,7 @@ internal sealed partial class FlashBeamSolver
     private readonly FlashPlanCommitment? _planCommitment;
     private readonly int _earlyTurnScoutDepth;
     private readonly int _initialPlayerTurn;
+    private readonly int _initialSearchTurn;
     private readonly List<FlashScoutLayer> _scoutLayers = [];
 
     private Stopwatch? _solveWatch;
@@ -524,6 +532,8 @@ internal sealed partial class FlashBeamSolver
         _planCommitment = options.PlanCommitment;
         _earlyTurnScoutDepth = Math.Max(0, options.EarlyTurnScoutDepth);
         _initialPlayerTurn = options.InitialPlayerTurn;
+        _initialSearchTurn = options.InitialSearchTurn > 0
+            ? options.InitialSearchTurn : options.InitialPlayerTurn;
         _powerCommitments = options.PowerCommitments is { Rules.Length: > 0 } catalog ? catalog : null;
         _aggressivePowerCommitment = options.AggressivePowerCommitment;
         _preserveReplayAllocatorOpening = options.PreserveReplayAllocatorOpening;
@@ -1720,7 +1730,7 @@ internal sealed partial class FlashBeamSolver
         for (int index = 0; index < ended.Count; index++)
         {
             ref FlashBattle state = ref ended.State(index);
-            if (state.PlayerTurn != _initialPlayerTurn + completedTurns)
+            if (state.PlayerTurn != _initialSearchTurn + completedTurns)
                 continue;
             int node = ended.Node(index);
             int rootIndex = RootIndex(node);
