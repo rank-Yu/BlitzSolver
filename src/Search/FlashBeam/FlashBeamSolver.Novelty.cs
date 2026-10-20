@@ -136,6 +136,7 @@ internal sealed partial class FlashBeamSolver
             _noveltyBestNode = node;
             _noveltyBestVictory = state.Outcome == FlashOutcome.Victory;
             _noveltyBestDefeat = state.Outcome == FlashOutcome.Defeat;
+            _noveltyBestFeatures = features;
         }
         TightenIncumbent(state, node, features, key);
     }
@@ -148,6 +149,7 @@ internal sealed partial class FlashBeamSolver
         _singleRoot = roots.Count == 1;
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
+        ResetProgressState();
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < roots[0].PotionSlotCount ? roots[0].Potions[slot] : (ushort)0;
         _noveltyPacked = new BfwsPackedNovelty(noveltyOptions.Width, noveltyOptions.MaxNoveltyEntries);
@@ -235,9 +237,13 @@ internal sealed partial class FlashBeamSolver
         }
         if (_noveltyTargetReached)
             _noveltyStop = "hp_target";
-        while (_noveltyOpen!.Count > 0 && !_noveltyTargetReached)
+        PublishProgress(0, 0, _noveltyOpen?.Count ?? 0, 0, "初始化", force: true, routeNode: -1);
+        while (_noveltyOpen!.Count > 0 && !_noveltyTargetReached
+            && _takeoverAction == FlashTakeoverAction.None)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            SearchCheckpoint();
+            if (TryHandleTakeover(ended))
+                break;
             if (_expanded >= _options.MaxExpandedNodes)
             {
                 _noveltyStop = "node_limit";
@@ -271,6 +277,7 @@ internal sealed partial class FlashBeamSolver
             int count = FlashKernel.LegalActions(parent, _rules, _actions);
             for (int actionIndex = 0; actionIndex < count; actionIndex++)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
                 if (_actions[actionIndex].Kind == FlashActionKind.UsePotion
                     && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
                 {
@@ -291,12 +298,22 @@ internal sealed partial class FlashBeamSolver
                 EnqueueNovelty(ended.State(index), node, entry.Escape, initialSeed: false,
                     ended.Score(index), ended.State(index).PlayerTurn, Depth(node), noveltyOptions);
             }
+            PublishProgress(Math.Max(0, _noveltyMaximumTurn - _initialPlayerTurn),
+                entry.Depth, _noveltyOpen.Count, ended.Count, "探索不同路线", force: false,
+                routeNode: NoveltyPreviewNode());
+            if (TryHandleTakeover(ended))
+                break;
             if (_noveltyPacked.LimitReached)
             {
                 _noveltyStop = "novelty_limit";
                 break;
             }
         }
+        PublishProgress(Math.Max(0, _noveltyMaximumTurn - _initialPlayerTurn), 0,
+            _noveltyOpen?.Count ?? 0, 0, "复核最终候选", force: true,
+            routeNode: NoveltyPreviewNode());
+        if (_takeoverAction != FlashTakeoverAction.None)
+            return TakeoverResult(Math.Max(0, _noveltyMaximumTurn - _initialPlayerTurn));
         int turnLayers = Math.Max(0, _noveltyMaximumTurn - _initialPlayerTurn);
         int bestNode = _noveltyBestNode;
         bool bestVictory = _noveltyBestVictory;
@@ -345,12 +362,28 @@ internal sealed partial class FlashBeamSolver
             PotionPolicySatisfied = auditedSelected,
             BestRootIndex = bestNode >= 0 && bestNode < _nodes.Count ? RootIndex(bestNode) : 0,
             NoveltyTelemetry = telemetry,
+            WorkerYieldCount = _options.Pacer?.YieldCount ?? 0,
+            FrameRecoveryWaitCount = _options.Pacer?.FrameRecoveryWaitCount ?? 0,
+            FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
+            MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
         };
         return result;
 
         bool keyWon(in FlashScoreFeatures features, int actionCount)
             => SolverInterimResultOrdering.IsCompleteVictory(actionCount, features.AllEnemiesDead,
                 features.PlayerDead, features.ProjectedPlayerHp);
+    }
+
+    /// <summary>
+    /// The advertised novelty route: the best terminal candidate, otherwise the best-scoring
+    /// fallback state (the existing search publishes its completed pool, which is a superset of
+    /// this fallback). Returns -1 before any candidate exists.
+    /// </summary>
+    private int NoveltyPreviewNode()
+    {
+        if (_noveltyBest is not null && _noveltyBestNode >= 0)
+            return _noveltyBestNode;
+        return _noveltyFallback?.Node ?? -1;
     }
 
     /// <summary>

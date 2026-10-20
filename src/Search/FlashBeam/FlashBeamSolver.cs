@@ -179,6 +179,25 @@ internal sealed record FlashBeamOptions(
     /// skips the whole lane for such roots.
     /// </summary>
     public FlashPowerCommitmentCatalog? PowerCommitments { get; init; }
+
+    /// <summary>
+    /// The shared frame-pressure pacer. The bridge creates it from
+    /// <see cref="SearchPolicySnapshot.FramePressureSignal"/> so the Flash layer and expansion loops
+    /// yield exactly like the existing search's replay checkpoints. Null in direct kernel tests.
+    /// </summary>
+    public SearchWorkPacer? Pacer { get; init; }
+
+    /// <summary>
+    /// Progress sink. The bridge translates one snapshot into an existing <c>SolverProgress</c> and
+    /// materializes the route preview lazily; the solver only copies route metadata.
+    /// </summary>
+    public Action<FlashProgressSnapshot>? Progress { get; init; }
+
+    /// <summary>
+    /// Polls the pending takeover request. The bridge owns the <c>SearchInteractionState</c> mapping;
+    /// the solver only sees the three-way decision.
+    /// </summary>
+    public Func<FlashTakeoverAction>? PollTakeover { get; init; }
 }
 
 /// <summary>One registered power card's existing commitment descriptor.</summary>
@@ -351,6 +370,26 @@ internal sealed record FlashBeamResult(
     /// falls back to the existing solver: "Flash found none" is not the existing search's verdict.
     /// </summary>
     public bool PotionPolicySatisfied { get; init; } = true;
+
+    /// <summary>Frame-pressure yields performed by the shared <see cref="SearchWorkPacer"/>.</summary>
+    public int WorkerYieldCount { get; init; }
+
+    /// <summary>How often the pacer waited for a main-thread frame after real frame pressure.</summary>
+    public int FrameRecoveryWaitCount { get; init; }
+
+    /// <summary>Total time spent waiting for frame recovery.</summary>
+    public TimeSpan FrameRecoveryWaitDuration { get; init; }
+
+    /// <summary>Largest GC pause observed by the pacer during this solve.</summary>
+    public TimeSpan MaxObservedGcPause { get; init; }
+
+    /// <summary>
+    /// Set when the search stopped at a takeover checkpoint instead of running to its own stop
+    /// condition. <see cref="BestRoute"/> then identifies the adopted current-turn route (or is empty
+    /// for <see cref="FlashTakeoverAction.AdoptRoute"/>, where the bridge materializes the requested
+    /// seed itself).
+    /// </summary>
+    public FlashTakeoverAction Takeover { get; init; }
 }
 
 /// <summary>
@@ -516,6 +555,12 @@ internal sealed partial class FlashBeamSolver
 
     private Stopwatch? _solveWatch;
 
+    /// <summary>The physical expanded-parent count of the current solve (readable after a canceled solve).</summary>
+    internal int ExpandedNodes => _expanded;
+
+    /// <summary>The physical transition count of the current solve (readable after a canceled solve).</summary>
+    internal int TransitionCount => _transitions;
+
     public FlashBeamSolver(FlashRules rules, FlashBeamOptions options)
     {
         _rules = rules;
@@ -568,6 +613,7 @@ internal sealed partial class FlashBeamSolver
         Stopwatch watch = Stopwatch.StartNew();
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
+        ResetProgressState();
         if (_options.Novelty is { } novelty)
             return SolveNovelty(roots, novelty, watch, cancellationToken);
         _hpTargetReached = false;
@@ -622,7 +668,8 @@ internal sealed partial class FlashBeamSolver
         RouteKey? best = null;
         int bestNode = 0;
         bool bestVictory = false, bestDefeat = false;
-        void Consider(in FlashBattle state, int node, in RouteKey key)
+        void Consider(in FlashBattle state, int node, in RouteKey key,
+            in FlashScoreFeatures features)
         {
             if (best is { } current && CompareRoutes(key, current) >= 0)
                 return;
@@ -630,6 +677,8 @@ internal sealed partial class FlashBeamSolver
             bestNode = node;
             bestVictory = state.Outcome == FlashOutcome.Victory;
             bestDefeat = state.Outcome == FlashOutcome.Defeat;
+            _bestFeatures = features;
+            _bestFeaturesNode = node;
         }
         // The existing search's two early stops. The HP-target stop ends the search before the next parent
         // (the existing search's Phases.cs, MeetsHpTarget); the zero-damage stop ends it after the current turn
@@ -641,7 +690,7 @@ internal sealed partial class FlashBeamSolver
             if (_auditPotionPolicy)
                 ConsiderAudited(node, features, key);
             else
-                Consider(state, node, key);
+                Consider(state, node, key, features);
             TightenIncumbent(state, node, features, key);
         }
         void ConsiderTerminal(in FlashBattle state, int node, double score)
@@ -700,39 +749,61 @@ internal sealed partial class FlashBeamSolver
                 0, _options.InitialPlanPayoffCount, 0);
         }
         TerminalSink terminal = ConsiderTerminal;
+        PublishProgress(0, 0, turnFrontier.Count, 0, "初始化", force: true, routeNode: -1);
         int turns = 0;
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch)
-            && !hpTargetReached
+            && !hpTargetReached && _takeoverAction == FlashTakeoverAction.None
             && (_earlyTurnScoutDepth == 0 || turns < _earlyTurnScoutDepth))
         {
+            SearchCheckpoint();
+            if (TryHandleTakeover(turnFrontier))
+                break;
             turns++;
             current.Clear();
             turnFrontier.CopyTopTo(current, turns == 1 ? frontierCapacity : width, 0d);
             ended.Clear();
             // Turn one is the existing search's searchedTurnLayers == 0.
             _expandFetchedPowers = _options.Act3BossStrategy && turns == 1;
-            while (current.Count > 0 && !OutOfBudget(watch) && !hpTargetReached)
+            PublishProgressWithPreview(turns - 1, 0, current.Count, 0, "展开回合", force: true,
+                best is null ? -1 : bestNode, best, current);
+            int playDepth = 0;
+            while (current.Count > 0 && !OutOfBudget(watch) && !hpTargetReached
+                && _takeoverAction == FlashTakeoverAction.None)
             {
+                SearchCheckpoint();
+                if (TryHandleTakeover(current))
+                    break;
                 next.Clear();
                 for (int index = 0; index < current.Count && !OutOfBudget(watch) && !hpTargetReached; index++)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    SearchCheckpoint();
                     _expanded++;
                     ref FlashBattle parent = ref current.State(index);
                     int parentNode = current.Node(index);
                     int count = FlashKernel.LegalActions(parent, _rules, _actions);
                     for (int actionIndex = 0; actionIndex < count; actionIndex++)
                     {
+                        _cancellationToken.ThrowIfCancellationRequested();
                         if (_actions[actionIndex].Kind == FlashActionKind.UsePotion && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
                             continue;
                         ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, terminal,
                             current.Facts(index), current.RankPosition(index), current.Rank(index));
                     }
+                    PublishProgressWithPreview(turns - 1, playDepth,
+                        Math.Max(0, current.Count - index - 1) + next.Count, ended.Count,
+                        "展开出牌序列", force: false,
+                        best is null ? -1 : bestNode, best, current);
                 }
                 current.Clear();
                 next.CopyTopTo(current, width, _options.OffensiveShare);
                 PrunePool(current);
+                PublishProgressWithPreview(turns - 1, playDepth, current.Count, ended.Count,
+                    "剪枝候选", force: true,
+                    best is null ? -1 : bestNode, best, current);
+                playDepth++;
             }
+            if (_takeoverAction != FlashTakeoverAction.None)
+                break;
             if (_earlyTurnScoutDepth > 0 && turns <= _earlyTurnScoutDepth)
                 CollectEarlyTurnScout(ended, turns, roots);
             turnFrontier.Clear();
@@ -740,9 +811,17 @@ internal sealed partial class FlashBeamSolver
             // a required representative of every potion group.
             ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare, turnBoundary: true);
             PrunePool(turnFrontier);
+            PublishProgressWithPreview(turns, 0, turnFrontier.Count, ended.Count, "回合层完成",
+                force: true, best is null ? -1 : bestNode, best, turnFrontier);
+            if (TryHandleTakeover(turnFrontier))
+                break;
             if (zeroDamageVictory)
                 break;
         }
+        PublishProgressWithPreview(turns, 0, turnFrontier.Count, ended.Count, "复核最终候选",
+            force: true, best is null ? -1 : bestNode, best, turnFrontier);
+        if (_takeoverAction != FlashTakeoverAction.None)
+            return TakeoverResult(turns);
 
         if (_auditPotionPolicy)
         {
@@ -779,6 +858,10 @@ internal sealed partial class FlashBeamSolver
                 BestPayoffCount = _nodes[bestNode].PayoffCount,
                 BestRootIndex = RootIndex(bestNode),
                 ScoutLayers = _scoutLayers,
+                WorkerYieldCount = _options.Pacer?.YieldCount ?? 0,
+                FrameRecoveryWaitCount = _options.Pacer?.FrameRecoveryWaitCount ?? 0,
+                FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
+                MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
             };
             return audited;
         }
@@ -792,8 +875,9 @@ internal sealed partial class FlashBeamSolver
                 int node = turnFrontier.Node(index);
                 int actionCount = Depth(node);
                 ref FlashBattle state = ref turnFrontier.State(index);
-                Consider(state, node, Key(state,
-                    _scorer.Features(state, actionCount, includeRetentionOnly: false), actionCount));
+                FlashScoreFeatures features =
+                    _scorer.Features(state, actionCount, includeRetentionOnly: false);
+                Consider(state, node, Key(state, features, actionCount), features);
             }
         }
         FlashBeamResult result = new(Route(bestNode), bestVictory, bestDefeat,
@@ -810,6 +894,10 @@ internal sealed partial class FlashBeamSolver
             BestPayoffCount = _nodes[bestNode].PayoffCount,
             BestRootIndex = RootIndex(bestNode),
             ScoutLayers = _scoutLayers,
+            WorkerYieldCount = _options.Pacer?.YieldCount ?? 0,
+            FrameRecoveryWaitCount = _options.Pacer?.FrameRecoveryWaitCount ?? 0,
+            FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
+            MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
         };
         return result;
     }
