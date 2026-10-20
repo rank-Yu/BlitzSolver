@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、253 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、254 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
 ### 2.1 当前状态（LH 合入后）
 
@@ -72,7 +72,9 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 新颖度探索与早期回合侦察（XP，2026-10-20）：新颖度探索、自适应新颖度精炼与早期回合侦察三个协调器成员改走 `BeamSolveDispatch`，开启模式由 FlashBeam 执行（`FlashBeamSolver.Novelty.cs`）：BFWS 开放队列按（新颖宽度、−分数、序号）排序，新颖事实与分区照现有 `CaptureNoveltyFacts`（`FlashNoveltyFacts`，新增 6 个 K4 字段逐事实核对），熟悉子状态共享祖先的逃逸预算，停止条件与诊断字段与原搜索同口径；早期回合侦察按原策略键每层取 24 个候选，物化并核对后才回报观察者；计划侦察的深度限制放开。这三个成员默认关闭，默认 79 根逐根不变；另选 DEFECT-C-05、IRONCLAD-04、SILENT-C-14 三根在两种配置下稳定触发并全部 `FLASH_ADOPTED`（相对关闭模式 1 好 / 2 差、失血合计 +4，变差来自既有保留结构差异），新颖度控制合同与早期回合无头合同开启/关闭模式均 Passed。尚未移植：新颖度终局的 `RankFinal` 预筛、搜索中途的接管响应（Flash 只在搜索结束时响应）、早期回合续搜的工作量记账。
 
-致命击杀判定改读分支状态（LH，2026-10-20）：现有引擎的 The Hunt、Feed、HandOfGreed 与 BookRepairKnife 致命判定原经原版 `ReattachPower.ShouldOwnerDeathTriggerFatal`/`AreAllOtherSegmentsDead` 读取根上 live 生物的生命，分支内其他千足虫节段已死时仍判为不致命；改为 `SimulatedCombatState.ShouldOwnerDeathTriggerFatal` 按分支 Power 与分支死亡状态计算，同一修正把 Surrounded/BackAttack 与 FrostOrb/Hibernate 的 Power 存在性读取改为分支查询。The Hunt 与 BookRepairKnife 的 actual/simulated 严格差分修正前分别差 `TheHuntPower` 1 层与治疗 3 点，修正后完整快照一致；HS 发现的 SILENT-C-13 第 56 步核对不一致消失，默认 79 根开启模式核对不一致为 0、逐根不变；关闭模式 79 根只有 SILENT-C-13 改变（The Hunt 奖励从 0 变为 1，120 秒预算内不再取胜），基线已更新。Doom 击杀的致命计数仍在击杀前进行（原版在全部击杀后），另行修正。
+致命击杀判定改读分支状态（LH，2026-10-20）：现有引擎的 The Hunt、Feed、HandOfGreed 与 BookRepairKnife 致命判定原经原版 `ReattachPower.ShouldOwnerDeathTriggerFatal`/`AreAllOtherSegmentsDead` 读取根上 live 生物的生命，分支内其他千足虫节段已死时仍判为不致命；改为 `SimulatedCombatState.ShouldOwnerDeathTriggerFatal` 按分支 Power 与分支死亡状态计算，同一修正把 Surrounded/BackAttack 与 FrostOrb/Hibernate 的 Power 存在性读取改为分支查询。The Hunt 与 BookRepairKnife 的 actual/simulated 严格差分修正前分别差 `TheHuntPower` 1 层与治疗 3 点，修正后完整快照一致；HS 发现的 SILENT-C-13 第 56 步核对不一致消失，默认 79 根开启模式核对不一致为 0、逐根不变；关闭模式 79 根只有 SILENT-C-13 改变（The Hunt 奖励从 0 变为 1，120 秒预算内不再取胜），基线已更新。Doom 击杀的致命计数时机由 DT 修正。
+
+Doom 击杀的致命计数时机（DT，2026-10-20）：原版 `DoomPower.DoomKill` 逐个击杀（每次击杀内完成死亡 Hook、移出阵容与 Power 移除），全部击杀后才调用 `AfterDiedToDoom`；现有引擎与 Flash 原先在击杀前统计致命数。两边都改为逐个击杀并补跑该次死亡效果、全部击杀后再按分支状态统计并治疗（`AfterDiedToDoom` 只有书本修复刀订阅）。新增无人测试合同 `DOOM-FATAL-TIMING-V0111`（三个千足虫节段同批 Doom 击杀，修正前模拟治疗 0、实机 9）与 `flash-dt-doom-fatal-timing`；默认 79 根关闭与开启模式逐根不变。
 
 ### 2.3 无人测试实机部署（2026-10-19）
 

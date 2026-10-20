@@ -83,7 +83,7 @@
 
 **Osty 攻击**：`CardTag.OstyAttack` 的卡以 `OstyOwner` 为 attacker 调 `CardAttack`，Strength/Weak/攻击历史归宠物；宠物死亡时直接返回。攻击结束给 `OstyAttacksThisTurn` 加一；该计数只在 `OstyWasRootPet` 时于玩家回合开始清零（现有引擎 `BeginSideTurn(player)` 走原生 `ownerPlayer.Osty`）。
 
-**Doom**：敌方侧回合末对每个存活参与者求该侧 Doom 总和，首名满足 `CurrentHp <= Doom` 的监听者触发一次成批 `DoomKill`（`TriggerEnemySideTurnEndEffects` 开头、Regen/Plating 之前）；玩家侧回合末走 `EndTurnRegular` 的单监听者 `Kill`。`DoomKill` 先统计每玩家 fatal 数（排除玩家、按 `ShouldOwnerDeathTriggerFatal`），逐个 `Kill`，再按已定义的 `BookRepairKnife` 治疗（否则准入拒绝该根）。`DoomAppliedThisTurn` 记录玩家本回合施加过正层 Doom（DeathsDoor），玩家回合开始清零。
+**Doom**：敌方侧回合末对每个存活参与者求该侧 Doom 总和，首名满足 `CurrentHp <= Doom` 的监听者触发一次成批 `DoomKill`（`TriggerEnemySideTurnEndEffects` 开头、Regen/Plating 之前）；玩家侧回合末走 `EndTurnRegular` 的单监听者 `Kill`。原版 `DoomPower.DoomKill` 逐个 `CreatureCmd.Kill`（每个击杀立即完成 `AfterDeath` 与 Power 移除），全部击杀后才派发 `AfterDiedToDoom`；Flash 与现有引擎都在每次 `Kill` 后结算该批的敌人死亡效果，最后才按 `ShouldOwnerDeathTriggerFatal` 统计每玩家 fatal 数（排除玩家），再按已定义的 `BookRepairKnife` 治疗（否则准入拒绝该根）。`DoomAppliedThisTurn` 记录玩家本回合施加过正层 Doom（DeathsDoor），玩家回合开始清零。
 
 **其他计数**：`EtherealPlays` 战斗长，导入根历史后按每次打出完成时该卡本地 Ethereal 关键字加一（BansheesCry/PullFromBelow）。
 

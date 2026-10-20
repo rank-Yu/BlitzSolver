@@ -67,17 +67,16 @@ public static partial class FlashKernel
         => (battle.Flags & FlashBattleFlags.OstyPresent) == 0 ? 0 : battle.Osty.MaxHp;
 
     /// <summary>Mirrors <c>SimulatedCombatState.DoomKill</c>: kill the doomed creatures one at a time in
-    /// order, then heal the player for each fatal kill through a supported <c>BookRepairKnife</c>.</summary>
+    /// order, complete each native death cleanup, then heal the player for every fatal kill through a
+    /// supported <c>BookRepairKnife</c>.</summary>
     public static void DoomKill(ref FlashExec x, scoped ReadOnlySpan<byte> creatures)
     {
         if (creatures.IsEmpty)
             return;
-        int fatal = 0;
-        foreach (byte creature in creatures)
-        {
-            if (creature != FlashLimits.PlayerOwner && TargetDeathTriggersFatal(x.B, creature))
-                fatal++;
-        }
+        // Native DoomPower.DoomKill executes CreatureCmd.Kill for every creature and only then calls
+        // Hook.AfterDiedToDoom; CreatureCmd.Kill has already run the creature's AfterDeath hook and
+        // power removal by then. Complete the deferred death pass after each kill, exactly like the
+        // existing engine's DoomKill, before the fatal count below reads the power table.
         Span<byte> one = stackalloc byte[1];
         foreach (byte creature in creatures)
         {
@@ -85,6 +84,15 @@ public static partial class FlashKernel
             Kill(ref x, one, force: false);
             if (x.NeedsChoice)
                 return;
+            ApplyEnemyDeathPowers(ref x);
+            if (x.NeedsChoice)
+                return;
+        }
+        int fatal = 0;
+        foreach (byte creature in creatures)
+        {
+            if (creature != FlashLimits.PlayerOwner && TargetDeathTriggersFatal(x.B, creature))
+                fatal++;
         }
         if (fatal <= 0 || !FlashRegistry.TryRelic("BOOK_REPAIR_KNIFE", out ushort knife))
             return;
