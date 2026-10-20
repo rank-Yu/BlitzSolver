@@ -17,7 +17,7 @@ public sealed class BurstPower : FlashPowerDef
     public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
         int playCount)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
+        if (self.Owner != FlashLimits.PlayerOwner || FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill)
             return playCount;
         return playCount + 1;
     }

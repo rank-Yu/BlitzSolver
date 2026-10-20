@@ -86,6 +86,40 @@ public static partial class FlashKernel
     }
 
     /// <summary>
+    /// Mirrors <c>CardModel.SetToFreeThisCombat</c>: an absolute 0 energy modifier until the end of
+    /// combat and a 0 temporary star cost that clears neither at turn end nor when played. Only used
+    /// on freshly generated cards (Metamorphosis), so the single temporary-star-cost slot is free.
+    /// </summary>
+    public static void MakeFreeThisCombat(FlashRules rules, ref FlashCard card)
+    {
+        FlashCardStats stats = rules.Card(card.Id, card.Upgrade);
+        if (stats.EnergyCost >= 0)
+        {
+            if (card.EnergyModifierCount >= FlashLimits.CardEnergyCostModifiers)
+                throw new FlashCapacityException("Card.EnergyModifiers", FlashLimits.CardEnergyCostModifiers);
+            card.EnergyModifiers[card.EnergyModifierCount] = FlashCostModifier.Create(
+                0, FlashCostType.Absolute, FlashCostExpiration.EndOfCombat, reduceOnly: false);
+            card.EnergyModifierCount++;
+        }
+        card.SetTemporaryStarCost(0, clearsAtTurnEnd: false, clearsWhenPlayed: false);
+    }
+
+    /// <summary>
+    /// Stores the block an instanced power grants when its owner's block is cleared
+    /// (<c>ToricToughnessPower.SetBlock</c>): the native field is a decimal, but the observed value
+    /// is the settled card block gain, an integer. A fractional value cannot be represented in
+    /// <see cref="FlashPower.Aux0"/> and is rejected as an explicit boundary.
+    /// </summary>
+    public static void SetInstanceBlockValue(ref FlashBattle battle, int index, decimal block)
+    {
+        if ((uint)index >= (uint)battle.PowerCount)
+            throw new ArgumentOutOfRangeException(nameof(index), index, "Power 行越界。");
+        if (block != decimal.Truncate(block) || block < 0m || block > int.MaxValue)
+            throw new FlashUnsupportedException($"实例 Power 的格挡量 {block} 不是可表示的非负整数。");
+        battle.Powers[index].Aux0 = (int)block;
+    }
+
+    /// <summary>
     /// Replaces the card at <paramref name="index"/> in <paramref name="pile"/> with
     /// <paramref name="replacement"/> at the same position, mirroring <c>CardCmd.Transform</c> as the
     /// existing engine resolves it (<c>CardChoiceResolution.AddTransformedCard</c>). The original has
@@ -342,6 +376,14 @@ public static partial class FlashKernel
     /// dealer, then the maximum is clamped to at least 1.
     /// </summary>
     public static void LoseMaxHp(ref FlashExec x, byte owner, int amount)
+        => LoseMaxHp(ref x, owner, amount, FlashValueProps.Unblockable | FlashValueProps.Unpowered);
+
+    /// <summary>
+    /// <see cref="LoseMaxHp(ref FlashExec, byte, int)"/> with the native <c>isFromCard</c> damage props.
+    /// <c>CreatureCmd.LoseMaxHp(..., isFromCard: true)</c> (BrightestFlame) adds
+    /// <c>ValueProp.Move</c> to the unblockable unpowered HP loss.
+    /// </summary>
+    public static void LoseMaxHp(ref FlashExec x, byte owner, int amount, FlashValueProps props)
     {
         if (amount <= 0)
             return;
@@ -351,13 +393,15 @@ public static partial class FlashKernel
         {
             Span<byte> targets = stackalloc byte[1];
             targets[0] = owner;
-            Damage(ref x, targets, creature.CurrentHp - newMaxHp,
-                FlashValueProps.Unblockable | FlashValueProps.Unpowered, FlashLimits.NoOwner,
+            Damage(ref x, targets, creature.CurrentHp - newMaxHp, props, FlashLimits.NoOwner,
                 hasCardSource: false, default);
             if (x.NeedsChoice)
                 return;
         }
-        x.B.Creature(owner).MaxHp = Math.Max(1, newMaxHp);
+        ref FlashCreature current = ref x.B.Creature(owner);
+        current.MaxHp = Math.Max(1, newMaxHp);
+        // Creature.SetMaxHpInternal clamps the current HP to the new maximum.
+        current.CurrentHp = Math.Min(current.CurrentHp, current.MaxHp);
     }
 
     /// <summary>Mirrors <c>CombatPredictionSimulator.GainEnergy</c> (no supported energy-gain modifiers yet).</summary>

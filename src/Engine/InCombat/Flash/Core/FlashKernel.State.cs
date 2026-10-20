@@ -13,6 +13,14 @@ public static partial class FlashKernel
 
     public static bool IsPendingLoss(in FlashBattle battle) => (battle.Flags & FlashBattleFlags.PendingLoss) != 0;
 
+    /// <summary>
+    /// Native live <c>CardModel.Type</c>: the rule table's canonical value unless the definition
+    /// reads per-card state (MadScience's saved TinkerTimeType). Callers that decide on the type of a
+    /// card in a pile or in play use this instead of <c>rules.Card(...).Type</c>.
+    /// </summary>
+    public static FlashCardType CardType(in FlashBattle battle, FlashRules rules, in FlashCard card)
+        => FlashRegistry.Card(card.Id).CardType(battle, rules, card);
+
     /// <summary>Mirrors <c>CombatPredictionSimulator.IsCombatEnding</c>.</summary>
     public static bool IsEnding(in FlashBattle battle)
     {

@@ -234,7 +234,7 @@ public sealed class GamePiece : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Power)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power)
             return;
         FlashKernel.Draw(ref x, (int)x.R.RelicVar(Id, 0), fromHandDraw: false);
     }

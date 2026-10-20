@@ -70,7 +70,7 @@ public sealed class Impatience : FlashCardDef
         for (int index = 0; index < x.B.HandCount; index++)
         {
             ref readonly FlashCard card = ref x.B.Cards[index];
-            if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Attack)
                 return;
         }
         FlashKernel.Draw(ref x, FlashCardEffects.Var(x, 0), fromHandDraw: false);
@@ -189,7 +189,7 @@ public sealed class SecretTechnique : FlashCardDef
         for (int index = 0; index < x.B.DrawCount; index++)
         {
             ref readonly FlashCard card = ref x.B.Cards[start + index];
-            if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Skill)
+            if (FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Skill)
                 options[count++] = index;
         }
         Span<int> selected = stackalloc int[Math.Max(1, count)];
@@ -218,7 +218,7 @@ public sealed class SecretWeapon : FlashCardDef
         for (int index = 0; index < x.B.DrawCount; index++)
         {
             ref readonly FlashCard card = ref x.B.Cards[start + index];
-            if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Attack)
                 options[count++] = index;
         }
         Span<int> selected = stackalloc int[Math.Max(1, count)];

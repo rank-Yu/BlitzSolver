@@ -220,7 +220,7 @@ public sealed class HandTrick : FlashCardDef
         for (int index = 0; index < x.B.HandCount; index++)
         {
             ref readonly FlashCard card = ref x.B.Cards[index];
-            if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill || FlashKernel.IsSlyThisTurn(x.B, card))
+            if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill || FlashKernel.IsSlyThisTurn(x.B, card))
                 continue;
             options[count++] = index;
         }
@@ -250,7 +250,7 @@ public sealed class EscapePlan : FlashCardDef
     {
         if (!FlashKernel.TryDrawOne(ref x, fromHandDraw: false, out FlashCard card))
             return;
-        if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
+        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill)
             return;
         FlashCardEffects.GeneralBlock(ref x, 0);
     }

@@ -129,7 +129,7 @@ public sealed class DaughterOfTheWind : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.R.RelicVar(Id, 0),
             FlashValueProps.Unpowered, fromCard: false);
@@ -149,7 +149,7 @@ public sealed class LostWisp : FlashRelicDef
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
         if (!FlashKernel.IsInProgress(x.B)
-            || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Power)
+            || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power)
             return;
         FlashCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered,
             FlashLimits.PlayerOwner);
@@ -188,7 +188,7 @@ public sealed class MummifiedHand : FlashRelicDef
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
         if (!FlashKernel.IsInProgress(x.B)
-            || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Power)
+            || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power)
             return;
         // Native: naturallyCostly.Where(CostsResources), then all hand.Where(CostsResources),
         // then naturallyCostly, then all hand. Rng.NextItem consumes the stream only for a non-empty list.

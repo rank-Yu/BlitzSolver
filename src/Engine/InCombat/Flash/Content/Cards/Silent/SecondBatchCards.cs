@@ -244,7 +244,7 @@ public sealed class Flechettes : FlashCardDef
         for (int index = 0; index < x.B.HandCount; index++)
         {
             ref readonly FlashCard card = ref x.B.Cards[index];
-            if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Skill)
+            if (FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Skill)
                 skills++;
         }
         int hits = (int)(FlashCardEffects.Var(x, 1) + FlashCardEffects.Var(x, 2) * skills);

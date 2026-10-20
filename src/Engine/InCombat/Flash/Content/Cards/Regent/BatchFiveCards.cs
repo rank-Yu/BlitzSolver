@@ -120,7 +120,7 @@ public sealed class MakeItSo : FlashCardDef
     {
         if (self.Kind != FlashListenerKind.Card)
             return;
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Skill)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Skill)
             return;
         int position = self.Index;
         if (position >= x.B.CardCount)

@@ -1062,7 +1062,7 @@ internal sealed class FlashBeamSolver
                                 if ((bits & (1UL << option)) == 0)
                                     continue;
                                 ref readonly FlashCard optionCard = ref child.Cards[request.Options[option]];
-                                if (_rules.Card(optionCard.Id, optionCard.Upgrade).Type == FlashCardType.Power)
+                                if (FlashKernel.CardType(child, _rules, optionCard) == FlashCardType.Power)
                                     capturedPowers[captured++] = optionCard;
                             }
                         }
@@ -1197,7 +1197,7 @@ internal sealed class FlashBeamSolver
         for (int index = 0; index < battle.HandCount; index++)
         {
             ref readonly FlashCard card = ref battle.Cards[index];
-            if (_rules.Card(card.Id, card.Upgrade).Type != FlashCardType.Power
+            if (FlashKernel.CardType(battle, _rules, card) != FlashCardType.Power
                 || !FlashKernel.CanPlayCard(battle, _rules, index))
             {
                 continue;

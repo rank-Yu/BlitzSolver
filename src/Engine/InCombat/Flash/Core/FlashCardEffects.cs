@@ -236,10 +236,13 @@ public static class FlashCardEffects
     /// path: the caller's type filter is applied to the combat/player-count-filtered candidates in
     /// pool order, then <c>TakeRandom</c> runs a full Fisher-Yates over the filtered list before
     /// taking the first cards (the distinct path of <see cref="FlashKernel.SampleCardPool"/>, with the
-    /// filter applied first). Cards are created at upgrade 0 by <see cref="FlashKernel.CreateCard"/>.
+    /// filter applied first). <paramref name="type"/> <see cref="FlashCardType.None"/> matches every
+    /// type; a non-None <paramref name="rarity"/> adds the native rarity predicate. Cards are created
+    /// at upgrade 0 by <see cref="FlashKernel.CreateCard"/>.
     /// </summary>
     public static int SampleCharacterCardsOfType(ref FlashBattle battle, FlashRules rules, FlashCardType type,
-        int count, Span<FlashCard> selected, string poolKey = FlashCardPools.CharacterAll)
+        int count, Span<FlashCard> selected, string poolKey = FlashCardPools.CharacterAll,
+        FlashCardRarity rarity = FlashCardRarity.None)
     {
         FlashCardPool pool = rules.CardPool(poolKey);
         if (pool.Cards.Length == 0)
@@ -251,8 +254,12 @@ public static class FlashCardEffects
         for (int index = 0; index < pool.Cards.Length; index++)
         {
             ushort id = pool.Cards[index];
-            if (rules.Card(id, 0).Type == type)
-                order[eligible++] = id;
+            FlashCardStats stats = rules.Card(id, 0);
+            if (type != FlashCardType.None && stats.Type != type)
+                continue;
+            if (rarity != FlashCardRarity.None && stats.Rarity != rarity)
+                continue;
+            order[eligible++] = id;
         }
         if (eligible == 0)
             return 0;
@@ -277,14 +284,14 @@ public static class FlashCardEffects
         for (int position = 0; position < battle.CardCount; position++)
         {
             ref readonly FlashCard card = ref battle.Cards[position];
-            if (rules.Card(card.Id, card.Upgrade).Type == FlashCardType.Status)
+            if (FlashKernel.CardType(battle, rules, card) == FlashCardType.Status)
                 count++;
         }
         // The exhaust pile is included in CardCount but excluded from the native AllCards filter.
         for (int position = 0; position < battle.ExhaustCount; position++)
         {
             int absolute = FlashPiles.Start(battle, FlashPile.Exhaust) + position;
-            if (rules.Card(battle.Cards[absolute].Id, battle.Cards[absolute].Upgrade).Type == FlashCardType.Status)
+            if (FlashKernel.CardType(battle, rules, battle.Cards[absolute]) == FlashCardType.Status)
                 count--;
         }
         return count;
@@ -310,7 +317,7 @@ public static class FlashCardEffects
             for (int offset = 0; offset < pileCount; offset++)
             {
                 FlashCard card = x.B.Cards[start + offset];
-                if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Status)
+                if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
                     continue;
                 cards[count] = card;
                 sourcePile[count] = checked((byte)pileIndex);

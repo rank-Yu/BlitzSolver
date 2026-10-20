@@ -218,6 +218,12 @@ internal sealed class FlashCardScore
 
     public FlashSetupTraits LatentTrait { get; init; }
 
+    /// <summary>
+    /// The definition's <see cref="CombatSolver.Engine.InCombat.Flash.FlashCardDef.HasDynamicCardType"/>:
+    /// the live type (and MadScience's latent value/trait) come from the card value, not this table.
+    /// </summary>
+    public bool DynamicCardType { get; init; }
+
     public FlashCalculatedKind Calculated { get; init; }
 }
 

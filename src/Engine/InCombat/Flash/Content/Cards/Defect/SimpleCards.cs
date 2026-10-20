@@ -138,7 +138,7 @@ public sealed class RocketPunch : FlashCardDef
         if ((uint)position >= (uint)x.B.CardCount)
             throw new FlashUnsupportedException("生成牌触发时该牌已不在牌堆。");
         FlashCard generated = x.B.Cards[position];
-        if (x.R.Card(generated.Id, generated.Upgrade).Type != FlashCardType.Status)
+        if (FlashKernel.CardType(x.B, x.R, generated) != FlashCardType.Status)
             return;
         if ((uint)self.Index >= (uint)x.B.CardCount)
             throw new FlashUnsupportedException("火箭拳在生成牌结算前离开了牌堆。");
@@ -367,7 +367,7 @@ public sealed class Uproar : FlashCardDef
         for (int index = 0; index < drawCount; index++)
         {
             FlashCard card = x.B.Cards[x.B.HandCount + index];
-            if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack)
                 continue;
             if ((card.Keywords & FlashKeywords.Unplayable) != 0)
                 continue;
@@ -381,7 +381,7 @@ public sealed class Uproar : FlashCardDef
             for (int index = 0; index < drawCount; index++)
             {
                 FlashCard card = x.B.Cards[x.B.HandCount + index];
-                if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack)
+                if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack)
                     continue;
                 buffer[count] = card;
                 origins[count] = index;

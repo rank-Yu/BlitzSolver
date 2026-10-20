@@ -119,3 +119,14 @@
 - **HellraiserPower**：`InfiniteAutoPlaysThisTurn` 存 `FlashPower.Aux0`（条目优先，缺条目取模型内部数据）。`HittableEnemies.All(HpDisplay.IsInfinite())` 在空集合时为真（测试体复活窗口），非空时只有 Waterfall Giant 的蒸汽爆发重写为真；计数达到 9 后不再自动打出但仍自增，有限分支清零，`EndTurnBatch048` 在 owner 参与时清零。
 - **攻击后抽牌的死亡结算**：`CorePowerSupport.ApplyCardPowers` 在镜像攻击之后、卡牌专属补偿之前结算敌人死亡。PommelStrike、DaggerThrow、FlashOfSteel、MinionStrike、PhotonCut、RocketPunch、SweepingBeam、CompileDriver、Ftl 在攻击与抽牌之间调用 `ApplyEnemyDeathPowers`，使抽牌时的 `HittableEnemies`/Hellraiser 与现有引擎一致。
 - **GigantificationPower**：现有引擎的 `PowerAmountPredictionState` 在动作边界把模型数量写回；玩家在同一次动作中死亡时，`BeforeAttack` 已登记的层数会把被死亡清理清零的 Power 恢复。Flash 在 `BeforeAttack` 标 `FlashPowerFlags.PendingAmountState`，`HandlePlayerDeath`/`RemovePowersAfterDeath` 保留这些行，`FlashKernel.Step` 在稳定边界清标记。
+
+## 6. 事件内容的角色无关机制（EC）
+
+事件卡不属于任何角色的初始/奖励池，但会进入牌组并参与战斗；它们的结算落在通用管线。布局与投影见[状态布局](state-layout.md#27-ec-事件内容追加的卡牌值与动态类型)，准入与缺失能力见[准入](admission-and-verification.md)。
+
+- **动态卡牌类型。** `MAD_SCIENCE` 的原生 `CardModel.Type` 是保存属性 `TinkerTimeType` 的覆盖（`TargetType`、结果去向和出牌计数都随之变化）。规则表仍按卡牌 Id 冻结规范数值；结算与 `FlashScorer` 用 `FlashCardDef.CardType`/`FlashCardStats.HasDynamicType` 读实时类型。`Private` 低/高字节保存类型与骑手，`FlashStateImporter` 从原版两个保存属性投影，非法 `None` 按 `UnrepresentableState` 拒绝。评分中该卡的 `LatentCardSetupValue`/`LatentTrait` 按 Power 类型与 `Curious` 骑手照 `CombatBeamSolver.StateEvaluation` 取 10/5。
+- **实例挡格。** `TORIC_TOUGHNESS_POWER` 每个实例一行，`Amount` 是剩余回合、`Aux0` 是挡清零时的格挡量；卡与 Power 都参与 `HasIdentityContent`，因为两个实例可在同一 `AfterBlockCleared` 中先后移除。挡格量在原版是 `decimal`，投影要求非负整数，否则显式拒绝。
+- **结果去向与下回合资源。** `REBOUND_POWER` 用 `ModifyCardPlayResultLocation`/`AfterModifyingCardPlayResultLocation` 把下一张牌的 Discard 改为 Draw/Top 并扣层；`HELLO_WORLD_POWER` 在 `BeforeHandDraw` 用 `AmountOnTurnStart` 次 `TakeRandom` 取 Common 角色牌；`FEEDING_FRENZY_POWER` 是 `TemporaryStrengthPower`，在持有者侧回合末退役；`WRAITH_FORM_POWER` 在持有者侧回合开始扣敏捷。
+- **战斗外 Power 与成长收益。** `FORBIDDEN_GRIMOIRE_POWER`/`IMPROVEMENT_POWER` 的原生唯一钩子是 `AfterCombatEnd`，战斗内只保留计数行；`FORBIDDEN_GRIMOIRE` 的 50 长期资源照现有引擎记入计数器，并在施加 Power 后记录 `ForbiddenGrimoire` 成长收益；`MAD_SCIENCE` 的 Improvement 骑手只在 `ImprovementPower` 实际增加时记录 `MadScience` 成长收益（ST 的打包计数器）。
+- **任务/令牌卡。** 四张 Quest 卡由事件加入牌组、按普通牌洗入战斗牌堆，原生不可打出且只有战斗外钩子，因此定义为空效果；`LUMINESCE` 是 `RadiantPearl` 生成的 Token，只获得能量。
+- **事件怪物。** `FAKE_MERCHANT_MONSTER`/`MYSTERIOUS_KNIGHT` 的招式效果照 `MonsterMoveEffects` 移植；`ARCHITECT`/`BATTLE_FRIEND_*` 只有 `NOTHING_MOVE`。战损假人的 `BATTLEWORN_DUMMY_TIME_LIMIT_POWER` 最后一层对应原版 `EventDefeat`（遭遇 `RanOutOfTime` + 怪物逃跑），Flash 没有该结局，按显式 `FlashUnsupportedException` 回落。

@@ -442,7 +442,7 @@ public sealed class EnragePower : FlashPowerDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Skill)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Skill)
             return;
         FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<StrengthPower>(),
             x.B.Powers[self.Index].Amount, self.Owner);

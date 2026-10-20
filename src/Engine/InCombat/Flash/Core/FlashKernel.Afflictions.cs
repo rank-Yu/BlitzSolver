@@ -30,7 +30,7 @@ public static partial class FlashKernel
         ref FlashCard card = ref x.B.Cards[position];
         FlashAfflictionDef def = FlashRegistry.Affliction(afflictionId);
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-        if (!def.CanAfflictCardType(stats.Type))
+        if (!def.CanAfflictCardType(FlashRegistry.Card(card.Id).CardType(x.B, x.R, card)))
             return;
         if (HasKeyword(x.B, card, FlashKeywords.Unplayable) && !def.CanAfflictUnplayableCards)
             return;
@@ -94,7 +94,7 @@ public static partial class FlashKernel
                 if (hexAmount > 0 && hexed != ushort.MaxValue)
                     ApplyAffliction(ref x, position, hexed, hexAmount);
                 else if (tangledAmount > 0 && entangled != ushort.MaxValue
-                         && x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Attack)
+                         && FlashRegistry.Card(card.Id).CardType(x.B, x.R, card) == FlashCardType.Attack)
                     ApplyAffliction(ref x, position, entangled, 1);
                 else if (ringingAmount > 0 && ringingAffliction != ushort.MaxValue)
                     ApplyAffliction(ref x, position, ringingAffliction, 1);
@@ -199,18 +199,19 @@ public static partial class FlashKernel
                 if (power.Amount <= 0)
                     continue;
                 FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-                if (galvanized != ushort.MaxValue && power.Id == galvanic && stats.Type == FlashCardType.Power)
+                FlashCardType cardType = FlashRegistry.Card(card.Id).CardType(x.B, x.R, card);
+                if (galvanized != ushort.MaxValue && power.Id == galvanic && cardType == FlashCardType.Power)
                 {
                     ApplyAffliction(ref x, position, galvanized, power.Amount);
                     break;
                 }
-                if (tainted != ushort.MaxValue && power.Id == vitalSpark && stats.Type == FlashCardType.Skill)
+                if (tainted != ushort.MaxValue && power.Id == vitalSpark && cardType == FlashCardType.Skill)
                 {
                     ApplyAffliction(ref x, position, tainted, vitalSparkAmount);
                     break;
                 }
                 if (smog != ushort.MaxValue && power.Id == smoggy && power.Owner == FlashLimits.PlayerOwner
-                    && stats.Type == FlashCardType.Skill
+                    && cardType == FlashCardType.Skill
                     && x.B.Counter(FlashCounter.SkillPlayedThisSideTurn) > 0)
                 {
                     ApplyAffliction(ref x, position, smog, 1);

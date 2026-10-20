@@ -76,6 +76,12 @@ public sealed class FlashCardStats
     public required bool StarCostsX { get; init; }
     public required FlashKeywords Keywords { get; init; }
 
+    /// <summary>
+    /// True when <see cref="FlashCardDef.CardType"/> can differ from <see cref="Type"/> for this id.
+    /// Roots without such cards skip the per-card virtual dispatch in the evaluation.
+    /// </summary>
+    public bool HasDynamicType { get; init; }
+
     /// <summary>Native <c>MaxUpgradeLevel</c>; the card is upgradable while its level is below it.</summary>
     public required int MaxUpgradeLevel { get; init; }
 

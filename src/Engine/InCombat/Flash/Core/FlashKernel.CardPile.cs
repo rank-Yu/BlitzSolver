@@ -155,7 +155,7 @@ public static partial class FlashKernel
         x.B.AddCounter(FlashCounter.CardsDrawn, 1);
         if (!fromHandDraw)
             x.B.AddCounter(FlashCounter.NonHandDrawsThisTurn, 1);
-        if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Status)
+        if (FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Status)
             x.B.AddCounter(FlashCounter.StatusCardsDrawnThisTurn, 1);
     }
 

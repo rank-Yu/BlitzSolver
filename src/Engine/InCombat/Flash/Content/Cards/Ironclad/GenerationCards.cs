@@ -86,7 +86,7 @@ public sealed class PrimalForce : FlashCardDef
         for (int index = 0; index < handCount; index++)
         {
             FlashCard card = x.B.Cards[index];
-            if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Attack)
                 attacks[attackCount++] = index;
         }
         ushort giantRock = FlashRegistry.CardId<GiantRock>();

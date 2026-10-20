@@ -204,7 +204,7 @@ public sealed class RagePower : FlashPowerDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         FlashKernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
             FlashValueProps.Unpowered, fromCard: false);
@@ -228,7 +228,7 @@ public sealed class JugglingPower : FlashPowerDef
 
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashPower power = ref x.B.Powers[self.Index];
         power.Aux0++;
@@ -381,7 +381,7 @@ public sealed class AggressionPower : FlashPowerDef
         for (int index = 0; index < discardCount; index++)
         {
             FlashCard card = x.B.Cards[discardStart + index];
-            if (x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Attack)
                 order[candidates++] = checked((byte)index);
         }
         // ListExtensions.UnstableShuffle: Fisher-Yates from the end over the discard-order list.
@@ -704,7 +704,7 @@ public sealed class CorruptionPower : FlashPowerDef
         in FlashCard card, FlashPile pile, decimal amount)
     {
         if (self.Owner != FlashLimits.PlayerOwner
-            || rules.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
+            || FlashRegistry.Card(card.Id).CardType(battle, rules, card) != FlashCardType.Skill)
         {
             return amount;
         }
@@ -716,7 +716,7 @@ public sealed class CorruptionPower : FlashPowerDef
     {
         position = FlashPilePosition.Bottom;
         if (self.Owner != FlashLimits.PlayerOwner
-            || x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
+            || FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill)
         {
             return location;
         }
@@ -746,7 +746,7 @@ public sealed class FreeAttackPower : FlashPowerDef
         in FlashCard card, FlashPile pile, decimal amount)
     {
         if (self.Owner != FlashLimits.PlayerOwner
-            || rules.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack
+            || FlashRegistry.Card(card.Id).CardType(battle, rules, card) != FlashCardType.Attack
             || pile is not (FlashPile.Hand or FlashPile.Play))
         {
             return amount;
@@ -757,7 +757,7 @@ public sealed class FreeAttackPower : FlashPowerDef
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
         if (self.Owner != FlashLimits.PlayerOwner
-            || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+            || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
         {
             return;
         }
@@ -783,7 +783,7 @@ public sealed class OneTwoPunchPower : FlashPowerDef
         int playCount)
     {
         if (self.Owner != FlashLimits.PlayerOwner
-            || x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack)
+            || FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack)
         {
             return playCount;
         }

@@ -17,6 +17,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `PendingChoice` | 根存在待处理选择或执行续接 |
 | `ThirdParty` | 存在第三方 gameplay 订阅者、BaseLib 卡牌修饰、未登记模型状态 |
 | `UnsupportedCard` 等 | 任一卡牌、附魔、苦难、Power、遗物、药水、球、怪物没有 Flash 定义 |
+| `MultiPlayer` / `TestContent` / `DeprecatedContent` | 明确不在单人原版范围的内容类别（多人专用 37 张卡与 6 个 Power、`MockCardPool`/`MOCK_*` 测试内容、`DeprecatedCardPool` 废弃内容），见下节 |
 | `UnsupportedClosure` | 可达内容闭包中有不受支持的项（见下） |
 | `UnrepresentableState` | 旧模拟器里存在 Flash 无法表示的状态（未建模的 StateStore 条目、非空的未支持侧表等） |
 | `Capacity` | 估计的牌数、Power 数、敌人数超出容量 |
@@ -136,6 +137,17 @@ NB（亡灵契约师）新增的投影与惰性规则：
 - **历史计数**：`OstyAttacksThisTurn` 取 `SimulatedCombatState.GetCreatureAttacksThisTurn(osty)`（根历史 + 预测历史），`DoomAppliedThisTurn` 取 `WasDoomAppliedThisTurn(player.Creature)`，`EtherealPlays` 取 `GetEtherealPlaysBeforePrediction` 加预测历史中 `CombatCardPlayFinishedEntry.WasEthereal` 的条数。它们都是只增或按现有引擎清零时机重置的普通计数，没有额外条目。
 - **Oblivion 的成对状态**：现有引擎把“打出时层数”存在 `CardPlayPairPredictionState`（键为当前 `CardPlay`），由 `AfterCardPlayed` 删除。稳定边界不可能落在一次卡牌效果内部（`_cardExecutionScopeDepth == 0`），因此该 map 在导入时必为空；`FlashStateProjections` 认领该条目并要求 `Amounts.Count == 0`，非空按 `UnrepresentableState` 拒绝。退役的 `OblivionPower` 残留空 map 与 Afterimage/Strangle 相同，按惰性放行（读取点只遍历正层 `EffectivePowers`，重新获得是新的原生实例）。
 - **战斗结束**：Osty 死亡不阻止战斗结束；玩家死亡时先清玩家 Power/球，再以 `force` 击杀 Osty，最后关闭玩家侧 Hook，与现有引擎顺序一致。
+
+### 2.1 EC：明确分类的不支持内容与事件内容投影
+
+**显式类别。** 单人原版范围外的卡牌与 Power 不再以笼统的“未定义”拒绝。`FlashUnsupportedContent.Card`/`Power`（`src/Search/FlashBeam/Bridge/FlashUnsupportedContent.cs`）在 `FlashRulesCompiler.CardId` 与 `FlashStateImporter` 的 Power 导入处分类：
+
+- `MultiPlayer`：`CardMultiplayerConstraint.MultiplayerOnly` 的 37 张卡（`BEACON_OF_HOPE`、`BLADE_SYMPHONY`、…、`UNDERWORLD`）与 6 个多人专用 Power（`COORDINATE_POWER`、`FADE_POWER`、`HAMMER_TIME_POWER`、`LEADERSHIP_POWER`、`ONE_FOR_ALL_POWER`、`TANK_POWER`）。这些内容在单人流程不会进入牌组；手动注入的根以该类别拒绝。证据：事件卡组对照中把 `BEACON_OF_HOPE` 注入战斗牌堆，`flash-diff.txt` 首行为 `REJECTED MultiPlayer: BEACON_OF_HOPE 是多人专用内容…`。
+- `TestContent`：`MockCardPool` 的卡与 `MOCK_*` Power；`DeprecatedContent`：`DeprecatedCardPool` 的卡。`ModelDb.AllCards` 由 `AllCardPools` 组成，测试池不在其中，因此这两类在正常单机跑局不可达；分类仍是准入路径上的显式类别，不是半成品定义。
+
+**事件卡。** `Content/Cards/Event/` 实现 19 张 Event 稀有度卡、12 张 Basic/Ancient 事件奖励卡与 5 张任务/令牌卡；Event/Ancient 卡不在 `FilterForCombat` 的生成池中，只作为牌组牌/事件奖励出现，`GeneratedCardPools` 只声明它们自身会抽样的角色池（`Distraction`/`Metamorphosis`/`Abundance`/`MadScience` 的 Chaos）。任务卡（`BYRDONIS_EGG`、`DOWSING`、`LANTERN_KEY`、`SPOILS_MAP`）由事件加入牌组、按普通牌组牌洗进战斗牌堆，原生 `CardType.Quest`/不可打出，只有战斗外钩子；因此只保留卡值，没有战斗 Hook。`LUMINESCE` 是 RadiantPearl 在战斗内生成的 Token 卡，效果为获得能量。`MAD_SCIENCE` 的两个保存属性（`TinkerTimeType`/`TinkerTimeRider`）在 Bridge 里投影成 `FlashCard.Private`（低/高字节），不合法（`None`）的根按 `UnrepresentableState` 拒绝；规则表仍按原生 Id 冻结规范数值，结算/评估用 `FlashCardDef.CardType` 读实时类型，`HasDynamicType` 让没有该卡的根跳过这次动态派发。`MAUL` 的每张牌的伤害累加与其私有计数一起放在 `Var0`/`Private`，降级时恢复；`TORIC_TOUGHNESS` 的实例挡格值投影到 `Power.Aux0`（非整数拒绝），卡与 Power 都声明 `IsIdentityContent` 以启用按 occurrence 跟踪移除的 Power 派发。`FORBIDDEN_GRIMOIRE_POWER` 与 `IMPROVEMENT_POWER` 的原生唯一钩子是 `AfterCombatEnd`，没有战斗内读取点，只保留计数行；`FORBIDDEN_GRIMOIRE` 与 `MAD_SCIENCE` 的 Improvement 骑手按现有引擎时机写 `FlashGrowthRewards`（ST 的五个打包成长计数器），与 `Counter[GrowthRewardsForbiddenGrimoireMadScience]` 逐字段一致。
+
+**事件遭遇。** `Content/Monsters/Event/` 实现 `FAKE_MERCHANT_MONSTER`、`MYSTERIOUS_KNIGHT`、`ARCHITECT` 与 `BATTLE_FRIEND_V1/V2/V3`。前两者的招式效果按现有引擎 `MonsterMoveEffects` 逐条移植（商人：SWIPE/SPEW_COINS/THROW_RELIC 的 Frail/ENRAGE 的力量；骑士：继承 FlailKnight 的 WAR_CHANT），起手力量/多层护甲来自根 Power 表。`ARCHITECT` 是 9999 HP 的 `NOTHING_MOVE` 循环，事件是对话场景、没有可搜索的自然战斗根；定义只保证合成根可模拟，不虚构效果。三个 `BATTLE_FRIEND` 变体同样只有 `NOTHING_MOVE`，`BATTLEWORN_DUMMY_TIME_LIMIT_POWER` 在敌方侧回合末递减；最后一层到时，现有引擎设置遭遇 `RanOutOfTime` 并让假人逃跑（`SearchBoundaryReason.EventDefeat`），Flash 没有这个结局，按显式 `FlashUnsupportedException` 回落并记录为缺失能力（`FlashOutcome` 只有 Victory/Defeat，事件边界没有对应的搜索终局）。因此 `regress.sh` 只加入 `FAKE_MERCHANT_EVENT_ENCOUNTER`、`MYSTERIOUS_KNIGHT_EVENT_ENCOUNTER` 与 `THE_ARCHITECT_EVENT_ENCOUNTER` 的 FLASHM1/FLASHM2 自然根；三个战损假人遭遇不加入，48 条游走都会在超时层记 `unsupported`。
 
 ## 3. 差分测试
 

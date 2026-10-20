@@ -23,7 +23,7 @@ public sealed class ArtOfWar : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type == FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) == FlashCardType.Attack)
             x.B.Relics[self.Index].Counter = 1;
     }
 
@@ -56,7 +56,7 @@ public sealed class BurningSticks : FlashRelicDef
 {
     public override void AfterCardExhausted(ref FlashExec x, FlashListener self, in FlashCard card, bool causedByEthereal)
     {
-        if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill || x.B.Relics[self.Index].Counter != 0)
+        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill || x.B.Relics[self.Index].Counter != 0)
             return;
         if (!FlashKernel.AddGeneratedCard(ref x, FlashKernel.CloneCard(card), FlashPile.Hand))
             return;
@@ -190,7 +190,7 @@ public sealed class Kunai : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B) || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (!FlashKernel.IsInProgress(x.B) || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
@@ -219,7 +219,7 @@ public sealed class Kusarigama : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
@@ -250,7 +250,7 @@ public sealed class LetterOpener : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B) || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Skill)
+        if (!FlashKernel.IsInProgress(x.B) || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Skill)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
@@ -280,7 +280,7 @@ public sealed class Nunchaku : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
@@ -336,7 +336,7 @@ public sealed class OrnamentalFan : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B) || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (!FlashKernel.IsInProgress(x.B) || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
@@ -364,7 +364,7 @@ public sealed class PenNib : FlashRelicDef
 
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter = (relic.Counter + 1) % AttacksThreshold;
@@ -424,7 +424,7 @@ public sealed class Permafrost : FlashRelicDef
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
         if (!FlashKernel.IsInProgress(x.B)
-            || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Power
+            || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power
             || x.B.Relics[self.Index].Counter != 0)
             return;
         FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.R.RelicVar(Id, 0),
@@ -490,7 +490,7 @@ public sealed class RainbowRing : FlashRelicDef
     {
         if (!FlashKernel.IsInProgress(x.B) || x.B.Relics[self.Index].Counter >= 1)
             return;
-        FlashCardType type = x.R.Card(play.Card.Id, play.Card.Upgrade).Type;
+        FlashCardType type = FlashKernel.CardType(x.B, x.R, play.Card);
         int attacks = x.B.Counter(FlashCounter.AttacksPlayedThisTurn) + (type == FlashCardType.Attack ? 1 : 0);
         int skills = x.B.Counter(FlashCounter.SkillCardsPlayedThisTurn) + (type == FlashCardType.Skill ? 1 : 0);
         ref FlashRelic relic = ref x.B.Relics[self.Index];
@@ -522,7 +522,7 @@ public sealed class Shuriken : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B) || x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (!FlashKernel.IsInProgress(x.B) || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
@@ -549,7 +549,7 @@ public sealed class TuningFork : FlashRelicDef
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Skill)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Skill)
             return;
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;

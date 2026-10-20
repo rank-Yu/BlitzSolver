@@ -128,7 +128,7 @@ public sealed class SmoggyPower : FlashPowerDef
         for (int position = 0; position < x.B.CardCount; position++)
         {
             ref readonly FlashCard card = ref x.B.Cards[position];
-            if (card.AfflictionId != 0 || x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Skill)
+            if (card.AfflictionId != 0 || FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill)
                 continue;
             FlashKernel.ApplyAffliction(ref x, position, smog, 1);
             if (x.NeedsChoice)

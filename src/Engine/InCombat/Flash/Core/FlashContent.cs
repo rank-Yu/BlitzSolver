@@ -1026,6 +1026,24 @@ public abstract class FlashCardDef : FlashListenerDef
         => rules.Card(card.Id, card.Upgrade).Target;
 
     /// <summary>
+    /// Native <c>CardModel.Type</c> when it is not the per-id canonical value (MadScience's saved
+    /// <c>TinkerTimeType</c>). The rule table's <see cref="FlashCardStats.Type"/> stays canonical for
+    /// generation pools and fingerprints; the settlement and evaluation paths that read the native
+    /// live type call this override instead.
+    /// </summary>
+    public virtual FlashCardType CardType(in FlashBattle battle, FlashRules rules, in FlashCard card)
+        => rules.Card(card.Id, card.Upgrade).Type;
+
+    /// <summary>True for definitions whose <see cref="CardType"/> reads per-card state.</summary>
+    public virtual bool HasDynamicCardType => false;
+
+    /// <summary>
+    /// Opaque per-card rider code the evaluation reads for a dynamic-type card (MadScience's
+    /// <c>TinkerTimeRider</c>), or -1 when the definition has none. Settlement reads its own code.
+    /// </summary>
+    public virtual int PrivateRider(in FlashCard card) => -1;
+
+    /// <summary>
     /// Native <c>CardModel.GetResultLocationForCardPlay</c> override (<c>CardResultLocationMirrors</c>).
     /// The base location is Discard, Exhaust or Play (a power removes the card from combat); a card that
     /// returns to the hand or the top of the draw pile rewrites the discard case here. <paramref name="position"/>

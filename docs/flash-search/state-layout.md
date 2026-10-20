@@ -147,6 +147,15 @@ DX3 批次没有改变 `FlashBattle`/`FlashCard` 的尺寸，也没有新增 `Fl
 - `FlashCard.DampenOriginalUpgrade` 仍是卡牌被 Dampen 前的升级等级加一：克隆、变化和替换（`CloneCard`/`TransformCards`/`ReplaceCard`）清零；Rampage/TheScythe 的 `PreservesVar0OnDowngrade` 在降级后恢复 `Var0`，其余累计值仍按既有 `AfterDowngraded`/`Private` 表示。
 - `FlashMonsterRules.InitialMoveLogged` 是规则表字段（非战斗状态）：状态机构造器已把初始 `MoveState` 记入 `StateLog` 时，敌方回合内的召唤物在生成时立即记录该行动。
 
+### 2.7 EC 事件内容追加的卡牌值与动态类型
+
+EC 批次没有改变 `FlashBattle`/`FlashCard` 的尺寸，也没有新增 `FlashCounter`（`FlashCard` 仍 92 字节，`FlashBattle` 仍 12472 字节）：
+
+- **`FlashCard.Private` 的新用途。** `MAD_SCIENCE` 把原版两个保存属性打进 `Private`：低字节是 `CardModel.Type`（`TinkerTimeType`，1/2/3），高字节是 `TinkerTime.RiderEffect`（0–9）。原版 `CreateClone` 复制这两个保存属性，所以克隆也复制 `Private`；生成路径不会产生该卡。`MAUL` 的 `_extraDamageFromMaulPlays` 同时写进 `Var0`（Damage 变量偏移）与 `Private`，`AfterDowngraded` 用 `Private` 恢复 `Var0`；克隆复制该值，与原版复制卡模型字段一致。两处都只在 `FlashCard` 已有字段内保存，`Private` 的 `short` 溢出按 `FlashCapacityException` 拒绝。
+- **动态卡牌类型。** `MAD_SCIENCE` 的 `CardModel.Type` 是 `TinkerTimeType` 的覆盖；规则表仍按原生卡牌 Id 保存规范类型（生成池与指纹用它），结算与评估读取 `FlashCardDef.CardType(battle, rules, card)`。`FlashCardStats.HasDynamicType` 是该调用的根级开关：没有动态类型卡的根只多一次布尔判断。`TargetType` 同样按卡值覆盖（Attack 为 `AnyEnemy`，其余 `Self`）。
+- **实例型 ToricToughnessPower。** 每回合数一行，`Aux0` 是该实例在格挡清零时提供的格挡量（原版 `SetBlock` 的 `DynamicVars.Block`，投影要求非负整数，否则 `UnrepresentableState`）。同一 `(owner,id)` 的两个实例可以在同一次 `AfterBlockCleared` 中先后移除，牌表下标会移动，所以卡与 Power 定义都声明 `IsIdentityContent`，让派发走按 occurrence 跟踪移除的路径；稳定边界仍只有 `Aux0`/`Amount`。
+- **只存在于战斗外的 Power 与成长收益。** `FORBIDDEN_GRIMOIRE_POWER` 与 `IMPROVEMENT_POWER` 的原版唯一钩子是 `AfterCombatEnd`，现有引擎的战斗模拟不派发它；Flash 只保留计数行，卡牌效果另行记录 `LongTermResourceValue`（与原版 `RecordLongTermResource(50)` 一致）。两张卡同时按现有引擎的时机写 ST 的成长计数器：`FORBIDDEN_GRIMOIRE` 在施加 Power 后 `FlashGrowthRewards.Add(ForbiddenGrimoire)`；`MAD_SCIENCE` 的 Improvement 骑手只在 `ImprovementPower` 数量实际增加时 `FlashGrowthRewards.Add(MadScience)`。两个 Power 条目本身不会被任何战斗结算读取，因此无需投影私有状态。
+
 ## 3. 规范化
 
 同一局面必须只有一种字节表示，否则去重失效；不同局面绝不能字节相同。

@@ -83,7 +83,7 @@ public sealed class IterationPower : FlashPowerDef
         if ((uint)drawnPosition >= (uint)x.B.CardCount)
             throw new FlashUnsupportedException("抽牌触发时抽到的牌已不在牌堆。");
         FlashCard card = x.B.Cards[drawnPosition];
-        if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Status)
+        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
             return;
         if (x.B.Counter(FlashCounter.StatusCardsDrawnThisTurn) > 1)
             return;
@@ -206,14 +206,15 @@ public sealed class FreePowerPower : FlashPowerDef
     public override decimal TryModifyEnergyCostInCombatLate(in FlashBattle battle, FlashRules rules, FlashListener self,
         in FlashCard card, FlashPile pile, decimal amount)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || rules.Card(card.Id, card.Upgrade).Type != FlashCardType.Power)
+        if (self.Owner != FlashLimits.PlayerOwner
+            || FlashRegistry.Card(card.Id).CardType(battle, rules, card) != FlashCardType.Power)
             return amount;
         return pile is FlashPile.Hand or FlashPile.Play ? 0m : amount;
     }
 
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Power)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
@@ -251,7 +252,7 @@ public sealed class StormPower : FlashPowerDef
 
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type == FlashCardType.Power)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) == FlashCardType.Power)
             x.PushCardPlayPair(FlashCardPlayPairKind.StormLightning, self.Owner, x.B.Powers[self.Index].Id,
                 x.B.Powers[self.Index].Amount);
     }
@@ -275,7 +276,7 @@ public sealed class SubroutinePower : FlashPowerDef
 
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type == FlashCardType.Power)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) == FlashCardType.Power)
             x.PushCardPlayPair(FlashCardPlayPairKind.SubroutineEnergy, self.Owner, x.B.Powers[self.Index].Id,
                 x.B.Powers[self.Index].Amount);
     }
@@ -332,7 +333,7 @@ public sealed class SmokestackPower : FlashPowerDef
         if ((uint)position >= (uint)x.B.CardCount)
             throw new FlashUnsupportedException("生成牌触发时该牌已不在牌堆。");
         FlashCard card = x.B.Cards[position];
-        if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Status)
+        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
             return;
         FlashCardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, FlashValueProps.Unpowered,
             self.Owner);
@@ -353,7 +354,7 @@ public sealed class TrashToTreasurePower : FlashPowerDef
         if ((uint)position >= (uint)x.B.CardCount)
             throw new FlashUnsupportedException("生成牌触发时该牌已不在牌堆。");
         FlashCard card = x.B.Cards[position];
-        if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Status)
+        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         for (int index = 0; index < amount; index++)
@@ -393,7 +394,7 @@ public sealed class SignalBoostPower : FlashPowerDef
 
     public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
         int playCount)
-        => x.R.Card(card.Id, card.Upgrade).Type == FlashCardType.Power ? playCount + 1 : playCount;
+        => FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Power ? playCount + 1 : playCount;
 
     public override void AfterModifyingCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card)
     {
@@ -423,7 +424,7 @@ public sealed class FeralPower : FlashPowerDef
         // Native FeralPower checks CardModel.IsDupe, not IsClone. Flash has no dupe cards (the
         // importer rejects them); FlashCard.IsClone marks native CreateClone copies (AdaptiveStrike),
         // which FeralPower does not exclude.
-        if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack || energyValue > 0)
+        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack || energyValue > 0)
             return location;
         ref FlashPower power = ref x.B.Powers[self.Index];
         if (power.Aux0 >= power.Amount)

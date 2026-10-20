@@ -261,7 +261,7 @@ public sealed class MasterPlannerPower : FlashPowerDef
     {
         if (self.Owner != FlashLimits.PlayerOwner)
             return;
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Skill)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Skill)
             return;
         if ((uint)play.Position >= (uint)x.B.CardCount)
             throw new FlashUnsupportedException("策划大师找不到刚打出的技能牌。");
@@ -487,12 +487,12 @@ public sealed class FreeSkillPower : FlashPowerDef
     {
         if (self.Owner != FlashLimits.PlayerOwner || pile is not (FlashPile.Hand or FlashPile.Play))
             return amount;
-        return rules.Card(card.Id, card.Upgrade).Type == FlashCardType.Skill ? 0m : amount;
+        return FlashRegistry.Card(card.Id).CardType(battle, rules, card) == FlashCardType.Skill ? 0m : amount;
     }
 
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Skill)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Skill)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)

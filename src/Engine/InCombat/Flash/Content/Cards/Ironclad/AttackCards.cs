@@ -144,7 +144,7 @@ public sealed class Pillage : FlashCardDef
                 return;
             // CardDrawCardMirrors.PillageOnPlay tests the returned drawn card, which stays the same
             // value even when AfterCardDrawn auto-played (Hellraiser) and removed it from hand.
-            if (x.R.Card(drawn.Id, drawn.Upgrade).Type != FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, drawn) != FlashCardType.Attack)
                 return;
         }
     }
@@ -474,7 +474,7 @@ public sealed class Stomp : FlashCardDef
     // BeforeCardPlayedMirrors.HandleStomp: every Attack the owner plays reduces this card by 1.
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Attack)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
             return;
         ref FlashCard card = ref x.B.Cards[self.Index];
         if (card.Id != Id)
@@ -543,7 +543,7 @@ public sealed class Thrash : FlashCardDef
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            if (x.R.Card(x.B.Cards[index].Id, x.B.Cards[index].Upgrade).Type == FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, x.B.Cards[index]) == FlashCardType.Attack)
                 count++;
         }
         if (count == 0)
@@ -551,7 +551,7 @@ public sealed class Thrash : FlashCardDef
         int pick = x.B.RngStream(FlashRngStream.CombatCardSelection).NextInt(0, count);
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            if (x.R.Card(x.B.Cards[index].Id, x.B.Cards[index].Upgrade).Type != FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, x.B.Cards[index]) != FlashCardType.Attack)
                 continue;
             if (pick-- == 0)
                 return index;

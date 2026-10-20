@@ -312,7 +312,8 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
-            RecordCardPlayStarted(ref x.B, stats, index, energyValue, isAutoPlay);
+            RecordCardPlayStarted(ref x.B, stats, FlashRegistry.Card(card.Id).CardType(x.B, x.R, card),
+                index, energyValue, isAutoPlay);
             bool identityScope = x.R.HasIdentityContent;
             int monologueBase = 0;
             int outerSourceSerial = 0;
@@ -458,7 +459,7 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
-            RecordCardPlayed(ref x.B, stats);
+            RecordCardPlayed(ref x.B, stats, FlashRegistry.Card(card.Id).CardType(x.B, x.R, card));
             // SimulatedCombatState.RecordCardLifecycle: the completed play records the exact Fetch
             // object in _fetchCardsPlayedThisTurn. The value still sits in the play pile here.
             if ((uint)playPosition < (uint)x.B.PlayCount
@@ -550,15 +551,15 @@ public static partial class FlashKernel
     }
 
     /// <summary>Mirrors <c>SimulatedCombatState.RecordCardPlayStarted</c> for a manual or auto play.</summary>
-    private static void RecordCardPlayStarted(ref FlashBattle battle, FlashCardStats stats, int playIndex,
-        int energyValue, bool isAutoPlay)
+    private static void RecordCardPlayStarted(ref FlashBattle battle, FlashCardStats stats,
+        FlashCardType cardType, int playIndex, int energyValue, bool isAutoPlay)
     {
         battle.AddCounter(FlashCounter.CardPlayStartsThisTurn, 1);
-        if (stats.Type == FlashCardType.Attack)
+        if (cardType == FlashCardType.Attack)
             battle.AddCounter(FlashCounter.AttackPlayStartsThisTurn, 1);
-        if (stats.Type is FlashCardType.Attack or FlashCardType.Skill)
+        if (cardType is FlashCardType.Attack or FlashCardType.Skill)
             battle.AddCounter(FlashCounter.AttackSkillStartsThisTurn, 1);
-        if (stats.Type == FlashCardType.Attack && energyValue == 0)
+        if (cardType == FlashCardType.Attack && energyValue == 0)
             battle.AddCounter(FlashCounter.ZeroCostAttackStartsThisTurn, 1);
         if (playIndex != 0)
             return;
@@ -585,9 +586,10 @@ public static partial class FlashKernel
     /// <c>SimulatedCombatState.CompleteCardPlayEffects</c>. Slow, Fetch, relic card counters and
     /// returning cards are not supported yet.
     /// </summary>
-    private static void RecordCardPlayed(ref FlashBattle battle, FlashCardStats stats)
+    private static void RecordCardPlayed(ref FlashBattle battle, FlashCardStats stats,
+        FlashCardType cardType)
     {
-        if (stats.Type == FlashCardType.Attack)
+        if (cardType == FlashCardType.Attack)
         {
             battle.AddCounter(FlashCounter.AttacksPlayedThisTurn, 1);
             if ((stats.Tags & FlashCardTag.Shiv) != 0)
@@ -596,7 +598,7 @@ public static partial class FlashKernel
         battle.AddCounter(FlashCounter.CardsPlayedThisTurn, 1);
         // CardPlayFinished entry: CombatPredictionHistory records one per completed card play.
         battle.AddCounter(FlashCounter.FinishedCardPlays, 1);
-        if (stats.Type == FlashCardType.Skill)
+        if (cardType == FlashCardType.Skill)
         {
             battle.AddCounter(FlashCounter.SkillCardsPlayedThisTurn, 1);
             // SimulatedCombatState.RecordSkillPlayed's _skillsPlayedThisTurn membership.
@@ -661,7 +663,7 @@ public static partial class FlashKernel
     {
         removeFromCombat = false;
         position = FlashPilePosition.Bottom;
-        if (stats.Type == FlashCardType.Power)
+        if (FlashRegistry.Card(card.Id).CardType(battle, rules, card) == FlashCardType.Power)
         {
             removeFromCombat = true;
             return FlashPile.Play;

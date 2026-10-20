@@ -48,6 +48,7 @@ CheckCxKernel(rules);
 CheckDecimalVars(rules);
 CheckDx3Kernel(rules);
 CheckPrKernel();
+CheckEcKernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -2345,6 +2346,46 @@ static void CheckPrKernel()
         && bookmarkBattle.Cards[0].EnergyModifiers[0].Amount == -1
         && bookmarkBattle.Cards[0].EnergyModifiers[0].Expiration == FlashCostExpiration.WhenPlayed,
         "Bookmark 的费用修饰应为直到打出的 -1");
+}
+
+// EC: contracts for the event-card kernel helpers. SetInstanceBlockValue backs ToricToughnessPower's
+// block amount (an integer in the settled card block; a fractional value is an explicit boundary), and
+// MakeFreeThisCombat mirrors CardModel.SetToFreeThisCombat's energy and star-cost modifiers.
+static void CheckEcKernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD 定义");
+    Check(FlashRegistry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD 定义");
+    FlashCard free = FlashKernel.CreateCard(rules, defend);
+    FlashKernel.MakeFreeThisCombat(rules, ref free);
+    Check(free.EnergyModifierCount == 1, "SetToFreeThisCombat 应添加一个费用修饰");
+    FlashCostModifier modifier = free.EnergyModifiers[0];
+    Check(modifier.Type == FlashCostType.Absolute && modifier.Amount == 0
+        && modifier.Expiration == FlashCostExpiration.EndOfCombat && !modifier.IsReduceOnly,
+        "SetToFreeThisCombat 应是本场战斗的绝对 0 费修饰");
+    Check(free.HasTemporaryStarCost && free.TemporaryStarCost == 0
+        && !free.TemporaryStarCostClearsAtTurnEnd && !free.TemporaryStarCostClearsWhenPlayed,
+        "SetToFreeThisCombat 的临时星能费用不在回合末或打出时清除");
+
+    FlashBattle battle = NewBattle();
+    battle.PowerCount = 1;
+    battle.Powers[0] = new FlashPower
+    {
+        Id = FlashRegistry.PowerId<ToricToughnessPower>(),
+        Owner = FlashLimits.PlayerOwner,
+        Amount = 2,
+    };
+    FlashKernel.SetInstanceBlockValue(ref battle, 0, 7m);
+    Check(battle.Powers[0].Aux0 == 7, "实例格挡值应写入 Aux0");
+    bool rejected = false;
+    try
+    {
+        FlashKernel.SetInstanceBlockValue(ref battle, 0, 7.5m);
+    }
+    catch (FlashUnsupportedException)
+    {
+        rejected = true;
+    }
+    Check(rejected, "小数格挡量应抛 FlashUnsupportedException");
 }
 
 static FlashBattle NewBattle()

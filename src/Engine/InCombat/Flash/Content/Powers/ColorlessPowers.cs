@@ -272,7 +272,7 @@ public sealed class NostalgiaPower : FlashPowerDef
         position = FlashPilePosition.Bottom;
         if (location != FlashPile.Discard)
             return location;
-        FlashCardType type = x.R.Card(card.Id, card.Upgrade).Type;
+        FlashCardType type = FlashKernel.CardType(x.B, x.R, card);
         if (type is not (FlashCardType.Attack or FlashCardType.Skill))
             return location;
         if (x.B.Counter(FlashCounter.AttackSkillStartsThisTurn) >= x.B.Powers[self.Index].Amount)

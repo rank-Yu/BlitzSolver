@@ -224,7 +224,7 @@ public sealed class Pinpoint : FlashCardDef
     {
         if (self.Owner != FlashLimits.PlayerOwner)
             return;
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != FlashCardType.Skill)
+        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Skill)
             return;
         ref FlashCard card = ref x.B.Cards[self.Index];
         if (card.Id != Id)

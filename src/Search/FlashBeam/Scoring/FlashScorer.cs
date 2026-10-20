@@ -57,7 +57,16 @@ internal sealed class FlashScorer
         => VarDouble(battle, card, stats, score.DamageVar, score.BaseDamage)
             + VarDouble(battle, card, stats, score.BlockVar, score.BaseBlock) * 0.8d
             + VarDouble(battle, card, stats, score.CardsVar, score.BaseCards) * 3d
-            + (score.IsPower ? 8d : 0d);
+            + (score.DynamicCardType
+                ? (CardType(battle, card, stats) == FlashCardType.Power ? 8d : 0d)
+                : (score.IsPower ? 8d : 0d));
+
+    /// <summary>
+    /// Native live <c>CardModel.Type</c>: the rule table's canonical value unless the definition reads
+    /// per-card state (MadScience's saved TinkerTimeType). Roots without such cards take the cheap branch.
+    /// </summary>
+    private FlashCardType CardType(in FlashBattle battle, in FlashCard card, FlashCardStats stats)
+        => stats.HasDynamicType ? FlashRegistry.Card(card.Id).CardType(battle, Rules, card) : stats.Type;
 
     private static double VarDouble(in FlashBattle battle, in FlashCard card, FlashCardStats stats, int index,
         double fallback)
@@ -74,7 +83,7 @@ internal sealed class FlashScorer
     private double BranchCardValue(in FlashBattle battle, in FlashCard card, FlashCardStats stats, FlashCardScore score)
     {
         double value = CardValue(battle, card, stats, score);
-        if (stats.Type != FlashCardType.Attack || score.Calculated == FlashCalculatedKind.None)
+        if (CardType(battle, card, stats) != FlashCardType.Attack || score.Calculated == FlashCalculatedKind.None)
             return value;
         decimal baseVar = Var(battle, card, stats, score.CalculationBaseVar);
         decimal extraVar = Var(battle, card, stats, score.CalculationExtraVar);
@@ -488,7 +497,7 @@ internal sealed class FlashScorer
                 ref readonly FlashCard card = ref battle.Cards[start + offset];
                 FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
                 FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
-                if ((stats.Type is FlashCardType.Status or FlashCardType.Curse)
+                if ((CardType(battle, card, stats) is FlashCardType.Status or FlashCardType.Curse)
                     && !LeavesHandAtTurnEnd(battle, segment, card, cardScore))
                 {
                     liveDeckClutter = checked(liveDeckClutter + 1);
@@ -524,7 +533,7 @@ internal sealed class FlashScorer
             {
                 ref readonly FlashCard card = ref battle.Cards[start + offset];
                 FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-                if (stats.Type != FlashCardType.Attack)
+                if (CardType(battle, card, stats) != FlashCardType.Attack)
                     continue;
                 FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
                 retainedAttackValue += Math.Max(
@@ -678,9 +687,24 @@ internal sealed class FlashScorer
                 ref readonly FlashCard card = ref battle.Cards[start + offset];
                 FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
                 FlashSetupTraits trait = cardScore.LatentTrait;
+                int latentValue = cardScore.LatentValue;
+                int rider = cardScore.DynamicCardType ? FlashRegistry.Card(card.Id).PrivateRider(card) : -1;
+                if (cardScore.DynamicCardType
+                    && rider >= 0
+                    && CardType(battle, card, stats: Rules.Card(card.Id, card.Upgrade))
+                        == FlashCardType.Power)
+                {
+                    // CombatBeamSolver.StateEvaluation.LatentCardSetupValue's MadScience cases.
+                    trait = rider == CombatSolver.Engine.InCombat.Flash.Content.Cards.Event.MadScience.RiderCurious
+                        ? FlashSetupTraits.Curious
+                        : FlashSetupTraits.RecurringScaling;
+                    latentValue = rider == CombatSolver.Engine.InCombat.Flash.Content.Cards.Event.MadScience.RiderCurious
+                        ? 10
+                        : 5;
+                }
                 latentSetupTraits |= trait;
                 if (trait == FlashSetupTraits.None || !persistentSetupTraits.HasFlag(trait))
-                    latentSetupValue += cardScore.LatentValue;
+                    latentSetupValue += latentValue;
             }
         }
 
@@ -1029,7 +1053,7 @@ internal sealed class FlashScorer
                 FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
                 int replayCount = Math.Max(0, FlashKernel.EnchantedReplayCount(card));
                 if (replayCount == 0
-                    || stats.Type is not (FlashCardType.Attack or FlashCardType.Skill or FlashCardType.Power))
+                    || CardType(battle, card, stats) is not (FlashCardType.Attack or FlashCardType.Skill or FlashCardType.Power))
                     continue;
                 FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
                 double perPlayValue = Math.Max(4d, BranchCardValue(battle, card, stats, cardScore));
@@ -1534,7 +1558,7 @@ internal sealed class FlashScorer
                 ref readonly FlashCard card = ref battle.Cards[start + offset];
                 FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
                 FlashCardScore cardScore = _score.Card(card.Id, card.Upgrade);
-                FlashCardType cardType = stats.Type;
+                FlashCardType cardType = CardType(battle, card, stats);
                 int cardValue = 0;
                 if (needsAllCardValues || (needsAttackValues && cardType == FlashCardType.Attack))
                 {
@@ -1689,7 +1713,7 @@ internal sealed class FlashScorer
         {
             ref readonly FlashCard card = ref battle.Cards[index];
             FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-            if (stats.Type != cardType
+            if (CardType(battle, card, stats) != cardType
                 || (card.Flags & FlashCardFlags.CostsX) != 0
                 || !FlashKernel.CanPlayCard(battle, Rules, index))
             {
@@ -1808,12 +1832,12 @@ internal sealed class FlashScorer
             {
                 ref readonly FlashCard card = ref battle.Cards[start + offset];
                 FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-                if (card.HasKeyword(FlashKeywords.Unplayable) || skillsExhaust && stats.Type == FlashCardType.Skill)
+                if (card.HasKeyword(FlashKeywords.Unplayable) || skillsExhaust && CardType(battle, card, stats) == FlashCardType.Skill)
                     continue;
                 int cost = (card.Flags & FlashCardFlags.CostsX) != 0
                     ? maxEnergy
                     : Math.Max(0, FlashKernel.EnergyCostWithLocalModifiers(battle, card));
-                bool singleUse = stats.Type == FlashCardType.Power || card.HasKeyword(FlashKeywords.Exhaust);
+                bool singleUse = CardType(battle, card, stats) == FlashCardType.Power || card.HasKeyword(FlashKeywords.Exhaust);
                 energyDemand += cost * (singleUse ? Math.Min(1, visits) : visits);
             }
         }
@@ -1867,7 +1891,7 @@ internal sealed class FlashScorer
             {
                 ref readonly FlashCard card = ref battle.Cards[start + offset];
                 FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-                if (stats.Type != FlashCardType.Attack || card.HasKeyword(FlashKeywords.Unplayable))
+                if (CardType(battle, card, stats) != FlashCardType.Attack || card.HasKeyword(FlashKeywords.Unplayable))
                     continue;
                 FlashCardScore score = _score.Card(card.Id, card.Upgrade);
                 if (score.HasOstyAttackTag)
@@ -1983,9 +2007,9 @@ internal sealed class FlashScorer
                         continue;
                     highEnergyCards++;
                     highEnergyCosts[costCount++] = cost;
-                    bool singleUse = stats.Type == FlashCardType.Power
+                    bool singleUse = CardType(battle, card, stats) == FlashCardType.Power
                         || card.HasKeyword(FlashKeywords.Exhaust)
-                        || skillsExhaust && stats.Type == FlashCardType.Skill;
+                        || skillsExhaust && CardType(battle, card, stats) == FlashCardType.Skill;
                     if (!singleUse)
                         highEnergyCosts[costCount++] = cost;
                 }
@@ -2143,7 +2167,7 @@ internal sealed class FlashScorer
             ethereal++;
             FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
             if ((card.Keywords & FlashKeywords.Exhaust) != 0
-                || (corruption || skillsExhaust) && stats.Type == FlashCardType.Skill)
+                || (corruption || skillsExhaust) && CardType(battle, card, stats) == FlashCardType.Skill)
             {
                 exhaustingEthereal++;
             }

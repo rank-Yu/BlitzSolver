@@ -66,7 +66,7 @@ public sealed class SecondWind : FlashCardDef
         for (int index = 0; index < x.B.HandCount; index++)
         {
             FlashCard card = x.B.Cards[index];
-            if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack)
                 remaining++;
         }
         for (int index = 0; index < x.B.HandCount && remaining > 0;)
@@ -76,7 +76,7 @@ public sealed class SecondWind : FlashCardDef
             if (FlashKernel.IsOverOrEnding(x.B))
                 return;
             FlashCard candidate = x.B.Cards[index];
-            if (x.R.Card(candidate.Id, candidate.Upgrade).Type == FlashCardType.Attack)
+            if (FlashKernel.CardType(x.B, x.R, candidate) == FlashCardType.Attack)
             {
                 index++;
                 continue;

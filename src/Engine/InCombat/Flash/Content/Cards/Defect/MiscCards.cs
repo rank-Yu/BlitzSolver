@@ -145,7 +145,7 @@ public sealed class Compact : FlashCardDef
             FlashCard card = x.B.Cards[index];
             if ((card.Keywords & FlashKeywords.Eternal) != 0)
                 continue;
-            if (x.R.Card(card.Id, card.Upgrade).Type != FlashCardType.Status)
+            if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
                 continue;
             statuses[count++] = index;
         }
