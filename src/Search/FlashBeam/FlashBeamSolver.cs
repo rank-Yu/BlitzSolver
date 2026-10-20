@@ -67,9 +67,6 @@ internal sealed record FlashBeamOptions(
     /// <summary>Automatic death-save potion uses already spent by the fixed prefix.</summary>
     public int InitialAutomaticPotionUses { get; init; }
 
-    /// <summary>Strategic HP cost of the prefix's explicit potion uses; added to the Flash rank penalty.</summary>
-    public int InitialExplicitPotionStrategicCost { get; init; }
-
     /// <summary>
     /// The audited potion-free baseline the existing final ordering compares an exact potion layer
     /// against; null means the evaluated candidates decide it. Only potion-audit requests set it.
@@ -189,14 +186,30 @@ internal sealed record FlashRouteOrdering(
     PostCombatRelicHealProfile PostCombatRelicHeal);
 
 /// <summary>
-/// The existing search's potion constraints at the root (<c>EnumeratePlannedPotionActions</c>): slots whose
-/// potion may be used explicitly, the earliest player turn, the maximum number of uses, and each slot's
-/// strategic HP cost (<c>PotionUsePolicy.StrategicHpCost</c>). Only the potions present at the root are
-/// covered; a potion gained during the search is not offered.
+/// The existing search's potion constraints at the root (<c>EnumeratePlannedPotionActions</c>): the
+/// earliest player turn, the maximum number of uses, and the strategy/policy identity gate the existing
+/// <c>AllowsPotionUse</c> applies. The gate is by (slot, potion identity), so a potion generated into a
+/// slot during the search is offered exactly when the existing search would offer it.
 /// </summary>
-internal sealed record FlashPotionPolicy(byte AllowedSlots, int EarliestPlayerTurn, int? MaximumUses, int[] SlotCosts)
+internal sealed record FlashPotionPolicy(
+    int EarliestPlayerTurn,
+    int? MaximumUses,
+    PotionStrategySnapshot Strategy,
+    SolverPotionPolicy EffectivePolicy,
+    bool ForceAllDisabled)
 {
-    public static FlashPotionPolicy Disabled { get; } = new(0, int.MaxValue, 0, new int[FlashLimits.PotionSlots]);
+    public static FlashPotionPolicy Disabled { get; } = new(
+        int.MaxValue, 0,
+        new PotionStrategySnapshot(SolverPotionPolicy.Disabled, Array.Empty<PotionSlotDirective>()),
+        SolverPotionPolicy.Disabled, false);
+
+    /// <summary><c>PotionStrategySnapshot.AllowsExplicitUse</c> for the potion now in the slot.</summary>
+    public bool AllowsExplicitUse(int slot, ushort potionId)
+    {
+        FlashPotionDef definition = FlashRegistry.Potion(potionId);
+        return definition.Searchable
+            && Strategy.AllowsExplicitUse(slot, definition.NativeId, EffectivePolicy, ForceAllDisabled);
+    }
 }
 
 /// <summary>
@@ -208,10 +221,11 @@ internal sealed record FlashPotionPolicy(byte AllowedSlots, int EarliestPlayerTu
 internal sealed record FlashForcedPotionDirectives(
     int[] Slots,
     ushort[] PotionIds,
+    int[] StrategicHpCosts,
     int AlreadyUsedMask,
     int AlreadyUsedStrategicHpCost)
 {
-    public static FlashForcedPotionDirectives None { get; } = new([], [], 0, 0);
+    public static FlashForcedPotionDirectives None { get; } = new([], [], [], 0, 0);
 
     public int Count => Slots.Length;
 }
@@ -312,7 +326,8 @@ internal sealed class FlashBeamSolver
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
     private readonly FlashRouteOrdering _ordering;
-    private readonly List<(int Parent, int Depth, FlashAction Action, int Lineage, int PayoffCount)> _nodes = new(4096);
+    private readonly List<(int Parent, int Depth, FlashAction Action, int Lineage, int PayoffCount,
+        ushort PotionId)> _nodes = new(4096);
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private readonly FlashBoundFeatures? _bound;
@@ -514,7 +529,7 @@ internal sealed class FlashBeamSolver
                 FlashScoreFeatures rootFeatures) =
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
             _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1,
-                _options.InitialPlanPayoffCount));
+                _options.InitialPlanPayoffCount, ushort.MaxValue));
             (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
             RetentionFacts rootFacts = RetentionFacts.From(
                 rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
@@ -719,12 +734,11 @@ internal sealed class FlashBeamSolver
             bool used = (directives.AlreadyUsedMask & (1 << index)) != 0;
             if (!used)
             {
-                ushort expected = checked((ushort)(directives.PotionIds[index] + 1));
                 for (int cursor = node; _nodes[cursor].Parent >= 0; cursor = _nodes[cursor].Parent)
                 {
                     FlashAction action = _nodes[cursor].Action;
                     if (action.Kind == FlashActionKind.UsePotion && action.PotionSlot == slot
-                        && _rootPotions[slot] == expected)
+                        && _nodes[cursor].PotionId == directives.PotionIds[index])
                     {
                         used = true;
                         break;
@@ -736,7 +750,7 @@ internal sealed class FlashBeamSolver
             count++;
             strategicCost += (directives.AlreadyUsedMask & (1 << index)) != 0
                 ? 0
-                : _options.Potions.SlotCosts[slot];
+                : directives.StrategicHpCosts[index];
             if (_ambergrisPotionId != ushort.MaxValue
                 && directives.PotionIds[index] == _ambergrisPotionId)
             {
@@ -1021,6 +1035,13 @@ internal sealed class FlashBeamSolver
         TerminalSink terminal, FlashChoiceEffect? primaryEffect, scoped ReadOnlySpan<FlashCard> selectedPowers,
         bool allowFetchedPowerCommit)
     {
+        ushort usedPotion = ushort.MaxValue;
+        if (action.Kind == FlashActionKind.UsePotion
+            && (uint)action.PotionSlot < (uint)parent.PotionSlotCount
+            && parent.Potions[action.PotionSlot] != 0)
+        {
+            usedPotion = (ushort)(parent.Potions[action.PotionSlot] - 1);
+        }
         // A capacity overflow is a child boundary, not a simulation error: the one child that needs
         // more cards, powers, enemies, choice slots or action slots than FlashBattle holds is dropped
         // and the rest of the search continues. Every adopted route is still verified step by step
@@ -1086,7 +1107,7 @@ internal sealed class FlashBeamSolver
             // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
             int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
             int payoffCount = NextPayoffCount(parentNode, parent, action);
-            _nodes.Add((parentNode, depth, action, lineage, payoffCount));
+            _nodes.Add((parentNode, depth, action, lineage, payoffCount, usedPotion));
             bool isTerminal = !FlashKernel.IsInProgress(child);
             (double score, double rank, double pureRank, int potionCost, FlashScoreFeatures features) =
                 Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
@@ -1268,12 +1289,8 @@ internal sealed class FlashBeamSolver
             FlashAction action = _nodes[cursor].Action;
             if (action.Kind != FlashActionKind.UsePotion)
                 continue;
-            int slot = action.PotionSlot;
-            if ((uint)slot < (uint)FlashLimits.PotionSlots
-                && _rootPotions[slot] == (ushort)(_ambergrisPotionId + 1))
-            {
+            if (_nodes[cursor].PotionId == _ambergrisPotionId)
                 uses++;
-            }
         }
         return uses;
     }
@@ -1523,7 +1540,14 @@ internal sealed class FlashBeamSolver
         // The plan representative seats keep the existing MaxBy(BeamRankScore) tie order, which does
         // not include Flash's potion-cost rank penalty. The two values differ only by that term.
         double pureRank = _scorer.BeamRankScore(battle, features, terminal, isEndTurn);
-        double rank = pureRank - UsedPotionCost(battle) * SolverWeights.Hp;
+        // ExplicitPotionStrategicCost includes the fixed prefix and potions generated during the
+        // search; the previous root-slot diff saw neither generated uses nor their identity costs.
+        // An audited exact layer must spend its potions, so the Flash-specific "spending is free"
+        // correction would rank the required line below states that have not spent them yet; the
+        // final ordering still charges the cost. Non-audit members keep the correction.
+        double rank = _auditPotionPolicy && _options.MinimumPotionUses > 1
+            ? pureRank
+            : pureRank - features.ExplicitPotionStrategicCost * SolverWeights.Hp;
         return (features.Score, rank, pureRank, features.ExplicitPotionStrategicCost, features);
     }
 
@@ -1549,13 +1573,18 @@ internal sealed class FlashBeamSolver
         return checked(count + 1);
     }
 
-    /// <summary>A slot still holds its root potion and the policy offers it now.</summary>
+    /// <summary>
+    /// The slot holds a searchable potion the request's strategy/policy offers now. The existing
+    /// <c>EnumeratePlannedPotionActions</c> reads the potion currently in the slot, so a potion generated
+    /// during the search is offered by its own identity rather than by the root potion's policy.
+    /// </summary>
     private bool PotionAllowed(in FlashBattle battle, int slot)
     {
         FlashPotionPolicy policy = _options.Potions;
-        if ((policy.AllowedSlots & (1 << slot)) == 0 || battle.PlayerTurn < policy.EarliestPlayerTurn)
+        if ((uint)slot >= (uint)battle.PotionSlotCount || battle.PlayerTurn < policy.EarliestPlayerTurn)
             return false;
-        if (battle.Potions[slot] == 0 || battle.Potions[slot] != _rootPotions[slot])
+        ushort stored = battle.Potions[slot];
+        if (stored == 0 || !policy.AllowsExplicitUse(slot, (ushort)(stored - 1)))
             return false;
         if (policy.MaximumUses is { } maximum && ExplicitPotionUsesInState(battle) >= maximum)
             return false;
@@ -1576,24 +1605,14 @@ internal sealed class FlashBeamSolver
 
     /// <summary>
     /// The existing <c>ExplicitPotionUseCount</c>: cumulative explicit uses, including the fixed
-    /// prefix's, without automatic death-save potions.
+    /// prefix's and potions generated during the search, without automatic death-save potions.
     /// </summary>
     private int ExplicitPotionUsesInState(in FlashBattle battle)
     {
         int automaticAfterRoot = battle.Counter(FlashCounter.AutomaticPotionUseCount)
             - _initialAutomaticPotionUses;
-        return _initialExplicitPotionUses + MissingRootPotions(battle) - automaticAfterRoot;
-    }
-
-    private int UsedPotionCost(in FlashBattle battle)
-    {
-        int cost = _options.InitialExplicitPotionStrategicCost;
-        for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
-        {
-            if (_rootPotions[slot] != 0 && (slot >= battle.PotionSlotCount || battle.Potions[slot] != _rootPotions[slot]))
-                cost += _options.Potions.SlotCosts[slot];
-        }
-        return cost;
+        return _initialExplicitPotionUses + MissingRootPotions(battle)
+            + battle.Counter(FlashCounter.GeneratedPotionUseCount) - automaticAfterRoot;
     }
 
     /// <summary>
