@@ -276,6 +276,14 @@ public sealed class EndOfDays : FlashCardDef
             FlashKernel.ApplyPower(ref x, enemy, doomId, amount, FlashLimits.PlayerOwner);
             if (x.NeedsChoice)
                 return;
+            // ApplyEndOfDays drains the pending amount changes before its Doom threshold check,
+            // so ShroudPower's block gain lands while the combat is still running.
+            FlashKernel.ResolvePowerAmountChanges(ref x);
+            if (x.NeedsChoice)
+                return;
+            FlashKernel.ApplyEnemyDeathPowers(ref x);
+            if (x.NeedsChoice)
+                return;
         }
         for (int position = 0; position < x.B.RosterCount; position++)
         {
@@ -288,5 +296,8 @@ public sealed class EndOfDays : FlashCardDef
         }
         if (count > 0)
             FlashKernel.DoomKill(ref x, doomed[..count]);
+        if (x.NeedsChoice)
+            return;
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
     }
 }

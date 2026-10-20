@@ -134,7 +134,7 @@ public static partial class FlashHooks
         int occurrence = 0;
         for (int position = 0; position < listener.Index; position++)
         {
-            if (FlashFingerprint.Equal(battle.Cards[position], entry.Card))
+            if (SameListenerCard(battle.Cards[position], entry.Card))
                 occurrence++;
         }
         entry.Occurrence = occurrence;
@@ -143,6 +143,17 @@ public static partial class FlashHooks
 
     private static bool OrbEqual(in FlashOrb left, in FlashOrb right)
         => left.Id == right.Id && left.Aux == right.Aux;
+
+    /// <summary>
+    /// Identity used to relocate a captured card listener. The existing engine holds a
+    /// <c>CardModel</c> reference, so a hook that changes a card's mutable value (upgrade, cost
+    /// modifiers, dynamic-variable deltas, keywords, affliction or enchantment) must not make the
+    /// listener disappear; only an actual replacement of the card (a different native id, or a clone
+    /// versus a non-clone) does. Two copies that differ only in mutable values are interchangeable for
+    /// listener order, exactly like the native object references.
+    /// </summary>
+    private static bool SameListenerCard(in FlashCard left, in FlashCard right)
+        => left.Id == right.Id && left.IsClone == right.IsClone;
 
     private static ushort ListenerId(in FlashBattle battle, FlashListener listener) => listener.Kind switch
     {
@@ -218,7 +229,7 @@ public static partial class FlashHooks
         int occurrence = entry.Occurrence;
         for (int position = 0; position < battle.CardCount; position++)
         {
-            if (!FlashFingerprint.Equal(battle.Cards[position], entry.Card))
+            if (!SameListenerCard(battle.Cards[position], entry.Card))
                 continue;
             if (occurrence-- == 0)
             {

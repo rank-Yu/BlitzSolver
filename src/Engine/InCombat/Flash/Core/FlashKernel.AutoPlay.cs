@@ -148,13 +148,13 @@ public static partial class FlashKernel
 
     /// <summary>
     /// Queue identity of a card moved to the play pile for <c>AutoPlayFromDrawPile</c>. The existing
-    /// engine holds live <c>CardModel</c> references, so state mutations (affliction/enchantment
-    /// amounts, PowerAfflictionChecked) during an auto-play do not change the queue order; only a
-    /// different card value does. Duplicate cards are interchangeable for that order check.
+    /// engine holds live <c>CardModel</c> references, so state mutations during an auto-play (upgrade,
+    /// affliction/enchantment, cost modifiers, PowerAfflictionChecked) do not change the queue order;
+    /// only a different native card or a clone versus its original does. Duplicate cards are
+    /// interchangeable for that order check.
     /// </summary>
     private static bool SameAutoPlayQueueCard(in FlashCard left, in FlashCard right)
-        => left.Id == right.Id && left.Upgrade == right.Upgrade
-            && left.AfflictionId == right.AfflictionId && left.EnchantmentId == right.EnchantmentId;
+        => left.Id == right.Id && left.IsClone == right.IsClone;
 
     /// <summary>
     /// Mirrors <c>CardPileCmd.AutoPlayFromDrawPile</c>: first move up to <paramref name="count"/>

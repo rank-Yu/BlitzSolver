@@ -1237,35 +1237,57 @@ internal sealed partial class FlashBeamSolver
                 // Every executed selection is exact; the cap only bounds how many are explored.
                 Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
                 int count = FlashChoiceEnumerator.Enumerate(request, selections);
+                // The branch loop below expands every selection through the same pool. A recursive
+                // ExpandAction reserves and overwrites next's current slot, so `child` is no longer a
+                // stable view of the partial state once the first branch runs. Capture the option card
+                // values now: they are the only child state the loop and its routing metadata read.
+                Span<FlashCard> optionCards = stackalloc FlashCard[request.OptionCount];
+                for (int option = 0; option < request.OptionCount; option++)
+                {
+                    if (request.OptionsAreGenerated)
+                    {
+                        optionCards[option] = request.GeneratedOptions[option];
+                        continue;
+                    }
+                    int position = request.Options[option];
+                    if ((uint)position >= FlashLimits.Cards)
+                        throw new InvalidOperationException(
+                            $"选择选项 {option} 的卡牌位置 {position} 超出牌数组容量。");
+                    optionCards[option] = child.Cards[position];
+                }
+                bool captureFetchedPowers = allowFetchedPowerCommit && primaryEffect is null
+                    && request.Timing == FlashChoiceTiming.Action
+                    && IsPrimaryMoveToHandAction(parent, action)
+                    && request.Effect == FlashChoiceEffect.MoveToHand
+                    && !request.OptionsAreGenerated;
+                Span<bool> optionIsPower = stackalloc bool[captureFetchedPowers ? request.OptionCount : 0];
+                for (int option = 0; option < optionIsPower.Length; option++)
+                    optionIsPower[option] =
+                        FlashKernel.CardType(child, _rules, optionCards[option]) == FlashCardType.Power;
                 Span<FlashCard> capturedPowers = stackalloc FlashCard[FlashLimits.MaxHandSize];
                 for (int index = 0; index < count; index++)
                 {
                     FlashChoiceEffect? effect = primaryEffect;
                     scoped ReadOnlySpan<FlashCard> chosenPowers = selectedPowers;
-                    if (allowFetchedPowerCommit && primaryEffect is null
-                        && request.Timing == FlashChoiceTiming.Action
-                        && IsPrimaryMoveToHandAction(parent, action))
+                    if (captureFetchedPowers)
                     {
                         effect = request.Effect;
                         int captured = 0;
-                        if (effect == FlashChoiceEffect.MoveToHand && !request.OptionsAreGenerated)
+                        ulong bits = selections[index];
+                        for (int option = 0; option < request.OptionCount; option++)
                         {
-                            ulong bits = selections[index];
-                            for (int option = 0; option < request.OptionCount; option++)
-                            {
-                                if ((bits & (1UL << option)) == 0)
-                                    continue;
-                                ref readonly FlashCard optionCard = ref child.Cards[request.Options[option]];
-                                if (FlashKernel.CardType(child, _rules, optionCard) == FlashCardType.Power)
-                                    capturedPowers[captured++] = optionCard;
-                            }
+                            if ((bits & (1UL << option)) == 0 || !optionIsPower[option])
+                                continue;
+                            if (captured >= capturedPowers.Length)
+                                throw new FlashCapacityException("FetchedPowers", capturedPowers.Length);
+                            capturedPowers[captured++] = optionCards[option];
                         }
                         chosenPowers = capturedPowers[..captured];
                     }
                     try
                     {
                         RoutingChoice? answered = routingChoice;
-                        if (TryBuildRoutingChoice(parent, action, child, request, selections[index],
+                        if (TryBuildRoutingChoice(parent, action, request, optionCards, selections[index],
                                 parentNode, parentFacts.Turn, parentRank, parentScore, parentFacts,
                                 out RoutingChoice choiceFacts))
                         {
@@ -1380,8 +1402,8 @@ internal sealed partial class FlashBeamSolver
     /// ordered-mutation effects stay in the RS2 batch.
     /// </summary>
     private bool TryBuildRoutingChoice(in FlashBattle parent, in FlashAction action,
-        in FlashBattle partial, in FlashChoiceRequest request, ulong selection, int parentNode,
-        int parentTurn, int parentRank, double parentScore, in RetentionFacts parentFacts,
+        in FlashChoiceRequest request, scoped ReadOnlySpan<FlashCard> optionCards, ulong selection,
+        int parentNode, int parentTurn, int parentRank, double parentScore, in RetentionFacts parentFacts,
         out RoutingChoice choice)
     {
         choice = default;
@@ -1402,9 +1424,7 @@ internal sealed partial class FlashBeamSolver
         else
         {
             int option = System.Numerics.BitOperations.TrailingZeroCount(selection);
-            FlashCard card = request.OptionsAreGenerated
-                ? request.GeneratedOptions[option]
-                : partial.Cards[request.Options[option]];
+            FlashCard card = optionCards[option];
             cardId = card.Id;
             upgrade = card.Upgrade;
             stateKey = CardStateKey(card);
