@@ -7,7 +7,13 @@ namespace CombatSolver.Engine.InCombat.Flash;
 public static class FlashLimits
 {
     public const int Cards = 96;
-    public const int Enemies = 10;
+
+    /// <summary>
+    /// Known enemies, including dead and escaped ones. The native combat state has no roster cap;
+    /// the observed corpus reaches 10 (a summoner fight), so 12 leaves two entries of headroom for
+    /// later summons in the same fight. Costs 2 x 64 bytes of <see cref="FlashBattle"/>.
+    /// </summary>
+    public const int Enemies = 12;
     public const int Powers = 64;
     public const int Relics = 32;
     public const int PotionSlots = 5;

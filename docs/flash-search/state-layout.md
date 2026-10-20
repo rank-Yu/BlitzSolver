@@ -19,9 +19,9 @@
 | Header | 回合数、轮次、当前方、玩家阶段、终局结果、`ShufflesCrossed`、下一个 CombatId、标志位（玩家 Hook 激活、回合结束请求、正在结束）、小数卡牌变量表（4 个 `decimal`，`DecimalVarCount` 为已用项数） | — |
 | Player | `FlashCreature`（HP、MaxHP、格挡、标志）、能量、星能、金币、手牌上限 | 1 |
 | Osty | `FlashCreature` 与存在标志 | 1 |
-| Enemies | `FlashEnemy`：`FlashCreature`、怪物 Id、规则条目下标、CombatId、遭遇槽下标、死亡阶段、当前状态机节点、最近行动日志、私有 AI 寄存器、跳过行动/强制行动标志 | 10 |
+| Enemies | `FlashEnemy`：`FlashCreature`、怪物 Id、规则条目下标、CombatId、遭遇槽下标、死亡阶段、当前状态机节点、最近行动日志、私有 AI 寄存器、跳过行动/强制行动标志 | 12 |
 | Powers | `FlashPower`：Power Id、持有者、施加者、数量、`AmountOnTurnStart`、两个辅助计数、标志（跳过下次衰减、刚由敌人施加等） | 64 |
-| Cards | `FlashCard`，五个牌堆连续存放：手牌、抽牌堆、弃牌堆、消耗堆、打出区 | 128 |
+| Cards | `FlashCard`，五个牌堆连续存放：手牌、抽牌堆、弃牌堆、消耗堆、打出区 | 96 |
 | Relics | `FlashRelic`：遗物 Id、计数、辅助值、标志（已熔化、本场已触发等） | 32 |
 | Potions | 各槽药水 Id 与标志 | 5 |
 | Orbs | `FlashOrb`：球 Id、`Aux`（Dark 的 `_evokeVal` / Glass 的 `_passiveVal`）；`OrbCount`、`OrbCapacity` | 10 |
@@ -136,7 +136,7 @@ LS 没有新增计数器、Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`
 - Orbit/PaleBlueDot 的现有键是无序集合（owner + 剩余/锁存）；Flash 的 Power 行顺序是获得顺序，同一 `(owner,id)` 多实例的交换在 Flash 中会少合并。Nightmare 选定卡在现有键里按 `ChoiceCardKey` 归一化，Flash 用完整卡值（更保守）。这些都只会减少合并、不会把不同局面误合并。
 - Monologue/Vambrace/UnsettlingLamp 的瞬态数据不进入字节，稳定边界与现有键一致；`AmountOnTurnStart` 等既有归一化规则不变。
 
-**容量与回落。** `DetachedCards` 容量 3（Nightmare 的两个实例与被偷卡共用；同一场战斗里 ThievingHopper 只有一个且 THIEVERY 只发生一次，逃跑/死亡后槽位释放）；第 4 个并存卡片按 `FlashCapacityException` 回落（不覆盖、不逐出）。`FlashExec.MonologuePending` 容量 8；更多同时等候结算的 Monologue 实例按同一异常回落。`FlashRules.HasIdentityContent` 为假（根牌组/Power/遗物与可生成内容都不涉及身份）时，整批身份扫描跳过；它只是优化前提，为真时仍按上述语义逐项结算。`Private` 是 `short`：SwordSage 已应用层数或 `ReplayCount` 增量超出 `short` 范围时按 `FlashCapacityException`；`ReplayCount` 本身仍按 `byte` 容量（现有 `FlashCard` 字段）。Fetch 只用 bit 0，其余位保持 0。所有退役条目只按惰性放行，不写回、不清理活实例。
+**容量与回落。** `DetachedCards` 容量 3（Nightmare 的两个实例与被偷卡共用；同一场战斗里 ThievingHopper 只有一个且 THIEVERY 只发生一次，逃跑/死亡后槽位释放）；第 4 个并存卡片按 `FlashCapacityException` 丢弃该子状态（不覆盖、不逐出），由搜索边界计数。`FlashExec.MonologuePending` 容量 8；更多同时等候结算的 Monologue 实例按同一异常回落。`FlashRules.HasIdentityContent` 为假（根牌组/Power/遗物与可生成内容都不涉及身份）时，整批身份扫描跳过；它只是优化前提，为真时仍按上述语义逐项结算。`Private` 是 `short`：SwordSage 已应用层数或 `ReplayCount` 增量超出 `short` 范围时按 `FlashCapacityException`；`ReplayCount` 本身仍按 `byte` 容量（现有 `FlashCard` 字段）。Fetch 只用 bit 0，其余位保持 0。所有退役条目只按惰性放行，不写回、不清理活实例。
 
 ### 2.6 DX3 追加的瞬态值与规则字段
 
@@ -167,21 +167,23 @@ DX3 批次没有改变 `FlashBattle`/`FlashCard` 的尺寸，也没有新增 `Fl
 
 ## 5. 容量与失败
 
-- 任何写入超过容量都抛 `FlashCapacityException`，携带区块名与容量。搜索捕获后放弃本次 Flash 求解并回落旧后端；这是唯一允许的捕获点。
+- 任何写入超过容量都抛 `FlashCapacityException`，携带区块名与容量。搜索展开中的这类异常是**子状态边界**：`FlashBeamSolver` 只丢弃抛出异常的那一个子状态（选择请求的每个选项分支各自独立），按区块名计数进 `FlashBeamResult.CapacityDroppedChildren`，其余子状态照常提交与去重；不截断、不覆盖、不逐出。内核不支持的语义（`FlashUnsupportedException`）仍让整次 Flash 求解回落。
+- 两个可增长池（`next`/`ended`）各自的上限是 `min(width × (MaxLegalActions + 1), 16,640)` 个状态：`16,640 = floor(200 MiB / sizeof(FlashBattle))` 向下取整到 64 槽块（12,600 B 状态时 200 MiB 可容纳 16,644 个，取 16,640 个 = 209,664,000 B）。`PoolStateBudgetBytes = 200 MiB` 是单池上限，两个池各自计。回合结束层（`ended`）达到上限时按与回合边界相同的保留规则压缩到 `width × 8` 后继续，不整次回落；压缩次数与被压缩子状态数记入 `EndedCompactions`/`EndedCompressedStates`。`next` 达到上限时每个装不下的唯一子状态逐个丢弃并计数。语义见 [搜索与接入](search.md#1-flashbeamsolver) 的“回合结束层压缩”。
+- 根状态本身超过容量（根导入或根评分在展开循环之前抛出）仍是导入拒绝：整次 Flash 尝试回落到现有后端，不部分提交。
 - 准入阶段按牌组规模和可生成内容估计上限，明显超出容量的根直接不准入，避免搜索中途失败。
 - 数值钳制与旧引擎一致（HP、格挡、能量、Power 数量钳制在 ±999,999,999），由内核统一实现。
 
 ## 6. 尺寸预算
 
-`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，`PoweredAttackHitsThisTurn`（BeatIntoShape 的每目标本回合强化攻击命中数，0..255，溢出显式拒绝）占用原 `_padding` 的第二个字节，`SteamPhase` 占用第三个字节（原 `_padding1` 的第一个字节），最后一个字节继续填充。`FlashOrb` 为 8 字节（`Id` + `Aux`），DF 没有改变它的大小。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，`DampenOriginalUpgrade`，`TransientMark` 复用尾部填充；ID 复用 `Private` 账本）。TW 把 `DetachedCards` 从 2 扩到 3，`FlashBattle` 从 12320 增至 12408 字节；KB 在头部末尾追加 4 个 `decimal` 的 `DecimalVars`（64 字节），`FlashBattle` 增至 12472 字节，`FlashCard` 不变。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 350 ns、`copyStep` 约 2.2 µs（`HasIdentityContent=false` 的自然根路径）。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
+`FlashEnemy` 仍是 64 字节：`Rules` 占用原 `_padding` 的第一个字节，`PoweredAttackHitsThisTurn`（BeatIntoShape 的每目标本回合强化攻击命中数，0..255，溢出显式拒绝）占用原 `_padding` 的第二个字节，`SteamPhase` 占用第三个字节（原 `_padding1` 的第一个字节），最后一个字节继续填充。`FlashOrb` 为 8 字节（`Id` + `Aux`），DF 没有改变它的大小。`FlashCard` 为 92 字节（96 张，费用修饰容量 16，`DampenOriginalUpgrade`，`TransientMark` 复用尾部填充；ID 复用 `Private` 账本）。TW 把 `DetachedCards` 从 2 扩到 3，`FlashBattle` 从 12320 增至 12408 字节；KB 在头部末尾追加 4 个 `decimal` 的 `DecimalVars`（64 字节），`FlashBattle` 增至 12472 字节，`FlashCard` 不变；CP 把已知敌人从 10 扩到 12（实测 10 且出现 9886 个子状态在新增第 11 个敌人时被丢弃），`FlashBattle` 增至 12,600 字节。KA 的苦难/附魔只使用既有的卡牌字段、`FlashCardFlags` 的最后一个空闲位和追加的两个 `FlashCounter`，没有改变任何区块尺寸；A3 的 Dampen 记录追加一个卡牌字段（`DampenOriginalUpgrade`）与一个计数器（`DampenCasterMask`），因此卡牌与战斗各增大 2 字节和 128 字节。K0 在同一台机器上测得 `copyOnly` 约 350 ns、`copyStep` 约 2.2 µs（`HasIdentityContent=false` 的自然根路径）。若复制成本成为瓶颈，优先缩小 `FlashCard` 和卡牌容量，而不是引入写时复制或分层状态。
 
-Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。搜索容器不属于状态布局；`FlashBattle` 本身仍是 12,408 字节。`FlashBeamSolver` 的四个池使用 64 槽状态块（794,112 B/块）与按类型 ≥ 85 KB 的元数据块，块按需分配且从不复制。块大小取舍：小于 85 KB 的数组会在 Gen0/Gen1 反复晋升，单块过大又难以在 LOH 中安置；64 槽约为 LOH 阈值的 9.3 倍，1 万个状态约 160 块，仍小于旧版一次倍增得到的百 MB 级数组。曾试过跨求解缓存 64 MiB 状态块；Medium 上能命中，但碎片 180 MB（基线 0.6 MB）、峰值 419 MB（分块无池 330–355 MB），故未保留，当前每次 `Solve` 新建池。
+Power 数量变化队列不进入 `FlashBattle`：它只存在于栈上的 `FlashExec.PendingPowerChanges`（容量 64），并在每个稳定边界前由 `ResolvePowerAmountChanges` 排空；排空先把当前批次复制到局部 `drained` 再清空队列，嵌套排空不会消费外层批次。旧引擎同样要求 Fork 前 `_pendingPowerAmountChanges` 为空。RupturePower 的 `Aux2`（曾经暂存伤害来源标记）已不再使用，伤害来源直接放在栈上的 `FlashDamageResult`。搜索容器不属于状态布局；`FlashBattle` 本身仍是 12,600 字节。`FlashBeamSolver` 的四个池使用 64 槽状态块（806,400 B/块）与按类型 ≥ 85 KB 的元数据块，块按需分配且从不复制；两个可增长池另受 200 MiB/池的状态预算约束（16,640 个 12,600 B 状态）。块大小取舍：小于 85 KB 的数组会在 Gen0/Gen1 反复晋升，单块过大又难以在 LOH 中安置；64 槽约为 LOH 阈值的 9.3 倍，1 万个状态约 160 块，仍小于旧版一次倍增得到的百 MB 级数组。曾试过跨求解缓存 64 MiB 状态块；Medium 上能命中，但碎片 180 MB（基线 0.6 MB）、峰值 419 MB（分块无池 330–355 MB），故未保留，当前每次 `Solve` 新建池。
 
-CX 没有新增 `FlashCounter`、`FlashBattle` 或 `FlashCard` 字段：CX 本身保持 `FlashBattle` 12320 字节（TW 随后把 `DetachedCards` 扩到 3，见上，当前为 12408），`FlashCard` 仍为 92 字节。新增的两个派发点放在既有的 `FlashHookMaskExt`：`BeforeFlush`（bit 1，玩家回合末清手牌前逐张手牌附魔）与 `ModifyShuffleOrder`（bit 2，稳定洗牌后、写回抽牌堆前按监听顺序）。`SlumberingEssence` 的每回合 −1 与 `Slither` 的随机本场费用都追加到既有的 `FlashCard.EnergyModifiers`；`PerfectFit` 只改本次洗牌的局部列表，不写战斗状态。两个派发点分别由根级布尔 `FlashRules.HasShuffleOrderEnchantment` / `HasBeforeFlushEnchantment` 跳过：只有根战斗牌堆里的附魔实例实现了对应 Hook 时才收集监听者（附魔只在战斗外获得，根牌堆就是完整来源），因此没有这些附魔的根在洗牌与清手牌热路径上没有新增按监听表的扫描。`Imbued` 的自动预打出快照只在栈上的 `FlashExec` 路径里（绝对位置与稳定键），稳定边界不留下任何值。
+CX 没有新增 `FlashCounter`、`FlashBattle` 或 `FlashCard` 字段：CX 本身保持 `FlashBattle` 12320 字节（TW 随后把 `DetachedCards` 扩到 3、KB 与 CP 再扩，当前为 12,600，见上），`FlashCard` 仍为 92 字节。新增的两个派发点放在既有的 `FlashHookMaskExt`：`BeforeFlush`（bit 1，玩家回合末清手牌前逐张手牌附魔）与 `ModifyShuffleOrder`（bit 2，稳定洗牌后、写回抽牌堆前按监听顺序）。`SlumberingEssence` 的每回合 −1 与 `Slither` 的随机本场费用都追加到既有的 `FlashCard.EnergyModifiers`；`PerfectFit` 只改本次洗牌的局部列表，不写战斗状态。两个派发点分别由根级布尔 `FlashRules.HasShuffleOrderEnchantment` / `HasBeforeFlushEnchantment` 跳过：只有根战斗牌堆里的附魔实例实现了对应 Hook 时才收集监听者（附魔只在战斗外获得，根牌堆就是完整来源），因此没有这些附魔的根在洗牌与清手牌热路径上没有新增按监听表的扫描。`Imbued` 的自动预打出快照只在栈上的 `FlashExec` 路径里（绝对位置与稳定键），稳定边界不留下任何值。
 
 ### 2.7 PR 批次（药水与遗物）
 
-本批没有改变 `FlashBattle`（12,472 字节）或 `FlashCard`（92 字节），也没有新增 `FlashCounter`。新增内容使用既有槽位：
+本批没有改变 `FlashBattle`（CP 后为 12,600 字节）或 `FlashCard`（92 字节），也没有新增 `FlashCounter`。新增内容使用既有槽位：
 
 - `FlashExec` 的瞬态 `PlayIdentity`/`LastPlayIdentity`/`PlayIdentityCounter`/`MusicBoxPlayIdentity`：每次原生 `CardPlay` 一个单调编号，供 `PAELS_LEGION` 把 `AfterModifyingBlockAmount` 与同一次 `AfterCardPlayed` 配对、`MUSIC_BOX` 把 `BeforeCardPlayed` 与 `AfterCardPlayed` 配对。嵌套自动打出保存/恢复，稳定边界恒为 0/初值。
 - `FlashRelic.Counter`/`Aux` 的新用途：`MUSIC_BOX.Counter` 本回合已用；`THROWING_AXE.Counter` 本场已用；`METRONOME.Counter` 已充能次数；`PAELS_LEGION.Counter` 冷却、`Aux` 本次格挡所属 `PlayIdentity`、`FlashRelicFlags.UsedThisCombat` 为原版的显示锁存；`EMOTION_CHIP`/`PAELS_EYE` 的 `StatefulRelicState`（Current/Previous）。

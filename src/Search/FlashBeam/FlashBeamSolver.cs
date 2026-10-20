@@ -224,8 +224,25 @@ internal sealed record FlashBeamResult(
     int PrunedIncumbents,
     TimeSpan Elapsed)
 {
+    internal static readonly IReadOnlyDictionary<string, int> NoCapacityDrops =
+        new Dictionary<string, int>(0);
+
     /// <summary>Children dropped because their state exceeded a Flash capacity (a search boundary).</summary>
     public int CapacityPruned { get; init; }
+
+    /// <summary>
+    /// Dropped children per capacity region (e.g. <c>Cards</c>, <c>Powers</c>,
+    /// <c>Action.Choices</c>). The state-level regions are child boundaries: one instance is
+    /// dropped and the rest of the search continues. The pool region only appears for the
+    /// per-action-layer pools; the cumulative end-turn pool is compacted instead.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> CapacityDroppedChildren { get; init; } = NoCapacityDrops;
+
+    /// <summary>How often the end-turn pool was compacted at its capacity bound.</summary>
+    public int EndedCompactions { get; init; }
+
+    /// <summary>End-turn children dropped by those compactions.</summary>
+    public int EndedCompressedStates { get; init; }
 
     /// <summary>Audited branches removed by the Smart exact-layer HP ceiling.</summary>
     public int SmartPotionPruned { get; init; }
@@ -262,6 +279,25 @@ internal sealed class FlashBeamSolver
     /// <summary>The existing <c>EarlyTurnCandidatesPerLayer</c>.</summary>
     private const int EarlyTurnCandidatesPerLayer = 24;
 
+    /// <summary>
+    /// When the cumulative end-turn pool reaches its capacity it is compacted to this many beam
+    /// widths and keeps accumulating. The bound is the same <c>CopyTopTo</c> retention rule used at
+    /// the turn boundary (rank leaders, the offensive share and every required representative), so a
+    /// compacted pool still contains every state that can win a turn-boundary seat; only a root whose
+    /// end-turn pool actually reaches the capacity can observe the compaction.
+    /// </summary>
+    private const int EndedCompactionWidthFactor = 8;
+
+    /// <summary>
+    /// Byte budget of each of the two growable pools (<c>next</c> and <c>ended</c>). The state count
+    /// is <c>PoolStateBudgetBytes / sizeof(FlashBattle)</c>, rounded down to the 64-state chunk so the
+    /// allocated chunked arrays do not overshoot the budget. The effective capacity is the smaller of
+    /// this count and the original <c>width * (MaxLegalActions + 1)</c> bound. Without it a pathological
+    /// turn (REGENT-V-06: 434 action layers in one turn) retains hundreds of megabytes per pool in the
+    /// game process; 200 MiB per pool keeps the search well below the old ~0.8-1.0 GB single-pool peak.
+    /// </summary>
+    private const int PoolStateBudgetBytes = 200 * 1024 * 1024;
+
     private readonly FlashRules _rules;
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
@@ -294,6 +330,10 @@ internal sealed class FlashBeamSolver
     private int _capacityPruned;
     private int _pruned;
     private int _smartPruned;
+    private int _endedCompactions;
+    private int _endedCompressedStates;
+    private int _endedCompactionTarget;
+    private readonly Dictionary<string, int> _capacityDropped = new(StringComparer.Ordinal);
 
     /// <summary>
     /// True only on the first completed turn layer when the three-act boss policy is frozen on. The
@@ -366,11 +406,25 @@ internal sealed class FlashBeamSolver
         // explicit rejection boundary, not a true upper bound for ended: ended accumulates one end-turn
         // child per action layer, and a deep single turn can add more layers than MaxLegalActions.
         int maxChildren = checked(width * (FlashKernel.MaxLegalActions + 1));
-        int initialChildren = Math.Min(maxChildren, Math.Max(64, width * 8));
+        // Both growable pools use the same byte budget; the original per-action-layer bound stays as
+        // the semantic upper bound for small widths. The state count is rounded down to the 64-state
+        // chunk so the chunked arrays stay inside the budget.
+        int chunkStates = ChunkedArray<FlashBattle>.ChunkSize;
+        int budgetStates = PoolStateBudgetBytes / Unsafe.SizeOf<FlashBattle>() / chunkStates * chunkStates;
+        int poolLimit = Math.Min(maxChildren, Math.Max(chunkStates, budgetStates));
+        int initialChildren = Math.Min(poolLimit, Math.Max(64, width * 8));
+        // The compaction target is measured in beam widths: it always keeps more than the turn
+        // boundary consumes (width) plus the same retention lanes, and never exceeds the new pool
+        // limit. Reaching the limit is the only trigger, so a root below it keeps the previous
+        // behavior bit for bit.
+        _endedCompactionTarget = Math.Min(poolLimit, Math.Max(width, width * EndedCompactionWidthFactor));
+        _endedCompactions = 0;
+        _endedCompressedStates = 0;
+        _capacityDropped.Clear();
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
         Pool current = new(width, width, preserveTheft, _scorer, _planCommitment);
-        Pool next = new(initialChildren, maxChildren, preserveTheft, _scorer, _planCommitment);
-        Pool ended = new(initialChildren, maxChildren, preserveTheft, _scorer, _planCommitment);
+        Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment);
+        Pool ended = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment);
         Pool turnFrontier = new(width, width, preserveTheft, _scorer, _planCommitment);
 
         RouteKey? best = null;
@@ -509,6 +563,11 @@ internal sealed class FlashBeamSolver
                 _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
             {
                 CapacityPruned = _capacityPruned,
+                CapacityDroppedChildren = _capacityDropped.Count == 0
+                    ? FlashBeamResult.NoCapacityDrops
+                    : _capacityDropped,
+                EndedCompactions = _endedCompactions,
+                EndedCompressedStates = _endedCompressedStates,
                 SmartPotionPruned = _smartPruned,
                 PotionPolicySatisfied = best is not null,
                 BestPayoffCount = _nodes[bestNode].PayoffCount,
@@ -535,6 +594,11 @@ internal sealed class FlashBeamSolver
             _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
         {
             CapacityPruned = _capacityPruned,
+            CapacityDroppedChildren = _capacityDropped.Count == 0
+                ? FlashBeamResult.NoCapacityDrops
+                : _capacityDropped,
+            EndedCompactions = _endedCompactions,
+            EndedCompressedStates = _endedCompressedStates,
             SmartPotionPruned = _smartPruned,
             BestPayoffCount = _nodes[bestNode].PayoffCount,
             ScoutLayers = _scoutLayers,
@@ -928,97 +992,137 @@ internal sealed class FlashBeamSolver
         TerminalSink terminal, FlashChoiceEffect? primaryEffect, scoped ReadOnlySpan<FlashCard> selectedPowers,
         bool allowFetchedPowerCommit)
     {
-        // The child is built in next's first free slot and stepped in place: one copy of the parent per
-        // transition. It is committed to next, copied to ended, or dropped as a terminal; the slot is not
-        // touched by anything else until then (a choice re-expansion reuses it from the start).
-        ref FlashBattle child = ref next.Reserve();
-        child = parent;
-        _transitions++;
-        FlashStepResult stepResult;
-        FlashChoiceRequest request;
+        // A capacity overflow is a child boundary, not a simulation error: the one child that needs
+        // more cards, powers, enemies, choice slots or action slots than FlashBattle holds is dropped
+        // and the rest of the search continues. Every adopted route is still verified step by step
+        // against the existing engine. The catch covers the whole construction of this child
+        // (reserve, step, score and commit); the per-selection catch below keeps one overflowing
+        // choice branch from cancelling its siblings.
         try
         {
+            // The child is built in next's first free slot and stepped in place: one copy of the parent per
+            // transition. It is committed to next, copied to ended, or dropped as a terminal; the slot is not
+            // touched by anything else until then (a choice re-expansion reuses it from the start).
+            ref FlashBattle child = ref next.Reserve();
+            child = parent;
+            _transitions++;
+            FlashStepResult stepResult;
+            FlashChoiceRequest request;
             stepResult = FlashKernel.Step(ref child, action, _rules, out request);
-        }
-        catch (FlashCapacityException)
-        {
-            // A search boundary like the node budget: this child needs more cards, powers or enemies than
-            // FlashBattle holds, so it is dropped (the reserved slot stays free). Every adopted route is
-            // still verified step by step against the existing engine.
-            _capacityPruned++;
-            return;
-        }
-        if (stepResult == FlashStepResult.NeedsChoice)
-        {
-            // Every executed selection is exact; the cap only bounds how many are explored.
-            Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
-            int count = FlashChoiceEnumerator.Enumerate(request, selections);
-            Span<FlashCard> capturedPowers = stackalloc FlashCard[FlashLimits.MaxHandSize];
-            for (int index = 0; index < count; index++)
+            if (stepResult == FlashStepResult.NeedsChoice)
             {
-                FlashChoiceEffect? effect = primaryEffect;
-                scoped ReadOnlySpan<FlashCard> chosenPowers = selectedPowers;
-                if (allowFetchedPowerCommit && primaryEffect is null
-                    && request.Timing == FlashChoiceTiming.Action
-                    && IsPrimaryMoveToHandAction(parent, action))
+                // Every executed selection is exact; the cap only bounds how many are explored.
+                Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
+                int count = FlashChoiceEnumerator.Enumerate(request, selections);
+                Span<FlashCard> capturedPowers = stackalloc FlashCard[FlashLimits.MaxHandSize];
+                for (int index = 0; index < count; index++)
                 {
-                    effect = request.Effect;
-                    int captured = 0;
-                    if (effect == FlashChoiceEffect.MoveToHand && !request.OptionsAreGenerated)
+                    FlashChoiceEffect? effect = primaryEffect;
+                    scoped ReadOnlySpan<FlashCard> chosenPowers = selectedPowers;
+                    if (allowFetchedPowerCommit && primaryEffect is null
+                        && request.Timing == FlashChoiceTiming.Action
+                        && IsPrimaryMoveToHandAction(parent, action))
                     {
-                        ulong bits = selections[index];
-                        for (int option = 0; option < request.OptionCount; option++)
+                        effect = request.Effect;
+                        int captured = 0;
+                        if (effect == FlashChoiceEffect.MoveToHand && !request.OptionsAreGenerated)
                         {
-                            if ((bits & (1UL << option)) == 0)
-                                continue;
-                            ref readonly FlashCard optionCard = ref child.Cards[request.Options[option]];
-                            if (_rules.Card(optionCard.Id, optionCard.Upgrade).Type == FlashCardType.Power)
-                                capturedPowers[captured++] = optionCard;
+                            ulong bits = selections[index];
+                            for (int option = 0; option < request.OptionCount; option++)
+                            {
+                                if ((bits & (1UL << option)) == 0)
+                                    continue;
+                                ref readonly FlashCard optionCard = ref child.Cards[request.Options[option]];
+                                if (_rules.Card(optionCard.Id, optionCard.Upgrade).Type == FlashCardType.Power)
+                                    capturedPowers[captured++] = optionCard;
+                            }
                         }
+                        chosenPowers = capturedPowers[..captured];
                     }
-                    chosenPowers = capturedPowers[..captured];
+                    try
+                    {
+                        ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended, terminal,
+                            effect, chosenPowers, allowFetchedPowerCommit);
+                    }
+                    catch (FlashCapacityException ex)
+                    {
+                        RecordCapacityDrop(ex);
+                    }
                 }
-                ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended, terminal,
-                    effect, chosenPowers, allowFetchedPowerCommit);
+                return;
             }
-            return;
+            int node = _nodes.Count;
+            int depth = _nodes[parentNode].Depth + 1;
+            // The existing search's root-action lineage groups every descendant by the first action
+            // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
+            int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
+            int payoffCount = NextPayoffCount(parentNode, parent, action);
+            _nodes.Add((parentNode, depth, action, lineage, payoffCount));
+            bool isTerminal = !FlashKernel.IsInProgress(child);
+            (double score, double rank, double pureRank, int potionCost, FlashScoreFeatures features) =
+                Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
+            if (isTerminal)
+            {
+                terminal(child, node, score);
+                return;
+            }
+            if (allowFetchedPowerCommit
+                && _expandFetchedPowers
+                && primaryEffect == FlashChoiceEffect.MoveToHand
+                && HasPlayableFetchedPower(child, selectedPowers)
+                && CommitmentBudgetAvailable())
+            {
+                // CombatBeamSolver.Phases.cs: settle the fetched, payable power's next decision before
+                // ranking the intermediate selection. The intermediate state is not committed; every
+                // successor goes through the normal transition/dedup/pool accounting.
+                ExpandFetchedPowerSuccessors(ref child, node, next, ended, terminal);
+                return;
+            }
+            // The retention-only hand values are computed by the pool only when the state is actually
+            // stored (a duplicate keeps its existing values); a terminal state never needs them.
+            bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
+                ? AddEndTurnChild(ended, child, node, score, rank, pureRank, potionCost, features, depth,
+                    lineage, payoffCount)
+                : next.CommitReserved(node, score, rank, pureRank, potionCost, features, depth, lineage,
+                    payoffCount);
+            if (!added)
+                _duplicates++;
         }
-        int node = _nodes.Count;
-        int depth = _nodes[parentNode].Depth + 1;
-        // The existing search's root-action lineage groups every descendant by the first action
-        // taken from the request root (BeamRetentionPolicy.BuildRootActionLineageSignature).
-        int lineage = parentNode == 0 ? node : _nodes[parentNode].Lineage;
-        int payoffCount = NextPayoffCount(parentNode, parent, action);
-        _nodes.Add((parentNode, depth, action, lineage, payoffCount));
-        bool isTerminal = !FlashKernel.IsInProgress(child);
-        (double score, double rank, double pureRank, int potionCost, FlashScoreFeatures features) =
-            Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
-        if (isTerminal)
+        catch (FlashCapacityException ex)
         {
-            terminal(child, node, score);
-            return;
+            RecordCapacityDrop(ex);
         }
-        if (allowFetchedPowerCommit
-            && _expandFetchedPowers
-            && primaryEffect == FlashChoiceEffect.MoveToHand
-            && HasPlayableFetchedPower(child, selectedPowers)
-            && CommitmentBudgetAvailable())
+    }
+
+    /// <summary>
+    /// The cumulative end-turn layer is the only pool that can reach its bound (the per-action-layer
+    /// pool is cleared each layer and receives at most <c>width * MaxLegalActions</c> children). When
+    /// a unique end-turn child no longer fits, compact the pool with the same retention rule the
+    /// turn boundary uses, then add the child. Duplicates never reach the bound and stay free.
+    /// </summary>
+    private bool AddEndTurnChild(Pool ended, in FlashBattle child, int node, double score, double rank,
+        double pureRank, int potionCost, in FlashScoreFeatures features, int depth, int lineage,
+        int payoffCount)
+    {
+        try
         {
-            // CombatBeamSolver.Phases.cs: settle the fetched, payable power's next decision before
-            // ranking the intermediate selection. The intermediate state is not committed; every
-            // successor goes through the normal transition/dedup/pool accounting.
-            ExpandFetchedPowerSuccessors(ref child, node, next, ended, terminal);
-            return;
+            return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
+                lineage, payoffCount);
         }
-        // The retention-only hand values are computed by the pool only when the state is actually
-        // stored (a duplicate keeps its existing values); a terminal state never needs them.
-        bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
-            ? ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth, lineage,
-                payoffCount)
-            : next.CommitReserved(node, score, rank, pureRank, potionCost, features, depth, lineage,
-                payoffCount);
-        if (!added)
-            _duplicates++;
+        catch (FlashCapacityException) when (ended.IsFull)
+        {
+            int dropped = ended.Compact(_endedCompactionTarget, _options.OffensiveShare, turnBoundary: true);
+            _endedCompactions++;
+            _endedCompressedStates += dropped;
+            return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
+                lineage, payoffCount);
+        }
+    }
+
+    private void RecordCapacityDrop(FlashCapacityException ex)
+    {
+        _capacityPruned++;
+        CollectionsMarshal.GetValueRefOrAddDefault(_capacityDropped, ex.Region, out _)++;
     }
 
     private bool CommitmentBudgetAvailable()
@@ -1044,6 +1148,8 @@ internal sealed class FlashBeamSolver
             FlashAction action = _commitmentActions[index];
             if (action.Kind == FlashActionKind.UsePotion && !PotionAllowed(state, action.PotionSlot))
                 continue;
+            // ExpandAction handles a capacity overflow for this successor as its own child; a
+            // sibling's overflow never cancels the rest of the commitment batch.
             ExpandAction(ref state, commitmentNode, action, next, ended, terminal,
                 null, default, allowFetchedPowerCommit: false);
             if (!CommitmentBudgetAvailable())
@@ -1874,7 +1980,7 @@ internal sealed class FlashBeamSolver
             int shift = 0;
             while ((1 << shift) * size < 85_000)
                 shift++;
-            // FlashBattle is 12,408 bytes. 64 states (794,112 bytes) halve the LOH object count of
+            // FlashBattle is 12,600 bytes. 64 states (806,400 bytes) halve the LOH object count of
             // the 32-state variant while remaining small enough to place as one block.
             if (typeof(T) == typeof(FlashBattle) && shift < 6)
                 shift = 6;
@@ -2018,9 +2124,14 @@ internal sealed class FlashBeamSolver
         public void Truncate(int count)
         {
             Count = count;
+            RebuildTable();
+        }
+
+        private void RebuildTable()
+        {
             Array.Clear(_table);
             int mask = _table.Length - 1;
-            for (int index = 0; index < count; index++)
+            for (int index = 0; index < Count; index++)
                 _table[FreeSlot(_hashes[index], mask)] = index + 1;
         }
 
@@ -2030,6 +2141,9 @@ internal sealed class FlashBeamSolver
             Array.Clear(_table);
         }
 
+        /// <summary>The pool has no free seat; the next unique state needs a compaction or a drop.</summary>
+        public bool IsFull => Count >= _maxCapacity;
+
         /// <summary>
         /// The first free slot, for building a state in place before <see cref="CommitReserved"/>. A
         /// chunk boundary or the capacity bound uses the scratch slot instead, so a duplicate or a
@@ -2038,9 +2152,10 @@ internal sealed class FlashBeamSolver
         /// </summary>
         public ref FlashBattle Reserve()
         {
-            // At the explicit capacity bound the whole Flash attempt is about to be rejected. Fail
-            // before building another child, exactly like the former array growth did, so a full
-            // ended pool cannot keep expanding (and holding) more children until a unique commit.
+            // The per-action-layer pool reaches this bound only through a choice/commitment
+            // expansion that multiplies one parent action into many children. Each unique child that
+            // cannot get a seat is dropped and counted as a capacity boundary; the cumulative
+            // end-turn pool is compacted in AddEndTurnChild instead.
             if (Count >= _maxCapacity)
                 throw new FlashCapacityException("FlashBeam.Pool", _maxCapacity);
             if ((Count & ChunkedArray<FlashBattle>.ChunkMask) != 0)
@@ -2159,9 +2274,57 @@ internal sealed class FlashBeamSolver
         /// </summary>
         public void CopyTopTo(Pool target, int width, double offensiveShare, bool turnBoundary = false)
         {
+            List<int> selected = SelectTop(width, offensiveShare, turnBoundary);
+            for (int index = 0; index < selected.Count; index++)
+            {
+                int source = selected[index];
+                target.Add(_states[source], _nodes[source], _scores[source], _ranks[source],
+                    _trackPlanSeats ? _pureRanks[source] : 0d, _potionCosts[source],
+                    _facts[source], _lineages[source],
+                    _trackPlanSeats ? _payoffs[source] : 0);
+            }
+        }
+
+        /// <summary>
+        /// Compacts the pool to <paramref name="keep"/> states with the same selection rule as
+        /// <see cref="CopyTopTo"/> (rank seats, the offensive share and every required representative)
+        /// applied at the compaction width. The kept entries are moved to the front in pool order and
+        /// the dedup table is rebuilt; the dropped count is returned.
+        /// </summary>
+        public int Compact(int keep, double offensiveShare, bool turnBoundary)
+        {
             int count = Count;
+            if (keep >= count)
+                return 0;
+            List<int> selected = SelectTop(keep, offensiveShare, turnBoundary);
+            // SelectTop orders by rank position; compaction needs ascending source indexes so a move
+            // never clobbers a later source. Destination slots (0..count-1) are always below the
+            // current source, and selected sources are distinct.
+            CollectionsMarshal.AsSpan(selected).Sort();
+            for (int index = 0; index < selected.Count; index++)
+            {
+                int source = selected[index];
+                if (source != index)
+                    Move(source, index);
+            }
+            int dropped = count - selected.Count;
+            Count = selected.Count;
+            RebuildTable();
+            return dropped;
+        }
+
+        /// <summary>
+        /// The shared selection rule of <see cref="CopyTopTo"/> and <see cref="Compact"/>: rank
+        /// leaders, the offensive share, then every required representative replacing the last
+        /// ordinary seat. Returns the selected source indexes in rank order.
+        /// </summary>
+        private List<int> SelectTop(int width, double offensiveShare, bool turnBoundary)
+        {
+            int count = Count;
+            List<int> selected = _selected;
+            selected.Clear();
             if (count == 0)
-                return;
+                return selected;
             for (int index = 0; index < count; index++)
             {
                 _order[index] = index;
@@ -2169,11 +2332,9 @@ internal sealed class FlashBeamSolver
                 _required[index] = false;
             }
             SortByRank(count);
-            int keep = Math.Min(width, count);
-            int offensive = (int)(keep * offensiveShare);
-            int byScore = keep - offensive;
-            List<int> selected = _selected;
-            selected.Clear();
+            int seats = Math.Min(width, count);
+            int offensive = (int)(seats * offensiveShare);
+            int byScore = seats - offensive;
             for (int index = 0; index < byScore; index++)
             {
                 int source = _order[index];
@@ -2198,7 +2359,8 @@ internal sealed class FlashBeamSolver
             required.Clear();
             // Representatives take priority over the mass offensive lane: when a required leader is
             // not in the top seats it replaces the last non-required seat first (offensive seats are
-            // appended last), so the score leaders and then the required set are preserved.
+            // appended last), so the score leaders and then the required set are preserved. The
+            // collection limits scale with the requested width exactly as before.
             CollectRepresentatives(required, count, width, turnBoundary);
             // BeamRetentionPolicy.RankBest: every required candidate not already ranked replaces the
             // last ordinary seat, so all required members survive without widening the layer.
@@ -2223,14 +2385,7 @@ internal sealed class FlashBeamSolver
             if (_planCommitment is { CopyPowerSeats: true })
                 AdmitPlanCommitmentSeats(selected, required, width);
             CollectionsMarshal.AsSpan(selected).Sort(new RankPositionComparer(_rankPosition));
-            for (int index = 0; index < selected.Count; index++)
-            {
-                int source = selected[index];
-                target.Add(_states[source], _nodes[source], _scores[source], _ranks[source],
-                    _trackPlanSeats ? _pureRanks[source] : 0d, _potionCosts[source],
-                    _facts[source], _lineages[source],
-                    _trackPlanSeats ? _payoffs[source] : 0);
-            }
+            return selected;
         }
 
         /// <summary>

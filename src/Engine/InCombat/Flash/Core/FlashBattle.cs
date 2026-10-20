@@ -247,7 +247,7 @@ public enum FlashCounter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashBattle
 {
-    public const int ExpectedSize = 12472;
+    public const int ExpectedSize = 12600;
 
     public int Round;
     public int PlayerTurn;
