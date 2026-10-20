@@ -5,7 +5,7 @@ using CombatSolver.Engine.InCombat.Flash;
 namespace CombatSolver.FlashBeam;
 
 /// <summary>
-/// The Bfws novelty scheduler of <c>CombatBeamSolver.RunNoveltyOpen</c>, over <see cref="FlashBattle"/>.
+/// The Bfws novelty scheduler of <c>the existing search's RunNoveltyOpen</c>, over <see cref="FlashBattle"/>.
 /// Novelty facts, the open queue and the escape budgets are route/search metadata: they never enter
 /// the battle state, its fingerprint or a state key.
 /// </summary>
@@ -346,7 +346,7 @@ internal sealed partial class FlashBeamSolver
     }
 
     /// <summary>
-    /// <c>CombatBeamSolver.MeetsHpTarget</c> reduced to the same values the Flash terminal sink uses.
+    /// <c>the existing search's MeetsHpTarget</c> reduced to the same values the Flash terminal sink uses.
     /// The target was frozen by the bridge from the request's policy and battle-damage snapshot.
     /// </summary>
     private bool MeetsNoveltyHpTarget(in FlashBattle state, int node, in FlashScoreFeatures features)

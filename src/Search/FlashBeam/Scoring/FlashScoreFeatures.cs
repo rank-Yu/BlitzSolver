@@ -3,7 +3,7 @@ namespace CombatSolver.FlashBeam;
 /// <summary>
 /// The evaluation values FlashBeam ranks by, computed from a <see cref="Engine.InCombat.Flash.FlashBattle"/>
 /// by <see cref="FlashScorer"/>. Every member has the name and meaning of the
-/// <see cref="SimulationSnapshot"/> member it mirrors (<c>CombatBeamSolver.Snapshot</c>), and the K4
+/// <see cref="SimulationSnapshot"/> member it mirrors (<c>the existing search's Snapshot</c>), and the K4
 /// check (docs/flash-search/admission-and-verification.md §3) requires each one to equal the snapshot
 /// of the same state. <see cref="Score"/> is compared as an exact double.
 /// </summary>

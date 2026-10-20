@@ -105,7 +105,7 @@ internal sealed class FlashBoundFeatures
     public FlashBoundValues Evaluate(in FlashBattle battle, int explicitPotionStrategicCost,
         bool includeSmartPotionLowerBound = false)
     {
-        // CombatBeamSolver.RemainingHealingPotentialCore: an unresolved risk invalidates the
+        // the existing search's RemainingHealingPotentialCore: an unresolved risk invalidates the
         // certificate and returns int.MaxValue regardless of the configured component.
         int remaining = HasRisk(battle)
             ? int.MaxValue
@@ -129,7 +129,7 @@ internal sealed class FlashBoundFeatures
                 recoveredHp, battle.Player.CurrentHp, battle.Player.MaxHp, futureUsed),
             _config.BossHpRelief,
             deathSaveHpRestored);
-        // CombatBeamSolver.ApplySmartPotionEligibilityBound passes RemainingHealingPotential
+        // the existing search's ApplySmartPotionEligibilityBound passes RemainingHealingPotential
         // directly (not the incumbent's min with FutureHealPotential), so the ceiling keeps its
         // own lower-bound input. Non-audit searches never read it and skip the second
         // StrategicHpDeficit call on the hot retention path.

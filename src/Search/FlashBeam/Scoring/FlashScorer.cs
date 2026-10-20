@@ -5,8 +5,8 @@ namespace CombatSolver.FlashBeam;
 
 /// <summary>
 /// Ports the existing search's state evaluation to <see cref="FlashBattle"/>. Every computation follows
-/// <c>CombatBeamSolver.Snapshot</c> (CombatBeamSolver.StateEvaluation.cs) and
-/// <c>BeamRetentionPolicy.BeamRankScore</c> (CombatBeamSolver.BeamRetentionPolicy.Ranking.cs) exactly:
+/// <c>the existing search's Snapshot</c> (the existing search's StateEvaluation.cs) and
+/// <c>BeamRetentionPolicy.BeamRankScore</c> (the existing search's BeamRetentionPolicy.Ranking.cs) exactly:
 /// the same terms, the same order of operations, the same checked/rounding/clamping.
 /// </summary>
 /// <remarks>
@@ -79,7 +79,7 @@ internal sealed class FlashScorer
         return (double)(stats.Vars[index] + delta);
     }
 
-    /// <summary>Port of <c>CombatBeamSolver.BranchCardValue</c> (calculated damage where registered).</summary>
+    /// <summary>Port of <c>the existing search's BranchCardValue</c> (calculated damage where registered).</summary>
     private double BranchCardValue(in FlashBattle battle, in FlashCard card, FlashCardStats stats, FlashCardScore score)
     {
         double value = CardValue(battle, card, stats, score);
@@ -130,7 +130,7 @@ internal sealed class FlashScorer
     }
 
     /// <summary>
-    /// Port of <c>CombatBeamSolver.CalculateReachableHandPotential</c>'s value/count half: each card
+    /// Port of <c>the existing search's CalculateReachableHandPotential</c>'s value/count half: each card
     /// playable from hand contributes its modified energy and star cost plus the same ceiling of
     /// <see cref="BranchCardValue"/> (including the enchanted replay multiplier), and the exact
     /// <see cref="ReachableHandValue"/> knapsack is fed the player's current energy and stars.
@@ -283,7 +283,7 @@ internal sealed class FlashScorer
         => powerId != ushort.MaxValue && GetAmount(battle, powerId, owner) > 0;
 
     // ---------------------------------------------------------------------------------------------
-    // Growth rewards and configured relic counters (CombatBeamSolver.Snapshot).
+    // Growth rewards and configured relic counters (the existing search's Snapshot).
 
     /// <summary>
     /// <c>SimulatedCombatState.GrowthRewards</c> from the packed counters. The kernel packs two
@@ -304,7 +304,7 @@ internal sealed class FlashScorer
     /// <summary>
     /// <c>SimulatedCombatState.EvaluateRelicCounters</c> over the frozen policy targets, including
     /// the Meat on the Bone victory heal credit the existing snapshot adds in
-    /// <c>CombatBeamSolver.Snapshot</c>.
+    /// <c>the existing search's Snapshot</c>.
     /// </summary>
     private RelicCounterEvaluation EvaluateRelicCounters(in FlashBattle battle, bool won)
     {
@@ -404,7 +404,7 @@ internal sealed class FlashScorer
         bool dead = battle.Player.IsDead || battle.Outcome == FlashOutcome.Defeat;
         bool won = !dead && battle.Outcome == FlashOutcome.Victory;
         // The existing snapshot takes ThreatProjection(player.CurrentHp, 0, 0) whenever `won` is false
-        // but the boundary is not None (CombatBeamSolver.StateEvaluation.cs). EventDefeat is such a
+        // but the boundary is not None (the existing search's StateEvaluation.cs). EventDefeat is such a
         // boundary: it must not project the enemies' next intents or death saves.
         bool eventDefeat = battle.Outcome == FlashOutcome.EventDefeat;
         bool risk = (battle.Flags & FlashBattleFlags.HasRisk) != 0;
@@ -555,7 +555,7 @@ internal sealed class FlashScorer
         bool needsExhaustDrawTiming = false;
         bool skillsExhaust = false;
         bool needsRecurringEnergy = false;
-        // CombatBeamSolver.StateEvaluation: the third-act branch reads Lethality's native first attack,
+        // the existing search's StateEvaluation: the third-act branch reads Lethality's native first attack,
         // and the interaction potential is captured only when one of its three powers contributes.
         bool needsFirstAttackDamage = false;
         bool hasPagestorm = false;
@@ -650,7 +650,7 @@ internal sealed class FlashScorer
             }
             else if (rules.Kind == FlashStrategicKind.OrbitEnergy)
             {
-                // CombatBeamSolver.StateEvaluation's Orbit branch: spend + remainder over 4, times the
+                // the existing search's StateEvaluation's Orbit branch: spend + remainder over 4, times the
                 // energy granted per trigger. The shared refund capacity decreases per instance.
                 int gain = (int)Math.Min(refundCapacity,
                     ((long)refundSpend + power.Aux0) / 4 * power.Amount);
@@ -665,7 +665,7 @@ internal sealed class FlashScorer
         int persistentBuffValue = strategicEffects.RetentionValue;
         if (battle.OrbCount > 0)
         {
-            // CombatBeamSolver.StateEvaluation.OrbRetentionValue: the player's orb queue is an
+            // the existing search's StateEvaluation.OrbRetentionValue: the player's orb queue is an
             // OrbEngine setup trait, and each orb's (Focus-modified) passive adds to the persistent
             // buff value; Glass counts once per living enemy.
             persistentSetupTraits |= FlashSetupTraits.OrbEngine;
@@ -696,7 +696,7 @@ internal sealed class FlashScorer
                     && CardType(battle, card, stats: Rules.Card(card.Id, card.Upgrade))
                         == FlashCardType.Power)
                 {
-                    // CombatBeamSolver.StateEvaluation.LatentCardSetupValue's MadScience cases.
+                    // the existing search's StateEvaluation.LatentCardSetupValue's MadScience cases.
                     trait = rider == CombatSolver.Engine.InCombat.Flash.Content.Cards.Event.MadScience.RiderCurious
                         ? FlashSetupTraits.Curious
                         : FlashSetupTraits.RecurringScaling;
@@ -711,7 +711,7 @@ internal sealed class FlashScorer
         }
 
         int replayPotentialValue = ReplayPotentialValue(battle);
-        // CombatBeamSolver.StateEvaluation.CalculateReachableHandPotential reads the same playable
+        // the existing search's StateEvaluation.CalculateReachableHandPotential reads the same playable
         // hand costs/values and feeds them to ReachableHandValue.Calculate.
         int reachableHandValue = 0;
         int zeroCostPlayableCount = 0;
@@ -821,7 +821,7 @@ internal sealed class FlashScorer
             }
         }
 
-        // CombatBeamSolver.StateEvaluation: positive Sandpit stacks targeting this player whose owner is
+        // the existing search's StateEvaluation: positive Sandpit stacks targeting this player whose owner is
         // alive, summed with checked overflow. The existing engine visits EffectivePowers (live roster
         // powers); dead owners have their powers removed by ApplyEnemyDeathPowers.
         int sandpitRemaining = 0;
@@ -1081,7 +1081,7 @@ internal sealed class FlashScorer
 
     private ThreatProjection ProjectHpAfterThreat(in FlashBattle battle)
     {
-        // CombatBeamSolver.ProjectHpAfterThreat walks the run-listener table, which still contains the
+        // the existing search's ProjectHpAfterThreat walks the run-listener table, which still contains the
         // player's relics and cards after the player dies; Flash's PlayerHooksActive flag only gates the
         // combat dispatch. The projection must include those modifiers (Tungsten Rod's per-hit reduction
         // is the visible case) even on a dead snapshot, and it consumes Buffer stacks, so it runs on a
@@ -1097,7 +1097,7 @@ internal sealed class FlashScorer
         int hp = probe.Player.CurrentHp;
         int block = probe.Player.Block;
         int originalBlock = block;
-        // CombatBeamSolver.ProjectHpAfterThreat: a one-stack Sandpit targeting this player expires at
+        // the existing search's ProjectHpAfterThreat: a one-stack Sandpit targeting this player expires at
         // the enemy side turn start and force-kills the player before the attack intent. Block and
         // one-shot death saves cannot make standing pat survive that boundary.
         if (_score.SandpitPowerId != ushort.MaxValue)
@@ -1113,11 +1113,11 @@ internal sealed class FlashScorer
                 }
             }
         }
-        // CombatBeamSolver.ProjectHpAfterThreat's ostyHp: the pet absorbs redirected powered attacks
+        // the existing search's ProjectHpAfterThreat's ostyHp: the pet absorbs redirected powered attacks
         // until it dies; the remaining loss spills over to the player.
         int ostyHp = (probe.Flags & FlashBattleFlags.OstyPresent) != 0 ? probe.Osty.CurrentHp : 0;
         ProjectedDeathPrevention prevention = new(probe, _score, Rules);
-        // CombatBeamSolver.ProjectHpAfterThreat's gambitActive latch: the first unblocked damage from a
+        // the existing search's ProjectHpAfterThreat's gambitActive latch: the first unblocked damage from a
         // powered attack kills the owner through TheGambitPower, then death prevention may revive it.
         bool gambitActive = _score.TheGambitPowerId != ushort.MaxValue
             && GetAmount(probe, _score.TheGambitPowerId, FlashLimits.PlayerOwner) > 0;
@@ -1171,7 +1171,7 @@ internal sealed class FlashScorer
         Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
         decimal hpLoss = ProjectedModifyHpLost(
             ref x, loss, adjustedHit - blocked, afterOsty: false, changed, out _);
-        // CombatBeamSolver.ProjectThreatHit: Hook.ModifyUnblockedDamageTarget, then the engine's explicit
+        // the existing search's ProjectThreatHit: Hook.ModifyUnblockedDamageTarget, then the engine's explicit
         // DieForYou fallback and dead-Osty guard, then the after-Osty modifiers on the chosen receiver.
         byte target = FlashHooks.ModifyUnblockedDamageTarget(
             ref x, FlashLimits.PlayerOwner, hpLoss, FlashValueProps.Move, attacker);
@@ -1263,7 +1263,7 @@ internal sealed class FlashScorer
         return amount;
     }
 
-    /// <summary>Port of <c>CombatBeamSolver.BuildProjectedDeathPrevention</c>.</summary>
+    /// <summary>Port of <c>the existing search's BuildProjectedDeathPrevention</c>.</summary>
     private struct ProjectedDeathPrevention
     {
         private int _fairyCount;
@@ -1373,7 +1373,7 @@ internal sealed class FlashScorer
     // target loses the presumed card-reward resource.
     private const int TheHuntLongTermResourceValue = 30;
 
-    // CombatBeamSolver.StateEvaluation.OrbRetentionValue. The existing engine applies
+    // the existing search's StateEvaluation.OrbRetentionValue. The existing engine applies
     // Hook.ModifyOrbValue (Focus) through OrbMirrors.GetPassiveValue; FlashKernel.OrbPassiveValue is
     // the same pure query over the Flash listener list.
     private int OrbRetentionValue(in FlashBattle battle, int aliveEnemyCount)
@@ -1706,7 +1706,7 @@ internal sealed class FlashScorer
     }
 
     /// <summary>
-    /// Port of <c>CombatBeamSolver.FreeCardOpportunityValue</c> for FreeAttackPower: for each playable
+    /// Port of <c>the existing search's FreeCardOpportunityValue</c> for FreeAttackPower: for each playable
     /// Attack in hand without X cost, the local cost minus the hook-modified cost times 16 plus a card
     /// value bonus; the best <c>freeUses</c> values are summed.
     /// </summary>
@@ -1752,7 +1752,7 @@ internal sealed class FlashScorer
     }
 
     /// <summary>
-    /// Port of <c>CombatBeamSolver.VoidFormOpportunityValue</c>: while VoidFormPower has free plays
+    /// Port of <c>the existing search's VoidFormOpportunityValue</c>: while VoidFormPower has free plays
     /// left, every playable hand card without X cost saves its local cost minus the hook-modified cost
     /// times 16 plus its star saving times 8 plus a card-value bonus; the best <c>freeUses</c> values
     /// are summed. <see cref="FlashPower.Aux0"/> is the power's CardsPlayedThisTurn counter.
@@ -1802,14 +1802,14 @@ internal sealed class FlashScorer
     }
 
     /// <summary>
-    /// Port of <c>CombatBeamSolver.CaptureEnergyRefundWindow</c> for Automation's recurring energy:
+    /// Port of <c>the existing search's CaptureEnergyRefundWindow</c> for Automation's recurring energy:
     /// the energy the remaining live cards can consume this cycle, and the capacity left after the
     /// current energy plus future turn resets. <c>liveCards</c> is every combat card in pile order.
     /// </summary>
     private (int Spend, int Capacity) CaptureEnergyRefundWindow(in FlashBattle battle,
         StrategicEffectContext context, bool skillsExhaust)
     {
-        // CombatBeamSolver.CaptureEnergyRefundWindow's liveCards are Discard, Draw and Hand only;
+        // the existing search's CaptureEnergyRefundWindow's liveCards are Discard, Draw and Hand only;
         // the played and exhausted piles do not participate in the projected cycle.
         int liveCount = battle.HandCount + battle.DrawCount + battle.DiscardCount;
         if (liveCount == 0 || context.ReachableCards == 0)
@@ -1926,7 +1926,7 @@ internal sealed class FlashScorer
     }
 
     /// <summary>
-    /// Port of <c>CombatBeamSolver.CaptureFirstAttackDamage</c>: the best total damage of a payable
+    /// Port of <c>the existing search's CaptureFirstAttackDamage</c>: the best total damage of a payable
     /// Attack in the live piles, counting every <c>Eradicate</c> hit the available energy pays for.
     /// The energy ceiling is the current energy or the modified maximum, whichever is larger.
     /// </summary>
@@ -1966,7 +1966,7 @@ internal sealed class FlashScorer
     }
 
     /// <summary>
-    /// Port of <c>CombatBeamSolver.CaptureAct3BossInteractionPotential</c>: Pagestorm's future ethereal
+    /// Port of <c>the existing search's CaptureAct3BossInteractionPotential</c>: Pagestorm's future ethereal
     /// draw triggers and unused bonus-draw capacity, Danse Macabre's affordable high-energy plays, and
     /// Demesne's future energy and draw gains. Values stay zero when the matching power did not
     /// contribute or the projected cycle cannot realize the interaction.
@@ -1997,7 +1997,7 @@ internal sealed class FlashScorer
                 int count = FlashPiles.Count(battle, segment);
                 for (int offset = 0; offset < count; offset++)
                 {
-                    // CombatBeamSolver.StateEvaluation uses `HasKeyword(State, Ethereal)` here too,
+                    // the existing search's StateEvaluation uses `HasKeyword(State, Ethereal)` here too,
                     // so a Hexed card in the draw/discard pile is part of Pagestorm's projection.
                     if (FlashKernel.HasKeyword(battle, battle.Cards[start + offset], FlashKeywords.Ethereal))
                         futureEtherealCards++;
@@ -2392,7 +2392,7 @@ internal sealed class FlashScorer
     public double BeamRankScore(in FlashBattle battle, in FlashScoreFeatures features,
         bool terminal, bool isEndTurn)
     {
-        // CombatBeamSolver.BeamRankScore: the base-score member ranks by the base score alone (the
+        // the existing search's BeamRankScore: the base-score member ranks by the base score alone (the
         // development strategy that could adjust it is rejected at admission).
         if (_score.BaseScoreOnly)
             return features.Score;
@@ -2413,7 +2413,7 @@ internal sealed class FlashScorer
         if (_score.ContinuousThreatRanking && !terminal && isEndTurn
             && !features.PlayerDead && features.ProjectedPlayerHp <= 0)
         {
-            // CombatBeamSolver.BeamRankScore: stand-pat projects ending now, but a living player can
+            // the existing search's BeamRankScore: stand-pat projects ending now, but a living player can
             // still block, draw or kill before that intent. Keep its HP deficit continuous only in
             // intermediate ordering when a playable hand remains; final outcomes keep their policy.
             int reachable = features.ReachableHandValue;

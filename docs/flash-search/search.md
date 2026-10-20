@@ -35,16 +35,16 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 2. 路线物化
 
-`FlashRouteMaterializer` 把候选路线交给旧引擎：
+`FlashRouteMaterializer` 把候选路线交给共享回放核心：
 
-1. 从根分叉旧模拟器，逐步回放 Flash 动作。每一步按手牌位置取牌，按旧引擎的规则生成 `PlanAction`（`CardStateKey`、occurrence、`TargetCombatId`、选择令牌），并要求旧引擎这一步的投影与 Flash 逐字节一致。
-2. 把整条已核对路线作为 `fixedPrefixActions` 交给现有 `CombatBeamSolver`，用极小预算求解。现有求解器自己回放并校验前缀（`ApplyFixedPrefix`），按既有终局排序与物化逻辑生成 `SolverResult`。协调器的续用补搜已经使用同一入口，所以不需要提取 `MaterializeSelectedRoute`。
+1. 从根分叉旧模拟器，逐步回放 Flash 动作。每一步按手牌位置取牌，按旧引擎的规则生成 `PlanAction`（`CardStateKey`、occurrence、`TargetCombatId`、选择令牌），并要求旧引擎这一步的投影与 Flash 逐字节一致。回放走 `SearchReplayCore`，与现有搜索和开局探针同一实现。
+2. 把整条已核对路线作为固定前缀，在共享回放核心上重放成父链（`ApplyFixedPrefix`），再用共享 `SearchRouteMaterializer` 按既有终局排序、标注和物化步骤生成 `SolverResult`。原搜索的最终路线也走同一个物化器。
 
-固定前缀续接在导入前先用同一 `ApplyFixedPrefix` 规则回放请求前缀（`CombatBeamSolver.ReplayFixedPrefixForFlash`），把前缀末尾状态作为 Flash 搜索根；步骤 1 从该状态开始核对，步骤 2 的 `fixedPrefixActions` 是“请求前缀 + Flash 路线”，仍由现有求解器从请求根完整回放与物化。
+固定前缀续接在导入前先用同一 `ApplyFixedPrefix` 规则回放请求前缀（`OpeningProbe.ReplayFixedPrefixForFlash` / `SearchReplayCore`），把前缀末尾状态作为 Flash 搜索根；步骤 1 从该状态开始核对，步骤 2 的前缀是“请求前缀 + Flash 路线”，由共享物化器从请求根完整回放。
 
-**回合准备根（`IncludeTurnSetup`）**：玩家回合开始的原生选择页在根捕获时还没有作答，捕获的根是 `Player/Start`。Bridge 不把该 Start 状态导入内核，而是先调用现有求解器的 `CaptureTurnSetupRootsForFlash`（内部就是 `BuildTurnSetupRoots`），按与现有搜索**完全相同的选择预算**把每个准备选择分支回放到稳定 `Play` 状态，再逐个导入 `FlashBattle`。`FlashBeamSolver.Solve` 接收这组根（现有搜索的 frontier 同样从多个准备根出发），返回选中路线的 `BestRootIndex`；路线本身从 `Play` 状态开始，准备选择不占动作数。物化时把选中的 `PlanCardChoice` 向量作为 `rootTurnSetupChoices` 交给现有求解器，它在同一 `BuildTurnSetupRoots` 结果里只保留该向量并回放 `fixedPrefixActions`，结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与现有语义同形；物化后逐项核对选择向量，不一致按 `FlashVerificationException` 整条丢弃。
+**回合准备根（`IncludeTurnSetup`）**：玩家回合开始的原生选择页在根捕获时还没有作答，捕获的根是 `Player/Start`。Bridge 不把该 Start 状态导入内核，而是先调用共享 `SearchReplayCore.CaptureTurnSetupRoots`（`ChoiceSearchBudget`/`ChoiceOccurrenceCollector` 的唯一实现），按与现有搜索**完全相同的选择预算**把每个准备选择分支回放到稳定 `Play` 状态，再逐个导入 `FlashBattle`。`FlashBeamSolver.Solve` 接收这组根（现有搜索的 frontier 同样从多个准备根出发），返回选中路线的 `BestRootIndex`；路线本身从 `Play` 状态开始，准备选择不占动作数。物化时把选中的 `PlanCardChoice` 向量作为根节点元数据交给共享 `SearchRouteMaterializer`，由它从准备选择后的稳定 `Play` 根回放固定前缀；结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与现有语义同形。物化后逐项核对选择向量，不一致按 `FlashVerificationException` 整条丢弃。
 
-实现在 `src/Search/FlashBeam/Bridge/FlashRouteMaterializer.cs` 与 `src/Search/CombatBeamSolver.TurnSetup.cs`。
+实现在 `src/Search/FlashBeam/Bridge/FlashRouteMaterializer.cs`、`src/Search/Probes/SearchReplayCore.cs` 与 `src/Search/Probes/SearchRouteMaterializer.cs`。
 
 回放中任何一步与 Flash 投影不一致都按 [运行时回放核对](admission-and-verification.md#4-运行时回放核对) 处理。
 
@@ -74,7 +74,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 - 根阶段不是受支持的两形：普通 `Player/Play`，或 `IncludeTurnSetup` 的 `Player/Start`。其余 side/phase 保留显式拒绝并写 `FLASH_LEGACY ... reason=root-phase:<side>:<phase>`（Flash 内核只表示稳定出牌状态，不能把敌方回合或其它准备阶段当作出牌根搜索）。
 - 药水上下界为负或 `MinimumPotionUses > MaximumPotionUses`（沿用现有求解器的参数校验）。
 
-`PolicyOverride` 作为求解政策使用；`PrimaryIncumbent` 按 SB 的口径传入。`ProgressCallbackOverride` 只影响现有求解器的进度报告，Flash 搜索期间不报告进度。`ResetFixedPrefixSchedulingBaseline` 对 Smart 药水后验请求转交给物化求解器，使固定前缀后的调度基线与现有搜索相同；其余续接请求仍不读取它。profile 中 Flash 不建模的开关（连续致命意图、上下文排序等）仍由准入拒绝并回落。
+`PolicyOverride` 作为求解政策使用；`PrimaryIncumbent` 按 SB 的口径传入。`ProgressCallbackOverride` 只影响现有求解器的进度报告，Flash 搜索期间不报告进度。`ResetFixedPrefixSchedulingBaseline` 对 Smart 药水后验请求转交给共享回放核心，使固定前缀后的调度基线与现有搜索相同；其余续接请求仍不读取它。profile 中 Flash 不建模的开关（连续致命意图、上下文排序等）仍由准入拒绝并回落。
 
 ### 3.1 放开的药水续接与精确层
 
@@ -86,7 +86,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 - **强制指令**：按 `(槽位, 药水身份)` 的集合逐条核对，等价于 `PotionStrategySnapshot.EvaluateForcedUses`；前缀已用的强制药水从固定前缀动作折入。未满足的路线不能通过终局过滤，同次数下不会遮蔽满足的路线。强制使用次数与战略成本从可选用药中扣除后再套用 `RequireAtLeastOne`/`Smart` 资格。
 - **最早用药回合**：`EarliestPotionTurn` 按请求根回合换算后限制 Flash 的用药动作；物化后再核对没有更早的用药动作。
 
-物化后的 `FlashPotionBridge.VerifyRoute` 复核动作与显式用药计数、最小/最大次数、最早回合、`RequireAtLeastOne` 与强制指令身份；任一不满足按 `ConstraintFailure` 回落现有求解器。现有求解器的 `FinalPlanOrdering` 仍会在物化阶段拒绝不合规路线（`materialize-potion-policy`）。
+物化后的 `FlashPotionBridge.VerifyRoute` 复核动作与显式用药计数、最小/最大次数、最早回合、`RequireAtLeastOne` 与强制指令身份；任一不满足按 `ConstraintFailure` 回落现有求解器。共享 `SearchRouteMaterializer` 使用的 `FinalPlanOrdering` 仍会在物化阶段拒绝不合规路线（`materialize-potion-policy`）。
 
 `SecondRankBand`、`AggressivePowerCommitment`、`BaseScoreOnly` 都由 FlashBeam 执行：次段在全局剪枝取次段席位，力量承诺泳道按上面的席位/寿命移植；分发点不再因这些 profile 开关保留原求解器，也不会静默忽略它们。此前已经是“干净请求”的续接保持原行为。
 
@@ -117,27 +117,24 @@ SP2 复核了 DX4 在第三幕五个牌组上看到的 16 个 `flash-potion-poli
 
 固定前缀续接的搜索口径：
 
-1. 现有引擎从请求根按 `CombatBeamSolver.ApplyFixedPrefix` 的同一规则回放 `ContinuationSearchRequest.Prefix`，得到前缀末尾的 `SimulationSnapshot`（`CombatBeamSolver.ReplayFixedPrefixForFlash`）。前缀无法回放按 `UnsupportedRequest` 拒绝并回落。
+1. 现有引擎从请求根按 `ApplyFixedPrefix` 的同一规则回放 `ContinuationSearchRequest.Prefix`，得到前缀末尾的 `SimulationSnapshot`（`OpeningProbe.ReplayFixedPrefixForFlash`）。前缀无法回放按 `UnsupportedRequest` 拒绝并回落。
 2. 前缀末尾状态导入为 FlashBeam 的搜索根，规则表也从该状态编译；评估与下界的根冻结表仍从请求根建立，对应现有求解器的 `_run.Initial*` 来自请求根。
 3. FlashBeam 的节点动作数从 `Prefix.Length` 起算，使 `Score`、`RouteKey`、HP 目标早停中的完整胜利判定与下界剪枝看到与现有求解器相同的动作数。incumbent 和药水最早回合仍按请求根回合换算，不因前缀推进。
-4. 最终路线 = 前缀 + Flash 路线。Flash 路线每一步照常由现有引擎从搜索根回放并与 Flash 投影逐字节核对；物化时把前缀 + 路线整条作为 `fixedPrefixActions` 交给现有求解器，结果形状与现有后端的续接结果相同。
+4. 最终路线 = 前缀 + Flash 路线。Flash 路线每一步照常由现有引擎从搜索根回放并与 Flash 投影逐字节核对；物化时由共享 `SearchRouteMaterializer` 从前缀 + 路线重放父链并构建结果，形状与现有后端的续接结果相同。
 
-回放与物化求解器照常向 `policy.RequestWorkTotals` 记录工作量，FlashBeam 自身的节点与转移不计入。接管请求只在物化求解器中响应，FlashBeam 搜索期间不响应。
+共享物化器照常向 `policy.RequestWorkTotals` 记录前缀回放工作量，FlashBeam 自身的节点与转移不计入。接管请求只在物化求解器中响应，FlashBeam 搜索期间不响应。
 
 ### 3.3 Flash 对原搜索类的剩余依赖
 
-Flash 路径自身的探针已迁到 `src/Search/Probes/`，不再经过 `CombatBeamSolver`。其余对原搜索类的直接依赖按批次归属如下（下一批处理 Bridge 与物化）：
+Flash 桥接、固定前缀回放、回合准备根与最终物化都已改用 `src/Search/Probes/` 的共享回放核心、`OpeningProbe`、`SearchEvaluator` 和 `SearchRouteMaterializer`；`src/Search/FlashBeam/**` 不再引用 `CombatBeamSolver`，结构门禁同时检查这一点。
+
+仍构造原求解器的位置只有分发点的关闭模式与回落：
 
 | 位置 | 依赖 | 归属 |
 | --- | --- | --- |
-| `FlashBeam/Bridge/FlashRouteMaterializer.cs` | 构造原求解器做前缀/整条路线物化与校验 | SR 合入后的下一批 |
-| `FlashBeam/Bridge/FlashChoiceTranslator.cs` | 用原求解器回放选择分支 | 下一批 |
-| `FlashBeam/Bridge/FlashScoreBridge.cs` | `CombatBeamSolver.CapturePotionUsageForFlash` 静态根捕获 | 下一批 |
-| `FlashBeam/FlashBeamSolver.cs` | `TryTightenPrimarySearchIncumbent` / `ShouldPruneByPrimaryIncumbent` 静态下界入口 | 下一批（或随原搜索删除） |
-| `BeamSolveDispatch.cs` | 关闭/回落模式构造 `CombatBeamSolver` 求解 | 保留原搜索期间 |
-| `CombatSearchCoordinator.NoveltyPortfolio.cs` / `.EarlyTurnExploration.cs` / `.PostSearch.cs` | 本批范围外的直接求解成员 | 保留到对应批次 |
+| `BeamSolveDispatch.cs` | Off/Shadow 与 Flash 未接管或核对失败时构造 `CombatBeamSolver` | 保留原搜索期间；回落在后续 SW 批次删除 |
 
-`OpeningProbe`、`SearchEvaluator`、三个开局续接来源与协调器探针调用点不在此表；结构门禁禁止 `src/Search/Probes/**` 引用 `CombatBeamSolver`。
+`CombatBeamSolver.Flash.cs` 中的参考入口只服务离线差分探针（测试工具），不参与 Flash 生产路径；`OpeningProbe`、共享回放核心、三个开局续接来源与协调器探针调用点不在此表。
 
 ## 4. BeamSolveDispatch 与模式
 

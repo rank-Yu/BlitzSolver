@@ -3,7 +3,7 @@ using CombatSolver.Engine.InCombat.Flash;
 namespace CombatSolver.FlashBeam;
 
 /// <summary>
-/// The novelty fact list of a projected state (<c>CombatBeamSolver.CaptureNoveltyFacts</c>).
+/// The novelty fact list of a projected state (<c>the existing search's CaptureNoveltyFacts</c>).
 /// Novelty facts are route/search metadata: they are derived only from K4-checked evaluation fields,
 /// pile contents and powers, and never enter <see cref="FlashBattle"/>, its fingerprint or a state key.
 /// </summary>

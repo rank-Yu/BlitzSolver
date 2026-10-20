@@ -47,7 +47,7 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>
     /// The request's forced potion directives, as canonical Flash potion ids. Only a request without a
-    /// potion-policy override enforces them, matching <c>CombatBeamSolver.EnforcesPotionDirectives</c>.
+    /// potion-policy override enforces them, matching <c>the existing search's EnforcesPotionDirectives</c>.
     /// </summary>
     public FlashForcedPotionDirectives ForcedPotionDirectives { get; init; } = FlashForcedPotionDirectives.None;
 
@@ -77,7 +77,7 @@ internal sealed record FlashBeamOptions(
     public int PotionReplacementHpCredit { get; init; }
 
     /// <summary>
-    /// The existing exact-layer HP ceiling (<c>CombatBeamSolver._smartPotionEligibilityHpCeiling</c>).
+    /// The existing exact-layer HP ceiling (<c>the existing search's _smartPotionEligibilityHpCeiling</c>).
     /// Null means the existing search would not prune this layer either.
     /// </summary>
     public int? SmartPotionEligibilityHpCeiling { get; init; }
@@ -109,7 +109,7 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>
     /// The plan commitment of a <c>ContinuationPurpose.PlanCommitment</c> member
-    /// (<c>CombatBeamSolver.Expansion</c>'s <c>_planCommitment</c>): the payoff evidence counted
+    /// (<c>the existing search's Expansion</c>'s <c>_planCommitment</c>): the payoff evidence counted
     /// along a route and the CopyPower representative seats. Null for every other request.
     /// </summary>
     public FlashPlanCommitment? PlanCommitment { get; init; }
@@ -122,7 +122,7 @@ internal sealed record FlashBeamOptions(
     public int InitialPlanPayoffCount { get; init; }
 
     /// <summary>
-    /// <c>CombatBeamSolver</c>'s <c>earlyTurnScoutDepth</c>: stop after this many searched turn layers
+    /// <c>the existing search</c>'s <c>earlyTurnScoutDepth</c>: stop after this many searched turn layers
     /// and report each completed layer's frontier. Zero disables the scout.
     /// </summary>
     public int EarlyTurnScoutDepth { get; init; }
@@ -220,7 +220,7 @@ internal sealed record FlashScoutCandidate(FlashAction[] Actions, double Score)
 /// <summary>The candidates the existing search's observer reports after one searched turn layer.</summary>
 internal sealed record FlashScoutLayer(int Turns, IReadOnlyList<FlashScoutCandidate> Candidates);
 
-/// <summary>The request's HP-target stop (<c>CombatBeamSolver.MeetsHpTarget</c>): a complete victory
+/// <summary>The request's HP-target stop (<c>the existing search's MeetsHpTarget</c>): a complete victory
 /// without death saves, with at least <paramref name="RequiredPotionUses"/> and at most
 /// <paramref name="EarlyStopPotionUses"/> explicit potion uses, satisfying the enforced forced
 /// directives, and with <paramref name="HpLostSoFar"/> plus its cumulative HP loss within
@@ -433,7 +433,7 @@ internal sealed partial class FlashBeamSolver
     /// <summary>
     /// True only on the first completed turn layer when the three-act boss policy is frozen on. The
     /// existing search expands a fetched, payable power's next decision before ranking that layer
-    /// (<c>CombatBeamSolver.Phases.cs</c>, <c>searchedTurnLayers == 0</c>).
+    /// (<c>the existing search's Phases.cs</c>, <c>searchedTurnLayers == 0</c>).
     /// </summary>
     private bool _expandFetchedPowers;
 
@@ -560,7 +560,7 @@ internal sealed partial class FlashBeamSolver
             bestDefeat = state.Outcome == FlashOutcome.Defeat;
         }
         // The existing search's two early stops. The HP-target stop ends the search before the next parent
-        // (CombatBeamSolver.Phases.cs, MeetsHpTarget); the zero-damage stop ends it after the current turn
+        // (the existing search's Phases.cs, MeetsHpTarget); the zero-damage stop ends it after the current turn
         // once a victory lost no HP, used no explicit potion and left the player at full, undiminished HP
         // (growth targets, which disable it there, are rejected at admission).
         bool hpTargetReached = false, zeroDamageVictory = false;
@@ -944,7 +944,7 @@ internal sealed partial class FlashBeamSolver
     }
 
     /// <summary>
-    /// <c>CombatBeamSolver.FinalPlanOrdering.ComparePotionFreePolicyBaselines</c> restricted to the
+    /// <c>the existing search's FinalPlanOrdering.ComparePotionFreePolicyBaselines</c> restricted to the
     /// admitted keys (growth and sold HP are zero/rejected; the theft recovery key is included); the
     /// route index breaks exact ties.
     /// </summary>
@@ -1068,7 +1068,7 @@ internal sealed partial class FlashBeamSolver
             features.LongTermResourceValue,
             features.AngerCopiesGenerated,
             optionalPotionCount,
-            // CombatBeamSolver.PolicyBoundaryRank: None 0, EventDefeat 4. The final ordering compares
+            // the existing search's PolicyBoundaryRank: None 0, EventDefeat 4. The final ordering compares
             // it after the resource/anger keys and before enemy HP (FinalPlanOrdering).
             state.Outcome == FlashOutcome.EventDefeat ? 4 : 0,
             features.EnemyHp,
@@ -1221,7 +1221,7 @@ internal sealed partial class FlashBeamSolver
                 && HasPlayableFetchedPower(child, selectedPowers)
                 && CommitmentBudgetAvailable())
             {
-                // CombatBeamSolver.Phases.cs: settle the fetched, payable power's next decision before
+                // the existing search's Phases.cs: settle the fetched, payable power's next decision before
                 // ranking the intermediate selection. The intermediate state is not committed; every
                 // successor goes through the normal transition/dedup/pool accounting.
                 ExpandFetchedPowerSuccessors(ref child, node, next, ended, terminal);
@@ -1402,7 +1402,7 @@ internal sealed partial class FlashBeamSolver
     }
 
     /// <summary>
-    /// <c>CombatBeamSolver.HasPlayableFetchedPower</c>: the choice moved a card to hand and a matching
+    /// <c>the existing search's HasPlayableFetchedPower</c>: the choice moved a card to hand and a matching
     /// Power from that selection is now playable in hand.
     /// </summary>
     private bool HasPlayableFetchedPower(in FlashBattle battle, scoped ReadOnlySpan<FlashCard> selectedPowers)
@@ -1511,7 +1511,7 @@ internal sealed partial class FlashBeamSolver
         FlashActionKind Kind, ushort CardId, ushort PotionId, uint? TargetCombatId);
 
     /// <summary>
-    /// <c>CombatBeamSolver.EarlyTurnStrategyKey</c> without <c>SearchRouteTraits</c>: FlashBeam does not
+    /// <c>the existing search's EarlyTurnStrategyKey</c> without <c>SearchRouteTraits</c>: FlashBeam does not
     /// model the accumulated route trait flags, so the scout groups by the K4-checked setup traits and
     /// the remaining existing bands. The omission can only merge groups; it never invents a candidate.
     /// </summary>
@@ -1526,7 +1526,7 @@ internal sealed partial class FlashBeamSolver
     private sealed record FlashScoutEntry(int Node, FlashScoutStrategy Strategy, double Score);
 
     /// <summary>
-    /// <c>CombatBeamSolver.SelectEarlyTurnFrontier</c> over the ended pool: filter the completed turn,
+    /// <c>the existing search's SelectEarlyTurnFrontier</c> over the ended pool: filter the completed turn,
     /// keep the top two scores per strategy key, group by opening, then round-robin the opening groups
     /// up to 24 candidates. The pool already holds one representative per byte-identical state.
     /// </summary>
@@ -1620,7 +1620,7 @@ internal sealed partial class FlashBeamSolver
     /// </summary>
     private void TightenIncumbent(in FlashBattle state, int node, in FlashScoreFeatures features, in RouteKey key)
     {
-        // CombatBeamSolver.TightenPrimarySearchIncumbentAtTurnLayer: only a potion-free victory, or an
+        // the existing search's TightenPrimarySearchIncumbentAtTurnLayer: only a potion-free victory, or an
         // exact audited layer with a baseline and no enforced directives, may establish the bound.
         bool canEstablishPotionFree = _options.MinimumPotionUses == 0
             && _effectivePotionPolicy is SolverPotionPolicy.Disabled or SolverPotionPolicy.Smart;
@@ -1648,7 +1648,7 @@ internal sealed partial class FlashBeamSolver
             _bound.BossHpRelief,
             features.DeathSaveHpRestored) - features.StrategicHpCredit;
         PrimarySearchIncumbent? candidate = _incumbent;
-        if (CombatBeamSolver.TryTightenPrimarySearchIncumbent(
+        if (PrimaryIncumbentPolicy.TryTightenPrimarySearchIncumbent(
                 auditedPotionFreeBaseline: _potionFreeBaseline,
                 minimumPotionUses: _options.MinimumPotionUses,
                 maximumPotionUses: _options.Potions.MaximumUses,
@@ -1689,7 +1689,7 @@ internal sealed partial class FlashBeamSolver
                 bool costClosed = !_preservePotionCostOpportunities
                     || (bounded.ExplicitPotionStrategicCost is { } cost
                         && values.ExplicitPotionStrategicCost >= cost);
-                incumbentPrune = CombatBeamSolver.ShouldPruneByPrimaryIncumbent(
+                incumbentPrune = PrimaryIncumbentPolicy.ShouldPruneByPrimaryIncumbent(
                     values.StrategicHpLowerBound,
                     pool.State(read).PlayerTurn,
                     bounded,
@@ -1856,7 +1856,7 @@ internal sealed partial class FlashBeamSolver
     /// <see cref="FlashBattle"/>, the fingerprint or the state key.
     /// </summary>
     /// <summary>
-    /// <c>CombatBeamSolver.AttachPowerCommitment</c> over a Flash route node. Returns the 1-based
+    /// <c>the existing search's AttachPowerCommitment</c> over a Flash route node. Returns the 1-based
     /// <see cref="_commitments"/> index, or 0 when the child carries no commitment. A child whose parent
     /// has no commitment and that does not play a registered power returns immediately, so the lane
     /// costs nothing on ordinary transitions.
@@ -2283,7 +2283,7 @@ internal sealed partial class FlashBeamSolver
                     || candidate.EnemyStrengthSuppression == current.EnemyStrengthSuppression
                         && IsBetterDefensive(candidate, current));
 
-    /// <summary>CombatBeamSolver.BeamRetentionPolicy.IsBetterSearchNode: score, then fewer actions.</summary>
+    /// <summary>the existing search's BeamRetentionPolicy.IsBetterSearchNode: score, then fewer actions.</summary>
     private static bool IsBetterSearchNode(in RetentionFacts candidate, in RetentionFacts current)
         => candidate.Score > current.Score
             || candidate.Score.Equals(current.Score) && candidate.Depth < current.Depth;
@@ -3516,7 +3516,7 @@ internal sealed partial class FlashBeamSolver
 
             public int Compare(int left, int right)
             {
-                // CombatBeamSolver.CompareBeamRankOrder: rank, then fewer actions, then offensive progress.
+                // the existing search's CompareBeamRankOrder: rank, then fewer actions, then offensive progress.
                 int comparison = _ranks[right].CompareTo(_ranks[left]);
                 if (comparison != 0)
                     return comparison;
