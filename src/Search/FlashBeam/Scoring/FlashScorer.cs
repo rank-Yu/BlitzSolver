@@ -24,6 +24,12 @@ internal sealed class FlashScorer
 
     private FlashRules Rules => _score.Rules;
 
+    /// <summary><c>SearchRunContext.InitialRetainedAttackValue</c>, frozen by the root score bridge.</summary>
+    public int InitialRetainedAttackValue => _score.InitialRetainedAttackValue;
+
+    /// <summary>The root-frozen kernel rule table, used by the retention stand-pat replay.</summary>
+    internal FlashRules RulesForRetention => _score.Rules;
+
     /// <summary>
     /// The played card's primary <c>CardChoiceSupport</c> effect is <c>MoveToHand</c>. Root-frozen
     /// with the rest of the score table; used by the first-turn fetched-power commitment.
@@ -135,13 +141,14 @@ internal sealed class FlashScorer
     /// <see cref="BranchCardValue"/> (including the enchanted replay multiplier), and the exact
     /// <see cref="ReachableHandValue"/> knapsack is fed the player's current energy and stars.
     /// </summary>
-    internal (int Value, int ZeroCostPlayableCount) ReachableHandPotential(in FlashBattle battle)
+    internal (int Value, int ZeroCostPlayableCount, int PlayableAttackCount) ReachableHandPotential(in FlashBattle battle)
     {
         Span<(int Energy, int Stars, int Value)> playable = battle.HandCount <= 64
             ? stackalloc (int, int, int)[battle.HandCount]
             : new (int, int, int)[battle.HandCount];
         int count = 0;
         int zeroCostPlayableCount = 0;
+        int playableAttackCount = 0;
         for (int index = 0; index < battle.HandCount; index++)
         {
             ref readonly FlashCard card = ref battle.Cards[index];
@@ -159,9 +166,11 @@ internal sealed class FlashScorer
                 Math.Max(1, (int)Math.Ceiling(cardValue)));
             if (energyCost == 0 && starCost == 0 && !stats.CostsX && !stats.StarCostsX)
                 zeroCostPlayableCount++;
+            if (CardType(battle, card, stats) == FlashCardType.Attack)
+                playableAttackCount++;
         }
         return (ReachableHandValue.Calculate(playable[..count], battle.Energy, battle.Stars),
-            zeroCostPlayableCount);
+            zeroCostPlayableCount, playableAttackCount);
     }
 
     /// <summary><c>CalculatedVarSpecRegistry.CrescentSpear</c>: the combat piles' star-cost cards.</summary>
@@ -715,8 +724,10 @@ internal sealed class FlashScorer
         // hand costs/values and feeds them to ReachableHandValue.Calculate.
         int reachableHandValue = 0;
         int zeroCostPlayableCount = 0;
+        int playableAttackCount = 0;
         if (includeRetentionOnly)
-            (reachableHandValue, zeroCostPlayableCount) = ReachableHandPotential(battle);
+            (reachableHandValue, zeroCostPlayableCount, playableAttackCount) =
+                ReachableHandPotential(battle);
         int strategicRetentionValue = strategicEffects.RetentionValue;
 
         int retainedHandValue = 0;
@@ -950,6 +961,7 @@ internal sealed class FlashScorer
             Turn = battle.PlayerTurn,
             ReachableHandValue = reachableHandValue,
             ZeroCostPlayableCount = zeroCostPlayableCount,
+            PlayableAttackCount = playableAttackCount,
             PersistentBuffValue = persistentBuffValue,
             StrategicRetentionValue = strategicRetentionValue,
             StrategicDamagePotential = strategicEffects.DamagePotential,
@@ -2418,7 +2430,7 @@ internal sealed class FlashScorer
             // intermediate ordering when a playable hand remains; final outcomes keep their policy.
             int reachable = features.ReachableHandValue;
             if (reachable == 0)
-                (reachable, _) = ReachableHandPotential(battle);
+                (reachable, _, _) = ReachableHandPotential(battle);
             if (reachable > 0)
             {
                 baseScore = features.Score - SolverWeights.DeathPenalty
@@ -2486,7 +2498,8 @@ internal sealed class FlashScorer
     {
         if (_score.ContextualRanking is not { } model || terminal || features.ProjectedPlayerHp <= 0)
             return 0;
-        (int reachableHandValue, int zeroCostPlayableCount) = ReachableHandPotential(battle);
+        (int reachableHandValue, int zeroCostPlayableCount, int playableAttackCount) =
+            ReachableHandPotential(battle);
         ContextualRankingModel.Input input = new(
             features.Turn,
             false,

@@ -1723,6 +1723,14 @@ public static class FlashRegistry
 
     public static bool TryRelic(string nativeId, out ushort id) => Data.Value.RelicIds.TryGetValue(nativeId, out id);
 
+    /// <summary>Canonical id of the route-trait pocketwatch relic (0 when the content is absent).</summary>
+    public static ushort PocketwatchRelicId
+        => Data.Value.RelicIds.TryGetValue("POCKETWATCH", out ushort id) ? id : (ushort)0;
+
+    /// <summary>Canonical id of the declined-extra-turn relic (0 when the content is absent).</summary>
+    public static ushort PaelsEyeRelicId
+        => Data.Value.RelicIds.TryGetValue("PAELS_EYE", out ushort id) ? id : (ushort)0;
+
     public static bool TryPotion(string nativeId, out ushort id) => Data.Value.PotionIds.TryGetValue(nativeId, out id);
 
     public static bool TryMonster(string nativeId, out ushort id) => Data.Value.MonsterIds.TryGetValue(nativeId, out id);

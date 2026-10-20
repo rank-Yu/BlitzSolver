@@ -176,6 +176,8 @@ internal sealed partial class FlashBeamSolver
         _noveltyHasTerminal = false;
         _nodes.Clear();
         _commitments.Clear();
+        _routingSignatures.Clear();
+        _routingSignatureIds.Clear();
         int width = Math.Max(1, _options.BeamWidth);
         int frontierCapacity = Math.Max(width, roots.Count);
         int maxChildren = checked(frontierCapacity * (FlashKernel.MaxLegalActions + 1));
@@ -190,10 +192,13 @@ internal sealed partial class FlashBeamSolver
         int initialChildren = Math.Min(noveltyPoolLimit, Math.Max(256, width * 8));
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
         int bandWidth = _options.SecondRankBandWidth > 0 ? _options.SecondRankBandWidth : width;
+        bool checkPotionQuota = _effectivePotionPolicy != SolverPotionPolicy.Disabled;
         Pool next = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
-            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
         Pool ended = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
-            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
 
         void Terminal(in FlashBattle state, int node, double score)
         {
@@ -210,8 +215,9 @@ internal sealed partial class FlashBeamSolver
             FlashBattle root = roots[rootIndex];
             (double rootScore, _, _, _, FlashScoreFeatures rootFeatures) =
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
-            _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
-                _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0));
+            _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
+                _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d));
             bool terminalRoot = !FlashKernel.IsInProgress(root);
             ObserveNoveltySeed(root, rootIndex, rootFeatures);
             if (terminalRoot)
@@ -254,9 +260,9 @@ internal sealed partial class FlashBeamSolver
             FlashNoveltyFacts.Capture(parent, parentFeatures, _noveltyFacts);
             _noveltyPacked.PrepareParent((parentFeatures.EnemyHp / 10, parentFeatures.PotionUseCount),
                 _noveltyFacts);
-            (int reachableHandValue, int zeroCostPlayableCount) = _scorer.ReachableHandPotential(parent);
+            (int reachableHandValue, int zeroCostPlayableCount, _) = _scorer.ReachableHandPotential(parent);
             RetentionFacts parentFacts = RetentionFacts.From(parentFeatures, entry.Depth,
-                reachableHandValue, zeroCostPlayableCount);
+                reachableHandValue, zeroCostPlayableCount, initialRetainedAttackValue: _scorer.InitialRetainedAttackValue);
             next.Clear();
             ended.Clear();
             _expanded++;
@@ -269,7 +275,7 @@ internal sealed partial class FlashBeamSolver
                     continue;
                 }
                 ExpandAction(ref parent, entry.Node, _actions[actionIndex], next, ended, terminal,
-                    parentFacts);
+                    parentFacts, 0, parentFeatures.Score);
             }
             for (int index = 0; index < next.Count; index++)
             {

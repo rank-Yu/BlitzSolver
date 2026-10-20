@@ -87,6 +87,9 @@ internal readonly record struct FlashScoreFeatures
     public int Turn { get; init; }
     public int ReachableHandValue { get; init; }
     public int ZeroCostPlayableCount { get; init; }
+
+    /// <summary><c>Snapshot.PlayableAttackCount</c>: playable attack cards in the current hand.</summary>
+    public int PlayableAttackCount { get; init; }
     public int PersistentBuffValue { get; init; }
     public int StrategicRetentionValue { get; init; }
 
@@ -223,6 +226,7 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(Turn), old.Turn, flash.Turn);
         Check(nameof(ReachableHandValue), old.ReachableHandValue, flash.ReachableHandValue);
         Check(nameof(ZeroCostPlayableCount), old.ZeroCostPlayableCount, flash.ZeroCostPlayableCount);
+        Check(nameof(PlayableAttackCount), old.PlayableAttackCount, flash.PlayableAttackCount);
         Check(nameof(PersistentBuffValue), old.PersistentBuffValue, flash.PersistentBuffValue);
         Check(nameof(StrategicRetentionValue), old.StrategicRetentionValue, flash.StrategicRetentionValue);
         Check(nameof(StrategicDamagePotential), old.StrategicDamagePotential, flash.StrategicDamagePotential);

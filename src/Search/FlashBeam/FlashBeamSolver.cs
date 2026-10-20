@@ -384,9 +384,52 @@ internal sealed partial class FlashBeamSolver
     private readonly FlashBeamOptions _options;
     private readonly FlashScorer _scorer;
     private readonly FlashRouteOrdering _ordering;
-    private readonly List<(int Parent, int Depth, FlashAction Action, ulong RootActionKey,
-        ulong Lineage, int PayoffCount, ushort PotionId, ushort FirstCardId, int FirstCardTarget,
-        int Commitment)> _nodes = new(4096);
+    private readonly List<RouteNode> _nodes = new(4096);
+
+    /// <summary>
+    /// Routing-choice signatures accumulated on the route. They are node metadata only; no value here
+    /// enters <see cref="FlashBattle"/>, the fingerprint or the state key.
+    /// </summary>
+    private readonly record struct RoutingSignature(
+        int Turn,
+        int SourceId,
+        FlashChoiceEffect Effect,
+        int SourcePile,
+        int CardId,
+        int Upgrade,
+        int CardStateKey,
+        int Occurrence,
+        int CardCount);
+
+    private readonly record struct RoutingChoice(
+        int SignatureId, int Turn, int ChoiceDepth, int ParentRank, double ParentScore);
+
+    private readonly List<RoutingSignature> _routingSignatures = new();
+    private readonly Dictionary<RoutingSignature, int> _routingSignatureIds = new();
+
+    /// <summary>
+    /// One route node's accumulated metadata. <see cref="SearchRouteTraits"/> and the potion-use
+    /// lineage are route history: they never enter <see cref="FlashBattle"/>, the fingerprint or the
+    /// state key.
+    /// </summary>
+    private readonly record struct RouteNode(
+        int Parent,
+        int Depth,
+        FlashAction Action,
+        ulong RootActionKey,
+        ulong Lineage,
+        int PayoffCount,
+        ushort PotionId,
+        ushort FirstCardId,
+        int FirstCardTarget,
+        int Commitment,
+        int ActionCardId,
+        int TargetCombatId,
+        int RoutingSignatureId,
+        int RoutingChoiceTurn,
+        int RoutingChoiceDepth,
+        int RoutingParentRank,
+        double RoutingParentScore);
 
     /// <summary>
     /// Route-node power-commitment metadata (1-based node field; 0 means no commitment). The existing
@@ -538,14 +581,19 @@ internal sealed partial class FlashBeamSolver
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
         int bandWidth = _options.SecondRankBandWidth > 0
             ? _options.SecondRankBandWidth : width;
+        bool checkPotionQuota = _effectivePotionPolicy != SolverPotionPolicy.Disabled;
         Pool current = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
-            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
         Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
-            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
         Pool ended = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
-            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
         Pool turnFrontier = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
-            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments);
+            _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
+            _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -605,17 +653,23 @@ internal sealed partial class FlashBeamSolver
 
         _nodes.Clear();
         _commitments.Clear();
+        _routingSignatures.Clear();
+        _routingSignatureIds.Clear();
         for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++)
         {
             FlashBattle root = roots[rootIndex];
             (double rootScore, double rootRank, double rootPureRank, int rootPotionCost,
                 FlashScoreFeatures rootFeatures) =
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
-            _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
-                _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0));
-            (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
+            _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
+                _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d));
+            (int rootReachable, int rootZeroCost, _) = _scorer.ReachableHandPotential(root);
+            PocketwatchState(root, out int rootPocketwatchThreshold, out int rootPocketwatchPlayed);
             RetentionFacts rootFacts = RetentionFacts.From(
-                rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
+                rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost,
+                SearchRouteTraits.None, rootPocketwatchThreshold, rootPocketwatchPlayed,
+                _scorer.InitialRetainedAttackValue);
             turnFrontier.Add(root, rootIndex, rootScore, rootRank, rootPureRank, rootPotionCost, rootFacts,
                 0, _options.InitialPlanPayoffCount, 0);
         }
@@ -646,7 +700,7 @@ internal sealed partial class FlashBeamSolver
                         if (_actions[actionIndex].Kind == FlashActionKind.UsePotion && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
                             continue;
                         ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, terminal,
-                            current.Facts(index));
+                            current.Facts(index), current.RankPosition(index), current.Rank(index));
                     }
                 }
                 current.Clear();
@@ -1118,13 +1172,15 @@ internal sealed partial class FlashBeamSolver
     }
 
     private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next,
-        Pool ended, TerminalSink terminal, in RetentionFacts parentFacts)
+        Pool ended, TerminalSink terminal, in RetentionFacts parentFacts, int parentRank,
+        double parentScore)
         => ExpandAction(ref parent, parentNode, action, next, ended, terminal, parentFacts,
-            null, default, allowFetchedPowerCommit: true);
+            parentRank, parentScore, null, default, null, allowFetchedPowerCommit: true);
 
     private void ExpandAction(ref FlashBattle parent, int parentNode, FlashAction action, Pool next, Pool ended,
-        TerminalSink terminal, in RetentionFacts parentFacts, FlashChoiceEffect? primaryEffect,
-        scoped ReadOnlySpan<FlashCard> selectedPowers, bool allowFetchedPowerCommit)
+        TerminalSink terminal, in RetentionFacts parentFacts, int parentRank, double parentScore,
+        FlashChoiceEffect? primaryEffect, scoped ReadOnlySpan<FlashCard> selectedPowers,
+        RoutingChoice? routingChoice, bool allowFetchedPowerCommit)
     {
         ushort usedPotion = ushort.MaxValue;
         if (action.Kind == FlashActionKind.UsePotion
@@ -1182,8 +1238,16 @@ internal sealed partial class FlashBeamSolver
                     }
                     try
                     {
+                        RoutingChoice? answered = routingChoice;
+                        if (TryBuildRoutingChoice(parent, action, child, request, selections[index],
+                                parentNode, parentFacts.Turn, parentRank, parentScore,
+                                out RoutingChoice choiceFacts))
+                        {
+                            answered = choiceFacts;
+                        }
                         ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended,
-                            terminal, parentFacts, effect, chosenPowers, allowFetchedPowerCommit);
+                            terminal, parentFacts, parentRank, parentScore, effect, chosenPowers, answered,
+                            allowFetchedPowerCommit);
                     }
                     catch (FlashCapacityException ex)
                     {
@@ -1196,6 +1260,15 @@ internal sealed partial class FlashBeamSolver
             bool isTerminal = !FlashKernel.IsInProgress(child);
             (double score, double rank, double pureRank, int potionCost, FlashScoreFeatures features) =
                 Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
+            // Route traits are accumulated from the K4-checked parent/child feature values. They are
+            // node metadata only: the state bytes, fingerprint and key are untouched.
+            bool nonPure = action.Kind != FlashActionKind.PlayCard
+                || action.HandIndex >= parent.HandCount
+                || FlashKernel.CardType(parent, _rules, parent.Cards[action.HandIndex])
+                    != FlashCardType.Attack;
+            SearchRouteTraits childTraits = ClassifyRouteTraits(parentFacts, features, action,
+                DeclinedExtraTurn(parent), nonPure);
+            PocketwatchState(child, out int childPocketwatchThreshold, out int childPocketwatchPlayed);
             // Power-commitment metadata is route history; it is computed before the node is published
             // so the pool can store the 1-based commitment index with the seat. Terminal children
             // carry none.
@@ -1206,8 +1279,30 @@ internal sealed partial class FlashBeamSolver
             ulong lineage = NextLineage(parentNode, parent, action, node,
                 out ulong rootActionKey, out ushort firstCardId, out int firstCardTarget);
             int payoffCount = NextPayoffCount(parentNode, parent, action, features, parentFacts, commitment);
-            _nodes.Add((parentNode, depth, action, rootActionKey, lineage, payoffCount, usedPotion,
-                firstCardId, firstCardTarget, commitment));
+            RouteNode parentRoute = _nodes[parentNode];
+            int routingSignature = routingChoice?.SignatureId ?? 0;
+            int routingTurn, routingDepth, routingParentRank;
+            double routingParentScore;
+            if (routingSignature != 0)
+            {
+                routingTurn = routingChoice!.Value.Turn;
+                routingDepth = routingChoice.Value.ChoiceDepth;
+                routingParentRank = routingChoice.Value.ParentRank;
+                routingParentScore = routingChoice.Value.ParentScore;
+            }
+            else
+            {
+                routingTurn = parentRoute.RoutingChoiceTurn;
+                routingDepth = parentRoute.RoutingChoiceDepth;
+                routingParentRank = parentRoute.RoutingParentRank;
+                routingParentScore = parentRoute.RoutingParentScore;
+            }
+            int actionCardId = action.Kind == FlashActionKind.PlayCard && action.HandIndex < parent.HandCount
+                ? parent.Cards[action.HandIndex].Id : 0;
+            _nodes.Add(new RouteNode(parentNode, depth, action, rootActionKey, lineage, payoffCount,
+                usedPotion, firstCardId, firstCardTarget, commitment, actionCardId,
+                TargetCombatId(parent, action), routingSignature, routingTurn, routingDepth,
+                routingParentRank, routingParentScore));
             if (_options.Novelty != null)
                 ObserveNoveltyChild(child, node, features);
             if (isTerminal)
@@ -1224,16 +1319,23 @@ internal sealed partial class FlashBeamSolver
                 // the existing search's Phases.cs: settle the fetched, payable power's next decision before
                 // ranking the intermediate selection. The intermediate state is not committed; every
                 // successor goes through the normal transition/dedup/pool accounting.
-                ExpandFetchedPowerSuccessors(ref child, node, next, ended, terminal);
+                ExpandFetchedPowerSuccessors(ref child, node, next, ended, terminal, childTraits,
+                    childPocketwatchThreshold, childPocketwatchPlayed, parentRank, parentScore,
+                    parentFacts.EnemyBlock, parentFacts.EnemyHp, parentFacts.FutureResourceValue,
+                    parentFacts.StrategicResourcePotential);
                 return;
             }
             // The retention-only hand values are computed by the pool only when the state is actually
             // stored (a duplicate keeps its existing values); a terminal state never needs them.
             bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
                 ? AddEndTurnChild(ended, child, node, score, rank, pureRank, potionCost, features, depth,
-                    lineage, payoffCount, commitment)
+                    lineage, payoffCount, commitment, childTraits, childPocketwatchThreshold,
+                    childPocketwatchPlayed, parentFacts.EnemyBlock, parentFacts.EnemyHp,
+                    parentFacts.FutureResourceValue, parentFacts.StrategicResourcePotential)
                 : next.CommitReserved(node, score, rank, pureRank, potionCost, features, depth, lineage,
-                    payoffCount, commitment);
+                    payoffCount, commitment, childTraits, childPocketwatchThreshold,
+                    childPocketwatchPlayed, parentFacts.EnemyBlock, parentFacts.EnemyHp,
+                    parentFacts.FutureResourceValue, parentFacts.StrategicResourcePotential);
             if (!added)
                 _duplicates++;
         }
@@ -1241,6 +1343,78 @@ internal sealed partial class FlashBeamSolver
         {
             RecordCapacityDrop(ex);
         }
+    }
+
+    /// <summary>
+    /// Builds the routing-choice signature of one answered selection request. The existing
+    /// <c>RoutingChoiceSignature</c> also carries source/context ids and three enemy/pile distribution
+    /// fingerprints; Flash has no string source ids or distribution keys on the route node, so those
+    /// dimensions are not part of the key (choices from different sources of the same turn with the same
+    /// effect and option merge). The supported effect set is the non-mutation routing set; persistent
+    /// ordered-mutation effects stay in the RS2 batch.
+    /// </summary>
+    private bool TryBuildRoutingChoice(in FlashBattle parent, in FlashAction action,
+        in FlashBattle partial, in FlashChoiceRequest request, ulong selection, int parentNode,
+        int parentTurn, int parentRank, double parentScore, out RoutingChoice choice)
+    {
+        choice = default;
+        if (request.Effect is not (FlashChoiceEffect.MoveToHand or FlashChoiceEffect.MoveToDrawTop
+            or FlashChoiceEffect.Discard or FlashChoiceEffect.GenerateToHand))
+        {
+            return false;
+        }
+        int count = System.Numerics.BitOperations.PopCount(selection);
+        if (count <= 0)
+            return false;
+        int cardId = 0, upgrade = 0, stateKey = 0, occurrence = 0, cardCount = 1;
+        if (count > 1)
+        {
+            cardCount = count;
+            occurrence = count;
+        }
+        else
+        {
+            int option = System.Numerics.BitOperations.TrailingZeroCount(selection);
+            FlashCard card = request.OptionsAreGenerated
+                ? request.GeneratedOptions[option]
+                : partial.Cards[request.Options[option]];
+            cardId = card.Id;
+            upgrade = card.Upgrade;
+            stateKey = CardStateKey(card);
+            occurrence = option;
+        }
+        // The existing PlanCardChoice.SourceId is empty for the ordinary card/potion choices Flash
+        // supports (the focused card selectors are the exception in the existing engine). Flash has no
+        // source id on the request, so all requests of one effect/pile/turn form one family, matching
+        // the existing signatures this port covers.
+        const int sourceId = 0;
+        int turn = action.Kind == FlashActionKind.EndTurn
+            && request.Timing == FlashChoiceTiming.PlayerTurnStart
+                ? parentTurn + 1
+                : parentTurn;
+        RoutingSignature signature = new(turn, sourceId, request.Effect,
+            request.SourceIsNone ? -1 : (int)request.Source, cardId, upgrade, stateKey, occurrence,
+            cardCount);
+        if (!_routingSignatureIds.TryGetValue(signature, out int id))
+        {
+            _routingSignatures.Add(signature);
+            id = _routingSignatures.Count;
+            _routingSignatureIds.Add(signature, id);
+        }
+        choice = new RoutingChoice(id, turn, _nodes[parentNode].Depth + 1, parentRank, parentScore);
+        return true;
+    }
+
+    /// <summary>A 32-bit state key for the selected option card: FNV-1a over the card value. It stands
+    /// in for the existing <c>PlanCardToken.StateKey</c>, which distinguishes equal-id card variants.</summary>
+    private static int CardStateKey(in FlashCard card)
+    {
+        ulong hash = 1469598103934665603UL;
+        ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(
+            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in card), 1));
+        for (int index = 0; index < bytes.Length; index++)
+            hash = (hash ^ bytes[index]) * 1099511628211UL;
+        return (int)(hash ^ (hash >> 32));
     }
 
     /// <summary>
@@ -1253,8 +1427,7 @@ internal sealed partial class FlashBeamSolver
     private ulong NextLineage(int parentNode, in FlashBattle parent, in FlashAction action, int node,
         out ulong rootActionKey, out ushort firstCardId, out int firstCardTarget)
     {
-        (int Parent, int Depth, FlashAction Action, ulong RootActionKey, ulong Lineage, int PayoffCount,
-            ushort PotionId, ushort FirstCardId, int FirstCardTarget, int Commitment) entry = _nodes[parentNode];
+        RouteNode entry = _nodes[parentNode];
         rootActionKey = entry.RootActionKey;
         firstCardId = entry.FirstCardId;
         firstCardTarget = entry.FirstCardTarget;
@@ -1338,12 +1511,16 @@ internal sealed partial class FlashBeamSolver
     /// </summary>
     private bool AddEndTurnChild(Pool ended, in FlashBattle child, int node, double score, double rank,
         double pureRank, int potionCost, in FlashScoreFeatures features, int depth, ulong lineage,
-        int payoffCount, int commitment)
+        int payoffCount, int commitment, SearchRouteTraits traits, int pocketwatchThreshold,
+        int pocketwatchPlayed, int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
+        int parentStrategicResourcePotential)
     {
         try
         {
             return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
-                lineage, payoffCount, commitment);
+                lineage, payoffCount, commitment, traits, pocketwatchThreshold, pocketwatchPlayed,
+                parentEnemyBlock, parentEnemyHp, parentFutureResourceValue,
+                parentStrategicResourcePotential);
         }
         catch (FlashCapacityException) when (ended.IsFull)
         {
@@ -1351,7 +1528,9 @@ internal sealed partial class FlashBeamSolver
             _endedCompactions++;
             _endedCompressedStates += dropped;
             return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
-                lineage, payoffCount, commitment);
+                lineage, payoffCount, commitment, traits, pocketwatchThreshold, pocketwatchPlayed,
+                parentEnemyBlock, parentEnemyHp, parentFutureResourceValue,
+                parentStrategicResourcePotential);
         }
     }
 
@@ -1373,7 +1552,10 @@ internal sealed partial class FlashBeamSolver
     /// loop still iterates its own actions.
     /// </summary>
     private void ExpandFetchedPowerSuccessors(ref FlashBattle commitment, int commitmentNode,
-        Pool next, Pool ended, TerminalSink terminal)
+        Pool next, Pool ended, TerminalSink terminal, SearchRouteTraits traits,
+        int pocketwatchThreshold, int pocketwatchPlayed, int parentRank, double parentScore,
+        int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
+        int parentStrategicResourcePotential)
     {
         _expanded++;
         FlashBattle state = commitment;
@@ -1382,9 +1564,11 @@ internal sealed partial class FlashBeamSolver
         int commitmentDepth = Depth(commitmentNode);
         FlashScoreFeatures commitmentFeatures =
             _scorer.Features(state, commitmentDepth, includeRetentionOnly: true);
-        (int commitmentReachable, int commitmentZeroCost) = _scorer.ReachableHandPotential(state);
+        (int commitmentReachable, int commitmentZeroCost, _) = _scorer.ReachableHandPotential(state);
         RetentionFacts commitmentFacts = RetentionFacts.From(commitmentFeatures, commitmentDepth,
-            commitmentReachable, commitmentZeroCost);
+            commitmentReachable, commitmentZeroCost, traits, pocketwatchThreshold, pocketwatchPlayed,
+            _scorer.InitialRetainedAttackValue, parentEnemyBlock, parentEnemyHp,
+            parentFutureResourceValue, parentStrategicResourcePotential);
         int count = FlashKernel.LegalActions(state, _rules, _commitmentActions);
         for (int index = 0; index < count; index++)
         {
@@ -1395,7 +1579,7 @@ internal sealed partial class FlashBeamSolver
             // ExpandAction handles a capacity overflow for this successor as its own child; a
             // sibling's overflow never cancels the rest of the commitment batch.
             ExpandAction(ref state, commitmentNode, action, next, ended, terminal, commitmentFacts,
-                null, default, allowFetchedPowerCommit: false);
+                parentRank, parentScore, null, default, null, allowFetchedPowerCommit: false);
             if (!CommitmentBudgetAvailable())
                 break;
         }
@@ -1887,7 +2071,7 @@ internal sealed partial class FlashBeamSolver
             : ushort.MaxValue;
         if (parentIndex > 0)
         {
-            (int reachableHandValue, int zeroCostPlayableCount) = _scorer.ReachableHandPotential(child);
+            (int reachableHandValue, int zeroCostPlayableCount, _) = _scorer.ReachableHandPotential(child);
             childFacts = RetentionFacts.From(childFeatures, depth,
                 reachableHandValue, zeroCostPlayableCount);
             FlashPowerEvidence.View parentView = new(parent, default, _rules, _scorer);
@@ -2077,6 +2261,7 @@ internal sealed partial class FlashBeamSolver
         int DefensiveBlockValue,
         int AliveEnemyCount,
         int RawEnemyHp,
+        int EnemyBlock,
         int EnemyHp,
         int MaxCurrentEnemyHp,
         int RevivingEnemyCount,
@@ -2115,10 +2300,33 @@ internal sealed partial class FlashBeamSolver
         int Turn,
         int CumulativePlayerHpLost,
         int PotionStrategicCost,
-        double Score)
+        double Score,
+        int PlayerHp,
+        int PlayerMaxHp,
+        ulong AliveEnemyMask,
+        bool AllEnemiesDead,
+        bool PlayerDead,
+        int PocketwatchCardThreshold,
+        int PocketwatchCardsPlayedThisTurn,
+        SearchRouteTraits Traits,
+        int StrategicHpCredit,
+        ulong RelicSatisfiedMask,
+        int StrategyGoalCount,
+        int AngerCopiesGenerated,
+        int RetainedAttackGrowth,
+        int FutureSoldHp,
+        int PlayableAttackCount,
+        int StrategicResourcePotential,
+        int ParentEnemyBlock,
+        int ParentEnemyHp,
+        int ParentFutureResourceValue,
+        int ParentStrategicResourcePotential)
     {
         public static RetentionFacts From(in FlashScoreFeatures features, int depth,
-            int reachableHandValue, int zeroCostPlayableCount) => new(
+            int reachableHandValue, int zeroCostPlayableCount, SearchRouteTraits traits = SearchRouteTraits.None,
+            int pocketwatchCardThreshold = -1, int pocketwatchCardsPlayedThisTurn = 0,
+            int initialRetainedAttackValue = 0, int parentEnemyBlock = 0, int parentEnemyHp = 0,
+            int parentFutureResourceValue = 0, int parentStrategicResourcePotential = 0) => new(
             depth,
             features.PotionUseCount,
             features.ProjectedPlayerHp,
@@ -2128,6 +2336,7 @@ internal sealed partial class FlashBeamSolver
             features.DefensiveBlockValue,
             features.AliveEnemyCount,
             features.RawEnemyHp,
+            features.EnemyBlock,
             features.EnemyHp,
             features.MaxCurrentEnemyHp,
             features.RevivingEnemyCount,
@@ -2166,7 +2375,28 @@ internal sealed partial class FlashBeamSolver
             features.Turn,
             features.CumulativePlayerHpLost,
             features.PotionStrategicCost,
-            features.Score);
+            features.Score,
+            features.PlayerHp,
+            features.PlayerMaxHp,
+            features.AliveEnemyMask,
+            features.AllEnemiesDead,
+            features.PlayerDead,
+            pocketwatchCardThreshold,
+            pocketwatchCardsPlayedThisTurn,
+            traits,
+            features.StrategicHpCredit,
+            features.RelicSatisfiedMask,
+            features.StrategyGoalCount,
+            features.AngerCopiesGenerated,
+            Math.Min(SolverWeights.RetainedAttackGrowthBeamCap,
+                Math.Max(0, features.RetainedAttackValue - initialRetainedAttackValue)),
+            0,
+            features.PlayableAttackCount,
+            features.StrategicResourcePotential,
+            parentEnemyBlock,
+            parentEnemyHp,
+            parentFutureResourceValue,
+            parentStrategicResourcePotential);
 
         /// <summary>
         /// BeamRetentionPolicy.SetupLaneValue: StrategicEffects.RetentionValue * 16
@@ -2205,6 +2435,167 @@ internal sealed partial class FlashBeamSolver
                     * Math.Min(SolverWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
                 + features.DelayedDamageValue
                 - features.LiveDeckClutter * 8;
+    }
+
+    /// <summary>
+    /// K4 entry: the Flash route-trait delta for one transition, computed from the same feature
+    /// projection the probe compares field by field. The reference side calls the existing
+    /// <c>Classify*Traits</c>; <c>pure</c> and the PaelsEye declined flag are inputs the probe derives
+    /// from the simulator history/relics for both sides.
+    /// </summary>
+    internal static SearchRouteTraits ClassifyRouteTraitsForTesting(
+        in FlashScoreFeatures before, in FlashScoreFeatures after, FlashAction action,
+        bool declinedExtraTurn, bool nonPure)
+    {
+        RetentionFacts facts = RetentionFacts.From(before, 0,
+            before.ReachableHandValue, before.ZeroCostPlayableCount);
+        return ClassifyRouteTraits(facts, after, action, declinedExtraTurn, nonPure);
+    }
+
+    /// <summary>
+    /// <c>SearchProbeHelpers.ClassifyCardTraits</c>/<c>ClassifyPotionTraits</c>/<c>ClassifyRoundTransitionTraits</c>
+    /// over the parent/child feature values. The cumulative route traits are node metadata: they never enter
+    /// <see cref="FlashBattle"/>, the fingerprint or the state key.
+    /// <para>
+    /// The existing <c>pure</c> input is derived from the simulator history entry types
+    /// (<c>CardPlayStarted</c>/<c>CardPlayFinished</c>/<c>CreatureAttacked</c>/<c>DamageReceived</c>).
+    /// Flash route metadata has no history entry stream, so a card play is classified as not pure. That
+    /// only widens the <see cref="SearchRouteTraits.Control"/> candidate set; the other terms of the same
+    /// classification are exact feature comparisons.
+    /// </para>
+    /// </summary>
+    private static SearchRouteTraits ClassifyRouteTraits(in RetentionFacts before,
+        in FlashScoreFeatures after, in FlashAction action, bool declinedExtraTurn, bool nonPure)
+    {
+        SearchRouteTraits traits = before.Traits;
+        if (action.Kind == FlashActionKind.PlayCard)
+        {
+            if (declinedExtraTurn)
+                traits |= SearchRouteTraits.DeclinedExtraTurn;
+            if (after.PersistentBuffValue > before.PersistentBuffValue
+                || after.DelayedDamageValue > before.DelayedDamageValue
+                || after.ReplayPotentialValue > before.ReplayPotentialValue
+                || after.LongTermResourceValue > before.LongTermResourceValue)
+            {
+                traits |= SearchRouteTraits.Scaling;
+            }
+            if (after.LongTermResourceValue > before.LongTermResourceValue)
+                traits |= SearchRouteTraits.LongTermResource;
+            if (after.PlayerHp < before.PlayerHp
+                || after.PlayerMaxHp < before.PlayerMaxHp
+                || after.CumulativePlayerHpLost > before.CumulativePlayerHpLost)
+            {
+                traits |= SearchRouteTraits.HpInvestment;
+            }
+            if (after.ReactiveDamageValue > before.ReactiveDamageValue)
+                traits |= SearchRouteTraits.ReactiveDamage;
+            if (after.Energy > before.Energy
+                || after.Stars > before.Stars
+                || after.HandCount >= before.HandCount
+                || after.ReachableHandValue > before.ReachableHandValue
+                || after.ZeroCostPlayableCount > before.ZeroCostPlayableCount
+                || after.FutureResourceValue > before.FutureResourceValue)
+            {
+                traits |= SearchRouteTraits.Resource;
+            }
+            if (nonPure
+                || after.SandpitRemaining > before.SandpitRemaining
+                || after.EnemyStrengthSuppression > before.EnemyStrengthSuppression
+                || after.EnemyWeakTurns > before.EnemyWeakTurns
+                || after.EnemyVulnerableTurns > before.EnemyVulnerableTurns
+                || after.LiveDeckClutter < before.LiveDeckClutter
+                || after.DelayedDamageValue > before.DelayedDamageValue)
+            {
+                traits |= SearchRouteTraits.Control;
+            }
+            if (OpensRevivalWindow(before, after))
+                traits |= SearchRouteTraits.RevivalWindow;
+        }
+        else if (action.Kind == FlashActionKind.UsePotion)
+        {
+            if (after.PersistentBuffValue > before.PersistentBuffValue
+                || after.DelayedDamageValue > before.DelayedDamageValue)
+            {
+                traits |= SearchRouteTraits.Scaling;
+            }
+            if (after.Energy > before.Energy
+                || after.Stars > before.Stars
+                || after.HandCount > before.HandCount
+                || after.FutureResourceValue > before.FutureResourceValue)
+            {
+                traits |= SearchRouteTraits.Resource;
+            }
+            if (after.SandpitRemaining > before.SandpitRemaining
+                || after.EnemyStrengthSuppression > before.EnemyStrengthSuppression
+                || after.EnemyWeakTurns > before.EnemyWeakTurns
+                || after.LiveDeckClutter < before.LiveDeckClutter
+                || after.DelayedDamageValue > before.DelayedDamageValue
+                || after.EnemyHp == before.EnemyHp && after.PlayerBlock == before.PlayerBlock)
+            {
+                traits |= SearchRouteTraits.Control;
+            }
+            if (before.Energy == 0
+                && after.HandCount == 0
+                && before.LiveDeckSize - after.LiveDeckSize >= 6
+                && before.PocketwatchCardThreshold >= 0
+                && before.PocketwatchCardsPlayedThisTurn == before.PocketwatchCardThreshold)
+            {
+                traits |= SearchRouteTraits.EndTurnDeckCompression;
+            }
+            if (OpensRevivalWindow(before, after))
+                traits |= SearchRouteTraits.RevivalWindow;
+        }
+        else if (OpensRevivalWindow(before, after))
+        {
+            traits |= SearchRouteTraits.RevivalWindow;
+        }
+        return traits;
+    }
+
+    private static bool OpensRevivalWindow(in RetentionFacts before, in FlashScoreFeatures after)
+        => after.RevivingEnemyCount > before.RevivingEnemyCount
+            || after.RawEnemyHp < before.RawEnemyHp && after.EnemyHp >= before.EnemyHp
+            || (before.AliveEnemyMask & ~after.AliveEnemyMask) != 0
+                && (after.AliveEnemyMask & ~before.AliveEnemyMask) != 0;
+
+    /// <summary><c>SimulatedCombatState.TryGetPocketwatchState</c>: the first non-melted relic's threshold
+    /// and cards played this turn. A root without the relic reports -1/0, exactly like the snapshot.</summary>
+    private void PocketwatchState(in FlashBattle battle, out int threshold, out int cardsPlayedThisTurn)
+        => PocketwatchState(battle, _rules, out threshold, out cardsPlayedThisTurn);
+
+    internal static void PocketwatchState(in FlashBattle battle, FlashRules rules,
+        out int threshold, out int cardsPlayedThisTurn)
+    {
+        threshold = -1;
+        cardsPlayedThisTurn = 0;
+        ushort id = FlashRegistry.PocketwatchRelicId;
+        if (id == 0)
+            return;
+        for (int index = 0; index < battle.RelicCount; index++)
+        {
+            ref readonly FlashRelic relic = ref battle.Relics[index];
+            if (relic.Id != id || (relic.Flags & FlashRelicFlags.Melted) != 0)
+                continue;
+            threshold = (int)rules.RelicVar(id, 0);
+            cardsPlayedThisTurn = relic.Counter;
+            return;
+        }
+    }
+
+    /// <summary><c>SimulatedCombatState.IsPaelsEyeUnused</c>: the relic exists, is not melted and its
+    /// stateful counter is still zero.</summary>
+    internal static bool DeclinedExtraTurn(in FlashBattle battle)
+    {
+        ushort id = FlashRegistry.PaelsEyeRelicId;
+        if (id == 0)
+            return false;
+        for (int index = 0; index < battle.RelicCount; index++)
+        {
+            ref readonly FlashRelic relic = ref battle.Relics[index];
+            if (relic.Id == id && (relic.Flags & FlashRelicFlags.Melted) == 0 && relic.Counter == 0)
+                return true;
+        }
+        return false;
     }
 
     // The leader comparators below are the existing BeamRetentionPolicy.Ranking comparators with the
@@ -2451,6 +2842,7 @@ internal sealed partial class FlashBeamSolver
         public int Defensive = -1;
         public int Setup = -1;
         public int Position = int.MaxValue;
+        public double MaxRank = double.NegativeInfinity;
     }
 
     private sealed class FocusLeaders
@@ -2549,6 +2941,55 @@ internal sealed partial class FlashBeamSolver
         private readonly bool _aggressivePowerCommitment;
         private readonly bool _trackPowerCommitments;
         private readonly List<FlashPowerCommitmentState> _commitmentStates;
+        private readonly List<RouteNode> _routeNodes;
+        private readonly List<RoutingSignature> _routingSignatures;
+        private readonly bool _checkPotionQuota;
+        private readonly int _initialActionCount;
+        private readonly int _policyWidth;
+        private readonly HashSet<int> _potionReservations = new();
+        private readonly List<ushort> _potionLineageScratch = new();
+        private readonly Dictionary<string, PotionLineageLeaders> _potionLineageGroups =
+            new(StringComparer.Ordinal);
+        private readonly List<string> _potionLineageOrder = new();
+        private const int RoutingChoiceLimit = 96;
+        private readonly record struct RoutingFamilyKey(int Turn, int SourceId, int Effect, int Pile);
+        private readonly record struct RoutingOptionKey(int CardId, int Upgrade, int StateKey, int CardCount);
+        private sealed class RoutingGroup
+        {
+            public readonly List<int> Nodes = new();
+            public int BestScore = -1;
+            public int BestOffense = -1;
+            public int BestDefense = -1;
+            public int BestSetup = -1;
+            public int MinParentRank = int.MaxValue;
+            public double MaxParentScore = double.NegativeInfinity;
+            public double MaxBeamRank = double.NegativeInfinity;
+        }
+        private sealed class RoutingBucket
+        {
+            public readonly List<int> Groups = new();
+            public int MinParentRank = int.MaxValue;
+            public double MaxParentScore = double.NegativeInfinity;
+            public double MaxBeamRank = double.NegativeInfinity;
+        }
+        private readonly Dictionary<int, RoutingGroup> _routingGroups = new();
+        private readonly List<int> _routingGroupOrder = new();
+        private readonly Dictionary<RoutingFamilyKey, RoutingBucket> _routingFamilies = new();
+        private readonly List<RoutingFamilyKey> _routingFamilyOrder = new();
+        private readonly Dictionary<RoutingOptionKey, RoutingBucket> _routingOptions = new();
+        private readonly List<RoutingOptionKey> _routingOptionOrder = new();
+        private readonly List<int> _routingChoices = new();
+        private readonly record struct ParetoCohortKey(
+            ulong AliveEnemyMask, int EnemyHp, int RawEnemyHp, int MaxCurrentEnemyHp,
+            int AliveEnemyCount, int RevivingEnemyCount, int EnemyStrengthSuppression,
+            int EnemyWeakTurns, int EnemyVulnerableTurns, int FocusTargetVulnerableTurns,
+            int LiveDeckSize, int LiveDeckClutter, long AttackDensity);
+        private readonly Dictionary<ParetoCohortKey, List<int>> _paretoCohorts = new();
+        private readonly List<int> _pareto = new(3);
+        private readonly List<int> _standPatGroup = new();
+        private readonly record struct StandPatEvaluation(
+            bool AllEnemiesDead, int DelayedDamage, int ProjectedPlayerHp, int ResourceValue,
+            bool Available);
         private readonly Dictionary<CommitmentGroupKey, CommitmentGroupLeader> _commitmentGroups = new();
         private readonly List<CommitmentGroupKey> _commitmentGroupOrder = new();
         private readonly List<int> _powerRepresentatives = new();
@@ -2558,7 +2999,8 @@ internal sealed partial class FlashBeamSolver
         public Pool(int initialCapacity, int maxCapacity, bool preserveTheft, FlashScorer scorer,
             FlashPlanCommitment? planCommitment, bool secondRankBand, int secondRankBandWidth,
             bool aggressivePowerCommitment, FlashPowerCommitmentCatalog? powerCommitments,
-            List<FlashPowerCommitmentState> commitmentStates)
+            List<FlashPowerCommitmentState> commitmentStates, List<RouteNode> routeNodes,
+            List<RoutingSignature> routingSignatures, bool checkPotionQuota, int initialActionCount)
         {
             _maxCapacity = maxCapacity;
             _preserveTheft = preserveTheft;
@@ -2570,6 +3012,11 @@ internal sealed partial class FlashBeamSolver
             _aggressivePowerCommitment = aggressivePowerCommitment;
             _trackPowerCommitments = powerCommitments is { Rules.Length: > 0 };
             _commitmentStates = commitmentStates;
+            _routeNodes = routeNodes;
+            _routingSignatures = routingSignatures;
+            _checkPotionQuota = checkPotionQuota;
+            _initialActionCount = initialActionCount;
+            _policyWidth = secondRankBandWidth > 0 ? secondRankBandWidth : maxCapacity;
             _states = new ChunkedArray<FlashBattle>(maxCapacity);
             _nodes = new ChunkedArray<int>(maxCapacity);
             _lineages = new ChunkedArray<ulong>(maxCapacity);
@@ -2633,6 +3080,8 @@ internal sealed partial class FlashBeamSolver
         public double Score(int index) => _scores[index];
 
         public double Rank(int index) => _ranks[index];
+
+        public int RankPosition(int index) => _rankPosition[index];
 
         public int PotionCost(int index) => _potionCosts[index];
 
@@ -2707,35 +3156,50 @@ internal sealed partial class FlashBeamSolver
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
         public bool CommitReserved(int node, double score, double rank, double pureRank, int potionCost,
-            in FlashScoreFeatures features, int depth, ulong lineage, int payoffCount, int commitment)
+            in FlashScoreFeatures features, int depth, ulong lineage, int payoffCount, int commitment,
+            SearchRouteTraits traits, int pocketwatchThreshold, int pocketwatchPlayed,
+            int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
+            int parentStrategicResourcePotential)
         {
             if (_scratchReserved)
             {
                 return Insert(ref _scratch, inPlace: false, node, score, rank, pureRank, potionCost,
-                    features, default, factsReady: false, depth, lineage, payoffCount, commitment);
+                    features, default, factsReady: false, depth, lineage, payoffCount, commitment, traits,
+                    pocketwatchThreshold, pocketwatchPlayed, parentEnemyBlock, parentEnemyHp,
+                    parentFutureResourceValue, parentStrategicResourcePotential);
             }
             return Insert(ref _states[Count], inPlace: true, node, score, rank, pureRank, potionCost,
-                features, default, factsReady: false, depth, lineage, payoffCount, commitment);
+                features, default, factsReady: false, depth, lineage, payoffCount, commitment, traits,
+                pocketwatchThreshold, pocketwatchPlayed, parentEnemyBlock, parentEnemyHp,
+                parentFutureResourceValue, parentStrategicResourcePotential);
         }
 
         /// <summary>Adds a scored state and computes its retention-only values when it is stored.</summary>
         public bool AddScored(in FlashBattle state, int node, double score, double rank, double pureRank,
             int potionCost, in FlashScoreFeatures features, int depth, ulong lineage, int payoffCount,
-            int commitment)
+            int commitment, SearchRouteTraits traits, int pocketwatchThreshold, int pocketwatchPlayed,
+            int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
+            int parentStrategicResourcePotential)
             => Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, pureRank, potionCost, features, default, factsReady: false, depth,
-                lineage, payoffCount, commitment);
+                lineage, payoffCount, commitment, traits, pocketwatchThreshold, pocketwatchPlayed,
+                parentEnemyBlock, parentEnemyHp, parentFutureResourceValue,
+                parentStrategicResourcePotential);
 
         /// <summary>Adds a state whose retention facts are already computed (pool-to-pool copies).</summary>
         public bool Add(in FlashBattle state, int node, double score, double rank, double pureRank,
             int potionCost, in RetentionFacts facts, ulong lineage, int payoffCount, int commitment)
             => Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, pureRank, potionCost, default, facts, factsReady: true, facts.Depth,
-                lineage, payoffCount, commitment);
+                lineage, payoffCount, commitment, facts.Traits, facts.PocketwatchCardThreshold,
+                facts.PocketwatchCardsPlayedThisTurn, 0, 0, 0, 0);
 
         private bool Insert(ref FlashBattle state, bool inPlace, int node, double score, double rank,
             double pureRank, int potionCost, in FlashScoreFeatures features, in RetentionFacts knownFacts,
-            bool factsReady, int depth, ulong lineage, int payoffCount, int commitment)
+            bool factsReady, int depth, ulong lineage, int payoffCount, int commitment,
+            SearchRouteTraits traits, int pocketwatchThreshold, int pocketwatchPlayed,
+            int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
+            int parentStrategicResourcePotential)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -2761,7 +3225,10 @@ internal sealed partial class FlashBeamSolver
                             // The byte-identical state has the same retention-only hand values; only
                             // the depth-dependent fields move with the better-ranked representative.
                             : RetentionFacts.From(features, depth,
-                                _facts[existing].ReachableHandValue, _facts[existing].ZeroCostPlayableCount);
+                                _facts[existing].ReachableHandValue, _facts[existing].ZeroCostPlayableCount,
+                                traits, pocketwatchThreshold, pocketwatchPlayed,
+                                _scorer.InitialRetainedAttackValue, parentEnemyBlock, parentEnemyHp,
+                                parentFutureResourceValue, parentStrategicResourcePotential);
                         _lineages[existing] = lineage;
                         _commitment[existing] = commitment;
                         _hasCommitments |= commitment > 0;
@@ -2777,10 +3244,13 @@ internal sealed partial class FlashBeamSolver
             RetentionFacts facts = knownFacts;
             if (!factsReady)
             {
-                (int reachableHandValue, int zeroCostPlayableCount) =
+                (int reachableHandValue, int zeroCostPlayableCount, _) =
                     _scorer.ReachableHandPotential(state);
                 facts = RetentionFacts.From(
-                    features, depth, reachableHandValue, zeroCostPlayableCount);
+                    features, depth, reachableHandValue, zeroCostPlayableCount,
+                    traits, pocketwatchThreshold, pocketwatchPlayed,
+                    _scorer.InitialRetainedAttackValue, parentEnemyBlock, parentEnemyHp,
+                    parentFutureResourceValue, parentStrategicResourcePotential);
             }
             if ((Count + 1) * 2 > _table.Length)
                 GrowTable();
@@ -2935,6 +3405,8 @@ internal sealed partial class FlashBeamSolver
                 AdmitPowerCommitmentSeats(selected, required, width);
             if (_planCommitment is { CopyPowerSeats: true })
                 AdmitPlanCommitmentSeats(selected, required, width);
+            if (_checkPotionQuota)
+                ApplyPotionUseQuota(selected, width);
             CollectionsMarshal.AsSpan(selected).Sort(new RankPositionComparer(_rankPosition));
             return selected;
         }
@@ -3009,6 +3481,95 @@ internal sealed partial class FlashBeamSolver
                 selected[replaceIndex] = candidate;
                 _taken[candidate] = true;
                 AddRequired(required, candidate, width);
+            }
+        }
+
+        /// <summary>
+        /// <c>BeamRetentionPolicy.FeasiblePotionUseQuotas</c> and the two quota passes after the
+        /// ordinary/required seats are chosen. The quota only swaps seats; it never widens the beam.
+        /// </summary>
+        private void ApplyPotionUseQuota(List<int> selected, int limit)
+        {
+            bool anyUsed = false, anyUnused = false;
+            for (int position = 0; position < Count; position++)
+            {
+                if (UsesPotion(_rankOrder[position]))
+                    anyUsed = true;
+                else
+                    anyUnused = true;
+                if (anyUsed && anyUnused)
+                    break;
+            }
+            if (!anyUsed || !anyUnused)
+                return;
+            (int usedQuota, int unusedQuota) = FeasiblePotionUseQuotas(_policyWidth);
+            _potionReservations.Clear();
+            for (int index = 0; index < _requiredScratch.Count; index++)
+                _potionReservations.Add(_requiredScratch[index]);
+            ReservePotionQuotaLeaders(usesPotion: true, usedQuota);
+            ReservePotionQuotaLeaders(usesPotion: false, unusedQuota);
+            EnforcePotionUseQuota(selected, usesPotion: true, usedQuota);
+            EnforcePotionUseQuota(selected, usesPotion: false, unusedQuota);
+        }
+
+        private static (int Used, int Unused) FeasiblePotionUseQuotas(int limit)
+        {
+            if (limit < 1)
+                throw new ArgumentOutOfRangeException(nameof(limit));
+            int used = limit < 4 ? 1 : Math.Max(2, limit / 3);
+            return (used, limit - used);
+        }
+
+        private bool UsesPotion(int index) => _facts[index].PotionCount > 0;
+
+        private void ReservePotionQuotaLeaders(bool usesPotion, int quota)
+        {
+            if (quota <= 0)
+                return;
+            int reserved = 0;
+            for (int position = 0; position < Count; position++)
+            {
+                int candidate = _rankOrder[position];
+                if (UsesPotion(candidate) != usesPotion)
+                    continue;
+                _potionReservations.Add(candidate);
+                reserved++;
+                if (reserved >= quota)
+                    return;
+            }
+        }
+
+        private void EnforcePotionUseQuota(List<int> selected, bool usesPotion, int quota)
+        {
+            int retained = 0;
+            for (int index = 0; index < selected.Count; index++)
+            {
+                if (UsesPotion(selected[index]) == usesPotion)
+                    retained++;
+            }
+            if (retained >= quota)
+                return;
+            for (int position = 0; position < Count; position++)
+            {
+                if (retained >= quota)
+                    return;
+                int candidate = _rankOrder[position];
+                if (UsesPotion(candidate) != usesPotion || selected.Contains(candidate))
+                    continue;
+                int replaceIndex = -1;
+                for (int index = selected.Count - 1; index >= 0; index--)
+                {
+                    int node = selected[index];
+                    if (UsesPotion(node) != usesPotion && !_potionReservations.Contains(node))
+                    {
+                        replaceIndex = index;
+                        break;
+                    }
+                }
+                if (replaceIndex < 0)
+                    return;
+                selected[replaceIndex] = candidate;
+                retained++;
             }
         }
 
@@ -3198,6 +3759,7 @@ internal sealed partial class FlashBeamSolver
             int bestPotion = -1, bestPotionDefensive = -1, bestPotionOffensive = -1, bestPotionSetup = -1;
             int bestPotionSetupCombo = -1;
             int bestLongTermResource = -1, bestHpInvestment = -1, bestResourcePreserving = -1;
+            bool wideLanes = _policyWidth >= 18;
             for (int position = 0; position < count; position++)
             {
                 int source = _rankOrder[position];
@@ -3236,8 +3798,12 @@ internal sealed partial class FlashBeamSolver
                 {
                     potion.Resource = source;
                 }
-                for (int lane = 0; lane < RetainedLanes.Length; lane++)
+                for (int lane = 0; wideLanes && lane < RetainedLanes.Length; lane++)
                 {
+                    // BeamRetentionPolicy.Ranking.FindBestLane: only nodes whose accumulated route
+                    // traits contain the lane compete.
+                    if ((facts.Traits & RetainedLanes[lane]) == 0)
+                        continue;
                     if (potion.Lanes[lane] < 0
                         || IsBetterLane(facts, _facts[potion.Lanes[lane]], RetainedLanes[lane]))
                     {
@@ -3252,13 +3818,15 @@ internal sealed partial class FlashBeamSolver
                     (int, PersistentSetupTraits) traitKey = (potionCount, facts.SetupTraits);
                     if (!_traitLeaders.TryGetValue(traitKey, out TraitLeaders? trait))
                     {
-                        trait = new TraitLeaders { Position = position };
+                        trait = new TraitLeaders { Position = position, MaxRank = _ranks[source] };
                         _traitLeaders.Add(traitKey, trait);
                     }
                     else if (position < trait.Position)
                     {
                         trait.Position = position;
                     }
+                    if (_ranks[source] > trait.MaxRank)
+                        trait.MaxRank = _ranks[source];
                     if (trait.Defensive < 0 || IsBetterDefensive(facts, _facts[trait.Defensive]))
                         trait.Defensive = source;
                     if (trait.Setup < 0 || IsBetterSetup(facts, _facts[trait.Setup]))
@@ -3325,19 +3893,22 @@ internal sealed partial class FlashBeamSolver
                     bestCuration = source;
                 if (bestCompressed < 0 || IsBetterCompressedDeck(facts, _facts[bestCompressed]))
                     bestCompressed = source;
-                if (bestLongTermResource < 0
-                    || IsBetterLane(facts, _facts[bestLongTermResource],
-                        SearchRouteTraits.LongTermResource))
+                if ((facts.Traits & SearchRouteTraits.LongTermResource) != 0
+                    && (bestLongTermResource < 0
+                        || IsBetterLane(facts, _facts[bestLongTermResource],
+                            SearchRouteTraits.LongTermResource)))
                 {
                     bestLongTermResource = source;
                 }
-                if (bestHpInvestment < 0
-                    || IsBetterLane(facts, _facts[bestHpInvestment], SearchRouteTraits.HpInvestment))
+                if ((facts.Traits & SearchRouteTraits.HpInvestment) != 0
+                    && (bestHpInvestment < 0
+                        || IsBetterLane(facts, _facts[bestHpInvestment], SearchRouteTraits.HpInvestment)))
                 {
                     bestHpInvestment = source;
                 }
-                if (bestUtilityDefensive < 0
-                    || IsBetterUtilityDefensive(facts, _facts[bestUtilityDefensive]))
+                if (facts.Traits != SearchRouteTraits.None
+                    && (bestUtilityDefensive < 0
+                        || IsBetterUtilityDefensive(facts, _facts[bestUtilityDefensive])))
                 {
                     bestUtilityDefensive = source;
                 }
@@ -3371,8 +3942,9 @@ internal sealed partial class FlashBeamSolver
                     {
                         bestPotionFreeSetupCombo = source;
                     }
-                    if (bestPotionFreeUtilityDefensive < 0
-                        || IsBetterUtilityDefensive(facts, _facts[bestPotionFreeUtilityDefensive]))
+                    if (facts.Traits != SearchRouteTraits.None
+                        && (bestPotionFreeUtilityDefensive < 0
+                            || IsBetterUtilityDefensive(facts, _facts[bestPotionFreeUtilityDefensive])))
                     {
                         bestPotionFreeUtilityDefensive = source;
                     }
@@ -3401,6 +3973,9 @@ internal sealed partial class FlashBeamSolver
                 }
             }
 
+            AddRoutingChoiceRepresentatives(required, width);
+            AddPotionLineageRepresentatives(required, width);
+
             for (int potionCount = 0; potionCount <= FlashLimits.PotionSlots; potionCount++)
             {
                 if (!_potionLeaders.TryGetValue(potionCount, out PotionLeaders? potion))
@@ -3423,17 +3998,48 @@ internal sealed partial class FlashBeamSolver
                     AddRequired(required, potion.Lanes[lane], width);
             }
 
+            if (_policyWidth >= 18)
+            {
+                for (int potionCount = 0; potionCount <= FlashLimits.PotionSlots; potionCount++)
+                {
+                    _standPatGroup.Clear();
+                    for (int position = 0; position < Count; position++)
+                    {
+                        int slot = _rankOrder[position];
+                        if (_facts[slot].PotionCount == potionCount)
+                            _standPatGroup.Add(slot);
+                    }
+                    if (_standPatGroup.Count == 0)
+                        continue;
+                    AddRequired(required, FindBestDamagingContinuation(_standPatGroup), width);
+                    AddRequired(required, FindBestFreshResourceStandPat(_standPatGroup), width);
+                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Scaling), width);
+                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Resource), width);
+                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Control), width);
+                }
+            }
+
             // BeamRetentionPolicy.RankBest: persistent setup trait groups (Focus, Thunder, OrbEngine,
             // …) keep their defensive and setup leaders; the group limit is max(4, width / 6).
             foreach ((int Potion, PersistentSetupTraits Traits) key in _traitLeaders.Keys)
                 _traitOrder.Add(key);
             CollectionsMarshal.AsSpan(_traitOrder).Sort(new TraitOrderComparer(_traitLeaders));
-            int traitLimit = Math.Max(4, width / 6);
-            for (int index = 0; index < _traitOrder.Count && index < traitLimit; index++)
+            int traitLimit = Math.Max(4, _policyWidth / 6);
+            int traitPotion = -1, traitTaken = 0;
+            for (int index = 0; index < _traitOrder.Count; index++)
             {
-                TraitLeaders trait = _traitLeaders[_traitOrder[index]];
+                (int Potion, PersistentSetupTraits Traits) key = _traitOrder[index];
+                if (key.Potion != traitPotion)
+                {
+                    traitPotion = key.Potion;
+                    traitTaken = 0;
+                }
+                if (traitTaken >= traitLimit)
+                    continue;
+                TraitLeaders trait = _traitLeaders[key];
                 AddRequired(required, trait.Defensive, width);
                 AddRequired(required, trait.Setup, width);
+                traitTaken++;
             }
 
             // BeamRetentionPolicy.RankBest: focus target groups (clamp(width / 10, 2, 4) targets per
@@ -3441,12 +4047,22 @@ internal sealed partial class FlashBeamSolver
             foreach ((int Potion, uint? Target) key in _focusLeaders.Keys)
                 _focusOrder.Add(key);
             CollectionsMarshal.AsSpan(_focusOrder).Sort(new FocusOrderComparer(_focusLeaders));
-            int focusLimit = Math.Clamp(width / 10, 2, 4);
-            for (int index = 0; index < _focusOrder.Count && index < focusLimit; index++)
+            int focusLimit = Math.Clamp(_policyWidth / 10, 2, 4);
+            int focusPotion = -1, focusTaken = 0;
+            for (int index = 0; index < _focusOrder.Count; index++)
             {
-                FocusLeaders leader = _focusLeaders[_focusOrder[index]];
+                (int Potion, uint? Target) key = _focusOrder[index];
+                if (key.Potion != focusPotion)
+                {
+                    focusPotion = key.Potion;
+                    focusTaken = 0;
+                }
+                if (focusTaken >= focusLimit)
+                    continue;
+                FocusLeaders leader = _focusLeaders[key];
                 AddRequired(required, leader.Pressure, width);
                 AddRequired(required, leader.Setup, width);
+                focusTaken++;
             }
 
             AddRequired(required, bestPotionFree, width);
@@ -3490,6 +4106,736 @@ internal sealed partial class FlashBeamSolver
                 AddRequired(required, lineage.Compressed, width);
                 AddRequired(required, lineage.TargetPressure, width);
             }
+            AddParetoRepresentatives(required, width);
+        }
+
+        /// <summary>
+        /// <c>BeamRetentionPolicy.RankBest</c> routing-choice quota and option-leader rotation. Every
+        /// option context contributes the leader selected by its actions-since-choice rule (rank leader
+        /// at 0, setup leader at 1, target-pressure leader otherwise); the family also contributes its
+        /// target-pressure, deck-curation and setup leaders. The first
+        /// <c>max(8, 2W/5)</c> distinct candidates become required seats. The Pareto context list and the
+        /// direct current-turn extremes belong to the RS2 batch.
+        /// </summary>
+        private void AddRoutingChoiceRepresentatives(List<int> required, int width)
+        {
+            _routingChoices.Clear();
+            _routingGroups.Clear();
+            _routingGroupOrder.Clear();
+            for (int position = 0; position < Count; position++)
+            {
+                int slot = _rankOrder[position];
+                RouteNode route = _routeNodes[_nodes[slot]];
+                int signatureId = route.RoutingSignatureId;
+                if (signatureId == 0 || _facts[slot].Turn != route.RoutingChoiceTurn)
+                    continue;
+                if (!_routingGroups.TryGetValue(signatureId, out RoutingGroup? group))
+                {
+                    group = new RoutingGroup();
+                    _routingGroups.Add(signatureId, group);
+                    _routingGroupOrder.Add(signatureId);
+                }
+                group.Nodes.Add(slot);
+                if (group.BestScore < 0 || _ranks[slot] > _ranks[group.BestScore])
+                    group.BestScore = slot;
+                if (group.BestOffense < 0
+                    || IsBetterOffensive(_facts[slot], _facts[group.BestOffense]))
+                {
+                    group.BestOffense = slot;
+                }
+                if (group.BestDefense < 0
+                    || IsBetterDefensive(_facts[slot], _facts[group.BestDefense]))
+                {
+                    group.BestDefense = slot;
+                }
+                if (group.BestSetup < 0 || IsBetterSetup(_facts[slot], _facts[group.BestSetup]))
+                    group.BestSetup = slot;
+                group.MinParentRank = Math.Min(group.MinParentRank, route.RoutingParentRank);
+                group.MaxParentScore = Math.Max(group.MaxParentScore, route.RoutingParentScore);
+                group.MaxBeamRank = Math.Max(group.MaxBeamRank, _ranks[slot]);
+            }
+            if (_routingGroupOrder.Count == 0)
+                return;
+
+            _routingFamilies.Clear();
+            _routingFamilyOrder.Clear();
+            for (int index = 0; index < _routingGroupOrder.Count; index++)
+            {
+                int signatureId = _routingGroupOrder[index];
+                RoutingSignature signature = _routingSignatures[signatureId - 1];
+                RoutingFamilyKey key = new(signature.Turn, signature.SourceId,
+                    (int)signature.Effect, signature.SourcePile);
+                if (!_routingFamilies.TryGetValue(key, out RoutingBucket? family))
+                {
+                    family = new RoutingBucket();
+                    _routingFamilies.Add(key, family);
+                    _routingFamilyOrder.Add(key);
+                }
+                family.Groups.Add(signatureId);
+                RoutingGroup group = _routingGroups[signatureId];
+                family.MinParentRank = Math.Min(family.MinParentRank, group.MinParentRank);
+                family.MaxParentScore = Math.Max(family.MaxParentScore, group.MaxParentScore);
+                family.MaxBeamRank = Math.Max(family.MaxBeamRank, group.MaxBeamRank);
+            }
+            CollectionsMarshal.AsSpan(_routingFamilyOrder)
+                .Sort(new RoutingBucketComparer<RoutingFamilyKey>(_routingFamilies));
+            for (int familyIndex = 0; familyIndex < _routingFamilyOrder.Count; familyIndex++)
+            {
+                RoutingBucket family = _routingFamilies[_routingFamilyOrder[familyIndex]];
+                _routingOptionOrder.Clear();
+                _routingOptions.Clear();
+                _routingFamilyNodes.Clear();
+                for (int groupIndex = 0; groupIndex < family.Groups.Count; groupIndex++)
+                {
+                    int signatureId = family.Groups[groupIndex];
+                    RoutingSignature signature = _routingSignatures[signatureId - 1];
+                    RoutingOptionKey optionKey = new(signature.CardId, signature.Upgrade,
+                        signature.CardStateKey, signature.CardCount);
+                    if (!_routingOptions.TryGetValue(optionKey, out RoutingBucket? option))
+                    {
+                        option = new RoutingBucket();
+                        _routingOptions.Add(optionKey, option);
+                        _routingOptionOrder.Add(optionKey);
+                    }
+                    option.Groups.Add(signatureId);
+                    RoutingGroup group = _routingGroups[signatureId];
+                    option.MinParentRank = Math.Min(option.MinParentRank, group.MinParentRank);
+                    option.MaxParentScore = Math.Max(option.MaxParentScore, group.MaxParentScore);
+                    option.MaxBeamRank = Math.Max(option.MaxBeamRank, group.MaxBeamRank);
+                    for (int nodeIndex = 0; nodeIndex < group.Nodes.Count; nodeIndex++)
+                        _routingFamilyNodes.Add(group.Nodes[nodeIndex]);
+                }
+                AddRoutingCandidate(PreferMostVulnerableTargetVariant(_routingFamilyNodes,
+                    FindBestTargetPressure(_routingFamilyNodes)));
+                AddRoutingCandidate(FindBestDeckCuration(_routingFamilyNodes));
+                AddRoutingCandidate(FindBestSetup(_routingFamilyNodes));
+
+                CollectionsMarshal.AsSpan(_routingOptionOrder)
+                    .Sort(new RoutingBucketComparer<RoutingOptionKey>(_routingOptions));
+                for (int optionIndex = 0; optionIndex < _routingOptionOrder.Count; optionIndex++)
+                {
+                    RoutingBucket option = _routingOptions[_routingOptionOrder[optionIndex]];
+                    _routingOptionNodes.Clear();
+                    int actionsSinceChoice = int.MaxValue;
+                    for (int groupIndex = 0; groupIndex < option.Groups.Count; groupIndex++)
+                    {
+                        RoutingGroup group = _routingGroups[option.Groups[groupIndex]];
+                        for (int nodeIndex = 0; nodeIndex < group.Nodes.Count; nodeIndex++)
+                        {
+                            int slot = group.Nodes[nodeIndex];
+                            _routingOptionNodes.Add(slot);
+                            RouteNode route = _routeNodes[_nodes[slot]];
+                            actionsSinceChoice = Math.Min(actionsSinceChoice,
+                                _facts[slot].Depth - route.RoutingChoiceDepth);
+                        }
+                    }
+                    int leader;
+                    if (actionsSinceChoice == 0)
+                    {
+                        int contextId = option.Groups[0];
+                        RoutingGroup context = _routingGroups[contextId];
+                        for (int groupIndex = 1; groupIndex < option.Groups.Count; groupIndex++)
+                        {
+                            RoutingGroup other = _routingGroups[option.Groups[groupIndex]];
+                            if (other.MinParentRank < context.MinParentRank
+                                || other.MinParentRank == context.MinParentRank
+                                    && other.MaxParentScore > context.MaxParentScore)
+                            {
+                                context = other;
+                            }
+                        }
+                        leader = context.BestScore;
+                    }
+                    else if (actionsSinceChoice == 1)
+                    {
+                        leader = FindBestSetup(_routingOptionNodes);
+                    }
+                    else
+                    {
+                        leader = PreferMostVulnerableTargetVariant(_routingOptionNodes,
+                            FindBestTargetPressure(_routingOptionNodes));
+                    }
+                    AddRoutingCandidate(leader);
+                }
+            }
+            int quota = Math.Max(8, _policyWidth * 2 / 5);
+            for (int index = 0; index < _routingChoices.Count && index < quota; index++)
+                AddRequired(required, _routingChoices[index], width);
+        }
+
+        private readonly List<int> _routingFamilyNodes = new();
+        private readonly List<int> _routingOptionNodes = new();
+
+        private void AddRoutingCandidate(int candidate)
+        {
+            if (candidate < 0 || _routingChoices.Count >= RoutingChoiceLimit
+                || _routingChoices.Contains(candidate))
+            {
+                return;
+            }
+            _routingChoices.Add(candidate);
+        }
+
+        private int FindBestTargetPressure(List<int> nodes)
+        {
+            int best = -1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                int node = nodes[index];
+                if (best < 0 || IsBetterTargetPressure(_facts[node], _facts[best]))
+                    best = node;
+            }
+            return best;
+        }
+
+        private int FindBestDeckCuration(List<int> nodes)
+        {
+            int best = -1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                int node = nodes[index];
+                if (best < 0 || IsBetterDeckCuration(_facts[node], _facts[best]))
+                    best = node;
+            }
+            return best;
+        }
+
+        private int FindBestSetup(List<int> nodes)
+        {
+            int best = -1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                int node = nodes[index];
+                if (best < 0 || IsBetterSetupCombo(_facts[node], _facts[best]))
+                    best = node;
+            }
+            return best;
+        }
+
+        private int PreferMostVulnerableTargetVariant(List<int> nodes, int candidate)
+        {
+            if (candidate < 0)
+                return candidate;
+            RouteNode candidateRoute = _routeNodes[_nodes[candidate]];
+            if (candidateRoute.TargetCombatId == int.MinValue)
+                return candidate;
+            int preferred = -1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                int node = nodes[index];
+                RouteNode route = _routeNodes[_nodes[node]];
+                if (route.Action.Kind != candidateRoute.Action.Kind
+                    || route.ActionCardId != candidateRoute.ActionCardId
+                    || route.PotionId != candidateRoute.PotionId)
+                {
+                    continue;
+                }
+                if (_facts[node].MostVulnerableTargetCombatId != route.TargetCombatId)
+                    continue;
+                if (preferred < 0 || _ranks[node] > _ranks[preferred])
+                    preferred = node;
+            }
+            return preferred >= 0 ? preferred : candidate;
+        }
+
+        private readonly struct RoutingBucketComparer<TKey> : IComparer<TKey>
+            where TKey : notnull
+        {
+            private readonly Dictionary<TKey, RoutingBucket> _buckets;
+
+            public RoutingBucketComparer(Dictionary<TKey, RoutingBucket> buckets) => _buckets = buckets;
+
+            public int Compare(TKey? left, TKey? right)
+            {
+                RoutingBucket a = _buckets[left!];
+                RoutingBucket b = _buckets[right!];
+                int comparison = a.MinParentRank.CompareTo(b.MinParentRank);
+                if (comparison != 0) return comparison;
+                comparison = b.MaxParentScore.CompareTo(a.MaxParentScore);
+                if (comparison != 0) return comparison;
+                return b.MaxBeamRank.CompareTo(a.MaxBeamRank);
+            }
+        }
+
+        /// <summary>
+        /// <c>BeamRetentionPolicy.MultiObjectiveDominates</c> over the K4-checked retention facts.
+        /// The original compares the three distribution fingerprints as a cohort gate; Flash has no
+        /// fingerprint projection on the route node, so the cohort is the equivalent coarse tuple of
+        /// the enemy combat/control and live-pile aggregates. All dominance dimensions are exact facts.
+        /// </summary>
+        private ParetoCohortKey BuildParetoCohort(int slot)
+        {
+            RetentionFacts f = _facts[slot];
+            return new ParetoCohortKey(f.AliveEnemyMask, f.EnemyHp, f.RawEnemyHp,
+                f.MaxCurrentEnemyHp, f.AliveEnemyCount, f.RevivingEnemyCount,
+                f.EnemyStrengthSuppression, f.EnemyWeakTurns, f.EnemyVulnerableTurns,
+                f.FocusTargetVulnerableTurns, f.LiveDeckSize, f.LiveDeckClutter,
+                f.AttackDensity);
+        }
+
+        private bool ParetoDominates(int left, int right)
+        {
+            if (left == right)
+                return false;
+            RetentionFacts a = _facts[left];
+            RetentionFacts b = _facts[right];
+            bool noWorse = a.ProjectedPlayerHp >= b.ProjectedPlayerHp
+                && a.PlayerMaxHp >= b.PlayerMaxHp
+                && a.CumulativePlayerHpLost <= b.CumulativePlayerHpLost
+                && a.LongTermResourceValue >= b.LongTermResourceValue
+                && a.StrategicHpCredit >= b.StrategicHpCredit
+                && (a.RelicSatisfiedMask & b.RelicSatisfiedMask) == b.RelicSatisfiedMask
+                && a.StrategyGoalCount >= b.StrategyGoalCount
+                && a.AngerCopiesGenerated <= b.AngerCopiesGenerated
+                && (!_preserveTheft || a.OutstandingStolenResource <= b.OutstandingStolenResource)
+                && a.AliveEnemyCount <= b.AliveEnemyCount
+                && a.EnemyHp <= b.EnemyHp
+                && a.RawEnemyHp <= b.RawEnemyHp
+                && a.MaxCurrentEnemyHp <= b.MaxCurrentEnemyHp
+                && a.PersistentBuffValue >= b.PersistentBuffValue
+                && a.LatentSetupValue >= b.LatentSetupValue
+                && a.DelayedDamageValue >= b.DelayedDamageValue
+                && a.ReactiveDamageValue >= b.ReactiveDamageValue
+                && a.EnemyStrengthSuppression >= b.EnemyStrengthSuppression
+                && a.EnemyWeakTurns >= b.EnemyWeakTurns
+                && a.EnemyVulnerableTurns >= b.EnemyVulnerableTurns
+                && a.FocusTargetVulnerableTurns >= b.FocusTargetVulnerableTurns
+                && a.Energy >= b.Energy
+                && a.Stars >= b.Stars
+                && a.FutureResourceValue >= b.FutureResourceValue
+                && a.OstyHp >= b.OstyHp
+                && a.OstyMaxHp >= b.OstyMaxHp
+                && a.RetainedAttackGrowth >= b.RetainedAttackGrowth
+                && a.ReplayPotentialValue >= b.ReplayPotentialValue
+                && a.FocusTargetPressure >= b.FocusTargetPressure
+                && a.SandpitRemaining >= b.SandpitRemaining
+                && a.LiveDeckClutter <= b.LiveDeckClutter
+                && a.LiveDeckSize <= b.LiveDeckSize
+                && a.PotionCount <= b.PotionCount
+                && a.PotionStrategicCost <= b.PotionStrategicCost
+                && a.FutureSoldHp <= b.FutureSoldHp
+                && a.Depth <= b.Depth;
+            if (!noWorse)
+                return false;
+            return a.ProjectedPlayerHp > b.ProjectedPlayerHp
+                || a.PlayerMaxHp > b.PlayerMaxHp
+                || a.CumulativePlayerHpLost < b.CumulativePlayerHpLost
+                || a.LongTermResourceValue > b.LongTermResourceValue
+                || a.AngerCopiesGenerated < b.AngerCopiesGenerated
+                || _preserveTheft && a.OutstandingStolenResource < b.OutstandingStolenResource
+                || a.AliveEnemyCount < b.AliveEnemyCount
+                || a.EnemyHp < b.EnemyHp
+                || a.RawEnemyHp < b.RawEnemyHp
+                || a.MaxCurrentEnemyHp < b.MaxCurrentEnemyHp
+                || a.PersistentBuffValue > b.PersistentBuffValue
+                || a.LatentSetupValue > b.LatentSetupValue
+                || a.DelayedDamageValue > b.DelayedDamageValue
+                || a.ReactiveDamageValue > b.ReactiveDamageValue
+                || a.EnemyStrengthSuppression > b.EnemyStrengthSuppression
+                || a.EnemyWeakTurns > b.EnemyWeakTurns
+                || a.EnemyVulnerableTurns > b.EnemyVulnerableTurns
+                || a.FocusTargetVulnerableTurns > b.FocusTargetVulnerableTurns
+                || a.Energy > b.Energy
+                || a.Stars > b.Stars
+                || a.FutureResourceValue > b.FutureResourceValue
+                || a.OstyHp > b.OstyHp
+                || a.OstyMaxHp > b.OstyMaxHp
+                || a.RetainedAttackGrowth > b.RetainedAttackGrowth
+                || a.ReplayPotentialValue > b.ReplayPotentialValue
+                || a.FocusTargetPressure > b.FocusTargetPressure
+                || a.SandpitRemaining > b.SandpitRemaining
+                || a.LiveDeckClutter < b.LiveDeckClutter
+                || a.LiveDeckSize < b.LiveDeckSize
+                || a.PotionCount < b.PotionCount
+                || a.PotionStrategicCost < b.PotionStrategicCost
+                || a.FutureSoldHp < b.FutureSoldHp
+                || a.Depth < b.Depth;
+        }
+
+        /// <summary>
+        /// The existing search's <c>ComputeStandPat</c> (<c>StandPatJobs</c>/<c>Retention</c>): replay EndTurn on the retained state and read the
+        /// resulting state's resources. Flash has no simulator; the kernel step is the same end-turn
+        /// semantics. A request for a turn-start choice makes the probe unavailable (default), which is
+        /// the one boundary the existing roll-out resolves through its choice policy.
+        /// </summary>
+        private StandPatEvaluation EvaluateStandPat(int slot)
+        {
+            FlashBattle end = _states[slot];
+            try
+            {
+                FlashStepResult result = FlashKernel.Step(ref end, FlashAction.EndTurn(),
+                    _scorer.RulesForRetention, out _);
+                if (result == FlashStepResult.NeedsChoice)
+                    return default;
+                RetentionFacts before = _facts[slot];
+                FlashScoreFeatures features = _scorer.Features(end, before.Depth + 1, includeRetentionOnly: true);
+                return new StandPatEvaluation(
+                    features.AllEnemiesDead,
+                    Math.Max(0, before.EnemyHp - features.EnemyHp),
+                    features.ProjectedPlayerHp,
+                    features.Energy * 16
+                        + features.Stars * 8
+                        + features.HandCount
+                        + features.ReachableHandValue
+                        + features.FutureResourceValue
+                        + features.OstyHp * 16
+                        + features.OstyMaxHp * 4,
+                    true);
+            }
+            catch (FlashCapacityException)
+            {
+                return default;
+            }
+        }
+
+        /// <summary><c>FindBestDamagingContinuation</c>: a shield-breaking playable step with a legal
+        /// follow-up attack inside the frozen reachable hand value.</summary>
+        private int FindBestDamagingContinuation(List<int> nodes)
+        {
+            int best = -1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                int node = nodes[index];
+                RetentionFacts facts = _facts[node];
+                RouteNode route = _routeNodes[_nodes[node]];
+                if (facts.AllEnemiesDead || facts.PlayerDead || route.Parent < 0
+                    || route.Action.Kind != FlashActionKind.PlayCard
+                    || facts.EnemyBlock >= facts.ParentEnemyBlock
+                    || facts.EnemyHp > facts.ReachableHandValue
+                    || (long)facts.EnemyHp + facts.EnemyBlock
+                        >= (long)facts.ParentEnemyHp + facts.ParentEnemyBlock
+                    || facts.PlayableAttackCount <= 0)
+                {
+                    continue;
+                }
+                if (best < 0 || IsBetterOffensive(facts, _facts[best]))
+                    best = node;
+            }
+            return best;
+        }
+
+        /// <summary><c>FindBestFreshResourceStandPat</c>: the first 64 rank-ordered fresh-resource
+        /// candidates, evaluated with the same EndTurn stand-pat replay and comparator.</summary>
+        private int FindBestFreshResourceStandPat(List<int> nodes)
+        {
+            const int probeLimit = 64;
+            int best = -1;
+            StandPatEvaluation bestEvaluation = default;
+            int evaluated = 0;
+            for (int index = 0; index < nodes.Count && evaluated < probeLimit; index++)
+            {
+                int node = nodes[index];
+                RetentionFacts facts = _facts[node];
+                RouteNode route = _routeNodes[_nodes[node]];
+                if (route.Parent < 0
+                    || (facts.FutureResourceValue <= facts.ParentFutureResourceValue
+                        && facts.StrategicResourcePotential <= facts.ParentStrategicResourcePotential))
+                {
+                    continue;
+                }
+                StandPatEvaluation evaluation = EvaluateStandPat(node);
+                evaluated++;
+                if (best < 0
+                    || evaluation.AllEnemiesDead && !bestEvaluation.AllEnemiesDead
+                    || evaluation.AllEnemiesDead == bestEvaluation.AllEnemiesDead
+                        && (evaluation.ProjectedPlayerHp > bestEvaluation.ProjectedPlayerHp
+                            || evaluation.ProjectedPlayerHp == bestEvaluation.ProjectedPlayerHp
+                                && (evaluation.ResourceValue > bestEvaluation.ResourceValue
+                                    || evaluation.ResourceValue == bestEvaluation.ResourceValue
+                                        && facts.CumulativePlayerHpLost < _facts[best].CumulativePlayerHpLost
+                                    || evaluation.ResourceValue == bestEvaluation.ResourceValue
+                                        && facts.CumulativePlayerHpLost == _facts[best].CumulativePlayerHpLost
+                                        && facts.Score > _facts[best].Score)))
+                {
+                    best = node;
+                    bestEvaluation = evaluation;
+                }
+            }
+            return best;
+        }
+
+        /// <summary><c>FindBestStandPat</c>: the same probe ordering and evaluation comparator.</summary>
+        private int FindBestStandPat(List<int> nodes, SearchRouteTraits trait)
+        {
+            const int limit = 8;
+            Span<int> probes = stackalloc int[limit + 1];
+            int probeCount = 0;
+            while (probeCount < limit)
+            {
+                int best = -1;
+                for (int index = 0; index < nodes.Count; index++)
+                {
+                    int node = nodes[index];
+                    RetentionFacts facts = _facts[node];
+                    if ((facts.Traits & trait) == 0 || ContainsProbe(probes, probeCount, node))
+                        continue;
+                    if (best < 0 || IsBetterStandPatProbe(facts, _facts[best], trait))
+                        best = node;
+                }
+                if (best < 0)
+                    break;
+                probes[probeCount++] = best;
+            }
+            if (trait == SearchRouteTraits.Control && probeCount > 0)
+            {
+                int delayedFinish = -1;
+                for (int index = 0; index < nodes.Count; index++)
+                {
+                    int node = nodes[index];
+                    RetentionFacts facts = _facts[node];
+                    if ((facts.Traits & trait) == 0 || facts.AllEnemiesDead || facts.EnemyHp <= 0
+                        || facts.DelayedDamageValue < facts.EnemyHp
+                        || ContainsProbe(probes, probeCount, node))
+                    {
+                        continue;
+                    }
+                    if (delayedFinish < 0 || IsBetterDelayedFinish(facts, _facts[delayedFinish]))
+                        delayedFinish = node;
+                }
+                if (delayedFinish >= 0)
+                {
+                    if (probeCount == limit)
+                        probeCount--;
+                    probes[probeCount++] = delayedFinish;
+                }
+            }
+            int bestNode = -1;
+            StandPatEvaluation bestEvaluation = default;
+            for (int index = 0; index < probeCount; index++)
+            {
+                int node = probes[index];
+                StandPatEvaluation evaluation = EvaluateStandPat(node);
+                int evaluationValue = trait == SearchRouteTraits.Resource
+                    ? evaluation.ResourceValue
+                    : evaluation.DelayedDamage;
+                int bestValue = trait == SearchRouteTraits.Resource
+                    ? bestEvaluation.ResourceValue
+                    : bestEvaluation.DelayedDamage;
+                if (bestNode < 0
+                    || evaluation.AllEnemiesDead && !bestEvaluation.AllEnemiesDead
+                    || evaluation.AllEnemiesDead == bestEvaluation.AllEnemiesDead
+                        && (evaluation.ProjectedPlayerHp > bestEvaluation.ProjectedPlayerHp
+                            || evaluation.ProjectedPlayerHp == bestEvaluation.ProjectedPlayerHp
+                                && (evaluationValue > bestValue
+                                    || evaluationValue == bestValue
+                                        && _facts[node].Score > _facts[bestNode].Score)))
+                {
+                    bestNode = node;
+                    bestEvaluation = evaluation;
+                }
+            }
+            return bestNode;
+        }
+
+        private static bool ContainsProbe(Span<int> probes, int count, int node)
+        {
+            for (int index = 0; index < count; index++)
+            {
+                if (probes[index] == node)
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool IsBetterStandPatProbe(in RetentionFacts candidate,
+            in RetentionFacts current, SearchRouteTraits trait)
+        {
+            if (candidate.ProjectedPlayerHp != current.ProjectedPlayerHp)
+                return candidate.ProjectedPlayerHp > current.ProjectedPlayerHp;
+            int candidateLane = LaneValue(candidate, trait);
+            int currentLane = LaneValue(current, trait);
+            if (candidateLane != currentLane)
+                return candidateLane > currentLane;
+            return candidate.Score > current.Score;
+        }
+
+        private static bool IsBetterDelayedFinish(in RetentionFacts candidate,
+            in RetentionFacts current)
+        {
+            if (candidate.CumulativePlayerHpLost != current.CumulativePlayerHpLost)
+                return candidate.CumulativePlayerHpLost < current.CumulativePlayerHpLost;
+            if (candidate.PlayerHp != current.PlayerHp)
+                return candidate.PlayerHp > current.PlayerHp;
+            if (candidate.EnemyHp != current.EnemyHp)
+                return candidate.EnemyHp < current.EnemyHp;
+            return candidate.Score > current.Score;
+        }
+
+        private void AddParetoRepresentatives(List<int> required, int width)
+        {
+            if (_policyWidth < 18)
+                return;
+            _paretoCohorts.Clear();
+            for (int position = 0; position < Count; position++)
+            {
+                int slot = _rankOrder[position];
+                ParetoCohortKey key = BuildParetoCohort(slot);
+                if (!_paretoCohorts.TryGetValue(key, out List<int>? cohort))
+                {
+                    cohort = new List<int>();
+                    _paretoCohorts.Add(key, cohort);
+                }
+                cohort.Add(slot);
+            }
+            _pareto.Clear();
+            for (int position = 0; position < Count; position++)
+            {
+                int slot = _rankOrder[position];
+                List<int> cohort = _paretoCohorts[BuildParetoCohort(slot)];
+                bool dominated = false;
+                for (int index = 0; index < cohort.Count; index++)
+                {
+                    int other = cohort[index];
+                    if (other != slot && ParetoDominates(other, slot))
+                    {
+                        dominated = true;
+                        break;
+                    }
+                }
+                if (dominated)
+                    continue;
+                int insert = 0;
+                while (insert < _pareto.Count
+                    && (_scores[_pareto[insert]] > _scores[slot]
+                        || _scores[_pareto[insert]].Equals(_scores[slot])
+                            && _facts[_pareto[insert]].Depth <= _facts[slot].Depth))
+                {
+                    insert++;
+                }
+                if (insert >= 3)
+                    continue;
+                _pareto.Insert(insert, slot);
+                if (_pareto.Count > 3)
+                    _pareto.RemoveAt(3);
+            }
+            for (int index = 0; index < _pareto.Count; index++)
+                AddRequired(required, _pareto[index], width);
+        }
+
+        /// <summary>
+        /// <c>BeamRetentionPolicy.RankBest</c> potion-use lineage groups: for every potion count, the
+        /// best-ranked <c>clamp(width / 6, 2, 6)</c> distinct use-multisets each keep one representative.
+        /// </summary>
+        private void AddPotionLineageRepresentatives(List<int> required, int width)
+        {
+            if (!_checkPotionQuota)
+                return;
+            int potionLineageLimit = Math.Clamp(_policyWidth / 6, 2, 6);
+            for (int potionCount = 1; potionCount <= FlashLimits.PotionSlots; potionCount++)
+            {
+                _potionLineageGroups.Clear();
+                _potionLineageOrder.Clear();
+                for (int position = 0; position < Count; position++)
+                {
+                    int source = _rankOrder[position];
+                    if (_facts[source].PotionCount != potionCount)
+                        continue;
+                    string key = PotionUseLineageKey(_nodes[source]);
+                    if (!_potionLineageGroups.TryGetValue(key, out PotionLineageLeaders? leader))
+                    {
+                        leader = new PotionLineageLeaders { Position = position };
+                        _potionLineageGroups.Add(key, leader);
+                        _potionLineageOrder.Add(key);
+                    }
+                    leader.Nodes.Add(source);
+                }
+                if (_potionLineageOrder.Count == 0)
+                    continue;
+                foreach (string key in _potionLineageOrder)
+                {
+                    PotionLineageLeaders leader = _potionLineageGroups[key];
+                    double maxRank = double.NegativeInfinity;
+                    for (int index = 0; index < leader.Nodes.Count; index++)
+                        maxRank = Math.Max(maxRank, _ranks[leader.Nodes[index]]);
+                    leader.MaxRank = maxRank;
+                }
+                CollectionsMarshal.AsSpan(_potionLineageOrder)
+                    .Sort(new PotionLineageOrderComparer(_potionLineageGroups));
+                for (int index = 0;
+                     index < _potionLineageOrder.Count && index < potionLineageLimit; index++)
+                {
+                    AddRequired(required,
+                        FindBestPotionLineage(_potionLineageGroups[_potionLineageOrder[index]].Nodes),
+                        width);
+                }
+            }
+        }
+
+        private sealed class PotionLineageLeaders
+        {
+            public readonly List<int> Nodes = new();
+            public int Position;
+            public double MaxRank;
+        }
+
+        private readonly struct PotionLineageOrderComparer : IComparer<string>
+        {
+            private readonly Dictionary<string, PotionLineageLeaders> _groups;
+
+            public PotionLineageOrderComparer(Dictionary<string, PotionLineageLeaders> groups)
+                => _groups = groups;
+
+            public int Compare(string? left, string? right)
+            {
+                PotionLineageLeaders a = _groups[left!];
+                PotionLineageLeaders b = _groups[right!];
+                int comparison = b.MaxRank.CompareTo(a.MaxRank);
+                return comparison != 0 ? comparison : a.Position.CompareTo(b.Position);
+            }
+        }
+
+        /// <summary><c>BeamRetentionPolicy.Ranking.PotionUseLineageKey</c>: the sorted explicit potion
+        /// id multiset along the route, ordinal. The route chain is the Flash node chain (prefix actions
+        /// are not Flash nodes and were already excluded from the existing search's chain too).</summary>
+        private string PotionUseLineageKey(int node)
+        {
+            _potionLineageScratch.Clear();
+            int actions = 0;
+            for (int cursor = node; _routeNodes[cursor].Parent >= 0;
+                 cursor = _routeNodes[cursor].Parent)
+            {
+                actions++;
+                if (_routeNodes[cursor].Action.Kind == FlashActionKind.UsePotion)
+                    _potionLineageScratch.Add(_routeNodes[cursor].PotionId);
+            }
+            if (actions != _routeNodes[node].Depth - _initialActionCount)
+            {
+                throw new InvalidOperationException(
+                    $"Flash 路线节点动作链长度不一致：actions={actions} "
+                    + $"depth={_routeNodes[node].Depth} initial={_initialActionCount}。");
+            }
+            if (_potionLineageScratch.Count == 0)
+                return string.Empty;
+            _potionLineageScratch.Sort();
+            return string.Join(',', _potionLineageScratch);
+        }
+
+        /// <summary><c>BeamRetentionPolicy.Ranking.FindBestPotionLineage</c>.</summary>
+        private int FindBestPotionLineage(List<int> nodes)
+        {
+            int best = -1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                int node = nodes[index];
+                RetentionFacts facts = _facts[node];
+                if (best < 0)
+                {
+                    best = node;
+                    continue;
+                }
+                RetentionFacts current = _facts[best];
+                if (facts.AllEnemiesDead && !current.AllEnemiesDead
+                    || facts.AllEnemiesDead == current.AllEnemiesDead
+                        && (facts.ProjectedPlayerHp > current.ProjectedPlayerHp
+                            || facts.ProjectedPlayerHp == current.ProjectedPlayerHp
+                                && (facts.EnemyHp < current.EnemyHp
+                                    || facts.EnemyHp == current.EnemyHp
+                                        && facts.Score > current.Score)))
+                {
+                    best = node;
+                }
+            }
+            return best;
         }
 
         /// <summary>
@@ -3568,7 +4914,15 @@ internal sealed partial class FlashBeamSolver
 
             public int Compare((int Potion, PersistentSetupTraits Traits) left,
                 (int Potion, PersistentSetupTraits Traits) right)
-                => _leaders[left].Position.CompareTo(_leaders[right].Position);
+            {
+                int comparison = left.Potion.CompareTo(right.Potion);
+                if (comparison != 0)
+                    return comparison;
+                TraitLeaders a = _leaders[left];
+                TraitLeaders b = _leaders[right];
+                comparison = b.MaxRank.CompareTo(a.MaxRank);
+                return comparison != 0 ? comparison : a.Position.CompareTo(b.Position);
+            }
         }
 
         private readonly struct FocusOrderComparer : IComparer<(int Potion, uint? Target)>
@@ -3582,7 +4936,10 @@ internal sealed partial class FlashBeamSolver
             {
                 FocusLeaders leftLeader = _leaders[left];
                 FocusLeaders rightLeader = _leaders[right];
-                int comparison = rightLeader.MaxPressure.CompareTo(leftLeader.MaxPressure);
+                int comparison = left.Potion.CompareTo(right.Potion);
+                if (comparison != 0)
+                    return comparison;
+                comparison = rightLeader.MaxPressure.CompareTo(leftLeader.MaxPressure);
                 return comparison != 0
                     ? comparison
                     : leftLeader.Position.CompareTo(rightLeader.Position);
