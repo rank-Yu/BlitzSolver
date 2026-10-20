@@ -189,3 +189,9 @@ CX 没有新增 `FlashCounter`、`FlashBattle` 或 `FlashCard` 字段：CX 本�
 - `FlashRelic.Counter`/`Aux` 的新用途：`MUSIC_BOX.Counter` 本回合已用；`THROWING_AXE.Counter` 本场已用；`METRONOME.Counter` 已充能次数；`PAELS_LEGION.Counter` 冷却、`Aux` 本次格挡所属 `PlayIdentity`、`FlashRelicFlags.UsedThisCombat` 为原版的显示锁存；`EMOTION_CHIP`/`PAELS_EYE` 的 `StatefulRelicState`（Current/Previous）。
 - `FlashRules` 三个根级字段（非战斗状态）：`HasPaelsLegion`（`GainBlock` 是否需要收集 changed-listener 列表；Vambrace 之外的新增格挡修正）、`FurCoatSpawnHpOne`（命中的生成敌人当前生命 1）、`RootLostHpMask`（根捕获时每个 owner 的 `HasLostHpThisTurn`，额外回合恢复用）。三者都不改变 `FlashBattle` 大小。
 - `PAELS_EYE` 的额外回合：`Round` 不变、`PlayerTurn` 加一；普通回合换轮时清零失血标记，额外回合按 `RootLostHpMask` 恢复根历史答案。
+
+### 2.8 回合准备根（TS）
+
+回合准备根不改变 `FlashBattle`/`FlashCard` 布局，也不新增 `FlashCounter`。根捕获时是 `Player/Start`：原生 `SetupPlayerTurn` 尚未作答；Bridge 用现有引擎的 `BuildTurnSetupRoots` 按同一选择预算把每个准备分支回放到稳定 `Play` 状态，只把该 `Play` 状态导入为 `FlashBattle`。准备选择向量（`PlanCardChoice` 列表、来源/效果/牌堆/时机/卡牌令牌）与根动作数（固定前缀长度）只存在于 `TurnSetupRootCandidate`/`FlashBeamOptions.InitialActionCount`；它们不进入状态字节、指纹或续用文本。搜索根之间的差异全部已经在导入后的 `FlashBattle` 里（手牌、弃牌堆、Power、能量、HP 等）。
+
+物化时选中的选择向量作为 `rootTurnSetupChoices` 固定回现有求解器；现有求解器从同一根重新枚举准备根，只保留该向量再回放固定前缀，结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与关闭 Flash 时完全同形。若某个准备选择把状态推出 Flash 容量或内容闭包，按准入/边界原因整次回落，不部分提交。

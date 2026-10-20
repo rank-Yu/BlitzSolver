@@ -13,7 +13,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | 原因码 | 条件 |
 | --- | --- |
 | `MultiPlayer` | 玩家数不是 1 |
-| `RootPhase` | 根不在玩家出牌阶段（`CurrentSide != Player` 或 `PlayerPhase != Play`）；F1–F3 不支持 `IncludeTurnSetup` 的回合准备根 |
+| `RootPhase` | 根不是受支持的两形：普通 `Player/Play`，或 `IncludeTurnSetup` 的 `Player/Start`（回合准备根由 Bridge 先回放成 `Play` 状态再导入；其它 side/phase 显式拒绝） |
 | `PendingChoice` | 根存在待处理选择或执行续接 |
 | `ThirdParty` | 存在第三方 gameplay 订阅者、BaseLib 卡牌修饰、未登记模型状态 |
 | `UnsupportedCard` 等 | 任一卡牌、附魔、苦难、Power、遗物、药水、球、怪物没有 Flash 定义 |
@@ -30,7 +30,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 
 准入只做判断，不修改任何状态。拒绝原因写入诊断，用于覆盖率统计。
 
-`RootPhase` 的检查发生在根导入的第一道门（`FlashStateImporter.Import(..., requirePlayPhase: true)`），先于 `PendingChoice` 与可表示性检查：回合准备根的 `Start` 阶段选择上下文不是 Flash 的协议，若按出牌阶段搜索会静默丢掉该选择。分发点在 On 模式下对 `IncludeTurnSetup` 根直接写 `FLASH_LEGACY ... reason=turn-setup` 并回落现有求解器；完整支持回合准备根需要内核保存准备选择帧、根动作数与选择令牌协议，留给后续批次。
+`Player/Start` 的 `IncludeTurnSetup` 根不直接导入：分发点把它交给 Flash，Bridge 用现有求解器的 `BuildTurnSetupRoots` 按与现有搜索相同的选择预算枚举准备选择，并把每个分支回放到稳定 `Player/Play` 状态；`FlashStateImporter.Import(..., requirePlayPhase: true)` 只检查这些导入后的 `Play` 根。其余 side/phase 在分发点显式写 `FLASH_LEGACY ... reason=root-phase:<side>:<phase>` 并回落原搜索。根捕获与准备选择回放都在主线程现有引擎上完成，Flash 只消费 `Play` 状态。
 
 ## 2. 根导入与投影
 
@@ -152,7 +152,7 @@ Project(Old.Step(s, a)) == Flash.Step(Project(s), a)     （逐字节）
 | 层 | 内容 | 位置 |
 | --- | --- | --- |
 | K0 纯内核 | RNG 对照录制向量、布局尺寸断言、规范化、容量失败、选择协议 | `tools/testing/checks/FlashKernelChecks/`，源码包含内核文件，不依赖游戏 |
-| K1 单步穷举 | 从根出发，枚举全部合法动作（含选择分支）各执行一步并比较 | 离线搜索宿主的差分探针（`OFFLINE_HARNESS_FLASH_DIFF=1`，`tools/search/OfflineSearchHarness/FlashDifferentialProbe.cs`） |
+| K1 单步穷举 | 从根出发，枚举全部合法动作（含选择分支）各执行一步并比较；`IncludeTurnSetup` fixture 对每个准备根做 K4/K5 比较，再从每个 `Play` 根分别跑 K1 | 离线搜索宿主的差分探针（`OFFLINE_HARNESS_FLASH_DIFF=1`，`tools/search/OfflineSearchHarness/FlashDifferentialProbe.cs`） |
 | K2 随机游走 | 固定种子，多回合随机合法动作序列，每步比较；覆盖洗牌、敌人回合、死亡 | 同上 |
 | K3 内容定向 | 每个新内容至少一个 fixture，让该内容在前几步内被触发 | `coverage/fixtures/` 下按主题存放，K1/K2 消费 |
 | K4 评估一致 | K1/K2 中投影一致的每个状态，`FlashScorer` 的评估值必须等于现有引擎同一状态的 `SimulationSnapshot` 对应成员；`Score` 按 double 精确比较。药水计数除 `PotionUseCount`/`PotionStrategicCost`/`AutomaticPotionUseCount`/`ExplicitPotionStrategicCost` 外还逐字段比较 `ExplicitPotionUseCount`。成长额度或遗物计数目标开启时，`GrowthRewards` 的十个来源、`GrowthHpCredit`、`GrowthRewardCount`、`StrategyGoalHpCredit`、`StrategicHpCredit`、`StrategyGoalCount` 与 `RelicCounters` 的 `SatisfiedMask`/`TargetMask`/`CounterValues`/`TargetMinimums`/`TargetMaximums`/`HpCredit`/`Distance`/`SatisfiedPriority`/`HealingHpCredit` 也逐字段比较；`Turn` 始终比较。第三幕首领策略开启时，`Act3BossInteractions`、`FirstAttackDamage`、`EtherealDrawTriggers`、`PagestormBonusDrawCapacity`、`HighEnergyPlays`、`DemesneEnergyGain`、`DemesneDrawGain` 也逐字段比较（参考值由 `SimulationSnapshot` 保存同一状态的战略上下文）。`ContinuousThreatRanking` 或 `ContextualRanking` 开启时，同一状态的 `BeamRankScore` 也按 double 逐位比较（汇总 `rankChecked`/`rankFailed`） | 同一探针；字段表与比较在 `FlashScoreFeatures`、`FlashScoreProjection`。现有引擎停在搜索边界的状态（`BoundaryReason` 非 None）不比较 |
@@ -172,7 +172,7 @@ Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRo
 
 - 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式回落旧后端，Shadow 模式记为 `status=mismatch`。
 - Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时同样回落旧后端，记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
-- 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。
+- 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。`IncludeTurnSetup` 路线还会把选中的准备选择向量作为 `rootTurnSetupChoices` 固定给旧求解器；旧求解器重新枚举准备根后只保留该向量，物化结果再逐项核对 `TurnSetupChoices`，不一致整条丢弃。
 - Smart 药水审计（`SmartPotionGradient` 与 `SmartOpeningPotionPosterior`）在物化时把同一 `PotionFreePolicyBaseline`、`minimum/maximumPotionUses` 与 `RequireAtLeastOne` 交回现有 `CombatBeamSolver`，由现有 `FinalPlanOrdering.Select` 再做一次筛选。物化后 `FlashPotionBridge.VerifyRoute` 核对路线的显式用药次数：动作里的 `UsePotion` 数必须等于 `PotionUses` 的非自动计数，且满足最小/最大次数与 `RequireAtLeastOne` 至少一次；任一不满足都返回 `ConstraintFailure` 回落，不把 Flash 的“没找到”写成现有求解器的 `PotionPolicyUnsatisfiedException`。现有终局筛选自己抛出的 `PotionPolicyUnsatisfiedException` 也在物化点捕获并回落。
 - 固定前缀可以由药水动作开头：前缀先经现有 `ApplyFixedPrefix` 回放，Flash 只从回放后的搜索根展开；搜索根快照的累计药水计数冻结进评分与下界，因此前缀用药不丢失。
 

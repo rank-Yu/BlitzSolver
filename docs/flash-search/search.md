@@ -39,7 +39,9 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 固定前缀续接在导入前先用同一 `ApplyFixedPrefix` 规则回放请求前缀（`CombatBeamSolver.ReplayFixedPrefixForFlash`），把前缀末尾状态作为 Flash 搜索根；步骤 1 从该状态开始核对，步骤 2 的 `fixedPrefixActions` 是“请求前缀 + Flash 路线”，仍由现有求解器从请求根完整回放与物化。
 
-实现在 `src/Search/FlashBeam/Bridge/FlashRouteMaterializer.cs`。
+**回合准备根（`IncludeTurnSetup`）**：玩家回合开始的原生选择页在根捕获时还没有作答，捕获的根是 `Player/Start`。Bridge 不把该 Start 状态导入内核，而是先调用现有求解器的 `CaptureTurnSetupRootsForFlash`（内部就是 `BuildTurnSetupRoots`），按与现有搜索**完全相同的选择预算**把每个准备选择分支回放到稳定 `Play` 状态，再逐个导入 `FlashBattle`。`FlashBeamSolver.Solve` 接收这组根（现有搜索的 frontier 同样从多个准备根出发），返回选中路线的 `BestRootIndex`；路线本身从 `Play` 状态开始，准备选择不占动作数。物化时把选中的 `PlanCardChoice` 向量作为 `rootTurnSetupChoices` 交给现有求解器，它在同一 `BuildTurnSetupRoots` 结果里只保留该向量并回放 `fixedPrefixActions`，结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与现有语义同形；物化后逐项核对选择向量，不一致按 `FlashVerificationException` 整条丢弃。
+
+实现在 `src/Search/FlashBeam/Bridge/FlashRouteMaterializer.cs` 与 `src/Search/CombatBeamSolver.TurnSetup.cs`。
 
 回放中任何一步与 Flash 投影不一致都按 [运行时回放核对](admission-and-verification.md#4-运行时回放核对) 处理。
 
@@ -58,6 +60,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 | `ProgressCallback` | 只在物化阶段报告；FlashBeam 搜索期间不报告进度 |
 | `PrimaryIncumbent` | 支持：作为 FlashBeam 的初始 incumbent，`CombatEndedTurn` 从 `node.Turn` 换算到 Flash 玩家回合；共享的 `PrimaryIncumbents` 表不接入 |
 | `Purpose` | 决定是否查看模式，并作为物化求解器的工作量归因 |
+| `Policy.IncludeTurnSetup` | 支持：根必须是 `Player/Start`；Bridge 按现有 `BuildTurnSetupRoots` 的选择预算枚举准备根，FlashBeam 从全部准备根搜索，物化时固定选中的选择向量 |
 
 `CombatBeamSolver` 的其余构造参数（`maximumPotionUses`、`minimumPotionUses`、`earliestPotionTurn`、`fixedPrefixActions`、`potionFreePolicyBaseline`、`earlyTurnScout*`、`planCommitment`）在主搜索成员中不使用。Smart 梯度审计通过 `BeamSolveRequest.PotionFreePolicyBaseline`、`MaximumPotionUses`、`MinimumPotionUses` 携带精确层参数；区间上下界、基线、最早用药回合、强制指令与 `RequireAtLeastOne` 均已移植（见 3.1）。固定前缀续接通过第二个分发入口 `BeamSolveDispatch.SolveContinuation` 走同一 `FlashMode`；药水相关的续接请求不再被“干净请求”门挡住，只有下列语义边界仍直接调用现有求解器：
 
@@ -65,7 +68,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
   - `PlanCommitment` 成员：没有早期侦察、`PotionFreePolicyBaseline == null`、`EarliestPotionTurn == null`、`MinimumPotionUses`/`MaximumPotionUses` 为 null 或 0，且收益证据是 `CardPlayed`。药水政策为无药，或 deferred power plan 的“无 override、无上下界、根政策 Smart”形态；后者与 Flash 主成员的药水路径相同。带药水前缀的计划（含全部 `CopyPower` 发现）仍因药水上下界留在后续药水批次。
 - 早期侦察：只接管计划阶段自己的深度 1 侦察，其他早期侦察保留原搜索（`can-take-over:early-turn-scout`）。
   - 计划侦察：`Purpose == PlanCommitment`、`Commitment == null`、空前缀、`EarlyTurnScoutDepth == 1`、观察者非空、药水为无药。
-- 根不在普通玩家出牌阶段（`IncludeTurnSetup` 或阶段不是 `Play`；回合准备根协议留给后续批次）。
+- 根阶段不是受支持的两形：普通 `Player/Play`，或 `IncludeTurnSetup` 的 `Player/Start`。其余 side/phase 保留显式拒绝并写 `FLASH_LEGACY ... reason=root-phase:<side>:<phase>`（Flash 内核只表示稳定出牌状态，不能把敌方回合或其它准备阶段当作出牌根搜索）。
 - 药水上下界为负或 `MinimumPotionUses > MaximumPotionUses`（沿用现有求解器的参数校验）。
 
 `PolicyOverride` 作为求解政策使用；`PrimaryIncumbent` 按 SB 的口径传入。`ProgressCallbackOverride` 只影响现有求解器的进度报告，Flash 搜索期间不报告进度。`ResetFixedPrefixSchedulingBaseline` 对 Smart 药水后验请求转交给物化求解器，使固定前缀后的调度基线与现有搜索相同；其余续接请求仍不读取它。profile 中 Flash 不建模的开关（连续致命意图、上下文排序等）仍由准入拒绝并回落。
@@ -99,12 +102,12 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 | 原因 | 含义 |
 | --- | --- |
 | `potion-audit-boundary:<码>` | Smart 梯度/后验的语义边界（`potion-policy`、`no-searchable-potion` 等） |
-| `can-take-over:<码>` | 续接门保留的语义边界（`commitment`、`early-turn-scout`、`turn-setup`、`potion-bounds`、`second-rank-band`、`aggressive-power-commitment`） |
+| `can-take-over:<码>` | 续接门保留的语义边界（`commitment`、`early-turn-scout`、`potion-bounds`、`second-rank-band`、`aggressive-power-commitment`） |
 | `direct:<用途>` | 协调器直接执行的原搜索（`direct:novelty-exploration`、`direct:early-turn-scout` 等） |
 | `flash-rejected:<码>` | Flash 有结果前拒绝或精确层/物化后核对失败（准入原因、`flash-potion-policy-no-route`、`materialize-potion-policy`、`route-*`） |
 | `flash-boundary` | Flash 内核边界（`FlashUnsupportedException`/`FlashCapacityException`） |
 | `flash-mismatch` | 逐步回放核对不一致 |
-| `turn-setup` | 回合准备根显式拒绝；完整支持留给后续批次 |
+| `root-phase:<side>:<phase>` | 根不在受支持的两形（`Player/Play` 或 `IncludeTurnSetup` 的 `Player/Start`）；Flash 不搜索其它阶段 |
 
 
 固定前缀续接的搜索口径：
@@ -118,7 +121,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 ## 4. BeamSolveDispatch 与模式
 
-`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam`、`SmartPotionGradient` 以及协调器直接审计点 `PotionFreeAudit`、`RequiredPotionAudit`、`NarrowOpeningIncumbent`、`TurnBoundaryDiscovery` 查看 `FlashMode`；保留的语义边界（带药水约束的计划承诺、计划阶段以外的早期侦察、回合准备根）与实验路径仍直接使用 `CombatBeamSolver`，并在 On 模式写 `FLASH_LEGACY`。`SecondRankBand`、`AggressivePowerCommitment` 与分支上限只作用于现有搜索的保路泳道与分支截断，FlashBeam 没有这些结构，因此主搜索不读取它们（属于已记录的保留结构差异；新放开的药水请求按 3.1 的边界保留原搜索）；`RunForcedPotionOpeningRescue` 的三个剖面变体只有 `BaseScoreOnly` 由 Flash 执行，另外两个保留原搜索并记 `direct:turn-boundary-discovery:<开关>`。`NarrowOpeningIncumbent` 经分发点后使用 profileScale=1，保持原窄搜索宽度，不套用 Flash 常规 ×4。 计划成员与计划阶段的深度 1 侦察（PC）同样查看 `FlashMode`。
+`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam`、`SmartPotionGradient` 以及协调器直接审计点 `PotionFreeAudit`、`RequiredPotionAudit`、`NarrowOpeningIncumbent`、`TurnBoundaryDiscovery` 查看 `FlashMode`；保留的语义边界（带药水约束的计划承诺、计划阶段以外的早期侦察、不受支持的根阶段）与实验路径仍直接使用 `CombatBeamSolver`，并在 On 模式写 `FLASH_LEGACY`。回合准备根（`Player/Start` + `IncludeTurnSetup`）由 Flash 接管。`SecondRankBand`、`AggressivePowerCommitment` 与分支上限只作用于现有搜索的保路泳道与分支截断，FlashBeam 没有这些结构，因此主搜索不读取它们（属于已记录的保留结构差异；新放开的药水请求按 3.1 的边界保留原搜索）；`RunForcedPotionOpeningRescue` 的三个剖面变体只有 `BaseScoreOnly` 由 Flash 执行，另外两个保留原搜索并记 `direct:turn-boundary-discovery:<开关>`。`NarrowOpeningIncumbent` 经分发点后使用 profileScale=1，保持原窄搜索宽度，不套用 Flash 常规 ×4。 计划成员与计划阶段的深度 1 侦察（PC）同样查看 `FlashMode`。
 
 模式由 `SearchPolicySnapshot.FlashMode` 冻结，主线程从设置 `SolverSettingsData.FlashSearchMode` 读取（设置 > 性能 > 搜索预算 >「Flash 快速搜索（实验）」）。离线宿主可用 `OFFLINE_HARNESS_FLASH_MODE=Off|Shadow|On` 覆盖。
 

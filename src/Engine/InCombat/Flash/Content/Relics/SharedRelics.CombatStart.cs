@@ -141,6 +141,8 @@ public sealed class StoneCracker : FlashRelicDef;
 [FlashContent("TOOLBOX")]
 public sealed class Toolbox : FlashRelicDef
 {
+    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.ColorlessAll];
+
     public override bool MayGenerateIdentityContent => true;
 }
 

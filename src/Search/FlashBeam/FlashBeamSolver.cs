@@ -159,7 +159,11 @@ internal sealed record FlashPlanCommitment(
     ushort PayoffCardId);
 
 /// <summary>One early-turn scout candidate: the route from the request root and its existing score.</summary>
-internal sealed record FlashScoutCandidate(FlashAction[] Actions, double Score);
+internal sealed record FlashScoutCandidate(FlashAction[] Actions, double Score)
+{
+    /// <summary>Index of the turn-setup root the candidate started from (0 for an ordinary root).</summary>
+    public int RootIndex { get; init; }
+}
 
 /// <summary>The candidates the existing search's observer reports after one searched turn layer.</summary>
 internal sealed record FlashScoutLayer(int Turns, IReadOnlyList<FlashScoutCandidate> Candidates);
@@ -256,6 +260,12 @@ internal sealed record FlashBeamResult(
 
     /// <summary>The scout layers reported by an early-turn scout request, in searched order.</summary>
     public IReadOnlyList<FlashScoutLayer> ScoutLayers { get; init; } = [];
+
+    /// <summary>
+    /// Which root of the solve the selected route started from: 0 for an ordinary root, or the
+    /// turn-setup root candidate index (the bridge maps it back to the setup choices).
+    /// </summary>
+    public int BestRootIndex { get; init; }
 
     /// <summary>
     /// False when an audited request found no route satisfying the ported potion policy. The caller
@@ -392,20 +402,33 @@ internal sealed class FlashBeamSolver
     }
 
     public FlashBeamResult Solve(in FlashBattle root, CancellationToken cancellationToken)
+        => Solve([root], cancellationToken);
+
+    /// <summary>
+    /// Solves from one or more starting states. A turn-setup request hands over every enumerable setup
+    /// root (the existing search's frontier does the same); the returned <see cref="FlashBeamResult.BestRootIndex"/>
+    /// identifies which one the selected route started from.
+    /// </summary>
+    public FlashBeamResult Solve(IReadOnlyList<FlashBattle> roots, CancellationToken cancellationToken)
     {
+        if (roots.Count == 0)
+            throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
         Stopwatch watch = Stopwatch.StartNew();
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
         _hpTargetReached = false;
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
-            _rootPotions[slot] = slot < root.PotionSlotCount ? root.Potions[slot] : (ushort)0;
+            _rootPotions[slot] = slot < roots[0].PotionSlotCount ? roots[0].Potions[slot] : (ushort)0;
         int width = Math.Max(1, _options.BeamWidth);
-        // current and turnFrontier only receive CopyTopTo(width) and the root. next and ended receive
+        // current and turnFrontier only receive CopyTopTo(width) and the roots. next and ended receive
         // children built in the scratch/free slot; their chunks are allocated on first write and never
         // copied, so a duplicate or terminal child does not grow them. The capacity bound below is an
         // explicit rejection boundary, not a true upper bound for ended: ended accumulates one end-turn
         // child per action layer, and a deep single turn can add more layers than MaxLegalActions.
-        int maxChildren = checked(width * (FlashKernel.MaxLegalActions + 1));
+        int frontierCapacity = Math.Max(width, roots.Count);
+        // Every turn-setup root is a first-layer parent, even when the profile's beam is narrower than
+        // the setup choice set; the existing search also expands its whole root frontier.
+        int maxChildren = checked(frontierCapacity * (FlashKernel.MaxLegalActions + 1));
         // Both growable pools use the same byte budget; the original per-action-layer bound stays as
         // the semantic upper bound for small widths. The state count is rounded down to the 64-state
         // chunk so the chunked arrays stay inside the budget.
@@ -422,10 +445,10 @@ internal sealed class FlashBeamSolver
         _endedCompressedStates = 0;
         _capacityDropped.Clear();
         bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
-        Pool current = new(width, width, preserveTheft, _scorer, _planCommitment);
+        Pool current = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment);
         Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment);
         Pool ended = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment);
-        Pool turnFrontier = new(width, width, preserveTheft, _scorer, _planCommitment);
+        Pool turnFrontier = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -483,17 +506,21 @@ internal sealed class FlashBeamSolver
             }
         }
 
-        (double rootScore, double rootRank, double rootPureRank, int rootPotionCost,
-            FlashScoreFeatures rootFeatures) =
-            Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
         _nodes.Clear();
-        _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1,
-            _options.InitialPlanPayoffCount));
-        (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
-        RetentionFacts rootFacts = RetentionFacts.From(
-            rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
-        turnFrontier.Add(root, 0, rootScore, rootRank, rootPureRank, rootPotionCost, rootFacts, -1,
-            _options.InitialPlanPayoffCount);
+        for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++)
+        {
+            FlashBattle root = roots[rootIndex];
+            (double rootScore, double rootRank, double rootPureRank, int rootPotionCost,
+                FlashScoreFeatures rootFeatures) =
+                Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
+            _nodes.Add((-1, Math.Max(0, _options.InitialActionCount), default, -1,
+                _options.InitialPlanPayoffCount));
+            (int rootReachable, int rootZeroCost) = _scorer.ReachableHandPotential(root);
+            RetentionFacts rootFacts = RetentionFacts.From(
+                rootFeatures, _options.InitialActionCount, rootReachable, rootZeroCost);
+            turnFrontier.Add(root, rootIndex, rootScore, rootRank, rootPureRank, rootPotionCost, rootFacts, -1,
+                _options.InitialPlanPayoffCount);
+        }
         TerminalSink terminal = ConsiderTerminal;
         int turns = 0;
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch)
@@ -502,7 +529,7 @@ internal sealed class FlashBeamSolver
         {
             turns++;
             current.Clear();
-            turnFrontier.CopyTopTo(current, width, 0d);
+            turnFrontier.CopyTopTo(current, turns == 1 ? frontierCapacity : width, 0d);
             ended.Clear();
             // Turn one is the existing search's searchedTurnLayers == 0.
             _expandFetchedPowers = _options.Act3BossStrategy && turns == 1;
@@ -528,7 +555,7 @@ internal sealed class FlashBeamSolver
                 PrunePool(current);
             }
             if (_earlyTurnScoutDepth > 0 && turns <= _earlyTurnScoutDepth)
-                CollectEarlyTurnScout(ended, turns, root);
+                CollectEarlyTurnScout(ended, turns, roots);
             turnFrontier.Clear();
             // BeamRetentionPolicy.RankBest at the end-turn frontier: the turn-boundary hand leader is
             // a required representative of every potion group.
@@ -571,6 +598,7 @@ internal sealed class FlashBeamSolver
                 SmartPotionPruned = _smartPruned,
                 PotionPolicySatisfied = best is not null,
                 BestPayoffCount = _nodes[bestNode].PayoffCount,
+                BestRootIndex = RootIndex(bestNode),
                 ScoutLayers = _scoutLayers,
             };
             return audited;
@@ -601,6 +629,7 @@ internal sealed class FlashBeamSolver
             EndedCompressedStates = _endedCompressedStates,
             SmartPotionPruned = _smartPruned,
             BestPayoffCount = _nodes[bestNode].PayoffCount,
+            BestRootIndex = RootIndex(bestNode),
             ScoutLayers = _scoutLayers,
         };
         return result;
@@ -1258,6 +1287,15 @@ internal sealed class FlashBeamSolver
         return [.. route];
     }
 
+    /// <summary>The root node an action chain descends from (the first <c>nodes</c> entries are roots).</summary>
+    private int RootIndex(int node)
+    {
+        int cursor = node;
+        while (_nodes[cursor].Parent >= 0)
+            cursor = _nodes[cursor].Parent;
+        return cursor;
+    }
+
     private readonly record struct FlashScoutOpening(
         FlashActionKind Kind, ushort CardId, ushort PotionId, uint? TargetCombatId);
 
@@ -1281,7 +1319,7 @@ internal sealed class FlashBeamSolver
     /// keep the top two scores per strategy key, group by opening, then round-robin the opening groups
     /// up to 24 candidates. The pool already holds one representative per byte-identical state.
     /// </summary>
-    private void CollectEarlyTurnScout(Pool ended, int completedTurns, in FlashBattle root)
+    private void CollectEarlyTurnScout(Pool ended, int completedTurns, IReadOnlyList<FlashBattle> roots)
     {
         List<FlashScoutEntry> entries = new(ended.Count);
         for (int index = 0; index < ended.Count; index++)
@@ -1290,7 +1328,8 @@ internal sealed class FlashBeamSolver
             if (state.PlayerTurn != _initialPlayerTurn + completedTurns)
                 continue;
             int node = ended.Node(index);
-            FlashScoutOpening opening = ScoutOpening(root, node);
+            int rootIndex = RootIndex(node);
+            FlashScoutOpening opening = ScoutOpening(roots[rootIndex], node);
             RetentionFacts facts = ended.Facts(index);
             FlashScoutStrategy strategy = new(
                 opening,
@@ -1318,7 +1357,10 @@ internal sealed class FlashBeamSolver
                     continue;
                 found = true;
                 FlashScoutEntry entry = opening[rank];
-                selected.Add(new FlashScoutCandidate(Route(entry.Node), entry.Score));
+                selected.Add(new FlashScoutCandidate(Route(entry.Node), entry.Score)
+                {
+                    RootIndex = RootIndex(entry.Node),
+                });
                 if (selected.Count == EarlyTurnCandidatesPerLayer)
                     break;
             }

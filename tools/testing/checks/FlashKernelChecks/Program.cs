@@ -42,6 +42,7 @@ CheckTwKernel();
 CheckDfKernel(rules);
 CheckRgKernel(rules);
 CheckLrKernel(rules);
+CheckTsKernel(rules);
 CheckIdKernel(rules);
 CheckCxKernel(rules);
 CheckDecimalVars(rules);
@@ -910,6 +911,13 @@ static FlashRules SliceRules()
     LrCard("KINGLY_KICK", FlashCardType.Attack, FlashTargetType.AnyEnemy, 4, [27m]);
     LrCard("KINGLY_PUNCH", FlashCardType.Attack, FlashTargetType.AnyEnemy, 1, [8m, 4m]);
     LrCard("VOID_FORM", FlashCardType.Power, FlashTargetType.Self, 3, [2m]);
+    // TS: the two turn-start choice sources used by the turn-setup fixtures. ToastyMittens exhausts
+    // one hand card then gains Strength; ChoicesParadox offers a generated character card option set.
+    FlashRegistry.TryRelic("TOASTY_MITTENS", out ushort toastyMittens);
+    builder.SetRelicVars(toastyMittens, [2m]);
+    FlashRegistry.TryRelic("CHOICES_PARADOX", out ushort choicesParadox);
+    builder.SetRelicVars(choicesParadox, [3m]);
+    builder.SetCardPool(FlashCardPools.CharacterAll, [strike, defend, bash]);
 
     // MB: Knowledge Demon's fixed curse options only need canonical card values.
     FlashRegistry.TryCard("DISINTEGRATION", out ushort disintegration);
@@ -3244,6 +3252,83 @@ static void CheckLrKernel(FlashRules rules)
         "LR 先见之明结算后应移除 Power");
     Check(foregoneReplay.HandCount == 7,
         $"LR 先见之明应先移入手牌再抽 5 张，实际手牌 {foregoneReplay.HandCount}");
+}
+
+/// <summary>
+/// TS: the two turn-start choice shapes the turn-setup fixtures rely on. The bridge replays the
+/// setup page through the existing engine, and the kernel uses the same shapes for later turns:
+/// <c>ToastyMittens</c> (exhaust one hand card, then gain Strength) and <c>ChoicesParadox</c>
+/// (a generated-card fixed option set). Both choices are stamped <c>PlayerTurnStart</c>.
+/// </summary>
+static void CheckTsKernel(FlashRules rules)
+{
+    Check(FlashRegistry.TryRelic("TOASTY_MITTENS", out ushort toasty), "缺少 TOASTY_MITTENS");
+    Check(FlashRegistry.TryRelic("CHOICES_PARADOX", out ushort paradox), "缺少 CHOICES_PARADOX");
+    Check(FlashRegistry.TryPower("STRENGTH_POWER", out ushort strength), "缺少 STRENGTH_POWER");
+    FlashRelicDef toastyDef = FlashRegistry.Relic(toasty);
+    FlashRelicDef paradoxDef = FlashRegistry.Relic(paradox);
+    FlashListener self = new(FlashListenerKind.Relic, 0, FlashLimits.PlayerOwner);
+
+    // ToastyMittens: the request is an Exhaust choice over the hand, stamped PlayerTurnStart.
+    FlashBattle toastyBattle = SliceBattle();
+    toastyBattle.RelicCount = 1;
+    toastyBattle.Relics[0] = new FlashRelic { Id = toasty };
+    int toastyHand = toastyBattle.HandCount;
+    FlashExec toastyProbe = new(ref toastyBattle, rules, default);
+    toastyProbe.ChoiceTiming = FlashChoiceTiming.PlayerTurnStart;
+    toastyDef.AfterPlayerTurnStart(ref toastyProbe, self);
+    Check(toastyProbe.NeedsChoice, "TS 烤面包手套应在回合开始请求选牌");
+    Check(toastyProbe.Request.Kind == FlashChoiceKind.SelectCards
+        && toastyProbe.Request.Effect == FlashChoiceEffect.Exhaust
+        && toastyProbe.Request.Source == FlashPile.Hand
+        && toastyProbe.Request.Timing == FlashChoiceTiming.PlayerTurnStart
+        && toastyProbe.Request.MinCount == 1 && toastyProbe.Request.MaxCount == 1
+        && toastyProbe.Request.OptionCount == toastyHand,
+        $"TS 烤面包手套选择规格错误 kind={toastyProbe.Request.Kind} effect={toastyProbe.Request.Effect} "
+        + $"source={toastyProbe.Request.Source} timing={toastyProbe.Request.Timing} "
+        + $"count={toastyProbe.Request.MinCount}..{toastyProbe.Request.MaxCount} "
+        + $"options={toastyProbe.Request.OptionCount} hand={toastyHand}");
+    FlashBattle toastyReplayBattle = toastyBattle;
+    FlashExec toastyReplay = new(ref toastyReplayBattle, rules, FlashAction.EndTurn().WithChoice(0b1UL));
+    toastyReplay.ChoiceTiming = FlashChoiceTiming.PlayerTurnStart;
+    toastyDef.AfterPlayerTurnStart(ref toastyReplay, self);
+    Check(!toastyReplay.NeedsChoice && toastyReplayBattle.ExhaustCount == 1,
+        $"TS 烤面包手套应消耗 1 张选中的手牌，实际消耗 {toastyReplayBattle.ExhaustCount}");
+    Check(FlashKernel.GetAmount(toastyReplayBattle, FlashLimits.PlayerOwner, strength) == 2,
+        $"TS 烤面包手套应施加 2 力量，实际 {FlashKernel.GetAmount(toastyReplayBattle, FlashLimits.PlayerOwner, strength)}");
+
+    // ChoicesParadox: a generated-card option set (no pile), one selected card enters the hand and
+    // carries Retain. The kernel samples CharacterAll in option order with CombatCardGeneration.
+    FlashBattle paradoxBattle = SliceBattle();
+    paradoxBattle.RelicCount = 1;
+    paradoxBattle.Relics[0] = new FlashRelic { Id = paradox };
+    paradoxBattle.RngStream(FlashRngStream.CombatCardGeneration) =
+        FlashRngState.FromSerializable(0, 1, 2, 3, 4);
+    int paradoxHand = paradoxBattle.HandCount;
+    FlashExec paradoxProbe = new(ref paradoxBattle, rules, default);
+    paradoxProbe.ChoiceTiming = FlashChoiceTiming.PlayerTurnStart;
+    paradoxDef.AfterPlayerTurnStart(ref paradoxProbe, self);
+    Check(paradoxProbe.NeedsChoice, "TS 抉择悖论应在回合开始请求固定选项");
+    Check(paradoxProbe.Request.Kind == FlashChoiceKind.SelectOption
+        && paradoxProbe.Request.Effect == FlashChoiceEffect.GenerateToHand
+        && paradoxProbe.Request.OptionsAreGenerated
+        && paradoxProbe.Request.SourceIsNone
+        && paradoxProbe.Request.Timing == FlashChoiceTiming.PlayerTurnStart
+        && paradoxProbe.Request.OptionCount == 3,
+        $"TS 抉择悖论选择规格错误 kind={paradoxProbe.Request.Kind} effect={paradoxProbe.Request.Effect} "
+        + $"generated={paradoxProbe.Request.OptionsAreGenerated} timing={paradoxProbe.Request.Timing} "
+        + $"options={paradoxProbe.Request.OptionCount}");
+    FlashBattle paradoxReplayBattle = paradoxBattle;
+    FlashExec paradoxReplay = new(ref paradoxReplayBattle, rules, FlashAction.EndTurn().WithChoice(0b010UL));
+    paradoxReplay.ChoiceTiming = FlashChoiceTiming.PlayerTurnStart;
+    paradoxDef.AfterPlayerTurnStart(ref paradoxReplay, self);
+    Check(!paradoxReplay.NeedsChoice, "TS 抉择悖论选定后不应再请求选择");
+    Check(paradoxReplayBattle.HandCount == paradoxHand + 1,
+        $"TS 抉择悖论应把选中的生成卡加入手牌，实际 {paradoxReplayBattle.HandCount}");
+    ref FlashCard generatedCard = ref paradoxReplayBattle.Cards[
+        FlashPiles.Start(paradoxReplayBattle, FlashPile.Hand) + paradoxReplayBattle.HandCount - 1];
+    Check((generatedCard.Keywords & FlashKeywords.Retain) != 0,
+        "TS 抉择悖论生成的卡应带保留关键字");
 }
 
 static class Kg2TestLog

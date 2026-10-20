@@ -46,7 +46,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP 合入后）：FlashKernelChecks 通过；150 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、238 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS 合入后）：FlashKernelChecks 通过；150 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、240 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
 ### 2.1 覆盖缺口
 
@@ -172,6 +172,8 @@ Smart 药水无路线回落（SP，2026-10-19）：79 个牌组的开启模式�
 药水约束的续接与审计（PA，2026-10-20）：开启模式下原搜索的每次执行都写一行 `FLASH_LEGACY purpose=<用途> reason=<原因码>`（关闭与对照模式不写），作为“开启模式不调用原搜索”的统计依据。`BeamSolveDispatch.CanTakeOver` 放开药水上下界、无药基线、最早用药回合、`RequireAtLeastOne`、Smart 无 `Disabled` 覆盖与强制用药指令：扩展阶段按累计显式用药数与最早回合限制药水动作，终局照 `FinalPlanOrdering` 移植强制指令的槽位与身份核对、最少/最多次数、Smart/RequireAtLeastOne 资格、死亡保护、Ambergris 与偷窃恢复，每档用药次数分别保留满足与不满足强制指令的代表，物化后由 `FlashPotionBridge.VerifyRoute` 用现有 `EvaluateForcedUses` 复核。Smart 梯度与开局后验去掉 8 个可移植的边界，保留 `potion-policy` 与 `no-searchable-potion` 两个“审计不适用”的语义边界。协调器的无药审计、必需用药审计、无药基线、窄宽度开局搜索与强制用药开局救援的基础分变体改经分发点。根不在普通出牌阶段（回合开始选择）时显式拒绝。仍保留原搜索并记原因码的：PlanCommitment 与早期侦察（PC 及后续批次）、`SecondRankBand` 与 `AggressivePowerCommitment` 两种保路开关、强制救援的另两个变体、新颖度组合与早期回合探索、回合开始选择的根。默认 79 个牌组开启模式结果逐根不变（剩余 `FLASH_LEGACY` 39 次：PlanCommitment 30、容量边界 7、现有求解器同样无路线的审计 2）；药水设置矩阵 1 好 / 14 同 / 1 同损更晚；48 根基准两种模式路线逐根相同。
 
 计划搜索（PC，2026-10-20）：PlanCommitment 本身不强制或禁止动作，只影响三处：跨回合无进展剪枝时延长视野（`PlanHorizonPolicy.ShouldExtend`；FlashBeam 没有这条剪枝，无需移植）、`CopyPower` 计划的保留代表席（按计划收益进度取前 3 组，每组一个代表，只替换进度更低的非必保席位），以及计划收益计数（`CardPlayed` 证据逐转移增量计数，物化后按整条路线重数核对）。分发点接管无药或 deferred power plan 的 Smart 形态计划成员，以及计划阶段自己的深度 1 侦察（Flash 收集侦察层前沿后翻译回现有观察者的候选）；带药水上下界的计划与力量承诺泳道仍保留原搜索并记原因码。默认 79 个牌组中 PlanCommitment 的原搜索调用 30 → 0，结果逐根不变；与 PA 合并后两套牌组仍为 11 好 / 30 同 / 5 差、−65 与 9 好 / 20 同 / 4 差、−58，开启模式剩余的 `FLASH_LEGACY` 只有 REGENT-V-06 的容量边界与 IRONCLAD-27 现有求解器同样无路线的审计。
+
+回合开始选择（TS，2026-10-20）：`IncludeTurnSetup` 的 `Player/Start` 根不再整次交给原搜索。Bridge 用现有引擎按同一选择预算把准备选择回放成若干 `Play` 根（选择集合与关闭模式一致），`FlashBeamSolver` 以多根首层搜索，`BestRootIndex` 标出选中的选择向量；物化时现有求解器只保留该向量再回放路线，结果的选择向量逐项核对。准备根的四项初始基线与现有搜索一样冻结为 0；其他阶段的根写 `FLASH_LEGACY reason=root-phase:<side>:<phase>`。`flash-ts-a-toasty`（4 个准备根）与 `flash-ts-b-toolbox`（3 个）48 条游走零差异；两根协调器开启模式各 4 次 `FLASH_ADOPTED:verified`、0 次回落；默认 79 根开启模式对改动前逐根相同；无头实机 Toasty Mittens 开启模式整场 `Passed`、0 次计划外重算。准备选择的枚举仍在 `CombatBeamSolver` 类里，属于引擎回放而非搜索策略，后续与开局探针一起抽到引擎侧。
 
 ### 2.7 无人测试实机部署（2026-10-19）
 
