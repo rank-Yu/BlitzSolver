@@ -403,14 +403,16 @@ internal sealed class FlashScorer
 
         bool dead = battle.Player.IsDead || battle.Outcome == FlashOutcome.Defeat;
         bool won = !dead && battle.Outcome == FlashOutcome.Victory;
-        // The K4 probe only compares states the existing engine left at a clean search boundary, so the
-        // snapshot's boundary is None and the threat projection always runs unless the state is won.
+        // The existing snapshot takes ThreatProjection(player.CurrentHp, 0, 0) whenever `won` is false
+        // but the boundary is not None (CombatBeamSolver.StateEvaluation.cs). EventDefeat is such a
+        // boundary: it must not project the enemies' next intents or death saves.
+        bool eventDefeat = battle.Outcome == FlashOutcome.EventDefeat;
         bool risk = (battle.Flags & FlashBattleFlags.HasRisk) != 0;
         int projectedHp;
         int projectedDeathSaveHpRestored = 0;
         int projectedDeathSaveUseCount = 0;
         int blockConsumed = 0;
-        if (won)
+        if (won || eventDefeat)
         {
             projectedHp = battle.Player.CurrentHp;
         }

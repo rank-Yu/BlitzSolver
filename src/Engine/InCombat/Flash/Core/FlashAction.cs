@@ -322,6 +322,7 @@ public ref struct FlashExec
         PlayIdentityCounter = 0;
         MusicBoxPlayIdentity = 0;
         CurrentPlayIsAutoPlay = false;
+        CurrentPlayIsHistoryCourseDupe = false;
         CurrentPlayEnergyValue = 0;
         CardDamageTotal = 0;
         CardKilledTarget = false;
@@ -505,6 +506,13 @@ public ref struct FlashExec
     /// empty choice without asking; a manual play asks it.
     /// </summary>
     public bool CurrentPlayIsAutoPlay;
+
+    /// <summary>
+    /// The card being played is a HistoryCourse duplicate (<c>CardModel.IsDupe</c>). It is created from
+    /// the cross-turn slot, auto-played, and then removed from combat instead of going to a result pile.
+    /// A one-play transient: nested auto-plays clear it and the caller restores it afterwards.
+    /// </summary>
+    public bool CurrentPlayIsHistoryCourseDupe;
 
     /// <summary>
     /// <c>CardPlay.Resources.EnergyValue</c> of the play whose hooks are running: the energy the card paid

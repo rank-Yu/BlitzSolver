@@ -45,6 +45,13 @@ public static class FlashFingerprint
         hash = Mix(hash, all.Slice(RelicsOffset, battle.RelicCount * Unsafe.SizeOf<FlashRelic>()));
         hash = Mix(hash, all.Slice(OrbsOffset, battle.OrbCount * Unsafe.SizeOf<FlashOrb>()));
         hash = Mix(hash, all.Slice(CardsOffset, battle.CardCount * Unsafe.SizeOf<FlashCard>()));
+        // The HistoryCourse cross-turn slot sits after the card array. Skip it when absent (the
+        // canonical bytes are zero) so roots without the relic do not pay 92 extra hashed bytes.
+        if ((battle.Flags & FlashBattleFlags.HistoryCourseCardPresent) != 0)
+        {
+            int historyCourseOffset = CardsOffset + FlashLimits.Cards * Unsafe.SizeOf<FlashCard>();
+            hash = Mix(hash, all.Slice(historyCourseOffset, Unsafe.SizeOf<FlashCard>()));
+        }
         hash ^= hash >> 33;
         hash *= Prime2;
         hash ^= hash >> 29;

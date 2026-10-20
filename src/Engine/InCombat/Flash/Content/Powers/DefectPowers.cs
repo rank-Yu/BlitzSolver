@@ -421,10 +421,11 @@ public sealed class FeralPower : FlashPowerDef
         bool isAutoPlay, int energyValue, FlashPile location, out FlashPilePosition position)
     {
         position = FlashPilePosition.Bottom;
-        // Native FeralPower checks CardModel.IsDupe, not IsClone. Flash has no dupe cards (the
-        // importer rejects them); FlashCard.IsClone marks native CreateClone copies (AdaptiveStrike),
-        // which FeralPower does not exclude.
-        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack || energyValue > 0)
+        // Native FeralPower checks CardModel.IsDupe, not IsClone. The only dupes Flash creates are the
+        // HistoryCourse auto-play copies; FlashCard.IsClone marks native CreateClone copies
+        // (AdaptiveStrike), which FeralPower does not exclude.
+        if (x.CurrentPlayIsHistoryCourseDupe
+            || FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack || energyValue > 0)
             return location;
         ref FlashPower power = ref x.B.Powers[self.Index];
         if (power.Aux0 >= power.Amount)

@@ -96,7 +96,7 @@ public struct FlashCostModifiers
 
 /// <summary>
 /// The complete value of one card in a combat pile. Cards have no instance identity: two
-/// cards with equal bytes are interchangeable. Size is asserted to be 90 bytes.
+/// cards with equal bytes are interchangeable. Size is asserted to be 92 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashCard

@@ -249,8 +249,8 @@ public static partial class FlashKernel
         x.PlayIdentity = ++x.PlayIdentityCounter;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
         x.CurrentPlayEnergyValue = energyValue;
-        FlashPile result = ResultLocation(x.B, x.R, card, stats, out bool removeFromCombat,
-            out FlashPilePosition basePosition);
+        FlashPile result = ResultLocation(x.B, x.R, card, stats, x.CurrentPlayIsHistoryCourseDupe,
+            out bool removeFromCombat, out FlashPilePosition basePosition);
         // CardModel.GetResultLocationForCardPlay clears ExhaustOnNextPlay when the result is Exhaust
         // (Havoc/Cascade force-exhaust the auto-played card).
         if (result == FlashPile.Exhaust)
@@ -459,7 +459,11 @@ public static partial class FlashKernel
                 completed = false;
                 break;
             }
-            RecordCardPlayed(ref x.B, stats, FlashRegistry.Card(card.Id).CardType(x.B, x.R, card));
+            FlashCard completedCard = (uint)playPosition < (uint)x.B.PlayCount
+                ? FlashPiles.At(ref x.B, FlashPile.Play, playPosition)
+                : x.Card;
+            RecordCardPlayed(ref x, stats, FlashRegistry.Card(card.Id).CardType(x.B, x.R, card),
+                completedCard);
             // SimulatedCombatState.RecordCardLifecycle: the completed play records the exact Fetch
             // object in _fetchCardsPlayedThisTurn. The value still sits in the play pile here.
             if ((uint)playPosition < (uint)x.B.PlayCount
@@ -586,14 +590,23 @@ public static partial class FlashKernel
     /// <c>SimulatedCombatState.CompleteCardPlayEffects</c>. Slow, Fetch, relic card counters and
     /// returning cards are not supported yet.
     /// </summary>
-    private static void RecordCardPlayed(ref FlashBattle battle, FlashCardStats stats,
-        FlashCardType cardType)
+    private static void RecordCardPlayed(ref FlashExec x, FlashCardStats stats, FlashCardType cardType,
+        in FlashCard completedCard)
     {
+        ref FlashBattle battle = ref x.B;
         if (cardType == FlashCardType.Attack)
         {
             battle.AddCounter(FlashCounter.AttacksPlayedThisTurn, 1);
             if ((stats.Tags & FlashCardTag.Shiv) != 0)
                 battle.AddCounter(FlashCounter.ShivsPlayedThisTurn, 1);
+            // SimulatedCombatState.RecordHistoryCourseAttack: the last attack completed this turn,
+            // skipping dupes (HistoryCourse's own copies). Recorded after the tail hooks, from the
+            // live play-pile value, exactly like the existing engine's mutable CardModel reference.
+            if (x.R.HasHistoryCourse && !x.CurrentPlayIsHistoryCourseDupe)
+            {
+                battle.HistoryCourseCard = completedCard;
+                battle.Flags |= FlashBattleFlags.HistoryCourseCardPresent;
+            }
         }
         battle.AddCounter(FlashCounter.CardsPlayedThisTurn, 1);
         // CardPlayFinished entry: CombatPredictionHistory records one per completed card play.
@@ -659,10 +672,18 @@ public static partial class FlashKernel
 
     /// <summary>Mirrors <c>CardResultLocationMirrors.GetResultLocation</c> for the supported cards.</summary>
     private static FlashPile ResultLocation(in FlashBattle battle, FlashRules rules, in FlashCard card,
-        FlashCardStats stats, out bool removeFromCombat, out FlashPilePosition position)
+        FlashCardStats stats, bool historyCourseDupe, out bool removeFromCombat,
+        out FlashPilePosition position)
     {
         removeFromCombat = false;
         position = FlashPilePosition.Bottom;
+        // CardModel.GetResultLocationForCardPlay: IsDupe returns PileType.None before the Power and
+        // result-location-override branches. The card leaves combat after its play.
+        if (historyCourseDupe)
+        {
+            removeFromCombat = true;
+            return FlashPile.Play;
+        }
         if (FlashRegistry.Card(card.Id).CardType(battle, rules, card) == FlashCardType.Power)
         {
             removeFromCombat = true;

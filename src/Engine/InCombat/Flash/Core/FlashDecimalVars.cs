@@ -115,7 +115,8 @@ public static class FlashDecimalVars
     }
 
     /// <summary>
-    /// Rebuilds the table in detached-card then card storage order. Duplicate values share a slot;
+    /// Rebuilds the table in detached-card, HistoryCourse cross-turn slot, then card storage order.
+    /// Duplicate values share a slot;
     /// orphaned values disappear. Returns false with <paramref name="required"/> set when more than
     /// <see cref="FlashLimits.DecimalCardVars"/> distinct live values exist. The battle is not
     /// modified on failure.
@@ -141,6 +142,12 @@ public static class FlashDecimalVars
                     out required))
                 return false;
         }
+        if ((battle.Flags & FlashBattleFlags.HistoryCourseCardPresent) != 0
+            && !MapSlot(in battle.HistoryCourseCard, oldValues[..oldCount], next, ref nextCount, mapped,
+                out required))
+        {
+            return false;
+        }
         for (int position = 0; position < battle.CardCount; position++)
         {
             if (!MapSlot(in battle.Cards[position], oldValues[..oldCount], next, ref nextCount, mapped,
@@ -152,6 +159,8 @@ public static class FlashDecimalVars
             if (battle.DetachedCards[slot].Id != 0)
                 ApplySlot(ref battle.DetachedCards[slot], mapped);
         }
+        if ((battle.Flags & FlashBattleFlags.HistoryCourseCardPresent) != 0)
+            ApplySlot(ref battle.HistoryCourseCard, mapped);
         for (int position = 0; position < battle.CardCount; position++)
             ApplySlot(ref battle.Cards[position], mapped);
         Span<decimal> table = Values(ref battle);

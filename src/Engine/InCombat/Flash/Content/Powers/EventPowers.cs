@@ -96,7 +96,9 @@ public sealed class ReboundPower : FlashPowerDef
         bool isAutoPlay, int energyValue, FlashPile location, out FlashPilePosition position)
     {
         position = FlashPilePosition.Bottom;
-        if (self.Owner != FlashLimits.PlayerOwner || location != FlashPile.Discard)
+        // ModifyCardPlayResultLocationMirrors.HandleReboundPower skips CardModel.IsDupe.
+        if (x.CurrentPlayIsHistoryCourseDupe
+            || self.Owner != FlashLimits.PlayerOwner || location != FlashPile.Discard)
             return location;
         position = FlashPilePosition.Top;
         return FlashPile.Draw;
@@ -192,9 +194,11 @@ public sealed class CuriousPower : FlashPowerDef
 /// <summary>
 /// Native <c>BattlewornDummyTimeLimitPower</c> (the three Battleworn Dummy variants): at its owner's
 /// side turn end it decrements while the amount is above 1. On the last tick the native power sets
-/// the encounter's <c>RanOutOfTime</c> and makes the dummy escape; the existing engine maps that to
-/// <c>SearchBoundaryReason.EventDefeat</c>. Flash has no event-defeat outcome, so the last tick is an
-/// explicit boundary instead of a wrong victory.
+/// the encounter's <c>RanOutOfTime</c> and escapes the dummy; the existing engine records the
+/// encounter flag (<c>SimulatedCombatState.MarkBattlewornDummyTimedOut</c>) and ends the action at
+/// <c>SearchBoundaryReason.EventDefeat</c> before the death/poison passes. Flash mirrors exactly that
+/// amount-1 state and sets <see cref="FlashOutcome.EventDefeat"/>; it does not remove the dummy (the
+/// existing engine returns before the escape).
 /// </summary>
 [FlashContent("BATTLEWORN_DUMMY_TIME_LIMIT_POWER")]
 public sealed class BattlewornDummyTimeLimitPower : FlashPowerDef
@@ -213,8 +217,9 @@ public sealed class BattlewornDummyTimeLimitPower : FlashPowerDef
             FlashKernel.SetPowerAmountAt(ref x.B, self.Index, power.Amount - 1);
             return;
         }
-        throw new FlashUnsupportedException(
-            "战损假人超时：现有引擎记 EventDefeat 边界（遭遇 RanOutOfTime / 怪物逃跑），Flash 没有该结局。");
+        // EndTurnPowerSupport: the last tick leaves Amount at 1 and the engine's flag is read only
+        // after TriggerEnemySideTurnEndEffects returns. RunEnemyTurn stops there.
+        x.B.Outcome = FlashOutcome.EventDefeat;
     }
 }
 

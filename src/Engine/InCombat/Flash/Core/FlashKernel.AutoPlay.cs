@@ -42,11 +42,14 @@ public static partial class FlashKernel
         FlashCardStats? callerStats = x.Stats;
         byte callerTarget = x.Target;
         bool callerAutoPlay = x.CurrentPlayIsAutoPlay;
+        bool callerHistoryCourseDupe = x.CurrentPlayIsHistoryCourseDupe;
+        x.CurrentPlayIsHistoryCourseDupe = false;
         if (HasKeyword(x.B, card, FlashKeywords.Unplayable)
             || !ShouldPlay(x.B, x.R, card)
             || !TryResolveAutoPlayTarget(ref x.B, x.R, card, ref target))
         {
             MoveToResultPileWithoutPlaying(ref x, card, pile, index, inPile: true);
+            x.CurrentPlayIsHistoryCourseDupe = callerHistoryCourseDupe;
             return false;
         }
 
@@ -78,6 +81,7 @@ public static partial class FlashKernel
             x.Stats = callerStats;
             x.Target = callerTarget;
             x.CurrentPlayIsAutoPlay = callerAutoPlay;
+            x.CurrentPlayIsHistoryCourseDupe = callerHistoryCourseDupe;
         }
         return completed;
     }
@@ -88,7 +92,7 @@ public static partial class FlashKernel
     /// resource step.
     /// </summary>
     public static bool AutoPlay(ref FlashExec x, in FlashCard card, byte target = FlashLimits.NoOwner,
-        bool skipXCapture = false)
+        bool skipXCapture = false, bool historyCourseDupe = false)
     {
         if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
             return false;
@@ -97,6 +101,8 @@ public static partial class FlashKernel
         FlashCardStats? callerStats = x.Stats;
         byte callerTarget = x.Target;
         bool callerAutoPlay = x.CurrentPlayIsAutoPlay;
+        bool callerHistoryCourseDupe = x.CurrentPlayIsHistoryCourseDupe;
+        x.CurrentPlayIsHistoryCourseDupe = historyCourseDupe;
         if (HasKeyword(x.B, card, FlashKeywords.Unplayable)
             || !ShouldPlay(x.B, x.R, card)
             || !TryResolveAutoPlayTarget(ref x.B, x.R, card, ref target))
@@ -105,8 +111,9 @@ public static partial class FlashKernel
             return false;
         }
 
+        int enteredPosition = x.B.PlayCount;
         FlashPiles.Append(ref x.B, FlashPile.Play, card);
-        EnteredCombat(ref x, card, FlashPile.Play, x.B.PlayCount - 1);
+        EnteredCombat(ref x, card, FlashPile.Play, enteredPosition);
         int energyValue = EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Play);
         int starValue = StarCostWithModifiers(x.B, x.R, card, FlashPile.Play);
         if (!skipXCapture)
@@ -115,8 +122,10 @@ public static partial class FlashKernel
             x.StarValue = starValue;
         }
 
-        // OnPlayWrapper's AddToPile moves the card to the end of the play pile again.
-        int index = PlayIndexOf(ref x.B, card);
+        // OnPlayWrapper's AddToPile moves the card to the end of the play pile again. AfterCardEnteredCombat
+        // may have mutated the value in place (the one-time affliction check and normalization), so an
+        // exact value lookup can fail; fall back to the slot the card was appended to.
+        int index = PlayIndexOf(ref x.B, card, enteredPosition);
         FlashCard moved = FlashPiles.RemoveAt(ref x.B, FlashPile.Play, index);
         int playPosition = x.B.PlayCount;
         FlashPiles.Append(ref x.B, FlashPile.Play, moved);
@@ -132,6 +141,7 @@ public static partial class FlashKernel
             x.Stats = callerStats;
             x.Target = callerTarget;
             x.CurrentPlayIsAutoPlay = callerAutoPlay;
+            x.CurrentPlayIsHistoryCourseDupe = callerHistoryCourseDupe;
         }
         return completed;
     }
@@ -223,6 +233,14 @@ public static partial class FlashKernel
     private static void MoveToResultPileWithoutPlaying(ref FlashExec x, in FlashCard card, FlashPile pile, int index,
         bool inPile)
     {
+        // CardModel.GetResultLocationForCardPlay returns PileType.None for IsDupe: the card leaves
+        // combat instead of exhausting/discarding. The HistoryCourse copy is the only dupe Flash creates.
+        if (x.CurrentPlayIsHistoryCourseDupe)
+        {
+            if (inPile)
+                FlashPiles.RemoveAt(ref x.B, pile, index);
+            return;
+        }
         int position;
         if (inPile)
         {
@@ -289,7 +307,7 @@ public static partial class FlashKernel
         return targets[battle.RngStream(FlashRngStream.CombatTargets).NextInt(0, count)];
     }
 
-    private static int PlayIndexOf(ref FlashBattle battle, in FlashCard card)
+    private static int PlayIndexOf(ref FlashBattle battle, in FlashCard card, int fallbackPosition = -1)
     {
         int count = FlashPiles.Count(battle, FlashPile.Play);
         int start = FlashPiles.Start(battle, FlashPile.Play);
@@ -297,6 +315,14 @@ public static partial class FlashKernel
         {
             if (FlashFingerprint.Equal(battle.Cards[start + index], card))
                 return index;
+        }
+        // The appended object is still the same card even if an entry hook changed its value (the
+        // one-time Vital Spark/Smog/Galvanic check mutates it). The queue order is that object.
+        if ((uint)fallbackPosition < (uint)count)
+        {
+            ref readonly FlashCard candidate = ref battle.Cards[start + fallbackPosition];
+            if (candidate.Id == card.Id && candidate.Upgrade == card.Upgrade)
+                return fallbackPosition;
         }
         throw new FlashUnsupportedException("自动打出的卡不在打出区。");
     }

@@ -590,6 +590,17 @@ public sealed class WhisperingEarring : FlashRelicDef
 }
 
 /// <summary>
+/// <c>HistoryCourse</c>: at the player turn start's AutoPrePlay it clones the last attack played on the
+/// previous player turn and auto-plays it (<c>SimulatedCombatState.TriggerScheduledAutoPlays</c> →
+/// <c>ContinueHistoryCourse</c>). The clone itself lives in the kernel's AutoPrePlay stage; the relic
+/// has no other combat hook. <see cref="FlashRules.HasHistoryCourse"/> gates the per-turn card slot.
+/// </summary>
+[FlashContent("HISTORY_COURSE")]
+public sealed class HistoryCourseRelic : FlashRelicDef
+{
+}
+
+/// <summary>
 /// <c>BingBong</c>: duplicates a card added to the owner's out-of-combat Deck pile
 /// (<c>AfterCardChangedPiles</c> with <c>PileType.Deck</c>). Combat piles never produce a Deck-pile
 /// event, so it has no hook inside the search window.

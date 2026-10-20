@@ -27,6 +27,14 @@ public enum FlashOutcome : byte
     None = 0,
     Victory = 1,
     Defeat = 2,
+
+    /// <summary>
+    /// The encounter's event-defeat ending (<c>SearchBoundaryReason.EventDefeat</c>): the Battleworn
+    /// Dummy's time limit expired and the existing engine stopped at
+    /// <c>SimulatedCombatState.BattlewornDummyTimedOut</c>. Like the existing search's <c>won</c>, this
+    /// is neither a victory nor a normal defeat.
+    /// </summary>
+    EventDefeat = 3,
 }
 
 [Flags]
@@ -53,6 +61,13 @@ public enum FlashBattleFlags : byte
     /// field, so an Osty created during the search never resets them. Constant for the solve; imported.
     /// </summary>
     OstyWasRootPet = 1 << 5,
+
+    /// <summary>
+    /// <see cref="FlashBattle.HistoryCourseCard"/> holds the last attack the player finished this turn
+    /// (<c>SimulatedCombatState._lastAttackThisTurn</c>). Cleared when the turn-start auto-play consumes
+    /// it and when an imported stable boundary has no live value.
+    /// </summary>
+    HistoryCourseCardPresent = 1 << 6,
 
 }
 
@@ -247,7 +262,7 @@ public enum FlashCounter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct FlashBattle
 {
-    public const int ExpectedSize = 12600;
+    public const int ExpectedSize = 12696;
 
     public int Round;
     public int PlayerTurn;
@@ -319,6 +334,16 @@ public struct FlashBattle
     public FlashRelicArray Relics;
     public FlashOrbArray Orbs;
     public FlashCardArray Cards;
+
+    /// <summary>
+    /// The last attack the player finished this turn, as a full card value
+    /// (<c>SimulatedCombatState._lastAttackThisTurn</c>; HistoryCourse clones it at the next player turn's
+    /// AutoPrePlay). One cross-turn slot; <see cref="FlashBattleFlags.HistoryCourseCardPresent"/> says
+    /// whether it is live. Sized as one <see cref="FlashCard"/> at the end of the struct so the rest of
+    /// the layout is unchanged. Imported from the existing engine's per-turn dictionary (never from the
+    /// retired previous-turn dictionary: AutoPrePlay already ran before every search root).
+    /// </summary>
+    public FlashCard HistoryCourseCard;
 
     public readonly int CardCount => HandCount + DrawCount + DiscardCount + ExhaustCount + PlayCount;
 

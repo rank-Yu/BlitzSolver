@@ -197,6 +197,11 @@ public static partial class FlashKernel
         TriggerEnemySideTurnEndEffects(ref x, participants[..RosterOwners(x.B, participants)]);
         if (x.NeedsChoice)
             return;
+        // CombatBeamSolver.Expansion.Replay checks BattlewornDummyTimedOut immediately after
+        // TriggerEnemySideTurnEndEffects and returns SearchBoundaryReason.EventDefeat before the
+        // enemy-death, poison, affliction-normalization and next-round preparation passes.
+        if (x.B.Outcome == FlashOutcome.EventDefeat)
+            return;
         ApplyEnemyDeathPowers(ref x);
         // CorePowerSupport.TriggerPoison over the player, then ClearNoDraw (no supported sources).
         Span<byte> players = stackalloc byte[1];

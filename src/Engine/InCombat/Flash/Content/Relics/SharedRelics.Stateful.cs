@@ -354,7 +354,7 @@ public sealed class OrnamentalFan : FlashRelicDef
 /// <c>PenNib</c>: <c>BeforeCardPlayed</c> advances the attack counter; the tenth attack doubles its
 /// own damage and the latch clears when that card finishes (<c>BeforeCardPlayedMirrors.HandlePenNib</c>,
 /// <c>ModifyDamageMirrors.HandlePenNib</c>, <c>AfterCardPlayedMirrors.HandlePenNib</c>).
-/// Counter = attacks played modulo 10, Aux = 1 while the current attack is the doubled one.
+/// Counter = attacks played modulo 10.
 /// </summary>
 [FlashContent("PEN_NIB")]
 public sealed class PenNib : FlashRelicDef
@@ -362,6 +362,10 @@ public sealed class PenNib : FlashRelicDef
     // PenNib.cs: _attacksThreshold = 10 (a code constant, not a DynamicVar).
     private const int AttacksThreshold = 10;
 
+    // The native latch is the CardPlay whose damage to double (PenNibPredictionState.AttackToDouble).
+    // Flash stores that play's one-action identity instead of a boolean: a Sly card auto-played by the
+    // tenth attack's own selection is a different CardPlay and must not inherit the doubling.
+    // Aux is 0 at every stable boundary because the triggering card's AfterCardPlayed clears it.
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
         if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
@@ -369,23 +373,27 @@ public sealed class PenNib : FlashRelicDef
         ref FlashRelic relic = ref x.B.Relics[self.Index];
         relic.Counter = (relic.Counter + 1) % AttacksThreshold;
         if (relic.Counter == 0)
-            relic.Aux = 1;
+            relic.Aux = x.PlayIdentity;
     }
 
     public override decimal ModifyDamageMultiplicative(ref FlashExec x, FlashListener self,
         in FlashDamageContext damage, decimal amount)
     {
         if (!damage.Props.IsPoweredAttack() || !damage.HasCardSource
-            || damage.Dealer != FlashLimits.PlayerOwner
-            || x.B.Relics[self.Index].Aux == 0)
+            || damage.Dealer != FlashLimits.PlayerOwner)
             return 1m;
-        return FlashFingerprint.Equal(damage.CardSource, x.Card) ? 2m : 1m;
+        // Native: `AttackToDouble == context.CardSource.Original`. The play identity names the
+        // CardPlay that owns the latch; a nested auto-play has already replaced x.PlayIdentity.
+        return x.B.Relics[self.Index].Aux != 0 && x.PlayIdentity == x.B.Relics[self.Index].Aux
+            ? 2m
+            : 1m;
     }
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        if (x.B.Relics[self.Index].Aux != 0)
-            x.B.Relics[self.Index].Aux = 0;
+        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        if (relic.Aux != 0 && relic.Aux == x.LastPlayIdentity)
+            relic.Aux = 0;
     }
 }
 

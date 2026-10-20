@@ -926,6 +926,7 @@ internal sealed class FlashBeamSolver
         int LongTermResourceValue,
         int AngerCopiesGenerated,
         int OptionalPotionCount,
+        int BoundaryRank,
         int EnemyHp,
         double Score,
         int ActionCount);
@@ -983,6 +984,9 @@ internal sealed class FlashBeamSolver
             features.LongTermResourceValue,
             features.AngerCopiesGenerated,
             optionalPotionCount,
+            // CombatBeamSolver.PolicyBoundaryRank: None 0, EventDefeat 4. The final ordering compares
+            // it after the resource/anger keys and before enemy HP (FinalPlanOrdering).
+            state.Outcome == FlashOutcome.EventDefeat ? 4 : 0,
             features.EnemyHp,
             features.Score,
             actionCount);
@@ -1020,6 +1024,8 @@ internal sealed class FlashBeamSolver
         comparison = left.AngerCopiesGenerated.CompareTo(right.AngerCopiesGenerated);
         if (comparison != 0) return comparison;
         comparison = left.OptionalPotionCount.CompareTo(right.OptionalPotionCount);
+        if (comparison != 0) return comparison;
+        comparison = left.BoundaryRank.CompareTo(right.BoundaryRank);
         if (comparison != 0) return comparison;
         comparison = left.EnemyHp.CompareTo(right.EnemyHp);
         if (comparison != 0) return comparison;

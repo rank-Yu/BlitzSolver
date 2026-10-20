@@ -32,7 +32,10 @@ public static partial class FlashKernel
                 throw new ArgumentOutOfRangeException(nameof(action), action.Kind, null);
         }
         // SettleReplayActionBoundary: resolve the queued changes and renormalize card afflictions.
-        if (!x.NeedsChoice)
+        // The existing engine skips SettleReplayActionBoundary for every non-None boundary, including
+        // EventDefeat (CombatBeamSolver.Expansion.Replay.cs:432). Only the Flash-internal transient
+        // flags and decimal slots are still normalized below.
+        if (!x.NeedsChoice && x.B.Outcome != FlashOutcome.EventDefeat)
         {
             ResolvePowerAmountChanges(ref x);
             if (!x.NeedsChoice)
@@ -42,6 +45,13 @@ public static partial class FlashKernel
             FlashDecimalVars.Canonicalize(ref battle);
         if (!x.NeedsChoice)
             ClearPendingPowerAmountStates(ref battle);
+        if (!x.NeedsChoice && rules.PenNibRelicIndex >= 0
+            && rules.PenNibRelicIndex < battle.RelicCount)
+        {
+            // Projection/normalization: a play cut short before AfterCardPlayed (player death) leaves
+            // the doubled-attack latch; no later settlement can read it and the importer projects 0.
+            battle.Relics[rules.PenNibRelicIndex].Aux = 0;
+        }
         if (x.NeedsChoice)
         {
             request = x.Request;

@@ -301,7 +301,9 @@ public sealed class FlashRules
         bool hasInfiniteHpDisplayMonster,
         bool hasPaelsLegion,
         bool furCoatSpawnHpOne,
-        ushort rootLostHpMask)
+        ushort rootLostHpMask,
+        bool hasHistoryCourse,
+        sbyte penNibRelicIndex)
     {
         _cards = cards;
         _powerVars = powerVars;
@@ -330,6 +332,8 @@ public sealed class FlashRules
         HasPaelsLegion = hasPaelsLegion;
         FurCoatSpawnHpOne = furCoatSpawnHpOne;
         RootLostHpMask = rootLostHpMask;
+        HasHistoryCourse = hasHistoryCourse;
+        PenNibRelicIndex = penNibRelicIndex;
     }
 
     public int BaseMaxEnergy { get; }
@@ -407,6 +411,20 @@ public sealed class FlashRules
     /// exactly these flags; a normal turn advances the round and clears them.
     /// </summary>
     public ushort RootLostHpMask { get; }
+
+    /// <summary>
+    /// The root owns a non-melted <c>HistoryCourse</c>. Only such roots record the per-turn last attack
+    /// (<see cref="FlashBattleFlags.HistoryCourseCardPresent"/>) or run the AutoPrePlay clone; every
+    /// other root skips both without scanning the relic table.
+    /// </summary>
+    public bool HasHistoryCourse { get; }
+
+    /// <summary>
+    /// Row of the root's PenNib relic, or -1. The doubled-attack latch is transient; a play that ends
+    /// before its AfterCardPlayed (player death) leaves a value no later settlement can read, and the
+    /// importer projects Aux as 0. Step clears it with one indexed write at every stable boundary.
+    /// </summary>
+    public sbyte PenNibRelicIndex { get; }
 
     /// <summary>Native <c>CharacterModel.BaseOrbSlotCount</c>: a channel adds the first slot when both are zero.</summary>
     public int BaseOrbSlotCount { get; }
@@ -553,6 +571,10 @@ public sealed class FlashRulesBuilder
 
     public bool FurCoatSpawnHpOne { get; set; }
 
+    public bool HasHistoryCourse { get; set; }
+
+    public sbyte PenNibRelicIndex { get; set; } = -1;
+
     public ushort RootLostHpMask { get; set; }
 
     public void SetCard(ushort id, int upgrade, FlashCardStats stats)
@@ -646,7 +668,7 @@ public sealed class FlashRulesBuilder
             HasEncounter, EncounterSlots, RootEnemyCount, BaseMaxEnergy, PlayerSlotIndex, BaseOrbSlotCount,
             RootSwordSageAmount, UnsettlingLampRelicId, HasIdentityContent, HasShuffleOrderEnchantment,
             HasBeforeFlushEnchantment, HasTheftContent, HasDecimalCardVars, HasInfiniteHpDisplayMonster,
-            HasPaelsLegion, FurCoatSpawnHpOne, RootLostHpMask);
+            HasPaelsLegion, FurCoatSpawnHpOne, RootLostHpMask, HasHistoryCourse, PenNibRelicIndex);
     }
 
     private static bool SameStats(FlashCardStats left, FlashCardStats right)

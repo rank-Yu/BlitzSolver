@@ -142,9 +142,9 @@ public sealed class ChainsOfBindingPower : FlashPowerDef
     public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
         // BeforeCardPlayedMirrors.HandleChainsOfBindingPower skips CardModel.IsDupe, not IsClone.
-        // Dupes are rejected at import (FlashStateImporter), and FlashCard.IsClone marks native
+        // The only dupes Flash creates are HistoryCourse copies; FlashCard.IsClone marks native
         // CreateClone copies (Swift, AdaptiveStrike), which must set the mark when Bound.
-        if (play.Card.AfflictionId == 0
+        if (x.CurrentPlayIsHistoryCourseDupe || play.Card.AfflictionId == 0
             || play.Card.AfflictionId - 1 != FlashRegistry.AfflictionId<Afflictions.BoundAffliction>())
         {
             return;

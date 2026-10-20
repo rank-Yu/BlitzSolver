@@ -4,9 +4,9 @@ namespace CombatSolver.Engine.InCombat.Flash;
 /// The AutoPrePlay phase at the player's turn start, mirroring
 /// <c>SimulatedCombatState.TriggerAutoPrePlayEarly</c> / <c>ContinueAutoPrePlay</c>: the exhaust pile's
 /// Bombardment cards first, then the scheduled auto-plays (Mayhem's amount of draw-pile top cards moved
-/// to the play pile), then the Imbued enchantment's auto-plays. HistoryCourse and WhisperingEarring are
-/// the remaining scheduled sources; both have no Flash definition, so admission rejects a root that
-/// holds them.
+/// to the play pile, then HistoryCourse's clone of the previous player turn's last attack), then the
+/// Imbued enchantment's auto-plays. WhisperingEarring remains a scheduled source with no combat effect
+/// (its only first-turn auto-play is a relic trigger with no state in either engine).
 /// </summary>
 public static partial class FlashKernel
 {
@@ -17,12 +17,30 @@ public static partial class FlashKernel
     {
         if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
             return;
+        // The current slot is the previous turn's last attack (set by CommitHistoryCourseTurn at the
+        // prior turn end). Take it before any Bombardment/Mayhem auto-play records this turn's last
+        // attack into the same slot; the existing engine keeps the two dictionaries separate.
+        FlashCard historyCoursePrevious = default;
+        bool hasHistoryCoursePrevious = false;
+        if (x.R.HasHistoryCourse)
+        {
+            hasHistoryCoursePrevious = (x.B.Flags & FlashBattleFlags.HistoryCourseCardPresent) != 0;
+            historyCoursePrevious = x.B.HistoryCourseCard;
+            x.B.HistoryCourseCard = default;
+            x.B.Flags &= ~FlashBattleFlags.HistoryCourseCardPresent;
+        }
         AutoPlayBombardments(ref x);
         if (x.NeedsChoice)
             return;
         AutoPlayScheduled(ref x);
         if (x.NeedsChoice)
             return;
+        if (hasHistoryCoursePrevious)
+        {
+            AutoPlayHistoryCourse(ref x, historyCoursePrevious);
+            if (x.NeedsChoice)
+                return;
+        }
         AutoPlayImbued(ref x);
     }
 
@@ -123,6 +141,34 @@ public static partial class FlashKernel
                 throw new FlashUnsupportedException("自动预打出队列中的卡已不在打出区。");
             AutoPlay(ref x, FlashPile.Play, position);
             if (x.NeedsChoice)
+                return;
+        }
+    }
+
+    /// <summary>
+    /// <c>SimulatedCombatState.ContinueScheduledAutoPlays</c>' HistoryCourse stage (after Mayhem's
+    /// cards, before the Imbued stage): for every non-melted HistoryCourse relic, clone the previous
+    /// player turn's last attack and auto-play the clone. <c>CreateDupeForPlayer</c> is a clone with
+    /// <c>IsDupe = true</c> and the Exhaust keyword removed; the kernel's dupe flag makes the play
+    /// leave combat instead of moving to a result pile and keeps it out of the recorded last attack.
+    /// </summary>
+    private static void AutoPlayHistoryCourse(ref FlashExec x, in FlashCard previous)
+    {
+        if (x.B.PlayerTurn <= 1 || !FlashRegistry.TryRelic("HISTORY_COURSE", out ushort historyCourse))
+            return;
+        for (int relic = 0; relic < x.B.RelicCount; relic++)
+        {
+            ref readonly FlashRelic row = ref x.B.Relics[relic];
+            if (row.Id != historyCourse || (row.Flags & FlashRelicFlags.Melted) != 0)
+                continue;
+            FlashCard copy = CloneCard(previous);
+            copy.Keywords &= ~FlashKeywords.Exhaust;
+            // The clone is a new object: it is not in the existing engine's _returnToHandNextTurn set.
+            copy.ReturnToHandNextTurn = false;
+            AutoPlay(ref x, copy, FlashLimits.NoOwner, skipXCapture: false, historyCourseDupe: true);
+            if (x.NeedsChoice)
+                return;
+            if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
                 return;
         }
     }

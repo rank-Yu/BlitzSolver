@@ -49,6 +49,7 @@ CheckDecimalVars(rules);
 CheckDx3Kernel(rules);
 CheckPrKernel();
 CheckEcKernel(rules);
+CheckDx5Kernel(rules);
 var benchmark = Benchmark(rules);
 
 Console.WriteLine(JsonSerializer.Serialize(new
@@ -2231,6 +2232,113 @@ static void CheckDx3Kernel(FlashRules rules)
     FlashKernel.ClearPendingPowerAmountStates(ref flagBattle);
     Check((flagBattle.Powers[0].Flags & FlashPowerFlags.PendingAmountState) == 0,
         "PendingAmountState 应在稳定边界清除");
+}
+
+// DX5: the Pen Nib latch names the CardPlay whose damage is doubled, the HistoryCourse cross-turn
+// slot clones the previous turn's last attack, and the Battleworn Dummy's last tick is EventDefeat.
+static void CheckDx5Kernel(FlashRules rules)
+{
+    // Pen Nib: a Sly card auto-played from the tenth attack's discard choice is a separate CardPlay;
+    // it must not inherit the doubling (the native latch is AttackToDouble == CardSource.Original).
+    Check(FlashRegistry.TryRelic("PEN_NIB", out ushort penNib), "缺少 PEN_NIB");
+    FlashRegistry.TryCard("STRIKE_IRONCLAD", out ushort strike);
+    FlashBattle nibBattle = NewBattle();
+    nibBattle.RelicCount = 1;
+    nibBattle.Relics[0] = new FlashRelic { Id = penNib, Counter = 9 };
+    FlashExec nibExec = new(ref nibBattle, rules, default);
+    nibExec.PlayIdentity = 7;
+    FlashCard nibCard = FlashKernel.CreateCard(rules, strike);
+    nibExec.Card = nibCard;
+    FlashCardPlayInfo nibPlay = new(nibCard, FlashLimits.NoOwner, 0, 1, FlashPile.Discard, 0);
+    PenNib nibDef = (PenNib)FlashRegistry.Relic(penNib);
+    FlashListener nibSelf = new(FlashListenerKind.Relic, 0, FlashLimits.PlayerOwner);
+    nibDef.BeforeCardPlayed(ref nibExec, nibSelf, nibPlay);
+    Check(nibBattle.Relics[0].Counter == 0 && nibBattle.Relics[0].Aux == 7,
+        "Pen Nib 第十次攻击应锁存触发它的 CardPlay 身份");
+    Check(nibDef.ModifyDamageMultiplicative(ref nibExec, nibSelf,
+        new FlashDamageContext(FlashLimits.NoOwner, FlashLimits.PlayerOwner, FlashValueProps.Move,
+            true, nibCard), 6m) == 2m,
+        "Pen Nib 应加倍触发它的那张攻击");
+    nibExec.PlayIdentity = 8;
+    FlashCard slyCard = FlashKernel.CreateCard(rules, strike);
+    slyCard.Upgrade = 1;
+    Check(nibDef.ModifyDamageMultiplicative(ref nibExec, nibSelf,
+        new FlashDamageContext(FlashLimits.NoOwner, FlashLimits.PlayerOwner, FlashValueProps.Move,
+            true, slyCard), 6m) == 1m,
+        "Pen Nib 的加倍不能泄漏到同一次选择里嵌套自动打出的牌");
+    nibExec.LastPlayIdentity = 8;
+    nibDef.AfterCardPlayed(ref nibExec, nibSelf, nibPlay);
+    Check(nibBattle.Relics[0].Aux == 7, "嵌套打出的 AfterCardPlayed 不应清除外层的 Pen Nib 锁存");
+    nibExec.PlayIdentity = 7;
+    nibExec.LastPlayIdentity = 7;
+    nibDef.AfterCardPlayed(ref nibExec, nibSelf, nibPlay);
+    Check(nibBattle.Relics[0].Aux == 0, "触发卡自己的 AfterCardPlayed 应清除 Pen Nib 锁存");
+
+    // HistoryCourse: the turn-start AutoPrePlay clones the previous turn's last attack, auto-plays it,
+    // removes the dupe from combat and leaves the slot empty for the new turn.
+    Check(FlashRegistry.TryRelic("HISTORY_COURSE", out ushort historyCourse), "缺少 HISTORY_COURSE");
+    FlashRulesBuilder historyBuilder = new()
+    {
+        BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
+        HasHistoryCourse = true,
+    };
+    historyBuilder.SetCard(strike, 0, new FlashCardStats
+    {
+        Type = FlashCardType.Attack, Target = FlashTargetType.AnyEnemy, Rarity = FlashCardRarity.Basic,
+        EnergyCost = 1, CostsX = false, StarCost = -1, StarCostsX = false, Keywords = FlashKeywords.None,
+        MaxUpgradeLevel = 1, Vars = [6m],
+    });
+    FlashRules historyRules = historyBuilder.Build();
+    FlashBattle historyBattle = NewBattle();
+    historyBattle.PlayerTurn = 2;
+    historyBattle.Side = FlashSide.Player;
+    historyBattle.Phase = FlashPlayerPhase.AutoPrePlay;
+    historyBattle.Flags |= FlashBattleFlags.PlayerHooksActive;
+    historyBattle.RelicCount = 1;
+    historyBattle.Relics[0] = new FlashRelic { Id = historyCourse };
+    FlashCard previous = FlashKernel.CreateCard(historyRules, strike);
+    historyBattle.HistoryCourseCard = previous;
+    historyBattle.Flags |= FlashBattleFlags.HistoryCourseCardPresent;
+    FlashExec historyExec = new(ref historyBattle, historyRules, FlashAction.EndTurn());
+    FlashKernel.AutoPrePlay(ref historyExec);
+    Check(!historyExec.NeedsChoice, "HistoryCourse 的复制品自动打出不应请求选择");
+    Check(historyBattle.Counter(FlashCounter.FinishedCardPlays) == 1,
+        $"HistoryCourse 应自动打出复制品一次（实际完成 {historyBattle.Counter(FlashCounter.FinishedCardPlays)} 次）");
+    Check(historyBattle.CardCount == 0, "HistoryCourse 的复制品是 dupe，打出后应离开战斗牌堆");
+    Check((historyBattle.Flags & FlashBattleFlags.HistoryCourseCardPresent) == 0
+        && FlashFingerprint.Equal(historyBattle.HistoryCourseCard, default),
+        "HistoryCourse 的跨回合槽在 AutoPrePlay 消费后应清空");
+
+    // Battleworn Dummy: the amount-1 branch is the event defeat; it leaves Amount at 1 (the existing
+    // engine returns before any decrement/removal) and does not touch a normal combat outcome.
+    Check(FlashRegistry.TryPower("BATTLEWORN_DUMMY_TIME_LIMIT_POWER", out ushort dummyLimit),
+        "缺少 BATTLEWORN_DUMMY_TIME_LIMIT_POWER");
+    FlashBattle dummyBattle = NewBattle();
+    dummyBattle.PlayerTurn = 1;
+    dummyBattle.Side = FlashSide.Enemy;
+    dummyBattle.PowerCount = 1;
+    dummyBattle.Powers[0] = new FlashPower
+    {
+        Id = dummyLimit, Owner = FlashLimits.FirstEnemyOwner, Applier = FlashLimits.FirstEnemyOwner, Amount = 1,
+    };
+    FlashExec dummyExec = new(ref dummyBattle, rules, FlashAction.EndTurn());
+    FlashListener dummySelf = new(FlashListenerKind.Power, 0, FlashLimits.FirstEnemyOwner);
+    BattlewornDummyTimeLimitPower dummyDef = (BattlewornDummyTimeLimitPower)FlashRegistry.Power(dummyLimit);
+    dummyDef.EndTurnRegular(ref dummyExec, dummySelf, FlashSide.Enemy, participates: true);
+    Check(dummyBattle.Outcome == FlashOutcome.EventDefeat && dummyBattle.Powers[0].Amount == 1,
+        "战损假人最后一层应记 EventDefeat 且保留 Amount 1（现有引擎在逃跑前返回）");
+    FlashBattle tickBattle = NewBattle();
+    tickBattle.PlayerTurn = 1;
+    tickBattle.Side = FlashSide.Enemy;
+    tickBattle.PowerCount = 1;
+    tickBattle.Powers[0] = new FlashPower
+    {
+        Id = dummyLimit, Owner = FlashLimits.FirstEnemyOwner, Applier = FlashLimits.FirstEnemyOwner, Amount = 2,
+    };
+    FlashExec tickExec = new(ref tickBattle, rules, FlashAction.EndTurn());
+    dummyDef.EndTurnRegular(ref tickExec, dummySelf, FlashSide.Enemy, participates: true);
+    Check(tickBattle.Outcome == FlashOutcome.None && tickBattle.Powers[0].Amount == 1,
+        "战损假人非最后一层应只递减一层");
 }
 
 // PR batch: the extra-turn pipeline (PaelsEye) must keep RoundNumber unchanged, advance the player
