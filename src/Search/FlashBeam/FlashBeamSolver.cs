@@ -935,6 +935,7 @@ internal sealed partial class FlashBeamSolver
             node,
             auditedKey,
             features.ExplicitPotionUseCount,
+            features.PotionUseCount,
             features.ExplicitPotionStrategicCost,
             optionalPotionStrategicCost,
             AmbergrisUses(node),
@@ -1077,9 +1078,11 @@ internal sealed partial class FlashBeamSolver
             && candidate.Key.OptionalPotionCount > 0
             && candidate.ProjectedDeathSaveUseCount < potionFreeDeathSaves;
         // FinalPlanOrdering.Select: under the preserve policy, more potion use is allowed when it
-        // recovers outstanding loot.
+        // recovers outstanding loot; the soft-policy exception requires an actual potion use, while
+        // the Ambergris exception applies to the recovered-loot key even with zero potions.
         bool recoversLoot = _theftPolicy == SolverTheftPolicy.PreserveResources
             && candidate.Key.OutstandingStolenResource < potionFreeOutstanding;
+        bool recoversLootWithPotion = recoversLoot && candidate.PotionUseCount > 0;
         bool passesSoftPolicy = PotionUsePolicy.IsEligible(
                 candidate.EffectivePotionPolicy,
                 candidate.Key.OptionalPotionCount,
@@ -1091,7 +1094,7 @@ internal sealed partial class FlashBeamSolver
                 candidate.Key.Won,
                 candidate.Key.StrategicHpDeficit)
             || protectsDeathSave
-            || recoversLoot;
+            || recoversLootWithPotion;
         bool passesAmbergris = protectsDeathSave
             || recoversLoot
             || PotionUsePolicy.MeetsAmbergrisRestriction(
@@ -1188,6 +1191,7 @@ internal sealed partial class FlashBeamSolver
         int Node,
         RouteKey Key,
         int ExplicitPotionUseCount,
+        int PotionUseCount,
         int ExplicitPotionStrategicCost,
         int OptionalPotionStrategicCost,
         int AmbergrisUses,
@@ -5236,6 +5240,9 @@ internal sealed partial class FlashBeamSolver
             }
             bool ascending = !request.OptionsAreGenerated && request.Source == FlashPile.Hand;
             Span<bool> taken = stackalloc bool[request.OptionCount];
+            // stackalloc memory is not zero-initialized; without this clear a stale true byte skips
+            // every option and the probe appends an empty selection for a 1-of-5 request.
+            taken.Clear();
             for (int picked = 0; picked < count; picked++)
             {
                 int best = -1;

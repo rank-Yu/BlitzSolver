@@ -599,7 +599,7 @@ public ref struct FlashExec
             ulong valid = request.OptionCount >= 64 ? ulong.MaxValue : (1UL << request.OptionCount) - 1;
             int count = System.Numerics.BitOperations.PopCount(selection);
             if ((selection & ~valid) != 0 || count < request.MinCount || count > request.MaxCount)
-                throw new InvalidOperationException($"选择 {selection:X} 不符合选项规格（{request.OptionCount} 项，{request.MinCount}-{request.MaxCount} 个）。");
+                throw new InvalidOperationException($"选择 {selection:X} 不符合选项规格（{request.OptionCount} 项，{request.MinCount}-{request.MaxCount} 个；effect={request.Effect} timing={request.Timing} source={request.Source} choices={_choiceCount} taken={_choicesTaken}）。");
             return true;
         }
         selection = 0;

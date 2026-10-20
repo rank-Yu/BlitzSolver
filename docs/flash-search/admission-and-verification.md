@@ -2,7 +2,7 @@
 
 [返回 Flash 入口](README.md)
 
-Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的**差分测试**、部署前的**旧引擎回放核对**。任何一关失败都回落到现有后端，不部分提交。
+Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的**差分测试**、部署前的**旧引擎回放核对**。开启模式不做部分提交：无路线按规则 1 返回现有搜索同形结果；准入拒绝、核对不一致和内核边界写稳定失败事件并停止本次搜索/部署（离线与无人测试为失败），不回落现有后端。对照模式保持原状（现有搜索返回结果，Flash 只记录对照），关闭模式不运行 Flash。
 
 ## 1. 准入
 
@@ -23,6 +23,8 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `Capacity` | 估计的牌数、Power 数、敌人数超出容量 |
 | `UnsupportedRequest` | 本次 `Solve()` 参数含 Flash 尚未支持的选项（见 [搜索与接入](search.md#3-请求参数)） |
 
+开启模式下准入拒绝不是回落点：分发点按类别写一行 `FLASH_SEARCH_FAILED reason=admission-<类别> detail=<拒绝原因>`，抛出 `FlashSearchFailedException` 并停止部署。类别覆盖多人专用（`admission-multiplayer`）、Mock 测试内容（`admission-test-content`）、废弃内容（`admission-deprecated-content`）、第三方订阅者/修饰（`admission-third-party`）、未定义内容（`admission-unsupported-content`，包括现有引擎同样不支持的 BYRDPIP 等）、未实现请求（`admission-unsupported-request`）、容量估计（`admission-capacity`）、不可表示状态（`admission-unrepresentable-state`）与待处理选择（`admission-pending-choice`）。对照模式只把拒绝写进 `FLASH_SHADOW` 并返回现有结果。
+
 **可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么：固定卡表（`GeneratedCards`）、候选卡池（`GeneratedCardPools`，键见 `FlashCardPools`）、可施加的 Power（`AppliedPowers`，用于跟随 CalamityPower 这类会继续生成卡的 Power）以及随机药水池（`GeneratesRandomPotion`）。闭包从根的战斗牌堆、Power、遗物、药水、已知敌人与召唤闭包中的怪物定义出发，而不是从全部注册定义出发；这样不含生成效果的根不会被无关池拒绝。
 
 池在根导入时用现有引擎的同一套候选枚举冻结进 `FlashRules`（角色/无色卡池、`character.powers`（WhiteNoise/CreativeAiPower 的 Power 卡池）、战斗过滤、多人约束、类型/费用/排除谓词，保持原顺序）；内核只按 RNG 取样。闭包里每个候选卡都必须有 Flash 定义且其规范数值进入规则表，每个随机药水候选都必须有 Flash 药水定义；否则该根按 `UnsupportedClosure` 拒绝，诊断里带上第一个缺失项与池键。召唤表的怪物定义也参与同一闭包，它们生成的卡同样需要定义。
@@ -31,7 +33,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 
 准入只做判断，不修改任何状态。拒绝原因写入诊断，用于覆盖率统计。
 
-`Player/Start` 的 `IncludeTurnSetup` 根不直接导入：分发点把它交给 Flash，Bridge 用现有求解器的 `BuildTurnSetupRoots` 按与现有搜索相同的选择预算枚举准备选择，并把每个分支回放到稳定 `Player/Play` 状态；`FlashStateImporter.Import(..., requirePlayPhase: true)` 只检查这些导入后的 `Play` 根。其余 side/phase 在分发点显式写 `FLASH_LEGACY ... reason=root-phase:<side>:<phase>` 并回落原搜索。根捕获与准备选择回放都在主线程现有引擎上完成，Flash 只消费 `Play` 状态。
+`Player/Start` 的 `IncludeTurnSetup` 根不直接导入：分发点把它交给 Flash，Bridge 用现有求解器的 `BuildTurnSetupRoots` 按与现有搜索相同的选择预算枚举准备选择，并把每个分支回放到稳定 `Player/Play` 状态；`FlashStateImporter.Import(..., requirePlayPhase: true)` 只检查这些导入后的 `Play` 根。其余 side/phase 在开启模式写 `FLASH_SEARCH_FAILED reason=root-phase detail=root-phase:<side>:<phase>` 并停止部署，不搜索也不回落；对照模式仍只返回现有搜索结果。根捕获与准备选择回放都在主线程现有引擎上完成，Flash 只消费 `Play` 状态。
 
 ## 2. 根导入与投影
 
@@ -108,7 +110,7 @@ MB 新增的投影与惰性规则：
 KB 的新投影与瞬态身份规则：
 
 - **Thrash 的小数变量**：`FlashStateImporter.Card` 把 `DynamicVars[VarNames[0]].BaseValue − 规则表规范值` 的精确 `decimal` 写进 `FlashBattle.DecimalVars`，卡上 `Private` 存槽位加一；导入结束与每个稳定边界都按“`DetachedCards`、再卡牌存储顺序”规范化槽位并对相同位模式去重。它不经过 `PredictionStateStore`，也不改变其他卡牌的整数 `Var0/Var1`。克隆共享槽位，任一克隆更新时走值集合的写时复制，因此与现有引擎“克隆复制 `ExtraDamage`、之后互不影响”一致；降级保留该偏移，对应 `AfterDowngraded` 把 `ExtraDamage` 加回。K4 的卡牌估值先做 `decimal` 加法再转 `double`，与 `CardChoiceSupport.CardValue` 的取整点相同。
-- **BeatDown 的选中卡对象**：现有引擎持有 `CardModel` 引用并对每个选中卡调用 `AutoPlay`；前一张自动打出的摸牌/洗牌/消耗把后续选中卡移到别的牌堆后，旧引擎仍按对象引用从新牌堆打出。Flash 在 `OnPlay` 开始时给每张选中卡写 `TransientMark = 序号 + 1`，每轮按该字节在整个 `Cards` 数组定位并调用 `AutoPlay`；`finally` 清除标记（以及 `DetachedCards` 里的残留），稳定边界字节恒为 0。克隆与生成卡从 0 开始，不能冒充被选中的原对象。若标记在所有牌堆中都找不到（卡已移出战斗或被转化），搜索期按显式 `FlashUnsupportedException` 回落（根导入阶段同类状态为 `UnrepresentableState`），不按值猜一张牌。
+- **BeatDown 的选中卡对象**：现有引擎持有 `CardModel` 引用并对每个选中卡调用 `AutoPlay`；前一张自动打出的摸牌/洗牌/消耗把后续选中卡移到别的牌堆后，旧引擎仍按对象引用从新牌堆打出。Flash 在 `OnPlay` 开始时给每张选中卡写 `TransientMark = 序号 + 1`，每轮按该字节在整个 `Cards` 数组定位并调用 `AutoPlay`；`finally` 清除标记（以及 `DetachedCards` 里的残留），稳定边界字节恒为 0。克隆与生成卡从 0 开始，不能冒充被选中的原对象。若标记在所有牌堆中都找不到（卡已移出战斗或被转化），搜索期按显式 `FlashUnsupportedException` 让 On 求解失败（根导入阶段同类状态为 `UnrepresentableState`），不按值猜一张牌。
 TW（偷窃与瀑布巨兽）新增的投影与惰性规则：
 
 - **被偷卡牌**：`SwipePower.StolenCard` 的完整卡值导入 `FlashBattle.DetachedCards`，Power 行 `Aux0 = 槽位 + 1`；THIEVERY 在搜索中从抽牌/弃牌堆移除卡时现场分配槽位（`CardPileCmd.RemoveFromCombat` 的 `HasBeenRemovedFromState` 投影为卡值标志）。击杀飞贼时 `RecoverStolenResources` 回收卡数并随 Power 移除清槽；逃跑只移除 Power、不回收。
@@ -188,18 +190,18 @@ K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一
 
 Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](search.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
 
-- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式回落旧后端，Shadow 模式记为 `status=mismatch`。
-- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时同样回落旧后端，记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
-- 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。`IncludeTurnSetup` 路线还会把选中的准备选择向量作为 `rootTurnSetupChoices` 固定给旧求解器；旧求解器重新枚举准备根后只保留该向量，物化结果再逐项核对 `TurnSetupChoices`，不一致整条丢弃。
-- Smart 药水审计（`SmartPotionGradient` 与 `SmartOpeningPotionPosterior`）在物化时把同一 `PotionFreePolicyBaseline`、`minimum/maximumPotionUses` 与 `RequireAtLeastOne` 交回现有 `CombatBeamSolver`，由现有 `FinalPlanOrdering.Select` 再做一次筛选。物化后 `FlashPotionBridge.VerifyRoute` 核对路线的显式用药次数：动作里的 `UsePotion` 数必须等于 `PotionUses` 的非自动计数，且满足最小/最大次数与 `RequireAtLeastOne` 至少一次；任一不满足都返回 `ConstraintFailure` 回落，不把 Flash 的“没找到”写成现有求解器的 `PotionPolicyUnsatisfiedException`。现有终局筛选自己抛出的 `PotionPolicyUnsatisfiedException` 也在物化点捕获并回落。
+- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式写 `FLASH_SEARCH_FAILED reason=verify-mismatch detail=<首个差异>`、抛出 `FlashSearchFailedException` 并停止部署；Shadow 模式记为 `status=mismatch` 并返回现有结果。
+- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时，On 模式写 `reason=kernel-unsupported`/`reason=kernel-capacity` 并停止部署，Shadow 记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
+- 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。`IncludeTurnSetup` 路线还会把选中的准备选择向量作为 `rootTurnSetupChoices` 固定给旧求解器；旧求解器重新枚举准备根后只保留该向量，物化结果再逐项核对 `TurnSetupChoices`，不一致整条丢弃（On 模式即 `verify-mismatch` 失败）。
+- Smart 药水审计（`SmartPotionGradient` 与 `SmartOpeningPotionPosterior`）在物化时把同一 `PotionFreePolicyBaseline`、`minimum/maximumPotionUses` 与 `RequireAtLeastOne` 交回现有 `CombatBeamSolver`，由现有 `FinalPlanOrdering.Select` 再做一次筛选。物化后 `FlashPotionBridge.VerifyRoute` 核对路线的显式用药次数：动作里的 `UsePotion` 数必须等于 `PotionUses` 的非自动计数，且满足最小/最大次数与 `RequireAtLeastOne` 至少一次；任一不满足都返回 `ConstraintFailure`。分发点把这些药水策略类 `ConstraintFailure` 统一转成现有搜索同形的 `PotionPolicyUnsatisfiedException`（`FLASH_NO_ROUTE`），由 Smart 梯度、后验与续接调度按原逻辑继续；它不是 `FLASH_SEARCH_FAILED`。
 - 固定前缀可以由药水动作开头：前缀先经现有 `ApplyFixedPrefix` 回放，Flash 只从回放后的搜索根展开；搜索根快照的累计药水计数冻结进评分与下界，因此前缀用药不丢失。
 
 ## 5. 失败处理约束
 
-- 不新增 `catch (Exception)`。只捕获 `FlashUnsupportedException`、`FlashCapacityException`、校验失败、取消，以及物化阶段现有求解器抛出的 `PotionPolicyUnsatisfiedException`。
-- 捕获后整个 Flash 求解作废并回落，不把半成品路线交给协调器。
-- 药水审计没有满足策略的路线（`PotionPolicySatisfied=false`）、物化路线次数不符、或精确层下界输入不可用（`smart-potion-bound unavailable`）时同样回落，诊断行写 `status=boundary` 与稳定原因；不把 Flash 搜索面较小解释为现有搜索无解。
-- 回落本身计入诊断：原因、阶段、根摘要。
+- 不新增 `catch (Exception)`。只捕获 `FlashUnsupportedException`、`FlashCapacityException`、准入拒绝、校验失败与取消，以及物化阶段现有求解器抛出的 `PotionPolicyUnsatisfiedException`。
+- 捕获后整个 Flash 求解作废，不把半成品路线交给协调器。On 模式随即停止搜索/部署并上报 `FlashSearchFailedException`；Shadow/Off 保持各自原有返回路径。
+- 药水审计没有满足策略的路线（`PotionPolicySatisfied=false`，`flash-potion-policy-no-route`）时按规则 1 返回 `PotionPolicyUnsatisfiedException`；诊断行写 `FLASH_NO_ROUTE`，不写 `FLASH_SEARCH_FAILED`。精确层下界输入不可用（`smart-potion-bound unavailable`）不是无路线：开启模式只关闭下界剪枝并照常搜索，写 `SMART_POTION_BOUND_UNAVAILABLE` 诊断。物化后 `FlashPotionBridge.VerifyRoute`（`route-*`）或现有 `FinalPlanOrdering`（`materialize-potion-policy`）仍判定不满足请求药水约束时，是两侧判定不一致，按 `potion-policy-mismatch` 显式失败。
+- 失败事件与无路线结论都计入诊断：类别、首个差异/拒绝原因与阶段；On 模式不再写 `FLASH_LEGACY`。
 
 CX 的附魔与 `MELANCHOLY` 准入规则：
 

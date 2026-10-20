@@ -22,7 +22,7 @@ Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块
 
 - 受支持战斗上，一次状态转移（复制、执行、指纹）在微秒量级，搜索热路径零托管分配。
 - 与现有引擎严格等价：同一状态执行同一动作，结果投影成 `FlashBattle` 后字节相同。
-- 可选、可回退：不支持的内容、根级容量溢出、校验失败都显式回落到现有后端，不部分提交；搜索展开中单个子状态的容量溢出只丢弃该分支，回合结束层的容量上界通过压缩继续。
+- 可选且失败可见：开启模式只由 Flash 搜索，不回落现有后端。只有 Flash 搜索自己判定 `flash-potion-policy-no-route` 时返回现有搜索同形的无路线结果（`PotionPolicyUnsatisfiedException`）；精确层下界不可用只关闭剪枝并继续搜索。物化后两侧对同一药水约束判定不一致（`route-*`/`materialize-potion-policy`）以及不支持的内容、根级容量溢出、内核边界、核对不一致、开发策略与其它根阶段都停止本次搜索/部署，写一个稳定的 `FLASH_SEARCH_FAILED` 事件并进入现有问题包流程。搜索展开中单个子状态的容量溢出只丢弃该分支，回合结束层的容量上界通过压缩继续。
 
 非目标：
 
@@ -34,13 +34,14 @@ Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块
 
 ```
 主线程                        后台（每次 Solve 调用）
-CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / 不准入：CombatBeamSolver.Solve()
-                                          └─ Flash：
+CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / Shadow 的现有侧：CombatBeamSolver.Solve()
+                                          └─ On / Shadow 的 Flash 侧：
                                               FlashAdmission      根内容闭包是否全部受支持
                                               FlashRootImporter   旧模拟器根 → FlashBattle + FlashRules
                                               FlashBeamSolver     在 FlashBattle 上搜索，产出候选路线
                                               FlashRouteMaterializer
                                                                   旧引擎回放候选 → PlanAction / SolverResult
+                                              On：拒绝 → FLASH_SEARCH_FAILED，无路线 → 同形结果
 ```
 
 目录与依赖：
@@ -59,7 +60,7 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / 不准入：Comba
 ## 3. 关键决定
 
 1. **语义权威是现有引擎，不是原版。** 路线由现有引擎回放核对，Flash 与它不一致就无法部署；它与原版的差异属于现有引擎缺陷，在那里修。
-2. **状态是单个 unmanaged 结构体，固定容量。** 溢出抛 `FlashCapacityException`：搜索展开中的子状态溢出只丢弃该分支并计数，回合结束层达到上界时按保留规则压缩；根状态溢出仍回落到现有后端。不截断、不逐出。
+2. **状态是单个 unmanaged 结构体，固定容量。** 溢出抛 `FlashCapacityException`：搜索展开中的子状态溢出只丢弃该分支并计数，回合结束层达到上界时按保留规则压缩；根状态溢出在开启模式下是显式失败（`FLASH_SEARCH_FAILED reason=kernel-capacity`），不回落。不截断、不逐出。
 3. **内容是不可变定义对象，数值来自每根编译的规则表。** 卡牌、Power、怪物的数值在根导入时从原版模型读出写入 `FlashRules`；内容代码不硬编码原版数据里已有的数值。
 4. **选择用"带选择向量重执行"。** 动作携带本次执行需要的全部选择；效果需要选择而动作未提供时返回"需要选择"，搜索枚举选项后从父状态重新执行。内核没有续接帧。
 5. **卡牌在牌堆里按值存放，没有全局引用表。** 相同副本字节相同，去重天然生效；现有引擎按卡牌对象记账的少数值随卡值或小数组移动（[状态布局](state-layout.md) 2.5）；路线按手牌位置记录，物化时在旧引擎的同一位置取牌，生成 `CardStateKey` 与 occurrence。

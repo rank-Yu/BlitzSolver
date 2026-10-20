@@ -21,7 +21,7 @@ public static partial class FlashKernel
         // block: Vambrace (identity content) or PaelsLegion's x2 while its cooldown is down.
         if (x.R.HasIdentityContent || x.R.HasPaelsLegion)
         {
-            Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount];
+            Span<FlashListener> changed = stackalloc FlashListener[FlashHooks.MaxListenerCount * 2];
             modified = FlashHooks.ModifyBlock(ref x, owner, amount, props, hasCardSource, cardSource, out _,
                 changed, out int changedCount);
             modified = Math.Max(modified, 0m);
