@@ -111,6 +111,8 @@ KB 的新投影与瞬态身份规则：
 
 - **Thrash 的小数变量**：`FlashStateImporter.Card` 把 `DynamicVars[VarNames[0]].BaseValue − 规则表规范值` 的精确 `decimal` 写进 `FlashBattle.DecimalVars`，卡上 `Private` 存槽位加一；导入结束与每个稳定边界都按“`DetachedCards`、再卡牌存储顺序”规范化槽位并对相同位模式去重。它不经过 `PredictionStateStore`，也不改变其他卡牌的整数 `Var0/Var1`。克隆共享槽位，任一克隆更新时走值集合的写时复制，因此与现有引擎“克隆复制 `ExtraDamage`、之后互不影响”一致；降级保留该偏移，对应 `AfterDowngraded` 把 `ExtraDamage` 加回。K4 的卡牌估值先做 `decimal` 加法再转 `double`，与 `CardChoiceSupport.CardValue` 的取整点相同。
 - **BeatDown 的选中卡对象**：现有引擎持有 `CardModel` 引用并对每个选中卡调用 `AutoPlay`；前一张自动打出的摸牌/洗牌/消耗把后续选中卡移到别的牌堆后，旧引擎仍按对象引用从新牌堆打出。Flash 在 `OnPlay` 开始时给每张选中卡写 `TransientMark = 序号 + 1`，每轮按该字节在整个 `Cards` 数组定位并调用 `AutoPlay`；`finally` 清除标记（以及 `DetachedCards` 里的残留），稳定边界字节恒为 0。克隆与生成卡从 0 开始，不能冒充被选中的原对象。若标记在所有牌堆中都找不到（卡已移出战斗或被转化），搜索期按显式 `FlashUnsupportedException` 让 On 求解失败（根导入阶段同类状态为 `UnrepresentableState`），不按值猜一张牌。
+- **Stoke / RollingBoulder / Calamity 的对象身份**：`Stoke` 原版快照 `CardModel` 对象后逐个 `Exhaust`；Flash 在循环前给快照手牌写 64..255 的 `TransientMark`，按标记在整个 `Cards` 数组定位，`finally` 清除并恢复 `TransientMarkBase`。Dark Embrace 在消耗中抽到的新牌标记为 0，不能冒充快照牌；BeatDown 的 1..63 与 Sly 的 64..255 批次可嵌套。`RollingBoulderPower.AfterPlayerTurnStart` 在伤害前捕获实例的 `(owner,id,occurrence)`，伤害中敌人死亡删除 Power 行后重新定位再 +5，避免旧 `ref` 指向移位后的其它 Power。`CalamityPower` 用 `FlashCardPlayPairKind.CalamityAttacks` 按播放索引栈保存每次 Attack 的待生成量，嵌套自动打出（UPROAR 内 AutoPlay）先取内层、再取外层，不再被单个 `Aux0` 标志吞掉。
+
 TW（偷窃与瀑布巨兽）新增的投影与惰性规则：
 
 - **被偷卡牌**：`SwipePower.StolenCard` 的完整卡值导入 `FlashBattle.DetachedCards`，Power 行 `Aux0 = 槽位 + 1`；THIEVERY 在搜索中从抽牌/弃牌堆移除卡时现场分配槽位（`CardPileCmd.RemoveFromCombat` 的 `HasBeenRemovedFromState` 投影为卡值标志）。击杀飞贼时 `RecoverStolenResources` 回收卡数并随 Power 移除清槽；逃跑只移除 Power、不回收。

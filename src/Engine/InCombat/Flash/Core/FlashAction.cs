@@ -215,6 +215,9 @@ public enum FlashCardPlayPairKind : byte
 
     /// <summary><c>SerpentFormPower</c>: the power amount at play start becomes Unpowered damage after the play.</summary>
     SerpentFormDamage = 5,
+
+    /// <summary><c>CalamityPower</c>: the power amount at play start generates that many Attacks after the play.</summary>
+    CalamityAttacks = 6,
 }
 
 /// <summary>

@@ -665,21 +665,27 @@ public sealed class CalamityPower : FlashPowerDef
         if (self.Owner != FlashLimits.PlayerOwner)
             return;
         FlashCardStats stats = x.R.Card(play.Card.Id, play.Card.Upgrade);
-        if (stats.Type == FlashCardType.Attack)
-            x.B.Powers[self.Index].Aux0 = 1;
+        if (stats.Type != FlashCardType.Attack)
+            return;
+        // Native keys the pending amount by the played CardModel, so a nested auto-play gets its own
+        // entry and the outer Attack still fires afterwards. The play-index stack has the same
+        // nesting order; a single Aux flag would let the nested After consume the outer play.
+        x.PushCardPlayPair(FlashCardPlayPairKind.CalamityAttacks, self.Owner,
+            x.B.Powers[self.Index].Id, x.B.Powers[self.Index].Amount);
     }
 
     public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
     {
-        ref FlashPower power = ref x.B.Powers[self.Index];
-        if (power.Aux0 == 0)
+        if (!x.TryTakeCardPlayPair(FlashCardPlayPairKind.CalamityAttacks, self.Owner,
+                x.B.Powers[self.Index].Id, out int amount))
+        {
             return;
-        power.Aux0 = 0;
-        if (power.Amount > FlashLimits.Cards)
+        }
+        if (amount > FlashLimits.Cards)
             throw new FlashCapacityException("Cards", FlashLimits.Cards);
-        Span<FlashCard> generated = stackalloc FlashCard[Math.Max(0, power.Amount)];
+        Span<FlashCard> generated = stackalloc FlashCard[Math.Max(0, amount)];
         int count = FlashKernel.SampleCardPool(ref x.B, x.R, FlashCardPools.CharacterAttacks,
-            power.Amount, distinct: false, FlashRngStream.CombatCardGeneration, generated);
+            amount, distinct: false, FlashRngStream.CombatCardGeneration, generated);
         for (int index = 0; index < count; index++)
             FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Hand);
         if (x.NeedsChoice)

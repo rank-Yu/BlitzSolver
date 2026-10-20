@@ -213,12 +213,28 @@ public sealed class RollingBoulderPower : FlashPowerDef
     public override void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
     {
         ref FlashPower power = ref x.B.Powers[self.Index];
-        FlashCardEffects.DamageAllEnemies(ref x, power.Amount, FlashValueProps.Unpowered, self.Owner);
+        byte owner = power.Owner;
+        ushort id = power.Id;
+        int amount = power.Amount;
+        int occurrence = 0;
+        for (int prior = 0; prior < self.Index; prior++)
+        {
+            ref readonly FlashPower earlier = ref x.B.Powers[prior];
+            if (earlier.Owner == owner && earlier.Id == id)
+                occurrence++;
+        }
+        FlashCardEffects.DamageAllEnemies(ref x, amount, FlashValueProps.Unpowered, self.Owner);
         if (x.NeedsChoice)
             return;
+        // Enemy deaths during the damage can remove enemy power rows and shift this player-side
+        // instanced row. Re-resolve the snapshot instance by (owner, id, occurrence) before writing;
+        // the native hook mutates the captured model object, not the pre-damage table index.
+        int row = FlashKernel.FindPowerOccurrence(x.B, owner, id, occurrence);
+        if (row < 0)
+            throw new FlashUnsupportedException("Rolling Boulder 的 Power 行在伤害后消失。");
         // RollingBoulderPower.CanonicalVars Damage = 5; the card upgrade raises the initial Amount,
         // not this increment (RollingBoulder.incrementAmount).
-        power.Amount = (int)Math.Clamp((long)power.Amount + 5, 0, FlashLimits.ValueClamp);
+        x.B.Powers[row].Amount = (int)Math.Clamp((long)x.B.Powers[row].Amount + 5, 0, FlashLimits.ValueClamp);
     }
 }
 

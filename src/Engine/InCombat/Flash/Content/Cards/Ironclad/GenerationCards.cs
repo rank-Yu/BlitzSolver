@@ -126,19 +126,57 @@ public sealed class Stoke : FlashCardDef
 
     public override void OnPlay(ref FlashExec x)
     {
-        // Vanilla snapshots the hand list, exhausts every card, then generates one card per initial
-        // hand card (with replacement) and adds them to hand.
+        // Vanilla snapshots the hand CardModel objects, exhausts each object, then generates one card
+        // per initial hand card. A digest/Id match is not object identity: exhausting one card can
+        // change another card's mutable cost (Stomp), and Dark Embrace can draw a new equal card into
+        // hand before the snapshot card is reached. Mark each initial hand card with a one-action
+        // identity byte; the mark travels with the value through every pile move and never appears in
+        // a state key. Marks 64..255 match the Sly batch convention; BeatDown owns 1..63.
         int exhaustCount = x.B.HandCount;
-        Span<FlashCard> exhausted = stackalloc FlashCard[exhaustCount];
-        for (int index = 0; index < exhaustCount; index++)
-            exhausted[index] = x.B.Cards[index];
-        for (int item = 0; item < exhaustCount; item++)
+        int markBase = x.TransientMarkBase;
+        if (64 + markBase + exhaustCount > 256)
+            throw new FlashCapacityException("TransientMarks", 256 - 64);
+        x.TransientMarkBase = checked((byte)(markBase + exhaustCount));
+        int markStart = 64 + markBase;
+        try
         {
-            int position = FindHandCard(x.B, exhausted[item]);
-            FlashKernel.Exhaust(ref x, FlashPile.Hand, position);
-            if (x.NeedsChoice)
-                return;
+            for (int index = 0; index < exhaustCount; index++)
+                x.B.Cards[index].TransientMark = checked((byte)(markStart + index));
+            for (int item = 0; item < exhaustCount; item++)
+            {
+                byte mark = checked((byte)(markStart + item));
+                int absolute = FindMarked(x.B, mark);
+                if (absolute < 0)
+                    throw new FlashUnsupportedException("Stoke 的快照手牌在消耗过程中离开了战斗牌堆。");
+                FlashPile pile = FlashPiles.PileOf(x.B, absolute, out int position);
+                // A card already in the exhaust pile is the native no-op case for CardCmd.Exhaust.
+                if (pile != FlashPile.Exhaust)
+                    FlashKernel.Exhaust(ref x, pile, position);
+                if (x.NeedsChoice)
+                    return;
+            }
         }
+        finally
+        {
+            for (int position = 0; position < x.B.CardCount; position++)
+            {
+                if (x.B.Cards[position].TransientMark >= markStart
+                    && x.B.Cards[position].TransientMark < markStart + exhaustCount)
+                {
+                    x.B.Cards[position].TransientMark = 0;
+                }
+            }
+            for (int slot = 0; slot < FlashLimits.DetachedCards; slot++)
+            {
+                if (x.B.DetachedCards[slot].TransientMark >= markStart
+                    && x.B.DetachedCards[slot].TransientMark < markStart + exhaustCount)
+                {
+                    x.B.DetachedCards[slot].TransientMark = 0;
+                }
+            }
+            x.TransientMarkBase = checked((byte)markBase);
+        }
+        // Generation happens after the whole exhaust loop, as in the native card.
         Span<FlashCard> generated = stackalloc FlashCard[Math.Min(exhaustCount, FlashLimits.Cards)];
         int count = FlashKernel.SampleCardPool(ref x.B, x.R, FlashCardPools.CharacterAll, exhaustCount,
             distinct: false, FlashRngStream.CombatCardGeneration, generated);
@@ -150,14 +188,14 @@ public sealed class Stoke : FlashCardDef
         }
     }
 
-    private static int FindHandCard(in FlashBattle battle, in FlashCard card)
+    private static int FindMarked(in FlashBattle battle, byte mark)
     {
-        for (int index = 0; index < battle.HandCount; index++)
+        for (int absolute = 0; absolute < battle.CardCount; absolute++)
         {
-            if (FlashFingerprint.Equal(battle.Cards[index], card))
-                return index;
+            if (battle.Cards[absolute].TransientMark == mark)
+                return absolute;
         }
-        throw new FlashUnsupportedException("Stoke 的手牌在消耗过程中被改变。");
+        return -1;
     }
 }
 

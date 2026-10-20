@@ -33,7 +33,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
   --search-mode Coordinator --budget-ms 10000 --out <输出目录>
 ```
 
-无人测试中的实机部署用 `--flash-search-mode-for-test Off|Shadow|On`（PowerShell `-FlashSearchModeForTest`）临时覆盖设置；`--export-bug-report-after-combat` 导出的问题包在 `diagnostics/logs/combat/*.jsonl` 中保留 `[CombatSolver/Flash]` 行：
+无人测试中的实机部署用 `--flash-search-mode-for-test Off|Shadow|On`（PowerShell `-FlashSearchModeForTest`）临时覆盖设置；`--export-bug-report-after-combat` 在战斗结束和 On 搜索失败停止部署时都会在写结果前导出问题包，失败包带 `FlashSearchFailed`/`SearchFailure` 分类。包内 `diagnostics/logs/combat/*.jsonl` 保留 `[CombatSolver/Flash]` 行：
 
 ```bash
 ./tools/testing/run-unattended-test.sh --scenario-id FLASH-ON-NIBBITS --character-id IRONCLAD --encounter-id NIBBITS_NORMAL \
@@ -46,9 +46,9 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT、CT、RS3、DX7、UX、SW 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、261 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT、CT、RS3、DX7、UX、SW、HS3 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、265 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
-### 2.1 当前状态（SW 合入后）
+### 2.1 当前状态（HS3 合入后）
 
 - 覆盖：五个角色的卡池、296 个遗物、65 种药水、三幕全部遭遇与第三幕首领策略、事件卡牌与事件遭遇。不支持的内容在准入时给出类别：多人专用、Mock、废弃内容，以及现有引擎同样不支持的 BYRDPIP。
 - 默认语料的协调器对照（Medium、宽度组合、120 秒，Off 为固定基线）。口径：两种模式同一预算、同一档位，每根单次运行，各按实际结果计入，预算内未完成的根同样照实计入；同一代码重复测量时个别根有数点波动。
@@ -104,11 +104,14 @@ Linux 无头游戏（Medium 档位、宽度组合、`Instant / 0 秒`，铁甲�
 
 第二轮（HS2，2026-10-20，`66c8c3f0` 之后）：另选 60 个未跑过的场景（第三幕精英与三个最终首领 16 场、事件遭遇 5 场、24 场带 2 瓶药水、回合开始选择遗物 10 场），开启模式整场 59 场 Passed（8 场按预期战死）、1 场因 1 次部署漂移重算判 Failed；问题包 567 行 `FLASH_ADOPTED` 全部核对通过。修正 SwordSagePower 下锻造生成的君王之刃重放基线（生成的刀从 0 补当前层数，`flash-hs2-sword-sage-forge`）。另报告并交后续批次：`--flash-search-mode-for-test` 晚于回合开始选择根的设置捕获；TurnBoundaryRescue 采用路线缺一个回合的续接戳导致一次重算；IRONCLAD-50 计划中 STOMP 的费用修正列表与实机差一项导致部署漂移；act3-SILENT-19 两个敌人同时差 3 点伤害的核对不一致；部分战死局问题包缺 `replay/recent/session.json`。
 
+第三轮（HS3，2026-10-21，`f5961820` 之后）：开启模式不回落之后跑 200 场整场，A 组重跑 HS/HS2 的 100 场，B 组 60 个新场景（含第三幕 Entropy 根），C 组 20 场用源根原生生命，D 组 20 场关闭模式对照；其余场景玩家 200 生命、敌人 1000 生命、`Instant / 0 秒`。开启模式 180 场的问题包共 2782 行 `FLASH_ADOPTED`，全部 `status=verified`，计划外重算 0；`FLASH_NO_ROUTE` 16 行，所在 13 场全部 Passed。实机出现 3 次 `FLASH_SEARCH_FAILED`，均为 Flash 内核偏差，已修正：Rolling Boulder 回合开始的伤害击杀敌人后，敌方 Power 行被删除、下标移位，Flash 仍按伤害前的行加 5 层，加到了别的 Power 上（act3-REGENT-13：层数 25 对 20，FLAIL_KNIGHT 力量 6 对 11），改为伤害后按（拥有者、编号、出现序）重新定位（`flash-hs3-regent13-rolling` 修正前 48 条游走 20 条失败）；Calamity 用单个标志记“本次出牌是攻击”，UPROAR 嵌套自动打出的攻击清掉外层标志，外层少生成一张（act3-DEFECT-14），改为按出牌嵌套栈记账（`flash-hs3-calamity-nested` 修正前 45 条游走失败）；Stoke 按卡值在手牌中找快照牌，STOMP 的费用修正与快照不同时报内核不支持（act3-IRONCLAD-22），改为给快照手牌打瞬态标记、按对象身份逐张消耗，与现有引擎持有卡牌对象一致。随机游走走不到 Stoke 的这个分支，`flash-hs3-stoke-identity` 保留自然请求与到达 Stoke 的固定前缀，修正前协调器搜索报 `kernel-unsupported`，修正后通过。三场修正后实机重跑均 Passed。`--export-bug-report-after-combat` 在搜索失败停止部署时也导出问题包，包内带 `FlashSearchFailed`、`SearchFailure` 分类与 `FLASH_SEARCH_FAILED` 行。D 组 20 对没有关闭模式胜而开启模式死的组合；B 组 act3-DEFECT-29 开启模式三次都在第 11 回合战死，关闭模式第 11 回合以 19 HP 获胜，第一回合路线已不同，搜索侧未改。另有 5 场开启模式超时，见第 3 节。启动器在同一实例的上一进程退出期间再次启动会偶发无结果，`--stop-instance --cleanup-instance-on-exit` 不删除实例目录，与 Flash 无关，本批未改。合入后全量回归 491 根零差异，第三幕 150 根 48 条游走零差异，默认 79 根开启模式与 SW 合入后逐根相同，48 根基准质量不变。
+
 ## 3. 已知限制与未验证项
 
 - 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。
 - 精确层下界不可用（遗物目标、成长目标等）时 Flash 整次搜索不做下界剪枝，原搜索只对不满足条件的节点放开；路线不受影响，搜索面更大。除遗物目标外的禁用原因没有逐个构造实机根。
 - `FLASH_SEARCH_FAILED` 的提示与问题包只在无头合同中验证，未在可见游戏中查看。
+- HS3 中 5 场开启模式整场（act3-NECROBINDER-08/19/22、act3-REGENT-19、rq-REGENT-V-19）超过启动器时限而没有结果，同根关闭模式都能完成。其中 NECROBINDER-08 最后的事件是第 1 回合采纳先用两瓶药水的路线，之后没有部署记录。`another modal already open` 在几乎所有日志（含通过的场景）中都出现，不是原因。根因未查明。
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择覆盖卡牌自身的单选、手牌/抽牌堆/弃牌堆选择、回合开始选择、知识恶魔的固定选项与自动打出中的嵌套选择（LR、MB 固定根）；一个动作最多携带 8 个选择，更深的链按容量边界拒绝。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
