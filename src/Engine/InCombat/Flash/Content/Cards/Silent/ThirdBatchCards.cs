@@ -73,7 +73,7 @@ public sealed class EchoingSlash : FlashCardDef
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override void OnPlay(ref FlashExec x)
-        => FlashKernel.CardAttackRepeating(ref x, FlashCardEffects.Var(x, 0), initialWaves: 1);
+        => FlashKernel.CardAttackRepeating(ref x, 0, initialWaves: 1);
 }
 
 [FlashContent("TOOLS_OF_THE_TRADE")]

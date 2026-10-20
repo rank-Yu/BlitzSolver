@@ -435,7 +435,10 @@ public static partial class FlashKernel
                     FlashPiles.Start(x.B, FlashPile.Play) + playPosition);
             }
             // CardPlayFinished: no tracked counter yet. AfterCardPlayed runs its normal pass, then
-            // re-reads the listeners for the late pass, without the ending gate.
+            // re-reads the listeners for the late pass, without the ending gate. The native history
+            // records the finished play before AfterCardPlayed, so effects triggered there (Calamity
+            // generating a card, Stomp.AfterEnteredCombat counting attacks) must see this play.
+            RecordCardPlayFinished(ref x, stats, FlashRegistry.Card(card.Id).CardType(x.B, x.R, card));
             x.LastPlayIdentity = x.PlayIdentity;
             AfterCardPlayedHook after = new() { Play = play };
             FlashHooks.Dispatch(ref x, ref after, gatedByEnding: false);
@@ -590,15 +593,22 @@ public static partial class FlashKernel
     /// <c>SimulatedCombatState.CompleteCardPlayEffects</c>. Slow, Fetch, relic card counters and
     /// returning cards are not supported yet.
     /// </summary>
+    private static void RecordCardPlayFinished(ref FlashExec x, FlashCardStats stats, FlashCardType cardType)
+    {
+        ref FlashBattle battle = ref x.B;
+        if (cardType != FlashCardType.Attack)
+            return;
+        battle.AddCounter(FlashCounter.AttacksPlayedThisTurn, 1);
+        if ((stats.Tags & FlashCardTag.Shiv) != 0)
+            battle.AddCounter(FlashCounter.ShivsPlayedThisTurn, 1);
+    }
+
     private static void RecordCardPlayed(ref FlashExec x, FlashCardStats stats, FlashCardType cardType,
         in FlashCard completedCard)
     {
         ref FlashBattle battle = ref x.B;
         if (cardType == FlashCardType.Attack)
         {
-            battle.AddCounter(FlashCounter.AttacksPlayedThisTurn, 1);
-            if ((stats.Tags & FlashCardTag.Shiv) != 0)
-                battle.AddCounter(FlashCounter.ShivsPlayedThisTurn, 1);
             // SimulatedCombatState.RecordHistoryCourseAttack: the last attack completed this turn,
             // skipping dupes (HistoryCourse's own copies). Recorded after the tail hooks, from the
             // live play-pile value, exactly like the existing engine's mutable CardModel reference.

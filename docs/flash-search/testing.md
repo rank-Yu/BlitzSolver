@@ -46,14 +46,14 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、254 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、255 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
-### 2.1 当前状态（RS 合入后）
+### 2.1 当前状态（DX6 合入后）
 
 - 覆盖：五个角色的卡池、296 个遗物、65 种药水、三幕全部遭遇与第三幕首领策略、事件卡牌与事件遭遇。不支持的内容在准入时给出类别：多人专用、Mock、废弃内容，以及现有引擎同样不支持的 BYRDPIP。
 - 默认语料的协调器对照（Medium、宽度组合、120 秒，Off 为固定基线）：
   - 四角色 46 个牌组：On 相对 Off 13 好 / 26 同 / 7 差，战略失血差合计 −86（同为 120 秒预算）；SILENT-C-13 的关闭模式在 120 秒预算下被截断（约需 129 秒，240 秒预算下胜利、失血 56），按关闭模式不受截断的口径为 −72。开启模式 SILENT-C-13 约 22 秒取胜、失血 45。
-  - 铁甲战士 33 个牌组：10 好 / 19 同 / 4 差，−45。
+  - 铁甲战士 33 个牌组：10 好 / 19 同 / 4 差，−22。DX6 修正现有引擎的已完成攻击计数后，IRONCLAD-50 的关闭模式失血 73 → 48、开启模式 31 → 29，合计差额因此缩小 23。
   - 79 根全部 `FLASH_ADOPTED`。开启模式仍调用原搜索的只有 2 次 `SmartPotionGradient` 的 `flash-potion-policy-no-route`，现有求解器在该根上同样没有满足策略的路线。
 - 48 根基准（10 秒）：Flash 相对现有主搜索 14 好 / 28 同 / 6 差，失血合计 −34。
 - 其余仍由原搜索执行的请求形态与原因码见 [搜索与接入](search.md) 3.2 节。
@@ -71,6 +71,8 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 统一回放核心（B2，2026-10-20）：`Replay`/`ReplayAction`/`ReplayTurnSetup`/`ResolveTurnSetupChoices` 与准备根枚举收敛到 `src/Search/Probes/SearchReplayCore.cs`，原搜索与探针共用；检查点、执行续接帧、回放证据、性能计量与增量校验按显式上下文注入，准备根的选择预算只有一份。Flash 的桥接与物化改用 `SearchReplayCore`、`OpeningProbe` 与共享的 `SearchRouteMaterializer`，`src/Search/FlashBeam/**` 不再引用 `CombatBeamSolver`（结构门禁强制），开启模式只在分发点的回落处构造原求解器。合入后默认 79 根关闭与开启模式均与改动前逐根相同，回合准备根与 48 根基准路线逐根相同，回放续接相关无人测试合同 Passed；`CARD-CONTINUATION-CONTRACT` 的既有失败查明为夹具在出牌收尾前检查弃牌堆。
 
 保留结构（RS，2026-10-20）：FlashBeam 补上 `SearchRouteTraits` 路线标签（八条泳道按标签过滤）、按 profile 宽度的药水使用配额与 `PotionUseLineageKey` 谱系、选项路由配额与 option leader、stand-pat（三条泳道、fresh resource 与 damaging continuation，用 Flash 内核重放结束回合）与全局 Pareto；路线标签与谱系是路线节点元数据，K4 逐转移核对路线标签增量（约 45 万次零失败）。持续铺垫分组仍用 `PersistentSetupTraits`：改用含潜在标签的 `StrategicSetupTraits` 会在 Flash 的 4 倍宽度下扩出远多于现有搜索的分组，DEFECT-C-05 至少一瓶 30 → 40。默认 79 根相对合入前 10 好 / 65 同 / 4 差、战略失血 −6，IRONCLAD-17 与 NECROBINDER-V-01 维持 56 与 30；REGENT-C-07/V-07 46 → 54（stand-pat 探测在回合开始选择处不能像原搜索那样自动作答），IRONCLAD-53 +2，SILENT-V-03 +1。单独移植选项路由配额时（RS1）IRONCLAD-17 曾变为 63，补上 stand-pat 后恢复。48 根基准质量 14/29/5、耗时持平。尚未移植：循环/跨回合/有序变动组合、回合边界整理代表、路由上下文 Pareto/direct extremes/Art of War 窗口与分布指纹。
+
+第二轮实机问题（DX6，2026-10-20）：Flash 的 Echoing Slash 每波沿用出牌时的伤害值，第一波击杀最后一个 Dampen 施法者、牌的升级等级恢复后，第二波仍按旧值结算（act3-SILENT-19 两敌各差 3 点）；改为每波从实时打出的牌读取伤害（`flash-dx6-dampen-echoing`）。现有引擎的“本回合已完成攻击/Shiv 数”原在 `AfterCardPlayed` 之后才递增，而原版在 `AfterCardPlayed` 之前记录 `CardPlayFinished`，Calamity 在攻击的 `AfterCardPlayed` 中生成的 Stomp 因此少算一次减费（IRONCLAD-50 部署漂移）；现有引擎与 Flash 都改为在 `AfterCardPlayed` 之前递增，无头重跑计划外重算为 0。测试侧：`--*-for-test` 的设置覆盖在第一次搜索根捕获前生效；战斗结束后导出的问题包先完成取证会话再归档。默认 79 根中只有 IRONCLAD-50 改变（关闭与开启模式均变好），基线已更新。
 
 新颖度探索与早期回合侦察（XP，2026-10-20）：新颖度探索、自适应新颖度精炼与早期回合侦察三个协调器成员改走 `BeamSolveDispatch`，开启模式由 FlashBeam 执行（`FlashBeamSolver.Novelty.cs`）：BFWS 开放队列按（新颖宽度、−分数、序号）排序，新颖事实与分区照现有 `CaptureNoveltyFacts`（`FlashNoveltyFacts`，新增 6 个 K4 字段逐事实核对），熟悉子状态共享祖先的逃逸预算，停止条件与诊断字段与原搜索同口径；早期回合侦察按原策略键每层取 24 个候选，物化并核对后才回报观察者；计划侦察的深度限制放开。这三个成员默认关闭，默认 79 根逐根不变；另选 DEFECT-C-05、IRONCLAD-04、SILENT-C-14 三根在两种配置下稳定触发并全部 `FLASH_ADOPTED`（相对关闭模式 1 好 / 2 差、失血合计 +4，变差来自既有保留结构差异），新颖度控制合同与早期回合无头合同开启/关闭模式均 Passed。尚未移植：新颖度终局的 `RankFinal` 预筛、搜索中途的接管响应（Flash 只在搜索结束时响应）、早期回合续搜的工作量记账。
 

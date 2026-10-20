@@ -106,7 +106,7 @@ public static partial class FlashKernel
     /// <c>CardOnPlaySupport.Batch042.ApplyEchoingSlash</c> (one <c>BeginAttackContext</c> around all
     /// waves and one <c>EndAttackContext</c> at the end).
     /// </summary>
-    public static void CardAttackRepeating(ref FlashExec x, decimal damagePerHit, int initialWaves,
+    public static void CardAttackRepeating(ref FlashExec x, int damageVar, int initialWaves,
         FlashValueProps props = FlashValueProps.Move, byte attacker = FlashLimits.PlayerOwner)
     {
         if (IsOverOrEnding(x.B))
@@ -121,10 +121,18 @@ public static partial class FlashKernel
         Span<byte> targets = stackalloc byte[FlashLimits.Enemies];
         int waves = initialWaves;
         int totalKills = 0;
+        int wave = 0;
         while (waves-- > 0)
         {
             if (x.B.Creature(attacker).IsDead)
                 break;
+            // EchoingSlash.OnPlay reads base.DynamicVars.Damage on every wave. A mid-attack upgrade
+            // (the last DampenPower caster dying to this wave restores the card's original level)
+            // therefore changes later waves. Flash plays from the copy in FlashExec.Card; re-sync it
+            // and its rules table before each wave after the first.
+            if (wave++ > 0)
+                SyncCurrentPlayCard(ref x);
+            decimal damagePerHit = FlashCardEffects.Var(x, damageVar);
             int count = 0;
             for (int position = 0; position < x.B.RosterCount; position++)
             {
