@@ -128,6 +128,12 @@ internal sealed record FlashBeamOptions(
     public int EarlyTurnScoutDepth { get; init; }
 
     /// <summary>
+    /// The request's <c>NoveltySearchOptions</c>. Set only for the coordinator's novelty exploration
+    /// and adaptive refinement; the solver then runs the Bfws open-queue scheduler instead of the beam.
+    /// </summary>
+    public FlashNoveltyOptions? Novelty { get; init; }
+
+    /// <summary>
     /// The request root's combat turn (before a fixed prefix), matching the existing solver's
     /// <c>_startTurnNumber</c> for the scout's turn filter.
     /// </summary>
@@ -324,6 +330,9 @@ internal sealed record FlashBeamResult(
     /// <summary>The scout layers reported by an early-turn scout request, in searched order.</summary>
     public IReadOnlyList<FlashScoutLayer> ScoutLayers { get; init; } = [];
 
+    /// <summary>The novelty statistics of a <see cref="FlashBeamOptions.Novelty"/> request.</summary>
+    public NoveltySearchTelemetry? NoveltyTelemetry { get; init; }
+
     /// <summary>
     /// Which root of the solve the selected route started from: 0 for an ordinary root, or the
     /// turn-setup root candidate index (the bridge maps it back to the setup choices).
@@ -344,7 +353,7 @@ internal sealed record FlashBeamResult(
 /// <see cref="FlashRules"/> are touched; translation and materialization happen in the bridge.
 /// </summary>
 [System.Runtime.CompilerServices.SkipLocalsInit]
-internal sealed class FlashBeamSolver
+internal sealed partial class FlashBeamSolver
 {
     /// <summary>Selections explored per choice request (lexicographic within each size).</summary>
     private const int MaxChoiceBranches = 32;
@@ -496,6 +505,8 @@ internal sealed class FlashBeamSolver
         Stopwatch watch = Stopwatch.StartNew();
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
+        if (_options.Novelty is { } novelty)
+            return SolveNovelty(roots, novelty, watch, cancellationToken);
         _hpTargetReached = false;
         for (int slot = 0; slot < FlashLimits.PotionSlots; slot++)
             _rootPotions[slot] = slot < roots[0].PotionSlotCount ? roots[0].Potions[slot] : (ushort)0;
@@ -1197,6 +1208,8 @@ internal sealed class FlashBeamSolver
             int payoffCount = NextPayoffCount(parentNode, parent, action, features, parentFacts, commitment);
             _nodes.Add((parentNode, depth, action, rootActionKey, lineage, payoffCount, usedPotion,
                 firstCardId, firstCardTarget, commitment));
+            if (_options.Novelty != null)
+                ObserveNoveltyChild(child, node, features);
             if (isTerminal)
             {
                 terminal(child, node, score);

@@ -90,6 +90,24 @@ internal readonly record struct FlashScoreFeatures
     public int PersistentBuffValue { get; init; }
     public int StrategicRetentionValue { get; init; }
 
+    /// <summary><c>Snapshot.StrategicEffects.DamagePotential</c>; novelty facts read the five components.</summary>
+    public int StrategicDamagePotential { get; init; }
+
+    /// <summary><c>Snapshot.StrategicEffects.PreventionPotential</c>.</summary>
+    public int StrategicPreventionPotential { get; init; }
+
+    /// <summary><c>Snapshot.StrategicEffects.ResourcePotential</c>.</summary>
+    public int StrategicResourcePotential { get; init; }
+
+    /// <summary><c>Snapshot.StrategicEffects.CardAccessPotential</c>.</summary>
+    public int StrategicCardAccessPotential { get; init; }
+
+    /// <summary><c>Snapshot.StrategicEffects.ScalingPotential</c>.</summary>
+    public int StrategicScalingPotential { get; init; }
+
+    /// <summary><c>Snapshot.HasRisk</c> (<c>CombatPredictionSimulator.HasRisk</c>).</summary>
+    public bool HasRisk { get; init; }
+
     /// <summary>
     /// <c>StrategicEffectContext.Act3BossInteractions</c>: the frozen three-act boss policy reached a
     /// contributing strategic power. Diagnostic only; its effect is already in the score terms.
@@ -207,6 +225,12 @@ internal readonly record struct FlashScoreFeatures
         Check(nameof(ZeroCostPlayableCount), old.ZeroCostPlayableCount, flash.ZeroCostPlayableCount);
         Check(nameof(PersistentBuffValue), old.PersistentBuffValue, flash.PersistentBuffValue);
         Check(nameof(StrategicRetentionValue), old.StrategicRetentionValue, flash.StrategicRetentionValue);
+        Check(nameof(StrategicDamagePotential), old.StrategicDamagePotential, flash.StrategicDamagePotential);
+        Check(nameof(StrategicPreventionPotential), old.StrategicPreventionPotential, flash.StrategicPreventionPotential);
+        Check(nameof(StrategicResourcePotential), old.StrategicResourcePotential, flash.StrategicResourcePotential);
+        Check(nameof(StrategicCardAccessPotential), old.StrategicCardAccessPotential, flash.StrategicCardAccessPotential);
+        Check(nameof(StrategicScalingPotential), old.StrategicScalingPotential, flash.StrategicScalingPotential);
+        Check(nameof(HasRisk), old.HasRisk, flash.HasRisk);
         Check(nameof(Act3BossInteractions), old.Act3BossInteractions, flash.Act3BossInteractions);
         Check(nameof(FirstAttackDamage), old.FirstAttackDamage, flash.FirstAttackDamage);
         Check(nameof(EtherealDrawTriggers), old.EtherealDrawTriggers, flash.EtherealDrawTriggers);
