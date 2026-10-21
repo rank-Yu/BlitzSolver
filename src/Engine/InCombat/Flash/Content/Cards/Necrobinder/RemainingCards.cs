@@ -120,9 +120,15 @@ public sealed class Misery : FlashCardDef
         if (x.NeedsChoice)
             return;
         byte original = x.Target;
-        for (int position = 0; position < x.B.RosterCount; position++)
+        // The existing engine iterates a HittableEnemies snapshot; a cloned debuff can kill its
+        // target (Sleight of Flesh) and compact the live roster, which must not skip later enemies.
+        Span<byte> enemies = stackalloc byte[FlashLimits.Enemies];
+        int rosterCount = x.B.RosterCount;
+        for (int position = 0; position < rosterCount; position++)
+            enemies[position] = FlashKernel.EnemyOwner(x.B.Roster[position]);
+        for (int position = 0; position < rosterCount; position++)
         {
-            byte enemy = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            byte enemy = enemies[position];
             if (enemy == original || !FlashKernel.IsHittable(x.B, enemy))
                 continue;
             for (int item = 0; item < count; item++)

@@ -373,6 +373,9 @@ public sealed class EntropyPower : FlashPowerDef
         if (!FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.Transform, FlashPile.Hand, options,
                 count, count, selected, out int selectedCount))
             return;
+        FlashKernel.StartPlayerSideTurnIfNeeded(ref x);
+        if (x.NeedsChoice)
+            return;
         for (int index = 0; index < selectedCount; index++)
         {
             ref FlashCard original = ref FlashPiles.At(ref x.B, FlashPile.Hand, selected[index]);

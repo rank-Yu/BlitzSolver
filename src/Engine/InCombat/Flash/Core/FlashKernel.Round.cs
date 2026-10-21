@@ -304,7 +304,7 @@ public static partial class FlashKernel
     }
 
     /// <summary>Owners of the roster enemies in roster order.</summary>
-    private static int RosterOwners(in FlashBattle battle, Span<byte> owners)
+    internal static int RosterOwners(in FlashBattle battle, Span<byte> owners)
     {
         for (int position = 0; position < battle.RosterCount; position++)
             owners[position] = EnemyOwner(battle.Roster[position]);
@@ -565,8 +565,9 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
 
-        // ContinuePlayerStart. A turn-start choice taken before the side starts would start it first
-        // (TurnStartChoiceCursor.BeforeNextTake); turn-start choices are not supported yet.
+        // ContinuePlayerStart. A turn-start choice taken before the side starts starts it on the take
+        // (TurnStartChoiceCursor.BeforeNextTake); the choice hooks call StartPlayerSideTurnIfNeeded.
+        x.TakingExtraTurn = takingExtraTurn;
         int beforeHandShuffles = x.B.ShuffleEventCount;
         x.B.Phase = FlashPlayerPhase.Start;
         BeforeHandDraw(ref x);
@@ -592,8 +593,7 @@ public static partial class FlashKernel
         AfterPlayerTurnStart(ref x);
         if (x.NeedsChoice)
             return;
-        TriggerSideTurnStart(ref x, FlashSide.Player, player, decrementPlating: x.B.PlayerTurn != 1,
-            isExtraTurn: takingExtraTurn);
+        StartPlayerSideTurnIfNeeded(ref x);
         if (x.NeedsChoice)
             return;
         ApplyEnemyDeathPowers(ref x);
@@ -612,6 +612,21 @@ public static partial class FlashKernel
             return;
         x.B.Phase = FlashPlayerPhase.Play;
         CheckWinCondition(ref x.B);
+    }
+
+    /// <summary>
+    /// The player side start, either at its normal position (after the hand draw and
+    /// <c>AfterPlayerTurnStart</c>) or when a pre-side turn-start choice is taken
+    /// (<c>TurnStartChoiceCursor.BeforeNextTake</c>). Runs once per action execution.
+    /// </summary>
+    internal static void StartPlayerSideTurnIfNeeded(ref FlashExec x)
+    {
+        if (x.SideTurnStartedEarly)
+            return;
+        x.SideTurnStartedEarly = true;
+        ReadOnlySpan<byte> player = [FlashLimits.PlayerOwner];
+        TriggerSideTurnStart(ref x, FlashSide.Player, player, decrementPlating: x.B.PlayerTurn != 1,
+            isExtraTurn: x.TakingExtraTurn);
     }
 
 // This batch's turn-boundary relic hooks (FlashHookMaskExt bits 3-6). Each is dispatched at the

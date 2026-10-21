@@ -34,6 +34,10 @@ public sealed class TyrannyPower : FlashPowerDef
         {
             return;
         }
+        // TurnStartChoiceCursor.BeforeNextTake starts the side before the choice's effect.
+        FlashKernel.StartPlayerSideTurnIfNeeded(ref x);
+        if (x.NeedsChoice)
+            return;
         FlashKernel.ExhaustSelected(ref x, FlashPile.Hand, selected[..chosen]);
     }
 }
@@ -72,6 +76,10 @@ public sealed class ForegoneConclusionPower : FlashPowerDef
             {
                 return;
             }
+            // The choice is taken before the side starts; StartSide runs before the cards move.
+            FlashKernel.StartPlayerSideTurnIfNeeded(ref x);
+            if (x.NeedsChoice)
+                return;
             FlashKernel.MoveSelected(ref x.B, FlashPile.Draw, selected[..chosen], FlashPile.Hand,
                 FlashPilePosition.Bottom);
             if (x.NeedsChoice)

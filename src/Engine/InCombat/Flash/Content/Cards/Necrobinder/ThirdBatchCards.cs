@@ -38,6 +38,10 @@ public sealed class Seance : FlashCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
+    // TransformSelectedCards creates the level-0 canonical Soul; without this declaration the rule
+    // table has no Soul stats and the first transform reports an unsupported kernel boundary.
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SOUL", 0)];
+
     public override void OnPlay(ref FlashExec x)
     {
         if (x.B.DrawCount == 0)

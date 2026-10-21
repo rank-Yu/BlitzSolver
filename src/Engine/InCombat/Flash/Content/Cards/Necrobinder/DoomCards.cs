@@ -51,9 +51,15 @@ public sealed class Deathbringer : FlashCardDef
         int weak = (int)NecrobinderContent.Var(ref x, 1);
         ushort doomId = FlashRegistry.PowerId<Powers.DoomPower>();
         ushort weakId = FlashRegistry.PowerId<Powers.WeakPower>();
-        for (int position = 0; position < x.B.RosterCount; position++)
+        // Native ApplyAll enumerates a HittableEnemies snapshot; a Doom application can kill its target
+        // (Sleight of Flesh) and compact the live roster, which must not skip later enemies.
+        Span<byte> owners = stackalloc byte[FlashLimits.Enemies];
+        int count = x.B.RosterCount;
+        for (int position = 0; position < count; position++)
+            owners[position] = FlashKernel.EnemyOwner(x.B.Roster[position]);
+        for (int position = 0; position < count; position++)
         {
-            byte enemy = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            byte enemy = owners[position];
             if (!FlashKernel.IsHittable(x.B, enemy))
                 continue;
             FlashKernel.ApplyPower(ref x, enemy, doomId, doom, FlashLimits.PlayerOwner);
@@ -268,9 +274,13 @@ public sealed class EndOfDays : FlashCardDef
         ushort doomId = FlashRegistry.PowerId<Powers.DoomPower>();
         Span<byte> doomed = stackalloc byte[FlashLimits.Enemies];
         int count = 0;
-        for (int position = 0; position < x.B.RosterCount; position++)
+        // ApplyEndOfDays resolves power changes after each enemy; a Sleight of Flesh death compacts
+        // the live roster, so visit the same snapshot the native loop sees.
+        Span<byte> owners = stackalloc byte[FlashLimits.Enemies];
+        int rosterCount = FlashKernel.RosterOwners(x.B, owners);
+        for (int position = 0; position < rosterCount; position++)
         {
-            byte enemy = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            byte enemy = owners[position];
             if (!FlashKernel.IsHittable(x.B, enemy))
                 continue;
             FlashKernel.ApplyPower(ref x, enemy, doomId, amount, FlashLimits.PlayerOwner);

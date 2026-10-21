@@ -419,9 +419,13 @@ public sealed class NoxiousFumesPower : FlashPowerDef
         if (amount <= 0)
             return;
         ushort poison = FlashRegistry.PowerId<PoisonPower>();
-        for (int position = 0; position < x.B.RosterCount; position++)
+        // Noxious Fumes resolves after each application; a Sleight of Flesh death compacts the live
+        // roster, so visit the same snapshot the native loop sees.
+        Span<byte> owners = stackalloc byte[FlashLimits.Enemies];
+        int rosterCount = FlashKernel.RosterOwners(x.B, owners);
+        for (int position = 0; position < rosterCount; position++)
         {
-            byte enemy = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            byte enemy = owners[position];
             if (!FlashKernel.IsHittable(x.B, enemy))
                 continue;
             FlashKernel.ApplyPower(ref x, enemy, poison, amount, self.Owner);

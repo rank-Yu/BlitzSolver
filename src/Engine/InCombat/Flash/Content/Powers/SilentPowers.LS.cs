@@ -96,6 +96,9 @@ public sealed class ToolsOfTheTradePower : FlashPowerDef
         {
             return;
         }
+        FlashKernel.StartPlayerSideTurnIfNeeded(ref x);
+        if (x.NeedsChoice)
+            return;
         // TurnStartChoiceSupport.Resolve(Discard) calls simulator.Discard(selected), which is the same
         // path as DiscardAndDraw with no draw: counter, AfterCardDiscarded and Sly auto-play.
         FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, selected[..chosen], 0);

@@ -332,6 +332,8 @@ public ref struct FlashExec
         CardKilledTarget = false;
         LastDamageTotal = 0;
         LastDamageOverkill = 0;
+        SideTurnStartedEarly = false;
+        TakingExtraTurn = false;
     }
 
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
@@ -353,6 +355,15 @@ public ref struct FlashExec
 
     /// <summary>Whether the current card play killed its chosen target (HandOfGreed's WasFatalKill).</summary>
     public bool CardKilledTarget;
+
+    /// <summary>
+    /// A pre-side-start turn-start choice ran the player side start early
+    /// (<c>TurnStartChoiceCursor.BeforeNextTake</c>), so the normal side-start position must not repeat it.
+    /// </summary>
+    public bool SideTurnStartedEarly;
+
+    /// <summary>The round being advanced is an extra turn (<c>ShouldTakeExtraTurn</c>).</summary>
+    public bool TakingExtraTurn;
 
     /// <summary>
     /// Number of targets killed by the most recent <c>FlashKernel.Damage</c> call. EchoingSlash uses it

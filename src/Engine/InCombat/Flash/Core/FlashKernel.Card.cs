@@ -292,8 +292,8 @@ public static partial class FlashKernel
             return;
 
         // Per-play damage history used by Fisticuffs/Omnislice/HandOfGreed; never part of the state.
-        x.CardDamageTotal = 0;
-        x.CardKilledTarget = false;
+        // The existing engine captures a fresh history start for every CardPlay of a replay/Echo Form
+        // series, so a compensation on a later play must not see an earlier play's damage.
         x.EffectDepth++;
         FlashGeneratedChoiceOptions savedOptionCards = x.GeneratedOptions;
         int savedGeneratedOptions = x.GeneratedOptionCount;
@@ -302,6 +302,8 @@ public static partial class FlashKernel
         {
             if (IsOverOrEnding(x.B))
                 break;
+            x.CardDamageTotal = 0;
+            x.CardKilledTarget = false;
             x.PlayIndex = index;
             FlashCardPlayInfo play = new(card, target, index, playCount, removeFromCombat ? FlashPile.Play : result,
                 FlashPiles.Start(x.B, FlashPile.Play) + playPosition);

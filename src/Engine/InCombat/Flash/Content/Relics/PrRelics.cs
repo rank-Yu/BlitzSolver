@@ -407,6 +407,9 @@ public sealed class ToastyMittens : FlashRelicDef
             {
                 return;
             }
+            FlashKernel.StartPlayerSideTurnIfNeeded(ref x);
+            if (x.NeedsChoice)
+                return;
             FlashKernel.ExhaustSelected(ref x, FlashPile.Hand, selected[..chosen]);
             if (x.NeedsChoice)
                 return;

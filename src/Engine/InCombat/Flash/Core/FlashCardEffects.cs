@@ -118,9 +118,17 @@ public static class FlashCardEffects
     public static void ApplyToAllEnemies(ref FlashExec x, ushort powerId, int amountVar)
     {
         int amount = (int)Var(x, amountVar);
-        for (int position = 0; position < x.B.RosterCount; position++)
+        // SimulatedCombatState.HittableEnemies returns a snapshot: an application that kills its target
+        // (Sleight of Flesh, Doom kill) compacts the roster, and the native foreach still visits every
+        // enemy that was hittable when the effect started. Iterating the live roster count would skip
+        // the entries that shifted left.
+        Span<byte> owners = stackalloc byte[FlashLimits.Enemies];
+        int count = x.B.RosterCount;
+        for (int position = 0; position < count; position++)
+            owners[position] = FlashKernel.EnemyOwner(x.B.Roster[position]);
+        for (int position = 0; position < count; position++)
         {
-            byte owner = FlashKernel.EnemyOwner(x.B.Roster[position]);
+            byte owner = owners[position];
             if (!FlashKernel.IsHittable(x.B, owner))
                 continue;
             FlashKernel.ApplyPower(ref x, owner, powerId, amount, FlashLimits.PlayerOwner);
