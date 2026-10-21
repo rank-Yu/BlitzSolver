@@ -288,18 +288,44 @@ public sealed class TouchOfInsanity : FlashPotionDef
     }
 
     /// <summary>
-    /// <c>CardModel.CostsEnergyOrStars</c>: the first check uses local modifiers only; the second
-    /// includes the combat cost hooks. A negative (Unplayable) or X base cost is not costly in the
-    /// local check, but an X cost can become costly through <c>EnergyCostWithModifiers</c>.
+    /// <c>CardModel.CostsEnergyOrStars</c> (CardModel.cs:1579-1595): the local branch asks
+    /// <c>EnergyCost.GetWithModifiers(CostModifiers.Local) &gt; 0</c> or <c>CurrentStarCost &gt; 0</c>;
+    /// the global branch adds <c>!EnergyCost.CostsX &amp;&amp; GetWithModifiers(All) &gt; 0</c> and
+    /// <c>!HasStarCostX &amp;&amp; GetStarCostWithModifiers() &gt; 0</c>. X-energy costs stay at the
+    /// canonical placeholder 0 in both branches: <c>CardEnergyCost.GetWithModifiers</c> returns it
+    /// before applying modifiers (CardEnergyCost.cs:94-120), and the global branch skips CostsX.
+    /// X-star costs are likewise skipped in the global branch, while the local branch still uses
+    /// CurrentStarCost (a positive temporary star cost on an X-star card is costly natively too).
+    /// The spend-time mirrors <c>EnergyCostWithModifiers</c>/<c>StarCostWithModifiers</c> return all
+    /// current resources for X (GetAmountToSpend/GetStarCostWithModifiers), so they must not feed
+    /// these predicate branches. An Unplayable card keeps its negative base and is not costly; a
+    /// card whose local modifier sets the cost to 0 can still be costly through the global hook
+    /// (the union is intentional). ReplayCount does not participate in either branch.
     /// </summary>
     private static bool CostsEnergyOrStars(ref FlashExec x, in FlashCard card)
     {
-        int localEnergy = FlashKernel.EnergyCostWithLocalModifiers(x.B, card);
+        // Local branch: GetWithModifiers(Local) short-circuits CostsX to the placeholder 0, so do
+        // not let a local modifier make an X-cost card selectable here.
+        int localEnergy = (card.Flags & FlashCardFlags.CostsX) != 0
+            ? 0
+            : FlashKernel.EnergyCostWithLocalModifiers(x.B, card);
         int localStar = card.HasTemporaryStarCost ? card.TemporaryStarCost : card.BaseStarCost;
         if (localEnergy > 0 || localStar > 0)
             return true;
-        return FlashKernel.EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0
-            || FlashKernel.StarCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0;
+        // Global branch: the native method skips X-cost cards before consulting the hook-modified
+        // spend value. Without these gates the X card would inherit the player's current
+        // energy/stars (the diff-NECROBINDER-022 failure) and gain a spurious option.
+        if ((card.Flags & FlashCardFlags.CostsX) == 0
+            && FlashKernel.EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0)
+        {
+            return true;
+        }
+        if ((card.Flags & FlashCardFlags.StarCostsX) == 0
+            && FlashKernel.StarCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0)
+        {
+            return true;
+        }
+        return false;
     }
 }
 
