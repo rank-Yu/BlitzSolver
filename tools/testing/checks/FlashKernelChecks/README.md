@@ -1,6 +1,6 @@
 # Flash 纯内核合同
 
-直接编译 `src/Engine/InCombat/Flash/` 全部源码（含内容定义），不依赖游戏程序集或 CombatSolver 其他代码。
+直接编译 `src/Flash/Kernel/` 与 `src/Flash/Content/` 全部源码，不依赖游戏程序集或 CombatSolver 其他代码。
 
 ```bash
 DOTNET_TieredCompilation=0 dotnet run --project tools/testing/checks/FlashKernelChecks -c Release

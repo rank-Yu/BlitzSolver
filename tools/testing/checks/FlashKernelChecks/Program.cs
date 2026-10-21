@@ -2,12 +2,12 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using CombatSolver.Engine.InCombat.Flash;
-using CombatSolver.Engine.InCombat.Flash.Content.Afflictions;
-using CombatSolver.Engine.InCombat.Flash.Content.Cards.Status;
-using CombatSolver.Engine.InCombat.Flash.Content.Enchantments;
-using CombatSolver.Engine.InCombat.Flash.Content.Powers;
-using CombatSolver.Engine.InCombat.Flash.Content.Relics;
+using CombatSolver.Flash.Kernel;
+using CombatSolver.Flash.Content.Afflictions;
+using CombatSolver.Flash.Content.Cards.Status;
+using CombatSolver.Flash.Content.Enchantments;
+using CombatSolver.Flash.Content.Powers;
+using CombatSolver.Flash.Content.Relics;
 
 // Pure Flash kernel contracts (K0): no game, no CombatSolver assembly. Differential equivalence
 // with the existing engine is checked separately by the offline harness probe.
@@ -518,7 +518,7 @@ static FlashBattle TwBattle(FlashRules rules)
 {
     FlashBattle battle = NewBattle();
     battle.Gold = 0;
-    battle.Enemies[0].MonsterId = FlashRegistry.MonsterId<CombatSolver.Engine.InCombat.Flash.Content.Monsters.Act1.WaterfallGiant>();
+    battle.Enemies[0].MonsterId = FlashRegistry.MonsterId<CombatSolver.Flash.Content.Monsters.Act1.WaterfallGiant>();
     battle.Enemies[0].Rules = 0;
     battle.Enemies[0].Move = 0;
     battle.Enemies[0].ForcedMove = byte.MaxValue;

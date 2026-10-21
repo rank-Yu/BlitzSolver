@@ -46,12 +46,11 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / Shadow 的现有�
 
 目录与依赖：
 
-- `src/Engine/InCombat/Flash/`：纯内核，命名空间 `CombatSolver.Engine.InCombat.Flash`。只依赖 BCL，不引用 MegaCrit、Godot、HarmonyLib 或 CombatSolver 其他命名空间。
-  - `Core/`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power 管线、Hook 派发、选择协议、指纹。
-  - `Content/`：内容定义，按 `Cards/<角色>`、`Powers`、`Relics`、`Potions`、`Monsters`、`Orbs`、`Enchantments`、`Afflictions` 分目录。
-- `src/Search/FlashBeam/`：Flash 搜索与衔接，可以引用 Search、Prediction、Engine 和游戏程序集。
-  - `Bridge/`：准入、规则编译、根导入、动作翻译、路线物化。
-  - 根目录：`FlashBeamSolver`、评分与搜索容器。
+- `src/Flash/`：Flash 模块，依赖方向 `Bridge → Search → Kernel/Content`，目录规则见 `src/Flash/AGENTS.md`。
+  - `Kernel/`（`CombatSolver.Flash.Kernel`）：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power 管线、Hook 派发、选择协议、指纹。只依赖 BCL，不引用 MegaCrit、Godot、HarmonyLib 或 CombatSolver 其他命名空间。
+  - `Content/`（`CombatSolver.Flash.Content.*`）：内容定义，按 `Cards/<角色>`、`Powers`、`Relics`、`Potions`、`Monsters`、`Orbs`、`Enchantments`、`Afflictions` 分目录；只依赖 BCL 与内核。
+  - `Search/`（`CombatSolver.Flash.Search`）：`FlashBeamSolver`、搜索容器，`Scoring/` 为状态评估。
+  - `Bridge/`（`CombatSolver.Flash.Bridge`）：准入、规则编译、根导入、动作翻译、路线核对与物化、开启模式失败约定；可以引用 Search、Prediction、Engine 和游戏程序集。
 - `src/Search/Probes/`：协调器与续接来源共享的开局/前缀探针与评估；不引用 `CombatBeamSolver`。
 - `src/Search/BeamSolveDispatch.cs`：协调器调用 `Solve()` 的唯一分派点。
 

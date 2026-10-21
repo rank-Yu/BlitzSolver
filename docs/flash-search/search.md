@@ -57,7 +57,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 **回合准备根（`IncludeTurnSetup`）**：玩家回合开始的原生选择页在根捕获时还没有作答，捕获的根是 `Player/Start`。Bridge 不把该 Start 状态导入内核，而是先调用共享 `SearchReplayCore.CaptureTurnSetupRoots`（`ChoiceSearchBudget`/`ChoiceOccurrenceCollector` 的唯一实现），按与现有搜索**完全相同的选择预算**把每个准备选择分支回放到稳定 `Play` 状态，再逐个导入 `FlashBattle`。`FlashBeamSolver.Solve` 接收这组根（现有搜索的 frontier 同样从多个准备根出发），返回选中路线的 `BestRootIndex`；路线本身从 `Play` 状态开始，准备选择不占动作数。物化时把选中的 `PlanCardChoice` 向量作为根节点元数据交给共享 `SearchRouteMaterializer`，由它从准备选择后的稳定 `Play` 根回放固定前缀；结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与现有语义同形。物化后逐项核对选择向量，不一致按 `FlashVerificationException` 整条丢弃。准备根在回合开始的生成效果之前捕获，在这些时机生成卡牌的定义（如 `BigHat`、`VexingPuzzlebox`）必须声明 `GeneratedCardPools`，闭包才含其候选卡。回合准备搜索的 Flash 失败与协调器搜索同一约定：写 `FLASH_SEARCH_FAILED`、停止部署、关闭全自动并弹出 Flash 提示，原生选择留给玩家作答。
 
-实现在 `src/Search/FlashBeam/Bridge/FlashRouteMaterializer.cs`、`src/Search/Probes/SearchReplayCore.cs` 与 `src/Search/Probes/SearchRouteMaterializer.cs`。
+实现在 `src/Flash/Bridge/FlashRouteMaterializer.cs`、`src/Search/Probes/SearchReplayCore.cs` 与 `src/Search/Probes/SearchRouteMaterializer.cs`。
 
 回放中任何一步与 Flash 投影不一致都按 [运行时回放核对](admission-and-verification.md#4-运行时回放核对) 处理。
 
@@ -145,7 +145,7 @@ Search 只通过注入的 `SearchDiagnosticsSink` 写事件并抛异常，不引
 
 ### 3.3 Flash 对原搜索类的剩余依赖
 
-Flash 桥接、固定前缀回放、回合准备根与最终物化都已改用 `src/Search/Probes/` 的共享回放核心、`OpeningProbe`、`SearchEvaluator` 和 `SearchRouteMaterializer`；`src/Search/FlashBeam/**` 不再引用 `CombatBeamSolver`，结构门禁同时检查这一点。
+Flash 桥接、固定前缀回放、回合准备根与最终物化都已改用 `src/Search/Probes/` 的共享回放核心、`OpeningProbe`、`SearchEvaluator` 和 `SearchRouteMaterializer`；`src/Flash/Search/**` 与 `src/Flash/Bridge/**` 不引用 `CombatBeamSolver`，结构门禁同时检查这一点。
 
 仍构造原求解器的位置只有分发点的关闭模式与对照模式的现有侧：
 

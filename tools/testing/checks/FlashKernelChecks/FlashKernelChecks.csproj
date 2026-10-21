@@ -8,6 +8,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(CombatSolverRepositoryRoot)src/Engine/InCombat/Flash/**/*.cs" LinkBase="Flash" />
+    <Compile Include="$(CombatSolverRepositoryRoot)src/Flash/Kernel/**/*.cs" LinkBase="Flash/Kernel" />
+    <Compile Include="$(CombatSolverRepositoryRoot)src/Flash/Content/**/*.cs" LinkBase="Flash/Content" />
   </ItemGroup>
 </Project>

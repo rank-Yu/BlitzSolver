@@ -144,7 +144,7 @@ Knowledge Demon、Automation、Sloth 与 EntropicBrew 的投影与惰性规则�
 
 ### 2.1 明确分类的不支持内容与事件内容投影
 
-**显式类别。** 单人原版范围外的卡牌与 Power 不再以笼统的“未定义”拒绝。`FlashUnsupportedContent.Card`/`Power`（`src/Search/FlashBeam/Bridge/FlashUnsupportedContent.cs`）在 `FlashRulesCompiler.CardId` 与 `FlashStateImporter` 的 Power 导入处分类：
+**显式类别。** 单人原版范围外的卡牌与 Power 不再以笼统的“未定义”拒绝。`FlashUnsupportedContent.Card`/`Power`（`src/Flash/Bridge/FlashUnsupportedContent.cs`）在 `FlashRulesCompiler.CardId` 与 `FlashStateImporter` 的 Power 导入处分类：
 
 - `MultiPlayer`：`CardMultiplayerConstraint.MultiplayerOnly` 的 37 张卡（`BEACON_OF_HOPE`、`BLADE_SYMPHONY`、…、`UNDERWORLD`）与 6 个多人专用 Power（`COORDINATE_POWER`、`FADE_POWER`、`HAMMER_TIME_POWER`、`LEADERSHIP_POWER`、`ONE_FOR_ALL_POWER`、`TANK_POWER`）。这些内容在单人流程不会进入牌组；手动注入的根以该类别拒绝。
 - `TestContent`：`MockCardPool` 的卡与 `MOCK_*` Power；`DeprecatedContent`：`DeprecatedCardPool` 的卡。`ModelDb.AllCards` 由 `AllCardPools` 组成，测试池不在其中，因此这两类在正常单机跑局不可达；分类仍是准入路径上的显式类别，不是半成品定义。
