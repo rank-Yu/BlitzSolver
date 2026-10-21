@@ -51,15 +51,15 @@ python3 -B tools/search/FlashRegression/flash_regression.py diff \
 python3 -B tools/search/FlashRegression/flash_regression.py scan --label flash-scan --candidates 8
 ```
 
-48 根质量基准与 79 根协调器对照：
+100 根协调器质量对照（[质量语料](../../coverage/corpora/flash-quality/README.md)，8 个并行进程）：
 
 ```bash
-python3 -B tools/search/FlashRegression/flash_regression.py bench --label flash-bench --budget-ms 10000
-python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label flash-coord
+python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label flash-coord --jobs 8
 ```
 
 协调器的关闭模式基线可用 `--off-baseline <旧结果目录>` 复用；只复跑一根时用
-`--ids <目录名>`，例如 `--ids SILENT-C-13`。
+`--ids <目录名>`，例如 `--ids SILENT-15`。质量语料的随机游走差分用
+`diff --only quality`（默认 48 条游走）。
 
 需要直接调试宿主时，底层单根命令仍是：
 

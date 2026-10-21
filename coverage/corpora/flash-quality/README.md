@@ -1,32 +1,16 @@
-# 四角色质量语料
+# Flash 质量语料
 
-本目录保存 Flash 协调器质量对照使用的 46 个四角色生成牌组。每个子目录是一份
-`spec.json` + `request.json`，`request.json` 的 `generatedScenarioPath` 指向本目录内的规格。
+本目录保存 Flash 协调器 Off/On 质量对照使用的 100 个生成牌组。每个子目录是一份 `spec.json` + `request.json`，`request.json` 的 `generatedScenarioPath` 指向本目录内的规格。
 
-- **来源**：`.local/tool-tasks/flash-search/inputs/rq-set/` 的 46 个根，目录名沿用来源选择时的
-  `<角色>-C-<NN>` / `<角色>-V-<NN>`。底层种子是 `FLASH-DECK-<角色>-<NN>`；46 个根对应 44 个
-  唯一规格，`NECROBINDER-C-00`/`NECROBINDER-V-00` 与 `REGENT-C-07`/`REGENT-V-07` 是同一规格的
-  两份副本，仍作为独立根保留以复现协调器计数。
-- **生成口径**：与 `deck-survey.sh` 相同。固定进阶 10，
-  `includeStartingDeck`/`includeStartingRelics`/`includeAscendersBane` 为真；
-  `characterCards.count = 6 + (i % 7)`、`colorlessCards.count = i % 3`、
-  `relics.count = 2 + i % 4`、`potions.count = i % 3`；按 `i % 2` 取第一/二幕，按 `i % 3`
-  取普通/精英/首领。五个角色中本目录只收静默猎手、故障机器人、储君与亡灵契约师；铁甲战士的
-  33 个第一/二幕牌组在 [flash-decks](../flash-decks/README.md)。
-- **用途**：`tools/search/FlashRegression/flash_regression.py coordinator` 默认读取本目录，
-  加上 `flash-decks` 的 33 个铁甲战士根，共 79 根；每根在 Medium、宽度组合、120 秒预算下跑
-  关闭/开启模式对照。它不进入 493 根差分回归；差分入口仍以 `flash-decks` 与固定根为准。
+- **组成**：五个角色各 20 个牌组（`<角色>-00` … `<角色>-19`）。序号 00–06 为第一幕，07–13 为第二幕，14–19 为第三幕；遭遇种类按序号 `i % 3` 取普通、精英、首领，合计普通 35、精英 35、首领 30。
+- **生成口径**：`flash_regression.py survey --count 20 --act-blocks 7,7,6 --seed-prefix FLASH-QUALITY --vary-extras`，种子为 `FLASH-QUALITY-<角色>-<NN>`。固定进阶 10，`includeStartingDeck`/`includeStartingRelics`/`includeAscendersBane` 为真；额外角色卡 `6 + i % 7` 张（升级 1 级），遗物 `2 + i % 4` 个；无色牌 `(i // 3 + 1) % 3` 张、药水 `(i // 3) % 3` 瓶，这两项不随遭遇种类同步变化，每种遭遇都有 0、1、2 瓶药水的牌组。生成多少收多少，不按 Flash 准入筛选，没有重复规格。
+- **用途**：`tools/search/FlashRegression/flash_regression.py coordinator` 默认读取本目录，每根在 Medium、宽度组合、120 秒预算下分别跑关闭与开启模式，各按实际结果计入。它不进入差分回归；差分输入是 `coverage/fixtures/cards/flash-*.json`、[flash-decks](../flash-decks/README.md) 与 [flash-act3](../flash-act3/README.md)。
 - **复跑**：
 
   ```bash
-  python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label coord
-  python3 -B tools/search/FlashRegression/flash_regression.py coordinator \
-    --label coord-one --ids SILENT-C-13 --budget-ms 120000
+  python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label quality --jobs 8
+  python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label quality-one --ids SILENT-15
   ```
 
-  关闭模式基线可用 `--off-baseline <旧结果目录>` 复用，只重跑开启模式。
-- **记录**：结果写入 `.local/flash-regression/`；本目录只保留输入。替换牌组时同步
-  `request.json` 内的仓库相对路径。
-
-当前质量数字与逐根结论见 [Flash 测试记录](../../../docs/flash-search/testing.md) 2.1；本目录不维护
-流水账。
+  当前口径是 8 个并行进程，并行对耗时的影响见[工具说明](../../../tools/search/FlashRegression/README.md#已知边界)。
+- **记录**：结果写入 `.local/flash-regression/`；本目录只保留输入。替换牌组时同步 `request.json` 内的仓库相对路径。2026-10-21 之前的 79 根对照（四角色 46 个 RQ 牌组 + `flash-decks` 中 33 个铁甲战士牌组）的数字保留在测试记录与归档卷中。
