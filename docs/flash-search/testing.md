@@ -41,7 +41,10 @@ python3 -B tools/search/FlashRegression/flash_regression.py scan --label flash-s
 
 ```bash
 python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label flash-coord --jobs 8
+python3 -B tools/search/FlashRegression/flash_regression.py table .local/flash-regression/flash-coord --corpus coverage/corpora/flash-quality
 ```
+
+`coordinator` 结束时自动写出同一张表（`TABLE-GROUPS.txt`）；`table` 只读已有结果，用于复算或换语料。
 
 协调器的关闭模式基线可用 `--off-baseline <旧结果目录>` 复用；只复跑一根时用
 `--ids <目录名>`，例如 `--ids SILENT-007`。
@@ -87,21 +90,21 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 ### 2.1 当前状态（QF4 合入后）
 
 - 覆盖：五个角色的卡池、296 个遗物、65 种药水、三幕全部遭遇与第三幕首领策略、事件卡牌与事件遭遇。不支持的内容在准入时给出类别：多人专用、Mock、废弃内容，以及现有引擎同样不支持的 BYRDPIP。
-- 质量对照（[质量语料](../../coverage/corpora/flash-quality/README.md) 120 根，协调器 Medium、宽度组合、120 秒，8 个并行进程）。口径：两种模式同一预算、同一档位，每根单次运行，各按实际结果计入；“好/同/差”按（胜负、战略失血、结束回合）比较；同一代码重复测量时个别根有数点波动。
+- 质量对照（[质量语料](../../coverage/corpora/flash-quality/README.md) 120 根，协调器 Medium、宽度组合、120 秒，8 个并行进程）。口径：两种模式同一预算、同一档位，每根单次运行，各按实际结果计入；“好/同/差”按求解器自己的比较键：胜负、存活、死亡豁免次数、战略失血 + 药水战略成本（`RouteQualityPolicy` 的药水口径）、结束回合，差值列是两种模式（战略失血 + 药水战略成本）之差的合计，表由 `flash_regression.py table` 生成；只比较战略失血会把用药换来的少失血算作更好（例如药水成本 45 的路线失血 17，按求解器口径是 62）；同一代码重复测量时个别根有数点波动。
 
-  | 范围 | 根数 | 开启相对关闭（好 / 同 / 差） | 战略失血差 | 胜场 关闭 → 开启 | 总耗时 关闭 → 开启 |
+  | 范围 | 根数 | 开启相对关闭（好 / 同 / 差） | 失血 + 药水成本差 | 胜场 关闭 → 开启 | 总耗时 关闭 → 开启 |
   | --- | ---: | --- | ---: | --- | --- |
-  | 合计 | 120 | 29 / 75 / 16 | +10 | 87 → 89 | 1671 s → 696 s |
-  | 铁甲战士 | 24 | 8 / 14 / 2 | −16 | 20 → 20 | 324 s → 116 s |
-  | 静默猎手 | 24 | 2 / 21 / 1 | −13 | 14 → 14 | 377 s → 157 s |
-  | 故障机器人 | 24 | 5 / 15 / 4 | +27 | 18 → 18 | 247 s → 104 s |
+  | 合计 | 120 | 29 / 74 / 17 | −17 | 87 → 89 | 1671 s → 696 s |
+  | 铁甲战士 | 24 | 7 / 14 / 3 | +2 | 20 → 20 | 324 s → 116 s |
+  | 静默猎手 | 24 | 2 / 21 / 1 | −4 | 14 → 14 | 377 s → 157 s |
+  | 故障机器人 | 24 | 6 / 14 / 4 | −27 | 18 → 18 | 247 s → 104 s |
   | 储君 | 24 | 7 / 11 / 6 | +53 | 18 → 20 | 363 s → 185 s |
   | 亡灵契约师 | 24 | 7 / 14 / 3 | −41 | 17 → 17 | 359 s → 134 s |
   | 第一幕 | 40 | 9 / 28 / 3 | −37 | 40 → 40 | 431 s → 150 s |
-  | 第二幕 | 40 | 10 / 19 / 11 | +85 | 29 → 31 | 740 s → 343 s |
-  | 第三幕 | 40 | 10 / 28 / 2 | −38 | 18 → 18 | 501 s → 203 s |
+  | 第二幕 | 40 | 11 / 18 / 11 | +40 | 29 → 31 | 740 s → 343 s |
+  | 第三幕 | 40 | 9 / 28 / 3 | −20 | 18 → 18 | 501 s → 203 s |
 
-  16 根变差中有 8 根战略失血相同、只是结束回合更晚；失血变多的 8 根是 DEFECT-012（5 → 31）、IRONCLAD-014（47 → 63）、DEFECT-011（15 → 26）、REGENT-021（24 → 31）、IRONCLAD-011（27 → 32）、REGENT-015（23 → 27）、REGENT-013（18 → 19）与 NECROBINDER-022（52 → 55）。IRONCLAD-016 由关闭胜/开启败变为开启 53（关闭 57），已不再在变差列表。
+  17 根变差中有 8 根只是结束回合更晚；代价变多的 9 根是 DEFECT-012（14 → 31，关闭模式含药水成本 9）、IRONCLAD-014（117 → 133）、DEFECT-011（15 → 26）、REGENT-021（24 → 31）、IRONCLAD-011（27 → 32）、REGENT-015（23 → 27）、IRONCLAD-016（71 → 76，开启模式多用药）、NECROBINDER-022（52 → 55）与 REGENT-013（18 → 19）。
 - 120 根开启模式全部 `FLASH_ADOPTED`，没有 `FLASH_SEARCH_FAILED`，开启模式不调用原搜索。6 根共 12 次 `SmartPotionGradient` 由 Flash 判定无路线（`FLASH_NO_ROUTE`），与现有搜索的无路线结果同形。
 - 开启模式的无路线结论与失败类别见 [搜索与接入](search.md) 3.2 节。
 
@@ -115,7 +118,9 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 120 根质量语料暴露的内核问题（QF3，2026-10-21）：质量语料改为五个角色各 24 根、三幕各 8 根（种子 `FLASH-QUALITY-<角色>-<NNN>`，生成口径写死在 `survey`），回归只保留固定根与质量语料。新语料暴露 5 处内核分歧与 2 处内核边界，各补固定根（`flash-qf3-*`、`flash-qt2-*`，修正前失败、修正后为 0）：`SEEKING_EDGE` 先施加 Power 再锻造（REGENT-021）；`ReplaceCard` 不受战斗结束门约束（Hellraiser 抽牌击杀最后敌人后的 Entropy 变换，IRONCLAD-005）；玩家回合末最后敌人死亡后只跳过 late 监听派发，遗物的回合末清零照常执行（DEFECT-011 与随后发现的 KUSARIGAMA/ART_OF_WAR 计数回归）；Plow 按临时力量定义族移除（IRONCLAD-002）；Burrowed 的破格挡补偿延后到该效果的死亡处理之后（REGENT-009）。Decisions, Decisions 的重复自动打出与 Mayhem 的自动预打出队列改用一次动作内的瞬态标记跟踪牌身份，前一张牌移走后一张时从其当前牌堆打出，标记丢失或重复时显式失败（REGENT-007、REGENT-013 不再是内核边界）。同批按类别重组 `src/Flash/Content` 的文件（只移动类型，1,313 个类型的源码逐字相同），`UnsupportedCategories.cs` 移入 `Bridge`。合入前在最终源码上：默认差分 404 根零差异；最终候选扫描 404 根共 2,164 条候选零不一致（`flash-sk-a-discard-sly` 仍是已知内核边界）；120 根质量对照见 2.1；关闭模式与上游 `5c773caa` 在 120 根上逐根质量相同、总耗时 +0.5%。
 
-路线追踪与搜索策略移植（QR、QP1–QP3、QF4，2026-10-21）：新增默认关闭的路线追踪（`flash_regression.py trace`，`OFFLINE_HARNESS_FLASH_TRACE_*`；关闭时 DEFECT-012 开启模式路线、总展开 242,219、总转移 1,621,887 逐位相同），对 QF3 时 8 个失血更多的根定位关闭模式路线在 Flash 中首次被丢弃的位置：IRONCLAD-014、REGENT-021、REGENT-013 在 Flash 中按排名截断，在现有搜索中由必保代表留下（来源标签分别为 stand-pat Control 组、根动作谱系签名组与路由选择）；DEFECT-012 是同指纹去重只留一个代表；REGENT-015 是开局目标变体不同；IRONCLAD-016 是 Liquid Memories 在 Flash 中为空效果；DEFECT-011、IRONCLAD-011 未定位。QP1 照 `PotionChoiceSupport.GetSpec` 实现 Liquid Memories、Ashwater、Gambler's Brew、Touch of Insanity 的选牌（各配 `flash-qp1-*` 固定根，修正前动作集合失败 47/47/46/45），差分新增两侧可选动作集合核对（`actionSetFailed`）。QP2 在池内同指纹去重时按现有转置表的六维标签做 Pareto 拒绝、代表改按 `IsBetterSearchNode`（120 根由 28/76/16、+34 变为 29/75/16、+10，IRONCLAD-016 由未胜变为 53）；单根首步谱系按签名分组再试一次，120 根变为 27/76/17、+45，撤回；stand-pat 诊断显示 IRONCLAD-014 的目标在进入 stand-pat 分组前已被去重代表顶替。QP3 的整次求解转置表与选择完成后的路由键在 120 根上质量不变、未采用（见 [搜索与接入](search.md) 1 节）。合入时默认游走数的全量差分与候选扫描在 quality-NECROBINDER-022 上发现 Touch of Insanity 把 X 费牌列为选项（原版 `CostsEnergyOrStars` 的 global 分支排除 X 费），QF4 修正并补 `flash-qf4-touch-of-insanity-xcost`（修正前 17 条游走失败、修正后 0）。最终源码上：默认差分 409 根零差异；候选扫描 409 根共 2,194 条候选零不一致（`flash-sk-a-discard-sly` 仍是已知内核边界）；120 根质量见 2.1，与 QP2 时逐根相同（含展开数与转移数）；关闭模式基线与 QF3 时的关闭模式 120 根质量逐根相同（118 根展开数也相同，另 2 根受时间预算限制），原搜索只增加默认关闭的诊断，因此没有重跑与上游的对照。
+路线追踪与搜索策略移植（QR、QP1–QP3、QF4，2026-10-21）：新增默认关闭的路线追踪（`flash_regression.py trace`，`OFFLINE_HARNESS_FLASH_TRACE_*`；关闭时 DEFECT-012 开启模式路线、总展开 242,219、总转移 1,621,887 逐位相同），对 QF3 时 8 个失血更多的根定位关闭模式路线在 Flash 中首次被丢弃的位置：IRONCLAD-014、REGENT-021、REGENT-013 在 Flash 中按排名截断，在现有搜索中由必保代表留下（来源标签分别为 stand-pat Control 组、根动作谱系签名组与路由选择）；DEFECT-012 当时记为同指纹去重只留一个代表（QH2 修正追踪后，真正的丢失在第 6 步的普通排名截断，见下一段）；REGENT-015 是开局目标变体不同；IRONCLAD-016 是 Liquid Memories 在 Flash 中为空效果；DEFECT-011、IRONCLAD-011 未定位。QP1 照 `PotionChoiceSupport.GetSpec` 实现 Liquid Memories、Ashwater、Gambler's Brew、Touch of Insanity 的选牌（各配 `flash-qp1-*` 固定根，修正前动作集合失败 47/47/46/45），差分新增两侧可选动作集合核对（`actionSetFailed`）。QP2 在池内同指纹去重时按现有转置表的六维标签做 Pareto 拒绝、代表改按 `IsBetterSearchNode`（120 根由 28/76/16、+34 变为 29/75/16、+10，IRONCLAD-016 由未胜变为 53）；单根首步谱系按签名分组再试一次，120 根变为 27/76/17、+45，撤回；stand-pat 诊断当时显示 IRONCLAD-014 的目标在进入 stand-pat 分组前已被去重代表顶替（这一结论来自去重后断开跟踪的旧追踪，QH2 之后未重查）。QP3 的整次求解转置表与选择完成后的路由键在 120 根上质量不变、未采用（见 [搜索与接入](search.md) 1 节）。合入时默认游走数的全量差分与候选扫描在 quality-NECROBINDER-022 上发现 Touch of Insanity 把 X 费牌列为选项（原版 `CostsEnergyOrStars` 的 global 分支排除 X 费），QF4 修正并补 `flash-qf4-touch-of-insanity-xcost`（修正前 17 条游走失败、修正后 0）。最终源码上：默认差分 409 根零差异；候选扫描 409 根共 2,194 条候选零不一致（`flash-sk-a-discard-sly` 仍是已知内核边界）；120 根质量见 2.1，与 QP2 时逐根相同（含展开数与转移数）；关闭模式基线与 QF3 时的关闭模式 120 根质量逐根相同（118 根展开数也相同，另 2 根受时间预算限制），原搜索只增加默认关闭的诊断，因此没有重跑与上游的对照。
+
+历史对照的变差根（QH、QH2，2026-10-21）：用当前代码只跑开启模式、关闭模式复用当时结果（原搜索自那时起只加默认关闭的诊断），旧 79 根按求解器口径 19/50/10、差值 −60，旧 100 根 30/60/10、+226（NECROBINDER-18 一根 +194）。11 个变差根各跑 48 条游走差分与候选扫描，全部零差异，两种模式导入的根逐字段相同。追踪改为同指纹去重后接到留下的代表节点继续（同一状态字节的另一条到达路线，状态仍在池里），此前归为“去重先到先得”的 5 根真正的丢失都在后面的层：REGENT-V-27（第 8 步，排名 508/960、宽度 240）、IRONCLAD-53（第 34 步）、DEFECT-012（第 6 步，Flash 排名 305/4643，现有搜索排名 17/60）是普通排名截断；REGENT-02（第 6 步，现有搜索由 `cohort.PrefixVariants[round]` 必保代表留下）与 SILENT-C-14（第 12 步，现有搜索由防御必保代表留下）是 Flash 没有对应的必保分组。NECROBINDER-C-08 的准备类领先者在 Flash 中存在并选中了准备值更高的节点，目标不是任何已移植分组的领先者。REGENT-V-03 关闭模式的 7 来自回合边界救援，该阶段只在主搜索结果足够好时进入，开启模式 w90 成员输掉后没有进入。IRONCLAD-28 开启模式原始失血更少（45 对 47），差 2 点来自成长奖励。NECROBINDER-18 两种模式各成员的原始失血都在 63–68，开启模式的路线族都要用死亡豁免，比较器按死亡豁免次数与溢价计入。RQ 时期 IRONCLAD-17 开启模式的失血 17 用了一瓶药（成本 45），按求解器口径是 62，SR 之后的 56 是改进而不是退化。
 
 ### 2.3 无人测试实机部署
 

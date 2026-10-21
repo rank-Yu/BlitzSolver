@@ -3589,6 +3589,52 @@ internal sealed partial class FlashBeamSolver
             return added;
         }
 
+        private FlashTraceRouteInfo TraceInfo(int node, int poolSlot, in PoolLabel label)
+        {
+            RouteNode route = _routeNodes[node];
+            RetentionFacts facts = _facts[poolSlot];
+            return new FlashTraceRouteInfo(
+                route.RootActionKey, route.Lineage, route.Commitment, _potionCosts[poolSlot],
+                facts.PotionCount, route.PotionId, route.RoutingSignatureId,
+                label.PotionCount, label.PotionStrategicCost, label.FutureSoldHp,
+                label.CumulativePlayerHpLost, label.ActionCount, label.Score,
+                facts.SetupValue, facts.SetupComboValue,
+                facts.EnemyHp, facts.ProjectedPlayerHp, facts.Turn, facts.Depth);
+        }
+
+        private FlashTraceRouteInfo TargetTraceInfo(int node, int potionCost, in FlashScoreFeatures features,
+            int depth, double score, in PoolLabel label, int setupValue, int setupCombo)
+        {
+            RouteNode route = _routeNodes[node];
+            return new FlashTraceRouteInfo(
+                route.RootActionKey, route.Lineage, route.Commitment, potionCost,
+                features.PotionUseCount, route.PotionId, route.RoutingSignatureId,
+                label.PotionCount, label.PotionStrategicCost, label.FutureSoldHp,
+                label.CumulativePlayerHpLost, label.ActionCount, label.Score,
+                setupValue, setupCombo,
+                features.EnemyHp, features.ProjectedPlayerHp, features.Turn, depth);
+        }
+
+        private FlashTraceSetupLeader SetupLeaderInfo(int slot)
+            => new(_nodes[slot], _facts[slot].SetupValue, _facts[slot].SetupComboValue,
+                _facts[slot].RetainedAttackValue, _facts[slot].ProjectedPlayerHp, _scores[slot],
+                _rankPosition[slot], _required[slot]);
+
+        private void TraceSetupLeader(string lane, int leaderSlot)
+        {
+            if (_trace == null || leaderSlot < 0)
+                return;
+            for (int slot = 0; slot < Count; slot++)
+            {
+                if (!_trace.IsWatched(_nodes[slot]))
+                    continue;
+                _trace.SetupLeader(lane, SetupLeaderInfo(slot), SetupLeaderInfo(leaderSlot),
+                    IsBetterSetupCombo(_facts[slot], _facts[leaderSlot]),
+                    "SetupComboValue>RetainedAttackValue>ProjectedHp>Score");
+                return;
+            }
+        }
+
         private bool Insert(ref FlashBattle state, bool inPlace, int node, double score, double rank,
             double pureRank, int potionCost, in FlashScoreFeatures features, in RetentionFacts knownFacts,
             bool factsReady, int depth, ulong lineage, int payoffCount, int commitment,
@@ -3625,10 +3671,16 @@ internal sealed partial class FlashBeamSolver
                     if (dominated)
                     {
                         if (_trace != null && !factsReady)
+                        {
+                            FlashTraceRouteInfo targetInfo = TargetTraceInfo(node, potionCost, features,
+                                depth, score, nextLabel, _facts[existing].SetupValue, _facts[existing].SetupComboValue);
+                            FlashTraceRouteInfo existingInfo = TraceInfo(existingNode, existing, labels[0]);
                             _trace.NodeInserted(node, added: false, existingNode, incomingWon: false,
                                 rank, _ranks[existing], score, _scores[existing], _facts[existing].PotionCount,
                                 _facts[existing].Turn, _facts[existing].Depth,
-                                _facts[existing].EnemyHp, _facts[existing].ProjectedPlayerHp);
+                                _facts[existing].EnemyHp, _facts[existing].ProjectedPlayerHp,
+                                targetInfo, existingInfo);
+                        }
                         return false;
                     }
                     labels.RemoveAll(current => Dominates(nextLabel, current));
@@ -3662,10 +3714,14 @@ internal sealed partial class FlashBeamSolver
                     }
                     if (_trace != null && !factsReady)
                     {
+                        FlashTraceRouteInfo targetInfo = TargetTraceInfo(node, potionCost, features,
+                            depth, score, nextLabel, _facts[existing].SetupValue, _facts[existing].SetupComboValue);
+                        FlashTraceRouteInfo existingInfo = TraceInfo(existingNode, existing, labels[0]);
                         _trace.NodeInserted(node, added: false, existingNode, incomingWon,
                             rank, _ranks[existing], score, _scores[existing], _facts[existing].PotionCount,
                             _facts[existing].Turn, _facts[existing].Depth,
-                            _facts[existing].EnemyHp, _facts[existing].ProjectedPlayerHp);
+                            _facts[existing].EnemyHp, _facts[existing].ProjectedPlayerHp,
+                            targetInfo, existingInfo);
                     }
                     return false;
                 }
@@ -3709,7 +3765,14 @@ internal sealed partial class FlashBeamSolver
             _table[FreeSlot(hash, _table.Length - 1)] = Count + 1;
             Count++;
             if (_trace != null && !factsReady)
-                _trace.NodeInserted(node, added: true, -1, false, rank, 0, score, 0, 0, 0, 0, 0, 0);
+            {
+                FlashTraceRouteInfo targetInfo = TargetTraceInfo(node, potionCost, features,
+                    depth, score, new PoolLabel(features.PotionUseCount, features.PotionStrategicCost,
+                        facts.FutureSoldHp, features.CumulativePlayerHpLost, depth, score),
+                    facts.SetupValue, facts.SetupComboValue);
+                _trace.NodeInserted(node, added: true, -1, false, rank, 0, score, 0, 0, 0, 0, 0, 0,
+                    targetInfo, default);
+            }
             return true;
         }
 
@@ -4756,6 +4819,46 @@ internal sealed partial class FlashBeamSolver
             }
             AddOrderedPileRepresentatives(required, width, turnBoundary);
             AddParetoRepresentatives(required, width);
+            if (_trace != null)
+            {
+                for (int slot = 0; slot < Count; slot++)
+                {
+                    int targetNode = _nodes[slot];
+                    if (!_trace.IsWatched(targetNode))
+                        continue;
+                    FlashTraceSetupLeader target = SetupLeaderInfo(slot);
+                    if (_potionLeaders.TryGetValue(_facts[slot].PotionCount, out PotionLeaders? potion))
+                    {
+                        if (potion.Setup >= 0)
+                        {
+                            _trace.SetupLeader("potion.Setup", target, SetupLeaderInfo(potion.Setup),
+                                IsBetterSetup(_facts[slot], _facts[potion.Setup]),
+                                "SetupValue>RetainedAttackValue>ProjectedHp>Score");
+                        }
+                        if (potion.SetupCombo >= 0)
+                        {
+                            _trace.SetupLeader("potion.SetupCombo", target,
+                                SetupLeaderInfo(potion.SetupCombo),
+                                IsBetterSetupCombo(_facts[slot], _facts[potion.SetupCombo]),
+                                "SetupComboValue>RetainedAttackValue>ProjectedHp>Score");
+                        }
+                    }
+                    if (bestSetup >= 0)
+                    {
+                        _trace.SetupLeader("global.Setup", target, SetupLeaderInfo(bestSetup),
+                            IsBetterSetup(_facts[slot], _facts[bestSetup]),
+                            "SetupValue>RetainedAttackValue>ProjectedHp>Score");
+                    }
+                    if (bestSetupCombo >= 0)
+                    {
+                        _trace.SetupLeader("global.SetupCombo", target,
+                            SetupLeaderInfo(bestSetupCombo),
+                            IsBetterSetupCombo(_facts[slot], _facts[bestSetupCombo]),
+                            "SetupComboValue>RetainedAttackValue>ProjectedHp>Score");
+                    }
+                    break;
+                }
+            }
         }
 
         /// <summary>The existing routing-context window; Art of War widens it to eight rounds.</summary>
@@ -4887,7 +4990,9 @@ internal sealed partial class FlashBeamSolver
                 AddRoutingCandidate(PreferMostVulnerableTargetVariant(_routingFamilyNodes,
                     FindBestTargetPressure(_routingFamilyNodes)));
                 AddRoutingCandidate(FindBestDeckCuration(_routingFamilyNodes));
-                AddRoutingCandidate(FindBestSetup(_routingFamilyNodes));
+                int routingFamilySetup = FindBestSetup(_routingFamilyNodes);
+                TraceSetupLeader("routingFamily.SetupCombo", routingFamilySetup);
+                AddRoutingCandidate(routingFamilySetup);
 
                 CollectionsMarshal.AsSpan(_routingOptionOrder)
                     .Sort(new RoutingBucketComparer<RoutingOptionKey>(_routingOptions));

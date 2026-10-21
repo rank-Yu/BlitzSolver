@@ -3,6 +3,46 @@ using CombatSolver.Flash.Kernel;
 namespace CombatSolver.Flash.Search;
 
 /// <summary>
+/// Route metadata attached to one pool seat for the offline trace only. It mirrors the fields the
+/// pool already keeps for ranking and required-representative selection; building it allocates
+/// nothing and it never enters the state key or a retention decision.
+/// </summary>
+internal readonly record struct FlashTraceRouteInfo(
+    ulong RootActionKey,
+    ulong Lineage,
+    int Commitment,
+    int PotionCost,
+    int PotionCount,
+    int PotionId,
+    int RoutingSignatureId,
+    int LabelPotionCount,
+    int LabelPotionStrategicCost,
+    int LabelFutureSoldHp,
+    int LabelCumulativePlayerHpLost,
+    int LabelActionCount,
+    double LabelScore,
+    int SetupValue,
+    int SetupComboValue,
+    int EnemyHp,
+    int ProjectedPlayerHp,
+    int Turn,
+    int Depth);
+
+/// <summary>
+/// One setup-lane leader/target projection for the offline trace. The values are the same
+/// <c>SetupLaneValue</c>/<c>SetupComboValue</c> and tie-break fields the pool's setup comparer reads.
+/// </summary>
+internal readonly record struct FlashTraceSetupLeader(
+    int Node,
+    int SetupValue,
+    int SetupComboValue,
+    int RetainedAttackValue,
+    int ProjectedPlayerHp,
+    double Score,
+    int RankPosition,
+    bool Required);
+
+/// <summary>
 /// Offline-only route trace for <see cref="FlashBeamSolver"/>. The solver reports every point where a
 /// state can be dropped (generation, dedup, rank truncation, lane representatives, incumbent/ceiling
 /// pruning, end-turn compaction and budget end) with the route node identity it already carries.
@@ -31,7 +71,15 @@ internal abstract class FlashBeamTrace
     internal abstract void NodeInserted(int node, bool added, int existingNode, bool incomingWon,
         double rank, double existingRank, double score, double existingScore,
         int existingPotionCount, int existingTurn, int existingDepth, int existingEnemyHp,
-        int existingProjectedHp);
+        int existingProjectedHp, in FlashTraceRouteInfo targetInfo, in FlashTraceRouteInfo existingInfo);
+
+    /// <summary>
+    /// The setup-lane leader the pool actually selected for the target's potion group/global lane,
+    /// compared with the target under the pool's own <c>IsBetterSetup</c>/<c>IsBetterSetupCombo</c>
+    /// key. Called only for a watched target.
+    /// </summary>
+    internal abstract void SetupLeader(string lane, in FlashTraceSetupLeader target,
+        in FlashTraceSetupLeader leader, bool targetBeatsLeader, string comparison);
 
     /// <summary>
     /// The pool's selection rule ran. <paramref name="phase"/> is the solver phase
