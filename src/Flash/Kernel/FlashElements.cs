@@ -129,6 +129,17 @@ public struct FlashCard
     public byte ModifierCount;
 
     public sbyte TemporaryStarCost;
+
+    /// <summary>
+    /// The stack of temporary star-cost entries older than the current one. Bits 0-1 hold the older
+    /// entry count (0..2); each older entry uses two bits starting at bit 2 for its clear flags
+    /// (bit 0 = clears at turn end, bit 1 = clears when played). All entries share
+    /// <see cref="TemporaryStarCost"/>: the native bookkeeping keeps a list, but the only vanilla
+    /// sources in scope set the same cost (normally 0) and differ only in expiry. A different cost on
+    /// top of an existing entry is an explicit capacity boundary, as before.
+    /// </summary>
+    public byte TemporaryStarCostStack;
+
     public byte EnchantmentId;
     public byte AfflictionId;
     public short EnchantmentAmount;
@@ -189,14 +200,51 @@ public struct FlashCard
         set => CostState = (byte)((CostState & ~ReturnToHandNextTurnBit) | (value ? ReturnToHandNextTurnBit : 0));
     }
 
+    private const int TemporaryStarHistoryShift = 2;
+    private const byte TemporaryStarHistoryMask = 0x03;
+
+    /// <summary>Number of temporary star-cost entries, current plus older ones (0..3).</summary>
+    public readonly int TemporaryStarCostCount
+        => HasTemporaryStarCost ? 1 + (TemporaryStarCostStack & TemporaryStarHistoryMask) : 0;
+
     public readonly bool HasTemporaryStarCost => (CostState & TemporaryStarPresentBit) != 0;
 
     public readonly bool TemporaryStarCostClearsAtTurnEnd => (CostState & TemporaryStarClearsAtTurnEndBit) != 0;
 
     public readonly bool TemporaryStarCostClearsWhenPlayed => (CostState & TemporaryStarClearsWhenPlayedBit) != 0;
 
+    /// <summary>
+    /// Native <c>CardModel.SetTemporaryStarCost</c>: append 0/short-lived entries. CurrentStarCost
+    /// reads the last one; the earlier entries stay until their own cleanup removes them.
+    /// </summary>
     public void SetTemporaryStarCost(int cost, bool clearsAtTurnEnd, bool clearsWhenPlayed)
     {
+        int history = HasTemporaryStarCost ? TemporaryStarCostStack & TemporaryStarHistoryMask : 0;
+        int count = HasTemporaryStarCost ? 1 + history : 0;
+        if (count > 0 && TemporaryStarCost != checked((sbyte)cost))
+        {
+            throw new FlashCapacityException("Card.TemporaryStarCosts", 2);
+        }
+        // Identical entries behave exactly like one entry: CurrentStarCost reads the last one and
+        // both cleanup passes remove the whole expiration class. Collapse them so a stack of the
+        // same free effect cannot consume the small history.
+        if (count > 0 && TemporaryStarCostClearsAtTurnEnd == clearsAtTurnEnd
+            && TemporaryStarCostClearsWhenPlayed == clearsWhenPlayed)
+        {
+            TemporaryStarCost = checked((sbyte)cost);
+            return;
+        }
+        if (count >= 3)
+            throw new FlashCapacityException("Card.TemporaryStarCosts", 3);
+        if (count > 0)
+        {
+            byte flags = (byte)((TemporaryStarCostClearsAtTurnEnd ? 1 : 0)
+                | (TemporaryStarCostClearsWhenPlayed ? 2 : 0));
+            int shift = TemporaryStarHistoryShift + history * 2;
+            TemporaryStarCostStack = (byte)((TemporaryStarCostStack & ~(3 << shift)) | (flags << shift));
+            TemporaryStarCostStack = (byte)((TemporaryStarCostStack & ~TemporaryStarHistoryMask)
+                | (history + 1));
+        }
         TemporaryStarCost = checked((sbyte)cost);
         CostState = (byte)((CostState & ~(TemporaryStarPresentBit | TemporaryStarClearsAtTurnEndBit | TemporaryStarClearsWhenPlayedBit))
             | TemporaryStarPresentBit
@@ -204,9 +252,50 @@ public struct FlashCard
             | (clearsWhenPlayed ? TemporaryStarClearsWhenPlayedBit : 0));
     }
 
+    /// <summary>
+    /// Mirrors <c>CardModel.EndOfTurnCleanup</c>/<c>AfterCardPlayedCleanup</c> for the temporary star
+    /// cost list: remove every entry whose clear flag matches and preserve the rest in order.
+    /// </summary>
+    public void RemoveTemporaryStarCosts(bool atTurnEnd)
+    {
+        if (!HasTemporaryStarCost)
+            return;
+        Span<byte> flags = stackalloc byte[3];
+        int count = TemporaryStarCostCount;
+        flags[0] = (byte)((TemporaryStarCostClearsAtTurnEnd ? 1 : 0)
+            | (TemporaryStarCostClearsWhenPlayed ? 2 : 0));
+        for (int index = 1; index < count; index++)
+        {
+            int shift = TemporaryStarHistoryShift + (index - 1) * 2;
+            flags[index] = (byte)((TemporaryStarCostStack >> shift) & 0x03);
+        }
+        byte mask = atTurnEnd ? (byte)1 : (byte)2;
+        int kept = 0;
+        for (int index = 0; index < count; index++)
+        {
+            if ((flags[index] & mask) == 0)
+                flags[kept++] = flags[index];
+        }
+        if (kept == 0)
+        {
+            ClearTemporaryStarCost();
+            return;
+        }
+        CostState = (byte)((CostState & ~(TemporaryStarClearsAtTurnEndBit | TemporaryStarClearsWhenPlayedBit))
+            | ((flags[0] & 1) != 0 ? TemporaryStarClearsAtTurnEndBit : 0)
+            | ((flags[0] & 2) != 0 ? TemporaryStarClearsWhenPlayedBit : 0));
+        TemporaryStarCostStack = (byte)(kept - 1);
+        for (int index = 1; index < kept; index++)
+        {
+            int shift = TemporaryStarHistoryShift + (index - 1) * 2;
+            TemporaryStarCostStack = (byte)((TemporaryStarCostStack & ~(3 << shift)) | (flags[index] << shift));
+        }
+    }
+
     public void ClearTemporaryStarCost()
     {
         TemporaryStarCost = 0;
+        TemporaryStarCostStack = 0;
         CostState = (byte)(CostState & ~(TemporaryStarPresentBit | TemporaryStarClearsAtTurnEndBit | TemporaryStarClearsWhenPlayedBit));
     }
 

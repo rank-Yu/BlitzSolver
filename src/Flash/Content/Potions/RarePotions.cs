@@ -277,14 +277,12 @@ public sealed class DropletOfPrecognition : FlashPotionDef
     // inside AddToPile, which FlashKernel.MoveCard reproduces.
     public override void OnUse(ref FlashExec x)
     {
-        if (x.B.DrawCount == 0)
-            return;
         Span<int> options = stackalloc int[x.B.DrawCount];
         for (int index = 0; index < x.B.DrawCount; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.MoveToHand, FlashPile.Draw,
-                options, 1, selected, out int chosen))
+        if (!FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.MoveToHand, FlashPile.Draw,
+                options, 1, 1, selected, out int chosen))
         {
             return;
         }
@@ -306,10 +304,28 @@ public sealed class FruitJuice : FlashPotionDef
 [FlashContent("LIQUID_MEMORIES")]
 public sealed class LiquidMemories : FlashPotionDef
 {
-    // LiquidMemories is a no-op in PotionOnUseSupport.Use: the current search does not resolve its
-    // discard-pile selection.
+    // PotionChoiceSupport.GetSpec: ExactSpec(MoveToHandFreeThisTurn, Discard, every discard-pile
+    // card), in discard-pile order. Apply marks each selected card free for this turn before
+    // AddToPile(selected, Hand), which appends at the bottom.
     public override void OnUse(ref FlashExec x)
     {
+        Span<int> options = stackalloc int[x.B.DiscardCount];
+        for (int index = 0; index < options.Length; index++)
+            options[index] = index;
+        Span<int> selected = stackalloc int[1];
+        if (!FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.MoveToHandFreeThisTurn,
+                FlashPile.Discard, options, 1, 1, selected, out int chosen))
+        {
+            return;
+        }
+        int discardStart = FlashPiles.Start(x.B, FlashPile.Discard);
+        for (int index = 0; index < chosen; index++)
+        {
+            ref FlashCard card = ref x.B.Cards[discardStart + selected[index]];
+            FlashKernel.MakeFreeThisTurn(x.R, ref card);
+        }
+        FlashKernel.MoveSelected(ref x.B, FlashPile.Discard, selected[..chosen], FlashPile.Hand,
+            FlashPilePosition.Bottom);
     }
 }
 

@@ -134,10 +134,21 @@ public sealed class PotionOfCapacity : FlashPotionDef
 [FlashContent("ASHWATER")]
 public sealed class Ashwater : FlashPotionDef
 {
-    // Ashwater is a no-op in PotionOnUseSupport.Use: the current search does not resolve its
-    // hand-selection exhaust.
+    // PotionChoiceSupport.GetSpec: RangeSpec(Exhaust, Hand, 0..Hand.Count, every hand card), in
+    // hand order. Apply exhausts the selected cards in selection order through the normal Exhaust
+    // hooks, so a hook that asks another choice stops the potion exactly like the existing engine.
     public override void OnUse(ref FlashExec x)
     {
+        Span<int> options = stackalloc int[x.B.HandCount];
+        for (int index = 0; index < options.Length; index++)
+            options[index] = index;
+        Span<int> selected = stackalloc int[x.B.HandCount];
+        if (!FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.Exhaust, FlashPile.Hand,
+                options, 0, options.Length, selected, out int chosen))
+        {
+            return;
+        }
+        FlashKernel.ExhaustSelected(ref x, FlashPile.Hand, selected[..chosen]);
     }
 }
 
@@ -191,10 +202,22 @@ public sealed class Fortifier : FlashPotionDef
 [FlashContent("GAMBLERS_BREW")]
 public sealed class GamblersBrew : FlashPotionDef
 {
-    // GamblersBrew is a no-op in PotionOnUseSupport.Use: the current search does not resolve its
-    // discard-and-draw hand selection.
+    // PotionChoiceSupport.GetSpec: RangeSpec(DiscardAndDraw, Hand, 0..Hand.Count, every hand card),
+    // in hand order. Apply calls simulator.DiscardAndDraw(selected, selected.Count): discard each
+    // selected card through the normal hook/Sly pipeline, then draw as many, then auto-play the
+    // cards that were Sly at discard time.
     public override void OnUse(ref FlashExec x)
     {
+        Span<int> options = stackalloc int[x.B.HandCount];
+        for (int index = 0; index < options.Length; index++)
+            options[index] = index;
+        Span<int> selected = stackalloc int[x.B.HandCount];
+        if (!FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.DiscardAndDraw, FlashPile.Hand,
+                options, 0, options.Length, selected, out int chosen))
+        {
+            return;
+        }
+        FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, selected[..chosen], chosen);
     }
 }
 
@@ -237,10 +260,46 @@ public sealed class StableSerum : FlashPotionDef
 [FlashContent("TOUCH_OF_INSANITY")]
 public sealed class TouchOfInsanity : FlashPotionDef
 {
-    // TouchOfInsanity is a no-op in PotionOnUseSupport.Use: the current search does not resolve its
-    // hand selection that makes a card free for the combat.
+    // PotionChoiceSupport.GetSpec: ExactSpec(SetFreeThisCombat, Hand, hand cards that cost energy
+    // or stars). CostsEnergyOrStars is checked first with local modifiers and then with global
+    // modifiers; the union is the option list because either predicate includes the card. Apply
+    // calls SetToFreeThisCombat on the selected card and does not move it.
     public override void OnUse(ref FlashExec x)
     {
+        Span<int> options = stackalloc int[x.B.HandCount];
+        int optionCount = 0;
+        for (int index = 0; index < x.B.HandCount; index++)
+        {
+            if (CostsEnergyOrStars(ref x, x.B.Cards[index]))
+                options[optionCount++] = index;
+        }
+        Span<int> selected = stackalloc int[1];
+        if (!FlashKernel.ChooseCardsInRange(ref x, FlashChoiceEffect.SetFreeThisCombat, FlashPile.Hand,
+                options[..optionCount], 1, 1, selected, out int chosen))
+        {
+            return;
+        }
+        int handStart = FlashPiles.Start(x.B, FlashPile.Hand);
+        for (int index = 0; index < chosen; index++)
+        {
+            ref FlashCard card = ref x.B.Cards[handStart + selected[index]];
+            FlashKernel.MakeFreeThisCombat(x.R, ref card);
+        }
+    }
+
+    /// <summary>
+    /// <c>CardModel.CostsEnergyOrStars</c>: the first check uses local modifiers only; the second
+    /// includes the combat cost hooks. A negative (Unplayable) or X base cost is not costly in the
+    /// local check, but an X cost can become costly through <c>EnergyCostWithModifiers</c>.
+    /// </summary>
+    private static bool CostsEnergyOrStars(ref FlashExec x, in FlashCard card)
+    {
+        int localEnergy = FlashKernel.EnergyCostWithLocalModifiers(x.B, card);
+        int localStar = card.HasTemporaryStarCost ? card.TemporaryStarCost : card.BaseStarCost;
+        if (localEnergy > 0 || localStar > 0)
+            return true;
+        return FlashKernel.EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0
+            || FlashKernel.StarCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0;
     }
 }
 

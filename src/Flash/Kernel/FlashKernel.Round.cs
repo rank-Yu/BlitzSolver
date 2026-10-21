@@ -502,8 +502,8 @@ public static partial class FlashKernel
         for (int index = kept; index < FlashLimits.CardEnergyCostModifiers; index++)
             card.EnergyModifiers[index] = default;
         card.EnergyModifierCount = kept;
-        if (card.HasTemporaryStarCost && card.TemporaryStarCostClearsAtTurnEnd)
-            card.ClearTemporaryStarCost();
+        if (card.HasTemporaryStarCost)
+            card.RemoveTemporaryStarCosts(atTurnEnd: true);
     }
 
     /// <summary>

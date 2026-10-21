@@ -92,6 +92,15 @@ public enum FlashChoiceEffect : byte
     Exhaust,
     Upgrade,
 
+    /// <summary>Discard the selected hand cards, then draw as many (GamblersBrew).</summary>
+    DiscardAndDraw,
+
+    /// <summary>Move the selected cards to hand and make them free this turn (LiquidMemories).</summary>
+    MoveToHandFreeThisTurn,
+
+    /// <summary>Make the selected hand cards free for the rest of combat (TouchOfInsanity).</summary>
+    SetFreeThisCombat,
+
     /// <summary>Pick one generated option and add a free-this-turn clone to hand (Discovery, Splash).</summary>
     GenerateToHand,
 
