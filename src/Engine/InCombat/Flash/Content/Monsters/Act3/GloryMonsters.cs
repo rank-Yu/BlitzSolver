@@ -823,6 +823,8 @@ public sealed class Axebot : FlashMonsterDef
 [FlashContent("TEST_SUBJECT")]
 public sealed class TestSubject : FlashMonsterDef
 {
+    internal const string MultiClawMoveId = "MULTI_CLAW_MOVE";
+
     private const int BurningGrowlBurnStat = 0;
     private const int BurningGrowlStrengthStat = 1;
     private const int RespawnsRegister = 0;

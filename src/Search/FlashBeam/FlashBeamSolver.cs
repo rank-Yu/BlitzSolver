@@ -12,6 +12,9 @@ internal sealed record FlashBeamOptions(
     TimeSpan SoftTimeBudget,
     int InitialPlayerMaxHp)
 {
+    /// <summary>Number of final candidate routes retained for offline replay scanning (0 = off).</summary>
+    public int CandidateScanCount { get; init; }
+
     /// <summary>Share of each beam layer reserved for the most offensive states (lowest enemy HP).</summary>
     public double OffensiveShare { get; init; } = 0.25;
 
@@ -313,6 +316,7 @@ internal sealed record FlashForcedPotionDirectives(
 
 internal sealed record FlashBeamResult(
     FlashAction[] BestRoute,
+    IReadOnlyList<FlashAction[]> TopRoutes,
     bool BestIsVictory,
     bool BestIsDefeat,
     double BestScore,
@@ -668,6 +672,7 @@ internal sealed partial class FlashBeamSolver
         RouteKey? best = null;
         int bestNode = 0;
         bool bestVictory = false, bestDefeat = false;
+        List<(RouteKey Key, int Node)> candidateRoutes = [];
         void Consider(in FlashBattle state, int node, in RouteKey key,
             in FlashScoreFeatures features)
         {
@@ -687,6 +692,8 @@ internal sealed partial class FlashBeamSolver
         bool hpTargetReached = false, zeroDamageVictory = false;
         void ConsiderCandidate(in FlashBattle state, int node, in FlashScoreFeatures features, in RouteKey key)
         {
+            if (_options.CandidateScanCount > 0)
+                candidateRoutes.Add((key, node));
             if (_auditPotionPolicy)
                 ConsiderAudited(node, features, key);
             else
@@ -823,6 +830,19 @@ internal sealed partial class FlashBeamSolver
         if (_takeoverAction != FlashTakeoverAction.None)
             return TakeoverResult(turns);
 
+        FlashAction[][] TopCandidateRoutes()
+        {
+            int count = Math.Min(_options.CandidateScanCount, candidateRoutes.Count);
+            if (count <= 0)
+                return [];
+            List<(RouteKey Key, int Node)> ordered = [.. candidateRoutes];
+            ordered.Sort((left, right) =>
+            {
+                int comparison = CompareRoutes(left.Key, right.Key);
+                return comparison != 0 ? comparison : left.Node.CompareTo(right.Node);
+            });
+            return ordered.Take(count).Select(item => Route(item.Node)).ToArray();
+        }
         if (_auditPotionPolicy)
         {
             // The existing final ordering evaluates every surviving boundary state next to the terminal
@@ -844,7 +864,7 @@ internal sealed partial class FlashBeamSolver
                 bestDefeat = auditedDefeat;
             }
             FlashBeamResult audited = new(_auditPotionPolicy && best is null ? [] : Route(bestNode),
-                bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
+                TopCandidateRoutes(), bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
                 _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
             {
                 CapacityPruned = _capacityPruned,
@@ -880,7 +900,7 @@ internal sealed partial class FlashBeamSolver
                 Consider(state, node, Key(state, features, actionCount), features);
             }
         }
-        FlashBeamResult result = new(Route(bestNode), bestVictory, bestDefeat,
+        FlashBeamResult result = new(Route(bestNode), TopCandidateRoutes(), bestVictory, bestDefeat,
             best?.Score ?? double.NegativeInfinity,
             _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
         {

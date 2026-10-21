@@ -273,6 +273,7 @@ internal sealed partial class FlashBeamSolver
         bool hasNode = node >= 0;
         return new FlashBeamResult(
             hasNode ? Route(node) : [],
+            [],
             hasNode && _takeoverVictory,
             hasNode && _takeoverDefeat,
             hasNode ? _takeoverScore : double.NegativeInfinity,

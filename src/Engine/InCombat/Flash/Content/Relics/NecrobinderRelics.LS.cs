@@ -11,4 +11,7 @@ namespace CombatSolver.Engine.InCombat.Flash.Content.Relics;
 [FlashContent("BIG_HAT")]
 public sealed class BigHat : FlashRelicDef
 {
+    // Turn-start generation samples the character pool; the turn-setup root is captured before
+    // this hook fires, so the rules table must carry the generated card stats.
+    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAll];
 }

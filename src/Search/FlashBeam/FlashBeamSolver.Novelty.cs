@@ -349,6 +349,7 @@ internal sealed partial class FlashBeamSolver
             _noveltyPacked.Familiar, _noveltyImprovements.ToArray());
         FlashBeamResult result = new(
             _noveltyBest is null ? [] : Route(bestNode),
+            [],
             bestVictory, bestDefeat, _noveltyBest?.Score ?? double.NegativeInfinity,
             _expanded, _transitions, _duplicates, turnLayers, _pruned, watch.Elapsed)
         {

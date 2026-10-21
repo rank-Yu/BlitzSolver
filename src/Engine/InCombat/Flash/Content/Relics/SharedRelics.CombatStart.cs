@@ -165,4 +165,9 @@ public sealed class VeryHotCocoa : FlashRelicDef;
 /// 1 (<c>ContinueRelicsAfterPlayerTurnStart</c>), at the player turn start before the play-phase root.
 /// </summary>
 [FlashContent("VEXING_PUZZLEBOX")]
-public sealed class VexingPuzzlebox : FlashRelicDef;
+public sealed class VexingPuzzlebox : FlashRelicDef
+{
+    // Turn-start generation samples the character pool; the turn-setup root is captured before
+    // this hook fires, so the rules table must carry the generated card stats.
+    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAll];
+}
