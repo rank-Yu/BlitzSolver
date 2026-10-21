@@ -62,7 +62,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - 抽牌与牌堆：`ShouldDraw`、`AfterCardDrawn`（含 Early，以及被抽卡自身的 Hook；HellraiserPower 在 Early 自动打出刚抽到的 Strike）、`ModifyShuffleOrder`（稳定洗牌后、写回抽牌堆前；Slither 的抽牌随机费用走 `AfterCardDrawn`）、`AfterShuffle`（TheAbacus）、`AfterCardChangedPiles`。`AfterShuffle` 在洗牌计数 +1 后、战斗未结束时派发，监听者为全部战斗监听者。
 - Power：`TryModifyPowerAmountReceived` / `AfterModifyingPowerAmountReceived`（RuinedHelmet；UnsettlingLamp 按触发卡的出牌来源逐卡翻倍，触发卡与已翻倍的临时 Power 类型只存在 `FlashExec`，见 [状态布局](state-layout.md) 2.5）、`AfterPowerAmountChanged`（Shroud、SleightOfFlesh、Vicious；Flash 目前只有 Vicious、PossessStrength/PossessSpeed 定义；派发携带被修改 Power 的目标 owner，因为原版读取的是 `power.Owner`）。**实例型 Power**（`PowerInstanceType.Instanced`）每个原生实例占 Power 表一行，`(owner, id)` 相同的行按出现序区分；阶段遍历与 Hook 快照都保存 occurrence，`FindPowerOccurrence` 精确回指该行（Automation、Panache、RollingBoulder、TheBomb、Gigantification、Monologue、Orbit、Nightmare）。
 - 数值与遗物：`ModifyXValue`（ChemicalX，位置与 `CardModel.ResolveEnergyXValue` 一致）、`ShouldPlayerResetEnergy`（IceCream）、遗物 `AfterCardEnteredCombat`（GhostSeed）。
-- 生成卡与 A3 新增时机：`AfterCardGeneratedForCombat` 在 `AddGeneratedCard` 插入牌堆并派发 `AfterCardEnteredCombat` 之后按监听顺序派发，参数是**卡牌数组的绝对下标**（牌堆内下标只用于 `AfterCardEnteredCombat`）与生成者 owner（玩家或 `NoOwner`，对应现有引擎的 `Player? Creator`；怪物及其 Power 生成的牌为 `NoOwner`）；Aeonglass 用它把新生成的 Wither 直接提升到当前 `WitherUpgradeCount`。`Rampart` 只在玩家侧非额外回合的回合开始、`OwnerAfterSideTurnStart` 之后执行（`PersistentPowerSupport.TriggerRampart`）。`HasKeyword` 在稳定边界上查询本地关键字后，还会为持有 `HexPower` 的玩家的 Hexed 卡补上 Ethereal（原版 `TryModifyKeywordsInCombat` 是惰性查询，不写入卡牌状态）。
+- 生成卡与额外结算时机：`AfterCardGeneratedForCombat` 在 `AddGeneratedCard` 插入牌堆并派发 `AfterCardEnteredCombat` 之后按监听顺序派发，参数是**卡牌数组的绝对下标**（牌堆内下标只用于 `AfterCardEnteredCombat`）与生成者 owner（玩家或 `NoOwner`，对应现有引擎的 `Player? Creator`；怪物及其 Power 生成的牌为 `NoOwner`）；Aeonglass 用它把新生成的 Wither 直接提升到当前 `WitherUpgradeCount`。`Rampart` 只在玩家侧非额外回合的回合开始、`OwnerAfterSideTurnStart` 之后执行（`PersistentPowerSupport.TriggerRampart`）。`HasKeyword` 在稳定边界上查询本地关键字后，还会为持有 `HexPower` 的玩家的 Hexed 卡补上 Ethereal（原版 `TryModifyKeywordsInCombat` 是惰性查询，不写入卡牌状态）。
 - 球：`AfterOrbChanneled`、`AfterOrbEvoked`、`ModifyOrbPassiveTriggerCounts`、`ModifyOrbValue`；被动与激发、回合末/回合开始触发见[角色机制](kernel-characters.md)第 2 节。
 
 ### 3.4 苦难与附魔
@@ -74,8 +74,8 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - **卡牌尾部。** 每次打出在卡牌效果与 `OwnChoice` 之后、`AfterCardPlayed` 之前依次执行附魔 `OnPlay`、苦难 `OnPlay`；持有者死亡或出现待处理选择时中止，与 `CardTailContinuation` 的 Enchantment → Affliction → Finish 顺序一致。
 - **苦难归一化。** 现有引擎不直接逐 Hook 施加/清除苦难，而是在 `SimulatedCombatState.NormalizeCardAfflictions` 里按当前 Power 归一化：Hex/Tangled/Ringing 先按 Power 数量施加或清除；随后 `NormalizePowerAfflictions` 处理 Vital Spark 的 Tainted（数量变化才回写、Power 归零才清除）、Smoggy 的 Smog（本侧回合已打出技能时给新进场技能）与 Galvanic 的 Galvanized（新进场 Power 牌）。Flash 的 `FlashKernel.NormalizeCardAfflictions` 逐条照抄，并在现有引擎的同一位置调用：`AfterCardEnteredCombat` 末、卡牌补偿效果末、每个动作结算、玩家回合末阶段一/阶段二、玩家回合开始末、每个敌人行动末。`PowerAfflictionChecked` 对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入的卡视为已检查，根之后生成的卡在下一次归一化时检查一次。`SkillPlayedThisSideTurn` 对应 `_skillsPlayedThisTurn`，在技能牌完成后置位、在该侧回合末清零（与持久化的 `SkillCardsPlayedThisTurn` 不同）。
 - **施加/移除路径。** `ApplyAffliction` 对应 `CardCmd.Afflict` 的 `CanAfflict` 与同类型叠加；`ClearAffliction(s)` 对应 `ClearAffliction`。Vital Spark 的 Tainted 层数同步使用导入的 `LastNormalizedVitalSparkAmount` 计数器（`int.MinValue` 表示 null），首次导入不回写，保留实机战斗开始时可能叠高的层数。
-- **CX 补齐的四个附魔。** `Slither` 在 `AfterCardDrawn` 中按 `CombatEnergyCosts.NextInt(4)` 给刚抽到的手牌追加绝对本场费用（`AfterCardDrawnMirrors.HandleSlither`）；`SlumberingEssence` 在玩家回合末清手牌前的 `BeforeFlush` 给每张自身手牌追加 `WhenPlayed` −1（`EnchantmentLifecycleSupport.BeforeFlush`）；`PerfectFit` 在非初始洗牌的 `ModifyShuffleOrder` 中把自己的牌移到合并列表最前（`ModifyShuffleOrderMirrors.HandlePerfectFit`）；`Imbued` 在玩家第 1 回合的自动预打出阶段按 `AllCards` 顺序自动打出（`EnchantmentLifecycleSupport.TriggerAutoPrePlay`，在 Mayhem 之后）。`Imbued` 的快照与显式边界见[准入](admission-and-verification.md)。
-- **Power 与怪物。** 本轮实现 Plow、Ringing、Tangled、Smoggy、Vital Spark、Tainted、Hex 七个 Power，以及 Ceremonial Beast、Vine Shambler、Infested Prism、Living Fog、Gas Bomb 的移动效果。Living Fog 的 BLOAT 在攻击前生成 Gas Bomb（`FlashMonsterDef.BeforeMove`），Gas Bomb 的 EXPLODE 攻击后自毁。MysticLighter 是遗物定义：带附魔卡牌的 powered attack 加 `Damage`。Hexed 的 Ethereal 由上面的 `HasKeyword` 惰性提供；HexPower 被移除或施加者死亡后不再提供，卡牌本地关键字不变。
+- **四个附魔的派发位置。** `Slither` 在 `AfterCardDrawn` 中按 `CombatEnergyCosts.NextInt(4)` 给刚抽到的手牌追加绝对本场费用（`AfterCardDrawnMirrors.HandleSlither`）；`SlumberingEssence` 在玩家回合末清手牌前的 `BeforeFlush` 给每张自身手牌追加 `WhenPlayed` −1（`EnchantmentLifecycleSupport.BeforeFlush`）；`PerfectFit` 在非初始洗牌的 `ModifyShuffleOrder` 中把自己的牌移到合并列表最前（`ModifyShuffleOrderMirrors.HandlePerfectFit`）；`Imbued` 在玩家第 1 回合的自动预打出阶段按 `AllCards` 顺序自动打出（`EnchantmentLifecycleSupport.TriggerAutoPrePlay`，在 Mayhem 之后）。`Imbued` 的快照与显式边界见[准入](admission-and-verification.md)。
+- **Power 与怪物。** 当前实现 Plow、Ringing、Tangled、Smoggy、Vital Spark、Tainted、Hex 七个 Power，以及 Ceremonial Beast、Vine Shambler、Infested Prism、Living Fog、Gas Bomb 的移动效果。Living Fog 的 BLOAT 在攻击前生成 Gas Bomb（`FlashMonsterDef.BeforeMove`），Gas Bomb 的 EXPLODE 攻击后自毁。MysticLighter 是遗物定义：带附魔卡牌的 powered attack 加 `Damage`。Hexed 的 Ethereal 由上面的 `HasKeyword` 惰性提供；HexPower 被移除或施加者死亡后不再提供，卡牌本地关键字不变。
 
 
 ## 4. 出牌管线
@@ -97,7 +97,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 
 来源：`S/CombatPredictionSimulator.AutoPlay.cs:21-73`、`S/CombatPredictionSimulator.AutoPlayContinuation.cs`。
 
-自动预打出顺序是 `Bombardment` → Mayhem 的计划自动打出 → 第 1 回合的 Imbued 附魔卡（HistoryCourse/WhisperingEarring 仍无定义）。
+自动预打出顺序是 `Bombardment` → Mayhem 的计划自动打出 → HistoryCourse 的上一回合最后攻击复制品 → 第 1 回合的 Imbued 附魔卡。WhisperingEarring 是计划来源，但没有战斗内效果，只保留最大能量。
 
 `FlashKernel.AutoPlay` 与 `ManualPlay` 共用 `PlayFromPlay`（结果牌堆、每次打出、`BeforeCardPlayed`、效果、`OwnChoice`、`AfterCardPlayed` 普通与 Late、收尾），只替换资源与目标两步：
 
@@ -122,19 +122,6 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 - **随机药水。** 一次 `CombatPotionGeneration` `NextFloat` 选稀有度（Rare ≤ 0.1、Uncommon ≤ 0.35、否则 Common），再一次 `NextItem` 在冻结的同稀有度池中选；`TryProcurePotion` 放入第一个空槽，成功时记录 `LongTermResourceValue + 20`。
 - **药水生成选择。** Attack/Skill/Power/ColorlessPotion 在 `OnUse` 里生成 3 张去重候选，再走 `PotionChoiceSupport.GetSpec` 的 `GenerateToHand` 0..1 选择。该选择不走 `PendingTurnStartChoice`：现有引擎把候选写进 `History.CardGenerationOptions`，`PotionExecutionSupport.Complete` 从 `PlanAction.Choice` 直接结算 `PotionChoiceSupport.Apply`。Flash 的翻译层先无选择回放一次读取候选，构造同序 `PlanCardChoice` 挂到动作上，再正式回放；选定后按 `PredictedCard.Clone()` 语义复制（`IsClone` 保持假）、`SetToFreeThisTurn`、加入手牌。
 - **风险。** `FlashBattleFlags.HasRisk` 表示旧快照的**未补偿**风险（`snapshot.HasRisk`）；根导入从快照读取该位。Discovery/Splash 虽记录 `UnresolvedPlayerChoice`，但 `CardOnPlayCompensationCatalog` 把它们的 `OnPlay` 风险标为已补偿，内核不为它们置位。SeekerStrike 的 `BuildSeekerSpec` 不在补偿目录里，会记录风险，Flash 在该选择请求前同样置位（单调保持到战斗结束）。
-
-### 4.3 出牌伤害历史与回手
-
-这些是 0.111 现有引擎用 `CardPlay`/`CombatPredictionHistory` 表达的按次出牌历史，Flash 只在 `FlashExec` 上保留当次动作的瞬时值，稳定边界不进入 `FlashBattle`：
-
-- **伤害合计。** `Damage` 在结果 Hook 之前把本次每个结果的 `BlockedDamage + UnblockedDamage + OverkillDamage` 累加到 `CardDamageTotal`（该次出牌的全部命中），并记录最近一次 `Damage` 的 `LastDamageTotal = BlockedDamage + UnblockedDamage` 与 `LastDamageOverkill`。对应现有引擎 `CombatPredictionDamageReceivedEntry.Result.TotalDamage + OverkillDamage`。每次出牌开始时清零。
-- **Fisticuffs**：镜像攻击后先结算敌人死亡，再按 `CardDamageTotal` 获得格挡（`CorePowerSupport` 的 Fisticuffs case）。
-- **Omnislice**：第一击后结算死亡，再把 `LastDamageTotal + LastDamageOverkill` 以 `Unpowered | Move` 打给目标以外的可命中敌人（`CardOnPlaySupport.Batch042.ApplyOmnislice`）。
-- **EchoingSlash 与多波攻击。** `FlashKernel.CardAttackRepeating` 对应现有引擎在一个 `AttackContext` 内的循环：每波对当前全部存活敌人造成一次伤害，随后用**当前名单**跑死亡结算，`WasTargetKilled` 的个数追加为下一波；`BeforeAttack`/`AfterAttack` 各只派发一次。Omnislice 与 EchoingSlash 的死亡结算都只遍历当前名单（`combat.Enemies`），因此击杀后离场的 Infested 尸体不会在复制伤害前生成 Wriggler。每波开始前从 `FlashExec.PlayPosition` 重新同步当前打出的牌并读取伤害变量（现有引擎每波读 `base.DynamicVars.Damage`）：Dampen 的最后一位施法者在本波死亡时恢复卡牌升级等级，后续波次必须按恢复后的伤害结算，不能沿用出牌开始时的快照。
-- **HandOfGreed**：镜像攻击后检查本次出牌是否击杀目标且目标所有 Power 都允许致命（`ShouldOwnerDeathTriggerFatal`），成功则加金币与 `LongTermResourceValue`。金币修正遗物（BowlerHat/Ectoplasm/DragonFruit）尚未进入 Flash 定义，含有它们的根不在本批证据内。
-- **GoldAxe**：`FinishedCardPlays` 计数器导入根历史的 `GetFinishedPlaysBeforePrediction` 并在每次完成出牌时 +1，作为 `CalculatedVarSpecRegistry` 的乘数。
-- **回手。** Bolas/ThrummingHatchet 打出后把 `FlashCard.ReturnToHandNextTurn`（`CostState` bit 4）置位；玩家下回合 `BeforeHandDraw` 的返回手牌阶段按当前牌堆顺序把这些牌移回手牌并清位，对应 `SimulatedCombatState._returnToHandNextTurn` 与 `PrepareBeforeHandDraw`。根导入把 `_returnToHandNextTurn` 的成员投影到对应卡值。
-- **出牌期金额快照。** Afterimage 与 Strangle 在 `BeforeCardPlayed` 记下能力层数、在 `AfterCardPlayed` 消费（现有引擎 `CardPlayPairPredictionState`，以 `CardPlay` 对象为键）。Flash 把它放在栈上的 `FlashExec.CardPlayPairs`（容量 `FlashLimits.CardPlayPairs`），嵌套自动打出的条目压在外层之上并先被消费；稳定边界为空，不进入 `FlashBattle`。
 
 ## 5. 伤害管线
 
@@ -212,7 +199,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 - 节点类型：行动节点（攻击列表：基础伤害与次数）、随机分支（各后继的基础权重）、条件分支（根捕获时的选择结果）。
 - 推进：从当前行动的后继出发，随机分支用 `MonsterAi` 流按 `MonsterRandomBranchResolver.Pick` 的规则选择（依赖最近行动日志），条件分支取根选择，直到落到行动节点；最多 32 步。
-- 特例：旧引擎在 `ResolveConditional`、`GetBranchWeight` 与 `Advance` 中按怪物类型写的特殊逻辑（KnowledgeDemon、FrogKnight、Fabricator、TestSubject、Ovicopter、LagavulinMatriarch、SlumberingBeetle、Queen、LivingShield、BowlbugRock、TwoTailedRat）由对应 `FlashMonsterDef` 覆写同名方法实现。KnowledgeDemon 的 `_curseOfKnowledgeCounter` 是一个 AI 寄存器：根导入取 `_knowledgeDemonCurseCounters` 条目，没有条目时取模型字段；CURSE_OF_KNOWLEDGE 的选项集合、选择后的加一与 PONDER 后的 `CurseOfKnowledgeBranch` 都读这个寄存器。A3 另用 `ModifyAttackDamage`/`ModifyAttackRepeats` 对应 `AdjustMonsterMoveDamage` 与 `BranchMonsterAi.CurrentMove` 的动态伤害/命中数（TheForgotten 的 DREAD、TestSubject 的 MULTI_CLAW）；根冻结的 Power 数量用 `FlashMonsterDef.RootPowerAmountNames` 编译进 `FlashMonsterRules.RootPowerAmounts`。该基线对应现有引擎在**请求根**捕获、随 fork 共享的 `SimulatedCombatState._rootPowerAmounts`：有固定前缀时规则编译必须把请求根作为 `baselineSimulator`，不能取前缀之后的搜索根（否则 MIASMA 偷取 2 敏捷后，DREAD 会少 2 点伤害）。没有前缀时基线就是当前根。
+- 特例：旧引擎在 `ResolveConditional`、`GetBranchWeight` 与 `Advance` 中按怪物类型写的特殊逻辑（KnowledgeDemon、FrogKnight、Fabricator、TestSubject、Ovicopter、LagavulinMatriarch、SlumberingBeetle、Queen、LivingShield、BowlbugRock、TwoTailedRat）由对应 `FlashMonsterDef` 覆写同名方法实现。KnowledgeDemon 的 `_curseOfKnowledgeCounter` 是一个 AI 寄存器：根导入取 `_knowledgeDemonCurseCounters` 条目，没有条目时取模型字段；CURSE_OF_KNOWLEDGE 的选项集合、选择后的加一与 PONDER 后的 `CurseOfKnowledgeBranch` 都读这个寄存器。怪物动态伤害与连击数另用 `ModifyAttackDamage`/`ModifyAttackRepeats` 对应 `AdjustMonsterMoveDamage` 与 `BranchMonsterAi.CurrentMove` 的动态伤害/命中数（TheForgotten 的 DREAD、TestSubject 的 MULTI_CLAW）；根冻结的 Power 数量用 `FlashMonsterDef.RootPowerAmountNames` 编译进 `FlashMonsterRules.RootPowerAmounts`。该基线对应现有引擎在**请求根**捕获、随 fork 共享的 `SimulatedCombatState._rootPowerAmounts`：有固定前缀时规则编译必须把请求根作为 `baselineSimulator`，不能取前缀之后的搜索根（否则 MIASMA 偷取 2 敏捷后，DREAD 会少 2 点伤害）。没有前缀时基线就是当前根。
 - 行动执行：攻击按编译表结算；攻击前的效果由 `FlashMonsterDef.BeforeMove` 实现（`P/MonsterMoveEffects.ApplyBeforeAttack`，例如 Living Fog 的 BLOAT 先生成 Gas Bomb）；非攻击效果由 `FlashMonsterDef.ApplyMoveEffects` 实现，规范来源是 `P/MonsterMoveEffects.cs` 与 `P/MonsterMoveSemantics.cs`。
 - 遭遇槽位：`FlashEnemy.Slot` 来自 `SimulatedCombatState.GetSlotIndex`，名字不在 `_encounterSlots` 时就是原版的 -1（`NoSlot`）。`EncounterModel.Slots` 为空但仍用 `first`/`middle`/`last`、`odd`/`even`、`first`/`second`/`third` 的遭遇（碗虫、沉睡甲虫）因此不排序、也不报错；`NextFreeSlot` 对空槽表返回 `""`、`LastFreeSlot` 返回 `null`，与现有引擎一致，不编造槽位顺序。
 - 生成初始状态：`FlashMonsterDef.SpawnedStunned` 让 Bridge 用 `StartStunned = true` 编译该类型的生成规则（Wriggler 的初始节点是 SPAWNED_MOVE）；`SpawnSlotName` 给这类按槽名选择 INIT_MOVE 分支的怪物一个固定合法槽名，避免私有编译遇到无匹配条件。
@@ -267,11 +254,11 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 1. `CombatId = NextCombatId++`；生命在 `[MinInitialHp, MaxInitialHp]` 中排除名单敌人的当前 `MaxHp` 后取值。可选值按现有 `HashSet<int>` 的枚举顺序（等于升序插入顺序）由 Niche 流 `NextInt(0, count)` 取第 k 个；没有可选值时用 `NextInt(min, max + 1)`。K0 断言该枚举顺序。
 2. 追加到已知敌人数组（`EnemyCount++`），再按遭遇槽下标稳定插入名单，对应 `AddCreature` + `SortEnemiesBySlotName`；同槽位保持先后顺序，无槽名（255）排在有名字的槽位之前。
 3. 写入编译器捕获的 `SetUpForCombat` 初始值：`PendingInitialMoveNode`、初始 AI 寄存器。
-4. 调用定义上的 `ApplyEntrancePowers`（对应 `ApplyNativeEntrancePowers`，只为本批内容实现）。
+4. 调用定义上的 `ApplyEntrancePowers`（对应 `ApplyNativeEntrancePowers`，只为已登记的内容实现）。
 5. 玩家回合内立即从 `InitialNode` 掷出初始行动并写日志；敌人回合内保留 `NeedsInitialRoll`，由本轮结束的 `PrepareMonsterMovesForNextRound` 掷出。
 6. `minion` 为真且没有 MinionPower 时补 1 层 Minion，applier 是召唤者。
 
-**A3 生成**：Fabricator 按 `MonsterSpawnSupport.SpawnFabricatorBot` 的同一随机选择（`MonsterAi` 流 `NextItem`，排除 `fabricator_last_spawn`）生成 Guardbot/Noisebot/Zapbot/Stabbot，槽位取下一个空槽并带 Minion；Zapbot 的入场 HighVoltagePower 2 由 `ApplyEntrancePowers` 补上。Axebot 被击杀且仍有 StockPower 时在死亡钩内以同槽位生成替代体（`StockPower.AfterDeath`）：生成规则按 StockAmount 1 编译（BOOT_UP 初始节点与 +10 生命范围），入场再按来源 StockPower 补足剩余的 +10 与新的 StockPower 层数。
+**Fabricator 与 Axebot 生成**：Fabricator 按 `MonsterSpawnSupport.SpawnFabricatorBot` 的同一随机选择（`MonsterAi` 流 `NextItem`，排除 `fabricator_last_spawn`）生成 Guardbot/Noisebot/Zapbot/Stabbot，槽位取下一个空槽并带 Minion；Zapbot 的入场 HighVoltagePower 2 由 `ApplyEntrancePowers` 补上。Axebot 被击杀且仍有 StockPower 时在死亡钩内以同槽位生成替代体（`StockPower.AfterDeath`）：生成规则按 StockAmount 1 编译（BOOT_UP 初始节点与 +10 生命范围），入场再按来源 StockPower 补足剩余的 +10 与新的 StockPower 层数。
 
 **空槽**：`FlashKernel.NextFreeSlot`/`LastFreeSlot` 与 `SimulatedCombatState` 同义：战斗没有遭遇时返回 `null`；有空槽时返回遭遇槽名；`NextFreeSlot` 在无空槽时返回 `""`，`LastFreeSlot` 在无空槽时返回 `null`。
 
@@ -283,7 +270,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 **重接复活**：`ReattachPower` 不阻止击杀命中，但阻止尸体离场（`PreventsRemovalAfterDeath`），`ShouldPowerBeRemovedAfterOwnerDeath` 为假。死亡效果清算时，若还有另一段能行动（存活或 `Reviving`）则死亡阶段改为 `Reviving` 并强制 `DEAD_MOVE`，否则所有段改为 `PermanentlyDead`。`REATTACH_MOVE` 由怪物的 `ResolveReviveMove` 处理：仍有一段能行动时按 `ReattachPower` 数量回血并清除 `Reviving`。Reviving 段的 `CurrentHp` 为 0，`IsHittable` 自然为假；评估的 `EffectiveEnemyHp` 在有其他未永久死亡段时取 `ReattachPower` 数量，否则为 0。`ShouldOwnerDeathTriggerFatal` 同样按分支名单的 Power 与 HP/死亡状态计算；Flash 使用 `FlashBattle` 段状态，现有引擎使用 `SimulatedCombatState.ShouldOwnerDeathTriggerFatal`，双方都不能调用原版 live `ReattachPower.AreAllOtherSegmentsDead`。
 
-**导入认领**：`_monsterIntStates` 的每个条目必须被某个已知敌人的 `AiRegisterNames` 或 `InertMonsterIntNames` 认领，否则按 `UnrepresentableState` 拒绝；声明为寄存器的名字取 `GetMonsterInt` 的值（有捕获条目用条目，没有时读模型字段），因此与现有引擎的无条目语义一致。乐加维林族母与沉睡甲虫的 `_isAwake` 由 `InertMonsterIntNames` 声明。A3 另把 Fabricator 的 `fabricator_last_spawn`（经 `GetFabricatorLastSpawn`）、TestSubject 的 `_respawns`/`_extraMultiClawCount`/`SecondFormHp`/`ThirdFormHp` 与 Aeonglass 的两个字典计数投影为 AI 寄存器。
+**导入认领**：`_monsterIntStates` 的每个条目必须被某个已知敌人的 `AiRegisterNames` 或 `InertMonsterIntNames` 认领，否则按 `UnrepresentableState` 拒绝；声明为寄存器的名字取 `GetMonsterInt` 的值（有捕获条目用条目，没有时读模型字段），因此与现有引擎的无条目语义一致。乐加维林族母与沉睡甲虫的 `_isAwake` 由 `InertMonsterIntNames` 声明。Fabricator 的 `fabricator_last_spawn`（经 `GetFabricatorLastSpawn`）、TestSubject 的 `_respawns`/`_extraMultiClawCount`/`SecondFormHp`/`ThirdFormHp` 与 Aeonglass 的两个字典计数同样投影为 AI 寄存器。
 
 ## 14. 偷窃与瀑布巨兽
 
@@ -293,6 +280,4 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 - **瀑布巨兽。** `PRESSURIZE/STOMP/RAM/SIPHON/PRESSURE_GUN/PRESSURE_UP` 在攻击后施加 `SteamEruptionPower`（数值见 `MonsterMoveEffects`），`PRESSURE_GUN_MOVE` 另把 `PressureGunIncrease` 加入 `_pressureGunBonus` 寄存器（`AdjustMonsterMoveDamage` 的 `damage + bonus`）；`SIPHON_MOVE` 治疗 `SiphonHeal`。死亡清算先于其它死亡 Power 调用 `TryTriggerSteamEruptionDeath`：HP/最大 HP 设为钳制值、强制 `ABOUT_TO_BLOW_MOVE`、记录 `AboutToBlow` 阶段并清理其它 Power（`SteamEruptionPower.ShouldPowerBeRemovedAfterOwnerDeath=false` 保留自身）。敌方回合在普通行动前消费强制阶段：AboutToBlow 记录当前层数为 `SteamEruptionDamage`、移除 Power、切到 Explode；Explode 用记录值经完整伤害管线打玩家一次，再 `Kill(owner, force:true)` 并结算死亡效果。爆发阶段 `EffectiveEnemyHp` 为 0，威胁投影只计 Explode 的记录伤害；`SteamEruptionPower` 的 `PreventsCombatEnding`/`PreventsRemovalAfterDeath` 与 `FlashKernel.IsEnding`、`ShouldRemoveAfterDeath` 一致。
 - **评估。** `OutstandingStolenResource` 是金币+卡数计数，`PreserveResources` 策略下乘 `OutstandingStolenResourcePenalty` 进评分并作为最终路线的追回键；`MinimumOutstandingStolenResource` 只把已不可追回的部分留给 incumbent 下界（当前偷窃根的下界因 `theft_policy`/`swipe_power` 显式禁用）。
 
-## 15. 额外回合与药水/遗物批次
-
-额外回合、本批 9 瓶药水与新增遗物的逐条机制拆到[药水与遗物批次](kernel-potions-relics.md)，避免本文件超过体积上限。
+额外回合、9 瓶药水与新增遗物的逐条机制见 [药水与遗物](kernel-potions-relics.md)。

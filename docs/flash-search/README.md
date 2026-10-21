@@ -4,14 +4,14 @@ Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块
 
 现有模拟引擎（`CombatPredictionSimulator` 及其镜像、`SimulatedCombatState` 与 Prediction 补偿）仍是唯一的语义权威：Flash 的每一步都必须与它逐字节一致，Flash 搜出的路线在部署前由它从同一根完整回放核对。
 
-本目录是设计规格。代码落地后，当前源码职责以 [架构地图](../ARCHITECTURE.md) 为准；本目录只保留设计理由与合同。
+本目录是设计规格。当前源码职责以 [架构地图](../ARCHITECTURE.md) 为准；本目录只保留设计理由与合同。
 
 | 文档 | 内容 |
 | --- | --- |
 | [状态布局](state-layout.md) | `FlashBattle` 字段、容量、规范化与指纹 |
-| [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义方式、选择协议、怪物 AI |
+| [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义方式、选择协议、怪物 AI；出牌期瞬态与回手见状态布局 |
 | [角色机制](kernel-characters.md) | 各角色专属的内核机制：弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
-| [药水与遗物批次](kernel-potions-relics.md) | 额外回合管线，以及 PR 批次的 9 瓶药水与新增遗物机制 |
+| [药水与遗物](kernel-potions-relics.md) | 额外回合管线、9 瓶药水与新增遗物机制 |
 | [准入与校验](admission-and-verification.md) | 按场准入、根导入、差分测试、运行时回放核对 |
 | [搜索与接入](search.md) | FlashBeam、路线物化、`BeamSolveDispatch` 与 Off/Shadow/On 模式 |
 | [测试记录](testing.md) | 复跑入口、当前证据与未验证项 |
@@ -68,14 +68,8 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / Shadow 的现有�
 7. **伤害与格挡修正沿用旧引擎的 `decimal` 计算位置和取整时点。** 修正系数如 1.1 无法用二进制浮点精确表示，不用 `double` 近似。
 8. **Flash 只产出候选路线。** `SolverResult` 由旧引擎回放物化，终局取舍复用旧的 `FinalPlanOrdering`，协调器看到的结果与现有后端同形。
 
-## 4. 阶段
+## 4. 当前状态
 
-| 阶段 | 内容 | 完成判据 |
-| --- | --- | --- |
-| F0 | 规格、规则、skill | 本目录、`.agents/skills/flash-search/`、AGENTS.md 修订合入分支 |
-| F1 | 内核核心、根导入、差分探针；纵切内容：铁甲战士初始牌组、燃烧之血、第一幕弱怪 | 纵切 fixture 的一步穷举与多回合随机游走差分全部一致 |
-| F2 | 内容扩展：角色牌池、通用 Power、怪物、遗物、药水、球、附魔 | 每项内容附差分证据；覆盖率统计显示准入战斗比例 |
-| F3 | FlashBeam、路线物化、`BeamSolveDispatch`、Shadow 模式 | 离线宿主 Shadow 对照零校验失败，记录速度与质量 |
-| F4 | On 模式、哨兵验收、PR | 同根、同政策、同预算路线质量不退化，搜索耗时下降 |
+Flash 已接入主搜索分发（Off/Shadow/On），默认 Off。On 只运行 Flash，不回落现有搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它准入、容量、内核与核对失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
 
-F2 的批量内容实现可以交给外部 coding agent，按 [flash-search skill](../../.agents/skills/flash-search/SKILL.md) 的任务卡合同交付并附差分证据。
+状态布局、容量与尺寸预算见 [状态布局](state-layout.md)；内容定义与结算顺序见 [内核语义](kernel-semantics.md)；角色专属机制与药水/遗物机制分别见 [角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md)；准入与校验合同见 [准入与校验](admission-and-verification.md)。

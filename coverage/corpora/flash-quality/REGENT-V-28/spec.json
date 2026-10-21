@@ -1,0 +1,4 @@
+{ "schemaVersion": 1, "seed": "FLASH-DECK-REGENT-28", "characterId": "REGENT", "ascension": 10, "actIndex": 0,
+  "encounterKind": "Elite", "includeStartingDeck": true, "includeStartingRelics": true, "includeAscendersBane": true,
+  "characterCards": { "count": 6, "upgradeLevels": 1 }, "colorlessCards": { "count": 1 },
+  "relics": { "count": 2 }, "potions": { "count": 1 }, "mode": "Setup" }

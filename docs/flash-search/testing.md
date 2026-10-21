@@ -6,25 +6,73 @@
 
 ## 1. 复跑入口
 
-纯内核合同（K0），不依赖游戏：
+已提交的入口是 [Flash 回归工具](../../tools/search/FlashRegression/README.md)：
 
 ```bash
-DOTNET_TieredCompilation=0 dotnet run --project tools/testing/checks/FlashKernelChecks -c Release
+python3 -B tools/search/FlashRegression/flash_regression.py <子命令> [参数]
 ```
 
-差分探针（K1 单步穷举、K2 随机游走），需要游戏程序集与已构建的模组：
+工具负责 Release 构建与 `OfflineSearchHarness` 构建，`diff`/`scan` 默认再运行 K0；它调用现有宿主并把结果写到
+`.local/flash-regression/<label>/`。旧的 `.local/tool-tasks/flash-search/*.sh` 不再作为复跑入口。
+
+纯内核合同（K0）与两次构建：
 
 ```bash
-dotnet build CombatSolver.csproj -c Release -p:CopyModOnBuild=false
-dotnet build tools/search/OfflineSearchHarness/OfflineSearchHarness.csproj -c Release
+python3 -B tools/search/FlashRegression/flash_regression.py build
+```
+
+差分探针（K1 单步穷举、K2 随机游走）的全量根集合是 493 根（162 个自然遭遇与第三幕首领根、
+267 个 `coverage/fixtures/cards/flash-*.json` 固定根、64 个 `coverage/corpora/flash-decks/`
+生成牌组），默认每根 32 条游走、4 个并发进程：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py diff --label flash-diff --walks 32
+```
+
+只复跑一个固定根或一个牌组：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py diff \
+  --label one --only fixtures --root flash-dx5-pen-nib-sly
+python3 -B tools/search/FlashRegression/flash_regression.py diff \
+  --label one --only decks --root deck-SILENT-13
+```
+
+`--include-act3`（或 `--only act3`）加入 `coverage/corpora/flash-act3/` 的 150 个第三幕牌组，
+默认每根 48 条游走。`--shards N` / `--shard k` 按旧脚本的根下标分片；`--baseline <旧 SUMMARY.txt>`
+按旧回归脚本的逐行比较口径，输出 `BASELINE.txt`。结果目录的 `SUMMARY.txt` 每行是
+`<root> exit=<code> <flash-diff.txt 首行>`，末行 `DONE`；差分探针把汇总写在 `flash-diff.txt` 首行，
+并在 `harness-result.json` 的 `flashDiff` 字段记录同样的计数。`OFFLINE_HARNESS_FLASH_DIFF_STEPS`
+控制每条随机游走的最大步数（默认 60）。
+
+最终候选路线扫描（每根 Flash 求解后把排序前 N 条候选交现有引擎逐条核对）：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py scan --label flash-scan --candidates 8
+```
+
+48 根质量基准与 79 根协调器对照：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py bench --label flash-bench --budget-ms 10000
+python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label flash-coord
+```
+
+协调器的关闭模式基线可用 `--off-baseline <旧结果目录>` 复用；只复跑一根时用
+`--ids <目录名>`，例如 `--ids SILENT-C-13`。
+
+需要直接调试宿主时，底层单根命令仍是：
+
+```bash
 OFFLINE_HARNESS_FLASH_DIFF=1 OFFLINE_HARNESS_FLASH_DIFF_WALKS=32 \
   dotnet .local/tool-build/OfflineSearchHarness/bin/Release/net9.0/OfflineSearchHarness.dll \
   --character IRONCLAD --encounter NIBBITS_NORMAL --seed FLASH1 --milestone M1 --out <输出目录>
 ```
 
-PowerShell 用 `$env:OFFLINE_HARNESS_FLASH_DIFF = '1'` 设置同名变量后运行相同 `dotnet` 命令。探针把结果写入输出目录的 `flash-diff.txt`（首行为汇总），并在 `harness-result.json` 的 `flashDiff` 字段记录同样的计数。`OFFLINE_HARNESS_FLASH_DIFF_STEPS` 控制每条随机游走的最大步数（默认 60）。
-
-主搜索分发（`BeamSolveDispatch`）在协调器模式下复跑，日志中的 `[CombatSolver/Flash]` 行记录对照或采用结果：
+PowerShell 用 `$env:OFFLINE_HARNESS_FLASH_DIFF = '1'` 与 `$env:OFFLINE_HARNESS_FLASH_DIFF_WALKS = '32'`
+设置同名变量后运行相同 `dotnet` 命令。
+主搜索分发（`BeamSolveDispatch`）在协调器模式下复跑，日志中的 `[CombatSolver/Flash]` 行记录
+对照或采用结果：
 
 ```bash
 OFFLINE_HARNESS_FLASH_MODE=Shadow \
@@ -33,7 +81,10 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
   --search-mode Coordinator --budget-ms 10000 --out <输出目录>
 ```
 
-无人测试中的实机部署用 `--flash-search-mode-for-test Off|Shadow|On`（PowerShell `-FlashSearchModeForTest`）临时覆盖设置；`--export-bug-report-after-combat` 在战斗结束和 On 搜索失败停止部署时都会在写结果前导出问题包，失败包带 `FlashSearchFailed`/`SearchFailure` 分类。包内 `diagnostics/logs/combat/*.jsonl` 保留 `[CombatSolver/Flash]` 行：
+无人测试中的实机部署用 `--flash-search-mode-for-test Off|Shadow|On`（PowerShell
+`-FlashSearchModeForTest`）临时覆盖设置；`--export-bug-report-after-combat` 在战斗结束和 On
+搜索失败停止部署时都会在写结果前导出问题包，失败包带 `FlashSearchFailed`/`SearchFailure`
+分类。包内 `diagnostics/logs/combat/*.jsonl` 保留 `[CombatSolver/Flash]` 行：
 
 ```bash
 ./tools/testing/run-unattended-test.sh --scenario-id FLASH-ON-NIBBITS --character-id IRONCLAD --encounter-id NIBBITS_NORMAL \
@@ -46,7 +97,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)，DX5 至 HS3 的批次与无头整场归档到 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`.local/tool-tasks/flash-search/regress.sh`，或按根分片并行的 `regress-par.sh`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT、CT、RS3、DX7、UX、SW、HS3、HS4 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、267 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
+全量回归（`flash_regression.py diff`；SK、PT、DF、RG、NB、LR、MB、LS、ID、RQ、CX、TW、PF、PM、KB、SP、DX3、A3B、K4C、ST、PA、PC、DX4、PR、CP、TS、EC、SP2、DX5、SR、B1、XP、HS、LH、HS2、B2、DT、RS、DX6、TT、CT、RS3、DX7、UX、SW、HS3、HS4 合入后）：FlashKernelChecks 通过；162 个自然遭遇根（铁甲战士初始牌组覆盖三幕已实现遭遇的 FLASHM1/FLASHM2，另有其他四个角色的初始牌组各 6 条，以及三个第三幕首领在 `--act-index 2` 下开启首领策略的 6 条）、267 个固定根（`coverage/fixtures/cards/flash-*.json`）与 64 个生成牌组（含 29 个非铁甲战士牌组、11 个第三幕牌组）（`coverage/corpora/flash-decks/`）每根 32 条随机游走，K1 单步、K2 游走、K4 评估与 K5 下界输入全部零差异，没有准入拒绝；`unsupported` 全部为 0。
 
 ### 2.1 当前状态（HS4 合入后）
 
@@ -66,7 +117,7 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 
 ### 2.3 无人测试实机部署
 
-Linux 无头整场部署的历次记录（2026-10-19 的初始牌组与第三幕首领，HS、HS2、HS3 的多样化牌组整场）归档在 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md) 第 2 节，最近一轮见 2.2 的 HS4。无人测试请求默认向手牌注入一张 `STRIKE_IRONCLAD`，用显式牌组建局时需传 `--cards-json []`。玩家战死的整场不导出问题包，`[CombatSolver/Flash]` 行从结果目录的 `runtime-events.json` 读取。多个实例并行时共用同一个 `COMBATSOLVER_HEADLESS_HOST_ROOT`：各用一个时，准入会把另一实例的游戏进程当作未登记进程，排队到时限后无结果。
+Linux 无头整场部署的历次记录（2026-10-19 的初始牌组与第三幕首领，HS、HS2、HS3 的多样化牌组整场）归档在 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md) 第 2 节，最近一轮见 2.2 的 HS4。HS3 与 HS4 的 40 场无头整场使用本地生成的四角色牌组清单；该清单保存在 `.local`，**没有随仓库提交**，因此审阅者无法从仓库逐场复跑同一 40 场，只能按本节方法重建代表场景；仓库内保留的是汇总结果。无人测试请求默认向手牌注入一张 `STRIKE_IRONCLAD`，用显式牌组建局时需传 `--cards-json []`。玩家战死的整场不导出问题包，`[CombatSolver/Flash]` 行从结果目录的 `runtime-events.json` 读取。多个实例并行时共用同一个 `COMBATSOLVER_HEADLESS_HOST_ROOT`：各用一个时，准入会把另一实例的游戏进程当作未登记进程，排队到时限后无结果。
 
 ## 3. 已知限制与未验证项
 

@@ -12,7 +12,7 @@
 - 卡牌自身选择的空选项：`BuildRequiredEmptyChoice` 列出的牌（HiddenDaggers、Brand）在手牌为空时，手动打出会提出 0..0 的空选择；自动打出中的嵌套选择由 `ResolveNestedCardChoice` **直接结算**同一个空选择、不提问。Flash 用 `FlashExec.CurrentPlayIsAutoPlay` 区分这两种情形，随后照常执行 `ApplyPostChoiceEffects`。
 - 手牌触发（`AfterCardDrawn` 中的 `CorrosiveWavePower`、`SpeedsterPower` 等）与弃牌触发都在上面的位置派发；多张弃置的 `AfterCardDiscarded` 之间可以出现待处理选择，Flash 丢弃半成品状态、从父状态带选择重执行。
 
-### 1.1 剩余卡牌与遗物（LS）
+### 1.1 剩余卡牌与遗物
 
 - **KnifeTrap**：按消耗堆顺序取出 Shiv（按“值 + 同值第几张”定位），升级版先把该张 Shiv 升一级，再 `FlashKernel.AutoPlay` 到同一目标；Shiv 带消耗关键字，打出后回到消耗堆。位置假设不成立（抽牌钩子移动了牌）时抛 `FlashUnsupportedException`。对照 `CardOnPlaySupport.Batch043.ApplyKnifeTrap`。
 - **EchoingSlash**：`FlashKernel.CardAttackRepeating` 在一个 `BeforeAttack`/`AfterAttack` 上下文内反复对全体敌人造成伤害；每波后按当前名单结算死亡，每击杀一名敌人追加一波。对照 `CardOnPlaySupport.Batch042.ApplyEchoingSlash`。
@@ -21,7 +21,7 @@
 - **ToolsOfTheTrade**：`ModifyHandDraw` 加层数；玩家回合开始按层数弃牌（`TurnStartPowerSupport` 的 ToolsOfTheTrade case，`PlanChoiceEffect.Discard`）。
 - **Mirage**：`CalculationBase + CalculationExtra × 所有存活敌人的毒层数`，以 `Move` 卡牌格挡结算；对照 `CalculatedVarSpecRegistry` 的 Mirage。
 - **TheHunt**：攻击前捕获目标是否允许致命击杀，击杀后施加 `TheHuntPower` 并记 30 长线资源；战斗内额外卡牌奖励只在 `CombatRoom` 上，两个模拟状态都不表示它，评估按现有 `missedTheHuntRewards` 扣分。对照 `CorePowerSupport` 的 TheHunt case。
-- **遗物**：Tingsha 在玩家侧弃牌后随机打 3 点 Unpowered；HelicalDart 在 Shiv 打出后施加 1 层临时敏捷（`HelicalDartPower`）；SneckoSkull 通过新的 `ModifyPowerAmountGiven` 查询给玩家施加的毒 +1；PaperKrane 在 `WeakPower` 的乘数里对玩家目标减 0.15；BeltBuckle 战前若没有药水已在根快照里给 2 敏捷，`AfterPotionUsed` 在最后一瓶药用掉且本场尚未补过时再给 2 敏捷并置遗物计数（对应 `TriggerRelicsAfterPotionUsed` 的 `StatefulRelicState.Current` 门控）。PenNib 的第十次攻击锁存按 `FlashExec.PlayIdentity` 记账（DX5）：弃牌选择里嵌套自动打出的 Sly 牌是另一次 CardPlay，不会继承加倍；对照 `BeforeCardPlayedMirrors.HandlePenNib`/`ModifyDamageMirrors.HandlePenNib`/`AfterCardPlayedMirrors.HandlePenNib` 的 `AttackToDouble == CardSource.Original`。对照 `AfterCardDiscardedMirrors`、`AfterCardPlayedMirrors.HandleHelicalDart`、`PersistentRelicSupport.ModifyPowerAmountGiven`、`ModifyDamageMirrors.HandleWeakPower`。
+- **遗物**：Tingsha 在玩家侧弃牌后随机打 3 点 Unpowered；HelicalDart 在 Shiv 打出后施加 1 层临时敏捷（`HelicalDartPower`）；SneckoSkull 通过新的 `ModifyPowerAmountGiven` 查询给玩家施加的毒 +1；PaperKrane 在 `WeakPower` 的乘数里对玩家目标减 0.15；BeltBuckle 战前若没有药水已在根快照里给 2 敏捷，`AfterPotionUsed` 在最后一瓶药用掉且本场尚未补过时再给 2 敏捷并置遗物计数（对应 `TriggerRelicsAfterPotionUsed` 的 `StatefulRelicState.Current` 门控）。PenNib 的第十次攻击锁存按 `FlashExec.PlayIdentity` 记账：弃牌选择里嵌套自动打出的 Sly 牌是另一次 CardPlay，不会继承加倍；对照 `BeforeCardPlayedMirrors.HandlePenNib`/`ModifyDamageMirrors.HandlePenNib`/`AfterCardPlayedMirrors.HandlePenNib` 的 `AttackToDouble == CardSource.Original`。对照 `AfterCardDiscardedMirrors`、`AfterCardPlayedMirrors.HandleHelicalDart`、`PersistentRelicSupport.ModifyPowerAmountGiven`、`ModifyDamageMirrors.HandleWeakPower`。
 
 ## 2. 故障机器人：充能球
 
@@ -39,9 +39,9 @@
 
 **球值。** Lightning 被动 3、激发 8；Frost 被动 2 并给所有者格挡、激发 5；Dark 被动把 `Modify(6)` 累加进 `Aux`，激发对当前生命最低的可命中敌人造成 **原始 `Aux`**（原版 `EvokeVal` 不再过 `ModifyOrbValue`，集中只影响累积）；Glass 被动取 `Modify(Aux)`，大于 0 时造成伤害并把 `Aux` 减 1，激发为 `Modify(Aux) * 2`，伤害所有可命中敌人；Plasma 被动 +1 能量、激发 +2 能量。Lightning 与 Glass 的随机目标取 `CombatTargets.NextItem` 的一次 `NextInt(0, count)`，候选为空时不消耗；Lightning 的显式目标（TeslaCoil）不消耗该流。Chaos 与 TrashToTreasure 的随机球取 `CombatOrbGeneration`，候选顺序是原版 `_validOrbs`：Lightning、Frost、Dark、Plasma、Glass。
 
-**遗物。** CrackedCore 在第一回合玩家侧 `BeforeSideTurnStart` 充能闪电；RunicCapacitor 与 SymbioticVirus 在第一回合玩家侧 `AfterSideTurnStart` 增加 3 槽 / 充能暗球；GoldPlatedCables 实现触发次数 Hook；PowerCell 与旧引擎的 `RegisterIgnored<PowerCell>` 一致，是准入所需的空定义。ReptileTrinket 在 `AfterPotionUsed` 中按遗物变量施加临时力量（`ReptileTrinketPower`），对应 `TriggerRelicsAfterPotionUsed`。UnsettlingLamp 仍无定义：它需要卡牌实例身份、`BeforePowerAmountChanged` 与 `ModifyPowerAmountGivenMultiplicative` 的逐卡翻倍账本。
+**遗物。** CrackedCore 在第一回合玩家侧 `BeforeSideTurnStart` 充能闪电；RunicCapacitor 与 SymbioticVirus 在第一回合玩家侧 `AfterSideTurnStart` 增加 3 槽 / 充能暗球；GoldPlatedCables 实现触发次数 Hook；PowerCell 与旧引擎的 `RegisterIgnored<PowerCell>` 一致，是准入所需的空定义。ReptileTrinket 在 `AfterPotionUsed` 中按遗物变量施加临时力量（`ReptileTrinketPower`），对应 `TriggerRelicsAfterPotionUsed`。UnsettlingLamp 使用实例身份：`BeforePowerAmountChanged` 记录触发卡的来源序号与临时 Power 内部类型，`ModifyPowerAmountGivenMultiplicative` 对同一来源、同一种临时 Power 内部类型的首次减益翻倍，完成的锁存写入遗物 `Counter`。
 
-### 2.1 剩余卡牌与药水（LS）
+### 2.1 剩余卡牌与药水
 
 - **Leap**：通用格挡；**BoostAway**：格挡后生成一张 Dazed 到弃牌堆（`CardEffectSpecRegistry` 的 BoostAway case）；**MeteorStrike**：单体攻击后充能 3 个等离子球（`OrbCardMirrors.MeteorStrikeOnPlay`）；**MomentumStrike**：攻击后给当前打出的牌加一条本场绝对 0 费修饰（`CardEffectSpecRegistry` 的 MomentumStrike case，`CurrentPlayCard` 取当前打出堆槽位）；**Quadcast**：`EvokeNext(Repeat)`，只有最后一激发退队（`OrbCardMirrors.QuadcastOnPlay`）。
 - **EssenceOfDarkness**：按当前球槽容量逐次充能暗球（`OrbPotionMirrors.EssenceOfDarknessOnUse`）。
@@ -61,7 +61,7 @@
 
 **锻造。** `FlashKernel.Forge` 对应 `PersistentPowerSupport.Forge`：有待处理选择时不执行；手牌/抽牌堆/弃牌堆/打出区都没有未消耗的 `SOVEREIGN_BLADE` 时创建一张规范 0 级君王之刃到手中（走 `AddGeneratedCardToCombat` 的进战斗与生成卡 Hook）；然后给**所有**牌堆里的非复制君王之刃的伤害变量加 amount（`Var0`）。`CreatedThroughForge` 只驱动原版视觉，不进入 Flash 状态。君王之刃的攻击次数来自 `Repeat` 变量（恒为 1，无原版效果调用 `SetRepeats`），`SeekingEdgePower` 把它改为全体目标，`ParryPower` 提供格挡。`SwordSagePower` 的重放加成按现有引擎 `NormalizeSwordSageReplays`：根快照内的刀带冻结根层数，根之后由锻造生成的非克隆刀从 0 起算、再由当前层数补差，克隆从当前层数起算；`FlashCard.Private` 记录已应用加成。锻造卡与 `FurnacePower` 在 `GeneratedCards` 里声明君王之刃，规则闭包因此冻结它的两级数值。
 
-**AutoPrePlay。** 玩家回合开始、`AfterTurnStartOrbs` 之后：`Phase = AutoPrePlay`；先按消耗堆顺序自动打出阶段开始时在消耗堆的 `BOMBARDMENT`（每次打出后回到消耗堆，捕获数量与当前数量必须一致，否则显式拒绝）；再按 `MayhemPower` 层数把抽牌堆顶牌移到打出区后依次自动打出（对应 `MoveCardsForAutoPlay` 与 `TriggerScheduledAutoPlays`），随后每个未熔化的 `HISTORY_COURSE` 复制上一玩家回合最后一张攻击牌并自动打出（DX5，详见[状态布局](state-layout.md#29-dx5-追加的结局与跨回合卡值槽)）；再执行 Imbued 的附魔自动打出。完成阶段后 `Phase = Play` 并做胜负判定。
+**AutoPrePlay。** 玩家回合开始、`AfterTurnStartOrbs` 之后：`Phase = AutoPrePlay`；先按消耗堆顺序自动打出阶段开始时在消耗堆的 `BOMBARDMENT`（每次打出后回到消耗堆，捕获数量与当前数量必须一致，否则显式拒绝）；再按 `MayhemPower` 层数把抽牌堆顶牌移到打出区后依次自动打出（对应 `MoveCardsForAutoPlay` 与 `TriggerScheduledAutoPlays`），随后每个未熔化的 `HISTORY_COURSE` 复制上一玩家回合最后一张攻击牌并自动打出（详见[状态布局](state-layout.md#28-结局与跨回合卡值槽)）；再执行 Imbued 的附魔自动打出。完成阶段后 `Phase = Play` 并做胜负判定。
 
 **选择与回合开始选择。** `DecisionsDecisions` 在 `OwnChoice` 请求 `AutoPlayRepeated`（手牌中非不可打出的技能），随后按 `Repeat` 变量自动打出所选卡；第一张按请求选中的手牌位置定位，之后每次按上一次打出的结果牌堆位置（`MoveCard` 的插入下标）接力，值在打出中改变时取尾部钩子后的值，位置失效才退回按值定位。`HeirloomHammer` 请求 `Duplicate`（无色手牌），用 `CloneCard` 生成 `Repeat` 份到手中。`Charge`/`Guards`/`Begone` 请求 `Transform`，`FlashKernel.TransformSelectedTo` 按（值，同值第几张）在 `CardChoiceSupport.TransformSelectedCards` 的同一位置原位替换为 1 级或 0 级的 Minion 令牌。`CosmicIndifference`/`PhotonCut`/`Glimmer` 走 `MoveToDrawTop`。`TyrannyPower` 在玩家回合开始以 `PlayerTurnStart` 时机请求 `Exhaust`（`AfterPlayerTurnStart`），`ForegoneConclusionPower` 在 `BeforeHandDraw` 需要时先洗牌、再请求 `MoveToHand` 并移除自身；两者都由 `EndTurn` 动作携带选择。`FlashAction` 最多携带 32 个选择（`FlashLimits.MaxChoices`），足以覆盖 `DecisionsDecisions` 的嵌套自动打出；溢出按容量抛 `FlashCapacityException`。
 
@@ -95,18 +95,18 @@
 
 **卡牌修正**：Flatten 在任意 Osty 攻击后给战斗区内每张 Flatten 追加一条 `SetThisTurn(0)`（Absolute/EndOfTurn，按次数累积）；进入战斗的 Flatten 在该回合已有 Osty 攻击时同样追加。RightHandHand 的 `AfterCardPlayedLate` 不校验打出的副本：任意一次能量值达到其 Energy 变量的打出，都把弃牌堆中的每个副本收回手牌（`HandleRightHandHand` 的同一条件）。
 
-### 4.1 剩余卡牌与遗物（LS）
+### 4.1 剩余卡牌与遗物
 
 - **SentryMode**：`SentryModePower.BeforeHandDraw` 按层数生成 `SweepingGaze` token 入手；SweepingGaze 是 0 费 Ethereal/Exhaust 的 Osty 随机目标攻击。对照 `TurnStartPowerSupport` 的 SentryMode case。
 - **CallOfTheVoid**：`CallOfTheVoidPower.BeforeHandDraw` 每次从角色池（`CharacterAll`，其过滤已排除 Basic/Ancient/Event 与不可生成卡）做一次 `TakeRandom(1)`，给生成卡补 Ethereal 后入手。该卡的可达闭包仍包含没有定义的 Fetch 与 Delay，因此含它的根按 `UnsupportedClosure` 拒绝（见 testing 摘要的缺失能力）。
 - **Misery**：锁定目标的每个减益（层数、applier、`Target`）快照，攻击后按可命中敌人顺序克隆到其他敌人，每次克隆后排空 Power 数量变化队列；目标带临时 Power 时显式 `FlashUnsupportedException`（缺少实例内部属性合并）。对照 `BespokeCardMirrors.MiseryOnPlay`。
 - **Pagestorm**：`AfterCardDrawn` 只检查卡牌本地 Ethereal 关键字，命中后抽层数张；对照 `AfterCardDrawnMirrors.HandlePagestormPower`。
-- **DrainPower**：单体攻击后从弃牌堆的**可升级**卡中等概率取 `Cards` 张并升级（`CardSelectionCardMirrors.DrainPowerOnPlay` 的过滤 + 完整 Fisher-Yates + `CombatCardSelection` 流）。`CombatPredictionSimulator.Upgrade` 在战斗正在结束时 no-op，所以击杀的 DrainPower 仍消耗随机数、但不升级任何卡；Flash 在选完目标后按同一门控跳过写入（DX4）。
+- **DrainPower**：单体攻击后从弃牌堆的**可升级**卡中等概率取 `Cards` 张并升级（`CardSelectionCardMirrors.DrainPowerOnPlay` 的过滤 + 完整 Fisher-Yates + `CombatCardSelection` 流）。`CombatPredictionSimulator.Upgrade` 在战斗正在结束时 no-op，所以击杀的 DrainPower 仍消耗随机数、但不升级任何卡；Flash 在选完目标后按同一门控跳过写入。
 - **BigHat**：唯一战斗内触发是玩家第 1 回合开始生成 2 张 Ethereal 角色牌，发生在根捕获之前；现有引擎也没有对应镜像，定义为空。
 
-## 5. 第三幕牌组的 DX3 修正
+## 5. 第三幕牌组暴露的语义
 
-来源：第三幕随机牌组 150 根的 K1/K2 差分；现有引擎位置逐条注在改动处。
+这些机制由第三幕随机牌组的 K1/K2 差分覆盖；现有引擎位置逐条注在条目后。
 
 - **Globe Head / GalvanicPower**：`AfterCardPlayedMirrors.HandleGalvanicPower` 的伤害目标是**打出卡牌的所有者**（`PreviewCard.Owner`），不是 Power 的所有者；Globe Head 持 Power 而玩家出牌，因此反伤落在玩家。`FlashPowerDef` 的 `AfterCardPlayed` 以 `FlashLimits.PlayerOwner` 为目标（Flash 内所有卡都属于玩家）。
 - **MagiKnight / DampenPower**：升级牌降到 0 级后仍会被读取或打出，因此 `FlashRulesCompiler` 为根上的升级牌补 0 级规则；`DowngradeCard` 在 `AfterDowngraded` 后按 `PreservesVar0OnDowngrade` 恢复 Rampage/TheScythe 的累计伤害（现有引擎的 `ExtraDamageFromPlays`/`IncreasedDamage`）。克隆与变化/替换产生的是新对象，`DampenOriginalUpgrade` 清零；离开战斗牌堆的 Dampen 记录按退役处理（见[准入](admission-and-verification.md)）。卡牌在出牌中被降级后又被恢复时，`AddCurrentCardVar`/`SyncCurrentPlayCard` 以 `FlashExec.PlayPosition` 的实时牌值为准（`Rampage`/`TheScythe` 在攻击后同步，现有引擎读的是可变 `CardModel`）。
@@ -120,13 +120,13 @@
 - **攻击后抽牌的死亡结算**：`CorePowerSupport.ApplyCardPowers` 在镜像攻击之后、卡牌专属补偿之前结算敌人死亡。PommelStrike、DaggerThrow、FlashOfSteel、MinionStrike、PhotonCut、RocketPunch、SweepingBeam、CompileDriver、Ftl 在攻击与抽牌之间调用 `ApplyEnemyDeathPowers`，使抽牌时的 `HittableEnemies`/Hellraiser 与现有引擎一致。
 - **GigantificationPower**：现有引擎的 `PowerAmountPredictionState` 在动作边界把模型数量写回；玩家在同一次动作中死亡时，`BeforeAttack` 已登记的层数会把被死亡清理清零的 Power 恢复。Flash 在 `BeforeAttack` 标 `FlashPowerFlags.PendingAmountState`，`HandlePlayerDeath`/`RemovePowersAfterDeath` 保留这些行，`FlashKernel.Step` 在稳定边界清标记。
 
-## 6. 事件内容的角色无关机制（EC）
+## 6. 事件内容的角色无关机制
 
-事件卡不属于任何角色的初始/奖励池，但会进入牌组并参与战斗；它们的结算落在通用管线。布局与投影见[状态布局](state-layout.md#27-ec-事件内容追加的卡牌值与动态类型)，准入与缺失能力见[准入](admission-and-verification.md)。
+事件卡不属于任何角色的初始/奖励池，但会进入牌组并参与战斗；它们的结算落在通用管线。布局与投影见[状态布局](state-layout.md#27-事件内容追加的卡牌值与动态类型)，准入与缺失能力见[准入](admission-and-verification.md)。
 
 - **动态卡牌类型。** `MAD_SCIENCE` 的原生 `CardModel.Type` 是保存属性 `TinkerTimeType` 的覆盖（`TargetType`、结果去向和出牌计数都随之变化）。规则表仍按卡牌 Id 冻结规范数值；结算与 `FlashScorer` 用 `FlashCardDef.CardType`/`FlashCardStats.HasDynamicType` 读实时类型。`Private` 低/高字节保存类型与骑手，`FlashStateImporter` 从原版两个保存属性投影，非法 `None` 按 `UnrepresentableState` 拒绝。评分中该卡的 `LatentCardSetupValue`/`LatentTrait` 按 Power 类型与 `Curious` 骑手照 `CombatBeamSolver.StateEvaluation` 取 10/5。
 - **实例挡格。** `TORIC_TOUGHNESS_POWER` 每个实例一行，`Amount` 是剩余回合、`Aux0` 是挡清零时的格挡量；卡与 Power 都参与 `HasIdentityContent`，因为两个实例可在同一 `AfterBlockCleared` 中先后移除。挡格量在原版是 `decimal`，投影要求非负整数，否则显式拒绝。
 - **结果去向与下回合资源。** `REBOUND_POWER` 用 `ModifyCardPlayResultLocation`/`AfterModifyingCardPlayResultLocation` 把下一张牌的 Discard 改为 Draw/Top 并扣层；`HELLO_WORLD_POWER` 在 `BeforeHandDraw` 用 `AmountOnTurnStart` 次 `TakeRandom` 取 Common 角色牌；`FEEDING_FRENZY_POWER` 是 `TemporaryStrengthPower`，在持有者侧回合末退役；`WRAITH_FORM_POWER` 在持有者侧回合开始扣敏捷。
 - **战斗外 Power 与成长收益。** `FORBIDDEN_GRIMOIRE_POWER`/`IMPROVEMENT_POWER` 的原生唯一钩子是 `AfterCombatEnd`，战斗内只保留计数行；`FORBIDDEN_GRIMOIRE` 的 50 长期资源照现有引擎记入计数器，并在施加 Power 后记录 `ForbiddenGrimoire` 成长收益；`MAD_SCIENCE` 的 Improvement 骑手只在 `ImprovementPower` 实际增加时记录 `MadScience` 成长收益（ST 的打包计数器）。
 - **任务/令牌卡。** 四张 Quest 卡由事件加入牌组、按普通牌洗入战斗牌堆，原生不可打出且只有战斗外钩子，因此定义为空效果；`LUMINESCE` 是 `RadiantPearl` 生成的 Token，只获得能量。
-- **事件怪物。** `FAKE_MERCHANT_MONSTER`/`MYSTERIOUS_KNIGHT` 的招式效果照 `MonsterMoveEffects` 移植；`ARCHITECT`/`BATTLE_FRIEND_*` 只有 `NOTHING_MOVE`。战损假人的 `BATTLEWORN_DUMMY_TIME_LIMIT_POWER` 最后一层对应 `SearchBoundaryReason.EventDefeat`：现有引擎只设置 `_battlewornDummyTimedOut` 并在 `CreatureCmd.Escape` 之前返回，Flash 用 `FlashOutcome.EventDefeat` 表示同一结局、保留 Amount 1 并跳过后续阶段（DX5）。
+- **事件怪物。** `FAKE_MERCHANT_MONSTER`/`MYSTERIOUS_KNIGHT` 的招式效果照 `MonsterMoveEffects` 移植；`ARCHITECT`/`BATTLE_FRIEND_*` 只有 `NOTHING_MOVE`。战损假人的 `BATTLEWORN_DUMMY_TIME_LIMIT_POWER` 最后一层对应 `SearchBoundaryReason.EventDefeat`：现有引擎只设置 `_battlewornDummyTimedOut` 并在 `CreatureCmd.Escape` 之前返回，Flash 用 `FlashOutcome.EventDefeat` 表示同一结局、保留 Amount 1 并跳过后续阶段。

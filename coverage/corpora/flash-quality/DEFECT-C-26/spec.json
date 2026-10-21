@@ -1,0 +1,4 @@
+{ "schemaVersion": 1, "seed": "FLASH-DECK-DEFECT-26", "characterId": "DEFECT", "ascension": 10, "actIndex": 0,
+  "encounterKind": "Boss", "includeStartingDeck": true, "includeStartingRelics": true, "includeAscendersBane": true,
+  "characterCards": { "count": 11, "upgradeLevels": 1 }, "colorlessCards": { "count": 2 },
+  "relics": { "count": 4 }, "potions": { "count": 2 }, "mode": "Setup" }
