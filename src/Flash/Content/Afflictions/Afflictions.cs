@@ -2,10 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Afflictions;
 
-// Vanilla card afflictions. Each native affliction is a marker: the behavior lives in the power that
-// applies it (TaintedPower, TangledPower, RingingPower, SmoggyPower, HexPower). The card type and
-// stacking flags reproduce AfflictionModel.CanAfflict so CardCmd.Afflict accepts the same cards.
-
 /// <summary>
 /// <c>Tainted</c>: Skill cards only, stackable. Vital Spark applies it (once at combat start without a
 /// null check, once when a Skill enters combat with a null check), and TaintedPower adds the amount

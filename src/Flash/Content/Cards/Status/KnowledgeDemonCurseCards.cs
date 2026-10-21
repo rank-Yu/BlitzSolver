@@ -2,12 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Status;
 
-// Knowledge Demon's CURSE_OF_KNOWLEDGE options. The cards are never added to a pile: the choice is a
-// fixed option list whose selected entry applies its curse power directly
-// (P/KnowledgeDemonChoiceSupport.cs). The definitions exist so the rule table can freeze their card
-// values for the choice list and so the generation closure can validate the option ids; playing one
-// is a modelling error and fails explicitly.
-
 /// <summary>Native <c>Disintegration</c>: choosing it applies 6 + the demon's curse counter as DisintegrationPower.</summary>
 [FlashContent("DISINTEGRATION")]
 public sealed class Disintegration : FlashCardDef

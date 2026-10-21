@@ -127,8 +127,9 @@ public static partial class FlashKernel
     /// </summary>
     public static void ReplaceCard(ref FlashExec x, FlashPile pile, int index, in FlashCard replacement)
     {
-        if (IsOverOrEnding(x.B))
-            return;
+        // CardChoiceSupport.TransformCardToGeneratedReplacement has no ending gate: Entropy still
+        // transforms a hand card when the draw already killed the last enemy (the turn-start power
+        // pass walks the power table directly). Only the card- and relic-listener dispatches stop.
         FlashCard entered = replacement;
         entered.Keywords |= FlashKeywords.CreatedAfterRoot;
         // A replacement is a new native card: Dampen's per-card original upgrade belongs to the object

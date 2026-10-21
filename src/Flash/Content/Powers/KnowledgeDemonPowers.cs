@@ -2,15 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Curses the Knowledge Demon's CURSE_OF_KNOWLEDGE choice applies to the player. Each mirrors the
-// native power as the existing engine executes it:
-// - DisintegrationPower is compensated in AfterSideTurnEndLateMirrors (blockable unpowered damage to
-//   its owner with itself as dealer).
-// - MindRotPower / WasteAwayPower are pure ModifyHandDraw / ModifyMaxEnergy queries invoked directly
-//   by PersistentPowerSupport and the energy calculation.
-// - SlothPower keeps its private _cardsPlayedThisTurn in the state store (CounterPredictionState);
-//   Flash stores it in Aux0 and projects it at import (FlashStateProjections).
-
 /// <summary>Native <c>DisintegrationPower</c>: at its owner's side turn end late, take its amount as
 /// unpowered damage dealt by itself.</summary>
 [FlashContent("DISINTEGRATION_POWER")]

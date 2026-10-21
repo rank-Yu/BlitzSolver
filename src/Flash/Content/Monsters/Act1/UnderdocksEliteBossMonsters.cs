@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Act1;
 
-// Remaining first-act (Underdocks) elite/boss monsters. Attacks, hit counts and branch weights come
-// from the state machine compiled by the bridge; ApplyMoveEffects mirrors the post-attack part of
-// MonsterMoveEffects.Apply for the same (monster, move) pair. Debuff helper means
-// combat.ApplyFromMonster; combat.Apply is mirrored with ApplyPower.
-
 /// <summary>
 /// FossilStalker: "TACKLE_MOVE" applies Frail 1 to the player (<c>MonsterMoveEffects</c>
 /// "FossilStalker"). Its SuckPower is a starting power imported from the root; LATCH/LASH are pure

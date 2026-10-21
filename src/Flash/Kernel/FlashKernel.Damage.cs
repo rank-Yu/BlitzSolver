@@ -349,6 +349,8 @@ public static partial class FlashKernel
         {
             if (result.WasBlockBroken)
             {
+                if (result.Receiver < 64)
+                    x.PendingBlockBreakOwners |= 1UL << result.Receiver;
                 AfterBlockBrokenHook broken = new() { Target = result.Receiver, Breaker = dealer };
                 FlashHooks.Dispatch(ref x, ref broken, gatedByEnding: false);
                 if (x.NeedsChoice)
@@ -581,6 +583,38 @@ public static partial class FlashKernel
             WasTargetKilled = killed,
             OverkillDamage = killed ? Math.Max(damage - previous, 0) : 0,
         };
+    }
+
+    /// <summary>
+    /// <c>TriggeredPowerSupport.CompensateHistorySince</c>'s block-break branch. The existing engine
+    /// scans the damage history after an effect's death pass; Flash records the owners instead.
+    /// A lethal hit has already removed BurrowedPower, so it never forces the stun.
+    /// </summary>
+    public static void ApplyBlockBreakCompensations(ref FlashExec x)
+    {
+        ulong pending = x.PendingBlockBreakOwners;
+        x.PendingBlockBreakOwners = 0;
+        while (pending != 0)
+        {
+            int owner = System.Numerics.BitOperations.TrailingZeroCount(pending);
+            pending &= pending - 1;
+            for (int index = x.B.PowerCount - 1; index >= 0; index--)
+            {
+                ref readonly FlashPower power = ref x.B.Powers[index];
+                if (power.Owner != owner || power.Amount <= 0)
+                    continue;
+                FlashPowerDef def = FlashRegistry.Power(power.Id);
+                if (!def.CompensatesBlockBreakAfterDamage)
+                    continue;
+                def.AfterBlockBrokenCompensated(ref x,
+                    new FlashListener(FlashListenerKind.Power, (byte)index, (byte)owner), (byte)owner,
+                    FlashLimits.NoOwner);
+                if (x.NeedsChoice)
+                    return;
+                if (index >= x.B.PowerCount || x.B.Powers[index].Id != power.Id)
+                    continue;
+            }
+        }
     }
 
     /// <summary>

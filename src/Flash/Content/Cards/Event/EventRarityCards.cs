@@ -2,21 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Event;
 
-// Event-rarity cards (EC batch). They enter a run deck through events and only ever appear as deck
-// cards; none of them is in a combat generation pool (native CardFactory.FilterForCombat excludes
-// CardRarity.Event). Existing-engine paths:
-// - ByrdSwoop/Clash/Exterminate/Peck/RipAndTear/Rebound/Squash: CardOnPlayInferrer / strict recipe
-//   attacks, plus the CorePowerSupport.ApplyCardPowers cases (Rebound's CardEffectSpecRegistry entry,
-//   Squash's Vulnerable).
-// - Caltrops/FeedingFrenzy/Outmaneuver/HelloWorld/ForbiddenGrimoire/WraithForm/Apparition: the
-//   CorePowerSupport, CardPowerOnPlaySupport and CardOnPlaySupport compensation switches.
-// - Distraction/Metamorphosis/Abundance: CardGenerationCardMirrors (distinct pool sampling).
-// - DualWield/Wish: CardChoiceSupport.GetSpec + CardChoiceResolution.
-// - ToricToughness: CorePowerSupport.ApplyCardPowers' AddPowerInstance + SetBlock.
-// - Entrench/Maul: BespokeCardMirrors.
-// The rule compiler reads each declared VarNames entry from the canonical card, so the numbers are
-// the native dynamic variables.
-
 [FlashContent("BYRD_SWOOP")]
 public sealed class ByrdSwoop : FlashCardDef
 {

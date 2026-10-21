@@ -2,23 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Powers referenced by the event / event-reward cards (EC batch). Each definition names the
-// existing-engine path it mirrors; hooks that the existing engine only settles outside combat stay
-// inert here (ForbiddenGrimoirePower, ImprovementPower).
-// - FeedingFrenzyPower is a TemporaryStrengthPower: CardPowerOnPlaySupport applies Strength with the
-//   card and then the temporary power; EndTurnPowerSupport.TriggerRegular retires it at its owner's
-//   side turn end (src/Prediction/CardPowerOnPlaySupport.cs, src/Prediction/EndTurnPowerSupport.cs).
-// - HelloWorldPower is the HelloWorldPower case of TurnStartPowerSupport.ContinueBeforeHandDraw
-//   (distinct common character cards, AmountOnTurnStart of them).
-// - ReboundPower is ModifyCardPlayResultLocationMirrors.HandleReboundPower/After plus the
-//   REBOUND_POWER entry of CorePowerSupport.TriggerTransientSideTurnEndPowers.
-// - ToricToughnessPower is CorePowerSupport.ApplyCardPowers' AddPowerInstance + SetBlock and the
-//   TriggerAfterBlockCleared case (instanced; Amount is the turn count, the block value is Aux0).
-// - WraithFormPower is the WRAITH_FORM_POWER case of PersistentPowerSupport.TriggerOwnerAfterSideTurnStart.
-// - CuriousPower is HookMirrors.ModifyEnergyCostInCombat's CuriousPower case.
-// - ForbiddenGrimoirePower/ImprovementPower only implement AfterCombatEnd, which the existing engine
-//   does not run inside a combat; they carry the counter for the evaluation and admission closure.
-
 /// <summary>
 /// Native <c>FeedingFrenzyPower</c>, a positive <c>TemporaryStrengthPower</c>: the application adds
 /// Strength (inside <c>BeforeApplied</c>) and the owner's side turn end removes it and takes the

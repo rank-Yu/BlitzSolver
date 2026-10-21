@@ -2,15 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Event;
 
-// Quest cards (EC batch). The four quest cards are added to the run deck by events (ByrdonisNest,
-// TheLegendsWereTrue, TheLanternKey, Neow/WarHistorianRepy) and are shuffled into the combat piles
-// like any deck card; they are unplayable and have no combat hook. Their native hooks
-// (TryModifyRestSiteOptions, BeforeRoomEntered, ModifyGeneratedMap, ...) are not combat hooks and are
-// never dispatched by the existing combat engine, so these definitions only carry the card value.
-// Admission's deck-card check only rejects run-listener (combat) hooks and therefore does not reject
-// them. Luminesce (the RadiantPearl Token) is defined by the PR batch in
-// Content/Cards/Colorless/Luminesce.cs and is not duplicated here.
-
 [FlashContent("BYRDONIS_EGG")]
 public sealed class ByrdonisEgg : FlashCardDef
 {

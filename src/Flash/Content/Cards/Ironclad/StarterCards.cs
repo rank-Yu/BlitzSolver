@@ -1,10 +1,6 @@
 using CombatSolver.Flash.Kernel;
 
-
 namespace CombatSolver.Flash.Content.Cards.Ironclad;
-
-// Existing engine: StrikeIronclad and DefendIronclad run the inferred Attack/Block recipe;
-// Bash runs the attack recipe, then CorePowerSupport.ApplyCardPowers applies Vulnerable.
 
 [FlashContent("STRIKE_IRONCLAD")]
 public sealed class StrikeIronclad : FlashCardDef

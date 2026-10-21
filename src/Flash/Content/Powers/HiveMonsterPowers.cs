@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Powers the second-act (Hive) monsters carry or apply. Each mirrors the existing engine's
-// implementation, not the decompiled original where the two differ.
-
 /// <summary>
 /// Native <c>HardToKillPower</c> (Exoskeleton, nine stacks applied in <c>AfterAddedToRoom</c>): the
 /// owner's damage taken from one hit is capped at the power amount
@@ -88,14 +85,17 @@ public sealed class BurrowedPower : FlashPowerDef
     public override bool ShouldClearBlock(ref FlashExec x, FlashListener self, byte owner)
         => owner != self.Owner;
 
-    public override void AfterBlockBroken(ref FlashExec x, FlashListener self, byte target, byte breaker)
+    // TriggeredPowerSupport.CompensateBurrow runs from CompensateHistorySince after the effect's
+    // damage pass has applied the enemy death powers: a hit that kills the Tunneler removes
+    // BurrowedPower first, so a lethal hit never forces the stun. This is not the native
+    // AfterBlockBroken hook (which the existing engine only mirrors for HandDrill), and it must
+    // not see block breaks from the enemy turn or from a phase-two evoke.
+    public override bool CompensatesBlockBreakAfterDamage => true;
+
+    public override void AfterBlockBrokenCompensated(ref FlashExec x, FlashListener self, byte target, byte breaker)
     {
         if (target != self.Owner || x.B.Powers[self.Index].Amount <= 0)
             return;
-        // TriggeredPowerSupport.CompensateBurrow runs after the damage pass has applied the enemy
-        // death powers: a hit that kills the Tunneler removes BurrowedPower first, so a lethal hit
-        // never forces the stun. AfterBlockBroken runs before that deferred pass, so skip the
-        // still-dead owner here.
         if (x.B.Creature(self.Owner).IsDead)
             return;
         FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
@@ -106,6 +106,7 @@ public sealed class BurrowedPower : FlashPowerDef
             FlashKernel.MonsterRules(ref x, self.Owner).NodeIndex("BITE_MOVE"));
     }
 }
+
 /// <summary>
 /// Native <c>SandpitPower</c> (TheInsatiable's LIQUIFY_GROUND): a target-marking debuff. The existing
 /// engine's compensation runs it in <c>TurnStartPowerSupport.TriggerAfterSideTurnStart</c> on the

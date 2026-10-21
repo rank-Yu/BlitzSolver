@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Instance-identity powers. Existing-engine paths are named on each definition; the decompiled
-// models are only used to confirm constants and conditions.
-
 /// <summary>
 /// Native <c>MonologuePower</c> (instanced): every card the player plays while it is active adds its
 /// Strength to the owner after the play, then the applied total is removed at the owner's side turn

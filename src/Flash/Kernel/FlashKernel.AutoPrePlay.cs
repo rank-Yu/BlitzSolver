@@ -122,26 +122,62 @@ public static partial class FlashKernel
             FlashPiles.Append(ref x.B, FlashPile.Play, card);
             captured[moved++] = card;
         }
+        if (moved == 0)
+            return;
+        // MoveCardsForAutoPlay keeps the live CardModels: an earlier auto-play can move a later queued
+        // card to another pile (SummonForth moves a queued Sovereign Blade to hand) or remove it from
+        // combat. Mark each queued instance with the dynamic 64..255 identity range shared through
+        // TransientMarkBase (Sly/Stoke/Decisions also allocate there); the mark travels with the value
+        // and is cleared in finally.
+        int markBase = x.TransientMarkBase;
+        if (64 + markBase + moved > 256)
+            throw new FlashCapacityException("TransientMarks", 256 - 64);
+        x.TransientMarkBase = checked((byte)(markBase + moved));
+        int markStart = 64 + markBase;
+        int playStart = FlashPiles.Start(x.B, FlashPile.Play);
         for (int index = 0; index < moved; index++)
+            x.B.Cards[playStart + index].TransientMark = checked((byte)(markStart + index));
+        try
         {
-            if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
-                return;
-            int playStart = FlashPiles.Start(x.B, FlashPile.Play);
-            int position = -1;
-            for (int offset = 0; offset < x.B.PlayCount; offset++)
+            for (int index = 0; index < moved; index++)
             {
-                FlashCard candidate = x.B.Cards[playStart + offset];
-                if (candidate.Id == captured[index].Id && candidate.Upgrade == captured[index].Upgrade)
+                if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
+                    return;
+                byte mark = checked((byte)(markStart + index));
+                if (TryFindUniqueTransientMark(x.B, mark, out FlashPile pile, out int position))
                 {
-                    position = offset;
-                    break;
+                    AutoPlay(ref x, pile, position);
+                }
+                else
+                {
+                    // The existing engine's AutoPlay re-adds a live card whose GetPile(State) is null
+                    // (a queued card that left combat) and plays it again.
+                    AutoPlay(ref x, captured[index], FlashLimits.NoOwner, skipXCapture: false,
+                        historyCourseDupe: false, out _, out _, out _);
+                }
+                if (x.NeedsChoice)
+                    return;
+            }
+        }
+        finally
+        {
+            for (int position = 0; position < x.B.CardCount; position++)
+            {
+                if (x.B.Cards[position].TransientMark >= markStart
+                    && x.B.Cards[position].TransientMark < markStart + moved)
+                {
+                    x.B.Cards[position].TransientMark = 0;
                 }
             }
-            if (position < 0)
-                throw new FlashUnsupportedException("自动预打出队列中的卡已不在打出区。");
-            AutoPlay(ref x, FlashPile.Play, position);
-            if (x.NeedsChoice)
-                return;
+            for (int slot = 0; slot < FlashLimits.DetachedCards; slot++)
+            {
+                if (x.B.DetachedCards[slot].TransientMark >= markStart
+                    && x.B.DetachedCards[slot].TransientMark < markStart + moved)
+                {
+                    x.B.DetachedCards[slot].TransientMark = 0;
+                }
+            }
+            x.TransientMarkBase = checked((byte)markBase);
         }
     }
 
@@ -165,7 +201,8 @@ public static partial class FlashKernel
             copy.Keywords &= ~FlashKeywords.Exhaust;
             // The clone is a new object: it is not in the existing engine's _returnToHandNextTurn set.
             copy.ReturnToHandNextTurn = false;
-            AutoPlay(ref x, copy, FlashLimits.NoOwner, skipXCapture: false, historyCourseDupe: true);
+            AutoPlay(ref x, copy, FlashLimits.NoOwner, skipXCapture: false, historyCourseDupe: true,
+                out _, out _, out _);
             if (x.NeedsChoice)
                 return;
             if (IsOverOrEnding(x.B) || x.B.Player.IsDead)

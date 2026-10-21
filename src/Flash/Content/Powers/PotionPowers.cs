@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Powers applied by the potions in Content/Potions. Each mirrors the existing engine's handling, not
-// the decompiled original where the two differ.
-
 /// <summary>
 /// Native <c>ClarityPower</c>: draws one extra card per turn while its owner is the player and loses
 /// one stack at its owner's side turn start

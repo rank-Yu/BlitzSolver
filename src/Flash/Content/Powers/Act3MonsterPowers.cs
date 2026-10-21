@@ -2,10 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Third-act (Glory) monster powers. Each definition copies the existing engine's mirror for the same
-// power; where the existing engine has no mirror the power stays inert so the differential stays
-// equal. The native model is named in the comment for constants.
-
 /// <summary>
 /// Native <c>PaperCutsPower</c>: after its owner deals unblocked powered-attack damage to a player,
 /// that player loses <c>Amount</c> max HP

@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Status;
 
-// Status cards the first-act monsters put into the player's piles. Their canonical stats come from
-// the rule compiler; the definitions only mirror the existing engine's OnPlay.
-
 /// <summary>
 /// Native <c>Slimed</c>: cost 1, Exhaust; drawing one card. The existing engine runs the inferred
 /// <c>Cards</c> draw recipe (<c>CardDrawCardMirrors</c> / general draw), so Flash draws after the

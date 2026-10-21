@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Ironclad powers whose existing-engine handling lives in M/Hooks/**. Rage and FlameBarrier removal
-// is handled by CorePowerSupport.TriggerTransientSideTurnEndPowers, which the Flash turn phases copy.
-// Rupture is absent because the existing engine creates an unrepresentable RupturePredictionState on
-// every card play.
-
 /// <summary>
 /// Native <c>FeelNoPainPower</c>: <c>AfterCardExhausted</c> gains its amount as Unpowered block
 /// when the exhausted card belongs to the power owner
@@ -346,13 +341,6 @@ public sealed class InfernoPower : FlashPowerDef
             self.Owner);
     }
 }
-
-// P14 batch. Aggression is TurnStartPowerSupport.ApplyBeforeSideTurnStartPower's dedicated pass;
-// Unmovable is ModifyBlockMultiplicativeMirrors.HandleUnmovablePower; Rupture is the existing
-// BeforeCardPlayed / AfterDamageReceived / AfterCardPlayed trio
-// (BeforeCardPlayedMirrors.HandleRupturePower, AfterDamageReceivedMirrors.HandleRupturePower,
-// AfterCardPlayedMirrors.HandleRupturePower). PlatingPower (StoneArmor) already has its definition
-// in UnderdocksPowers.cs.
 
 /// <summary>
 /// Native <c>AggressionPower</c>: at its owner's side turn start it unstable-shuffles the Attack

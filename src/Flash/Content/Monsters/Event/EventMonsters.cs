@@ -2,12 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Event;
 
-// Event-encounter monsters (EC batch). Attacks, hit counts and branch weights come from the compiled
-// native state machine; ApplyMoveEffects copies the post-attack part of MonsterMoveEffects.Apply for
-// the same (monster, move). Starting powers (MysteriousKnight's Strength/Plating, the Battleworn
-// Dummy's time limit) are applied by the event/room setup outside combat and therefore arrive in the
-// root power table.
-
 /// <summary>
 /// FakeMerchantMonster: SWIPE_MOVE is a plain attack, SPEW_COINS_MOVE is 2×8, THROW_RELIC_MOVE applies
 /// Frail 1 to the player as a monster debuff, ENRAGE_MOVE applies Strength 2 to itself

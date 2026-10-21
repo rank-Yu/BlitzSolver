@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Necrobinder;
 
-// Necrobinder starter deck. Existing engine paths: StrikeNecrobinder/DefendNecrobinder run the
-// general attack/block recipe (CardOnPlayMirrors registers both), Bodyguard summons through
-// CardOnPlaySupport.Batch043, and Unleash's CalculatedDamage multiplier is
-// CalculatedVarSpecRegistry.Unleash (Osty's current HP).
-
 [FlashContent("STRIKE_NECROBINDER")]
 public sealed class StrikeNecrobinder : FlashCardDef
 {

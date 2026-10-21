@@ -2,15 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Enchantments;
 
-// Enchantments the existing engine implements. EnchantDamage*/EnchantBlock* are called by
-// HookMirrors before every listener; OnPlay is the EnchantmentOnPlayMirrors registry (Adroit,
-// Corrupted, Inky, Momentum, Sown, Swift); EnchantPlayCount is CardModel.GetEnchantedReplayCount.
-// Keyword-only enchantments (Goopy's Exhaust, Steady's Retain, RoyallyApproved's Innate/Retain,
-// Tezcatara's Ember Eternal, SoulsPower removing Exhaust) are baked into the imported card value.
-//
-// Constants that have no rule-table entry are copied from the decompiled canonical model with the
-// source noted on the definition.
-
 /// <summary><c>Sharp</c>: adds the enchantment amount to powered attacks (decompiled Sharp.cs).</summary>
 [FlashContent("SHARP")]
 public sealed class Sharp : FlashEnchantmentDef

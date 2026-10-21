@@ -2,8 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Relics;
 
-// Relics whose existing-engine state is a per-card ledger and/or a per-temporary-power type set.
-
 /// <summary>
 /// Native <c>Vambrace</c>: the first card-sourced block each combat is doubled once; the triggering
 /// card's identity lives only until that card's AfterCardPlayed. Existing engine:

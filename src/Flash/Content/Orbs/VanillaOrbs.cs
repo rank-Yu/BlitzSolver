@@ -2,16 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Orbs;
 
-// The five vanilla orbs. Values come from the native orb classes (decompiled 0.111.0):
-// LightningOrb.PassiveVal/EvokeVal = 3/8, FrostOrb = 2/5, DarkOrb.PassiveVal = 6 and
-// DarkOrb._evokeVal starts at 6, PlasmaOrb = 1/2, GlassOrb._passiveVal starts at 4 and its
-// evoke is PassiveVal * 2. Every value goes through OrbModel.ModifyOrbValue (Focus) as the native
-// property does. Target selection and RNG usage mirror OrbMirrors:
-//   - Lightning/Glass use HittableEnemies in roster order; Lightning consumes CombatTargets only when
-//     it has to pick a target (Passive without an explicit target, Evoke).
-//   - Dark evokes the minimum-CurrentHp hittable enemy (first on ties).
-//   - Frost blocks the owner (Hibernate only matters in multiplayer, which Flash rejects).
-
 [FlashContent("DARK_ORB")]
 public sealed class DarkOrb : FlashOrbDef
 {

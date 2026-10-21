@@ -2,12 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Act2;
 
-// Second-act (Hive) monsters. Attacks, hit counts and branch weights come from the state machine
-// compiled by the bridge; ApplyMoveEffects mirrors the post-attack part of
-// MonsterMoveEffects.Apply for the same (monster, move) pair. The helper comment on each type names
-// the existing-engine registration it copies. ApplyPowerFromMonster = combat.ApplyFromMonster;
-// ApplyPower = combat.Apply.
-
 /// <summary>Chomper: "SCREECH_MOVE" adds three Dazed to the discard pile; its Artifact is a starting power.</summary>
 [FlashContent("CHOMPER")]
 public sealed class Chomper : FlashMonsterDef
@@ -299,6 +293,7 @@ public sealed class Tunneler : FlashMonsterDef
         FlashKernel.GainBlock(ref x, owner, rules.StaticInts[BlockGain], FlashValueProps.Move, fromCard: false);
     }
 }
+
 /// <summary>
 /// TheInsatiable: "SALIVATE_MOVE" applies <c>SalivateStrength</c> Strength to itself;
 /// "LIQUIFY_GROUND_MOVE" applies 4 targeted Sandpit to the player and adds three FranticEscape to a

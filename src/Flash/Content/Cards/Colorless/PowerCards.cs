@@ -2,12 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Colorless;
 
-// Colorless power cards. Existing engine paths for this batch:
-// - EternalArmor, Fasten, PrepTime and Prowess are CardPowerOnPlaySupport cases; the applied powers
-//   keep their native hooks in M/Hooks/** (the Flash definitions live in Content/Powers).
-// Instanced powers (Automation, Panache, RollingBoulder, TheBomb) each occupy one FlashPower row per
-// native instance; phase snapshots keep the occurrence so two copies stay distinct.
-
 [FlashContent("ETERNAL_ARMOR")]
 public sealed class EternalArmor : FlashCardDef
 {

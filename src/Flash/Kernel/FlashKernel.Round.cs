@@ -39,6 +39,10 @@ public static partial class FlashKernel
             TriggerBeforeTurnEndOrbs(ref x);
             if (x.NeedsChoice)
                 return;
+            // OrbLifecycleSupport.TriggerBeforeTurnEnd compensates the block breaks of the orb pass.
+            ApplyBlockBreakCompensations(ref x);
+            if (x.NeedsChoice)
+                return;
             if (!IsOverOrEnding(x.B))
             {
                 DoTurnEnd(ref x);
@@ -81,6 +85,10 @@ public static partial class FlashKernel
         else
         {
             x.ChoiceTiming = FlashChoiceTiming.EnemyTurn;
+            // Block breaks from the player's turn end were settled at their own compensation points;
+            // an enemy-turn break is never compensated (the existing engine only replays card, orb,
+            // potion and reactive-relic history).
+            x.PendingBlockBreakOwners = 0;
             RunEnemyTurn(ref x);
         }
         // The performed-move marks only carry information within one enemy turn. The
@@ -523,6 +531,8 @@ public static partial class FlashKernel
     /// </summary>
     private static void AdvanceRoundPlayerStart(ref FlashExec x, bool takingExtraTurn = false)
     {
+        // Enemy-turn damage is not part of any compensated history window.
+        x.PendingBlockBreakOwners = 0;
         x.ChoiceTiming = FlashChoiceTiming.PlayerTurnStart;
         SetSide(ref x.B, FlashSide.Player);
         if (!takingExtraTurn)

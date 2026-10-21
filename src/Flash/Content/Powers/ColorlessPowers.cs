@@ -2,19 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Colorless-pool powers whose native hook is dispatched by the kernel. Existing engine paths:
-// - DarkShacklesPower is a native TemporaryStrengthPower applied through
-//   SimulatedCombatState.ApplyTemporaryStrengthLoss and retired by EndTurnPowerSupport.TriggerRegular
-//   (src/Prediction/CardOnPlaySupport.cs, src/Search/SimulatedCombatState.cs).
-// - FastenPower.ModifyBlockAdditive is invoked by HookMirrors.ModifyBlock through the native listener
-//   method (src/Engine/InCombat/Mirrors/HookMirrors.cs:53); its AfterModifyingBlockAmount flash is
-//   presentation-only (AfterModifyingBlockAmountMirrors registers it as ignored).
-// - NoBlockPower.ModifyBlockMultiplicative is invoked through the same native fallback
-//   (ModifyBlockMultiplicativeMirrors.Invoke) and its duration ticks at the enemy side end in
-//   CorePowerSupport.TickDurations.
-// - PrepTimePower is the PREP_TIME_POWER case of PersistentPowerSupport.TriggerOwnerAfterSideTurnStart
-//   (src/Prediction/PersistentPowerSupport.cs:213).
-
 /// <summary>
 /// Native <c>DarkShacklesPower</c> (a negative <c>TemporaryStrengthPower</c>): the application path
 /// also changes Strength by -amount (DarkShackles card), and the power is removed at its owner's side

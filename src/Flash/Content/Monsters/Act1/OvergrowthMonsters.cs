@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Act1;
 
-// First-act (Overgrowth) monsters. Attacks, hit counts and branch weights come from the state machine
-// compiled by the bridge; ApplyMoveEffects mirrors the post-attack part of
-// MonsterMoveEffects.Apply for the same (monster, move) pair. Debuff helper means
-// combat.ApplyFromMonster; combat.Apply is mirrored with ApplyPower.
-
 /// <summary>ShrinkerBeetle: "SHRINKER_MOVE" applies ShrinkPower -1 to the player.</summary>
 [FlashContent("SHRINKER_BEETLE")]
 public sealed class ShrinkerBeetle : FlashMonsterDef

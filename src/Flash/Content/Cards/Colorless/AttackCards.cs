@@ -2,15 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Colorless;
 
-// Colorless attack cards. Existing engine paths for this batch:
-// - DramaticEntrance, UltimateStrike and Salvo infer the Attack recipe (Salvo is an
-//   EngineInferred method recipe), then CardOnPlaySupport adds Salvo's RetainHandPower stack.
-// - FlashOfSteel is CardDrawCardMirrors' inferred attack + owner draw.
-// - MindBlast and Rend are CardCalculatedVar attacks: CalculationBase + ExtraDamage * multiplier,
-//   resolved by CalculatedVarSpecRegistry (draw pile count / target non-temporary debuff powers).
-// - Volley is RandomTargetAttackCardMirrors.VolleyOnPlay: ResolveEnergyXValue hits on random
-//   hittable opponents, one CombatTargets pick per hit.
-
 [FlashContent("DRAMATIC_ENTRANCE")]
 public sealed class DramaticEntrance : FlashCardDef
 {

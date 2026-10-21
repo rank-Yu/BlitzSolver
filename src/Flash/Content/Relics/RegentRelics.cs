@@ -2,8 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Relics;
 
-// Regent and shared relics used by the Regent content set. Existing engine paths are named per relic.
-
 /// <summary>
 /// <c>DivineRight</c> (starter): <c>AfterRoomEntered</c> gains 3 stars, which runs before a combat root
 /// is captured; the imported <see cref="FlashBattle.Stars"/> already includes it and the relic has no

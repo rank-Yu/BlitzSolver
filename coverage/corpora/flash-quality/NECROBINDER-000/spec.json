@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "seed": "FLASH-QUALITY-NECROBINDER-000",
+  "characterId": "NECROBINDER",
+  "ascension": 10,
+  "actIndex": 0,
+  "encounterKind": "Monster",
+  "includeStartingDeck": true,
+  "includeStartingRelics": true,
+  "includeAscendersBane": true,
+  "characterCards": {
+    "count": 6,
+    "upgradeLevels": 1
+  },
+  "colorlessCards": {
+    "count": 1
+  },
+  "relics": {
+    "count": 2
+  },
+  "potions": {
+    "count": 0
+  },
+  "mode": "Setup"
+}

@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Colorless;
 
-// Colorless cards whose closure was previously blocked by instance-identity content. Existing-engine
-// paths are named per definition.
-
 /// <summary>
 /// Native <c>BundleOfJoy</c>: add <c>Cards</c> distinct colorless cards to the hand.
 /// <c>CardGenerationCardMirrors.BundleOfJoyOnPlay</c>.

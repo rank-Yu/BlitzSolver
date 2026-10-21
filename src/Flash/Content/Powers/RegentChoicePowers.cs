@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Regent choice and generation powers. Each definition copies the existing engine path named in its
-// comment; the decompiled model is only used to confirm constants and native conditions.
-
 /// <summary>
 /// <c>TyrannyPower</c>: the owner draws Amount extra cards (<c>ModifyHandDraw</c>) and at the player
 /// turn start exhausts Amount cards from hand (<c>TurnStartPowerSupport.ContinueAfterPlayerTurnStart</c>
@@ -110,7 +107,6 @@ public sealed class TheSealedThronePower : FlashPowerDef
         FlashKernel.GainStars(ref x, x.B.Powers[self.Index].Amount);
     }
 }
-
 
 /// <summary>
 /// <c>VoidFormPower</c>: the first Amount non-auto card plays of its owner each turn cost 0 energy and

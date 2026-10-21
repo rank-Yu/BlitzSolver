@@ -2,10 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Event;
 
-// Basic/Ancient event-reward cards (EC batch). They enter the deck through Ancient events and are
-// never in a combat generation pool (CardFactory.FilterForCombat excludes Ancient/Event). Existing
-// engine paths are named on each definition.
-
 [FlashContent("ABUNDANCE")]
 public sealed class Abundance : FlashCardDef
 {

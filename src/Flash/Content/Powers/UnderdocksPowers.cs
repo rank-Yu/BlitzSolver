@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Powers the first-act (Underdocks) monsters apply to the player or carry themselves. Each mirrors the
-// existing engine's implementation, not the decompiled original where the two differ.
-
 /// <summary>
 /// Native <c>RitualPower</c>: at the end of its owner's side it applies Strength equal to its amount
 /// to the owner (<c>EndTurnPowerSupport.TriggerRegular</c> case <c>RitualPower when ownerParticipates</c>

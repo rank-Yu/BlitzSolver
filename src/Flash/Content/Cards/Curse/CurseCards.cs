@@ -2,16 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Curse;
 
-// Curse cards. Their canonical stats (cost, keywords, variables) come from the rule compiler
-// through FlashRules; the definitions mirror the existing engine's OnTurnEndInHand.
-//
-// Existing engine paths for this batch:
-// - Decay, BadLuck, Doubt and Shame are CardOnTurnEndInHandMirrors: damage (Decay), HP loss
-//   (BadLuck), Weak or Frail with the native first-duration-tick skip (Doubt, Shame).
-// - AscendersBane, Clumsy, CurseOfTheBell, Folly, Greed, Guilty, Injury, PoorSleep, SporeMind
-//   and Writhe override no combat hook. Guilty's AfterCombatEnd is outside combat.
-// - SporeMind is playable (cost 1, Exhaust) with no effect.
-
 /// <summary>
 /// Native <c>AscendersBane</c>: Eternal, Unplayable, Ethereal; no combat hook is overridden. Its
 /// Ethereal keyword makes the kernel exhaust it from the hand at turn end.

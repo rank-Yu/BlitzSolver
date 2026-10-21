@@ -508,8 +508,14 @@ public static partial class FlashKernel
         if (x.NeedsChoice)
             return;
         TriggerTransientSideTurnEndPowers(ref x, FlashSide.Player, participants);
+        // CompleteRelicsAfterSideTurnEnd is not a listener filter: the existing engine always runs its
+        // ArtOfWar/Kusarigama resets and JossPaper/LunarPastry/ParryingShield effects, even when the
+        // last primary enemy died during this phase. Only the late listener pass uses
+        // HookMirrors.IterateCombatHookListeners, which is empty once IsOverOrEnding (DEFECT-011).
         RelicPass(ref x, RelicPhase.AfterSideTurnEnd, FlashSide.Player);
         if (x.NeedsChoice)
+            return;
+        if (IsOverOrEnding(x.B))
             return;
         AfterSideTurnEndLatePass(ref x, FlashSide.Player, participants);
         if (!x.NeedsChoice)

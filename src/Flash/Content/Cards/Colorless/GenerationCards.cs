@@ -2,18 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Colorless;
 
-// KG1 batch: auto-play, card-pool generation, generated-card choice and a random potion.
-// Existing-engine paths:
-// - BeatDown / Catastrophe: CardSelectionCardMirrors.BeatDownOnPlay / CatastropheOnPlay.
-// - Jackpot: CardGenerationCardMirrors.JackpotOnPlay (character cards with canonical cost 0, with
-//   replacement, upgraded when Jackpot is upgraded).
-// - JackOfAllTrades: CardGenerationCardMirrors.JackOfAllTradesOnPlay (distinct colorless cards,
-//   excluding itself).
-// - Discovery / Splash: CardGenerationCardMirrors.RecordOptions + RecordRisk then
-//   CardChoiceSupport.GetSpec's GenerateToHand branch.
-// - Alchemize: PotionGenerationCardMirrors.AlchemizeOnPlay (random combat potion).
-// - Calamity: CardPowerOnPlaySupport applies CalamityPower.
-
 [FlashContent("BEAT_DOWN")]
 public sealed class BeatDown : FlashCardDef
 {

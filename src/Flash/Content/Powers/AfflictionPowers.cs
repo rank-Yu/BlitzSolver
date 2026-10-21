@@ -4,10 +4,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Powers behind the vanilla card afflictions and the first-act encounters that use them. The
-// existing engine implements these as mirrors/compensations; the original decompiled models are
-// referenced only where the existing engine changed a condition or ordering.
-
 /// <summary>
 /// <c>PlowPower</c> (Ceremonial Beast's STAMP_MOVE): when the owner takes unblocked damage and its
 /// current HP drops to this power's amount or below, it loses Strength (permanent and temporary),
@@ -29,16 +25,21 @@ public sealed class PlowPower : FlashPowerDef
         int amount = x.B.Powers[self.Index].Amount;
         if (x.B.Creature(self.Owner).CurrentHp > amount)
             return;
-        ushort temporaryStrength = FlashRegistry.TryPower("TEMPORARY_STRENGTH_POWER", out ushort temporaryId)
-            ? temporaryId
-            : ushort.MaxValue;
         ushort strength = FlashRegistry.TryPower("STRENGTH_POWER", out ushort strengthId)
             ? strengthId
             : ushort.MaxValue;
         for (int index = x.B.PowerCount - 1; index >= 0; index--)
         {
             ref readonly FlashPower power = ref x.B.Powers[index];
-            if (power.Owner == self.Owner && (power.Id == temporaryStrength || power.Id == strength))
+            if (power.Owner != self.Owner)
+                continue;
+            // AfterDamageReceivedMirrors.HandlePlowPower removes every TemporaryStrengthPower
+            // subclass (Mangle, SetupStrike, PiercingWail, ...) plus StrengthPower itself. The
+            // temporary family has no single native id; the definition records the stat it feeds.
+            FlashPowerDef def = FlashRegistry.Power(power.Id);
+            bool temporaryStrength = def.IsTemporaryPower
+                && def.InternallyAppliedPowerId == "STRENGTH_POWER";
+            if (power.Id == strength || temporaryStrength)
                 FlashKernel.SetPowerAmount(ref x.B, self.Owner, power.Id, 0);
         }
         int nextNode = -1;

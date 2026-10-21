@@ -379,6 +379,8 @@ public static partial class FlashKernel
             // that kills the Phrog Parasite must spawn its Wrigglers before the next queued auto-play
             // picks a target.
             ApplyEnemyDeathPowers(ref x);
+            if (!x.NeedsChoice)
+                ApplyBlockBreakCompensations(ref x);
             if (x.NeedsChoice)
             {
                 if (identityScope)
@@ -498,24 +500,32 @@ public static partial class FlashKernel
             return;
 
         // ContinueCardResultExecution: the card is still in the play pile at its position. The
-        // native cost cleanup touches only this card, so it runs before the move here.
-        if (playPosition < x.B.PlayCount)
+        // native cost cleanup touches only this card, so it runs before the move here. Content that
+        // removes an earlier play-pile card (SummonForth moving a queued Sovereign Blade) shifts the
+        // live slot; PlayPosition is the adjusted identity, while the captured local can be stale.
+        int resultSlot = playPosition;
+        if ((uint)x.PlayPosition < (uint)x.B.PlayCount
+            && FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Play, x.PlayPosition), x.Card))
+        {
+            resultSlot = x.PlayPosition;
+        }
+        if (resultSlot < x.B.PlayCount)
         {
             if (removeFromCombat)
             {
-                FlashPiles.RemoveAt(ref x.B, FlashPile.Play, playPosition);
+                FlashPiles.RemoveAt(ref x.B, FlashPile.Play, resultSlot);
             }
             else
             {
-                AfterCardPlayedCleanup(ref FlashPiles.At(ref x.B, FlashPile.Play, playPosition));
+                AfterCardPlayedCleanup(ref FlashPiles.At(ref x.B, FlashPile.Play, resultSlot));
                 if (result == FlashPile.Exhaust)
                 {
                     int exhaustCount = x.B.ExhaustCount;
-                    Exhaust(ref x, FlashPile.Play, playPosition);
+                    Exhaust(ref x, FlashPile.Play, resultSlot);
                     resultPile = FlashPile.Exhaust;
                     resultIndex = exhaustCount;
                 }
-                else if (MoveCard(ref x.B, FlashPile.Play, playPosition, result, resultPosition,
+                else if (MoveCard(ref x.B, FlashPile.Play, resultSlot, result, resultPosition,
                              out FlashPile movedPile, out int movedIndex))
                 {
                     resultPile = movedPile;

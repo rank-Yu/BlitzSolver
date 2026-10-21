@@ -48,7 +48,7 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / Shadow 的现有�
 
 - `src/Flash/`：Flash 模块，依赖方向 `Bridge → Search → Kernel/Content`，目录规则见 `src/Flash/AGENTS.md`。
   - `Kernel/`（`CombatSolver.Flash.Kernel`）：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power 管线、Hook 派发、选择协议、指纹。只依赖 BCL，不引用 MegaCrit、Godot、HarmonyLib 或 CombatSolver 其他命名空间。
-  - `Content/`（`CombatSolver.Flash.Content.*`）：内容定义，按 `Cards/<角色>`、`Powers`、`Relics`、`Potions`、`Monsters`、`Orbs`、`Enchantments`、`Afflictions` 分目录；只依赖 BCL 与内核。
+  - `Content/`（`CombatSolver.Flash.Content.*`）：内容定义，按 `Cards/<角色>`、`Powers`、`Relics`、`Potions`、`Monsters`、`Orbs`、`Enchantments`、`Afflictions` 分目录；只依赖 BCL 与内核。文件名只描述内容：角色卡按 `StarterCards`、`AttackCards.<稀有度>`、`SkillCards.<稀有度>`、`PowerCards.<稀有度>`、`GeneratedCards`，Power/遗物/药水/怪物按来源、稀有度、幕或怪物族分文件，不使用批次代号。
   - `Search/`（`CombatSolver.Flash.Search`）：`FlashBeamSolver`、搜索容器，`Scoring/` 为状态评估。
   - `Bridge/`（`CombatSolver.Flash.Bridge`）：准入、规则编译、根导入、动作翻译、路线核对与物化、开启模式失败约定；可以引用 Search、Prediction、Engine 和游戏程序集。
 - `src/Search/Probes/`：协调器与续接来源共享的开局/前缀探针与评估；不引用 `CombatBeamSolver`。

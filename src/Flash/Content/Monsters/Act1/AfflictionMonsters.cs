@@ -3,11 +3,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Act1;
 
-// Act 1 monsters whose behavior depends on card afflictions, plus Living Fog's Gas Bomb. Attacks,
-// hit counts and state transitions are compiled from the native move state machine by the bridge;
-// each ApplyMoveEffects case mirrors the existing engine's MonsterMoveEffects.Apply for the same
-// (monster, move), and ApplyBeforeAttack equivalents live in BeforeMove.
-
 /// <summary>
 /// Ceremonial Beast (CEREMONIAL_BEAST_BOSS): STAMP applies PlowPower (<c>PlowAmount</c>), PLOW and
 /// CRUSH add Strength after their attack, and BEAST_CRY afflicts the player with RingingPower.

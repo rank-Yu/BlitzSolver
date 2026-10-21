@@ -2,21 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Relics;
 
-// Defect relics. Existing engine paths:
-//   CrackedCore      SimulatedCombatState.PrepareRelicBeforeSideTurnStart's CrackedCore case
-//                    (player turn <= 1, OrbChannel<LightningOrb>(DynamicVars["Lightning"])).
-//   RunicCapacitor   TriggerRelicsAfterSideTurnStart's RunicCapacitor case (turn <= 1, AddOrbSlots(Repeat)).
-//   SymbioticVirus   TriggerRelicsAfterSideTurnStart's SymbioticVirus case (turn <= 1, OrbChannel<DarkOrb>).
-//   GoldPlatedCables ModifyOrbPassiveTriggerCountMirrors.HandleGoldPlatedCables (the first orb in the
-//                    queue triggers one extra passive).
-//   PowerCell        BeforeSideTurnStartMirrors.Vanilla registers it ignored: the existing engine does
-//                    not simulate its draw-two effect, so Flash must not either (a definition is still
-//                    required for admission).
-//   ReptileTrinket   SimulatedCombatState.TriggerRelicsAfterPotionUsed applies the temporary Strength
-//                    after every potion use (AfterPotionUsed).
-// UnsettlingLamp has no Flash definition: the existing engine's power-amount-given hook depends on the
-// card source identity and a per-card doubled-power ledger that Flash does not model.
-
 [FlashContent("CRACKED_CORE")]
 public sealed class CrackedCore : FlashRelicDef
 {
@@ -71,7 +56,6 @@ public sealed class PowerCell : FlashRelicDef
     // The existing engine's BeforeSideTurnStartMirrors.Vanilla registered PowerCell as ignored; the
     // definition exists so a deck containing it can be admitted, and it has no combat effect.
 }
-
 
 [FlashContent("REPTILE_TRINKET")]
 public sealed class ReptileTrinket : FlashRelicDef

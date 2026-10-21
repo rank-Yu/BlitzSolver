@@ -43,7 +43,7 @@
 - `ReturnToHandNextTurn`（Bolas/ThrummingHatchet，`CostState` bit 4）：对应 `SimulatedCombatState._returnToHandNextTurn` 的成员关系；导入时按原牌对象投影，`BeforeHandDraw` 的返回手牌阶段清位。
 - `DampenOriginalUpgrade`：卡牌被 MagiKnight 的 DampenPower 降级前的升级等级加一（0 表示未降级）。`DowngradeCard` 在把卡牌重置到 0 级动态变量、基础费用与本地关键字时写入；`RestoreDampenedCards` 在最后一个施法者死亡时按该值逐级恢复。
 
-`FlashCardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`FlashKeywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸为 92 字节。`TransientMark` 是一次动作内的对象身份标记，占用原有尾部填充字节：`BeatDown` 使用 1..63，Sly 弃牌批次使用 64..255（由栈上的 `FlashExec.TransientMarkBase` 分配嵌套区间）。0 表示未标记，动作结束前清除，稳定边界恒为 0，克隆与生成卡从 0 开始。
+`FlashCardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`FlashKeywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸为 92 字节。`TransientMark` 是一次动作内的对象身份标记，占用原有尾部填充字节：`BeatDown` 使用 1..63；64..255 是共享的动态分配区间，由栈上的 `FlashExec.TransientMarkBase` 分配互不重叠的嵌套区间（Sly/Stoke、`DecisionsDecisions` 的重复自动打出、Mayhem 的自动预打出队列）。0 表示未标记，动作结束前清除，稳定边界恒为 0，克隆与生成卡从 0 开始。
 
 这组内容没有新增计数器，Hook 位沿用 `FlashHookMaskExt` 的 `1UL << 16`，`FlashCard`/`FlashBattle` 尺寸不变。`AmountOnTurnStart` 只对三个会被结算读取的 Power 保存（`DrawCardsNextTurnPower`、`SummonNextTurnPower`、`HelloWorldPower`），其余 Power 在导入与回合开始快照时保持 0；这是把原生模型里“镜像扣层尚未同步”的滞后值归一化，避免 Flash 立即扣层后与旧投影差异（依据见 [准入](admission-and-verification.md)）。
 
@@ -98,7 +98,7 @@
 | `_nightmareSelections`（`Dictionary<NightmarePower,PredictedCard>`） | `FlashBattle.DetachedCards` 的小数组：`FlashPower.Aux0 = 槽位 + 1`，槽位存选定卡的完整 `FlashCard` 值 | Power 移除时清空槽位；每个 `NightmarePower` 实例一行，按获得顺序 |
 | `SwipePower.StolenCard`（被 THIEVERY 移除的卡） | `FlashBattle.DetachedCards` 的同一小数组：`FlashPower.Aux0 = 槽位 + 1`，槽位存被偷卡的完整 `FlashCard` 值（含 `DeckCard`/`RemovedFromState`） | THIEVERY 从抽牌/弃牌堆移出时分配；击杀飞贼时 `RecoverStolenResources` 回收并清槽；逃跑移除 Power 时只清槽、不回收 |
 
-**瞬态值不进入指纹。** `FlashExec` 的 Monologue/Vambrace/UnsettlingLamp 数据在每次动作结束前排空，稳定边界的字节里没有它们。`FlashExec.TransientMarkBase` 同样只在动作内存在：`DiscardAndDraw` 用它为每张被弃置的 Sly 卡分配 64..255 的身份字节，标记随卡值穿过抽牌与洗牌，自动打出后清零（标记丢失按显式未支持回落）；区间耗尽抛 `FlashCapacityException`。`BeatDown` 的清理只覆盖 1..63，不会清除 Sly 批次；若 BeatDown 选中同一张卡，覆盖后的标记按显式未支持回落。`NightmarePower` 的选定卡是真正的跨回合值：它在下一次 `BeforeHandDraw` 要被克隆 `Amount` 次，因此进入 `DetachedCards`。
+**瞬态值不进入指纹。** `FlashExec` 的 Monologue/Vambrace/UnsettlingLamp 数据在每次动作结束前排空，稳定边界的字节里没有它们。`FlashExec.TransientMarkBase` 同样只在动作内存在：`DiscardAndDraw`、`DecisionsDecisions` 的重复自动打出与 Mayhem 的自动预打出队列都用它从 64..255 分配身份字节；标记随卡值穿过抽牌、洗牌与牌堆移动，动作结束前清零（同一标记出现两次或标记丢失时抛显式未支持；确认已离开战斗牌堆时走 `AutoPlay` 的 no-pile 分支）；区间耗尽抛 `FlashCapacityException`。`BeatDown` 的清理只覆盖 1..63，不会清除 Sly 批次；若 BeatDown 选中同一张卡，覆盖后的标记按显式未支持回落。`NightmarePower` 的选定卡是真正的跨回合值：它在下一次 `BeforeHandDraw` 要被克隆 `Amount` 次，因此进入 `DetachedCards`。
 
 **移动、复制、生成、消耗、离场。**
 

@@ -107,7 +107,7 @@ Power 顺序见 [状态布局](state-layout.md#23-power-顺序)。
 4. 目标：`AnyEnemy` 用 `CombatTargets` 流从 `HittableEnemies`（名单顺序、排除复活/永久死亡）取随机目标，候选为空时不消耗流；单人没有其他队友，`AnyAlly` 只有调用方已给出目标才成立；其他目标类型直接通过。
 5. `AutoPlayFromDrawPile` 先按现有引擎把最多 `count` 张抽牌堆顶牌移到打出区，再按顺序逐张自动打出；每张打出前写入 `ExhaustOnNextPlay = forceExhaust`（false 也写入）。打出的卡结果去向为消耗堆时清除该标志（`CardModel.GetResultLocationForCardPlay`），未打出而直接移入去向时保留（`MoveToResultPileWithoutPlaying`）。自动打出中战斗结束/正在结束时，现有引擎仍对**剩余队列的每张卡**写入该标志，然后 `AutoPlay` 立即返回；Flash 在队列仍连续位于 `start` 的前提下复刻这一写入并停止。`count` 超过 `FlashLimits.Cards` 时抛 `FlashCapacityException`。
 6. 自动打出中的卡牌自身选择走现有嵌套选择协议：`OwnChoice` 请求选择、动作未携带时返回 `NeedsChoice`，调用方从父状态带选择重执行。生成选项（Discovery/Splash）的选择协议见 4.2。
-7. **BeatDown 的对象身份。** 现有引擎先收集选中的 `CardModel` 引用再逐张 `AutoPlay`；前一张把后续选中卡移入手牌、抽牌堆或消耗堆后，仍按对象引用从新牌堆打出。Flash 在一次动作内给每张选中卡写 `TransientMark`（序号 + 1），每轮按该字节在 `Cards` 中重新定位后 `AutoPlay`，`finally` 清零；完全移出战斗牌堆或被转化的卡没有无牌堆执行表示，按显式 `FlashUnsupportedException` 回落，不按值猜牌。
+7. **BeatDown 的对象身份。** 现有引擎先收集选中的 `CardModel` 引用再逐张 `AutoPlay`；前一张把后续选中卡移入手牌、抽牌堆或消耗堆后，仍按对象引用从新牌堆打出。Flash 在一次动作内给每张选中卡写 `TransientMark`（序号 + 1），每轮按该字节在 `Cards` 中重新定位后 `AutoPlay`，`finally` 清零；完全移出战斗牌堆或被转化的卡没有无牌堆执行表示，按显式 `FlashUnsupportedException` 回落，不按值猜牌。`DecisionsDecisions` 的重复自动打出与 Mayhem 队列使用同一动态 64..255 区间（`TransientMarkBase`），按标记跟随卡值移动；标记重复/丢失显式未支持，确认离场时走 no-pile 分支。
 
 ### 4.2 卡池随机生成与变化
 

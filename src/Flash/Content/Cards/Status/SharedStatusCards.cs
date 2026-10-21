@@ -2,20 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Status;
 
-// Status cards without a character-specific pile source. Their canonical stats (cost, keywords,
-// damaged/hp-loss variables) come from the rule compiler; the definitions mirror the existing
-// engine's OnPlay / OnTurnEndInHand.
-//
-// Existing engine paths for this batch:
-// - Burn, Infection, Toxic and Wither are CardOnTurnEndInHandMirrors.HandleDamage: blockable
-//   self damage with the card as source (DamageVar Unpowered|Move).
-// - Beckon is CardOnTurnEndInHandMirrors.HandleHpLoss: unblockable, unpowered self HP loss with
-//   the card as source (HpLossVar, DamageProps.cardHpLoss).
-// - Debris is an explicit no-op (CardOnPlaySupport `case Debris: break;`); the native OnPlay
-//   returns Task.CompletedTask.
-// - Soot and Wound override no combat hook; they are only Unplayable.
-// - Toxic and Debris are playable; their play itself has no effect.
-
 /// <summary>
 /// Native <c>Beckon</c>: cost 1, playable with no OnPlay effect; at the player's turn end it loses
 /// 6 HP (Unblockable|Unpowered|Move) with the card as source.

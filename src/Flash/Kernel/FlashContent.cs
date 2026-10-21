@@ -487,6 +487,18 @@ public abstract class FlashListenerDef : FlashContentDef
     {
     }
 
+    /// <summary>
+    /// The existing engine's deferred block-break compensation (<c>TriggeredPowerSupport.CompensateBurrow</c>,
+    /// driven by <c>CompensateHistorySince</c>) rather than the native <c>AfterBlockBroken</c> hook.
+    /// The kernel records broken-block owners during the effect and calls this after the effect's
+    /// death pass, so a lethal hit has already removed the power.
+    /// </summary>
+    public virtual bool CompensatesBlockBreakAfterDamage => false;
+
+    public virtual void AfterBlockBrokenCompensated(ref FlashExec x, FlashListener self, byte target, byte breaker)
+    {
+    }
+
     // Action hooks. Each dispatch point in the kernel names the existing-engine call it mirrors.
 
     /// <summary>

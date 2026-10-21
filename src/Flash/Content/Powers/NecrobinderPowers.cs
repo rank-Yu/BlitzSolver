@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Necrobinder powers. Conditions and order are copied from the existing engine path named on each
-// definition; the decompiled model is used only to confirm constants and hook bodies.
-
 /// <summary>
 /// <c>DieForYouPower</c>: while Osty is alive, a powered attack on its owner redirects the unblocked HP
 /// loss to Osty (<c>Hook.ModifyUnblockedDamageTarget</c>; existing engine path

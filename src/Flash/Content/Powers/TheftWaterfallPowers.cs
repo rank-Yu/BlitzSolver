@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Theft encounter and Waterfall Giant powers. Each mirrors the existing engine's implementation
-// (src/Prediction), not the decompiled original where the two differ.
-
 /// <summary>
 /// Native <c>ThieveryPower</c> (GremlinMerc, one instanced stack of 20 applied in
 /// <c>AfterAddedToRoom</c>, targeting the player). Its counter is the steal cap per GIMME-family move;

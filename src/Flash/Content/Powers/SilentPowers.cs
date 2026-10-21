@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Silent powers. Each definition's conditions are copied from the existing engine path named in its
-// comment; the decompiled model is used only to confirm constants.
-
 /// <summary>
 /// <c>PoisonPower</c>: the counter is triggered by the kernel's <c>TriggerPoison</c> (enemy side start
 /// for enemies, enemy side end for the player), matching <c>CorePowerSupport.TriggerPoison</c>. No hook

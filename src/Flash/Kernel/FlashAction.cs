@@ -330,6 +330,7 @@ public ref struct FlashExec
         CurrentPlayEnergyValue = 0;
         CardDamageTotal = 0;
         CardKilledTarget = false;
+        PendingBlockBreakOwners = 0;
         LastDamageTotal = 0;
         LastDamageOverkill = 0;
         SideTurnStartedEarly = false;
@@ -355,6 +356,14 @@ public ref struct FlashExec
 
     /// <summary>Whether the current card play killed its chosen target (HandOfGreed's WasFatalKill).</summary>
     public bool CardKilledTarget;
+
+    /// <summary>
+    /// Owners whose block was broken since the last deferred compensation point. The existing engine
+    /// applies the BurrowedPower block-break compensation from <c>TriggeredPowerSupport.CompensateHistorySince</c>
+    /// after the effect's death pass, so a lethal hit has already removed BurrowedPower. Transient;
+    /// never part of the battle state or fingerprint.
+    /// </summary>
+    public ulong PendingBlockBreakOwners;
 
     /// <summary>
     /// A pre-side-start turn-start choice ran the player side start early

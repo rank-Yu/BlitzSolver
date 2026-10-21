@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Act1;
 
-// Remaining first-act (Overgrowth) elite/boss monsters. Attacks, hit counts and branch weights come
-// from the state machine compiled by the bridge; ApplyMoveEffects mirrors the post-attack part of
-// MonsterMoveEffects.Apply for the same (monster, move) pair. Debuff helper means
-// combat.ApplyFromMonster; combat.Apply is mirrored with ApplyPower.
-
 /// <summary>
 /// Vantom: "DISMEMBER_MOVE" adds three Wounds to the discard pile; "PREPARE_MOVE" applies Strength 2
 /// to itself (MonsterMoveEffects "Vantom", literals). Its SlipperyPower 8/9 is a starting power

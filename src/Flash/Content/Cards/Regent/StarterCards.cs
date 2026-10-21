@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Regent;
 
-// Regent starter deck. Existing engine paths: StrikeRegent/DefendRegent run the general
-// attack/block recipe (CardOnPlayMirrors); FallingStar's attack is the mirror, then
-// CorePowerSupport.ApplyCardPowers applies Weak and Vulnerable after the enemy-death pass;
-// Venerate runs CardOnPlaySupport's GainStars.
-
 [FlashContent("STRIKE_REGENT")]
 public sealed class StrikeRegent : FlashCardDef
 {

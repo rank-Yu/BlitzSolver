@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Silent;
 
-// Silent starter deck. Existing engine paths: StrikeSilent/DefendSilent run the general
-// attack/block recipe; Neutralize runs the attack recipe then CorePowerSupport.ApplyCardPowers
-// applies Weak; Survivor gains block then resolves CardChoiceSupport.GetSpec's
-// Discard(Hand, 1) selection through CardCmd.Discard.
-
 [FlashContent("STRIKE_SILENT")]
 public sealed class StrikeSilent : FlashCardDef
 {

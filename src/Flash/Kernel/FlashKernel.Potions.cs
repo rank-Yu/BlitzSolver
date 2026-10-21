@@ -83,6 +83,10 @@ public static partial class FlashKernel
         ResolvePowerAmountChanges(ref x);
         if (x.NeedsChoice)
             return;
+        // PotionExecutionSupport.Complete compensates the history before the enemy-death pass.
+        ApplyBlockBreakCompensations(ref x);
+        if (x.NeedsChoice)
+            return;
         ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;

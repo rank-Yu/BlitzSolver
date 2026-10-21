@@ -2,20 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Colorless;
 
-// Colorless skill cards. Existing engine paths for this batch:
-// - DarkShackles applies DarkShacklesPower through SimulatedCombatState.ApplyTemporaryStrengthLoss,
-//   which also changes Strength by -StrengthLoss at application time.
-// - Equilibrium is the inferred block recipe plus CardOnPlaySupport's RetainHandPower application.
-// - Finesse, MasterOfStrategy and Scrawl are CardDrawCardMirrors' inferred block/draw recipes.
-// - Impatience and Restlessness are CardDrawCardMirrors registrations (conditional draw).
-// - PanicButton is the inferred block recipe plus NoBlockPower from CardEffectSpecRegistry.
-// - Production is CardOnPlaySupport's GainEnergy case.
-// - Prolong applies BlockNextTurnPower with the owner's current block.
-// - Purity and ThinkingAhead are CardChoiceSupport choices (exhaust 0..Cards / put one back).
-// - SecretTechnique and SecretWeapon select one Skill/Attack from the draw pile into hand.
-// - Shockwave applies equal Weak and Vulnerable to every hittable enemy per enemy in roster order.
-// - TheGambit is the inferred block recipe plus TheGambitPower.
-
 [FlashContent("DARK_SHACKLES")]
 public sealed class DarkShackles : FlashCardDef
 {

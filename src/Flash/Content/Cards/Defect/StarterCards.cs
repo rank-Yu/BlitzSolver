@@ -2,10 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Cards.Defect;
 
-// Defect starter deck. Existing engine paths: StrikeDefect/DefendDefect run the general
-// attack/block recipe; Zap runs OrbCardMirrors.ZapOnPlay (OrbChannel<LightningOrb>); Dualcast runs
-// OrbCardMirrors.DualcastOnPlay (OrbEvokeNext repeat 2, dequeue only on the last evoke).
-
 [FlashContent("STRIKE_DEFECT")]
 public sealed class StrikeDefect : FlashCardDef
 {

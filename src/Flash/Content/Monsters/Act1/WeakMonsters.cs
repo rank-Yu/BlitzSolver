@@ -2,8 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Act1;
 
-// Move effects mirror MonsterMoveEffects.Apply; attacks come from the compiled state machine.
-
 [FlashContent("FUZZY_WURM_CRAWLER")]
 public sealed class FuzzyWurmCrawler : FlashMonsterDef
 {

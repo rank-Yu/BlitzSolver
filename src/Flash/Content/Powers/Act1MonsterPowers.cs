@@ -2,9 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Powers the first-act (Overgrowth) monsters apply to the player or carry themselves. Each mirrors
-// the existing engine's implementation, not the decompiled original where the two differ.
-
 /// <summary>
 /// Native <c>ShrinkPower</c>: the Shrunk creature's powered attacks deal less damage. Applied with
 /// amount -1 by ShrinkerBeetle (<c>MonsterMoveEffects</c> "ShrinkerBeetle", "SHRINKER_MOVE",

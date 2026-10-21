@@ -2,17 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Regent powers. Each definition copies the existing engine path named in its comment; the
-// decompiled model is only used to confirm constants and the native condition.
-// - ChildOfTheStarsPower: PowerLifecycleSupport.AfterStarsSpent's power loop.
-// - GenesisPower / StarNextTurnPower: AfterEnergyResetMirrors (the power round of Hook.AfterEnergyReset).
-// - ArsenalPower: AfterCardGeneratedForCombatMirrors.
-// - ReflectPower: AfterDamageReceivedMirrors plus PersistentPowerSupport.TriggerOwnerAfterSideTurnStart.
-// - ParryPower: a marker read only by Sovereign Blade.
-// - FurnacePower: PersistentPowerSupport.TriggerOwnerAfterSideTurnStart.
-// - ConquerorPower: ModifyDamageMultiplicative mirrors plus the transient side-turn-end decrement.
-// - DyingStarPower: a negative TemporaryStrengthPower (CardEffectSpecRegistry's ApplyPower).
-
 /// <summary><c>ChildOfTheStarsPower</c>: block equal to Amount per star spent by its owner.</summary>
 [FlashContent("CHILD_OF_THE_STARS_POWER")]
 public sealed class ChildOfTheStarsPower : FlashPowerDef

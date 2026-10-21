@@ -2,27 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Powers;
 
-// Defect powers. Existing engine locations:
-//   FocusPower              ModifyOrbValue (focused orbs) and the fixed Focus consumers (BiasedCognition).
-//   FocusedStrike/Hotfix/   TemporaryFocusPower: ApplyTemporaryFocus* and EndTurnPowerSupport.TriggerRegular's
-//   Synchronize/Hyperbeam   TemporaryFocusPower retirement (RetireTemporaryStat).
-//   Buffer                  ModifyHpLostMirrors/AfterModifyingHpLostAfterOstyMirrors.
-//   Iteration               AfterCardDrawnMirrors.HandleIterationPower.
-//   MachineLearning         ModifyHandDraw in PersistentPowerSupport.GetModifiedHandDraw.
-//   Loop                    AfterPlayerTurnStartMirrors.Vanilla (OrbCmd.Passive on the first orb).
-//   CreativeAi              TurnStartPowerSupport.ContinueBeforeHandDraw (CharacterCombatGenerationPool.Powers).
-//   Spinner/LightningRod    AfterEnergyResetMirrors.
-//   Hailstorm               BeforeSideTurnEndMirrors.HandleHailstormPower.
-//   Storm/Subroutine        BeforeCardPlayed/AfterCardPlayed mirrors with their card-play pairs.
-//   EchoForm                ModifyCardPlayCountMirrors.HandleEchoFormPower.
-//   SignalBoost             ModifyCardPlayCountMirrors (extra Power play, then decrement).
-//   Feral                   PersistentPowerSupport.TriggerOwnerAfterSideTurnStart (reset) and
-//                           ModifyCardPlayResultLocationMirrors (zero-cost attacks to hand top).
-//   ConsumingShadow         EndTurnPowerSupport.TriggerRegular's EvokeLastOrbs.
-//   Coolant                 PersistentPowerSupport.TriggerOwnerAfterSideTurnStart (distinct orbs × amount).
-//   BiasedCognition         PersistentPowerSupport.TriggerOwnerAfterSideTurnStart (-Focus).
-//   ReptileTrinketPower     SimulatedCombatState.TriggerRelicsAfterPotionUsed's temporary Strength.
-
 [FlashContent("FOCUS_POWER")]
 public sealed class FocusPower : FlashPowerDef
 {

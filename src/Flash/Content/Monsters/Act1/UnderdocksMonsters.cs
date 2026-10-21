@@ -2,11 +2,6 @@ using CombatSolver.Flash.Kernel;
 
 namespace CombatSolver.Flash.Content.Monsters.Act1;
 
-// First-act (Underdocks) monsters. Attacks, hit counts and branch weights come from the state machine
-// compiled by the bridge; ApplyMoveEffects mirrors the post-attack part of
-// MonsterMoveEffects.Apply for the same (monster, move) pair. Debuff helper means
-// combat.ApplyFromMonster; combat.Apply is mirrored with ApplyPower.
-
 /// <summary>CalcifiedCultist: "INCANTATION_MOVE" applies Ritual <c>IncantationAmount</c> to itself.</summary>
 [FlashContent("CALCIFIED_CULTIST")]
 public sealed class CalcifiedCultist : FlashMonsterDef

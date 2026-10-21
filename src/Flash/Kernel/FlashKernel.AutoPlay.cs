@@ -93,7 +93,18 @@ public static partial class FlashKernel
     /// </summary>
     public static bool AutoPlay(ref FlashExec x, in FlashCard card, byte target = FlashLimits.NoOwner,
         bool skipXCapture = false, bool historyCourseDupe = false)
+        => AutoPlay(ref x, card, target, skipXCapture, historyCourseDupe, out _, out _, out _);
+
+    /// <summary>
+    /// The same no-pile branch, reporting the post-tail card value and its final pile/index so a
+    /// repeated auto-play loop can continue like the existing engine's live CardModel reference.
+    /// </summary>
+    public static bool AutoPlay(ref FlashExec x, in FlashCard card, byte target, bool skipXCapture,
+        bool historyCourseDupe, out FlashCard played, out FlashPile playedPile, out int playedIndex)
     {
+        played = card;
+        playedPile = FlashPile.Play;
+        playedIndex = -1;
         if (IsOverOrEnding(x.B) || x.B.Player.IsDead)
             return false;
         FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
@@ -133,7 +144,9 @@ public static partial class FlashKernel
         x.Stats = stats;
         x.Target = target;
         x.CurrentPlayIsAutoPlay = true;
-        PlayFromPlay(ref x, moved, target, energyValue, playPosition, isAutoPlay: true);
+        PlayFromPlay(ref x, moved, target, energyValue, playPosition, isAutoPlay: true,
+            out playedPile, out playedIndex);
+        played = x.Card;
         bool completed = !x.NeedsChoice;
         if (completed)
         {
