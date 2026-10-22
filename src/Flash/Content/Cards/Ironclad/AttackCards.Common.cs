@@ -119,6 +119,15 @@ public sealed class Anger : FlashCardDef
         FlashCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
+        // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack and
+        // before the card-specific compensation. The death pass can remove the last DampenPower
+        // caster, which restores the played card's original upgrade before the clone is made.
+        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice)
+            return;
+        // The native OnPlay clones the live CardModel after that restore, while FlashExec.Card is
+        // the pre-restore copy taken when the card left the hand.
+        FlashKernel.SyncCurrentPlayCard(ref x);
         // CorePowerSupport.Anger adds a clone of the played card to the discard pile.
         FlashKernel.AddGeneratedCard(ref x, FlashKernel.CloneCard(x.Card), FlashPile.Discard);
         if (x.NeedsChoice)
