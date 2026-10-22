@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using CombatSolver.Flash.Kernel;
 using CombatSolver.Flash.Search;
-using CombatSolver.Flash.Bridge;
 
 namespace CombatSolver.Flash.Search.Scoring;
 
@@ -13,7 +12,7 @@ namespace CombatSolver.Flash.Search.Scoring;
 /// </summary>
 /// <remarks>
 /// The per-content values (card values, latent setup values and traits, power strategic effects) come from
-/// <see cref="FlashScoreRules"/>, which <see cref="FlashScoreBridge"/> compiles from the existing engine's
+/// <see cref="FlashScoreRules"/>, which <c>FlashScoreBridge</c> compiles from the existing engine's
 /// models at the root. This type only reads the battle, the rule table and that compile output.
 /// It allocates nothing on the hot path.
 /// </remarks>

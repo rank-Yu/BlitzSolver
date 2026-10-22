@@ -1,6 +1,5 @@
 using CombatSolver.Flash.Kernel;
 using CombatSolver.Flash.Search;
-using CombatSolver.Flash.Bridge;
 
 namespace CombatSolver.Flash.Search.Scoring;
 

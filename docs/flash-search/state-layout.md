@@ -177,7 +177,7 @@
 
 回合准备根不改变 `FlashBattle`/`FlashCard` 布局，也不新增 `FlashCounter`。根捕获时是 `Player/Start`：原生 `SetupPlayerTurn` 尚未作答；Bridge 用现有引擎的 `BuildTurnSetupRoots` 按同一选择预算把每个准备分支回放到稳定 `Play` 状态，只把该 `Play` 状态导入为 `FlashBattle`。准备选择向量（`PlanCardChoice` 列表、来源/效果/牌堆/时机/卡牌令牌）与根动作数（固定前缀长度）只存在于 `TurnSetupRootCandidate`/`FlashBeamOptions.InitialActionCount`；它们不进入状态字节、指纹或续用文本。搜索根之间的差异全部已经在导入后的 `FlashBattle` 里（手牌、弃牌堆、Power、能量、HP 等）。
 
-物化时选中的选择向量作为 `rootTurnSetupChoices` 固定回现有求解器；现有求解器从同一根重新枚举准备根，只保留该向量再回放固定前缀，结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与关闭 Flash 时完全同形。若某个准备选择把状态推出 Flash 容量或内容闭包，按准入/边界原因整次回落，不部分提交。
+物化时选中的选择向量作为 `rootTurnSetupChoices` 固定回现有求解器；现有求解器从同一根重新枚举准备根，只保留该向量再回放固定前缀，结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与关闭 Flash 时完全同形。若某个准备选择把状态推出 Flash 容量或内容闭包，按准入/边界原因整次作废，On 模式显式失败，不部分提交。
 
 ### 2.11 出牌期瞬态与回手
 
@@ -187,7 +187,7 @@
 - **Fisticuffs**：镜像攻击后先结算敌人死亡，再按 `CardDamageTotal` 获得格挡（`CorePowerSupport` 的 Fisticuffs case）。
 - **Omnislice**：第一击后结算死亡，再把 `LastDamageTotal + LastDamageOverkill` 以 `Unpowered | Move` 打给目标以外的可命中敌人（`CardOnPlaySupport.Batch042.ApplyOmnislice`）。
 - **EchoingSlash 与多波攻击。** `FlashKernel.CardAttackRepeating` 对应现有引擎在一个 `AttackContext` 内的循环：每波对当前全部存活敌人造成一次伤害，随后用**当前名单**跑死亡结算，`WasTargetKilled` 的个数追加为下一波；`BeforeAttack`/`AfterAttack` 各只派发一次。Omnislice 与 EchoingSlash 的死亡结算都只遍历当前名单（`combat.Enemies`），因此击杀后离场的 Infested 尸体不会在复制伤害前生成 Wriggler。每波开始前从 `FlashExec.PlayPosition` 重新同步当前打出的牌并读取伤害变量（现有引擎每波读 `base.DynamicVars.Damage`）：Dampen 的最后一位施法者在本波死亡时恢复卡牌升级等级，后续波次必须按恢复后的伤害结算，不能沿用出牌开始时的快照。
-- **HandOfGreed**：镜像攻击后检查本次出牌是否击杀目标且目标所有 Power 都允许致命（`ShouldOwnerDeathTriggerFatal`），成功则加金币与 `LongTermResourceValue`。金币修正遗物（BowlerHat/Ectoplasm/DragonFruit）尚未进入 Flash 定义，含有它们的根不在当前差分证据内。
+- **HandOfGreed**：镜像攻击后检查本次出牌是否击杀目标且目标所有 Power 都允许致命（`ShouldOwnerDeathTriggerFatal`），成功则加金币与 `LongTermResourceValue`。金币修正遗物（BowlerHat/Ectoplasm/DragonFruit）只影响战斗外金币，Flash 没有金币状态；三者已有空/能量定义，不改变战斗内结算。
 - **GoldAxe**：`FinishedCardPlays` 计数器导入根历史的 `GetFinishedPlaysBeforePrediction` 并在每次完成出牌时 +1，作为 `CalculatedVarSpecRegistry` 的乘数。
 - **回手。** Bolas/ThrummingHatchet 打出后把 `FlashCard.ReturnToHandNextTurn`（`CostState` bit 4）置位；玩家下回合 `BeforeHandDraw` 的返回手牌阶段按当前牌堆顺序把这些牌移回手牌并清位，对应 `SimulatedCombatState._returnToHandNextTurn` 与 `PrepareBeforeHandDraw`。根导入把 `_returnToHandNextTurn` 的成员投影到对应卡值。
 - **出牌期金额快照。** Afterimage 与 Strangle 在 `BeforeCardPlayed` 记下能力层数、在 `AfterCardPlayed` 消费（现有引擎 `CardPlayPairPredictionState`，以 `CardPlay` 对象为键）。Flash 把它放在栈上的 `FlashExec.CardPlayPairs`（容量 `FlashLimits.CardPlayPairs`），嵌套自动打出的条目压在外层之上并先被消费；稳定边界为空，不进入 `FlashBattle`。
@@ -212,9 +212,9 @@
 
 ## 5. 容量与失败
 
-- 任何写入超过容量都抛 `FlashCapacityException`，携带区块名与容量。搜索展开中的这类异常是**子状态边界**：`FlashBeamSolver` 只丢弃抛出异常的那一个子状态（选择请求的每个选项分支各自独立），按区块名计数进 `FlashBeamResult.CapacityDroppedChildren`，其余子状态照常提交与去重；不截断、不覆盖、不逐出。内核不支持的语义（`FlashUnsupportedException`）仍让整次 Flash 求解回落。
+- 任何写入超过容量都抛 `FlashCapacityException`，携带区块名与容量。搜索展开中的这类异常是**子状态边界**：`FlashBeamSolver` 只丢弃抛出异常的那一个子状态（选择请求的每个选项分支各自独立），按区块名计数进 `FlashBeamResult.CapacityDroppedChildren`，其余子状态照常提交与去重；不截断、不覆盖、不逐出。内核不支持的语义（`FlashUnsupportedException`）仍让整次 Flash 求解作废；On 模式写 `FLASH_SEARCH_FAILED` 并停止部署。
 - 两个可增长池（`next`/`ended`）各自的上限是 `min(width × (MaxLegalActions + 1), 16,512)` 个状态：`16,512 = floor(200 MiB / sizeof(FlashBattle))` 向下取整到 64 槽块（12,696 B 状态时 200 MiB 可容纳 16,518 个，取 16,512 个 = 209,636,352 B）。`PoolStateBudgetBytes = 200 MiB` 是单池上限，两个池各自计。回合结束层（`ended`）达到上限时按与回合边界相同的保留规则压缩到 `width × 8` 后继续，不整次回落；压缩次数与被压缩子状态数记入 `EndedCompactions`/`EndedCompressedStates`。`next` 达到上限时每个装不下的唯一子状态逐个丢弃并计数。语义见 [搜索与接入](search.md#1-flashbeamsolver) 的“回合结束层压缩”。
-- 根状态本身超过容量（根导入或根评分在展开循环之前抛出）仍是导入拒绝：整次 Flash 尝试回落到现有后端，不部分提交。
+- 根状态本身超过容量（根导入或根评分在展开循环之前抛出）仍是导入拒绝：整次 Flash 求解作废，On 模式写 `FLASH_SEARCH_FAILED reason=kernel-capacity` 并停止部署，不部分提交。
 - 准入阶段按牌组规模和可生成内容估计上限，明显超出容量的根直接不准入，避免搜索中途失败。
 - 数值钳制与旧引擎一致（HP、格挡、能量、Power 数量钳制在 ±999,999,999），由内核统一实现。
 

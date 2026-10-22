@@ -15,6 +15,12 @@ python3 -B tools/search/FlashRegression/flash_regression.py <子命令> [参数]
 工具负责 Release 构建与 `OfflineSearchHarness` 构建，`diff`/`scan` 默认再运行 K0；它调用现有宿主并把结果写到
 `.local/flash-regression/<label>/`。旧的 `.local/tool-tasks/flash-search/*.sh` 不再作为复跑入口。
 
+设置持久化兼容合同（旧设置/检查点/问题包中的 `Shadow` 与任何数值形式读成 Off，`On` 保持字符串序列化）：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py compat --label flash-compat
+```
+
 纯内核合同（K0）与两次构建：
 
 ```bash
@@ -31,7 +37,7 @@ python3 -B tools/search/FlashRegression/flash_regression.py diff \
 
 `--only fixtures`、`--only quality` 只跑其中一组。
 
-最终候选路线扫描（同一根集合，Flash 求解后把排序前 N 条最终候选交现有引擎逐条核对）：
+最终候选路线扫描（同一根集合，每根只跑一次 Flash；排序前 N 条最终候选交现有引擎逐条核对，输出含 `admitted=`/`rejection=`，准入拒绝即失败）：
 
 ```bash
 python3 -B tools/search/FlashRegression/flash_regression.py scan --label flash-scan --candidates 8 --jobs 8
@@ -44,7 +50,7 @@ python3 -B tools/search/FlashRegression/flash_regression.py coordinator --label 
 python3 -B tools/search/FlashRegression/flash_regression.py table .local/flash-regression/flash-coord --corpus coverage/corpora/flash-quality
 ```
 
-`coordinator` 结束时自动写出同一张表（`TABLE-GROUPS.txt`）；`table` 只读已有结果，用于复算或换语料。
+`coordinator` 双模式结束时自动写出同一张表（`TABLE-GROUPS.txt`）；单模式（`--off-baseline` 默认只跑 `On`，或 `--modes Off`）写 `TABLE.txt` 的逐根汇总。有失败根（`FLASH_SEARCH_FAILED`）或缺失结果根时命令以非 0 退出。`table` 只读已有结果，用于复算或换语料。
 
 协调器的关闭模式基线可用 `--off-baseline <旧结果目录>` 复用；只复跑一根时用
 `--ids <目录名>`，例如 `--ids SILENT-007`。
@@ -58,18 +64,20 @@ OFFLINE_HARNESS_FLASH_DIFF=1 OFFLINE_HARNESS_FLASH_DIFF_WALKS=32 \
 ```
 
 PowerShell 用 `$env:OFFLINE_HARNESS_FLASH_DIFF = '1'` 与 `$env:OFFLINE_HARNESS_FLASH_DIFF_WALKS = '32'`
-设置同名变量后运行相同 `dotnet` 命令。
+设置同名变量后运行相同 `dotnet` 命令。`diff --steps <N>` 与 `diff --debug` 分别映射
+`OFFLINE_HARNESS_FLASH_DIFF_STEPS`（每条游走的步数上限，默认 60）与 `OFFLINE_HARNESS_FLASH_DEBUG`
+（K4 参考差异时打印非 pure 历史条目）。
 主搜索分发（`BeamSolveDispatch`）在协调器模式下复跑，日志中的 `[CombatSolver/Flash]` 行记录
-对照或采用结果：
+采用结果：
 
 ```bash
-OFFLINE_HARNESS_FLASH_MODE=Shadow \
+OFFLINE_HARNESS_FLASH_MODE=On \
   dotnet .local/tool-build/OfflineSearchHarness/bin/Release/net9.0/OfflineSearchHarness.dll \
   --character IRONCLAD --encounter NIBBITS_NORMAL --seed FLASH1 --milestone M2 \
   --search-mode Coordinator --budget-ms 10000 --out <输出目录>
 ```
 
-无人测试中的实机部署用 `--flash-search-mode-for-test Off|Shadow|On`（PowerShell
+无人测试中的实机部署用 `--flash-search-mode-for-test Off|On`（PowerShell
 `-FlashSearchModeForTest`）临时覆盖设置；`--export-bug-report-after-combat` 在战斗结束和 On
 搜索失败停止部署时都会在写结果前导出问题包，失败包带 `FlashSearchFailed`/`SearchFailure`
 分类。包内 `diagnostics/logs/combat/*.jsonl` 保留 `[CombatSolver/Flash]` 行：
@@ -85,7 +93,7 @@ OFFLINE_HARNESS_FLASH_MODE=Shadow \
 
 F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测试记录](../archive/flash-search/testing-content-batches-2026-10-18.md)，强制行动/眩晕（KS）、敌人生成（KM）与早期端到端测试归档到 [KS、KM 与早期端到端测试记录](../archive/flash-search/testing-batches-2026-10-19.md)，第二幕 P13 的逐根证据归档到 [第二幕 P13 测试记录](../archive/flash-search/testing-act2-p13-2026-10-19.md)，截至 SP2 的其余批次归档到 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)，DX5 至 HS3 的批次与无头整场归档到 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md)；下面的全量回归覆盖其中全部根。
 
-全量回归（`flash_regression.py diff`，2026-10-21 起的根集合）：FlashKernelChecks 通过；289 个固定根（`coverage/fixtures/cards/flash-*.json`，每根 32 条随机游走）与 120 个质量牌组（`coverage/corpora/flash-quality/`，每根 48 条随机游走）共 409 根，K1 单步、K2 游走、K4 评估、K5 下界输入与动作集合核对全部零差异，没有准入拒绝，`unsupported` 全部为 0。此前的 162 个自然遭遇根、`flash-decks` 的 64 个生成牌组与 `flash-act3` 的 150 个第三幕牌组已从回归中移除，它们在移除前的最后一次运行也是零差异。QF5 新增一个固定根后当前集合为 290 个固定根 / 410 根，合入时按最终源码重跑。
+全量回归（`flash_regression.py diff`）：FlashKernelChecks 通过；当前集合是 290 个固定根（`coverage/fixtures/cards/flash-*.json`，每根 32 条随机游走）与 120 个质量牌组（`coverage/corpora/flash-quality/`，每根 48 条随机游走），共 410 根。最近一次全量差分（QF5 合入后的 410 根，内核与内容自此未变）K1 单步、K2 游走、K4 评估、K5 下界输入与动作集合核对全部零差异，没有准入拒绝，`unsupported` 全部为 0。此前的 162 个自然遭遇根、`flash-decks` 的 64 个生成牌组与 `flash-act3` 的 150 个第三幕牌组已从回归中移除，它们在移除前的最后一次运行也是零差异。
 
 ### 2.1 当前状态（FW 验收后）
 
@@ -108,54 +116,33 @@ F1 纵切与内容批次 P1–P12 的逐批证据已归档到 [内容批次测�
 - 120 根开启模式全部 `FLASH_ADOPTED`，没有 `FLASH_SEARCH_FAILED`，开启模式不调用原搜索。8 根共 16 次 `FLASH_NO_ROUTE`（`flash-potion-policy-no-route`），与现有搜索的无路线结果同形。
 - 开启模式的无路线结论与失败类别见 [搜索与接入](search.md) 3.2 节。
 
-### 2.2 批次记录
+### 2.2 精简与清理回归（CL1）
 
-截至 SP2 的已完成批次，逐批证据归档在 [覆盖补齐与协调器接管批次测试记录](../archive/flash-search/testing-batches-2026-10-20.md)；DX5 至 SW 的批次归档在 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md)。新批次在本节追加。
+CL1 删除 Shadow 模式、K6 工具、25% 进攻席位、失败注入、死成员与空壳 token，并清理离线工具与文档；内核与内容无语义改动。最终源码上的证据：
 
-开启模式回合准备失败与 HS3 超时（HS4，2026-10-21）：HS3 中 5 场开启模式整场没有结果，都是 Flash 回合准备搜索失败后，无人测试宿主一直等待无人作答的原生选择；Spine 异常是启动器结束进程后的清理噪声。三类原因：回合准备根在回合开始的生成效果之前捕获，`BigHat` 与 `VexingPuzzlebox` 没有声明生成牌池，导入生成牌时报内核不支持（NECROBINDER-22、REGENT-19、rq-REGENT-V-19），两者改为声明角色卡池；进度预览把推测路线翻译到旧引擎时手牌下标越界，`ArgumentOutOfRangeException` 打断整次搜索（NECROBINDER-19）；TestSubject MULTI_CLAW 的连击数编译时取了根上已含额外次数的意图值，内核 `ModifyAttackRepeats` 又加一次（NECROBINDER-08 第 5 回合核对差 11 点，Flash 多打一下），改为编译取 `BaseMultiClawCount`。`flash-hs4-testsubject-multiclaw` 用新增的 `initialEnemyIntegerMembers` 把 `_extraMultiClawCount` 设为 1，修正前 16 条游走失败、修正后 0。翻译器在手牌下标越界，或旧引擎按动态目标规则（`GetTargetType`，含 Fan of Knives 下的 Shiv 与 Seeking Edge 下的君王之刃）需要敌方目标而 Flash 动作没有目标时，抛 `FlashChoiceMismatchException`：核对与物化路径转为 `verify-mismatch`，预览只跳过，每次求解第一次出现时写 `FLASH_PREVIEW_MISMATCH`，`FLASH_PROGRESS_STATS` 增加 `mismatches=`。回合准备搜索的 Flash 失败按 SW 约定处理：写 `FLASH_SEARCH_FAILED`、停止部署、关闭全自动、弹出 Flash 提示，问题包带 `SearchFailure` 与 `FlashSearchFailed`，原生选择留给玩家；无人测试宿主遇到回合准备或搜索失败时直接判 Failed，不再等到启动器时限。动态意图审计：原版 218 个攻击意图中只有 TestSubject MULTI_CLAW、TheForgotten DREAD 与 WaterfallGiant PRESSURE_GUN 由运行时值计算，后两者在根上不会重复计入（`flash-hs4-dread-root-dexterity` 根上带 5 层敏捷，游走零差异）。离线宿主新增最终候选路线扫描（`OFFLINE_HARNESS_FLASH_CANDIDATE_SCAN=N`）：HS4 时全量回归 493 根共 2901 条候选逐条交现有引擎核对，没有不一致（54 根没有可扫描的候选）。HS3 中亡灵契约师与储君的 40 场开启模式整场重跑：全部有结果，29 胜 11 战死，735 行 `FLASH_ADOPTED` 全部核对通过，`FLASH_SEARCH_FAILED`、核对不一致与预览不一致均为 0，计划外重算 0；HS3 的 5 场超时都跑完（NECROBINDER-08 第 9 回合战死，关闭模式第 10 回合战死；其余 4 场胜利），其余场次的胜负与结束回合与 HS3 相同（有记录生命的场次生命也相同）。回合准备固定根与合同 16 项（`TURN-SETUP-*`、`toasty-qol-*`、`route-row-reuse` 等）开启与关闭模式均 Passed。HS4 合入后当时全量回归 493 根零差异，第三幕 150 根 48 条游走零差异；默认 79 根开启模式与 HS3 合入后逐根相同（46 个牌组 11 好 / 30 同 / 5 差、−90，33 个牌组 8 / 20 / 5、−16，没有 `FLASH_SEARCH_FAILED`，`FLASH_NO_ROUTE` 仍只在 IRONCLAD-27/53），48 根基准 14 / 29 / 5、失血合计 −34，与合入前相同。
+- Release 构建 0 警告；K0 Passed；结构、文档、工具、覆盖四项门禁通过。
+- 开启模式 120 根（`coordinator --off-baseline <主线 off120-base>`）：与 FW 基线 `.local/flash-regression/fw-on120` 的 120 根 `route.json`、`quality.json`、`SelectedExpanded`、`SelectedTransitions` 全部逐根相同。
+- 关闭模式 120 根（`coordinator --modes Off`）：`quality.json` 120 根逐根相同；`SearchWorkAttributions` 合计展开 3,653,306、转移 17,168,117（基线 3,650,837 / 17,111,557），差异只在 IRONCLAD-013（+5 展开 / −17 转移）与 REGENT-013（+2,464 / +56,577）两个时间预算根，其余 118 根逐根相同。
+- 候选扫描（每根只跑一次 Flash 的新跑法）410 根、2,008 条候选、0 不一致；410 根全部准入，75 根没有可扫描候选。作为新基线。
+- 设置持久化兼容：`flash_regression.py compat` 输出 `FLASH_MODE_COMPAT status=Passed assertions=23`（旧 `Shadow`/数值形式读 Off，`On` 字符串往返）。
 
-质量语料暴露的内核与规则表问题（QF，2026-10-21）：100 根五角色三幕质量语料暴露 7 根问题，归为五个根因并各补一个固定根（`coverage/fixtures/cards/flash-qf-*.json`，修正后单独差分为 0）。规则闭包：`Seance` 变换生成 `Soul` 却没有声明 `GeneratedCards`（NECROBINDER-07/12，`flash-qf-seance-soul`）；`NightmarePower`/`SwipePower` 的分离卡在打出 Power 或被盗后不在任何战斗牌堆里，续接根导入时仍需要其规则（SILENT-15，`flash-qf-nightmare-detached`）。内核顺序：重放/Echo Form 的每次 CardPlay 都要重新开始 Fisticuffs 的伤害历史（NECROBINDER-04、DEFECT-03，`flash-qf-fisticuffs-replay`）；全体敌人 Power 应用要遍历 `HittableEnemies` 快照，避免首个目标死亡引起 roster 压缩后跳过后续敌人（NECROBINDER-15，`flash-qf-negative-pulse-roster`；Misery 的同类循环一并改为快照）；回合开始选择（Foregone Conclusion、Tyranny、Toasty Mittens、Tools of the Trade、Entropy）按 `TurnStartChoiceCursor.BeforeNextTake` 先启动玩家侧回合，再执行选择效果（REGENT-13，`flash-qf-turn-start-choice-forge`）。7 根各跑 48 条游走，全部 `failed=0 walkFailed=0 unsupported=0`；原开启模式失败的 6 根协调器开启模式均 `FLASH_ADOPTED` 且核对通过。NECROBINDER-18 开启模式战略失血 279 的组成是累计战损 66 + 最大生命差 24 + 死亡豁免溢价 189（21×9），不计 Osty 或召唤物；K4 评估与 48 条游走差分零差异，路线在第 5 回合因先前的出牌顺序进入不同手牌分支，属于保留结构/搜索宽度差异，不改。QF2 追加 `flash-qf-misery-roster`（Misery 的 live-roster 固定根）、EndOfDays/NoxiousFumes 的 owner 快照，以及智能药水梯度层的顶层失败合同；NECROBINDER-15 的 48 条游走与协调器开启模式（26 行 `FLASH_ADOPTED`，含 4 次 `SmartPotionGradient`）均无失败。默认差分回归已包含 100 根质量语料（600 根），`--only quality` 仍可单跑。 合入前在最终源码上：默认差分 600 根加第三幕 150 根共 750 根零差异；最终候选扫描 600 根共 3,589 条候选路线零不一致（`flash-sk-a-discard-sly` 仍是已知内核边界）；100 根质量对照见 2.1。
+### 2.3 已完成批次
 
-120 根质量语料暴露的内核问题（QF3，2026-10-21）：质量语料改为五个角色各 24 根、三幕各 8 根（种子 `FLASH-QUALITY-<角色>-<NNN>`，生成口径写死在 `survey`），回归只保留固定根与质量语料。新语料暴露 5 处内核分歧与 2 处内核边界，各补固定根（`flash-qf3-*`、`flash-qt2-*`，修正前失败、修正后为 0）：`SEEKING_EDGE` 先施加 Power 再锻造（REGENT-021）；`ReplaceCard` 不受战斗结束门约束（Hellraiser 抽牌击杀最后敌人后的 Entropy 变换，IRONCLAD-005）；玩家回合末最后敌人死亡后只跳过 late 监听派发，遗物的回合末清零照常执行（DEFECT-011 与随后发现的 KUSARIGAMA/ART_OF_WAR 计数回归）；Plow 按临时力量定义族移除（IRONCLAD-002）；Burrowed 的破格挡补偿延后到该效果的死亡处理之后（REGENT-009）。Decisions, Decisions 的重复自动打出与 Mayhem 的自动预打出队列改用一次动作内的瞬态标记跟踪牌身份，前一张牌移走后一张时从其当前牌堆打出，标记丢失或重复时显式失败（REGENT-007、REGENT-013 不再是内核边界）。同批按类别重组 `src/Flash/Content` 的文件（只移动类型，1,313 个类型的源码逐字相同），`UnsupportedCategories.cs` 移入 `Bridge`。合入前在最终源码上：默认差分 404 根零差异；最终候选扫描 404 根共 2,164 条候选零不一致（`flash-sk-a-discard-sly` 仍是已知内核边界）；120 根质量对照见 2.1；关闭模式与上游 `5c773caa` 在 120 根上逐根质量相同、总耗时 +0.5%。
+已完成批次的逐批证据冻结在 [Flash 搜索批次测试记录（2026-10-22）](../archive/flash-search/testing-batches-2026-10-22.md)（含 HS4、QF、QP、QH、QR、QW、FW 与 K6/R1–R3 的尝试记录）。更早的 P1–P12、KS/KM、第二幕 P13、SP2 等批次见 [Flash 搜索归档](../archive/flash-search/README.md)。新批次证据写入本节，不再追加到归档卷。
 
-路线追踪与搜索策略移植（QR、QP1–QP3、QF4，2026-10-21）：新增默认关闭的路线追踪（`flash_regression.py trace`，`OFFLINE_HARNESS_FLASH_TRACE_*`；关闭时 DEFECT-012 开启模式路线、总展开 242,219、总转移 1,621,887 逐位相同），对 QF3 时 8 个失血更多的根定位关闭模式路线在 Flash 中首次被丢弃的位置：IRONCLAD-014、REGENT-021、REGENT-013 在 Flash 中按排名截断，在现有搜索中由必保代表留下（来源标签分别为 stand-pat Control 组、根动作谱系签名组与路由选择）；DEFECT-012 当时记为同指纹去重只留一个代表（QH2 修正追踪后，真正的丢失在第 6 步的普通排名截断，见下一段）；REGENT-015 是开局目标变体不同；IRONCLAD-016 是 Liquid Memories 在 Flash 中为空效果；DEFECT-011、IRONCLAD-011 未定位。QP1 照 `PotionChoiceSupport.GetSpec` 实现 Liquid Memories、Ashwater、Gambler's Brew、Touch of Insanity 的选牌（各配 `flash-qp1-*` 固定根，修正前动作集合失败 47/47/46/45），差分新增两侧可选动作集合核对（`actionSetFailed`）。QP2 在池内同指纹去重时按现有转置表的六维标签做 Pareto 拒绝、代表改按 `IsBetterSearchNode`（120 根由 28/76/16、+34 变为 29/75/16、+10，IRONCLAD-016 由未胜变为 53）；单根首步谱系按签名分组再试一次，120 根变为 27/76/17、+45，撤回；stand-pat 诊断当时显示 IRONCLAD-014 的目标在进入 stand-pat 分组前已被去重代表顶替（这一结论来自去重后断开跟踪的旧追踪，QH2 之后未重查）。QP3 的整次求解转置表与选择完成后的路由键在 120 根上质量不变、未采用（见 [搜索与接入](search.md) 1 节）。合入时默认游走数的全量差分与候选扫描在 quality-NECROBINDER-022 上发现 Touch of Insanity 把 X 费牌列为选项（原版 `CostsEnergyOrStars` 的 global 分支排除 X 费），QF4 修正并补 `flash-qf4-touch-of-insanity-xcost`（修正前 17 条游走失败、修正后 0）。最终源码上：默认差分 409 根零差异；候选扫描 409 根共 2,194 条候选零不一致（`flash-sk-a-discard-sly` 仍是已知内核边界）；120 根质量见 2.1，与 QP2 时逐根相同（含展开数与转移数）；关闭模式基线与 QF3 时的关闭模式 120 根质量逐根相同（118 根展开数也相同，另 2 根受时间预算限制），原搜索只增加默认关闭的诊断，因此没有重跑与上游的对照。
+K6 逐层保留集合对比工具已从当前源码删除（`RetentionDiffProbe`、`FlashRetention`、`flash_regression.py retention`、`FlashBeamOptions.Retention` 与常规搜索的保留集合观察器），需要时从提交 `5365e89d` 找回；当前回归入口不再有 `retention` 子命令。路线追踪（`trace`）仍在使用的 `SearchPathObserver` 与 `SearchDiagnosticsSink.RetentionLabels` 保留。
 
-档位宽度核对不一致（QF5，2026-10-22）：当时用已移除的 `OFFLINE_HARNESS_FLASH_PROFILE_SCALE=1` 得到与现行档位相同的宽度，120 根协调器开启模式只有 `quality-IRONCLAD-019` 失败（`verify-mismatch`，第 18 步 `PlayCard:ANGER#0->3`，复制牌旧引擎 `ANGER+1`、Flash `ANGER+0`）。该路线的固定成员是 `OpeningPowerRouteMember` 的 `JUGGLING` 前缀；根因是这次攻击击杀最后一个 `DampenPower` 施法者后，现有引擎在 Anger 复制补偿前执行死亡结算并把打出的 `CardModel` 升级回原等级，而 Flash 既漏了这次 `ApplyEnemyDeathPowers` 又复制了离开手牌时的 `FlashExec.Card` 副本。`Anger.OnPlay` 现先运行死亡结算、再用 `SyncCurrentPlayCard` 取实际出牌行后复制；旧引擎与 `.local/decompiled/sts2-v0.111.0` 的 `DampenPower.AfterRemoved` + `Anger.OnPlay.CreateClone` 一致，未改旧引擎。新增固定根 `flash-qf5-anger-dampen-clone`：修正前 32 条游走 `failed=1 walkFailed=18`，修正后 `failed=0 walkFailed=0`；`quality-IRONCLAD-019` 默认 48 条游走零差异；档位宽度单根协调器开启模式 30 行 `FLASH_ADOPTED`、没有 `FLASH_SEARCH_FAILED`。离线宿主新增 `flashFailure` 全量证据（完整路线、步前状态、两侧步后状态、全部差异与成员上下文），稳定事件行不变。默认游走、动作集合检查与旧批次更宽 Beam 未发现它的原因见 [开发笔记](../DEVELOPMENT_NOTES.md) 的 QF5 条；全量差分、候选扫描与 120 根质量对照留待合入时运行。
-
-历史对照的变差根（QH、QH2，2026-10-21）：用当前代码只跑开启模式、关闭模式复用当时结果（原搜索自那时起只加默认关闭的诊断），旧 79 根按求解器口径 19/50/10、差值 −60，旧 100 根 30/60/10、+226（NECROBINDER-18 一根 +194）。11 个变差根各跑 48 条游走差分与候选扫描，全部零差异，两种模式导入的根逐字段相同。追踪改为同指纹去重后接到留下的代表节点继续（同一状态字节的另一条到达路线，状态仍在池里），此前归为“去重先到先得”的 5 根真正的丢失都在后面的层：REGENT-V-27（第 8 步，排名 508/960、宽度 240）、IRONCLAD-53（第 34 步）、DEFECT-012（第 6 步，Flash 排名 305/4643，现有搜索排名 17/60）是普通排名截断；REGENT-02（第 6 步，现有搜索由 `cohort.PrefixVariants[round]` 必保代表留下）与 SILENT-C-14（第 12 步，现有搜索由防御必保代表留下）是 Flash 没有对应的必保分组。NECROBINDER-C-08 的准备类领先者在 Flash 中存在并选中了准备值更高的节点，目标不是任何已移植分组的领先者。REGENT-V-03 关闭模式的 7 来自回合边界救援，该阶段只在主搜索结果足够好时进入，开启模式 w90 成员输掉后没有进入。IRONCLAD-28 开启模式原始失血更少（45 对 47），差 2 点来自成长奖励。NECROBINDER-18 两种模式各成员的原始失血都在 63–68，开启模式的路线族都要用死亡豁免，比较器按死亡豁免次数与溢价计入。RQ 时期 IRONCLAD-17 开启模式的失血 17 用了一瓶药（成本 45），按求解器口径是 62，SR 之后的 56 是改进而不是退化。
-
-宽度与档位对齐（QW，2026-10-22）：Flash 的 Beam 宽度、节点上限与软时间直接使用档位值，与常规搜索相同，共享节点预算按 Flash 实际展开数扣减。默认 120 根开启模式与此前用旧测试开关取同样宽度的运行逐根相同（路线、质量、展开数与转移数），质量见 2.1。合入后在最终源码上：候选扫描 410 根共 2,031 条候选零不一致（求解探针的 Flash 宽度随之变窄，`flash-sk-a-discard-sly` 的内核边界在本次扫描中未被触及）；不改内核，未重跑差分（QF5 合入后的 410 根默认差分为零差异）。本条记录的是 QW 当时的档位口径；FW 起开启模式改用 Flash 自己的宽度与节点上限，见本节末尾。
-
-逐层复刻常规搜索的尝试与撤回（K6、R1–R3，2026-10-22）：目标是同一档位下 Flash 在每一根上都不劣于常规搜索。K6 新增逐层保留集合一致检查（`OFFLINE_HARNESS_RETENTION_DIFF`，`flash_regression.py retention`，用法见[离线搜索宿主](../OFFLINE_SEARCH_HARNESS.md)），对同一请求分别运行两种搜索，以 K2 规范状态投影的 128 位哈希为跨引擎状态键，逐个保留边界比较选中集合并给第一处分歧分类；120 根宽度组合成员 653 次运行里只有 1 次全程一致，第一处分歧几乎都在第 1 回合前三层。随后三批照常规移植：R1 同名牌去重、选牌分支排序与档位上限、出牌准入与卖血惩罚；R2 保留边界的同分顺序与首步谱系签名分组（同时删除 Flash 自有的几条谱系泳道与排序值里的药水成本项）；R3 路由签名取选择后的子节点并修正后代丢失签名与父名次恒 0 两处缺陷。同档位 120 根（好/同/差、胜场，常规 87 胜）：QW 19/78/23、85；R1 19/79/22、87；R2 8/90/22、85；R3 12/87/21、87；同宽度下耗时 241 s → 269 s（R1）→ 335 s（R2）。“同”增加而“差”几乎不降：复刻没有完成之前，它主要是用更接近常规的选择替换了 Flash 自有的、在部分根上更好的选择；R1 相对 QW 在两边都获胜的 83 根里原始失血合计 +49，净多胜 2 场。用户决定暂停这条路线，搜索策略撤回到 QW（`git revert`，撤回后默认 120 根开启模式与 QW 逐根相同），K6 工具保留，并保留它的两处修正：探针打开常规侧必保来源标签、常规 `RankBest` 入口清空诊断标签字典（只在打开来源标签时存在）。各批报告与第 4 批中止时的补丁在本地 `.local` 中保留，可按需重新评估其中单项机制。
-
-开启模式使用 Flash 自己的档位宽度与节点上限（FW，2026-10-22）：`SolverPerformanceValues` 增加 Flash profile；`SolverController.CaptureSearchPolicy` 在 `FlashMode == On` 时把快照 `Profile` 的 `BeamWidth`/`MaxExpandedNodes` 换成当前档位的 Flash 值，其余字段沿用常规档位；`SolverSettings.ApplyFlashPerformance` 是唯一替换函数，离线宿主在 `OFFLINE_HARNESS_FLASH_MODE=On` 时按 `--profile` 调用同一函数。Custom、检查点精确 profile、Off 与 Shadow 都不替换。120 根 Medium 现在使用 240 / 480,000（常规 60 / 120,000）；`searchPolicy.Profile` 与 `PortfolioMembers` 的基线宽度均为 240，窄/宽精炼成员为 160/360，共享节点上限 480,000。关闭模式重跑 IRONCLAD-020、SILENT-007 两根，`quality.json` 与主线 `off120-base` 逐字段相同，`SearchWorkAttributions` 合计（`ExpandedNodes`/`Transitions`/`ChoiceBranches`/`RecordedSolverCount`）分别 16,189/58,720/0/8 与 21,274/73,045/4,571/14，逐项相同。
-
-与已有结果并列（同一比较键；120 根常规 87 胜，旧 100 根常规 70 胜）：
-
-| 语料 | 变体（宽度 / 节点上限） | 好 / 同 / 差 | 失血 + 药水成本差 | 胜场 | 总耗时 |
-| --- | --- | --- | ---: | --- | --- |
-| 120 根 | QW 档位宽度（60 / 120,000） | 19 / 78 / 23 | −8 | 87 → 85 | 241 s |
-| 120 根 | QF5 宽度实验（240 / 480,000） | 29 / 74 / 17 | −17 | 87 → 89 | 701 s |
-| 120 根 | FW（240 / 480,000） | 31 / 72 / 17 | +100 | 87 → 91 | 735 s |
-| 100 根 | QW 档位宽度 | 无结果 | — | — | — |
-| 100 根 | QF5 宽度实验（240 / 480,000） | 31 / 60 / 9 | −165 | 70 → 74 | 647 s |
-| 100 根 | FW（240 / 480,000） | 29 / 60 / 11 | +241 | 70 → 74 | 680 s |
-
-QF5 的 120 根与 FW 的绝对宽度、节点上限相同，但当时的代码在 QW 之前（桥接层缩放与节点预算折算尚未删除），结果不能当作同一实现的 A/B。QF5 旧 100 根的 `TABLE.txt` 用当时的失血口径记录 31/60/9、−165；按今天的“失血 + 药水成本”键重读同一批结果目录为 30/60/10、+226、70 → 74，表中并列的是当时记录的口径。120 根 QF5 的行按今天 `table` 重读同一批目录，胜场为 87 → 89。旧 100 根的 QW 行没有运行过，写“无结果”。
-
-FW 的 120 根变差根、4 个新增胜场与旧 100 根合计见 2.1；关闭模式不变与替换位置见 [开发笔记](../DEVELOPMENT_NOTES.md) 的 FW 条。本批 Release 构建 0 警告，K0 与结构、文档、工具、覆盖四项门禁通过；未改 Flash 内核、内容与搜索策略，未重跑差分与候选扫描（只改档位 profile 注入，内核与差分输入未变）。
-
-### 2.3 无人测试实机部署
+### 2.4 无人测试实机部署
 
 Linux 无头整场部署的历次记录（2026-10-19 的初始牌组与第三幕首领，HS、HS2、HS3 的多样化牌组整场）归档在 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md) 第 2 节，最近一轮见 2.2 的 HS4。HS3 与 HS4 的 40 场无头整场使用本地生成的四角色牌组清单；该清单保存在 `.local`，**没有随仓库提交**，因此审阅者无法从仓库逐场复跑同一 40 场，只能按本节方法重建代表场景；仓库内保留的是汇总结果。无人测试请求默认向手牌注入一张 `STRIKE_IRONCLAD`，用显式牌组建局时需传 `--cards-json []`。玩家战死的整场不导出问题包，`[CombatSolver/Flash]` 行从结果目录的 `runtime-events.json` 读取。多个实例并行时共用同一个 `COMBATSOLVER_HEADLESS_HOST_ROOT`：各用一个时，准入会把另一实例的游戏进程当作未登记进程，排队到时限后无结果。
 
 ## 3. 已知限制与未验证项
 
-- 只覆盖归档批次与 2.1 所列内容；其他内容在准入阶段拒绝，尚未有差分证据。
+- 当前覆盖 290 个固定根与 120 个质量根；未覆盖的第三方内容按 [准入](admission-and-verification.md) 的 `admission-unsupported-content` / `admission-unrepresentable-state` 拒绝，尚无该类内容的差分证据。
 - 精确层下界不可用（遗物目标、成长目标等）时 Flash 整次搜索不做下界剪枝，原搜索只对不满足条件的节点放开；路线不受影响，搜索面更大。除遗物目标外的禁用原因没有逐个构造实机根。
 - `FLASH_SEARCH_FAILED` 的提示与问题包（包括回合准备搜索失败时关闭全自动、把原生选择留给玩家）只在无头合同与整场中验证，未在可见游戏中查看。
 - 最终候选扫描只覆盖排序前 N 条最终候选，进度预览用过的推测路线没有导出；HS4 前 NECROBINDER-19 一次预览手牌下标差异（第 7 回合第 24 步）此后没有再现。扫描中 `flash-sk-a-discard-sly` 的一条搜索分支到达内核边界（TACTICIAN+1 弃牌后在自动打出前失去瞬态标记），开启模式在该状态按 `kernel-unsupported` 失败。
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择覆盖卡牌自身的单选、手牌/抽牌堆/弃牌堆选择、回合开始选择、知识恶魔的固定选项与自动打出中的嵌套选择（LR、MB 固定根）；一个动作最多携带 8 个选择，更深的链按容量边界拒绝。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
-- 实机部署只在 Linux 无头游戏中验证（五个角色初始牌组、第三幕首领与 HS/HS2/HS3/HS4 的多样化牌组整场，见 2.3 与归档卷）；未做可见游戏、Windows 或 Steam 会话验证，设置面板的新选项未在游戏中查看。
+- 实机部署只在 Linux 无头游戏中验证（五个角色初始牌组、第三幕首领与 HS/HS2/HS3/HS4 的多样化牌组整场，见 2.4 与归档卷）；未做可见游戏、Windows 或 Steam 会话验证。设置面板的 Flash 档位现有两个选项（关闭/启用），未在可见游戏中查看。

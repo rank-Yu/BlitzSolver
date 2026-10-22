@@ -1,8 +1,10 @@
 namespace CombatSolver.Flash.Kernel;
 
 /// <summary>
-/// A fixed capacity of <see cref="FlashBattle"/> was exceeded. The whole Flash solve is
-/// abandoned and the request falls back to the existing backend.
+/// A fixed capacity of <see cref="FlashBattle"/> was exceeded. A child-state overflow inside the
+/// expansion loop is a search boundary handled by <c>FlashBeamSolver</c>; a root-level overflow
+/// abandons the whole Flash solve, and On mode reports <c>FLASH_SEARCH_FAILED reason=kernel-capacity</c>
+/// instead of falling back to the existing backend.
 /// </summary>
 public sealed class FlashCapacityException(string region, int capacity)
     : Exception($"Flash 状态区块 {region} 超出容量 {capacity}。")

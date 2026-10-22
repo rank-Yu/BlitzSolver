@@ -33,14 +33,15 @@ public static class FlashLimits
     /// Local energy-cost modifiers of one card. Stomp adds one <c>EndOfTurn</c> modifier per Attack
     /// played this turn (<c>Stomp.BeforeCardPlayed</c>) on top of the modifiers other effects write,
     /// so the native unbounded list needs room for a full turn's plays. Overflow still throws
-    /// <see cref="FlashCapacityException"/> and falls back instead of truncating.
+    /// <see cref="FlashCapacityException"/> instead of truncating; the expansion boundary drops the
+    /// child, and a root-level overflow fails the On-mode solve.
     /// </summary>
     public const int CardEnergyCostModifiers = 16;
     // One action may carry a primary choice plus nested auto-play choices. Decisions, Decisions
     // replays the chosen card up to its Repeat variable (3), and a chosen Decisions, Decisions can
     // nest again for each skill in hand; the existing engine keeps those frames unbounded. Every
     // beam node stores a whole FlashAction, so a deeper chain is a FlashCapacityException boundary
-    // (the branch is dropped and the existing solver keeps it) rather than a larger inline array:
+    // (the branch is dropped and counted) rather than a larger inline array:
     // 32 slots cost about 10% more managed allocation on the starter-deck bench for no reached route.
     public const int MaxChoices = 8;
 

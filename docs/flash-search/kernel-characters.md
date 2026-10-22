@@ -98,7 +98,7 @@
 ### 4.1 剩余卡牌与遗物
 
 - **SentryMode**：`SentryModePower.BeforeHandDraw` 按层数生成 `SweepingGaze` token 入手；SweepingGaze 是 0 费 Ethereal/Exhaust 的 Osty 随机目标攻击。对照 `TurnStartPowerSupport` 的 SentryMode case。
-- **CallOfTheVoid**：`CallOfTheVoidPower.BeforeHandDraw` 每次从角色池（`CharacterAll`，其过滤已排除 Basic/Ancient/Event 与不可生成卡）做一次 `TakeRandom(1)`，给生成卡补 Ethereal 后入手。该卡的可达闭包仍包含没有定义的 Fetch 与 Delay，因此含它的根按 `UnsupportedClosure` 拒绝（见 testing 摘要的缺失能力）。
+- **CallOfTheVoid**：`CallOfTheVoidPower.BeforeHandDraw` 每次从角色池（`CharacterAll`，其过滤已排除 Basic/Ancient/Event 与不可生成卡）做一次 `TakeRandom(1)`，给生成卡补 Ethereal 后入手。Fetch 与 Delay 均已有 Flash 定义，闭包不再有该缺口；`flash-id-g-callofthevoid.json` 固定根覆盖它。
 - **Misery**：锁定目标的每个减益（层数、applier、`Target`）快照，攻击后按可命中敌人顺序克隆到其他敌人，每次克隆后排空 Power 数量变化队列；目标带临时 Power 时显式 `FlashUnsupportedException`（缺少实例内部属性合并）。对照 `BespokeCardMirrors.MiseryOnPlay`。
 - **Pagestorm**：`AfterCardDrawn` 只检查卡牌本地 Ethereal 关键字，命中后抽层数张；对照 `AfterCardDrawnMirrors.HandlePagestormPower`。
 - **DrainPower**：单体攻击后从弃牌堆的**可升级**卡中等概率取 `Cards` 张并升级（`CardSelectionCardMirrors.DrainPowerOnPlay` 的过滤 + 完整 Fisher-Yates + `CombatCardSelection` 流）。`CombatPredictionSimulator.Upgrade` 在战斗正在结束时 no-op，所以击杀的 DrainPower 仍消耗随机数、但不升级任何卡；Flash 在选完目标后按同一门控跳过写入。

@@ -1,6 +1,5 @@
 using CombatSolver.Flash.Kernel;
 using CombatSolver.Flash.Search;
-using CombatSolver.Flash.Bridge;
 
 namespace CombatSolver.Flash.Search.Scoring;
 
@@ -160,7 +159,7 @@ internal enum FlashShivSupplyKind : byte
 /// <summary>
 /// Root-frozen per-content evaluation values for one card id at one upgrade level. Every admitted card
 /// has an entry; the values themselves are read from the existing engine's models when
-/// <see cref="FlashScoreBridge"/> builds the table.
+/// <c>FlashScoreBridge</c> builds the table.
 /// </summary>
 internal sealed class FlashCardScore
 {

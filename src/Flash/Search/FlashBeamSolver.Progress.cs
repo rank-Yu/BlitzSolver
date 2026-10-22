@@ -1,6 +1,5 @@
 using CombatSolver.Flash.Kernel;
 using CombatSolver.Flash.Search.Scoring;
-using CombatSolver.Flash.Bridge;
 
 namespace CombatSolver.Flash.Search;
 
@@ -58,7 +57,6 @@ internal sealed partial class FlashBeamSolver
     private int _takeoverNode = -1;
     private RouteKey _takeoverKey;
     private bool _takeoverVictory;
-    private bool _takeoverDefeat;
     private double _takeoverScore;
     private FlashScoreFeatures _bestFeatures;
     private int _bestFeaturesNode = -1;
@@ -89,7 +87,6 @@ internal sealed partial class FlashBeamSolver
         _takeoverNode = -1;
         _takeoverKey = default;
         _takeoverVictory = false;
-        _takeoverDefeat = false;
         _takeoverScore = double.NegativeInfinity;
         _bestFeatures = default;
         _bestFeaturesNode = -1;
@@ -167,7 +164,6 @@ internal sealed partial class FlashBeamSolver
         _takeoverKey = selectedKey;
         ref FlashBattle selectedState = ref FindBoundaryState(boundary, selected);
         _takeoverVictory = selectedState.Outcome == FlashOutcome.Victory;
-        _takeoverDefeat = selectedState.Outcome == FlashOutcome.Defeat;
         _takeoverScore = _takeoverKey.Score;
         return selected;
     }
@@ -277,7 +273,6 @@ internal sealed partial class FlashBeamSolver
             hasNode ? Route(node) : [],
             [],
             hasNode && _takeoverVictory,
-            hasNode && _takeoverDefeat,
             hasNode ? _takeoverScore : double.NegativeInfinity,
             _expanded,
             _transitions,

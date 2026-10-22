@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CombatSolver.Flash.Kernel;
 using CombatSolver.Flash.Search.Scoring;
-using CombatSolver.Flash.Bridge;
 
 namespace CombatSolver.Flash.Search;
 
@@ -53,7 +52,6 @@ internal sealed partial class FlashBeamSolver
     private RouteKey? _noveltyBest;
     private int _noveltyBestNode;
     private bool _noveltyBestVictory;
-    private bool _noveltyBestDefeat;
     private bool _noveltyHasTerminal;
 
     private readonly record struct NoveltyOpenEntry(
@@ -137,7 +135,6 @@ internal sealed partial class FlashBeamSolver
             _noveltyBest = key;
             _noveltyBestNode = node;
             _noveltyBestVictory = state.Outcome == FlashOutcome.Victory;
-            _noveltyBestDefeat = state.Outcome == FlashOutcome.Defeat;
             _noveltyBestFeatures = features;
         }
         TightenIncumbent(state, node, features, key);
@@ -176,7 +173,6 @@ internal sealed partial class FlashBeamSolver
         _noveltyBest = null;
         _noveltyBestNode = 0;
         _noveltyBestVictory = false;
-        _noveltyBestDefeat = false;
         _noveltyHasTerminal = false;
         _nodes.Clear();
         _commitments.Clear();
@@ -200,11 +196,11 @@ internal sealed partial class FlashBeamSolver
         Pool next = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, trace: null, retention: null);
+            _options.PreserveReplayAllocatorOpening, trace: null);
         Pool ended = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, trace: null, retention: null);
+            _options.PreserveReplayAllocatorOpening, trace: null);
 
         void Terminal(in FlashBattle state, int node, double score)
         {
@@ -319,18 +315,16 @@ internal sealed partial class FlashBeamSolver
         int turnLayers = Math.Max(0, _noveltyMaximumTurn - _initialPlayerTurn);
         int bestNode = _noveltyBestNode;
         bool bestVictory = _noveltyBestVictory;
-        bool bestDefeat = _noveltyBestDefeat;
         bool auditedSelected = true;
         if (_auditPotionPolicy)
         {
             auditedSelected = SelectAudited(out int auditedNode, out RouteKey auditedKey,
-                out bool auditedVictory, out bool auditedDefeat);
+                out bool auditedVictory);
             if (auditedSelected)
             {
                 _noveltyBest = auditedKey;
                 bestNode = auditedNode;
                 bestVictory = auditedVictory;
-                bestDefeat = auditedDefeat;
             }
         }
         else if (!_noveltyHasTerminal && _noveltyFallback is { } fallback)
@@ -340,7 +334,6 @@ internal sealed partial class FlashBeamSolver
             _noveltyBest = Key(fallback.State, fallbackFeatures, Depth(fallback.Node));
             bestNode = fallback.Node;
             bestVictory = fallback.State.Outcome == FlashOutcome.Victory;
-            bestDefeat = fallback.State.Outcome == FlashOutcome.Defeat;
         }
         NoveltySearchTelemetry telemetry = new(
             _noveltyGenerated, _noveltyPeakOpen, _noveltyHorizonLeaves, _noveltyNonNovelPruned,
@@ -352,7 +345,7 @@ internal sealed partial class FlashBeamSolver
         FlashBeamResult result = new(
             _noveltyBest is null ? [] : Route(bestNode),
             [],
-            bestVictory, bestDefeat, _noveltyBest?.Score ?? double.NegativeInfinity,
+            bestVictory, _noveltyBest?.Score ?? double.NegativeInfinity,
             _expanded, _transitions, _duplicates, turnLayers, _pruned, watch.Elapsed)
         {
             CapacityPruned = _capacityPruned,

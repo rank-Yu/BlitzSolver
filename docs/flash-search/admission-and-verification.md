@@ -2,7 +2,7 @@
 
 [返回 Flash 入口](README.md)
 
-Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的**差分测试**、部署前的**旧引擎回放核对**。开启模式不做部分提交：无路线按规则 1 返回现有搜索同形结果；准入拒绝、核对不一致和内核边界写稳定失败事件并停止本次搜索/部署（离线与无人测试为失败），不回落现有后端。对照模式保持原状（现有搜索返回结果，Flash 只记录对照），关闭模式不运行 Flash。
+Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的**差分测试**、部署前的**旧引擎回放核对**。开启模式不做部分提交：无路线按规则 1 返回现有搜索同形结果；准入拒绝、核对不一致和内核边界写稳定失败事件并停止本次搜索/部署（离线与无人测试为失败），不回落现有后端。关闭模式不运行 Flash。
 
 ## 1. 准入
 
@@ -15,7 +15,6 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `MultiPlayer` | 玩家数不是 1 |
 | `RootPhase` | 根不是受支持的两形：普通 `Player/Play`，或 `IncludeTurnSetup` 的 `Player/Start`（回合准备根由 Bridge 先回放成 `Play` 状态再导入；其它 side/phase 显式拒绝） |
 | `PendingChoice` | 根存在待处理选择或执行续接 |
-| `ThirdParty` | 存在第三方 gameplay 订阅者、BaseLib 卡牌修饰、未登记模型状态 |
 | `UnsupportedCard` 等 | 任一卡牌、附魔、苦难、Power、遗物、药水、球、怪物没有 Flash 定义 |
 | `MultiPlayer` / `TestContent` / `DeprecatedContent` | 明确不在单人原版范围的内容类别（多人专用 37 张卡与 6 个 Power、`MockCardPool`/`MOCK_*` 测试内容、`DeprecatedCardPool` 废弃内容），见下节 |
 | `UnsupportedClosure` | 可达内容闭包中有不受支持的项（见下） |
@@ -23,17 +22,17 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `Capacity` | 估计的牌数、Power 数、敌人数超出容量 |
 | `UnsupportedRequest` | 本次 `Solve()` 参数含 Flash 尚未支持的选项（见 [搜索与接入](search.md#3-请求参数)） |
 
-开启模式下准入拒绝不是回落点：分发点按类别写一行 `FLASH_SEARCH_FAILED reason=admission-<类别> detail=<拒绝原因>`，抛出 `FlashSearchFailedException` 并停止部署。类别覆盖多人专用（`admission-multiplayer`）、Mock 测试内容（`admission-test-content`）、废弃内容（`admission-deprecated-content`）、第三方订阅者/修饰（`admission-third-party`）、未定义内容（`admission-unsupported-content`，包括现有引擎同样不支持的 BYRDPIP 等）、未实现请求（`admission-unsupported-request`）、容量估计（`admission-capacity`）、不可表示状态（`admission-unrepresentable-state`）与待处理选择（`admission-pending-choice`）。对照模式只把拒绝写进 `FLASH_SHADOW` 并返回现有结果。
+开启模式下准入拒绝不是回落点：分发点按类别写一行 `FLASH_SEARCH_FAILED reason=admission-<类别> detail=<拒绝原因>`，抛出 `FlashSearchFailedException` 并停止部署。类别覆盖多人专用（`admission-multiplayer`）、Mock 测试内容（`admission-test-content`）、废弃内容（`admission-deprecated-content`）、未定义内容（`admission-unsupported-content`，包括现有引擎同样不支持的 BYRDPIP 等）、未实现请求（`admission-unsupported-request`）、容量估计（`admission-capacity`）、不可表示状态（`admission-unrepresentable-state`）与待处理选择（`admission-pending-choice`）。第三方内容没有单独类别：未定义的卡牌、Power、遗物、药水、球、怪物、附魔、苦难与生成闭包按 `UnsupportedCard`/`UnsupportedPower`/`UnsupportedRelic`/`UnsupportedPotion`/`UnsupportedOrb`/`UnsupportedMonster`/`UnsupportedEnchantment`/`UnsupportedAffliction`/`UnsupportedClosure` 拒绝，统一写成 `admission-unsupported-content`；第三方 gameplay 订阅者或未登记模型留下无法投影的状态时按 `UnrepresentableState` 写成 `admission-unrepresentable-state`。原先的 `admission-third-party` token 已删除。
 
 **可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么：固定卡表（`GeneratedCards`）、候选卡池（`GeneratedCardPools`，键见 `FlashCardPools`）、可施加的 Power（`AppliedPowers`，用于跟随 CalamityPower 这类会继续生成卡的 Power）以及随机药水池（`GeneratesRandomPotion`）。闭包从根的战斗牌堆、Power、遗物、药水、已知敌人与召唤闭包中的怪物定义出发，而不是从全部注册定义出发；这样不含生成效果的根不会被无关池拒绝。
 
 池在根导入时用现有引擎的同一套候选枚举冻结进 `FlashRules`（角色/无色卡池、`character.powers`（WhiteNoise/CreativeAiPower 的 Power 卡池）、战斗过滤、多人约束、类型/费用/排除谓词，保持原顺序）；内核只按 RNG 取样。闭包里每个候选卡都必须有 Flash 定义且其规范数值进入规则表，每个随机药水候选都必须有 Flash 药水定义；否则该根按 `UnsupportedClosure` 拒绝，诊断里带上第一个缺失项与池键。召唤表的怪物定义也参与同一闭包，它们生成的卡同样需要定义。
 
-怪物的可生成类型在 `FlashRulesCompiler` 中编译：每个类型在根模拟器的私有 Fork 上执行现有引擎的创建路径（`MonsterSpawnSupport.Create` + `AddPredictedMonster` + `PreparePredictedMonster`），状态机、静态值与初始私有整数都从这次创建结果读取，不手抄。行动的伤害与连击数取根上采集的静态值；原版意图用运行时值计算、内核钩子又会按实时状态调整的行动，编译时只取基础值，由钩子加一次实时部分：TestSubject MULTI_CLAW 的连击数取 `BaseMultiClawCount`，`_extraMultiClawCount` 只由 `ModifyAttackRepeats` 计入。原版全部攻击意图中，只有 TestSubject MULTI_CLAW、TheForgotten DREAD 与 WaterfallGiant PRESSURE_GUN 由运行时值计算；后两者在根上不会重复计入。规则表容量是 `FlashLimits.MonsterRules`，超出按 `Capacity` 拒绝。根持有 `Murderous` 修饰而闭包非空时拒绝（`UnsupportedClosure`，新敌人的入场力量未移植）；贤者之石、毛皮大衣没有 Flash 遗物定义，持有它们的根在导入阶段按 `UnsupportedRelic` 拒绝。
+怪物的可生成类型在 `FlashRulesCompiler` 中编译：每个类型在根模拟器的私有 Fork 上执行现有引擎的创建路径（`MonsterSpawnSupport.Create` + `AddPredictedMonster` + `PreparePredictedMonster`），状态机、静态值与初始私有整数都从这次创建结果读取，不手抄。行动的伤害与连击数取根上采集的静态值；原版意图用运行时值计算、内核钩子又会按实时状态调整的行动，编译时只取基础值，由钩子加一次实时部分：TestSubject MULTI_CLAW 的连击数取 `BaseMultiClawCount`，`_extraMultiClawCount` 只由 `ModifyAttackRepeats` 计入。原版全部攻击意图中，只有 TestSubject MULTI_CLAW、TheForgotten DREAD 与 WaterfallGiant PRESSURE_GUN 由运行时值计算；后两者在根上不会重复计入。规则表容量是 `FlashLimits.MonsterRules`，超出按 `Capacity` 拒绝。根持有 `Murderous` 修饰而闭包非空时拒绝（`UnsupportedClosure`，新敌人的入场力量未移植）；贤者之石（`PHILOSOPHERS_STONE`）与毛皮大衣（`FUR_COAT`）已有 Flash 遗物定义，不再按 `UnsupportedRelic` 拒绝。
 
 准入只做判断，不修改任何状态。拒绝原因写入诊断，用于覆盖率统计。
 
-`Player/Start` 的 `IncludeTurnSetup` 根不直接导入：分发点把它交给 Flash，Bridge 用现有求解器的 `BuildTurnSetupRoots` 按与现有搜索相同的选择预算枚举准备选择，并把每个分支回放到稳定 `Player/Play` 状态；`FlashStateImporter.Import(..., requirePlayPhase: true)` 只检查这些导入后的 `Play` 根。其余 side/phase 在开启模式写 `FLASH_SEARCH_FAILED reason=root-phase detail=root-phase:<side>:<phase>` 并停止部署，不搜索也不回落；对照模式仍只返回现有搜索结果。根捕获与准备选择回放都在主线程现有引擎上完成，Flash 只消费 `Play` 状态。
+`Player/Start` 的 `IncludeTurnSetup` 根不直接导入：分发点把它交给 Flash，Bridge 用现有求解器的 `BuildTurnSetupRoots` 按与现有搜索相同的选择预算枚举准备选择，并把每个分支回放到稳定 `Player/Play` 状态；`FlashStateImporter.Import(..., requirePlayPhase: true)` 只检查这些导入后的 `Play` 根。其余 side/phase 在开启模式写 `FLASH_SEARCH_FAILED reason=root-phase detail=root-phase:<side>:<phase>` 并停止部署，不搜索也不回落。根捕获与准备选择回放都在主线程现有引擎上完成，Flash 只消费 `Play` 状态。
 
 ## 2. 根导入与投影
 
@@ -71,7 +70,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 - **自动预打出**：`BOMBARDMENT` 的消耗堆捕获、`MayhemPower` 的计划自动打出、HistoryCourse 的上一回合最后攻击复制品与 Imbued 的附魔自动打出在 `FlashKernel.AutoPrePlay` 里按现有引擎的阶段顺序复刻；WhisperingEarring 的触发没有战斗内状态，定义只保留最大能量。
 - **历史计数投影**：`CardsGeneratedThisCombat` 取 `CalculatedVarSpecRegistry.CountGeneratedCardsForFlash`（根历史 + 预测历史）；`FlashEnemy.PoweredAttackHitsThisTurn` 取 `GetPoweredAttackHitsThisTurn(player, enemy)`（在导入的私有 Fork 上读取，调用方状态不变），超过 255 按 `UnrepresentableState` 拒绝。
 - **`VoidFormPower.Aux0`**：取 `VoidFormPredictionState.CardsPlayedThisTurn`（`Claim` 认领）；没有条目时读模型内部数据的 `cardsPlayedThisTurn`。Power 归零退役后的残留条目按惰性处理：两个费用钩子与 `AfterCardPlayed` 只遍历正层 `EffectivePowers`，重新获得是新的原生实例。
-- **未实现的生成闭包**：`BundleOfJoy`、`Quasar`、`ManifestAuthority`、`SpectrumShift` 的候选池是 `ColorlessAll`，其中 Discovery/JackOfAllTrades/Splash 等又声明 `CharacterAll`；该池包含尚未实现的实例身份内容（Monologue、SwordSage、Orbit、PaleBlueDot、SummonForth），因此这些生成卡的根仍按 `UnsupportedCard`/`UnsupportedClosure` 拒绝。没有为它们写半成品定义。
+- **生成闭包已覆盖**：`BundleOfJoy`、`Quasar`、`ManifestAuthority`、`SpectrumShift` 的候选池是 `ColorlessAll`，其中 Discovery/JackOfAllTrades/Splash 等又声明 `CharacterAll`；池内实例身份内容 Monologue、SwordSage、Orbit、PaleBlueDot、SummonForth 均已有 Flash 定义。闭包仍按根实际枚举的候选逐个要求定义，缺定义时按 `UnsupportedClosure` 拒绝，不再有整类已知缺口。
 
 退役条目的认领规则与现有实现：
 
@@ -82,7 +81,7 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 - `AfterimagePower` / `StranglePower` / `SerpentFormPower` 在 `BeforeCardPlayed` 把能力层数写进 `CardPlayPairPredictionState`（以 `CardPlay` 为键），由 `AfterCardPlayed` 删除。稳定边界为空：`ProjectPower` 认领空条目，非空条目按 `UnrepresentableState` 拒绝（结算进行中）。Power 归零退役后残留的空条目按惰性处理——它的两个读取点都只遍历正层 `EffectivePowers`，重新获得该 Power 是新的原生实例与新的 state；退役条目的非空表仍拒绝。
 - `AmountOnTurnStart` 惰性归一化：现有引擎的镜像扣层只写 `PowerAmountPredictionState`，模型数量要到动作边界 `SynchronizePowerAmountPredictionStates` 才同步，而 `SnapshotPowerAmountsAtTurnStart` 读的是尚未同步的模型数量。Flash 立即扣层，无法区分“当前有效层数”和“模型滞后层数”。只有 `DrawCardsNextTurnPower`、`SummonNextTurnPower`、`HelloWorldPower` 会被结算读取该字段（`PowerLifecycleSupport.SemanticallyRelevantAmountOnTurnStart` 与 `TurnStartPowerSupport`），其余 Power 的 `AmountOnTurnStart` 在导入和快照时都写成 0；这不会改变任何可观察结算，只消除投影差异。
 - `BeltBuckle` 的 `StatefulRelicState`：`ProjectRelic` 把它投影到 `FlashRelic.Counter`（0/1），表示本场是否已经给过战后补充的 2 敏捷；`AfterPotionUsed` 在药水槽全空且计数为 0 时施加敏捷并置 1，与 `TriggerRelicsAfterPotionUsed` 的门控一致。战前应用已经在根快照里。
-- **CallOfTheVoid 的生成闭包**：Power 声明 `CharacterAll` 池，闭包会要求 Fetch 与 Delay 的 Flash 定义。Fetch 需要卡牌实例身份（“本回合这张 Fetch 是否打出过”），Delay 的现有引擎只有 `EnergyNextTurnPower` 补偿、没有格挡补偿；两者都按缺失能力记录，所以含 CallOfTheVoid 的亡灵契约师根目前仍按 `UnsupportedClosure` 拒绝。
+- **CallOfTheVoid 的生成闭包**：Power 声明 `CharacterAll` 池，闭包会要求 Fetch 与 Delay 的 Flash 定义；两者均已实现并登记生成闭包，`flash-id-g-callofthevoid.json` 固定根覆盖该路径。
 - `_tenderCardsPlayed`（HUNTER_KILLER_NORMAL）：不是 store 条目，而是 `SimulatedCombatState` 的分支字典。`TenderPower` 正层时由 `ProjectPower` 通过 `GetTenderCardsPlayed` 写入 `FlashPower.Aux0`（有字典条目取条目，否则取条目构造器会读的原生字段）。玩家死亡清空 Power 后字典可能留下非零值，但 `GetTenderCardsPlayed` 只在正层 `TenderPower` 的 Hook/指纹读取，退役值不可能再被读，故 `DescribeFlashUnrepresentableState` 不再整体拒绝该表。
 
 `FlashKernel.ApplyEnemyDeathPowers` 在清空死亡 Power 之前按 `FlashPowerDef.DeathTrigger` 执行 `DeathPowerSupport.Trigger` 的死亡分支（Reattach、Infested、Surrounded 的朝向更新）；Reattach 段的导入允许 `Reviving` 阶段配原生 `DEAD_MOVE`/`REATTACH_MOVE`，只有幻象型怪物要求 `Reviving` 必须处于合成 `REVIVE_MOVE`。
@@ -209,9 +208,9 @@ K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一
 
 Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](search.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
 
-- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式写 `FLASH_SEARCH_FAILED reason=verify-mismatch detail=<首个差异>`、抛出 `FlashSearchFailedException` 并停止部署；Shadow 模式记为 `status=mismatch` 并返回现有结果。
+- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式写 `FLASH_SEARCH_FAILED reason=verify-mismatch detail=<首个差异>`、抛出 `FlashSearchFailedException` 并停止部署。
 - 离线宿主的 `harness-result.json`/`result.json` 在失败异常带完整核对证据时另写 `flashFailure`：`step`、`action`、完整 `plan`、全部 `differences`、步前状态、旧引擎与 Flash 的步后状态，以及 `directPurpose`/`continuationPurpose`/`prefix`。稳定日志行、320 字符 `detail` 与问题包写法不变。
-- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时，On 模式写 `reason=kernel-unsupported`/`reason=kernel-capacity` 并停止部署，Shadow 记 `status=boundary`。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
+- Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时，On 模式写 `reason=kernel-unsupported`/`reason=kernel-capacity` 并停止部署。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
 - 翻译器按旧引擎当前回放状态把 Flash 动作翻成计划动作：手牌下标超出旧引擎手牌，或旧引擎按动态目标规则（`CombatPredictionSimulator.GetTargetType`，含 Fan of Knives 下的 Shiv、Seeking Edge 下的君王之刃）需要敌方目标而 Flash 动作没有目标时，抛 `FlashChoiceMismatchException`。核对与物化路径把它转成 `FlashVerificationException`（On 模式 `verify-mismatch`）；进度预览只跳过该预览并记录 `FLASH_PREVIEW_MISMATCH`。
 - 核对通过的路线作为固定前缀交给旧求解器物化，结果形状与旧后端相同。`IncludeTurnSetup` 路线还会把选中的准备选择向量作为 `rootTurnSetupChoices` 固定给旧求解器；旧求解器重新枚举准备根后只保留该向量，物化结果再逐项核对 `TurnSetupChoices`，不一致整条丢弃（On 模式即 `verify-mismatch` 失败）。
 - Smart 药水审计（`SmartPotionGradient` 与 `SmartOpeningPotionPosterior`）在物化时把同一 `PotionFreePolicyBaseline`、`minimum/maximumPotionUses` 与 `RequireAtLeastOne` 交回现有 `CombatBeamSolver`，由现有 `FinalPlanOrdering.Select` 再做一次筛选。物化后 `FlashPotionBridge.VerifyRoute` 核对路线的显式用药次数：动作里的 `UsePotion` 数必须等于 `PotionUses` 的非自动计数，且满足最小/最大次数与 `RequireAtLeastOne` 至少一次；任一不满足都返回 `ConstraintFailure`。分发点把这些药水策略类 `ConstraintFailure` 统一转成现有搜索同形的 `PotionPolicyUnsatisfiedException`（`FLASH_NO_ROUTE`），由 Smart 梯度、后验与续接调度按原逻辑继续；它不是 `FLASH_SEARCH_FAILED`。
@@ -220,6 +219,6 @@ Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRo
 ## 5. 失败处理约束
 
 - 不新增 `catch (Exception)`。只捕获 `FlashUnsupportedException`、`FlashCapacityException`、准入拒绝、校验失败与取消，以及物化阶段现有求解器抛出的 `PotionPolicyUnsatisfiedException`。
-- 捕获后整个 Flash 求解作废，不把半成品路线交给协调器。On 模式随即停止搜索/部署并上报 `FlashSearchFailedException`；Shadow/Off 保持各自原有返回路径。回合准备搜索的失败走同一约定（关闭全自动、Flash 提示、问题包带 `SearchFailure` 与 `FlashSearchFailed`），原生选择留给玩家。
+- 捕获后整个 Flash 求解作废，不把半成品路线交给协调器。On 模式随即停止搜索/部署并上报 `FlashSearchFailedException`；Off 保持原有返回路径。回合准备搜索的失败走同一约定（关闭全自动、Flash 提示、问题包带 `SearchFailure` 与 `FlashSearchFailed`），原生选择留给玩家。
 - 药水审计没有满足策略的路线（`PotionPolicySatisfied=false`，`flash-potion-policy-no-route`）时按规则 1 返回 `PotionPolicyUnsatisfiedException`；诊断行写 `FLASH_NO_ROUTE`，不写 `FLASH_SEARCH_FAILED`。精确层下界输入不可用（`smart-potion-bound unavailable`）不是无路线：开启模式只关闭下界剪枝并照常搜索，写 `SMART_POTION_BOUND_UNAVAILABLE` 诊断。物化后 `FlashPotionBridge.VerifyRoute`（`route-*`）或现有 `FinalPlanOrdering`（`materialize-potion-policy`）仍判定不满足请求药水约束时，是两侧判定不一致，按 `potion-policy-mismatch` 显式失败。
 - 失败事件与无路线结论都计入诊断：类别、首个差异/拒绝原因与阶段；On 模式不再写 `FLASH_LEGACY`。

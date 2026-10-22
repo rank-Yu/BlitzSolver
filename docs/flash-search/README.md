@@ -13,7 +13,7 @@ Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块
 | [角色机制](kernel-characters.md) | 各角色专属的内核机制：弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [药水与遗物](kernel-potions-relics.md) | 额外回合管线、9 瓶药水与新增遗物机制 |
 | [准入与校验](admission-and-verification.md) | 按场准入、根导入、差分测试、运行时回放核对 |
-| [搜索与接入](search.md) | FlashBeam、路线物化、`BeamSolveDispatch` 与 Off/Shadow/On 模式 |
+| [搜索与接入](search.md) | FlashBeam、路线物化、`BeamSolveDispatch` 与 Off/On 模式 |
 | [测试记录](testing.md) | 复跑入口、当前证据与未验证项 |
 
 ## 1. 目标与非目标
@@ -27,15 +27,15 @@ Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块
 非目标：
 
 - 不替代现有模拟器，不改变现有搜索政策的默认行为；默认模式为 Off。
-- 不支持第三方 Mod 内容（AGENTS.md 第 1 节）。根中存在第三方 gameplay 订阅者、BaseLib 卡牌修饰或未登记模型时整场不准入。
+- 不支持第三方 Mod 内容（AGENTS.md 第 1 节）。根中存在第三方 gameplay 订阅者、BaseLib 卡牌修饰或未登记模型时整场不准入；这些内容在准入阶段按具体对象归入 `admission-unsupported-content`（未定义卡牌/Power/遗物/药水/球/怪物/附魔/苦难或生成闭包），没有单独的第三方类别。
 - 不比现有引擎"更正确"。发现现有引擎与原版不一致时，先按 `combat-semantic-change` 修正现有引擎并补差分证据，Flash 再跟随。
 
 ## 2. 总体结构
 
 ```
 主线程                        后台（每次 Solve 调用）
-CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / Shadow 的现有侧：CombatBeamSolver.Solve()
-                                          └─ On / Shadow 的 Flash 侧：
+CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off：CombatBeamSolver.Solve()
+                                          └─ On：
                                               FlashAdmission      根内容闭包是否全部受支持
                                               FlashRootImporter   旧模拟器根 → FlashBattle + FlashRules
                                               FlashBeamSolver     在 FlashBattle 上搜索，产出候选路线
@@ -69,6 +69,6 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / Shadow 的现有�
 
 ## 4. 当前状态
 
-Flash 已接入主搜索分发（Off/Shadow/On），默认 Off。开启模式使用 Flash 自己的档位预算：低/中/高/极高档的 Beam 宽度与节点上限分别为 180/240/360/540 与 240,000/480,000/1,000,000/2,000,000，软时间与分支上限等其余字段沿用常规档位；关闭与对照模式不变，自定义档位沿用玩家填写的数值。On 只运行 Flash，不回落现有搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它准入、容量、内核与核对失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
+Flash 已接入主搜索分发（Off/On），默认 Off。开启模式使用 Flash 自己的档位预算：低/中/高/极高档的 Beam 宽度与节点上限分别为 180/240/360/540 与 240,000/480,000/1,000,000/2,000,000，软时间与分支上限等其余字段沿用常规档位；关闭模式不变，自定义档位沿用玩家填写的数值。On 只运行 Flash，不回落现有搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它准入、容量、内核与核对失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
 
 状态布局、容量与尺寸预算见 [状态布局](state-layout.md)；内容定义与结算顺序见 [内核语义](kernel-semantics.md)；角色专属机制与药水/遗物机制分别见 [角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md)；准入与校验合同见 [准入与校验](admission-and-verification.md)。
