@@ -209,6 +209,12 @@ internal sealed record FlashBeamOptions(
     /// the solver only reports the points it already evaluates, and no retention comparison reads it.
     /// </summary>
     public FlashBeamTrace? Trace { get; init; }
+
+    /// <summary>
+    /// Opt-in K6 retention-boundary capture. Null in production; the offline retention diff probe is
+    /// the only consumer and every call site is a null check.
+    /// </summary>
+    public FlashRetentionObserver? Retention { get; init; }
 }
 
 /// <summary>One registered power card's existing commitment descriptor.</summary>
@@ -542,6 +548,9 @@ internal sealed partial class FlashBeamSolver
 
     /// <summary>Offline route trace (null in production) and the pool phase it reports.</summary>
     private readonly FlashBeamTrace? _trace;
+    /// <summary>Opt-in K6 retention capture (null in production) and the current boundary id.</summary>
+    private readonly FlashRetentionObserver? _retention;
+    private int _retentionBoundaryId;
     private string _tracePhase = "next";
     private bool _singleRoot;
 
@@ -609,6 +618,7 @@ internal sealed partial class FlashBeamSolver
         _aggressivePowerCommitment = options.AggressivePowerCommitment;
         _preserveReplayAllocatorOpening = options.PreserveReplayAllocatorOpening;
         _trace = options.Trace;
+        _retention = options.Retention;
         if (_smartPotionEligibilityHpCeiling != null && _bound == null)
             throw new InvalidOperationException("Smart 药水资格上界需要启用下界输入。");
         _incumbent = _bound == null ? null : options.Incumbent;
@@ -668,19 +678,19 @@ internal sealed partial class FlashBeamSolver
         Pool current = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _retention);
         Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _retention);
         Pool ended = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _retention);
         Pool turnFrontier = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _retention);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -819,7 +829,10 @@ internal sealed partial class FlashBeamSolver
                 current.Clear();
                 _tracePhase = "next";
                 next.TracePhase = _tracePhase;
-                next.CopyTopTo(current, width, _options.OffensiveShare);
+                int actionBoundaryId = ++_retentionBoundaryId;
+                _retention?.Boundary(new FlashRetentionBoundary(actionBoundaryId,
+                    SearchRetentionBoundaryKind.ActionLayer, turns - 1, playDepth, next.Count, width));
+                next.CopyTopTo(current, width, _options.OffensiveShare, boundaryId: actionBoundaryId);
                 PrunePool(current);
                 PublishProgressWithPreview(turns - 1, playDepth, current.Count, ended.Count,
                     "剪枝候选", force: true,
@@ -835,7 +848,11 @@ internal sealed partial class FlashBeamSolver
             // a required representative of every potion group.
             _tracePhase = "turn-boundary";
             ended.TracePhase = _tracePhase;
-            ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare, turnBoundary: true);
+            int turnBoundaryId = ++_retentionBoundaryId;
+            _retention?.Boundary(new FlashRetentionBoundary(turnBoundaryId,
+                SearchRetentionBoundaryKind.TurnBoundary, turns - 1, 0, ended.Count, width));
+            ended.CopyTopTo(turnFrontier, width, _options.OffensiveShare, turnBoundary: true,
+                boundaryId: turnBoundaryId);
             PrunePool(turnFrontier);
             PublishProgressWithPreview(turns, 0, turnFrontier.Count, ended.Count, "回合层完成",
                 force: true, best is null ? -1 : bestNode, best, turnFrontier);
@@ -2119,6 +2136,8 @@ internal sealed partial class FlashBeamSolver
                         incumbentPrune ? "incumbent-lower-bound" : "smart-potion-ceiling");
                 }
             }
+            _retention?.Pruned(_retentionBoundaryId, pool.Node(read),
+                incumbentPrune ? "incumbent-lower-bound" : "smart-potion-ceiling");
         }
         pool.Truncate(write);
     }
@@ -3325,6 +3344,9 @@ internal sealed partial class FlashBeamSolver
         private readonly bool _preserveReplayAllocatorOpening;
         private readonly int _policyWidth;
         private readonly FlashBeamTrace? _trace;
+        private readonly FlashRetentionObserver? _retention;
+        private readonly bool[]? _selectedFlags;
+        private readonly string?[]? _requiredLabels;
 
         /// <summary>The solver phase label used by the offline trace (only read when <see cref="_trace"/> is set).</summary>
         public string TracePhase { get; set; } = "next";
@@ -3383,7 +3405,7 @@ internal sealed partial class FlashBeamSolver
             bool aggressivePowerCommitment, FlashPowerCommitmentCatalog? powerCommitments,
             List<FlashPowerCommitmentState> commitmentStates, List<RouteNode> routeNodes,
             List<RoutingSignature> routingSignatures, bool checkPotionQuota, int initialActionCount,
-            bool preserveReplayAllocatorOpening, FlashBeamTrace? trace)
+            bool preserveReplayAllocatorOpening, FlashBeamTrace? trace, FlashRetentionObserver? retention)
         {
             _maxCapacity = maxCapacity;
             _preserveTheft = preserveTheft;
@@ -3401,6 +3423,9 @@ internal sealed partial class FlashBeamSolver
             _initialActionCount = initialActionCount;
             _preserveReplayAllocatorOpening = preserveReplayAllocatorOpening;
             _trace = trace;
+            _retention = retention;
+            _selectedFlags = retention == null ? null : new bool[maxCapacity];
+            _requiredLabels = retention == null ? null : new string?[maxCapacity];
             _policyWidth = secondRankBandWidth > 0 ? secondRankBandWidth : maxCapacity;
             _states = new ChunkedArray<FlashBattle>(maxCapacity);
             _labels = new ChunkedArray<List<PoolLabel>?>(maxCapacity);
@@ -3670,6 +3695,7 @@ internal sealed partial class FlashBeamSolver
                     }
                     if (dominated)
                     {
+                        _retention?.Attempt(node, existingNode, state, "duplicate-dominating-label");
                         if (_trace != null && !factsReady)
                         {
                             FlashTraceRouteInfo targetInfo = TargetTraceInfo(node, potionCost, features,
@@ -3685,6 +3711,7 @@ internal sealed partial class FlashBeamSolver
                     }
                     labels.RemoveAll(current => Dominates(nextLabel, current));
                     labels.Add(nextLabel);
+                    _retention?.Attempt(node, existingNode, state, "duplicate-merged");
                     bool incomingWon = score > _scores[existing]
                         || score.Equals(_scores[existing]) && depth < _facts[existing].Depth;
                     if (incomingWon)
@@ -3764,6 +3791,7 @@ internal sealed partial class FlashBeamSolver
             _hasCommitments |= commitment > 0;
             _table[FreeSlot(hash, _table.Length - 1)] = Count + 1;
             Count++;
+            _retention?.Attempt(node, -1, inPlace ? _states[Count - 1] : state, "added");
             if (_trace != null && !factsReady)
             {
                 FlashTraceRouteInfo targetInfo = TargetTraceInfo(node, potionCost, features,
@@ -3785,9 +3813,10 @@ internal sealed partial class FlashBeamSolver
         /// root-action lineages) replace the last non-required score seat. The total width is unchanged:
         /// a representative takes a seat, it does not widen the beam.
         /// </summary>
-        public void CopyTopTo(Pool target, int width, double offensiveShare, bool turnBoundary = false)
+        public void CopyTopTo(Pool target, int width, double offensiveShare, bool turnBoundary = false,
+            int boundaryId = 0)
         {
-            List<int> selected = SelectTop(width, offensiveShare, turnBoundary);
+            List<int> selected = SelectTop(width, offensiveShare, turnBoundary, boundaryId);
             for (int index = 0; index < selected.Count; index++)
             {
                 int source = selected[index];
@@ -3810,7 +3839,7 @@ internal sealed partial class FlashBeamSolver
             int count = Count;
             if (keep >= count)
                 return 0;
-            List<int> selected = SelectTop(keep, offensiveShare, turnBoundary);
+            List<int> selected = SelectTop(keep, offensiveShare, turnBoundary, boundaryId: 0);
             if (_trace != null)
             {
                 for (int index = 0; index < count; index++)
@@ -3833,6 +3862,7 @@ internal sealed partial class FlashBeamSolver
             int dropped = count - selected.Count;
             Count = selected.Count;
             RebuildTable();
+            _retention?.Compacted(count, selected.Count);
             return dropped;
         }
 
@@ -3841,7 +3871,7 @@ internal sealed partial class FlashBeamSolver
         /// leaders, the offensive share, then every required representative replacing the last
         /// ordinary seat. Returns the selected source indexes in rank order.
         /// </summary>
-        private List<int> SelectTop(int width, double offensiveShare, bool turnBoundary)
+        private List<int> SelectTop(int width, double offensiveShare, bool turnBoundary, int boundaryId)
         {
             int count = Count;
             List<int> selected = _selected;
@@ -3932,7 +3962,48 @@ internal sealed partial class FlashBeamSolver
                         _rankPosition[index], count, width, lanes);
                 }
             }
+            if (_retention != null && _selectedFlags != null)
+            {
+                Array.Clear(_selectedFlags, 0, count);
+                for (int index = 0; index < selected.Count; index++)
+                    _selectedFlags[selected[index]] = true;
+                for (int index = 0; index < count; index++)
+                {
+                    int node = _nodes[index];
+                    string lane = _required[index]
+                        ? (_requiredLabels![index] ?? TraceLeadingLanes(index))
+                        : "";
+                    _retention.PoolState(boundaryId, node, _scores[index], _rankPosition[index],
+                        _required[index], _selectedFlags[index], lane, _facts[index].Turn,
+                        _facts[index].Depth, RetentionActionToken(node));
+                }
+            }
             return selected;
+        }
+
+        /// <summary>K6: the last action's stable token, matching the existing solver's PolicyActionToken
+        /// shape where the Flash identifiers have a native mapping.</summary>
+        private string RetentionActionToken(int node)
+        {
+            RouteNode route = _routeNodes[node];
+            if (route.Depth <= 0)
+                return "";
+            string token = route.Action.Kind switch
+            {
+                FlashActionKind.PlayCard => route.ActionCardId > 0 && route.ActionCardId <= ushort.MaxValue
+                    ? FlashRegistry.Card((ushort)route.ActionCardId).NativeId : "?",
+                FlashActionKind.UsePotion => route.PotionId != ushort.MaxValue
+                    ? FlashRegistry.Potion(route.PotionId).NativeId : "?",
+                FlashActionKind.EndTurn => "",
+                _ => route.Action.Kind.ToString(),
+            };
+            return route.Action.Kind switch
+            {
+                FlashActionKind.PlayCard => $"{route.ParentTurn}:C:{token}",
+                FlashActionKind.UsePotion => $"{route.ParentTurn}:P:{token}",
+                FlashActionKind.EndTurn => $"{route.ParentTurn}:E",
+                _ => $"{route.ParentTurn}:{token}",
+            };
         }
 
         /// <summary>
@@ -4139,7 +4210,7 @@ internal sealed partial class FlashBeamSolver
                 int candidateProgress = progress;
                 if (selected.Contains(candidate))
                 {
-                    AddRequired(required, candidate, width);
+                    AddRequired(required, candidate, width, "plan.band");
                     continue;
                 }
                 int replaceIndex = -1;
@@ -4157,7 +4228,7 @@ internal sealed partial class FlashBeamSolver
                 _taken[selected[replaceIndex]] = false;
                 selected[replaceIndex] = candidate;
                 _taken[candidate] = true;
-                AddRequired(required, candidate, width);
+                AddRequired(required, candidate, width, "plan.band");
             }
         }
 
@@ -4314,7 +4385,7 @@ internal sealed partial class FlashBeamSolver
             {
                 if (selected.Contains(candidate))
                 {
-                    AddRequired(required, candidate, width);
+                    AddRequired(required, candidate, width, "power.commitment");
                     continue;
                 }
                 int replaceIndex = -1;
@@ -4332,7 +4403,7 @@ internal sealed partial class FlashBeamSolver
                 _taken[selected[replaceIndex]] = false;
                 selected[replaceIndex] = candidate;
                 _taken[candidate] = true;
-                AddRequired(required, candidate, width);
+                AddRequired(required, candidate, width, "power.commitment");
             }
             foreach (int candidate in _powerRepresentatives)
                 _representative[candidate] = false;
@@ -4407,11 +4478,13 @@ internal sealed partial class FlashBeamSolver
             }
         }
 
-        private void AddRequired(List<int> required, int source, int width)
+        private void AddRequired(List<int> required, int source, int width, string? label = null)
         {
             if (source < 0 || required.Count >= width || _required[source])
                 return;
             _required[source] = true;
+            if (_requiredLabels != null && label != null)
+                _requiredLabels[source] = label;
             required.Add(source);
         }
 
@@ -4665,22 +4738,22 @@ internal sealed partial class FlashBeamSolver
             {
                 int potionCount = _potionCountOrder[potionIndex];
                 PotionLeaders potion = _potionLeaders[potionCount];
-                AddRequired(required, potion.Leader, width);
-                AddRequired(required, potion.Defensive, width);
-                AddRequired(required, potion.Offensive, width);
-                AddRequired(required, potion.Strength, width);
-                AddRequired(required, potion.Weak, width);
-                AddRequired(required, potion.Setup, width);
-                AddRequired(required, potion.SetupCombo, width);
-                AddRequired(required, potion.Tactical, width);
-                AddRequired(required, potion.Curation, width);
-                AddRequired(required, potion.Compressed, width);
+                AddRequired(required, potion.Leader, width, "potion.leader");
+                AddRequired(required, potion.Defensive, width, "potion.defensive");
+                AddRequired(required, potion.Offensive, width, "potion.offensive");
+                AddRequired(required, potion.Strength, width, "potion.strength");
+                AddRequired(required, potion.Weak, width, "potion.weak");
+                AddRequired(required, potion.Setup, width, "potion.setup");
+                AddRequired(required, potion.SetupCombo, width, "potion.setup-combo");
+                AddRequired(required, potion.Tactical, width, "potion.tactical");
+                AddRequired(required, potion.Curation, width, "potion.curation");
+                AddRequired(required, potion.Compressed, width, "potion.compressed");
                 if (turnBoundary)
-                    AddRequired(required, potion.TurnBoundary, width);
+                    AddRequired(required, potion.TurnBoundary, width, "potion.turn-boundary");
                 if (_preserveTheft)
-                    AddRequired(required, potion.Resource, width);
+                    AddRequired(required, potion.Resource, width, "potion.resource");
                 for (int lane = 0; lane < potion.Lanes.Length; lane++)
-                    AddRequired(required, potion.Lanes[lane], width);
+                    AddRequired(required, potion.Lanes[lane], width, "potion.lane");
             }
 
             if (_policyWidth >= 18)
@@ -4697,11 +4770,11 @@ internal sealed partial class FlashBeamSolver
                     }
                     if (_standPatGroup.Count == 0)
                         continue;
-                    AddRequired(required, FindBestDamagingContinuation(_standPatGroup), width);
-                    AddRequired(required, FindBestFreshResourceStandPat(_standPatGroup), width);
-                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Scaling), width);
-                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Resource), width);
-                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Control), width);
+                    AddRequired(required, FindBestDamagingContinuation(_standPatGroup), width, "standpat.damaging");
+                    AddRequired(required, FindBestFreshResourceStandPat(_standPatGroup), width, "standpat.fresh-resource");
+                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Scaling), width, "standpat.scaling");
+                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Resource), width, "standpat.resource");
+                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Control), width, "standpat.control");
                 }
             }
 
@@ -4723,8 +4796,8 @@ internal sealed partial class FlashBeamSolver
                 if (traitTaken >= traitLimit)
                     continue;
                 TraitLeaders trait = _traitLeaders[key];
-                AddRequired(required, trait.Defensive, width);
-                AddRequired(required, trait.Setup, width);
+                AddRequired(required, trait.Defensive, width, "trait.defensive");
+                AddRequired(required, trait.Setup, width, "trait.setup");
                 traitTaken++;
             }
 
@@ -4746,33 +4819,33 @@ internal sealed partial class FlashBeamSolver
                 if (focusTaken >= focusLimit)
                     continue;
                 FocusLeaders leader = _focusLeaders[key];
-                AddRequired(required, leader.Pressure, width);
-                AddRequired(required, leader.Setup, width);
+                AddRequired(required, leader.Pressure, width, "focus.pressure");
+                AddRequired(required, leader.Setup, width, "focus.setup");
                 focusTaken++;
             }
 
-            AddRequired(required, bestPotionFree, width);
-            AddRequired(required, bestPotionFreeDefensive, width);
-            AddRequired(required, bestPotionFreeOffensive, width);
-            AddRequired(required, bestPotionFreeSetup, width);
-            AddRequired(required, bestPotionFreeSetupCombo, width);
-            AddRequired(required, bestPotionFreeUtilityDefensive, width);
-            AddRequired(required, bestPotion, width);
-            AddRequired(required, bestPotionDefensive, width);
-            AddRequired(required, bestPotionOffensive, width);
-            AddRequired(required, bestPotionSetup, width);
-            AddRequired(required, bestPotionSetupCombo, width);
-            AddRequired(required, bestDefensive, width);
-            AddRequired(required, bestUtilityDefensive, width);
-            AddRequired(required, bestOffensive, width);
-            AddRequired(required, bestSetup, width);
-            AddRequired(required, bestSetupCombo, width);
-            AddRequired(required, bestCuration, width);
-            AddRequired(required, bestCompressed, width);
-            AddRequired(required, bestLongTermResource, width);
-            AddRequired(required, bestHpInvestment, width);
+            AddRequired(required, bestPotionFree, width, "potionfree.leader");
+            AddRequired(required, bestPotionFreeDefensive, width, "potionfree.defensive");
+            AddRequired(required, bestPotionFreeOffensive, width, "potionfree.offensive");
+            AddRequired(required, bestPotionFreeSetup, width, "potionfree.setup");
+            AddRequired(required, bestPotionFreeSetupCombo, width, "potionfree.setup-combo");
+            AddRequired(required, bestPotionFreeUtilityDefensive, width, "potionfree.utility-defensive");
+            AddRequired(required, bestPotion, width, "potion.leader");
+            AddRequired(required, bestPotionDefensive, width, "potion.defensive");
+            AddRequired(required, bestPotionOffensive, width, "potion.offensive");
+            AddRequired(required, bestPotionSetup, width, "potion.setup");
+            AddRequired(required, bestPotionSetupCombo, width, "potion.setup-combo");
+            AddRequired(required, bestDefensive, width, "global.defensive");
+            AddRequired(required, bestUtilityDefensive, width, "global.utility-defensive");
+            AddRequired(required, bestOffensive, width, "global.offensive");
+            AddRequired(required, bestSetup, width, "global.setup");
+            AddRequired(required, bestSetupCombo, width, "global.setup-combo");
+            AddRequired(required, bestCuration, width, "global.curation");
+            AddRequired(required, bestCompressed, width, "global.compressed");
+            AddRequired(required, bestLongTermResource, width, "global.long-term-resource");
+            AddRequired(required, bestHpInvestment, width, "global.hp-investment");
             if (_preserveTheft)
-                AddRequired(required, bestResourcePreserving, width);
+                AddRequired(required, bestResourcePreserving, width, "global.resource-preserving");
 
             _lineageOrder.Clear();
             foreach (ulong key in _lineageLeaders.Keys)
@@ -4782,15 +4855,15 @@ internal sealed partial class FlashBeamSolver
             for (int index = 0; index < _lineageOrder.Count && index < lineageLimit; index++)
             {
                 LineageLeaders lineage = _lineageLeaders[_lineageOrder[index]];
-                AddRequired(required, lineage.Leader, width);
-                AddRequired(required, lineage.Defensive, width);
-                AddRequired(required, lineage.Offensive, width);
-                AddRequired(required, lineage.Setup, width);
-                AddRequired(required, lineage.SetupCombo, width);
-                AddRequired(required, lineage.Tactical, width);
-                AddRequired(required, lineage.Curation, width);
-                AddRequired(required, lineage.Compressed, width);
-                AddRequired(required, lineage.TargetPressure, width);
+                AddRequired(required, lineage.Leader, width, "lineage.leader");
+                AddRequired(required, lineage.Defensive, width, "lineage.defensive");
+                AddRequired(required, lineage.Offensive, width, "lineage.offensive");
+                AddRequired(required, lineage.Setup, width, "lineage.setup");
+                AddRequired(required, lineage.SetupCombo, width, "lineage.setup-combo");
+                AddRequired(required, lineage.Tactical, width, "lineage.tactical");
+                AddRequired(required, lineage.Curation, width, "lineage.curation");
+                AddRequired(required, lineage.Compressed, width, "lineage.compressed");
+                AddRequired(required, lineage.TargetPressure, width, "lineage.target-pressure");
                 if (_preserveReplayAllocatorOpening)
                 {
                     List<int> candidates = new();
@@ -4799,7 +4872,7 @@ internal sealed partial class FlashBeamSolver
                         if (_lineages[slot] == _lineageOrder[index])
                             candidates.Add(slot);
                     }
-                    AddRequired(required, FindBestCuratedTurnBoundaryHand(candidates), width);
+                    AddRequired(required, FindBestCuratedTurnBoundaryHand(candidates), width, "turnboundary.hand");
                     int shuffleLeader = -1;
                     for (int candidateIndex = 0; candidateIndex < candidates.Count; candidateIndex++)
                     {
@@ -4814,7 +4887,7 @@ internal sealed partial class FlashBeamSolver
                             shuffleLeader = slot;
                         }
                     }
-                    AddRequired(required, shuffleLeader, width);
+                    AddRequired(required, shuffleLeader, width, "turnboundary.shuffle");
                 }
             }
             AddOrderedPileRepresentatives(required, width, turnBoundary);
@@ -5047,7 +5120,7 @@ internal sealed partial class FlashBeamSolver
             AppendRoutingChoiceContextPareto();
             int quota = Math.Max(8, _policyWidth * 2 / 5);
             for (int index = 0; index < _routingChoices.Count && index < quota; index++)
-                AddRequired(required, _routingChoices[index], width);
+                AddRequired(required, _routingChoices[index], width, "routing");
 
             // BeamRetentionPolicy.RankBest: per potion count, the defensive and setup leaders among
             // nodes whose Art of War window can still trigger next turn.
@@ -5068,8 +5141,8 @@ internal sealed partial class FlashBeamSolver
                     if (setup < 0 || IsBetterSetupCombo(facts, _facts[setup]))
                         setup = slot;
                 }
-                AddRequired(required, defensive, width);
-                AddRequired(required, setup, width);
+                AddRequired(required, defensive, width, "artofwar.defensive");
+                AddRequired(required, setup, width, "artofwar.setup");
             }
         }
 
@@ -6179,7 +6252,7 @@ internal sealed partial class FlashBeamSolver
                 {
                     List<int> cohort = _orderedPileCohorts[index];
                     if (round < cohort.Count)
-                        AddRequired(required, cohort[round], quota);
+                        AddRequired(required, cohort[round], quota, "ordered.pareto");
                 }
             }
             for (int round = exactStateRounds; round < orderedPileRounds && required.Count < quota; round++)
@@ -6188,7 +6261,7 @@ internal sealed partial class FlashBeamSolver
                 {
                     List<int> cohort = _orderedPileCohorts[index];
                     if (round < cohort.Count)
-                        AddRequired(required, cohort[round], quota);
+                        AddRequired(required, cohort[round], quota, "ordered.pareto");
                 }
             }
         }
@@ -6429,7 +6502,7 @@ internal sealed partial class FlashBeamSolver
                     _pareto.RemoveAt(3);
             }
             for (int index = 0; index < _pareto.Count; index++)
-                AddRequired(required, _pareto[index], width);
+                AddRequired(required, _pareto[index], width, "standpat.pareto");
         }
 
         /// <summary>
@@ -6479,7 +6552,7 @@ internal sealed partial class FlashBeamSolver
                 {
                     AddRequired(required,
                         FindBestPotionLineage(_potionLineageGroups[_potionLineageOrder[index]].Nodes),
-                        width);
+                        width, "potion.lineage");
                 }
             }
         }

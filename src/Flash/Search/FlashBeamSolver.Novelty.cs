@@ -200,11 +200,11 @@ internal sealed partial class FlashBeamSolver
         Pool next = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, trace: null);
+            _options.PreserveReplayAllocatorOpening, trace: null, retention: null);
         Pool ended = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, trace: null);
+            _options.PreserveReplayAllocatorOpening, trace: null, retention: null);
 
         void Terminal(in FlashBattle state, int node, double score)
         {
