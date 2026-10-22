@@ -290,7 +290,8 @@ internal sealed record FlashRouteOrdering(
     int InitialPlayerHp,
     int InitialPlayerMaxHp,
     BossHpRelief BossHpRelief,
-    PostCombatRelicHealProfile PostCombatRelicHeal);
+    PostCombatRelicHealProfile PostCombatRelicHeal,
+    int SoldHpCommitted);
 
 /// <summary>
 /// The existing search's potion constraints at the root (<c>EnumeratePlannedPotionActions</c>): the
@@ -493,6 +494,7 @@ internal sealed partial class FlashBeamSolver
 
     private readonly List<RoutingSignature> _routingSignatures = new();
     private readonly Dictionary<RoutingSignature, int> _routingSignatureIds = new();
+    private int[] _soldHpGroupOrdinals = [];
 
     /// <summary>
     /// One route node's accumulated metadata. <see cref="SearchRouteTraits"/> and the potion-use
@@ -527,7 +529,8 @@ internal sealed partial class FlashBeamSolver
         int PotionCount,
         int CumulativePlayerHpLost,
         int FutureSoldHp,
-        bool IsPure);
+        bool IsPure,
+        int RetentionRank = int.MaxValue);
 
     /// <summary>
     /// Route-node power-commitment metadata (1-based node field; 0 means no commitment). The existing
@@ -578,7 +581,6 @@ internal sealed partial class FlashBeamSolver
     private readonly FlashRetentionObserver? _retention;
     private int _retentionBoundaryId;
     private string _tracePhase = "next";
-    private bool _singleRoot;
 
     /// <summary>
     /// True only on the first completed turn layer when the three-act boss policy is frozen on. The
@@ -662,7 +664,6 @@ internal sealed partial class FlashBeamSolver
     {
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
-        _singleRoot = roots.Count == 1;
         Stopwatch watch = Stopwatch.StartNew();
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
@@ -753,7 +754,7 @@ internal sealed partial class FlashBeamSolver
         {
             int actionCount = Depth(node);
             FlashScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
-            RouteKey key = Key(state, features, actionCount);
+            RouteKey key = Key(state, features, actionCount, _nodes[node].FutureSoldHp);
             ConsiderCandidate(state, node, features, key);
             if (!features.AllEnemiesDead)
                 return;
@@ -965,7 +966,7 @@ internal sealed partial class FlashBeamSolver
                 int actionCount = Depth(node);
                 ref FlashBattle state = ref turnFrontier.State(index);
                 FlashScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
-                ConsiderCandidate(state, node, features, Key(state, features, actionCount));
+                ConsiderCandidate(state, node, features, Key(state, features, actionCount, _nodes[node].FutureSoldHp));
             }
             if (SelectAudited(out int auditedNode, out RouteKey auditedKey, out bool auditedVictory, out bool auditedDefeat))
             {
@@ -1011,7 +1012,7 @@ internal sealed partial class FlashBeamSolver
                 ref FlashBattle state = ref turnFrontier.State(index);
                 FlashScoreFeatures features =
                     _scorer.Features(state, actionCount, includeRetentionOnly: false);
-                Consider(state, node, Key(state, features, actionCount), features);
+                Consider(state, node, Key(state, features, actionCount, _nodes[node].FutureSoldHp), features);
             }
         }
         _trace?.Finish(TraceFinishReason(hpTargetReached, zeroDamageVictory, watch, turns),
@@ -1333,6 +1334,7 @@ internal sealed partial class FlashBeamSolver
         int AngerCopiesGenerated,
         int OptionalPotionCount,
         int BoundaryRank,
+        int StrategicSold,
         int EnemyHp,
         double Score,
         int ActionCount);
@@ -1354,7 +1356,8 @@ internal sealed partial class FlashBeamSolver
         int ForcedAmbergrisCount,
         SolverPotionPolicy EffectivePotionPolicy);
 
-    private RouteKey Key(in FlashBattle state, in FlashScoreFeatures features, int actionCount)
+    private RouteKey Key(in FlashBattle state, in FlashScoreFeatures features, int actionCount,
+        int futureSoldHp)
     {
         bool won = SolverInterimResultOrdering.IsCompleteVictory(
             actionCount, features.AllEnemiesDead, features.PlayerDead, features.ProjectedPlayerHp);
@@ -1391,9 +1394,10 @@ internal sealed partial class FlashBeamSolver
             features.LongTermResourceValue,
             features.AngerCopiesGenerated,
             optionalPotionCount,
-            // the existing search's PolicyBoundaryRank: None 0, EventDefeat 4. The final ordering compares
-            // it after the resource/anger keys and before enemy HP (FinalPlanOrdering).
+            // the existing search's PolicyBoundaryRank: None 0, EventDefeat 4. FinalPlanOrdering
+            // compares it after the resource/anger keys and before the optional potion count.
             state.Outcome == FlashOutcome.EventDefeat ? 4 : 0,
+            _ordering.SoldHpCommitted + futureSoldHp,
             features.EnemyHp,
             features.Score,
             actionCount);
@@ -1430,9 +1434,11 @@ internal sealed partial class FlashBeamSolver
         if (comparison != 0) return comparison;
         comparison = left.AngerCopiesGenerated.CompareTo(right.AngerCopiesGenerated);
         if (comparison != 0) return comparison;
+        comparison = left.BoundaryRank.CompareTo(right.BoundaryRank);
+        if (comparison != 0) return comparison;
         comparison = left.OptionalPotionCount.CompareTo(right.OptionalPotionCount);
         if (comparison != 0) return comparison;
-        comparison = left.BoundaryRank.CompareTo(right.BoundaryRank);
+        comparison = left.StrategicSold.CompareTo(right.StrategicSold);
         if (comparison != 0) return comparison;
         comparison = left.EnemyHp.CompareTo(right.EnemyHp);
         if (comparison != 0) return comparison;
@@ -1775,10 +1781,10 @@ internal sealed partial class FlashBeamSolver
             firstCardId = parent.Cards[action.HandIndex].Id;
             firstCardTarget = TargetCombatId(parent, action);
         }
-        // With one root every first action keeps its own lineage. Signature grouping is only applied
-        // when multiple turn-setup roots must join the same opening. The QP2 measurement (8 + 120
-        // roots) showed the signature grouping regresses the 120-root aggregate, so it is not kept.
-        return _singleRoot ? (ulong)node : CombineLineage(rootActionKey, firstCardId, firstCardTarget);
+        // The existing BuildRootActionLineageSignature groups every first action by its action
+        // signature, whether the request has one root or many. The older single-root node grouping
+        // was a QP2 measurement shortcut; R2 keeps the existing rule at the same beam width.
+        return CombineLineage(rootActionKey, firstCardId, firstCardTarget);
     }
 
     private static ulong RootActionSignature(in FlashBattle parent, in FlashAction action)
@@ -1837,15 +1843,31 @@ internal sealed partial class FlashBeamSolver
     {
         if (ended.Count == 0)
             return;
+        int count = ended.Count;
+        if (_soldHpGroupOrdinals.Length < count)
+            _soldHpGroupOrdinals = new int[count];
+        int[] groupOrdinals = _soldHpGroupOrdinals;
+        Dictionary<(int Turn, ulong TurnStartHash, ulong PotionSlots), int> groupIds = new();
         Dictionary<(int Turn, ulong TurnStartHash, ulong PotionSlots), int> minimumHpLost = new();
-        for (int slot = 0; slot < ended.Count; slot++)
+        for (int slot = 0; slot < count; slot++)
         {
             if (!TrySoldHpFacts(ended, slot, out var key, out int hpLost))
+            {
+                groupOrdinals[slot] = 0;
                 continue;
+            }
+            // GroupBy keeps groups in first-occurrence order and members in input order; the
+            // reorder below reproduces that order for the following retention cut.
+            if (!groupIds.TryGetValue(key, out int group))
+            {
+                group = groupIds.Count;
+                groupIds.Add(key, group);
+            }
+            groupOrdinals[slot] = group;
             if (!minimumHpLost.TryGetValue(key, out int current) || hpLost < current)
                 minimumHpLost[key] = hpLost;
         }
-        for (int slot = 0; slot < ended.Count; slot++)
+        for (int slot = 0; slot < count; slot++)
         {
             if (!TrySoldHpFacts(ended, slot, out var key, out int hpLost))
                 continue;
@@ -1860,6 +1882,7 @@ internal sealed partial class FlashBeamSolver
             ended.SetSoldHp(slot, futureSold, previousSold,
                 SearchProbeHelpers.ApplySoldHpPenalty(scoreWithoutSoldPenalty, futureSold));
         }
+        ended.ReorderByStableGroup(groupOrdinals.AsSpan(0, count), groupIds.Count);
     }
 
     private bool TrySoldHpFacts(Pool ended, int slot, out (int Turn, ulong TurnStartHash, ulong PotionSlots) key,
@@ -2312,15 +2335,11 @@ internal sealed partial class FlashBeamSolver
         // The plan representative seats keep the existing MaxBy(BeamRankScore) tie order, which does
         // not include Flash's potion-cost rank penalty. The two values differ only by that term.
         double pureRank = _scorer.BeamRankScore(battle, features, terminal, isEndTurn);
-        // ExplicitPotionStrategicCost includes the fixed prefix and potions generated during the
-        // search; the previous root-slot diff saw neither generated uses nor their identity costs.
-        // An audited exact layer must spend its potions, so the Flash-specific "spending is free"
-        // correction would rank the required line below states that have not spent them yet; the
-        // final ordering still charges the cost. Non-audit members keep the correction.
-        double rank = _auditPotionPolicy && _options.MinimumPotionUses > 1
-            ? pureRank
-            : pureRank - features.ExplicitPotionStrategicCost * SolverWeights.Hp;
-        return (features.Score, rank, pureRank, features.ExplicitPotionStrategicCost, features);
+        // the existing BeamRetentionPolicy.BeamRankScore: score plus the weighted beam terms. It
+        // deliberately has no explicit-potion-cost term; the final ordering is where the potion
+        // policy charges the use. Flash previously folded that cost into the retention rank, which
+        // changed equal-score tie order and lineage leaders on potion branches.
+        return (features.Score, pureRank, pureRank, features.ExplicitPotionStrategicCost, features);
     }
 
     /// <summary>
@@ -3340,6 +3359,9 @@ internal sealed partial class FlashBeamSolver
     private sealed class LineageLeaders
     {
         public int Leader = -1;
+        public int First = -1;
+        public int Position;
+        public double MaxRank = double.NegativeInfinity;
         public int Defensive = -1;
         public int Offensive = -1;
         public int Setup = -1;
@@ -3467,6 +3489,7 @@ internal sealed partial class FlashBeamSolver
         private readonly int[] _order;
         private readonly int[] _rankOrder;
         private readonly int[] _rankPosition;
+        private readonly int[] _seatPosition;
         private readonly bool[] _taken;
         private readonly bool[] _required;
         private FlashBattle _scratch;
@@ -3593,11 +3616,12 @@ internal sealed partial class FlashBeamSolver
             _payoffs = new ChunkedArray<int>(maxCapacity);
             _commitment = new ChunkedArray<int>(maxCapacity);
             // The rank/selection scratch stays contiguous because Span.Sort needs a single span. It is
-            // sized to the capacity bound once (three int arrays plus two flags, ~1 MB at width 512)
+            // sized to the capacity bound once (four int arrays plus two flags, ~1 MB at width 512)
             // instead of being reallocated while the beam grows.
             _order = new int[maxCapacity];
             _rankOrder = new int[maxCapacity];
             _rankPosition = new int[maxCapacity];
+            _seatPosition = new int[maxCapacity];
             _taken = new bool[maxCapacity];
             _required = new bool[maxCapacity];
             _representative = new bool[maxCapacity];
@@ -3693,6 +3717,108 @@ internal sealed partial class FlashBeamSolver
                 _pureRanks[to] = _pureRanks[from];
                 _payoffs[to] = _payoffs[from];
             }
+        }
+
+        private struct SlotHold
+        {
+            public FlashBattle State;
+            public List<PoolLabel>? Labels;
+            public int Node;
+            public ulong Lineage;
+            public double Score;
+            public double Rank;
+            public ulong Hash;
+            public RetentionFacts Facts;
+            public int PotionCost;
+            public int Commitment;
+            public double PureRank;
+            public int Payoff;
+        }
+
+        private SlotHold Capture(int index) => new()
+        {
+            State = _states[index],
+            Labels = _labels[index],
+            Node = _nodes[index],
+            Lineage = _lineages[index],
+            Score = _scores[index],
+            Rank = _ranks[index],
+            Hash = _hashes[index],
+            Facts = _facts[index],
+            PotionCost = _potionCosts[index],
+            Commitment = _commitment[index],
+            PureRank = _trackPlanSeats ? _pureRanks[index] : 0d,
+            Payoff = _trackPlanSeats ? _payoffs[index] : 0,
+        };
+
+        private void Restore(in SlotHold hold, int index)
+        {
+            _states[index] = hold.State;
+            _labels[index] = hold.Labels;
+            _nodes[index] = hold.Node;
+            _lineages[index] = hold.Lineage;
+            _scores[index] = hold.Score;
+            _ranks[index] = hold.Rank;
+            _hashes[index] = hold.Hash;
+            _facts[index] = hold.Facts;
+            _potionCosts[index] = hold.PotionCost;
+            _commitment[index] = hold.Commitment;
+            if (_trackPlanSeats)
+            {
+                _pureRanks[index] = hold.PureRank;
+                _payoffs[index] = hold.Payoff;
+            }
+        }
+
+        /// <summary>
+        /// Applies a destination-to-source permutation in place. Used after
+        /// <c>AnnotateTurnOutcomes</c> re-orders ended children by their stable group order.
+        /// </summary>
+        private void ApplyOrder(int count)
+        {
+            for (int start = 0; start < count; start++)
+            {
+                if (_order[start] == start)
+                    continue;
+                SlotHold hold = Capture(start);
+                int destination = start;
+                while (_order[destination] != start)
+                {
+                    int source = _order[destination];
+                    _order[destination] = destination;
+                    Move(source, destination);
+                    destination = source;
+                }
+                _order[destination] = destination;
+                Restore(hold, destination);
+            }
+            RebuildTable();
+        }
+
+        /// <summary>
+        /// <c>Terminal.AnnotateTurnOutcomes</c> orders the annotated end-turn children by the first
+        /// occurrence of each <c>(turn, turn-start state, potion slots)</c> group and keeps the input
+        /// order inside a group. This is a stable counting sort over the group ordinals.
+        /// </summary>
+        public void ReorderByStableGroup(ReadOnlySpan<int> groupOrdinal, int groupCount)
+        {
+            int count = Count;
+            if (count <= 1 || groupCount <= 1)
+                return;
+            Span<int> starts = _seatPosition.AsSpan(0, groupCount);
+            starts.Clear();
+            for (int index = 0; index < count; index++)
+                starts[groupOrdinal[index]]++;
+            int sum = 0;
+            for (int group = 0; group < groupCount; group++)
+            {
+                int size = starts[group];
+                starts[group] = sum;
+                sum += size;
+            }
+            for (int index = 0; index < count; index++)
+                _order[starts[groupOrdinal[index]]++] = index;
+            ApplyOrder(count);
         }
 
         /// <summary>Drops the tail after an incumbent bound; removed seats are not refilled.</summary>
@@ -4088,14 +4214,15 @@ internal sealed partial class FlashBeamSolver
             }
             SortByRank(count);
             int seats = Math.Min(width, count);
+            bool fullPool = count <= width;
             // BeamRetentionPolicy.RankBest: a band member rotates the score-leading width to the tail
             // before the ordinary seats are taken, so ranks W+1..2W win (with the original order as
             // backfill when fewer than 2W candidates exist). Required representatives, the power
             // commitment seats and the plan seats are collected/added below and are unaffected.
             if (_secondRankBand && count > seats)
                 RotateLeadingBandToTail(count, Math.Clamp(_secondRankBandWidth, 1, seats));
-            int offensive = (int)(seats * offensiveShare);
-            int byScore = seats - offensive;
+            int offensive = fullPool ? 0 : (int)(seats * offensiveShare);
+            int byScore = fullPool ? seats : seats - offensive;
             for (int index = 0; index < byScore; index++)
             {
                 int source = _order[index];
@@ -4118,38 +4245,50 @@ internal sealed partial class FlashBeamSolver
             }
             List<int> required = _requiredScratch;
             required.Clear();
-            // Representatives take priority over the mass offensive lane: when a required leader is
-            // not in the top seats it replaces the last non-required seat first (offensive seats are
-            // appended last), so the score leaders and then the required set are preserved. The
-            // collection limits scale with the requested width exactly as before.
-            CollectRepresentatives(required, count, width, turnBoundary);
-            // BeamRetentionPolicy.RankBest: every required candidate not already ranked replaces the
-            // last ordinary seat, so all required members survive without widening the layer.
-            foreach (int source in required)
+            // BeamRetentionPolicy.RankBest returns the complete ranked pool before collecting any
+            // representative when it fits inside the beam. There are no required seats, no band
+            // rotation, and no second beam-rank sort in that case.
+            if (!fullPool)
             {
-                if (_taken[source])
-                    continue;
-                int replaceIndex = -1;
-                for (int index = selected.Count - 1; index >= 0; index--)
+                // Representatives take priority over the mass offensive lane: when a required leader
+                // is not in the top seats it replaces the last non-required seat first (offensive
+                // seats are appended last), so the score leaders and then the required set are
+                // preserved. The collection limits scale with the requested width exactly as before.
+                CollectRepresentatives(required, count, width, turnBoundary);
+                // BeamRetentionPolicy.RankBest: every required candidate not already ranked replaces
+                // the last ordinary seat, so all required members survive without widening the layer.
+                foreach (int source in required)
                 {
-                    if (_required[selected[index]])
+                    if (_taken[source])
                         continue;
-                    replaceIndex = index;
-                    break;
+                    int replaceIndex = -1;
+                    for (int index = selected.Count - 1; index >= 0; index--)
+                    {
+                        if (_required[selected[index]])
+                            continue;
+                        replaceIndex = index;
+                        break;
+                    }
+                    if (replaceIndex < 0)
+                        break;
+                    _taken[selected[replaceIndex]] = false;
+                    selected[replaceIndex] = source;
+                    _taken[source] = true;
                 }
-                if (replaceIndex < 0)
-                    break;
-                _taken[selected[replaceIndex]] = false;
-                selected[replaceIndex] = source;
-                _taken[source] = true;
+                if (_trackPowerCommitments && _hasCommitments)
+                    AdmitPowerCommitmentSeats(selected, required, width);
+                if (_planCommitment is { CopyPowerSeats: true })
+                    AdmitPlanCommitmentSeats(selected, required, width);
+                DiversifyOrdinaryBeamBoundary(selected, required, count);
+                if (_checkPotionQuota)
+                    ApplyPotionUseQuota(selected, width);
+                // The existing RankBest re-sorts the post-representative list with the plain beam rank
+                // predicate. A complete tie is left to the introsort permutation, exactly like
+                // SortByBeamRank; only the input order differs from the pool because required seats
+                // were substituted first.
+                selected.Sort(new RankOrderComparer(_ranks, _facts));
             }
-            if (_trackPowerCommitments && _hasCommitments)
-                AdmitPowerCommitmentSeats(selected, required, width);
-            if (_planCommitment is { CopyPowerSeats: true })
-                AdmitPlanCommitmentSeats(selected, required, width);
-            if (_checkPotionQuota)
-                ApplyPotionUseQuota(selected, width);
-            CollectionsMarshal.AsSpan(selected).Sort(new RankPositionComparer(_rankPosition));
+            AssignRetentionRanks(selected, required);
             if (_trace != null)
             {
                 for (int index = 0; index < count; index++)
@@ -4181,6 +4320,206 @@ internal sealed partial class FlashBeamSolver
                 }
             }
             return selected;
+        }
+
+        /// <summary>
+        /// <c>BeamRetentionPolicy.DiversifyOrdinaryBeamBoundary</c>: when the last ordinary seat sits
+        /// inside a group of equal (BeamRankScore, ActionCount) candidates, rotate the retained seats
+        /// across potion counts and offensive-progress groups. The supplemental progress key decides
+        /// which equal-primary candidates replace the seats; the selected count is unchanged.
+        /// <c>includeSingleProgressGroup</c> is false because no production profile sets
+        /// <c>BaseScoreTacticalTies</c>.
+        /// </summary>
+        private void DiversifyOrdinaryBeamBoundary(List<int> selected, List<int> required, int count)
+        {
+            if (selected.Count >= count)
+                return;
+            // Power/plan seats may have replaced entries after the required pass; rebuild the
+            // selected lookup from the actual list, as selectedPositions does in the existing rule.
+            for (int index = 0; index < count; index++)
+                _taken[index] = false;
+            for (int index = 0; index < selected.Count; index++)
+            {
+                int selectedSource = selected[index];
+                _taken[selectedSource] = true;
+                _seatPosition[selectedSource] = index;
+            }
+            int boundary = count - 1;
+            while (boundary >= 0)
+            {
+                int candidate = _rankOrder[boundary];
+                if (_required[candidate] || !_taken[candidate])
+                {
+                    boundary--;
+                    continue;
+                }
+                break;
+            }
+            if (boundary < 0)
+                return;
+            int boundarySource = _rankOrder[boundary];
+            double boundaryRank = _ranks[boundarySource];
+            int boundaryDepth = _facts[boundarySource].Depth;
+            bool SamePrimary(int candidate)
+                => _ranks[candidate].Equals(boundaryRank)
+                    && _facts[candidate].Depth == boundaryDepth;
+            int end = boundary + 1;
+            while (end < count && SamePrimary(_rankOrder[end]))
+                end++;
+            if (end == boundary + 1)
+                return;
+            int start = boundary;
+            while (start > 0 && SamePrimary(_rankOrder[start - 1]))
+                start--;
+
+
+            Dictionary<int, List<int>> byPotionCount = new();
+            for (int position = start; position < end; position++)
+            {
+                int candidate = _rankOrder[position];
+                RetentionFacts facts = _facts[candidate];
+                if (SolverInterimResultOrdering.IsCompleteVictory(
+                        facts.Depth, facts.AllEnemiesDead, facts.PlayerDead, facts.ProjectedPlayerHp))
+                {
+                    return;
+                }
+                if (_required[candidate])
+                    continue;
+                if (!byPotionCount.TryGetValue(facts.PotionCount, out List<int>? candidates))
+                {
+                    candidates = new List<int>(4);
+                    byPotionCount.Add(facts.PotionCount, candidates);
+                }
+                candidates.Add(candidate);
+            }
+
+            foreach (List<int> candidates in byPotionCount.Values)
+            {
+                List<int> slots = new(candidates.Count);
+                for (int index = 0; index < candidates.Count; index++)
+                {
+                    if (_taken[candidates[index]])
+                        slots.Add(_seatPosition[candidates[index]]);
+                }
+                if (slots.Count <= 1 || slots.Count == candidates.Count)
+                    continue;
+                List<(int Progress, List<int> Group)> progressGroups = new();
+                Dictionary<int, List<int>> byProgress = new();
+                for (int index = 0; index < candidates.Count; index++)
+                {
+                    int candidate = candidates[index];
+                    int progress = _facts[candidate].OffensiveProgressValue;
+                    if (!byProgress.TryGetValue(progress, out List<int>? group))
+                    {
+                        group = new List<int>(4);
+                        byProgress.Add(progress, group);
+                        progressGroups.Add((progress, group));
+                    }
+                    group.Add(candidate);
+                }
+                progressGroups.Sort(static (left, right) => right.Progress.CompareTo(left.Progress));
+                // The caller of the existing DiversifyOrdinaryBeamBoundary passes
+                // includeSingleProgressGroup=false: a single progress group keeps its raw seats.
+                if (progressGroups.Count <= 1)
+                    continue;
+                for (int index = 0; index < progressGroups.Count; index++)
+                    OrderTacticalCohorts(progressGroups[index].Group);
+                List<int> replacements = new(slots.Count);
+                for (int round = 0; replacements.Count < slots.Count; round++)
+                {
+                    for (int groupIndex = 0; groupIndex < progressGroups.Count; groupIndex++)
+                    {
+                        List<int> group = progressGroups[groupIndex].Group;
+                        if (round < group.Count)
+                            replacements.Add(group[round]);
+                        if (replacements.Count == slots.Count)
+                            break;
+                    }
+                }
+                for (int index = 0; index < slots.Count; index++)
+                    selected[slots[index]] = replacements[index];
+            }
+        }
+
+        /// <summary>
+        /// <c>OrderOrdinaryBeamTacticalCohorts</c>: keep a routing representative's seat fixed, and
+        /// order equal policy-label cohorts inside one progress group by free plays, reachable hand
+        /// value and hand size. The sort is stable for fully equal tactical values.
+        /// </summary>
+        private void OrderTacticalCohorts(List<int> group)
+        {
+            Dictionary<(int Turn, PoolLabel Policy), List<(int Position, int Candidate)>> cohorts = new();
+            for (int position = 0; position < group.Count; position++)
+            {
+                int candidate = group[position];
+                if (_routeNodes[_nodes[candidate]].RoutingSignatureId != 0)
+                    continue;
+                RetentionFacts facts = _facts[candidate];
+                (int Turn, PoolLabel Policy) key = (facts.Turn, new PoolLabel(
+                    facts.PotionCount, facts.PotionStrategicCost, facts.FutureSoldHp,
+                    facts.CumulativePlayerHpLost, facts.Depth, _scores[candidate]));
+                if (!cohorts.TryGetValue(key, out List<(int Position, int Candidate)>? cohort))
+                {
+                    cohort = new List<(int Position, int Candidate)>(2);
+                    cohorts.Add(key, cohort);
+                }
+                cohort.Add((position, candidate));
+            }
+            foreach (List<(int Position, int Candidate)> cohort in cohorts.Values)
+            {
+                if (cohort.Count <= 1)
+                    continue;
+                for (int index = 1; index < cohort.Count; index++)
+                {
+                    (int Position, int Candidate) item = cohort[index];
+                    int write = index - 1;
+                    while (write >= 0 && IsBetterTacticalCohort(item.Candidate, cohort[write].Candidate))
+                    {
+                        cohort[write + 1] = cohort[write];
+                        write--;
+                    }
+                    cohort[write + 1] = item;
+                }
+                for (int index = 0; index < cohort.Count; index++)
+                    group[cohort[index].Position] = cohort[index].Candidate;
+            }
+        }
+
+        private bool IsBetterTacticalCohort(int candidate, int current)
+        {
+            RetentionFacts left = _facts[candidate];
+            RetentionFacts right = _facts[current];
+            if (left.ZeroCostPlayableCount != right.ZeroCostPlayableCount)
+                return left.ZeroCostPlayableCount > right.ZeroCostPlayableCount;
+            if (left.ReachableHandValue != right.ReachableHandValue)
+                return left.ReachableHandValue > right.ReachableHandValue;
+            return left.HandCount > right.HandCount;
+        }
+
+        /// <summary><c>AssignRetentionRanks</c>: required candidates take their required-list index,
+        /// then every other candidate takes its post-sort position offset by the required count.</summary>
+        private void AssignRetentionRanks(List<int> selected, List<int> required)
+        {
+            for (int index = 0; index < selected.Count; index++)
+            {
+                int source = selected[index];
+                int rank;
+                if (_required[source])
+                {
+                    int requiredIndex = 0;
+                    while (requiredIndex < required.Count && required[requiredIndex] != source)
+                        requiredIndex++;
+                    rank = requiredIndex < required.Count
+                        ? requiredIndex
+                        : required.Count + index;
+                }
+                else
+                {
+                    rank = required.Count + index;
+                }
+                int node = _nodes[source];
+                _routeNodes[node] = _routeNodes[node] with { RetentionRank = rank };
+            }
         }
 
         /// <summary>K6: the last action's stable token, matching the existing solver's PolicyActionToken
@@ -4807,30 +5146,44 @@ internal sealed partial class FlashBeamSolver
                         leader.Setup = source;
                 }
 
-                ulong lineage = _lineages[source];
-                if (!_lineageLeaders.TryGetValue(lineage, out LineageLeaders? line))
+                // The existing RankBest groups only nodes with an action; the pool root has no
+                // action and never participates in a root-action lineage.
+                if (_routeNodes[_nodes[source]].Parent >= 0)
                 {
-                    line = new LineageLeaders { Leader = source };
-                    _lineageLeaders.Add(lineage, line);
-                }
-                if (line.Defensive < 0 || IsBetterDefensive(facts, _facts[line.Defensive]))
-                    line.Defensive = source;
-                if (line.Offensive < 0 || IsBetterOffensive(facts, _facts[line.Offensive]))
-                    line.Offensive = source;
-                if (line.Setup < 0 || IsBetterSetup(facts, _facts[line.Setup]))
-                    line.Setup = source;
-                if (line.SetupCombo < 0 || IsBetterSetupCombo(facts, _facts[line.SetupCombo]))
-                    line.SetupCombo = source;
-                if (line.Curation < 0 || IsBetterDeckCuration(facts, _facts[line.Curation]))
-                    line.Curation = source;
-                if (line.Compressed < 0 || IsBetterCompressedDeck(facts, _facts[line.Compressed]))
-                    line.Compressed = source;
-                if (line.Tactical < 0 || IsBetterTacticalEnabler(facts, _facts[line.Tactical]))
-                    line.Tactical = source;
-                if (line.TargetPressure < 0
-                    || IsBetterTargetPressure(facts, _facts[line.TargetPressure]))
-                {
-                    line.TargetPressure = source;
+                    ulong lineage = _lineages[source];
+                    if (!_lineageLeaders.TryGetValue(lineage, out LineageLeaders? line))
+                    {
+                        line = new LineageLeaders
+                        {
+                            Leader = source,
+                            First = source,
+                            Position = _lineageLeaders.Count,
+                            MaxRank = _ranks[source],
+                        };
+                        _lineageLeaders.Add(lineage, line);
+                    }
+                    else if (_ranks[source] > line.MaxRank)
+                    {
+                        line.MaxRank = _ranks[source];
+                    }
+                    if (line.Defensive < 0 || IsBetterDefensive(facts, _facts[line.Defensive]))
+                        line.Defensive = source;
+                    if (line.Offensive < 0 || IsBetterOffensive(facts, _facts[line.Offensive]))
+                        line.Offensive = source;
+                    if (line.Setup < 0 || IsBetterSetup(facts, _facts[line.Setup]))
+                        line.Setup = source;
+                    if (_preserveReplayAllocatorOpening)
+                    {
+                        if (line.Curation < 0 || IsBetterDeckCuration(facts, _facts[line.Curation]))
+                            line.Curation = source;
+                        if (line.Tactical < 0 || IsBetterTacticalEnabler(facts, _facts[line.Tactical]))
+                            line.Tactical = source;
+                        if (line.TargetPressure < 0
+                            || IsBetterTargetPressure(facts, _facts[line.TargetPressure]))
+                        {
+                            line.TargetPressure = source;
+                        }
+                    }
                 }
 
                 if (bestDefensive < 0 || IsBetterDefensive(facts, _facts[bestDefensive]))
@@ -5052,7 +5405,7 @@ internal sealed partial class FlashBeamSolver
             _lineageOrder.Clear();
             foreach (ulong key in _lineageLeaders.Keys)
                 _lineageOrder.Add(key);
-            CollectionsMarshal.AsSpan(_lineageOrder).Sort(new LineageOrderComparer(_lineageLeaders, _rankPosition));
+            CollectionsMarshal.AsSpan(_lineageOrder).Sort(new LineageOrderComparer(this, _lineageLeaders));
             int lineageLimit = Math.Clamp(width / 8, 4, 16);
             for (int index = 0; index < _lineageOrder.Count && index < lineageLimit; index++)
             {
@@ -5061,16 +5414,17 @@ internal sealed partial class FlashBeamSolver
                 AddRequired(required, lineage.Defensive, width, "lineage.defensive");
                 AddRequired(required, lineage.Offensive, width, "lineage.offensive");
                 AddRequired(required, lineage.Setup, width, "lineage.setup");
-                AddRequired(required, lineage.SetupCombo, width, "lineage.setup-combo");
-                AddRequired(required, lineage.Tactical, width, "lineage.tactical");
-                AddRequired(required, lineage.Curation, width, "lineage.curation");
-                AddRequired(required, lineage.Compressed, width, "lineage.compressed");
-                AddRequired(required, lineage.TargetPressure, width, "lineage.target-pressure");
                 if (_preserveReplayAllocatorOpening)
                 {
+                    // The existing lineage block keeps the tactical/curation/target-pressure
+                    // representatives only for a root with an unused card replay allocator.
+                    AddRequired(required, lineage.Tactical, width, "lineage.tactical");
+                    AddRequired(required, lineage.Curation, width, "lineage.curation");
+                    AddRequired(required, lineage.TargetPressure, width, "lineage.target-pressure");
                     List<int> candidates = new();
-                    foreach (int slot in _rankOrder)
+                    for (int position = 0; position < Count; position++)
                     {
+                        int slot = _rankOrder[position];
                         if (_lineages[slot] == _lineageOrder[index])
                             candidates.Add(slot);
                     }
@@ -6867,8 +7221,10 @@ internal sealed partial class FlashBeamSolver
                 comparison = _facts[left].Depth.CompareTo(_facts[right].Depth);
                 if (comparison != 0)
                     return comparison;
-                comparison = _facts[right].OffensiveProgressValue.CompareTo(_facts[left].OffensiveProgressValue);
-                return comparison != 0 ? comparison : left.CompareTo(right);
+                // The existing List<T>.Sort predicate returns zero for a complete tie; do not add
+                // an index tiebreak, which would turn the sort stable and select different equal
+                // entries at the beam boundary.
+                return _facts[right].OffensiveProgressValue.CompareTo(_facts[left].OffensiveProgressValue);
             }
         }
 
@@ -6944,20 +7300,45 @@ internal sealed partial class FlashBeamSolver
             }
         }
 
+        /// <summary>
+        /// <c>RootActionLineageNode(group.First()).RetentionRank</c>, then the group's maximum beam
+        /// rank, then GroupBy insertion order (the existing <c>OrderBy</c> is stable).
+        /// </summary>
+        private int RootLineageRetentionRank(int candidate)
+        {
+            int node = _nodes[candidate];
+            while (true)
+            {
+                int parent = _routeNodes[node].Parent;
+                if (parent < 0 || _routeNodes[parent].Parent < 0)
+                    break;
+                node = parent;
+            }
+            return _routeNodes[node].RetentionRank;
+        }
+
         private readonly struct LineageOrderComparer : IComparer<ulong>
         {
+            private readonly Pool _pool;
             private readonly Dictionary<ulong, LineageLeaders> _leaders;
-            private readonly int[] _rankPosition;
 
-            public LineageOrderComparer(Dictionary<ulong, LineageLeaders> leaders, int[] rankPosition)
+            public LineageOrderComparer(Pool pool, Dictionary<ulong, LineageLeaders> leaders)
             {
+                _pool = pool;
                 _leaders = leaders;
-                _rankPosition = rankPosition;
             }
 
             public int Compare(ulong left, ulong right)
-                => _rankPosition[_leaders[left].Leader]
-                    .CompareTo(_rankPosition[_leaders[right].Leader]);
+            {
+                LineageLeaders a = _leaders[left];
+                LineageLeaders b = _leaders[right];
+                int comparison = _pool.RootLineageRetentionRank(a.First)
+                    .CompareTo(_pool.RootLineageRetentionRank(b.First));
+                if (comparison != 0)
+                    return comparison;
+                comparison = b.MaxRank.CompareTo(a.MaxRank);
+                return comparison != 0 ? comparison : a.Position.CompareTo(b.Position);
+            }
         }
 
         private void SortByRank(int count)

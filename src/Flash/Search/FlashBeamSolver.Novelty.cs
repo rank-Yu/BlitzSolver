@@ -148,7 +148,6 @@ internal sealed partial class FlashBeamSolver
     {
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
-        _singleRoot = roots.Count == 1;
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
         ResetProgressState();
@@ -210,7 +209,7 @@ internal sealed partial class FlashBeamSolver
         {
             int actionCount = Depth(node);
             FlashScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
-            ConsiderNoveltyTerminal(state, node, features, Key(state, features, actionCount));
+            ConsiderNoveltyTerminal(state, node, features, Key(state, features, actionCount, _nodes[node].FutureSoldHp));
             if (keyWon(features, actionCount))
                 _noveltyTargetReached |= MeetsNoveltyHpTarget(state, node, features);
         }
@@ -232,7 +231,7 @@ internal sealed partial class FlashBeamSolver
             {
                 _ = EvaluateNoveltyState(root, rootFeatures);
                 ConsiderNoveltyTerminal(root, rootIndex, rootFeatures,
-                    Key(root, rootFeatures, _options.InitialActionCount));
+                    Key(root, rootFeatures, _options.InitialActionCount, 0));
                 _noveltyTargetReached |= MeetsNoveltyHpTarget(root, rootIndex, rootFeatures);
                 continue;
             }
@@ -339,7 +338,8 @@ internal sealed partial class FlashBeamSolver
         {
             FlashScoreFeatures fallbackFeatures =
                 _scorer.Features(fallback.State, Depth(fallback.Node), includeRetentionOnly: false);
-            _noveltyBest = Key(fallback.State, fallbackFeatures, Depth(fallback.Node));
+            _noveltyBest = Key(fallback.State, fallbackFeatures, Depth(fallback.Node),
+                _nodes[fallback.Node].FutureSoldHp);
             bestNode = fallback.Node;
             bestVictory = fallback.State.Outcome == FlashOutcome.Victory;
             bestDefeat = fallback.State.Outcome == FlashOutcome.Defeat;
