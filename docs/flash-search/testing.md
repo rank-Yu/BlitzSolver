@@ -172,7 +172,17 @@ python3 -B tools/search/FlashRegression/flash_regression.py headless \
 建出的牌组、遗物、药水与遭遇和
 离线宿主对同一 `spec.json` 的 `generated-scenario.resolved.json`/`loadout.json` 逐字段一致（比较时
 忽略生成模式 `mode`），`SUMMARY.txt` 为 `RESULT PASS`，两个实例目录都已删除。当前机器上的证据在
-`.local/flash-regression/hl-smoke/`；40 场整轮由协调者运行。
+`.local/flash-regression/hl-smoke/`。
+
+HL 整轮（源码 `754ce17e`，上面的默认命令，开启模式、2 条通道、每次搜索 120 秒预算）：40 场
+`RESULT PASS`，29 胜、11 战死，没有 `failed` 或 `no-result`；388 次 `FLASH_ADOPTED` 全部
+`status=verified`，`FLASH_SEARCH_FAILED`、核对不一致、预览不一致与计划外重算都是 0，40 场场景检查
+通过，两条通道的实例目录都已删除；墙钟约 8 分钟。战死的 11 根（IRONCLAD-020、SILENT-010/011/019/020、
+DEFECT-020、REGENT-019/020、NECROBINDER-011/019/020）正是离线 120 根协调器对照中开启模式未获胜的
+11 根，两边胜负集合一致。REGENT-019 在玩家自己回合结束时战死，写结果时游戏尚未离开战斗
+（`combatEnded=false`、`stage=wait_combat_end`），首版工具把它归成 `no-result`；按执行器“原生战斗进入
+结束状态后才报仍存在未死亡敌人”的语义修正分类后，用同一份证据重新汇总为 `death`，没有重跑游戏。
+证据在 `.local/flash-regression/hl-on40/`（修正前的汇总保留为 `SUMMARY.before-deathfix.txt`）。
 
 ## 3. 已知限制与未验证项
 
