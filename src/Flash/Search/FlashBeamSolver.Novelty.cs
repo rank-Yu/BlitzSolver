@@ -223,7 +223,9 @@ internal sealed partial class FlashBeamSolver
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
             _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
                 _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
-                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0));
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0,
+                rootFeatures.Turn, rootIndex, FlashFingerprint.Hash(root), 0, 0,
+                rootFeatures.PotionUseCount, rootFeatures.CumulativePlayerHpLost, 0, true));
             bool terminalRoot = !FlashKernel.IsInProgress(root);
             ObserveNoveltySeed(root, rootIndex, rootFeatures);
             if (terminalRoot)
@@ -353,7 +355,7 @@ internal sealed partial class FlashBeamSolver
             _noveltyBest is null ? [] : Route(bestNode),
             [],
             bestVictory, bestDefeat, _noveltyBest?.Score ?? double.NegativeInfinity,
-            _expanded, _transitions, _duplicates, turnLayers, _pruned, watch.Elapsed)
+            _expanded, _transitions, _duplicates, _duplicateCards, turnLayers, _pruned, watch.Elapsed)
         {
             CapacityPruned = _capacityPruned,
             CapacityDroppedChildren = _capacityDropped.Count == 0

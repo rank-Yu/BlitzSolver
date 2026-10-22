@@ -14,6 +14,15 @@ internal sealed record FlashBeamOptions(
     TimeSpan SoftTimeBudget,
     int InitialPlayerMaxHp)
 {
+    /// <summary><c>SolverSearchProfile.MaxCardBranchesPerNode</c> of the request.</summary>
+    public int MaxCardBranchesPerNode { get; init; } = 32;
+
+    /// <summary><c>SolverSearchProfile.MaxPileChoiceBranchesPerAction</c> of the request.</summary>
+    public int MaxPileChoiceBranchesPerAction { get; init; } = 18;
+
+    /// <summary><c>SolverSearchProfile.MaxHandChoiceBranchesPerAction</c> of the request.</summary>
+    public int MaxHandChoiceBranchesPerAction { get; init; } = 24;
+
     /// <summary>Number of final candidate routes retained for offline replay scanning (0 = off).</summary>
     public int CandidateScanCount { get; init; }
 
@@ -337,6 +346,7 @@ internal sealed record FlashBeamResult(
     int ExpandedNodes,
     int Transitions,
     int Duplicates,
+    int DuplicateCardBranchesPruned,
     int TurnsSearched,
     int PrunedIncumbents,
     TimeSpan Elapsed)
@@ -419,8 +429,13 @@ internal sealed record FlashBeamResult(
 [System.Runtime.CompilerServices.SkipLocalsInit]
 internal sealed partial class FlashBeamSolver
 {
-    /// <summary>Selections explored per choice request (lexicographic within each size).</summary>
-    private const int MaxChoiceBranches = 32;
+    /// <summary>
+    /// Output capacity for one choice request. A single-card routing choice may be widened to
+    /// <c>OptionCount + 1</c> by the existing builder, and <see cref="FlashLimits.MaxChoiceOptions"/>
+    /// is the largest option list; the profile limits themselves are applied by
+    /// <see cref="FlashChoiceOrderer"/>.
+    /// </summary>
+    private const int MaxChoiceBranches = FlashLimits.MaxChoiceOptions + 1;
 
     /// <summary>The existing <c>EarlyTurnCandidatesPerLayer</c>.</summary>
     private const int EarlyTurnCandidatesPerLayer = 24;
@@ -503,7 +518,16 @@ internal sealed partial class FlashBeamSolver
         int RoutingParentRank,
         double RoutingParentScore,
         int RoutingParentEnergy,
-        int ParentTurn);
+        int ParentTurn,
+        int Turn,
+        int TurnStartNode,
+        ulong TurnStartHash,
+        int TurnPotionMask,
+        int TurnPotionUses,
+        int PotionCount,
+        int CumulativePlayerHpLost,
+        int FutureSoldHp,
+        bool IsPure);
 
     /// <summary>
     /// Route-node power-commitment metadata (1-based node field; 0 means no commitment). The existing
@@ -515,6 +539,7 @@ internal sealed partial class FlashBeamSolver
     private readonly bool _aggressivePowerCommitment;
     private readonly bool _preserveReplayAllocatorOpening;
     private readonly FlashAction[] _actions = new FlashAction[FlashKernel.MaxLegalActions];
+    private readonly StateFingerprint[] _playableCardKeys = new StateFingerprint[FlashLimits.MaxHandSize];
     private readonly ushort[] _rootPotions = new ushort[FlashLimits.PotionSlots];
     private readonly FlashBoundFeatures? _bound;
     private readonly bool _pruneEqualHp;
@@ -538,6 +563,7 @@ internal sealed partial class FlashBeamSolver
     private int _expanded;
     private int _transitions;
     private int _duplicates;
+    private int _duplicateCards;
     private int _capacityPruned;
     private int _pruned;
     private int _smartPruned;
@@ -766,7 +792,9 @@ internal sealed partial class FlashBeamSolver
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
             _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
                 _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
-                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0));
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0,
+                rootFeatures.Turn, rootIndex, FlashFingerprint.Hash(root), 0, 0,
+                rootFeatures.PotionUseCount, rootFeatures.CumulativePlayerHpLost, 0, true));
             (int rootReachable, int rootZeroCost, _) = _scorer.ReachableHandPotential(root);
             PocketwatchState(root, out int rootPocketwatchThreshold, out int rootPocketwatchPlayed,
                 out int rootPocketwatchLastTurn);
@@ -813,12 +841,57 @@ internal sealed partial class FlashBeamSolver
                     ref FlashBattle parent = ref current.State(index);
                     int parentNode = current.Node(index);
                     int count = FlashKernel.LegalActions(parent, _rules, _actions);
+                    // SearchExpansionShared.EnumeratePlannedCardActions keeps only the first hand
+                    // position for each playable-card state key. LegalActions emits the targets of
+                    // one hand card contiguously, so a duplicate hand position is skipped together
+                    // with all of its targets while every target of the kept position is expanded.
+                    Span<StateFingerprint> playableKeys = _playableCardKeys;
+                    int playableKeyCount = 0;
+                    int lastHandIndex = -1;
+                    bool lastHandDuplicate = false;
                     for (int actionIndex = 0; actionIndex < count; actionIndex++)
                     {
                         _cancellationToken.ThrowIfCancellationRequested();
-                        if (_actions[actionIndex].Kind == FlashActionKind.UsePotion && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
+                        FlashAction action = _actions[actionIndex];
+                        if (action.Kind == FlashActionKind.UsePotion && !PotionAllowed(parent, action.PotionSlot))
                             continue;
-                        ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, terminal,
+                        if (action.Kind == FlashActionKind.PlayCard)
+                        {
+                            if (action.HandIndex != lastHandIndex)
+                            {
+                                lastHandIndex = action.HandIndex;
+                                StateFingerprint key = FlashCardKey.Playable(parent,
+                                    parent.Cards[action.HandIndex], _rules);
+                                bool duplicate = false;
+                                for (int seen = 0; seen < playableKeyCount; seen++)
+                                {
+                                    if (playableKeys[seen] == key)
+                                    {
+                                        duplicate = true;
+                                        break;
+                                    }
+                                }
+                                // Every target of a pruned duplicate card is pruned too; the
+                                // target actions of one hand position are contiguous.
+                                lastHandDuplicate = duplicate;
+                                if (duplicate)
+                                {
+                                    _duplicateCards++;
+                                    continue;
+                                }
+                                playableKeys[playableKeyCount++] = key;
+                            }
+                            else if (lastHandDuplicate)
+                            {
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            lastHandIndex = -1;
+                            lastHandDuplicate = false;
+                        }
+                        ExpandAction(ref parent, parentNode, action, next, ended, terminal,
                             current.Facts(index), current.RankPosition(index), current.Rank(index));
                     }
                     PublishProgressWithPreview(turns - 1, playDepth,
@@ -826,6 +899,7 @@ internal sealed partial class FlashBeamSolver
                         "展开出牌序列", force: false,
                         best is null ? -1 : bestNode, best, current);
                 }
+                AdmitActionLayerCandidates(next, current);
                 current.Clear();
                 _tracePhase = "next";
                 next.TracePhase = _tracePhase;
@@ -841,6 +915,7 @@ internal sealed partial class FlashBeamSolver
             }
             if (_takeoverAction != FlashTakeoverAction.None)
                 break;
+            AnnotateSoldHp(ended);
             if (_earlyTurnScoutDepth > 0 && turns <= _earlyTurnScoutDepth)
                 CollectEarlyTurnScout(ended, turns, roots);
             turnFrontier.Clear();
@@ -903,9 +978,10 @@ internal sealed partial class FlashBeamSolver
                 turns, _expanded);
             FlashBeamResult audited = new(_auditPotionPolicy && best is null ? [] : Route(bestNode),
                 TopCandidateRoutes(), bestVictory, bestDefeat, best?.Score ?? double.NegativeInfinity,
-                _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
+                _expanded, _transitions, _duplicates, _duplicateCards, turns, _pruned, watch.Elapsed)
             {
                 CapacityPruned = _capacityPruned,
+                DuplicateCardBranchesPruned = _duplicateCards,
                 CapacityDroppedChildren = _capacityDropped.Count == 0
                     ? FlashBeamResult.NoCapacityDrops
                     : _capacityDropped,
@@ -942,7 +1018,7 @@ internal sealed partial class FlashBeamSolver
             turns, _expanded);
         FlashBeamResult result = new(Route(bestNode), TopCandidateRoutes(), bestVictory, bestDefeat,
             best?.Score ?? double.NegativeInfinity,
-            _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
+            _expanded, _transitions, _duplicates, _duplicateCards, turns, _pruned, watch.Elapsed)
         {
             CapacityPruned = _capacityPruned,
             CapacityDroppedChildren = _capacityDropped.Count == 0
@@ -1401,9 +1477,6 @@ internal sealed partial class FlashBeamSolver
             stepResult = FlashKernel.Step(ref child, action, _rules, out request, out bool historyRisk);
             if (stepResult == FlashStepResult.NeedsChoice)
             {
-                // Every executed selection is exact; the cap only bounds how many are explored.
-                Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
-                int count = FlashChoiceEnumerator.Enumerate(request, selections);
                 // The branch loop below expands every selection through the same pool. A recursive
                 // ExpandAction reserves and overwrites next's current slot, so `child` is no longer a
                 // stable view of the partial state once the first branch runs. Capture the option card
@@ -1422,6 +1495,10 @@ internal sealed partial class FlashBeamSolver
                             $"选择选项 {option} 的卡牌位置 {position} 超出牌数组容量。");
                     optionCards[option] = child.Cards[position];
                 }
+                Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
+                int count = FlashChoiceOrderer.Enumerate(child, request, optionCards, _rules, _scorer,
+                    _options.MaxPileChoiceBranchesPerAction, _options.MaxHandChoiceBranchesPerAction,
+                    selections);
                 bool captureFetchedPowers = allowFetchedPowerCommit && primaryEffect is null
                     && request.Timing == FlashChoiceTiming.Action
                     && IsPrimaryMoveToHandAction(parent, action)
@@ -1474,8 +1551,14 @@ internal sealed partial class FlashBeamSolver
             int depth = _nodes[parentNode].Depth + 1;
             bool isTerminal = !FlashKernel.IsInProgress(child);
             int traceStep = _trace?.Match(parentNode, action) ?? 0;
+            RouteNode parentRoute = _nodes[parentNode];
+            bool turnEnding = action.Kind == FlashActionKind.EndTurn
+                || child.PlayerTurn != parent.PlayerTurn;
             (double score, double rank, double pureRank, int potionCost, FlashScoreFeatures features) =
                 Score(child, depth, isTerminal, action.Kind == FlashActionKind.EndTurn);
+            // The existing SearchNode.Score includes the accumulated FutureSoldHp penalty at every
+            // action layer (SearchProbeHelpers.ApplySoldHpPenalty on the child snapshot score).
+            score = SearchProbeHelpers.ApplySoldHpPenalty(score, parentRoute.FutureSoldHp);
             // Route traits are accumulated from the K4-checked parent/child feature values. They are
             // node metadata only: the state bytes, fingerprint and key are untouched.
             bool nonPure = !IsPureTransition(parent, child, action, _rules, historyRisk);
@@ -1493,7 +1576,6 @@ internal sealed partial class FlashBeamSolver
             ulong lineage = NextLineage(parentNode, parent, action, node,
                 out ulong rootActionKey, out ushort firstCardId, out int firstCardTarget);
             int payoffCount = NextPayoffCount(parentNode, parent, action, features, parentFacts, commitment);
-            RouteNode parentRoute = _nodes[parentNode];
             int routingSignature = routingChoice?.SignatureId ?? 0;
             int routingTurn, routingDepth, routingParentRank, routingParentEnergy;
             double routingParentScore;
@@ -1515,10 +1597,22 @@ internal sealed partial class FlashBeamSolver
             }
             int actionCardId = action.Kind == FlashActionKind.PlayCard && action.HandIndex < parent.HandCount
                 ? parent.Cards[action.HandIndex].Id : 0;
+            int turnPotionMask = turnEnding ? 0 : parentRoute.TurnPotionMask;
+            int turnPotionUses = turnEnding ? 0 : parentRoute.TurnPotionUses;
+            if (!turnEnding && action.Kind == FlashActionKind.UsePotion && action.PotionSlot >= 0)
+            {
+                turnPotionMask |= 1 << action.PotionSlot;
+                turnPotionUses++;
+            }
             _nodes.Add(new RouteNode(parentNode, depth, action, rootActionKey, lineage, payoffCount,
                 usedPotion, firstCardId, firstCardTarget, commitment, actionCardId,
                 TargetCombatId(parent, action), routingSignature, routingTurn, routingDepth,
-                routingParentRank, routingParentScore, routingParentEnergy, parentFacts.Turn));
+                routingParentRank, routingParentScore, routingParentEnergy, parentFacts.Turn,
+                features.Turn,
+                turnEnding ? node : parentRoute.TurnStartNode,
+                turnEnding ? FlashFingerprint.Hash(child) : parentRoute.TurnStartHash,
+                turnPotionMask, turnPotionUses, features.PotionUseCount,
+                features.CumulativePlayerHpLost, parentRoute.FutureSoldHp, !nonPure));
             if (traceStep > 0)
                 _trace!.NodeCreated(node, traceStep);
             if (_options.Novelty != null)
@@ -1545,15 +1639,17 @@ internal sealed partial class FlashBeamSolver
             }
             // The retention-only hand values are computed by the pool only when the state is actually
             // stored (a duplicate keeps its existing values); a terminal state never needs them.
-            bool added = action.Kind == FlashActionKind.EndTurn || child.PlayerTurn != parent.PlayerTurn
+            bool added = turnEnding
                 ? AddEndTurnChild(ended, child, node, score, rank, pureRank, potionCost, features, depth,
                     lineage, payoffCount, commitment, childTraits, childPocketwatchThreshold,
                     childPocketwatchPlayed, childPocketwatchLastTurn, parentFacts.EnemyBlock, parentFacts.EnemyHp,
-                    parentFacts.FutureResourceValue, parentFacts.StrategicResourcePotential)
+                    parentFacts.FutureResourceValue, parentFacts.StrategicResourcePotential,
+                    parentRoute.FutureSoldHp)
                 : next.CommitReserved(node, score, rank, pureRank, potionCost, features, depth, lineage,
                     payoffCount, commitment, childTraits, childPocketwatchThreshold,
                     childPocketwatchPlayed, childPocketwatchLastTurn, parentFacts.EnemyBlock, parentFacts.EnemyHp,
-                    parentFacts.FutureResourceValue, parentFacts.StrategicResourcePotential);
+                    parentFacts.FutureResourceValue, parentFacts.StrategicResourcePotential,
+                    parentRoute.FutureSoldHp);
             if (!added)
                 _duplicates++;
         }
@@ -1732,6 +1828,63 @@ internal sealed partial class FlashBeamSolver
     }
 
     /// <summary>
+    /// The existing search's <c>Terminal.AnnotateTurnOutcomes</c> sold-HP part. End-turn children are
+    /// grouped by (turn, turn-start state, potion slots used); within a group the least HP lost is
+    /// free and every additional point is sold. The parent's accumulated FutureSoldHp is inherited
+    /// and the stored score has its old incurred penalty replaced by the new one.
+    /// </summary>
+    private void AnnotateSoldHp(Pool ended)
+    {
+        if (ended.Count == 0)
+            return;
+        Dictionary<(int Turn, ulong TurnStartHash, ulong PotionSlots), int> minimumHpLost = new();
+        for (int slot = 0; slot < ended.Count; slot++)
+        {
+            if (!TrySoldHpFacts(ended, slot, out var key, out int hpLost))
+                continue;
+            if (!minimumHpLost.TryGetValue(key, out int current) || hpLost < current)
+                minimumHpLost[key] = hpLost;
+        }
+        for (int slot = 0; slot < ended.Count; slot++)
+        {
+            if (!TrySoldHpFacts(ended, slot, out var key, out int hpLost))
+                continue;
+            int node = ended.Node(slot);
+            RouteNode route = _nodes[node];
+            int soldThisTurn = Math.Max(0, hpLost - minimumHpLost[key]);
+            int previousSold = _nodes[route.Parent].FutureSoldHp;
+            int futureSold = previousSold + soldThisTurn;
+            double scoreWithoutSoldPenalty =
+                ended.Score(slot) - previousSold * SolverWeights.SoldHpPenalty;
+            _nodes[node] = route with { FutureSoldHp = futureSold };
+            ended.SetSoldHp(slot, futureSold, previousSold,
+                SearchProbeHelpers.ApplySoldHpPenalty(scoreWithoutSoldPenalty, futureSold));
+        }
+    }
+
+    private bool TrySoldHpFacts(Pool ended, int slot, out (int Turn, ulong TurnStartHash, ulong PotionSlots) key,
+        out int hpLost)
+    {
+        int node = ended.Node(slot);
+        RouteNode route = _nodes[node];
+        if (route.Parent < 0)
+        {
+            key = default;
+            hpLost = 0;
+            return false;
+        }
+        RouteNode parent = _nodes[route.Parent];
+        RouteNode turnStart = _nodes[parent.TurnStartNode];
+        ulong potionSlots = (uint)parent.TurnPotionMask;
+        if (ended.Facts(slot).PotionCount - turnStart.PotionCount > parent.TurnPotionUses)
+            potionSlots |= 1UL << 63;
+        key = (parent.Turn, parent.TurnStartHash, potionSlots);
+        hpLost = Math.Max(0,
+            ended.Facts(slot).CumulativePlayerHpLost - turnStart.CumulativePlayerHpLost);
+        return true;
+    }
+
+    /// <summary>
     /// The cumulative end-turn layer is the only pool that can reach its bound (the per-action-layer
     /// pool is cleared each layer and receives at most <c>width * MaxLegalActions</c> children). When
     /// a unique end-turn child no longer fits, compact the pool with the same retention rule the
@@ -1741,14 +1894,14 @@ internal sealed partial class FlashBeamSolver
         double pureRank, int potionCost, in FlashScoreFeatures features, int depth, ulong lineage,
         int payoffCount, int commitment, SearchRouteTraits traits, int pocketwatchThreshold,
         int pocketwatchPlayed, int pocketwatchLastTurn, int parentEnemyBlock, int parentEnemyHp,
-        int parentFutureResourceValue, int parentStrategicResourcePotential)
+        int parentFutureResourceValue, int parentStrategicResourcePotential, int futureSoldHp)
     {
         try
         {
             return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
                 lineage, payoffCount, commitment, traits, pocketwatchThreshold, pocketwatchPlayed,
                 pocketwatchLastTurn, parentEnemyBlock, parentEnemyHp, parentFutureResourceValue,
-                parentStrategicResourcePotential);
+                parentStrategicResourcePotential, futureSoldHp);
         }
         catch (FlashCapacityException) when (ended.IsFull)
         {
@@ -1760,7 +1913,7 @@ internal sealed partial class FlashBeamSolver
             return ended.AddScored(child, node, score, rank, pureRank, potionCost, features, depth,
                 lineage, payoffCount, commitment, traits, pocketwatchThreshold, pocketwatchPlayed,
                 pocketwatchLastTurn, parentEnemyBlock, parentEnemyHp, parentFutureResourceValue,
-                parentStrategicResourcePotential);
+                parentStrategicResourcePotential, futureSoldHp);
         }
     }
 
@@ -2588,7 +2741,7 @@ internal sealed partial class FlashBeamSolver
             int pocketwatchCardsPlayedLastTurn = 0,
             int initialRetainedAttackValue = 0, int parentEnemyBlock = 0, int parentEnemyHp = 0,
             int parentFutureResourceValue = 0, int parentStrategicResourcePotential = 0,
-            in FlashScorer.FlashRetentionValues retention = default) => new(
+            int futureSoldHp = 0, in FlashScorer.FlashRetentionValues retention = default) => new(
             depth,
             features.PotionUseCount,
             features.ProjectedPlayerHp,
@@ -2654,7 +2807,7 @@ internal sealed partial class FlashBeamSolver
             features.AngerCopiesGenerated,
             Math.Min(SolverWeights.RetainedAttackGrowthBeamCap,
                 Math.Max(0, features.RetainedAttackValue - initialRetainedAttackValue)),
-            0,
+            futureSoldHp,
             features.PlayableAttackCount,
             features.StrategicResourcePotential,
             parentEnemyBlock,
@@ -3498,6 +3651,30 @@ internal sealed partial class FlashBeamSolver
 
         public RetentionFacts Facts(int index) => _facts[index];
 
+        /// <summary>
+        /// Applies the turn-boundary sold-HP annotation to one stored end-turn state. The state
+        /// bytes, hash and table do not change; only route history and the score do.
+        /// </summary>
+        public void SetSoldHp(int index, int futureSoldHp, int previousSoldHp, double score)
+        {
+            RetentionFacts facts = _facts[index];
+            _facts[index] = facts with { FutureSoldHp = futureSoldHp };
+            _scores[index] = score;
+            if (_labels[index] is not { } labels)
+                return;
+            int delta = futureSoldHp - previousSoldHp;
+            for (int labelIndex = 0; labelIndex < labels.Count; labelIndex++)
+            {
+                PoolLabel label = labels[labelIndex];
+                int labelFuture = Math.Max(0, label.FutureSoldHp + delta);
+                labels[labelIndex] = label with
+                {
+                    FutureSoldHp = labelFuture,
+                    Score = label.Score + delta * SolverWeights.SoldHpPenalty,
+                };
+            }
+        }
+
         /// <summary>Copies one retained entry to a lower slot; used by the incumbent compaction.</summary>
         public void Move(int from, int to)
         {
@@ -3522,6 +3699,30 @@ internal sealed partial class FlashBeamSolver
         public void Truncate(int count)
         {
             Count = count;
+            RebuildTable();
+        }
+
+        /// <summary>
+        /// Removes candidate seats rejected by the action admission stage. Slots are indices in the
+        /// current pool; the survivors keep their relative order and the hash table is rebuilt.
+        /// </summary>
+        public void RemoveSlots(HashSet<int> remove)
+        {
+            if (remove.Count == 0)
+                return;
+            int write = 0;
+            for (int read = 0; read < Count; read++)
+            {
+                if (remove.Contains(read))
+                    continue;
+                if (write != read)
+                    Move(read, write);
+                write++;
+            }
+            Count = write;
+            _hasCommitments = false;
+            for (int index = 0; index < Count; index++)
+                _hasCommitments |= _commitment[index] > 0;
             RebuildTable();
         }
 
@@ -3573,19 +3774,19 @@ internal sealed partial class FlashBeamSolver
             in FlashScoreFeatures features, int depth, ulong lineage, int payoffCount, int commitment,
             SearchRouteTraits traits, int pocketwatchThreshold, int pocketwatchPlayed,
             int pocketwatchLastTurn, int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
-            int parentStrategicResourcePotential)
+            int parentStrategicResourcePotential, int futureSoldHp)
         {
             if (_scratchReserved)
             {
                 return Insert(ref _scratch, inPlace: false, node, score, rank, pureRank, potionCost,
                     features, default, factsReady: false, depth, lineage, payoffCount, commitment, traits,
                     pocketwatchThreshold, pocketwatchPlayed, pocketwatchLastTurn, parentEnemyBlock,
-                    parentEnemyHp, parentFutureResourceValue, parentStrategicResourcePotential);
+                    parentEnemyHp, parentFutureResourceValue, parentStrategicResourcePotential, futureSoldHp);
             }
             return Insert(ref _states[Count], inPlace: true, node, score, rank, pureRank, potionCost,
                 features, default, factsReady: false, depth, lineage, payoffCount, commitment, traits,
                 pocketwatchThreshold, pocketwatchPlayed, pocketwatchLastTurn, parentEnemyBlock,
-                parentEnemyHp, parentFutureResourceValue, parentStrategicResourcePotential);
+                parentEnemyHp, parentFutureResourceValue, parentStrategicResourcePotential, futureSoldHp);
         }
 
         /// <summary>Adds a scored state and computes its retention-only values when it is stored.</summary>
@@ -3593,12 +3794,12 @@ internal sealed partial class FlashBeamSolver
             int potionCost, in FlashScoreFeatures features, int depth, ulong lineage, int payoffCount,
             int commitment, SearchRouteTraits traits, int pocketwatchThreshold, int pocketwatchPlayed,
             int pocketwatchLastTurn, int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
-            int parentStrategicResourcePotential)
+            int parentStrategicResourcePotential, int futureSoldHp)
             => Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, pureRank, potionCost, features, default, factsReady: false, depth,
                 lineage, payoffCount, commitment, traits, pocketwatchThreshold, pocketwatchPlayed,
                 pocketwatchLastTurn, parentEnemyBlock, parentEnemyHp, parentFutureResourceValue,
-                parentStrategicResourcePotential);
+                parentStrategicResourcePotential, futureSoldHp);
 
         /// <summary>Adds a state whose retention facts are already computed (pool-to-pool copies).</summary>
         public bool Add(in FlashBattle state, int node, double score, double rank, double pureRank,
@@ -3608,7 +3809,8 @@ internal sealed partial class FlashBeamSolver
             bool added = Insert(ref Unsafe.AsRef(in state), inPlace: false,
                 node, score, rank, pureRank, potionCost, default, facts, factsReady: true, facts.Depth,
                 lineage, payoffCount, commitment, facts.Traits, facts.PocketwatchCardThreshold,
-                facts.PocketwatchCardsPlayedThisTurn, facts.PocketwatchCardsPlayedLastTurn, 0, 0, 0, 0);
+                facts.PocketwatchCardsPlayedThisTurn, facts.PocketwatchCardsPlayedLastTurn, 0, 0, 0, 0,
+                facts.FutureSoldHp);
             if (added && labels is { Count: > 0 })
                 _labels[Count - 1] = new List<PoolLabel>(labels);
             return added;
@@ -3665,7 +3867,7 @@ internal sealed partial class FlashBeamSolver
             bool factsReady, int depth, ulong lineage, int payoffCount, int commitment,
             SearchRouteTraits traits, int pocketwatchThreshold, int pocketwatchPlayed,
             int pocketwatchLastTurn, int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
-            int parentStrategicResourcePotential)
+            int parentStrategicResourcePotential, int futureSoldHp)
         {
             ulong hash = FlashFingerprint.Hash(state);
             int mask = _table.Length - 1;
@@ -3677,7 +3879,7 @@ internal sealed partial class FlashBeamSolver
                 {
                     int existingNode = _nodes[existing];
                     PoolLabel nextLabel = new(features.PotionUseCount, features.PotionStrategicCost,
-                        _facts[existing].FutureSoldHp, features.CumulativePlayerHpLost, depth, score);
+                        futureSoldHp, features.CumulativePlayerHpLost, depth, score);
                     List<PoolLabel> labels = _labels[existing] ??=
                     [
                         new PoolLabel(_facts[existing].PotionCount, _facts[existing].PotionStrategicCost,
@@ -3734,7 +3936,7 @@ internal sealed partial class FlashBeamSolver
                                 traits, pocketwatchThreshold, pocketwatchPlayed, pocketwatchLastTurn,
                                 _scorer.InitialRetainedAttackValue, parentEnemyBlock, parentEnemyHp,
                                 parentFutureResourceValue, parentStrategicResourcePotential,
-                                _facts[existing].RetentionProjection());
+                                futureSoldHp, _facts[existing].RetentionProjection());
                         _lineages[existing] = lineage;
                         _commitment[existing] = commitment;
                         _hasCommitments |= commitment > 0;
@@ -3768,7 +3970,7 @@ internal sealed partial class FlashBeamSolver
                     traits, pocketwatchThreshold, pocketwatchPlayed, pocketwatchLastTurn,
                     _scorer.InitialRetainedAttackValue, parentEnemyBlock, parentEnemyHp,
                     parentFutureResourceValue, parentStrategicResourcePotential,
-                    _scorer.RetentionValues(state));
+                    futureSoldHp, _scorer.RetentionValues(state));
             }
             if ((Count + 1) * 2 > _table.Length)
                 GrowTable();

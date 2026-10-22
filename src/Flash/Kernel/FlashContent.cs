@@ -997,6 +997,12 @@ public abstract class FlashCardDef : FlashListenerDef
     public virtual bool UsesIdentityLedger => false;
 
     /// <summary>
+    /// The card's <c>Private</c> value carries semantic state not covered by its dynamic variables
+    /// (MadScience's saved TinkerTime type/rider). The existing playable-card key includes it.
+    /// </summary>
+    public virtual bool PlayableKeyUsesPrivate => false;
+
+    /// <summary>
     /// Native <c>Fetch</c>: <c>SimulatedCombatState._fetchCardsPlayedThisTurn</c> records this exact
     /// card object when the play completes. The kernel sets bit 0 of <see cref="FlashCard.Private"/>.
     /// </summary>
@@ -1496,8 +1502,18 @@ public abstract class FlashOrbDef : FlashListenerDef
 /// <c>CardModel.GetEnchantedReplayCount</c> applies before the play-count hooks. They are pure
 /// queries over the card value: prediction and evaluation call them read-only.
 /// </summary>
+public enum FlashEnchantmentPrivateKey : byte
+{
+    None,
+    Bool,
+    Int,
+}
+
 public abstract class FlashEnchantmentDef : FlashListenerDef
 {
+    /// <summary>How <c>EnchantmentStateSupport</c> includes the private value in the choice-card key.</summary>
+    public virtual FlashEnchantmentPrivateKey PrivateKey => FlashEnchantmentPrivateKey.None;
+
     public virtual decimal EnchantDamageAdditive(in FlashCard card, decimal damage, FlashValueProps props) => 0m;
 
     public virtual decimal EnchantDamageMultiplicative(in FlashCard card, decimal damage, FlashValueProps props) => 1m;

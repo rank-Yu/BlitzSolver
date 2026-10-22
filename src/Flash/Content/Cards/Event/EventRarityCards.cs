@@ -346,6 +346,8 @@ public sealed class MadScience : FlashCardDef
 
     public override bool HasDynamicCardType => true;
 
+    public override bool PlayableKeyUsesPrivate => true;
+
     public override int PrivateRider(in FlashCard card) => RiderOf(card);
 
     public static short Encode(int type, int rider) => checked((short)((byte)type | ((byte)rider << 8)));

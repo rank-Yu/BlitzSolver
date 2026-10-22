@@ -282,6 +282,7 @@ internal sealed partial class FlashBeamSolver
             _expanded,
             _transitions,
             _duplicates,
+            _duplicateCards,
             turns,
             _pruned,
             _solveWatch?.Elapsed ?? TimeSpan.Zero)
