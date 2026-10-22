@@ -228,6 +228,15 @@ python3 -B tools/search/FlashRegression/flash_regression.py headless \
 
 两条通道合计约 25 分钟（本轮 40 + 80 两段）。
 
+旧 100 根语料（早期的五角色均衡生成牌组，未随仓库提交，只作额外数据点）在同一构建上用
+`--quality-dir <旧语料目录> --ids <全部 100 根>` 跑了一轮：`RESULT PASS`，74 胜、26 战死，1,111 次
+`FLASH_ADOPTED` 全部核对通过，搜索失败、不一致与计划外重算都是 0，墙钟约 17 分钟。逐根胜负与该语料的
+离线协调器开启模式结果（FW 代码 `bb8f254f`）一致，离线关闭模式为 70 胜；分幕胜场第一幕 35/35、第二幕
+26/35、第三幕 13/30。
+
+以上三段无头整场都在合入准入回落（FB）之前的构建上运行；FB 只改准入拒绝时的回落路径，这三组语料的根全部
+被 Flash 准入，运行中没有回落。
+
 ### 2.5 FB：准入改用常规搜索（2026-10-22）
 
 开启模式只对 `admission-unsupported-content` 与 `admission-unrepresentable-state` 两类准入让
