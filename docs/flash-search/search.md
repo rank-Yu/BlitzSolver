@@ -53,7 +53,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
   | 极高 | 540 | 2,000,000 | 135 / 500,000 |
 
   旧引擎按回合层分配节点预算的规则尚未移植。
-- **产出**：按旧引擎终局比较器（`FinalPlanOrdering.Select` 的排序键）选出一条路线：完整胜利、存活、死亡保护次数、战略失血（`ActEndingBossPolicy.StrategicHpDeficit`，含成长/遗物信用与战后遗物回复）、成长信用、成长收益数、结束回合、生命资源消耗、长期资源、愤怒复制数、可选药水数、敌人 HP、分数、动作数。没有胜利路线时，预算耗尽时的回合起点状态与终局状态一起参与比较。偷窃恢复与边界原因键已移植；卖血键（`StrategicSold`/`FutureSoldHp`）尚未移植，`OptionalPotionCount` 与 `BoundaryRank` 的先后顺序与常规 `FinalPlanOrdering` 不同（已知差异，下一批处理）。
+- **产出**：按旧引擎终局比较器（`FinalPlanOrdering.Select` 的排序键）选出一条路线：完整胜利、存活、死亡保护次数、战略失血（`ActEndingBossPolicy.StrategicHpDeficit`，含成长/遗物信用与战后遗物回复）、成长信用、成长收益数、结束回合、生命资源消耗、长期资源、愤怒复制数、政策边界原因、可选药水数、敌人 HP、分数、动作数。没有胜利路线时，预算耗尽时的回合起点状态与终局状态一起参与比较。偷窃恢复与政策边界原因键已移植，政策边界原因排在可选药水数之前，与常规相同。卖血键（`StrategicSold`）是请求已提交的卖血加路线的未来卖血；FlashBeam 没有路线级未来卖血，同一请求内各路线的该键相同，因此不参与比较。
 
 ## 2. 路线物化
 
@@ -100,7 +100,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 - **区间**：`ExplicitPotionUseCount >= MinimumPotionUses`，扩展期由 `MaximumUses` 限制用药动作；两者不再要求相等。计数都包含固定前缀。
 - **基线**：`PotionFreePolicyBaseline` 作为审计后的无药基线；无覆盖时取本次搜索的最佳无药候选。
-- **排序键**：完整移植 `FinalPlanOrdering.Select` 已由 K4 核对的特征键（胜利、存活、死亡保护、偷窃恢复、战略失血、成长信用与收益、结束回合、政策失血、生命资源消耗、长期资源、愤怒复制、可选药水数、敌人 HP、分数、动作数）。偷窃恢复与边界原因键已移植；卖血键（`StrategicSold`/`FutureSoldHp`）仍未移植，`OptionalPotionCount` 与 `BoundaryRank` 的顺序与常规不同（已知差异，下一批处理）。
+- **排序键**：完整移植 `FinalPlanOrdering.Select` 已由 K4 核对的特征键（胜利、存活、死亡保护、偷窃恢复、战略失血、成长信用与收益、结束回合、政策失血、生命资源消耗、长期资源、愤怒复制、政策边界原因、可选药水数、敌人 HP、分数、动作数）。偷窃恢复与政策边界原因键已移植，顺序与常规相同；卖血键不参与比较，原因见上文“产出”。
 - **强制指令**：按 `(槽位, 药水身份)` 的集合逐条核对，等价于 `PotionStrategySnapshot.EvaluateForcedUses`；前缀已用的强制药水从固定前缀动作折入。未满足的路线不能通过终局过滤，同次数下不会遮蔽满足的路线。强制使用次数与战略成本从可选用药中扣除后再套用 `RequireAtLeastOne`/`Smart` 资格。
 - **最早用药回合**：`EarliestPotionTurn` 按请求根回合换算后限制 Flash 的用药动作；物化后再核对没有更早的用药动作。
 

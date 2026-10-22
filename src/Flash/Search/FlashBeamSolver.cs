@@ -1326,9 +1326,13 @@ internal sealed partial class FlashBeamSolver
         if (comparison != 0) return comparison;
         comparison = left.AngerCopiesGenerated.CompareTo(right.AngerCopiesGenerated);
         if (comparison != 0) return comparison;
-        comparison = left.OptionalPotionCount.CompareTo(right.OptionalPotionCount);
-        if (comparison != 0) return comparison;
+        // FinalPlanOrdering.Select: PolicyBoundaryRank, then OptionalPotionCount, then StrategicSold.
+        // StrategicSold is the request's committed sold HP plus the route's future sold HP; FlashBeam
+        // keeps no route-level future sold HP, so the key is the same for every route of a request
+        // and is left out.
         comparison = left.BoundaryRank.CompareTo(right.BoundaryRank);
+        if (comparison != 0) return comparison;
+        comparison = left.OptionalPotionCount.CompareTo(right.OptionalPotionCount);
         if (comparison != 0) return comparison;
         comparison = left.EnemyHp.CompareTo(right.EnemyHp);
         if (comparison != 0) return comparison;
