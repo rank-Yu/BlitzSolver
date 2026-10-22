@@ -134,7 +134,45 @@ K6 逐层保留集合对比工具已从当前源码删除（`RetentionDiffProbe`
 
 ### 2.4 无人测试实机部署
 
-Linux 无头整场部署的历次记录（2026-10-19 的初始牌组与第三幕首领，HS、HS2、HS3 的多样化牌组整场）归档在 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md) 第 2 节，最近一轮见 2.2 的 HS4。HS3 与 HS4 的 40 场无头整场使用本地生成的四角色牌组清单；该清单保存在 `.local`，**没有随仓库提交**，因此审阅者无法从仓库逐场复跑同一 40 场，只能按本节方法重建代表场景；仓库内保留的是汇总结果。无人测试请求默认向手牌注入一张 `STRIKE_IRONCLAD`，用显式牌组建局时需传 `--cards-json []`。玩家战死的整场不导出问题包，`[CombatSolver/Flash]` 行从结果目录的 `runtime-events.json` 读取。多个实例并行时共用同一个 `COMBATSOLVER_HEADLESS_HOST_ROOT`：各用一个时，准入会把另一实例的游戏进程当作未登记进程，排队到时限后无结果。
+Linux 无头整场部署的历次记录（2026-10-19 的初始牌组与第三幕首领，HS、HS2、HS3 的多样化牌组整场）归档在 [开启模式接管与实机整场测试记录](../archive/flash-search/testing-batches-2026-10-21.md) 第 2 节，HS4 见 2.2。HS3/HS4 的 40 场使用当时的本地清单，汇总保留在归档卷；从 HL 起，固定 40 根写进已提交的
+[`flash_regression.py headless`](../../tools/search/FlashRegression/README.md#headless) 子命令，审阅者可以从仓库逐场复跑同一组场景。
+
+固定清单是五个角色各 8 根：序号 `000 001 002`（第一幕普通/精英/首领）、`009 010 011`
+（第二幕普通/精英/首领）与 `019 020`（第三幕精英/首领），即 `IRONCLAD-000` … `NECROBINDER-020`；
+`--ids` 可覆盖。每场从 `coverage/corpora/flash-quality/<id>/spec.json` 派生 `mode=Deploy` 的
+`scenario.json`，调用 `tools/testing/run-unattended-test.sh --generated-scenario-path ...`，并传
+`--flash-search-mode-for-test On|Off`（`--mode`，默认 `On`）、`--cards-json []` 与
+`--search-budget-ms 120000`（默认，与质量语料协调器同预算）。生成场景保留原生
+战斗状态，敌人生命是自然值，手牌没有被注入额外的打击。玩家战死记为 `death` 结果，不作为运行失败；
+它的 `result.json` 可能是 `Failed`、启动器退出码为 1，工具用原生结束状态、结束回合与实际最大生命
+记录真实终局，不读取 `solverMetrics.finalHp`。回合准备根在模式覆盖生效前捕获，所以工具在启动前把
+`flashSearchMode` 写入实例的持久设置。
+
+并行与证据：`--lanes N`（默认 2）；所有通道共用同一个 `COMBATSOLVER_HEADLESS_HOST_ROOT`，每条通道
+一个 `.local/headless-instances/<label>-<通道>` 实例，最后一场带 `--cleanup-instance-on-exit` 并检查
+实例目录已删除。每场证据写到 `<out>/<id>/evidence/`（`generated-scenario.*`、`result.json`、
+`runtime-events.json`、`report.zip`/`report/`、`instance-logs/` 等），`SUMMARY.txt` 逐场列出胜负、
+结束回合、真实终局生命、`FLASH_ADOPTED` 与核对通过次数、`FLASH_SEARCH_FAILED`、核对/预览不一致与
+计划外重算，并给出合计和退出码判定。完整参数、`--scenario-baseline` 与退出码见
+[工具说明](../../tools/search/FlashRegression/README.md#headless)。工具只接入 Linux Bash 启动器，
+未接入 Windows `.ps1`。
+
+整轮 40 场（vps4 路径示例；其他机器替换游戏、RitsuLib 与种子档路径）：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py headless \
+  --label hl --lanes 2 --timeout-seconds 600 --search-budget-ms 120000 \
+  --sts2-game-root "$HOME/games/sts2" \
+  --ritsu-workshop-root "$HOME/games/sts2/steamapps/workshop/content/2868840/3747602295" \
+  --xdg-data-home .local/headless-seed/data
+```
+
+本轮两根试跑用 `--ids IRONCLAD-000 SILENT-000 --lanes 2 --timeout-seconds 300
+--search-budget-ms 120000` 与 `--scenario-baseline <主线离线证据根>`：两场均 Passed（第 4/5 回合），
+建出的牌组、遗物、药水与遭遇和
+离线宿主对同一 `spec.json` 的 `generated-scenario.resolved.json`/`loadout.json` 逐字段一致（比较时
+忽略生成模式 `mode`），`SUMMARY.txt` 为 `RESULT PASS`，两个实例目录都已删除。当前机器上的证据在
+`.local/flash-regression/hl-smoke/`；40 场整轮由协调者运行。
 
 ## 3. 已知限制与未验证项
 
@@ -145,4 +183,4 @@ Linux 无头整场部署的历次记录（2026-10-19 的初始牌组与第三幕
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择覆盖卡牌自身的单选、手牌/抽牌堆/弃牌堆选择、回合开始选择、知识恶魔的固定选项与自动打出中的嵌套选择（LR、MB 固定根）；一个动作最多携带 8 个选择，更深的链按容量边界拒绝。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
-- 实机部署只在 Linux 无头游戏中验证（五个角色初始牌组、第三幕首领与 HS/HS2/HS3/HS4 的多样化牌组整场，见 2.4 与归档卷）；未做可见游戏、Windows 或 Steam 会话验证。设置面板的 Flash 档位现有两个选项（关闭/启用），未在可见游戏中查看。
+- 实机部署只在 Linux 无头游戏中验证（五个角色初始牌组、第三幕首领、HS/HS2/HS3/HS4 的多样化牌组整场与 HL 固定 40 根清单，见 2.4 与归档卷）；未做可见游戏、Windows 或 Steam 会话验证。设置面板的 Flash 档位现有两个选项（关闭/启用），未在可见游戏中查看。
