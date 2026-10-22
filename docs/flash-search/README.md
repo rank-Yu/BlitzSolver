@@ -69,6 +69,6 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off / Shadow 的现有�
 
 ## 4. 当前状态
 
-Flash 已接入主搜索分发（Off/Shadow/On），默认 Off。On 只运行 Flash，不回落现有搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它准入、容量、内核与核对失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
+Flash 已接入主搜索分发（Off/Shadow/On），默认 Off。Flash 直接使用玩家所选档位的 Beam 宽度、节点上限与软时间，与常规搜索相同。On 只运行 Flash，不回落现有搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它准入、容量、内核与核对失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
 
 状态布局、容量与尺寸预算见 [状态布局](state-layout.md)；内容定义与结算顺序见 [内核语义](kernel-semantics.md)；角色专属机制与药水/遗物机制分别见 [角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md)；准入与校验合同见 [准入与校验](admission-and-verification.md)。

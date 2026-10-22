@@ -160,8 +160,8 @@ internal sealed record FlashBeamOptions(
 
     /// <summary>
     /// The existing profile's band width (<c>effectiveLimit</c> in <c>RankBest</c>). Zero means the Flash
-    /// layer width. The bridge freezes the request profile's width so the Flash-only 4x width does not
-    /// move the W+1..2W band.
+    /// layer width. The bridge freezes the request profile's width so the W+1..2W band uses the same
+    /// width as the regular search.
     /// </summary>
     public int SecondRankBandWidth { get; init; }
 
