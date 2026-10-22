@@ -22,12 +22,12 @@ Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块
 
 - 受支持战斗上，一次状态转移（复制、执行、指纹）在微秒量级，搜索热路径零托管分配。
 - 与现有引擎严格等价：同一状态执行同一动作，结果投影成 `FlashBattle` 后字节相同。
-- 可选且失败可见：开启模式只由 Flash 搜索，不回落现有后端。只有 Flash 搜索自己判定 `flash-potion-policy-no-route` 时返回现有搜索同形的无路线结果（`PotionPolicyUnsatisfiedException`）；精确层下界不可用只关闭剪枝并继续搜索。物化后两侧对同一药水约束判定不一致（`route-*`/`materialize-potion-policy`）以及不支持的内容、根级容量溢出、内核边界、核对不一致、开发策略与其它根阶段都停止本次搜索/部署，写一个稳定的 `FLASH_SEARCH_FAILED` 事件并进入现有问题包流程。搜索展开中单个子状态的容量溢出只丢弃该分支，回合结束层的容量上界通过压缩继续。
+- 可选且失败可见：开启模式先由 Flash 搜索；只有 `admission-unsupported-content` 与 `admission-unrepresentable-state` 两类准入抛 `FlashFallbackRequiredException`，由协调器写一行 `FLASH_FALLBACK` 后用 `FlashMode = Off` 与换档前的 `RegularProfile` 把整次搜索从头重跑；已经发布路线、采纳种子或预览时不重跑，按失败约定处理。只有 Flash 搜索自己判定 `flash-potion-policy-no-route` 时返回现有搜索同形的无路线结果（`PotionPolicyUnsatisfiedException`）；精确层下界不可用只关闭剪枝并继续搜索。物化后两侧对同一药水约束判定不一致（`route-*`/`materialize-potion-policy`）、根级容量溢出、内核边界、核对不一致、开发策略、未实现请求与其它根阶段都停止本次搜索/部署，写一个稳定的 `FLASH_SEARCH_FAILED` 事件并进入现有问题包流程。搜索展开中单个子状态的容量溢出只丢弃该分支，回合结束层的容量上界通过压缩继续。
 
 非目标：
 
 - 不替代现有模拟器，不改变现有搜索政策的默认行为；默认模式为 Off。
-- 不支持第三方 Mod 内容（AGENTS.md 第 1 节）。根中存在第三方 gameplay 订阅者、BaseLib 卡牌修饰或未登记模型时整场不准入；这些内容在准入阶段按具体对象归入 `admission-unsupported-content`（未定义卡牌/Power/遗物/药水/球/怪物/附魔/苦难或生成闭包），没有单独的第三方类别。
+- 不支持第三方 Mod 内容（AGENTS.md 第 1 节）。根中存在第三方 gameplay 订阅者、BaseLib 卡牌修饰或未登记模型时该请求不准入；这些内容在准入阶段按具体对象归入 `admission-unsupported-content`（未定义卡牌/Power/遗物/药水/球/怪物/附魔/苦难或生成闭包）或 `admission-unrepresentable-state`，随后同一次请求改走常规搜索，没有单独的第三方类别。
 - 不比现有引擎"更正确"。发现现有引擎与原版不一致时，先按 `combat-semantic-change` 修正现有引擎并补差分证据，Flash 再跟随。
 
 ## 2. 总体结构
@@ -41,7 +41,8 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off：CombatBeamSolver.
                                               FlashBeamSolver     在 FlashBattle 上搜索，产出候选路线
                                               FlashRouteMaterializer
                                                                   旧引擎回放候选 → PlanAction / SolverResult
-                                              On：拒绝 → FLASH_SEARCH_FAILED，无路线 → 同形结果
+                                              On：两类准入 → FLASH_FALLBACK → 整次搜索用 Off + RegularProfile 重跑
+                                              On：其余拒绝 → FLASH_SEARCH_FAILED，无路线 → 同形结果
 ```
 
 目录与依赖：
@@ -69,6 +70,6 @@ CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off：CombatBeamSolver.
 
 ## 4. 当前状态
 
-Flash 已接入主搜索分发（Off/On），默认 Off。开启模式使用 Flash 自己的档位预算：低/中/高/极高档的 Beam 宽度与节点上限分别为 180/240/360/540 与 240,000/480,000/1,000,000/2,000,000，软时间与分支上限等其余字段沿用常规档位；关闭模式不变，自定义档位沿用玩家填写的数值。On 只运行 Flash，不回落现有搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它准入、容量、内核与核对失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
+Flash 已接入主搜索分发（Off/On），默认 Off。开启模式使用 Flash 自己的档位预算：低/中/高/极高档的 Beam 宽度与节点上限分别为 180/240/360/540 与 240,000/480,000/1,000,000/2,000,000，软时间与分支上限等其余字段沿用常规档位；关闭模式不变，自定义档位沿用玩家填写的数值。On 先运行 Flash，两类准入拒绝写 `FLASH_FALLBACK` 后用换档前的常规档位重跑整次搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它容量、内核、核对与准入失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
 
 状态布局、容量与尺寸预算见 [状态布局](state-layout.md)；内容定义与结算顺序见 [内核语义](kernel-semantics.md)；角色专属机制与药水/遗物机制分别见 [角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md)；准入与校验合同见 [准入与校验](admission-and-verification.md)。

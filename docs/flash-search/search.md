@@ -38,7 +38,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 - **评分表**：每张已准入的卡牌按（内容 Id, 升级等级）有明确条目；每个 Power 有战略效果分类与参数。旧引擎判定不贡献的项显式记为 0（例如非玩家侧 Power、临时 Power、`StrategicEffectMirrors.Contributes` 为 false 的项）。未移植的逐内容乘数或请求设置在根上以 `FlashRejection.UnsupportedCard` / `UnsupportedRequest` 拒绝，不默认记 0。
 - **选择**：遇到 `NeedsChoice` 时用 `FlashChoiceEnumerator` 按选项规格枚举（选择数量从小到大、同数量按下标字典序），每个请求至多探索 32 个分支；每个被执行的分支都是精确的，上限只限制探索面。旧引擎按估值排序挑分支（`MaxPile/HandChoiceBranchesPerAction`），当前实现尚未移植这套排序。
 - **药水**：Bridge 在根上取现有搜索的药水约束（`CapturePotionPolicyForFlash`：最早回合、最多使用次数），并把 `PotionStrategySnapshot`、有效政策与 `Disabled` 覆盖一起冻结进 `FlashPotionPolicy`；未设置时不使用药水。FlashBeam 对槽位中当前任何可搜索药水生成动作，按现有 `AllowsPotionUse` 的（槽位，药水身份）门 `PotionStrategySnapshot.AllowsExplicitUse` 判断，因此搜索中生成的药水与根药水使用同一规则，而不是只对仍是根上原药水的槽位生成。旧引擎的 `Score` 不含药水成本，因此非审计请求在**排序值**上额外减去已用药水的战略成本（`SolverWeights.Hp` 计价）；这是 Flash 特有的项，节点分数与终局比较仍用 `Features(...).Score`。审计请求（`AuditPotionPolicy` 且精确层 `MinimumPotionUses > 1`）的排序值直接使用现有 `BeamRankScore`：该层必须使用多瓶药，Flash 特有的成本罚项会把必需路线排到尚未用药的状态之后；成本仍由终局 `FinalPlanOrdering` 计入。单药审计层保留该罚项，避免改变既有的 1 药路线。固定前缀已经用掉的药水不在这段槽位差里：Bridge 把搜索根快照的累计 `PotionUseCount`/`PotionStrategicCost`/`ExplicitPotionStrategicCost` 与自动用药次数冻结进 `FlashScoreRules` 和 `FlashBoundFeatures`，评估与下界再加回这些前缀计数；`ExplicitPotionUseCount` 是新增的 K4 字段。`ExplicitPotionUseCount` 同时计入根槽位消耗与搜索中生成的用药（`GeneratedPotionUseCount`）；节点记录每次用药的实际药水身份，强制指令与 Ambergris 计数按身份匹配，生成的同身份药水也计入。导入搜索根时 `FlashStateImporter.ImportPotions` 按搜索根的累计 `PotionUseCount` 跳过前缀已消费的用药记录，只把搜索根之后的用药计入 `GeneratedPotionUseCount`/`GeneratedPotionStrategicCost`；否则前缀用药会同时出现在 `Initial*` 与 generated 计数里，精确用药层会看到多一次。`DropletOfPrecognition` 的抽牌堆选牌（现有引擎 `PotionChoiceSupport` 的 `MoveToHand`/`Draw` 精确选择）已在内核里请求选择并按 `AddToPile(Bottom)` 移动；`LiquidMemories`（弃牌堆 → 本回合免费回手）、`Ashwater`（手牌 0..N 消耗）、`GamblersBrew`（手牌 0..N 弃置再抽）与 `TouchOfInsanity`（手牌中耗能/耗星卡本场免费）按 `PotionChoiceSupport.GetSpec/Apply` 的选项、来源牌堆、数量与效果实现，空选项也发一个零选选择请求；Bridge 的 `TryBuildPotionChoice` 对所有 `PotionChoiceSupport.RequiresChoice` 药水从探测回放构造 `PlanAction.Choice`。
-- **精确用药层（Smart 审计）**：`SmartPotionGradient` 与 `SmartOpeningPotionPosterior` 请求由 FlashBeam 搜索时，`FlashBeamOptions.AuditPotionPolicy` 打开现有 `FinalPlanOrdering.Select` 的移植：按 `minimumPotionUses`/`MaximumPotionUses` 过滤，`RequireAtLeastOne` 的 `PotionUsePolicy.IsEligible`、`PotionFreePolicyBaseline`、死亡保护、Ambergris 限制，并按同一次序（含 `PolicyHpDeficit`）选路线。精确层的显式用药计数包含搜索中生成的用药，槽位动作按当前药水身份判断，不再要求等于根药水。找不到满足策略的路线时返回 `PotionPolicySatisfied=false`，由分发点转成与现有搜索同形的 `PotionPolicyUnsatisfiedException`（规则 1）；这是无路线结论，不回落、也不算失败事件。`_smartPotionEligibilityHpCeiling` 由现有构造函数的共享静态入口计算，Flash 在每次保路后按已由 K5 核对的 `FlashBoundValues` 逐状态剪枝（组件证书未知的分支保留）。药水前缀会先由现有引擎 `ApplyFixedPrefix` 回放，因此前缀可以以药水开头。强制使用、最早药水回合、`RequireAtLeastOne` 与计划承诺也由 Flash 执行（见 3.1 与分发点）。
+- **精确用药层（Smart 审计）**：`SmartPotionGradient` 与 `SmartOpeningPotionPosterior` 请求由 FlashBeam 搜索时，`FlashBeamOptions.AuditPotionPolicy` 打开现有 `FinalPlanOrdering.Select` 的移植：按 `minimumPotionUses`/`MaximumPotionUses` 过滤，`RequireAtLeastOne` 的 `PotionUsePolicy.IsEligible`、`PotionFreePolicyBaseline`、死亡保护、Ambergris 限制，并按同一次序（含 `PolicyHpDeficit`）选路线。精确层的显式用药计数包含搜索中生成的用药，槽位动作按当前药水身份判断，不再要求等于根药水。找不到满足策略的路线时返回 `PotionPolicySatisfied=false`，由分发点转成与现有搜索同形的 `PotionPolicyUnsatisfiedException`（无路线约定）；这是无路线结论，不回落、也不算失败事件。`_smartPotionEligibilityHpCeiling` 由现有构造函数的共享静态入口计算，Flash 在每次保路后按已由 K5 核对的 `FlashBoundValues` 逐状态剪枝（组件证书未知的分支保留）。药水前缀会先由现有引擎 `ApplyFixedPrefix` 回放，因此前缀可以以药水开头。强制使用、最早药水回合、`RequireAtLeastOne` 与计划承诺也由 Flash 执行（见 3.1 与分发点）。
 - **早停**：照抄现有搜索的两种早停：HP 目标（请求可在 HP 目标处停止、且不要求显式药水时，一次无死亡豁免、显式药水不超过额度、本场已失血加路线失血不超过可接受值的完整胜利，在下一个父节点之前结束搜索）与零伤害（胜利且未失血、未用显式药水、满血且最大生命未减少时，当前回合结束后停止）。
 - **incumbent 下界剪枝**：移植现有主搜索成员的局部 HP 下界（`CombatBeamSolver.Retention.cs` 的 `CanUseLocalPrimaryHpBound`、`IsLocalPrimaryHpBucket`、`ApplyPrimaryIncumbentBound`/`ApplyPrimaryIncumbentBoundCore`、`ShouldPruneByPrimaryIncumbent`、`TryTightenPrimarySearchIncumbent`、`TightenPrimarySearchIncumbentAtTurnLayer`）。`FlashBoundFeatures` 在根上冻结 `FutureHealPotential`、`HasRisk`、剩余治疗额度（Component/KnownNative 证书）、战略首领减伤与初始 incumbent；求值只读 `FlashBattle` 和冻结表。终局完整胜利在提交时收紧 incumbent（与现有搜索的同一层 Prune 对齐）；现有搜索的回合结束收紧作用于同一批已提交的 `completed` 终局，Flash 在提交时已经收紧，因此不重复。每个动作层保留之后与回合边界保留之后各剪一次；被剪掉的席位不补。参数沿用现有语义：`allowTurnTieBound` 由 `costClosed` 门控，`pruneEqualHp` 只对非终局、无风险且药水成本闭合的节点生效，`costClosed` 读 `ExplicitPotionStrategicCost`。某个下界输入在 Flash 上无法精确给出时该根整体禁用剪枝，汇总行写 `bound=disabled(<原因>)`，不使用近似值。共享的 `PrimaryIncumbents` 表不接入；初始 `PrimaryIncumbent` 由请求传入并按 `FlashBattle.PlayerTurn` 相对根的偏移换算。
 - **容量边界（分支级）**：搜索展开中的容量溢出按“一个子状态装不下”处理，只丢弃该子状态并继续：内核执行动作时的状态级写入（卡牌、Power、已知敌人、遗物、充能球、`DetachedCards`、小数卡牌变量、费用修饰、选择选项、动作选择链、`FlashExec` 的暂存队列等）、动作执行后的评分，以及提交到非累积池，全部在 `ExpandAction` 的同一个边界内捕获 `FlashCapacityException`；一次选择请求的某个选项分支溢出只丢弃该分支，同请求的其余选项照常展开。诊断按容量区块分别计数（`FlashBeamResult.CapacityDroppedChildren`，日志 `flash_capacity_dropped=Cards:1,Powers:2`，合计仍在 `flash_capacity_pruned`）。这与节点预算同类，是搜索边界而不是模拟错误；采用的路线仍逐步核对。**根状态本身**装不下仍是导入拒绝：`FlashStateImporter`/根评分在展开循环之前抛出的容量溢出与 `FlashUnsupportedException` 一样让整次 Flash 尝试失败，开启模式写 `FLASH_SEARCH_FAILED reason=kernel-capacity` 并停止部署，不回落。
@@ -64,7 +64,7 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 固定前缀续接在导入前先用同一 `ApplyFixedPrefix` 规则回放请求前缀（`OpeningProbe.ReplayFixedPrefixForFlash` / `SearchReplayCore`），把前缀末尾状态作为 Flash 搜索根；步骤 1 从该状态开始核对，步骤 2 的前缀是“请求前缀 + Flash 路线”，由共享物化器从请求根完整回放。
 
-**回合准备根（`IncludeTurnSetup`）**：玩家回合开始的原生选择页在根捕获时还没有作答，捕获的根是 `Player/Start`。Bridge 不把该 Start 状态导入内核，而是先调用共享 `SearchReplayCore.CaptureTurnSetupRoots`（`ChoiceSearchBudget`/`ChoiceOccurrenceCollector` 的唯一实现），按与现有搜索**完全相同的选择预算**把每个准备选择分支回放到稳定 `Play` 状态，再逐个导入 `FlashBattle`。`FlashBeamSolver.Solve` 接收这组根（现有搜索的 frontier 同样从多个准备根出发），返回选中路线的 `BestRootIndex`；路线本身从 `Play` 状态开始，准备选择不占动作数。物化时把选中的 `PlanCardChoice` 向量作为根节点元数据交给共享 `SearchRouteMaterializer`，由它从准备选择后的稳定 `Play` 根回放固定前缀；结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与现有语义同形。物化后逐项核对选择向量，不一致按 `FlashVerificationException` 整条丢弃。准备根在回合开始的生成效果之前捕获，在这些时机生成卡牌的定义（如 `BigHat`、`VexingPuzzlebox`）必须声明 `GeneratedCardPools`，闭包才含其候选卡。回合准备搜索的 Flash 失败与协调器搜索同一约定：写 `FLASH_SEARCH_FAILED`、停止部署、关闭全自动并弹出 Flash 提示，原生选择留给玩家作答。
+**回合准备根（`IncludeTurnSetup`）**：玩家回合开始的原生选择页在根捕获时还没有作答，捕获的根是 `Player/Start`。Bridge 不把该 Start 状态导入内核，而是先调用共享 `SearchReplayCore.CaptureTurnSetupRoots`（`ChoiceSearchBudget`/`ChoiceOccurrenceCollector` 的唯一实现），按与现有搜索**完全相同的选择预算**把每个准备选择分支回放到稳定 `Play` 状态，再逐个导入 `FlashBattle`。`FlashBeamSolver.Solve` 接收这组根（现有搜索的 frontier 同样从多个准备根出发），返回选中路线的 `BestRootIndex`；路线本身从 `Play` 状态开始，准备选择不占动作数。物化时把选中的 `PlanCardChoice` 向量作为根节点元数据交给共享 `SearchRouteMaterializer`，由它从准备选择后的稳定 `Play` 根回放固定前缀；结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与现有语义同形。物化后逐项核对选择向量，不一致按 `FlashVerificationException` 整条丢弃。准备根在回合开始的生成效果之前捕获，在这些时机生成卡牌的定义（如 `BigHat`、`VexingPuzzlebox`）必须声明 `GeneratedCardPools`，闭包才含其候选卡。回合准备搜索的 Flash 回调约定与协调器搜索相同：两类准入拒绝写 `FLASH_FALLBACK` 后改用常规搜索，其余失败写 `FLASH_SEARCH_FAILED`、停止部署、关闭全自动并弹出 Flash 提示，原生选择留给玩家作答。
 
 实现在 `src/Flash/Bridge/FlashRouteMaterializer.cs`、`src/Search/Probes/SearchReplayCore.cs` 与 `src/Search/Probes/SearchRouteMaterializer.cs`。
 
@@ -110,14 +110,26 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 
 `SmartOpeningPotionPosterior` 续接也交给 Flash。原先把“非 Smart 政策”和“根无可搜索药水”当作 `potion-audit-boundary:*` 的语义边界已删除：这两种情况下现有求解器执行的就是带同一上下界/基线的普通请求，Flash 执行同一请求；无药可审计时 Flash 与现有求解器同为无路线，后者按既有 `PotionPolicyUnsatisfiedException` 结束。
 
-### 3.2 开启模式的无路线与失败处理
+### 3.2 开启模式的改用常规搜索、无路线与失败处理
 
-开启模式（`FlashMode == On`）只运行 Flash，`SolveExisting`/`SolveExistingContinuation` 不会在该模式执行，因此不再有 `FLASH_LEGACY` 行；该类一并删除。`FlashMode == Off` 只跑现有求解器。
+开启模式（`FlashMode == On`）先运行 Flash；`FlashMode == Off` 只跑现有求解器，`FLASH_LEGACY` 行与类已删除。
 
-分发点按以下两类处理未采用的结果：
+分发点按以下三类处理未采用的结果：
 
-1. **无路线（接受 Flash 结论）**：只有 `ConstraintFailure=flash-potion-policy-no-route` 时，不搜索、不回落，抛出现有调用方已经处理的 `PotionPolicyUnsatisfiedException`（同一异常类型），并写一行 `FLASH_NO_ROUTE reason=flash-rejected:flash-potion-policy-no-route detail=<原因>`。它不算失败事件。精确层下界输入不可用（`smart-potion-bound unavailable`）只关闭下界剪枝，搜索照常继续，不是无路线。
-2. **显式失败（停止部署）**：写一行稳定事件并抛出 `FlashSearchFailedException`：
+1. **改用常规搜索（整次协调器搜索重跑）**：只有两类准入拒绝进入本路径——`admission-unsupported-content`（卡牌、Power、遗物、药水、球、怪物、附魔、苦难或生成闭包没有 Flash 定义）与 `admission-unrepresentable-state`（第三方订阅者、未登记模型等状态无法投影）。`BeamSolveDispatch` 不自己构造常规求解器，而是抛出 Search 层的 `FlashFallbackRequiredException`（携带 `FlashFallbackNotice`）；`CombatSearchCoordinator.Solve` 只捕获这一个异常类型。捕获后先确认这次 Flash 尝试还没有向调用方发布可采用路线、路线采纳种子或路线预览，再写一行 `FLASH_FALLBACK`，并用 `FlashMode = Off`、`Profile = SearchPolicySnapshot.RegularProfile` 把整次协调器搜索从头跑一遍；新尝试新建自己的请求时钟与预算账本，使用同一个 `cancellationToken`。不停止部署、不关闭全自动、不导出失败问题包。`RegularProfile` 由 `SolverSettings.ApplyFlashPerformance` 在换档时保存（自定义档位两者相同）；开启模式缺少该字段时显式失败，不按 Flash 档位或比例缩放兜底。Runtime 主搜索与回合准备搜索都从同一个 `CombatSearchCoordinator.Solve` 入口进入。
+
+   如果被放弃的 Flash 尝试已经发布了可采用路线、采纳种子或路线预览，则不重跑：按原失败约定写 `FLASH_SEARCH_FAILED reason=<同一类别>` 并抛 `FlashSearchFailedException`，避免两次尝试的结果混在一起。准入只取决于根内容（含生成闭包），实际回落都发生在第一个 Flash 请求、发布任何结果之前；协调器仍保留这条发布检查，防止以后有请求形态在发布后才触发准入。
+
+   每次协调器搜索最多写一行：
+
+```
+[CombatSolver/Flash] FLASH_FALLBACK reason=<类别> detail=<第一个不支持的内容或状态> purpose=<用途>
+```
+
+   `detail` 取准入异常的原始 detail（内容 ID 或状态描述）。同一个 `SearchDiagnosticsSink` 同时向 Runtime 发布 `FlashFallbackNotice`：每场战斗最多提示一次“本场有 Flash 尚未支持的内容（<游戏内名称>），改用常规搜索”，名称由 Runtime 在 UI 层按内容 ID 取游戏内本地化名、取不到时用内容 ID；提示走现有消息横幅，不打断或阻塞部署。每次搜索的改用另记入问题包的 `FlashFallback` 分类（类别与内容），但不触发上传建议、不新建问题包。普通提示失败不影响已经采用的常规搜索结果。
+
+2. **无路线（接受 Flash 结论）**：只有 `ConstraintFailure=flash-potion-policy-no-route` 时，不搜索、不回落，抛出现有调用方已经处理的 `PotionPolicyUnsatisfiedException`（同一异常类型），并写一行 `FLASH_NO_ROUTE reason=flash-rejected:flash-potion-policy-no-route detail=<原因>`。它不算失败事件。精确层下界输入不可用（`smart-potion-bound unavailable`）只关闭下界剪枝，搜索照常继续，不是无路线。
+3. **显式失败（停止部署）**：写一行稳定事件并抛出 `FlashSearchFailedException`：
 
 ```
 [CombatSolver/Flash] FLASH_SEARCH_FAILED reason=<类别> detail=<首个差异/拒绝原因>
@@ -133,11 +145,12 @@ FlashBeam 在 `FlashBattle` 上做按回合分层的 Beam 搜索，产出候选�
 | `potion-policy-mismatch` | Flash 选出并物化的路线被 `FlashPotionBridge.VerifyRoute`（`route-*`）或现有 `FinalPlanOrdering`（`materialize-potion-policy`）判定不满足请求的药水约束；两侧过滤口径不一致 |
 | `admission-multiplayer` | 准入拒绝多人专用内容 |
 | `admission-test-content` / `admission-deprecated-content` | 准入拒绝 Mock 测试内容 / 废弃内容 |
-| `admission-unsupported-content` | 未定义的卡牌、Power、遗物、药水、球、怪物、附魔、苦难或生成闭包 |
 | `admission-unsupported-request` | 固定前缀/准备根无法回放，或其它 Flash 未实现的请求形态 |
-| `admission-capacity` / `admission-unrepresentable-state` / `admission-pending-choice` / `admission-other` | 其余准入类别 |
+| `admission-capacity` / `admission-pending-choice` / `admission-other` | 其余准入类别 |
 
-Search 只通过注入的 `SearchDiagnosticsSink` 写事件并抛异常，不引用 Runtime/UI/logger。Runtime 沿用现有失败搜索路径：停止本回合部署、取消部署会话、清理搜索会话与待用基线、关闭全自动、记录问题包分类（`FlashSearchFailed` + 原 `SearchFailure`）、弹出中英文提示并通知无人测试 `Failed`。无人测试结果在 `failureCategory` 字段带同一 `reason` token。
+`admission-unsupported-content` 与 `admission-unrepresentable-state` 不在上表：它们是第 1 类的改用常规搜索，不是失败事件。
+
+Search 只通过注入的 `SearchDiagnosticsSink` 写事件、发布改用记录并抛异常，不引用 Runtime/UI/logger。Runtime 对改用只刷新提示与问题包分类；对显式失败沿用现有失败搜索路径：停止本回合部署、取消部署会话、清理搜索会话与待用基线、关闭全自动、记录问题包分类（`FlashSearchFailed` + 原 `SearchFailure`）、弹出中英文提示并通知无人测试 `Failed`。无人测试结果在 `failureCategory` 字段带同一 `reason` token。
 
 原 `potion-audit-boundary:*` 与 `can-take-over:*` 原因码已删除：这些请求现在由 Flash 执行同一请求，或（非法药水上下界）按参数校验抛出同一异常。仅有的无路线结论仍是药水策略/审计没有可接受路线；仅有的显式拒绝是上表。
 
@@ -155,33 +168,34 @@ Search 只通过注入的 `SearchDiagnosticsSink` 写事件并抛异常，不引
 
 Flash 桥接、固定前缀回放、回合准备根与最终物化都已改用 `src/Search/Probes/` 的共享回放核心、`OpeningProbe`、`SearchEvaluator` 和 `SearchRouteMaterializer`；`src/Flash/Search/**` 与 `src/Flash/Bridge/**` 不引用 `CombatBeamSolver`，结构门禁同时检查这一点。
 
-仍构造原求解器的位置只有分发点的关闭模式：
+仍构造原求解器的位置只有 Off 模式，以及 On 模式改用常规搜索后的整次协调器重跑：
 
 | 位置 | 依赖 | 归属 |
 | --- | --- | --- |
-| `BeamSolveDispatch.cs` | Off 只跑现有求解器 | 原搜索代码保留给关闭模式，后续删除原搜索的 PR 再处理 |
+| `BeamSolveDispatch.cs` | Off 跑现有求解器；On 遇到 `admission-unsupported-content` / `admission-unrepresentable-state` 抛 `FlashFallbackRequiredException`，不构造原求解器 | 原搜索代码保留给关闭模式，后续删除原搜索的 PR 再处理 |
+| `CombatSearchCoordinator.FlashFallback.cs` | 只捕获 `FlashFallbackRequiredException`，写一次 `FLASH_FALLBACK` 后用 `FlashMode = Off` 与 `RegularProfile` 重新进入 `SolveOnce`；发布过结果时不重跑，改抛 `FlashSearchFailedException` | 重跑点与发布判定留在协调器 |
 
-开启模式没有原搜索构造点，也没有 `FLASH_LEGACY`。
+开启模式没有自己的 `FLASH_LEGACY` 行；改用常规搜索时重跑出来的常规求解器写它原有的日志与结果。
 
 `CombatBeamSolver.Flash.cs` 中的参考入口只服务离线差分探针（测试工具），不参与 Flash 生产路径；`OpeningProbe`、共享回放核心、三个开局续接来源与协调器探针调用点不在此表。
 
 ## 4. BeamSolveDispatch 与模式
 
-`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam`、`SmartPotionGradient`、协调器直接审计点 `PotionFreeAudit`、`RequiredPotionAudit`、`NarrowOpeningIncumbent`、`TurnBoundaryDiscovery`、新颖度探索 `NoveltyExploration`、自适应新颖度精炼 `AdaptiveNoveltyRefinement` 与早期回合侦察 `EarlyTurnScout` 都查看 `FlashMode`；Off 直接使用 `CombatBeamSolver`，On 不再构造它。回合准备根（`Player/Start` + `IncludeTurnSetup`）由 Flash 接管；其它根阶段在 On 模式是 `root-phase` 显式失败。`SecondRankBand`、`AggressivePowerCommitment` 与 `BaseScoreOnly` 已由 FlashBeam 执行，分发点不再因它们保留原搜索；带药水上下界与 `RequireAtLeastOne` 的计划成员同样交给 Flash。`RunForcedPotionOpeningRescue` 的三个剖面变体都经 `BeamSolveDispatch.Solve`。`NarrowOpeningIncumbent`、`EarlyTurnScout` 与两个新颖度成员也直接使用请求 profile 的宽度、节点上限与时限：窄开局使用协调器构造的 1/16 宽度 pilot，侦察与新颖度成员使用协调器已缩小的 profile。次段成员使用 profile W 作次段边界；多个回合准备根作为同一首层的并列根送入 `Solve(IReadOnlyList<FlashBattle>)`。计划成员与计划阶段的任意正深度侦察同样查看 `FlashMode`。
+`src/Search/BeamSolveDispatch.cs` 是唯一分发点。协调器 `RunSearchPass` 的 `SolveMember` 把参数打包为 `BeamSolveRequest` 交给 `BeamSolveDispatch.Solve`；`FrontierContinuationScheduler` 的 `Dispatch`/`DispatchOptional` 把 `ContinuationSearchRequest` 交给 `BeamSolveDispatch.SolveContinuation`。`PrimaryBeam`、`RefinementBeam`、`SmartPotionGradient`、协调器直接审计点 `PotionFreeAudit`、`RequiredPotionAudit`、`NarrowOpeningIncumbent`、`TurnBoundaryDiscovery`、新颖度探索 `NoveltyExploration`、自适应新颖度精炼 `AdaptiveNoveltyRefinement` 与早期回合侦察 `EarlyTurnScout` 都查看 `FlashMode`；Off 直接使用 `CombatBeamSolver`，On 在两类准入拒绝时只抛 `FlashFallbackRequiredException`，由 `CombatSearchCoordinator.Solve` 把整次搜索改为 Off + `RegularProfile` 重跑。回合准备根（`Player/Start` + `IncludeTurnSetup`）由 Flash 接管；其它根阶段在 On 模式是 `root-phase` 显式失败。`SecondRankBand`、`AggressivePowerCommitment` 与 `BaseScoreOnly` 已由 FlashBeam 执行，分发点不再因它们保留原搜索；带药水上下界与 `RequireAtLeastOne` 的计划成员同样交给 Flash。`RunForcedPotionOpeningRescue` 的三个剖面变体都经 `BeamSolveDispatch.Solve`。`NarrowOpeningIncumbent`、`EarlyTurnScout` 与两个新颖度成员也直接使用请求 profile 的宽度、节点上限与时限：窄开局使用协调器构造的 1/16 宽度 pilot，侦察与新颖度成员使用协调器已缩小的 profile。次段成员使用 profile W 作次段边界；多个回合准备根作为同一首层的并列根送入 `Solve(IReadOnlyList<FlashBattle>)`。计划成员与计划阶段的任意正深度侦察同样查看 `FlashMode`。
 
 模式由 `SearchPolicySnapshot.FlashMode` 冻结，主线程从设置 `SolverSettingsData.FlashSearchMode` 读取（设置 > 性能 > 搜索预算 >「Flash 快速搜索（实验）」）。离线宿主可用 `OFFLINE_HARNESS_FLASH_MODE=Off|On` 覆盖。旧设置文件、检查点与问题包中记录的 `Shadow`（字符串或任何数值形式）在读取时归一化为 Off，`On` 的序列化值仍是字符串 `On`。
 
 | 模式 | 行为 |
 | --- | --- |
 | Off（默认） | 只用旧后端 |
-| On | 只跑 Flash；成功记 `FLASH_ADOPTED`；药水策略无路线按现有 `PotionPolicyUnsatisfiedException` 形状返回；其它拒绝记 `FLASH_SEARCH_FAILED` 并停止部署，绝不改跑旧后端 |
+| On | 先跑 Flash；成功记 `FLASH_ADOPTED`；`admission-unsupported-content` / `admission-unrepresentable-state` 记 `FLASH_FALLBACK` 后把同一请求改走常规搜索；药水策略无路线按现有 `PotionPolicyUnsatisfiedException` 形状返回；其它拒绝记 `FLASH_SEARCH_FAILED` 并停止部署 |
 
 请求的初始 `PrimaryIncumbent` 是只读输入，On 按同一请求值传给 FlashBeam；Flash 不写共享 `PrimaryIncumbents` 表，因此收紧只影响本次 Flash 搜索。
 
-日志行前缀为 `[CombatSolver/Flash]`。主搜索成员行写 `purpose=<DirectSearchPurpose>`；续接的采用行写 `purpose=<ContinuationPurpose> prefix=<前缀动作数>`。行内 `incumbent=<战略失血差>@<结束回合>` 是请求传入的初始 incumbent（`-` 表示没有）。Flash 段的 `status` 取 `verified`、`rejected`（带准入拒绝原因）、`mismatch`（带首个不一致步）或 `boundary`（Flash 搜索中途到达内核不建模的状态，或根级容量装不下）；`verified` 段记录耗时、胜负、HP、`hp_lost`、`end_turn`、各阶段耗时以及 FlashBeam 节点与转移数，并记录 `flash_capacity_dropped`（按容量区块的子状态丢弃）、`flash_ended_compactions`/`flash_ended_dropped`（回合结束层压缩次数与被压缩掉的子状态）以及 `flash_yields`/`flash_frame_waits`/`flash_frame_wait_ms`/`flash_max_gc_pause_ms`（pacer 让出与帧恢复）。有进度回调的 Flash 求解结束时另写 `FLASH_PROGRESS_STATS events=<进度数> previews=<预览回放次数> skips=<跳过的预览数> mismatches=<翻译不一致的预览数> preview_ms=<物化总耗时>`；一次求解中第一次翻译不一致另写 `FLASH_PREVIEW_MISMATCH step=<步> detail=<消息> route=<至该步的动作> oldHand=<旧引擎手牌> flashHandIndex=<Flash 下标>`，之后只计数；路线核对失败时写 `FLASH_VERIFY_STEP` 与 `FLASH_VERIFY_BEFORE`（分歧步的动作、计划与核对前状态）；路线变化时（最多每 2 秒）写 `FLASH_PROGRESS candidate=<版本> turn=<回合> ...`，接管检查点写 `FLASH_TAKEOVER kind=<种类> seed=<版本> stop_after_result=<bool>` 与 `FLASH_TAKEOVER_MATERIALIZED kind=<种类> scope=<结果范围> actions=<动作数>`。
+日志行前缀为 `[CombatSolver/Flash]`。主搜索成员行写 `purpose=<DirectSearchPurpose>`；续接的采用行写 `purpose=<ContinuationPurpose> prefix=<前缀动作数>`。每次协调器搜索改用常规搜索时写一行 `FLASH_FALLBACK reason=<类别> detail=<第一个不支持的内容或状态> purpose=<用途>`，随后由重跑出来的常规搜索写自己的日志（该次搜索没有 `FLASH_ADOPTED`）。行内 `incumbent=<战略失血差>@<结束回合>` 是请求传入的初始 incumbent（`-` 表示没有）。Flash 段的 `status` 取 `verified`、`rejected`（带准入拒绝原因）、`mismatch`（带首个不一致步）或 `boundary`（Flash 搜索中途到达内核不建模的状态，或根级容量装不下）；`verified` 段记录耗时、胜负、HP、`hp_lost`、`end_turn`、各阶段耗时以及 FlashBeam 节点与转移数，并记录 `flash_capacity_dropped`（按容量区块的子状态丢弃）、`flash_ended_compactions`/`flash_ended_dropped`（回合结束层压缩次数与被压缩掉的子状态）以及 `flash_yields`/`flash_frame_waits`/`flash_frame_wait_ms`/`flash_max_gc_pause_ms`（pacer 让出与帧恢复）。有进度回调的 Flash 求解结束时另写 `FLASH_PROGRESS_STATS events=<进度数> previews=<预览回放次数> skips=<跳过的预览数> mismatches=<翻译不一致的预览数> preview_ms=<物化总耗时>`；一次求解中第一次翻译不一致另写 `FLASH_PREVIEW_MISMATCH step=<步> detail=<消息> route=<至该步的动作> oldHand=<旧引擎手牌> flashHandIndex=<Flash 下标>`，之后只计数；路线核对失败时写 `FLASH_VERIFY_STEP` 与 `FLASH_VERIFY_BEFORE`（分歧步的动作、计划与核对前状态）；路线变化时（最多每 2 秒）写 `FLASH_PROGRESS candidate=<版本> turn=<回合> ...`，接管检查点写 `FLASH_TAKEOVER kind=<种类> seed=<版本> stop_after_result=<bool>` 与 `FLASH_TAKEOVER_MATERIALIZED kind=<种类> scope=<结果范围> actions=<动作数>`。
 
-根上的准入拒绝（`FlashImportException`）以结果形式返回；核对不一致（`FlashVerificationException`，包括路线中途旧引擎状态无法投影）丢弃整条 Flash 路线。Flash 搜索中途抛出的 `FlashUnsupportedException`（例如卡牌变量出现内核无法表示的小数偏移）是派生内核的边界。在 On 模式，准入拒绝、核对不一致与内核边界都转换为第 3.2 节的一行 `FLASH_SEARCH_FAILED` 加 `FlashSearchFailedException`，停止搜索与部署。子状态级的 `FlashCapacityException` 已在 `FlashBeamSolver` 内按分支丢弃，不产生 `boundary`；只有在展开循环之前（根导入或根评分）抛出的容量溢出是 `kernel-capacity` 显式失败。其他异常视为 Flash 缺陷，向上抛出并中止本次搜索。
+根上的准入拒绝（`FlashImportException`）以结果形式返回；核对不一致（`FlashVerificationException`，包括路线中途旧引擎状态无法投影）丢弃整条 Flash 路线。Flash 搜索中途抛出的 `FlashUnsupportedException`（例如卡牌变量出现内核无法表示的小数偏移）是派生内核的边界。在 On 模式，只有 `admission-unsupported-content` 与 `admission-unrepresentable-state` 抛 `FlashFallbackRequiredException`，由第 3.2 节的协调器重跑用常规档位从头搜索；其余准入拒绝、核对不一致与内核边界都转换为第 3.2 节的一行 `FLASH_SEARCH_FAILED` 加 `FlashSearchFailedException`，停止搜索与部署。子状态级的 `FlashCapacityException` 已在 `FlashBeamSolver` 内按分支丢弃，不产生 `boundary`；只有在展开循环之前（根导入或根评分）抛出的容量溢出是 `kernel-capacity` 显式失败。其他异常视为 Flash 缺陷，向上抛出并中止本次搜索。
 
-`SolvedRouteCache` 的键记录 `FlashRoutes = (FlashMode == On)`；Off 共用不含 Flash 路线的缓存。
+`SolvedRouteCache` 的键记录 `FlashRoutes = (FlashMode == On)`；Off 共用不含 Flash 路线的缓存。On 模式改用常规搜索得到的结果按请求政策计入 On 缓存，但结果本身没有 Flash 工作字段。
 
 设置项的玩家文案同时维护中文与英文（`ui-localization`）。

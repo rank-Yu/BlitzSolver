@@ -21,6 +21,14 @@ python3 -B tools/search/FlashRegression/flash_regression.py <子命令> [参数]
 python3 -B tools/search/FlashRegression/flash_regression.py compat --label flash-compat
 ```
 
+开启模式准入改用合同（同一根上 Off 路线、On 整次改用常规搜索后的路线/质量/工作量逐项相同；On 正常搜索日志恰好一行 `FLASH_FALLBACK`、不写 `FLASH_SEARCH_FAILED`；把常规求解器强制套上 Flash 档位会改变工作量；已发布路线/采纳种子时不再重跑；未登记搜索用途仍以 `admission-unsupported-request` 失败）：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py fallback --label flash-fallback --jobs 8
+```
+
+固定输入为 `coverage/fixtures/search/flash-fallback-soulbound-power.json`：玩家携带原版尚无 Flash 定义的 `SOULBOUND_POWER`，根展开量明显超过常规 Beam 宽度。合同在同一个离线宿主进程里通过 `CombatSearchCoordinator.Solve` 跑 Off、On、常规模式 + Flash profile 的敏感性对照，以及一条带预置路线采纳种子的已发布回落；`BeamSolveDispatch` 只用于未登记用途的失败断言。检查 JSON 为 `flash-fallback-checks.json`。
+
 纯内核合同（K0）与两次构建：
 
 ```bash
@@ -220,9 +228,44 @@ python3 -B tools/search/FlashRegression/flash_regression.py headless \
 
 两条通道合计约 25 分钟（本轮 40 + 80 两段）。
 
+### 2.5 FB：准入改用常规搜索（2026-10-22）
+
+开启模式只对 `admission-unsupported-content` 与 `admission-unrepresentable-state` 两类准入让
+**整次协调器搜索**改用常规档位重跑；其余失败类别不变。`BeamSolveDispatch` 只抛
+`FlashFallbackRequiredException`，`CombatSearchCoordinator.Solve` 写一行 `FLASH_FALLBACK` 后用
+`RegularProfile` 从头搜索；发布过结果时不重跑。固定输入
+`coverage/fixtures/search/flash-fallback-soulbound-power.json` 在玩家侧注入原版尚无 Flash 定义的
+`SOULBOUND_POWER`，根展开量超过常规 Beam 宽度，同一根上 Off/On 都走常规求解器。复跑：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py fallback --label flash-fallback --jobs 8
+python3 -B tools/search/FlashRegression/flash_regression.py coordinator \
+  --label fb-on120 --off-baseline <主线 off120-base> --jobs 8
+```
+
+- Release 构建 0 警告；K0 `contracts=Passed`；结构、文档、工具、覆盖四项门禁通过。
+- `fallback` 合同：`status=Passed`；常规 profile 为 45 / 5,000，Flash profile 为 180 / 240,000。
+  Off 与 On 的路线、质量、`ExpandedNodes`/`TransitionCount` 均为 1843 / 5855；同一常规求解器
+  强制套上 Flash profile 为 6203 / 17954，敏感性成立。On 正常搜索日志恰好一行
+  `[CombatSolver/Flash] FLASH_FALLBACK reason=admission-unsupported-content
+  detail=SOULBOUND_POWER purpose=PrimaryBeam`，不写 `FLASH_SEARCH_FAILED`；预置路线采纳种子后
+  回落不再重跑，改写 `FLASH_SEARCH_FAILED reason=admission-unsupported-content`；同样本上未登记
+  `DirectSearchPurpose` 仍以 `FLASH_SEARCH_FAILED reason=admission-unsupported-request` 失败。
+- 开启模式 120 根（`coordinator --off-baseline <主线 off120-base>`）：120 根全部准入，没有
+  `FLASH_FALLBACK`/`FLASH_SEARCH_FAILED`；与主线 `.local/flash-regression/cl2-on120` 的
+  `route.json`、`quality.json`、`SelectedExpanded`、`SelectedTransitions` 全部逐根相同。
+  `pruneCounters` 的总展开/转移有 119 根相同；只有 REGENT-013（120 秒时间预算根，每次运行会变）
+  为 253,260/6,598,600 对 253,712/6,796,322。逐根 wall 合计 744.4 秒（命令进度到最后一根 378.1 秒）。
+- 关闭模式 120 根（`coordinator --modes Off`）：`quality.json` 120/120 与 `off120-base` 相同；
+  `SelectedExpanded`/`SelectedTransitions` 118/120，总展开/转移同样 118/120，差异只在 IRONCLAD-013
+  （177,209/991,173 对 178,345/996,696）与 REGENT-013（49,094/786,581 对 48,414/774,974）两个
+  120 秒时间预算根，和既有关闭模式记录一致；日志没有 Flash 行。
+- 未在可见游戏里查看改用提示的排版；每场战斗只提示一次的 Runtime 行为由代码路径与离线事件通道覆盖，
+  尚无可见 Steam 截图。
+
 ## 3. 已知限制与未验证项
 
-- 当前覆盖 290 个固定根与 120 个质量根；未覆盖的第三方内容按 [准入](admission-and-verification.md) 的 `admission-unsupported-content` / `admission-unrepresentable-state` 拒绝，尚无该类内容的差分证据。
+- 当前覆盖 290 个固定根与 120 个质量根；未覆盖的第三方内容按 [准入](admission-and-verification.md) 的 `admission-unsupported-content` / `admission-unrepresentable-state` 改用常规搜索，已有 `SOULBOUND_POWER` 根的改用合同；尚无第三方 Mod 实机根的差分证据。
 - 精确层下界不可用（遗物目标、成长目标等）时 Flash 整次搜索不做下界剪枝，原搜索只对不满足条件的节点放开；路线不受影响，搜索面更大。除遗物目标外的禁用原因没有逐个构造实机根。
 - `FLASH_SEARCH_FAILED` 的提示与问题包（包括回合准备搜索失败时关闭全自动、把原生选择留给玩家）只在无头合同与整场中验证，未在可见游戏中查看。
 - 最终候选扫描只覆盖排序前 N 条最终候选，进度预览用过的推测路线没有导出；HS4 前 NECROBINDER-19 一次预览手牌下标差异（第 7 回合第 24 步）此后没有再现。扫描中 `flash-sk-a-discard-sly` 的一条搜索分支到达内核边界（TACTICIAN+1 弃牌后在自动打出前失去瞬态标记），开启模式在该状态按 `kernel-unsupported` 失败。

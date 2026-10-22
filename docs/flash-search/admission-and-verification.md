@@ -2,7 +2,7 @@
 
 [返回 Flash 入口](README.md)
 
-Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的**差分测试**、部署前的**旧引擎回放核对**。开启模式不做部分提交：无路线按规则 1 返回现有搜索同形结果；准入拒绝、核对不一致和内核边界写稳定失败事件并停止本次搜索/部署（离线与无人测试为失败），不回落现有后端。关闭模式不运行 Flash。
+Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的**差分测试**、部署前的**旧引擎回放核对**。开启模式不做部分提交：无路线按无路线约定返回现有搜索同形结果；`admission-unsupported-content` 与 `admission-unrepresentable-state` 两类准入让**整次协调器搜索**换用常规档位从头重跑；其余准入拒绝、核对不一致和内核边界写稳定失败事件并停止本次搜索/部署（离线与无人测试为失败），不回落现有后端。关闭模式不运行 Flash。
 
 ## 1. 准入
 
@@ -22,7 +22,11 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `Capacity` | 估计的牌数、Power 数、敌人数超出容量 |
 | `UnsupportedRequest` | 本次 `Solve()` 参数含 Flash 尚未支持的选项（见 [搜索与接入](search.md#3-请求参数)） |
 
-开启模式下准入拒绝不是回落点：分发点按类别写一行 `FLASH_SEARCH_FAILED reason=admission-<类别> detail=<拒绝原因>`，抛出 `FlashSearchFailedException` 并停止部署。类别覆盖多人专用（`admission-multiplayer`）、Mock 测试内容（`admission-test-content`）、废弃内容（`admission-deprecated-content`）、未定义内容（`admission-unsupported-content`，包括现有引擎同样不支持的 BYRDPIP 等）、未实现请求（`admission-unsupported-request`）、容量估计（`admission-capacity`）、不可表示状态（`admission-unrepresentable-state`）与待处理选择（`admission-pending-choice`）。第三方内容没有单独类别：未定义的卡牌、Power、遗物、药水、球、怪物、附魔、苦难与生成闭包按 `UnsupportedCard`/`UnsupportedPower`/`UnsupportedRelic`/`UnsupportedPotion`/`UnsupportedOrb`/`UnsupportedMonster`/`UnsupportedEnchantment`/`UnsupportedAffliction`/`UnsupportedClosure` 拒绝，统一写成 `admission-unsupported-content`；第三方 gameplay 订阅者或未登记模型留下无法投影的状态时按 `UnrepresentableState` 写成 `admission-unrepresentable-state`。原先的 `admission-third-party` token 已删除。
+开启模式下，只有两类准入拒绝会让**整次协调器搜索**改用常规搜索：未定义内容（`admission-unsupported-content`）与不可表示状态（`admission-unrepresentable-state`）。`BeamSolveDispatch` 抛 `FlashFallbackRequiredException`，`CombatSearchCoordinator.Solve` 只捕获这一个异常类型，确认这次 Flash 尝试还没有发布可采用路线、路线采纳种子或路线预览后，写一行 `FLASH_FALLBACK reason=<类别> detail=<第一个不支持的内容或状态> purpose=<用途>`，并用 `FlashMode = Off`、`Profile = RegularProfile` 从头重跑整次搜索；新尝试新建自己的请求时钟与预算账本，使用同一个 `cancellationToken`。不停止部署、不关闭全自动、不导出失败问题包。`RegularProfile` 由 `SolverSettings.ApplyFlashPerformance` 保存，缺少时显式失败。准入只取决于根内容（含生成闭包），实际回落都发生在第一个 Flash 请求、发布任何结果之前；如果发布检查判定已经发布，则按原失败约定写 `FLASH_SEARCH_FAILED` 并抛 `FlashSearchFailedException`，不重跑。Runtime 每场战斗最多提示一次内容名称，并把类别与内容记入问题包；详见 [开启模式的改用常规搜索](search.md#32-开启模式的改用常规搜索无路线与失败处理)。
+
+其余准入拒绝仍不是回落点：分发点按类别写一行 `FLASH_SEARCH_FAILED reason=admission-<类别> detail=<拒绝原因>`，抛出 `FlashSearchFailedException` 并停止部署。类别覆盖多人专用（`admission-multiplayer`）、Mock 测试内容（`admission-test-content`）、废弃内容（`admission-deprecated-content`）、未实现请求（`admission-unsupported-request`）、容量估计（`admission-capacity`）与待处理选择（`admission-pending-choice`）。第三方内容没有单独类别：未定义的卡牌、Power、遗物、药水、球、怪物、附魔、苦难与生成闭包按 `UnsupportedCard`/`UnsupportedPower`/`UnsupportedRelic`/`UnsupportedPotion`/`UnsupportedOrb`/`UnsupportedMonster`/`UnsupportedEnchantment`/`UnsupportedAffliction`/`UnsupportedClosure` 拒绝，统一写成 `admission-unsupported-content` 并走改用常规搜索；第三方 gameplay 订阅者或未登记模型留下无法投影的状态时按 `UnrepresentableState` 写成 `admission-unrepresentable-state`，同样改走常规搜索。原先的 `admission-third-party` token 已删除。
+
+注意区分“准入的不可表示状态”和“搜索开始后旧引擎回放到达不可表示状态”：后者是 `FlashVerificationException`（`verify-mismatch`）或内核边界，仍按显式失败处理，不会改走常规搜索。
 
 **可达内容闭包**：根里的内容加上它们可能生成的内容，递归求闭包。每个定义声明自己可能生成什么：固定卡表（`GeneratedCards`）、候选卡池（`GeneratedCardPools`，键见 `FlashCardPools`）、可施加的 Power（`AppliedPowers`，用于跟随 CalamityPower 这类会继续生成卡的 Power）以及随机药水池（`GeneratesRandomPotion`）。闭包从根的战斗牌堆、Power、遗物、药水、已知敌人与召唤闭包中的怪物定义出发，而不是从全部注册定义出发；这样不含生成效果的根不会被无关池拒绝。
 
@@ -208,7 +212,7 @@ K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一
 
 Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](search.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
 
-- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式写 `FLASH_SEARCH_FAILED reason=verify-mismatch detail=<首个差异>`、抛出 `FlashSearchFailedException` 并停止部署。
+- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（搜索开始后的导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式写 `FLASH_SEARCH_FAILED reason=verify-mismatch detail=<首个差异>`、抛出 `FlashSearchFailedException` 并停止部署。这里的导入拒绝不是[准入的两类改用](search.md#32-开启模式的改用常规搜索无路线与失败处理)。
 - 离线宿主的 `harness-result.json`/`result.json` 在失败异常带完整核对证据时另写 `flashFailure`：`step`、`action`、完整 `plan`、全部 `differences`、步前状态、旧引擎与 Flash 的步后状态，以及 `directPurpose`/`continuationPurpose`/`prefix`。稳定日志行、320 字符 `detail` 与问题包写法不变。
 - Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时，On 模式写 `reason=kernel-unsupported`/`reason=kernel-capacity` 并停止部署。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
 - 翻译器按旧引擎当前回放状态把 Flash 动作翻成计划动作：手牌下标超出旧引擎手牌，或旧引擎按动态目标规则（`CombatPredictionSimulator.GetTargetType`，含 Fan of Knives 下的 Shiv、Seeking Edge 下的君王之刃）需要敌方目标而 Flash 动作没有目标时，抛 `FlashChoiceMismatchException`。核对与物化路径把它转成 `FlashVerificationException`（On 模式 `verify-mismatch`）；进度预览只跳过该预览并记录 `FLASH_PREVIEW_MISMATCH`。
@@ -219,6 +223,6 @@ Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRo
 ## 5. 失败处理约束
 
 - 不新增 `catch (Exception)`。只捕获 `FlashUnsupportedException`、`FlashCapacityException`、准入拒绝、校验失败与取消，以及物化阶段现有求解器抛出的 `PotionPolicyUnsatisfiedException`。
-- 捕获后整个 Flash 求解作废，不把半成品路线交给协调器。On 模式随即停止搜索/部署并上报 `FlashSearchFailedException`；Off 保持原有返回路径。回合准备搜索的失败走同一约定（关闭全自动、Flash 提示、问题包带 `SearchFailure` 与 `FlashSearchFailed`），原生选择留给玩家。
-- 药水审计没有满足策略的路线（`PotionPolicySatisfied=false`，`flash-potion-policy-no-route`）时按规则 1 返回 `PotionPolicyUnsatisfiedException`；诊断行写 `FLASH_NO_ROUTE`，不写 `FLASH_SEARCH_FAILED`。精确层下界输入不可用（`smart-potion-bound unavailable`）不是无路线：开启模式只关闭下界剪枝并照常搜索，写 `SMART_POTION_BOUND_UNAVAILABLE` 诊断。物化后 `FlashPotionBridge.VerifyRoute`（`route-*`）或现有 `FinalPlanOrdering`（`materialize-potion-policy`）仍判定不满足请求药水约束时，是两侧判定不一致，按 `potion-policy-mismatch` 显式失败。
-- 失败事件与无路线结论都计入诊断：类别、首个差异/拒绝原因与阶段；On 模式不再写 `FLASH_LEGACY`。
+- 捕获后整个 Flash 求解作废，不把半成品路线交给协调器。On 模式只有 `admission-unsupported-content` / `admission-unrepresentable-state` 两类准入例外：协调器整次搜索改用 Off + `RegularProfile` 从头重跑，写一行 `FLASH_FALLBACK`，不算失败。已经发布路线、采纳种子或预览时不再重跑，按原失败约定写 `FLASH_SEARCH_FAILED`。其余情况随即停止搜索/部署并上报 `FlashSearchFailedException`；Off 保持原有返回路径。回合准备搜索走同一入口与分类约定：整次重跑，或其余失败（关闭全自动、Flash 提示、问题包带 `SearchFailure` 与 `FlashSearchFailed`，原生选择留给玩家）。
+- 药水审计没有满足策略的路线（`PotionPolicySatisfied=false`，`flash-potion-policy-no-route`）时按无路线约定返回 `PotionPolicyUnsatisfiedException`；诊断行写 `FLASH_NO_ROUTE`，不写 `FLASH_SEARCH_FAILED`。精确层下界输入不可用（`smart-potion-bound unavailable`）不是无路线：开启模式只关闭下界剪枝并照常搜索，写 `SMART_POTION_BOUND_UNAVAILABLE` 诊断。物化后 `FlashPotionBridge.VerifyRoute`（`route-*`）或现有 `FinalPlanOrdering`（`materialize-potion-policy`）仍判定不满足请求药水约束时，是两侧判定不一致，按 `potion-policy-mismatch` 显式失败。
+- 整次改用常规搜索、失败事件与无路线结论都计入诊断：类别、首个不支持的内容/差异/拒绝原因与阶段；On 模式不再写 `FLASH_LEGACY`。
