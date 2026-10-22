@@ -481,6 +481,7 @@ internal sealed partial class FlashBeamSolver
         int Occurrence,
         int CardCount,
         int ContextId,
+        int HandCount,
         ulong EnemyCombatDistributionFirst,
         ulong EnemyCombatDistributionSecond,
         ulong EnemyControlDistributionFirst,
@@ -488,9 +489,28 @@ internal sealed partial class FlashBeamSolver
         ulong UnorderedPileFirst,
         ulong UnorderedPileSecond);
 
+    /// <summary>
+    /// One answered routing selection before its signature is interned. The existing
+    /// <c>RoutingChoiceSignature</c> reads <c>cursor.Snapshot</c>, the state after the action that
+    /// carries the choice. Flash therefore keeps the selection facts here and only builds
+    /// <see cref="RoutingSignature"/> once the expanded child exists. Re-executing the action on a copy
+    /// to obtain that state is not allowed: it would count the transition twice.
+    /// </summary>
     private readonly record struct RoutingChoice(
-        int SignatureId, int Turn, int ChoiceDepth, int ParentRank, double ParentScore,
-        int ParentEnergy);
+        int Turn,
+        int ChoiceDepth,
+        int ParentRank,
+        double ParentScore,
+        int ParentEnergy,
+        int SourceId,
+        FlashChoiceEffect Effect,
+        int SourcePile,
+        int CardId,
+        int Upgrade,
+        int CardStateKey,
+        int Occurrence,
+        int CardCount,
+        byte ContextKind);
 
     private readonly List<RoutingSignature> _routingSignatures = new();
     private readonly Dictionary<RoutingSignature, int> _routingSignatureIds = new();
@@ -892,8 +912,10 @@ internal sealed partial class FlashBeamSolver
                             lastHandIndex = -1;
                             lastHandDuplicate = false;
                         }
+                        // Regular ComputeRoutingParentRetentionRank reads the parent's RetentionRank set
+                        // by the previous AssignRetentionRanks, not its sort position in the pool.
                         ExpandAction(ref parent, parentNode, action, next, ended, terminal,
-                            current.Facts(index), current.RankPosition(index), current.Rank(index));
+                            current.Facts(index), _nodes[parentNode].RetentionRank, current.Rank(index));
                     }
                     PublishProgressWithPreview(turns - 1, playDepth,
                         Math.Max(0, current.Count - index - 1) + next.Count, ended.Count,
@@ -1582,10 +1604,17 @@ internal sealed partial class FlashBeamSolver
             ulong lineage = NextLineage(parentNode, parent, action, node,
                 out ulong rootActionKey, out ushort firstCardId, out int firstCardTarget);
             int payoffCount = NextPayoffCount(parentNode, parent, action, features, parentFacts, commitment);
-            int routingSignature = routingChoice?.SignatureId ?? 0;
+            // The existing TryGetRoutingChoice walks the whole parent chain and keeps the last
+            // accumulated choice, so every descendant of a choice node carries that signature until a
+            // deeper choice replaces it. The signature id was previously dropped here (only the turn
+            // metadata was inherited), leaving the choice node itself as the sole routing node.
+            bool hasRoutingChoice = routingChoice is { };
+            int routingSignature = hasRoutingChoice
+                ? FinalizeRoutingChoice(child, routingChoice!.Value)
+                : parentRoute.RoutingSignatureId;
             int routingTurn, routingDepth, routingParentRank, routingParentEnergy;
             double routingParentScore;
-            if (routingSignature != 0)
+            if (hasRoutingChoice)
             {
                 routingTurn = routingChoice!.Value.Turn;
                 routingDepth = routingChoice.Value.ChoiceDepth;
@@ -1666,12 +1695,21 @@ internal sealed partial class FlashBeamSolver
     }
 
     /// <summary>
-    /// Builds the routing-choice signature of one answered selection request. The existing
-    /// <c>RoutingChoiceSignature</c> also carries source/context ids and three enemy/pile distribution
-    /// fingerprints; Flash has no string source ids or distribution keys on the route node, so those
-    /// dimensions are not part of the key (choices from different sources of the same turn with the same
-    /// effect and option merge). The supported effect set is the non-mutation routing set; persistent
-    /// ordered-mutation effects stay in the RS2 batch.
+    /// Captures one answered routing selection. The existing <c>TryBuildRoutingChoice</c> puts
+    /// <c>cursor.Snapshot</c> — the state after the action that carries the choice — into the signature's
+    /// three distribution keys and, for <c>GenerateToHand</c>, the hand count. Flash only knows that
+    /// state once the child has been expanded, so this method records the selection and
+    /// <see cref="FinalizeRoutingChoice"/> builds the signature from the expanded child. The supported
+    /// effect set is the non-mutation routing set; persistent ordered-mutation effects stay in the RS2
+    /// batch.
+    /// <para>
+    /// <c>SourceId</c> follows <c>PlanCardChoice.SourceId</c>: a played card's own choice carries the
+    /// empty source, a potion choice carries the potion entry, and a round-transition choice carries its
+    /// requesting entry. Flash has no string on the request; the empty source is represented by zero,
+    /// the potion id keeps its own id space. Turn-start sources (relics/powers/auto-played cards) and
+    /// nested auto-play contexts are an explicit boundary: they are not distinguishable from the
+    /// request today and therefore fall back to the empty source/context. See the R3 report.
+    /// </para>
     /// </summary>
     private bool TryBuildRoutingChoice(in FlashBattle parent, in FlashAction action,
         in FlashChoiceRequest request, scoped ReadOnlySpan<FlashCard> optionCards, ulong selection,
@@ -1702,37 +1740,61 @@ internal sealed partial class FlashBeamSolver
             stateKey = CardStateKey(card);
             occurrence = option;
         }
-        // The existing PlanCardChoice.SourceId is the requesting card's entry (the potion's entry
-        // for potion choices, the relic's for turn-start relic choices). Flash has no string on the
-        // request, so the currently played card or potion identifies the source; a card/potion id is
-        // prefixed with its kind so the two id spaces cannot merge.
-        int sourceId = action.Kind switch
+        int sourceId = action.Kind == FlashActionKind.UsePotion
+            && action.PotionSlot < parent.PotionSlotCount
+                ? (2 << 16) | parent.Potions[action.PotionSlot]
+                : 0;
+        // The only non-empty ContextId the existing engine produces for a card's own choice is
+        // SeekerStrike's seeker:{CombatCardSelection counter}:{options}. The counter advances with every
+        // shuffle, so equal counters already imply equal option lists; FinalizeRoutingChoice reads the
+        // counter from the completed child exactly where the existing signature reads cursor.Snapshot.
+        byte contextKind = 0;
+        if (action.Kind == FlashActionKind.PlayCard
+            && action.HandIndex < parent.HandCount
+            && request.Effect == FlashChoiceEffect.MoveToHand
+            && !request.SourceIsNone
+            && request.Source == FlashPile.Draw
+            && parent.Cards[action.HandIndex].Id
+                == FlashRegistry.CardId<CombatSolver.Flash.Content.Cards.Colorless.SeekerStrike>())
         {
-            FlashActionKind.PlayCard when action.HandIndex < parent.HandCount
-                => (1 << 16) | parent.Cards[action.HandIndex].Id,
-            FlashActionKind.UsePotion when action.PotionSlot < parent.PotionSlotCount
-                => (2 << 16) | parent.Potions[action.PotionSlot],
-            _ => 0,
-        };
+            contextKind = 1;
+        }
         int turn = action.Kind == FlashActionKind.EndTurn
             && request.Timing == FlashChoiceTiming.PlayerTurnStart
                 ? parentTurn + 1
                 : parentTurn;
-        RoutingSignature signature = new(turn, sourceId, request.Effect,
+        choice = new RoutingChoice(turn, _nodes[parentNode].Depth + 1, parentRank, parentScore,
+            parentFacts.Energy, sourceId, request.Effect,
             request.SourceIsNone ? -1 : (int)request.Source, cardId, upgrade, stateKey, occurrence,
-            cardCount, ContextId: 0, parentFacts.EnemyCombatDistributionFirst,
-            parentFacts.EnemyCombatDistributionSecond, parentFacts.EnemyControlDistributionFirst,
-            parentFacts.EnemyControlDistributionSecond, parentFacts.UnorderedPileKeyFirst,
-            parentFacts.UnorderedPileKeySecond);
+            cardCount, contextKind);
+        return true;
+    }
+
+    /// <summary>
+    /// Builds and interns the routing signature from the fully expanded child, mirroring the existing
+    /// engine's <c>cursor.Snapshot</c>: hand count only for <c>GenerateToHand</c>, plus the enemy combat,
+    /// enemy control and unordered-pile keys. The action is never replayed on a copy to obtain these.
+    /// </summary>
+    private int FinalizeRoutingChoice(in FlashBattle child, in RoutingChoice choice)
+    {
+        FlashScorer.FlashRetentionValues retention = _scorer.RetentionValues(child);
+        int contextId = choice.ContextKind == 1
+            ? -child.RngStream(FlashRngStream.CombatCardSelection).Counter - 1
+            : 0;
+        RoutingSignature signature = new(choice.Turn, choice.SourceId, choice.Effect,
+            choice.SourcePile, choice.CardId, choice.Upgrade, choice.CardStateKey, choice.Occurrence,
+            choice.CardCount, contextId,
+            choice.Effect == FlashChoiceEffect.GenerateToHand ? child.HandCount : 0,
+            retention.EnemyCombatDistributionFirst, retention.EnemyCombatDistributionSecond,
+            retention.EnemyControlDistributionFirst, retention.EnemyControlDistributionSecond,
+            retention.UnorderedPileKeyFirst, retention.UnorderedPileKeySecond);
         if (!_routingSignatureIds.TryGetValue(signature, out int id))
         {
             _routingSignatures.Add(signature);
             id = _routingSignatures.Count;
             _routingSignatureIds.Add(signature, id);
         }
-        choice = new RoutingChoice(id, turn, _nodes[parentNode].Depth + 1, parentRank, parentScore,
-            parentFacts.Energy);
-        return true;
+        return id;
     }
 
     /// <summary>A 32-bit state key for the selected option card: FNV-1a over the card value. It stands
