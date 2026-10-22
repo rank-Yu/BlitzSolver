@@ -50,8 +50,6 @@ public sealed class Corrupted : FlashEnchantmentDef
 [FlashContent("MOMENTUM")]
 public sealed class Momentum : FlashEnchantmentDef
 {
-    public override FlashEnchantmentPrivateKey PrivateKey => FlashEnchantmentPrivateKey.Int;
-
     public override decimal EnchantDamageAdditive(in FlashCard card, decimal damage, FlashValueProps props)
     {
         if (!props.IsPoweredAttack())
@@ -223,8 +221,6 @@ public sealed class Swift : FlashEnchantmentDef
 [FlashContent("GLAM")]
 public sealed class Glam : FlashEnchantmentDef
 {
-    public override FlashEnchantmentPrivateKey PrivateKey => FlashEnchantmentPrivateKey.Bool;
-
     private const int Times = 1;
 
     public override int EnchantPlayCount(in FlashCard card, int replayCount)

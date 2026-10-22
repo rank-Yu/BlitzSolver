@@ -65,20 +65,6 @@ internal sealed class FlashScorer
         => CardValue(battle, card, Rules.Card(card.Id, card.Upgrade), _score.Card(card.Id, card.Upgrade));
 
     /// <summary>
-    /// <c>CardChoiceSupport.ChoiceCardKey</c>'s dynamic-variable component: the semantic variable's
-    /// live decimal value with the instance delta applied.
-    /// </summary>
-    internal decimal ChoiceVarDecimal(in FlashBattle battle, in FlashCard card, int index)
-        => Var(battle, card, Rules.Card(card.Id, card.Upgrade), index);
-
-    /// <summary>Live native <c>CardModel.Type</c> for a choice option (MadScience reads saved state).</summary>
-    internal FlashCardType ChoiceCardType(in FlashBattle battle, in FlashCard card)
-    {
-        FlashCardStats stats = Rules.Card(card.Id, card.Upgrade);
-        return CardType(battle, card, stats);
-    }
-
-    /// <summary>
     /// Port of <c>CardChoiceSupport.CardValue</c> with the instance's variable deltas applied. The
     /// existing engine converts each completed decimal <c>BaseValue</c> to double once; adding a
     /// double delta to a double base would round differently for decimals such as 0.75.

@@ -155,7 +155,7 @@ internal sealed partial class FlashBeamSolver
                 _scorer.Features(state, Depth(node), includeRetentionOnly: false);
             if (features.PlayerDead || features.ProjectedPlayerHp <= 0)
                 continue;
-            RouteKey key = Key(state, features, Depth(node), _nodes[node].FutureSoldHp);
+            RouteKey key = Key(state, features, Depth(node));
             if (selected < 0 || CompareRoutes(key, selectedKey) < 0)
             {
                 selected = node;
@@ -282,7 +282,6 @@ internal sealed partial class FlashBeamSolver
             _expanded,
             _transitions,
             _duplicates,
-            _duplicateCards,
             turns,
             _pruned,
             _solveWatch?.Elapsed ?? TimeSpan.Zero)
@@ -328,7 +327,7 @@ internal sealed partial class FlashBeamSolver
             ref FlashBattle state = ref pool.State(index);
             FlashScoreFeatures nodeFeatures =
                 _scorer.Features(state, Depth(node), includeRetentionOnly: false);
-            RouteKey key = Key(state, nodeFeatures, Depth(node), _nodes[node].FutureSoldHp);
+            RouteKey key = Key(state, nodeFeatures, Depth(node));
             if (!hasSelected || CompareRoutes(key, selectedKey) < 0)
             {
                 selected = node;

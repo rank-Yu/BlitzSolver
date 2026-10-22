@@ -148,6 +148,7 @@ internal sealed partial class FlashBeamSolver
     {
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
+        _singleRoot = roots.Count == 1;
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
         ResetProgressState();
@@ -209,7 +210,7 @@ internal sealed partial class FlashBeamSolver
         {
             int actionCount = Depth(node);
             FlashScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
-            ConsiderNoveltyTerminal(state, node, features, Key(state, features, actionCount, _nodes[node].FutureSoldHp));
+            ConsiderNoveltyTerminal(state, node, features, Key(state, features, actionCount));
             if (keyWon(features, actionCount))
                 _noveltyTargetReached |= MeetsNoveltyHpTarget(state, node, features);
         }
@@ -222,16 +223,14 @@ internal sealed partial class FlashBeamSolver
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
             _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
                 _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
-                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0,
-                rootFeatures.Turn, rootIndex, FlashFingerprint.Hash(root), 0, 0,
-                rootFeatures.PotionUseCount, rootFeatures.CumulativePlayerHpLost, 0, true));
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0));
             bool terminalRoot = !FlashKernel.IsInProgress(root);
             ObserveNoveltySeed(root, rootIndex, rootFeatures);
             if (terminalRoot)
             {
                 _ = EvaluateNoveltyState(root, rootFeatures);
                 ConsiderNoveltyTerminal(root, rootIndex, rootFeatures,
-                    Key(root, rootFeatures, _options.InitialActionCount, 0));
+                    Key(root, rootFeatures, _options.InitialActionCount));
                 _noveltyTargetReached |= MeetsNoveltyHpTarget(root, rootIndex, rootFeatures);
                 continue;
             }
@@ -338,8 +337,7 @@ internal sealed partial class FlashBeamSolver
         {
             FlashScoreFeatures fallbackFeatures =
                 _scorer.Features(fallback.State, Depth(fallback.Node), includeRetentionOnly: false);
-            _noveltyBest = Key(fallback.State, fallbackFeatures, Depth(fallback.Node),
-                _nodes[fallback.Node].FutureSoldHp);
+            _noveltyBest = Key(fallback.State, fallbackFeatures, Depth(fallback.Node));
             bestNode = fallback.Node;
             bestVictory = fallback.State.Outcome == FlashOutcome.Victory;
             bestDefeat = fallback.State.Outcome == FlashOutcome.Defeat;
@@ -355,7 +353,7 @@ internal sealed partial class FlashBeamSolver
             _noveltyBest is null ? [] : Route(bestNode),
             [],
             bestVictory, bestDefeat, _noveltyBest?.Score ?? double.NegativeInfinity,
-            _expanded, _transitions, _duplicates, _duplicateCards, turnLayers, _pruned, watch.Elapsed)
+            _expanded, _transitions, _duplicates, turnLayers, _pruned, watch.Elapsed)
         {
             CapacityPruned = _capacityPruned,
             CapacityDroppedChildren = _capacityDropped.Count == 0
