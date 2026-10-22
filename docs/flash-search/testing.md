@@ -269,6 +269,16 @@ python3 -B tools/search/FlashRegression/flash_regression.py coordinator \
   `SelectedExpanded`/`SelectedTransitions` 118/120，总展开/转移同样 118/120，差异只在 IRONCLAD-013
   （177,209/991,173 对 178,345/996,696）与 REGENT-013（49,094/786,581 对 48,414/774,974）两个
   120 秒时间预算根，和既有关闭模式记录一致；日志没有 Flash 行。
+- 无头整场（合并后源码 `68d63e20` 的同一构建）：铁甲战士初始牌组对第一幕精英 `BYRDONIS_ELITE`，开局用
+  `--power-id SOULBOUND_POWER --power-target Player` 给玩家注入该 Power，`--cards-json []`，
+  `--enemy-current-hp 9999`（取最大生命，敌人保持原生满血），Instant 部署，计划外重算上限 0。生成场景不允许
+  注入 Power，所以这里用普通场景。开启模式先跑、关闭模式在同一实例同一种子后跑并清理实例：两场都 Passed，
+  第 5 回合获胜、终局 30/80，计划外重算 0；部署的 42 个路线动作逐项相同。开启模式日志恰好一行
+  `FLASH_FALLBACK reason=admission-unsupported-content detail=SOULBOUND_POWER purpose=PrimaryBeam`（整场只做了
+  一次协调器搜索，后续回合沿用计划），没有 `FLASH_ADOPTED`/`FLASH_SEARCH_FAILED`，部署没有停止；战后问题包
+  `classification.issues` 为 `FlashFallback`（`admission-unsupported-content：SOULBOUND_POWER`），关闭模式
+  问题包没有该分类。开启模式整场 21.6 秒对关闭 4.9 秒，差值是首场冷启动（游戏启动 10.9 秒、开局 5.3 秒），
+  战斗阶段 2.8 秒对 2.2 秒。证据在 `.local/flash-regression/fb-soulbound-byrdonis_elite/`。
 - 未在可见游戏里查看改用提示的排版；每场战斗只提示一次的 Runtime 行为由代码路径与离线事件通道覆盖，
   尚无可见 Steam 截图。
 
@@ -281,4 +291,4 @@ python3 -B tools/search/FlashRegression/flash_regression.py coordinator \
 - 仍在战斗中的生物身上已移除 Power 的残留条目不能投影：根导入时拒绝，路线核对中遇到时按核对失败丢弃 Flash 路线；敌方离场后的残留按惰性处理（见内容批次归档卷 2.8.1）。
 - 选择覆盖卡牌自身的单选、手牌/抽牌堆/弃牌堆选择、回合开始选择、知识恶魔的固定选项与自动打出中的嵌套选择（LR、MB 固定根）；一个动作最多携带 8 个选择，更深的链按容量边界拒绝。
 - 结构门禁的 Bash 与 PowerShell 版本都在 Linux 上运行通过（PowerShell 7.6.7）；未在 Windows 上运行。
-- 实机部署只在 Linux 无头游戏中验证（五个角色初始牌组、第三幕首领、HS/HS2/HS3/HS4 的多样化牌组整场与 HL 固定 40 根清单，见 2.4 与归档卷）；未做可见游戏、Windows 或 Steam 会话验证。设置面板的 Flash 档位现有两个选项（关闭/启用），未在可见游戏中查看。
+- 实机部署只在 Linux 无头游戏中验证（五个角色初始牌组、第三幕首领、HS/HS2/HS3/HS4 的多样化牌组整场、质量语料 120 根与旧 100 根整场以及 FB 的 `SOULBOUND_POWER` 改用整场，见 2.4、2.5 与归档卷）；未做可见游戏、Windows 或 Steam 会话验证。设置面板的 Flash 档位现有两个选项（关闭/启用），未在可见游戏中查看。
