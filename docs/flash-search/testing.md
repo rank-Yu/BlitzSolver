@@ -184,6 +184,42 @@ DEFECT-020、REGENT-019/020、NECROBINDER-011/019/020）正是离线 120 根协�
 结束状态后才报仍存在未死亡敌人”的语义修正分类后，用同一份证据重新汇总为 `death`，没有重跑游戏。
 证据在 `.local/flash-regression/hl-on40/`（修正前的汇总保留为 `SUMMARY.before-deathfix.txt`）。
 
+质量语料其余 80 根随后在同一源码与同一构建上补跑（`--skip-build`，`--ids` 传入默认清单以外的根，证据
+`.local/flash-regression/hl-rest80/`），同样 `RESULT PASS`：62 胜、18 战死，969 次 `FLASH_ADOPTED`
+全部核对通过，搜索失败、不一致与计划外重算都是 0，实例目录已删除，墙钟约 17 分钟。DEFECT-007 获胜后
+启动器报告进程未能复用（退出码 1），下一场换新进程，不影响判定。
+
+合计 120 根：
+
+| 分组 | 场数 | 无头胜 | 无头战死 | 采用/核对通过 | 离线开启胜 | 离线关闭胜 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 合计 | 120 | 91 | 29 | 1,357 / 1,357 | 91 | 87 |
+| 铁甲战士 | 24 | 20 | 4 | 282 / 282 | 20 | 20 |
+| 静默猎手 | 24 | 14 | 10 | 283 / 283 | 14 | 14 |
+| 故障机器人 | 24 | 19 | 5 | 267 / 267 | 19 | 18 |
+| 储君 | 24 | 20 | 4 | 270 / 270 | 20 | 18 |
+| 亡灵契约师 | 24 | 18 | 6 | 255 / 255 | 18 | 17 |
+| 第一幕 | 40 | 40 | 0 | 354 / 354 | 40 | 40 |
+| 第二幕 | 40 | 32 | 8 | 474 / 474 | 32 | 29 |
+| 第三幕 | 40 | 19 | 21 | 529 / 529 | 19 | 18 |
+| 普通 | 40 | 40 | 0 | 364 / 364 | 40 | 40 |
+| 精英 | 40 | 33 | 7 | 454 / 454 | 33 | 31 |
+| 首领 | 40 | 18 | 22 | 539 / 539 | 18 | 16 |
+
+逐根胜负与离线 120 根协调器对照（`cl2-on120`）的开启模式完全一致，没有一根不同；“离线关闭胜”列只作
+参照，无头整场没有跑关闭模式。全部 120 根可以一次复跑：
+
+```bash
+python3 -B tools/search/FlashRegression/flash_regression.py headless \
+  --label hl-120 --lanes 2 --timeout-seconds 600 --search-budget-ms 120000 \
+  --ids $(ls coverage/corpora/flash-quality | grep -E '^[A-Z]+-[0-9]{3}$') \
+  --sts2-game-root "$HOME/games/sts2" \
+  --ritsu-workshop-root "$HOME/games/sts2/steamapps/workshop/content/2868840/3747602295" \
+  --xdg-data-home .local/headless-seed/data
+```
+
+两条通道合计约 25 分钟（本轮 40 + 80 两段）。
+
 ## 3. 已知限制与未验证项
 
 - 当前覆盖 290 个固定根与 120 个质量根；未覆盖的第三方内容按 [准入](admission-and-verification.md) 的 `admission-unsupported-content` / `admission-unrepresentable-state` 拒绝，尚无该类内容的差分证据。
