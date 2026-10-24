@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CombatSolver.Flash.Kernel;
@@ -9,8 +10,11 @@ using CombatSolver.Flash.Content.Enchantments;
 using CombatSolver.Flash.Content.Powers;
 using CombatSolver.Flash.Content.Relics;
 
-// Pure Flash kernel contracts (K0): no game, no CombatSolver assembly. Differential equivalence
-// with the existing engine is checked separately by the offline harness probe.
+// Pure Flash kernel contracts (K0): no game assembly; BlitzSolver.Core is the only production
+// content assembly. Differential equivalence with the existing engine is checked separately by the
+// offline harness probe.
+FlashRegistry.RegisterTestAssembly(Assembly.GetExecutingAssembly());
+FlashRegistry.RegisterTestAssembly(Assembly.GetExecutingAssembly());
 
 Check(Unsafe.SizeOf<FlashCard>() == 92, $"FlashCard 应为 92 字节，实际 {Unsafe.SizeOf<FlashCard>()}");
 Check(Unsafe.SizeOf<FlashEnemy>() == 64, $"FlashEnemy 应为 64 字节，实际 {Unsafe.SizeOf<FlashEnemy>()}");
@@ -23,6 +27,16 @@ Check(Unsafe.SizeOf<FlashBattle>() == FlashBattle.ExpectedSize,
 CheckRng();
 CheckGrowthRewards();
 FlashRules rules = SliceRules();
+bool lateRegistrationThrew = false;
+try
+{
+    FlashRegistry.RegisterTestAssembly(Assembly.GetExecutingAssembly());
+}
+catch (InvalidOperationException)
+{
+    lateRegistrationThrew = true;
+}
+Check(lateRegistrationThrew, "FlashRegistry 构建后仍接受测试程序集登记。");
 CheckIntroSort(rules);
 CheckCapacity();
 CheckPiles();

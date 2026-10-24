@@ -1691,6 +1691,29 @@ public abstract class FlashMonsterDef : FlashListenerDef
 public static class FlashRegistry
 {
     private static readonly Lazy<Tables> Data = new(Build, LazyThreadSafetyMode.ExecutionAndPublication);
+    private static readonly object TestAssemblyGate = new();
+    private static readonly List<Assembly> TestAssemblies = [];
+    private static bool _buildStarted;
+
+    /// <summary>
+    /// Adds an assembly whose Flash content definitions participate in the registry's ordinal id
+    /// assignment. Test-only: the core production registry scans its own assembly exactly as before.
+    /// </summary>
+    internal static void RegisterTestAssembly(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        lock (TestAssemblyGate)
+        {
+            if (_buildStarted)
+                throw new InvalidOperationException("FlashRegistry 已经构建，不能再登记测试程序集。");
+            foreach (Assembly registered in TestAssemblies)
+            {
+                if (ReferenceEquals(registered, assembly))
+                    return;
+            }
+            TestAssemblies.Add(assembly);
+        }
+    }
 
     public static int CardCount => Data.Value.Cards.Length;
 
@@ -1838,7 +1861,16 @@ public static class FlashRegistry
 
     private static Tables Build()
     {
-        Type[] types = typeof(FlashRegistry).Assembly.GetTypes();
+        Assembly[] testAssemblies;
+        lock (TestAssemblyGate)
+        {
+            _buildStarted = true;
+            testAssemblies = [.. TestAssemblies];
+        }
+        List<Type> typeList = [.. typeof(FlashRegistry).Assembly.GetTypes()];
+        foreach (Assembly assembly in testAssemblies)
+            typeList.AddRange(assembly.GetTypes());
+        Type[] types = [.. typeList];
         Dictionary<Type, FlashContentDef> byType = [];
         var cards = Collect<FlashCardDef>(types, byType, ushort.MaxValue);
         var powers = Collect<FlashPowerDef>(types, byType, ushort.MaxValue);
