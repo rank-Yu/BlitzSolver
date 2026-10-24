@@ -84,6 +84,9 @@ internal sealed class FlashBoundFeatures
 
     public FlashBoundFeatures(Config config) => _config = config;
 
+    /// <summary>Complete frozen bound configuration, for the deterministic golden request codec.</summary>
+    internal Config ConfigForCodec => _config;
+
     public bool Enabled => _config.Enabled;
 
     public string DisabledReason => _config.DisabledReason;

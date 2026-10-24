@@ -23,6 +23,9 @@ internal sealed class FlashScorer
 
     public FlashScorer(FlashScoreRules score) => _score = score;
 
+    /// <summary>Complete frozen score table, for the deterministic golden request codec.</summary>
+    internal FlashScoreRules RulesForCodec => _score;
+
     private FlashRules Rules => _score.Rules;
 
     /// <summary><c>SearchRunContext.InitialRetainedAttackValue</c>, frozen by the root score bridge.</summary>

@@ -269,6 +269,12 @@ public sealed class FlashCardPool
 /// </summary>
 public sealed class FlashRules
 {
+    /// <summary>
+    /// Number of constructor inputs that form the serialized schema. The K0 codec contract checks
+    /// this against the writer's field count and mutates each field to prove it reaches the bytes.
+    /// </summary>
+    public const int SchemaFieldCount = 30;
+
     private readonly FlashCardStats?[][] _cards;
     private readonly decimal[][] _powerVars;
     private readonly FlashPotionStats?[] _potions;
@@ -347,6 +353,20 @@ public sealed class FlashRules
     }
 
     public int BaseMaxEnergy { get; }
+    // Codec accessors: the rule tables are private so callers cannot mutate them, but the golden
+    // writer lives in the same assembly and needs the complete frozen table.
+    internal FlashCardStats?[][] CardTable => _cards;
+    internal decimal[][] PowerVarTable => _powerVars;
+    internal FlashPotionStats?[] PotionTable => _potions;
+    internal decimal[][] RelicVarTable => _relicVars;
+    internal FlashMonsterRules?[] MonsterTable => _monsters;
+    internal Dictionary<ushort, int> SpawnRuleTable => _spawnRules;
+    internal Dictionary<string, FlashCardPool> CardPoolTable => _cardPools;
+    internal ushort[] PotionPoolTable => _potionPool;
+    internal ushort[] OutOfCombatPotionPoolTable => _outOfCombatPotionPool;
+    internal ushort[] RootPotionTable => _rootPotions;
+    internal string[] EncounterSlotTable => _encounterSlots;
+    internal bool[] PowerDeathHistoryRiskTable => _powerDeathHistoryRisk;
 
     /// <summary>
     /// Player's SwordSagePower amount at root capture (<c>_rootPowerAmounts</c> baseline of
@@ -362,7 +382,6 @@ public sealed class FlashRules
     /// power for nothing).
     /// </summary>
     public ushort UnsettlingLampRelicId { get; }
-
 
     /// <summary>
     /// The root can reach one of the ID batch's per-object ledgers or instance powers. Conservative:
