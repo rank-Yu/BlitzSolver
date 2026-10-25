@@ -34,7 +34,8 @@ internal static class ScenarioBuilder
 {
     private const int MaxBulkCardInjectionCount = 4096;
 
-    internal static async Task<CombatState> BuildAsync(MainLoopContext loop, OfflineRequest request)
+    internal static async Task<CombatState> BuildAsync(MainLoopContext loop, OfflineRequest request,
+        bool skipInitialInjection = false)
     {
         GeneratedScenarioSetup setup = GeneratedScenarioSetup.Prepare(request);
         request = setup.Request;
@@ -128,7 +129,7 @@ internal static class ScenarioBuilder
         Player combatPlayer = LocalContext.GetMe(combat)
             ?? throw new InvalidOperationException("进入战斗后找不到本地玩家。");
         generatedSelector?.AssertConsumed();
-        if (!request.PreserveNativeCombatStateForTest)
+        if (!request.PreserveNativeCombatStateForTest && !skipInitialInjection)
         {
             await RunManager.Instance.ActionExecutor.FinishedExecutingActions();
             await InjectInitialStateAsync(combat, combatPlayer, request);

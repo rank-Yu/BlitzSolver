@@ -2,6 +2,7 @@
 // a deterministic state dump; also compares a dump directory against a reference directory.
 using System.Diagnostics;
 using System.Text.Json;
+using BlitzSolver.Import;
 using MegaCrit.Sts2.Core.Combat;
 
 namespace OfflineHost;
@@ -50,6 +51,8 @@ internal static class Program
         string? compareOnlyNew = null;
         string? compareOnlyRef = null;
         bool all = false;
+        bool importCompare = false;
+        bool importNegative = false;
         int jobs = 1;
 
         for (int index = 0; index < args.Length; index++)
@@ -58,6 +61,12 @@ internal static class Program
             {
                 case "--all":
                     all = true;
+                    break;
+                case "--import-compare":
+                    importCompare = true;
+                    break;
+                case "--import-negative":
+                    importNegative = true;
                     break;
                 case "--root" when index + 1 < args.Length:
                     root = args[++index];
@@ -94,6 +103,8 @@ internal static class Program
         if (compareOnlyNew != null)
             return Compare(compareOnlyNew, compareOnlyRef!, roots: null);
 
+        if (importNegative)
+            return BuildNegative(data, corpora, root ?? "p8-c-rage-juggling-dark-embrace");
         if (!all && root == null)
         {
             Console.Error.WriteLine("需要 --root <name>、--all，或 --compare-only <new> <ref>。");
@@ -109,38 +120,73 @@ internal static class Program
         if (root != null)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            int code = BuildInProcess(data, corpora, output, root);
+            int code = BuildInProcess(data, corpora, output, root, importCompare);
             stopwatch.Stop();
             if (code != 0)
                 return code;
             Console.WriteLine($"root={root} ms={stopwatch.Elapsed.TotalMilliseconds:0}");
+            if (importCompare)
+                return LastImportResult == ImportStatus.Different ? 1 : 0;
             return compareDir == null ? 0 : Compare(output, compareDir, [root]);
         }
 
         string[] roots = EnumerateRoots(data);
+        if (importCompare)
+            roots = [.. roots.Where(name => !HasPrefix(data, corpora, name))];
         Console.WriteLine($"roots={roots.Length} jobs={jobs} out={output}");
         int failures = 0;
         long totalMilliseconds = 0;
         object gate = new();
+        int same = 0, different = 0, rejected = 0;
+        Dictionary<string, int> diffGroups = new(StringComparer.Ordinal);
+        Dictionary<string, int> rejectGroups = new(StringComparer.Ordinal);
         Parallel.ForEach(
             roots,
             new ParallelOptions { MaxDegreeOfParallelism = jobs },
             name =>
             {
                 Stopwatch stopwatch = Stopwatch.StartNew();
-                int code = BuildChild(data, corpora, output, name);
+                (int code, string stdout) = BuildChild(data, corpora, output, name, importCompare);
                 stopwatch.Stop();
+                List<string> importLines = stdout.Split('\n')
+                    .Where(line => line.StartsWith("IMPORT ", StringComparison.Ordinal)).ToList();
                 lock (gate)
                 {
                     totalMilliseconds += (long)stopwatch.Elapsed.TotalMilliseconds;
                     if (code != 0)
                         failures++;
+                    foreach (string line in importLines)
+                    {
+                        if (line.Contains("status=same", StringComparison.Ordinal)) same++;
+                        else if (line.Contains("status=diff", StringComparison.Ordinal))
+                        {
+                            different++;
+                            string field = ValueOf(line, "field=");
+                            diffGroups[field] = diffGroups.GetValueOrDefault(field) + 1;
+                        }
+                        else if (line.Contains("status=reject", StringComparison.Ordinal))
+                        {
+                            rejected++;
+                            string reason = ValueOf(line, "reason=");
+                            rejectGroups[reason] = rejectGroups.GetValueOrDefault(reason) + 1;
+                        }
+                    }
                 }
                 Console.WriteLine($"root={name} ms={stopwatch.Elapsed.TotalMilliseconds:0} status={(code == 0 ? "ok" : "fail")}");
             });
         Console.WriteLine($"done roots={roots.Length} failures={failures} sum_ms={totalMilliseconds}");
+        if (importCompare)
+        {
+            Console.WriteLine($"import same={same} diff={different} reject={rejected}");
+            foreach ((string key, int count) in diffGroups.OrderByDescending(entry => entry.Value)
+                         .ThenBy(entry => entry.Key, StringComparer.Ordinal))
+                Console.WriteLine($"import-diff field={key} count={count}");
+            foreach ((string key, int count) in rejectGroups.OrderByDescending(entry => entry.Value)
+                         .ThenBy(entry => entry.Key, StringComparer.Ordinal))
+                Console.WriteLine($"import-reject reason={key} count={count}");
+        }
         int compareCode = compareDir == null ? 0 : Compare(output, compareDir, roots);
-        return failures == 0 ? compareCode : 1;
+        return failures == 0 && different == 0 ? compareCode : 1;
     }
 
     private static string[] EnumerateRoots(string data)
@@ -153,7 +199,7 @@ internal static class Program
             .ToArray()!;
     }
 
-    private static int BuildChild(string data, string corpora, string output, string root)
+    private static (int Code, string Stdout) BuildChild(string data, string corpora, string output, string root, bool importCompare)
     {
         ProcessStartInfo start = new("dotnet")
         {
@@ -170,6 +216,8 @@ internal static class Program
         start.ArgumentList.Add(corpora);
         start.ArgumentList.Add("--out");
         start.ArgumentList.Add(output);
+        if (importCompare)
+            start.ArgumentList.Add("--import-compare");
         using Process process = Process.Start(start)
             ?? throw new InvalidOperationException("无法启动子进程。");
         Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
@@ -183,14 +231,27 @@ internal static class Program
             if (stderr.Length > 0)
                 Console.Error.WriteLine(stderr.TrimEnd());
         }
-        else if (stdout.Length > 0)
-        {
+        if (stdout.Length > 0)
             Console.WriteLine(stdout.TrimEnd());
-        }
-        return process.ExitCode;
+        return (process.ExitCode, stdout);
     }
 
-    private static int BuildInProcess(string data, string corpora, string output, string root)
+    private static int BuildNegative(string data, string corpora, string root)
+    {
+        MainLoopContext loop = new();
+        SynchronizationContext.SetSynchronizationContext(loop);
+        GameBootstrap.ApplyGodotBypasses();
+        GameBootstrap.SkipGodotNodeStaticConstructors();
+        GameBootstrap.InitializeStaticState();
+        OfflineRequest request = LoadRequest(data, corpora, root);
+        Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request);
+        loop.RunUntilCompleted(build, TimeSpan.FromSeconds(600), $"负例建局 {root}");
+        return ImportNegative.Run(data, root, build.GetAwaiter().GetResult());
+    }
+
+    private static ImportStatus LastImportResult { get; set; }
+
+    private static int BuildInProcess(string data, string corpora, string output, string root, bool importCompare)
     {
         OfflineRequest request = LoadRequest(data, corpora, root);
         string stage = "init";
@@ -202,13 +263,29 @@ internal static class Program
             GameBootstrap.SkipGodotNodeStaticConstructors();
             GameBootstrap.InitializeStaticState();
             stage = "build";
-            Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request);
+            // The ordinary root of a turn-setup fixture was captured before the test host injected
+            // its initial-state patch (the extra 8 setup roots are out of M2a-1 scope). Compare that
+            // pre-injection Play root; the default card injection belongs to the post-capture state.
+            bool preInjectionSetupRoot = importCompare && request.FlashTurnSetupRootForTest;
+            FirstChoiceCardSelector.LastSelections.Clear();
+            Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request, preInjectionSetupRoot);
             loop.RunUntilCompleted(build, TimeSpan.FromSeconds(600), $"建局 {root}");
             CombatState combat = build.GetAwaiter().GetResult();
             stage = "dump";
             string path = Path.Combine(output, root + ".native.txt");
             NativeStateDump.Write(combat, path);
             Console.WriteLine($"root={root} dump={path}");
+            if (importCompare)
+            {
+                ImportResult result = ImportCompare.Run(data, root, combat, [.. FirstChoiceCardSelector.LastSelections],
+                    preInjectionSetupRoot);
+                LastImportResult = result.Status;
+                Console.WriteLine(result.Line);
+                if (result.Status == ImportStatus.Different)
+                    Console.WriteLine(result.Detail);
+                else if (result.Status == ImportStatus.Rejected)
+                    Console.WriteLine($"  detail={result.Detail}");
+            }
             return 0;
         }
         catch (UnsupportedException error)
@@ -354,12 +431,31 @@ internal static class Program
         return mismatches == 0 ? 0 : 1;
     }
 
+    private static bool HasPrefix(string data, string corpora, string root)
+    {
+        OfflineRequest request = LoadRequest(data, corpora, root);
+        return request.FlashPrefixActions.Length != 0 || request.FlashPrefixPlan.Length != 0;
+    }
+
+    private static string ValueOf(string line, string key)
+    {
+        int start = line.IndexOf(key, StringComparison.Ordinal);
+        if (start < 0)
+            return "<unknown>";
+        start += key.Length;
+        int end = line.IndexOf(' ', start);
+        return end < 0 ? line[start..] : line[start..end];
+    }
+
     private static void PrintUsage()
     {
         Console.WriteLine("""
             用法：
               dotnet OfflineHost.dll --root <name> [--out <dir>] [--data <dir>] [--corpora <dir>]
               dotnet OfflineHost.dll --all [--jobs 1..8] [--out <dir>]
+              dotnet OfflineHost.dll --root <name> --import-compare
+              dotnet OfflineHost.dll --all --jobs 1..8 --import-compare
+              dotnet OfflineHost.dll --import-negative [--root <name>]
               dotnet OfflineHost.dll --compare-only <newDir> <referenceDir>
               dotnet OfflineHost.dll --all --compare <referenceDir>
             """);

@@ -11,10 +11,11 @@ BlitzSolver（极速战斗求解器）是《杀戮尖塔 2》的单人整场战�
 | `src/Core/Engine` | `BlitzSolver.Engine` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
 | `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
 | `src/Core/Search` | `BlitzSolver.Search`（含 `.Scoring`） | `BeamSolver` 与状态评估；`Ported/` 是移植自 CombatSolver 的依赖 |
+| `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层 |
 | `tests/KernelChecks` | | 内核合同（K0） |
 | `tests/Golden` | | 冻结快照校验器与数据 |
 
-依赖方向：`Content → Engine`、`Search → Engine`。`Engine` 不引用 `Content` 或 `Search`，`Search` 也不引用 `Content`；内容通过 `Registry` 挂到引擎上。
+依赖方向：`Content → Engine`、`Search → Engine`、`Import → Core`。`Engine` 不引用 `Content` 或 `Search`，`Search` 也不引用 `Content`；内容通过 `Registry` 挂到引擎上。`Import` 是唯一允许引用游戏程序集、Godot/Harmony 类型并读取模型私有字段的层；它不加入 `BlitzSolver.sln`。
 
 ## 2. 硬约束
 

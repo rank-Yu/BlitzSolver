@@ -155,8 +155,9 @@ manifest 不证明：语义正确性；它只保护冻结快照不被静默改�
 ## 6. 离线宿主（需要游戏文件，不在 CI 中运行）
 
 `tests/OfflineHost` 是不启动 Godot 的控制台工程：它初始化游戏静态状态、用游戏自己的
-`RunManager`/`ModelDb` 建局、推进到玩家可操作，再写出原生 `CombatState` 的确定性转储。
-它不导入 `Battle`，也不跑搜索。工程**不加入** `BlitzSolver.sln`；CI 没有游戏文件，只保证
+`RunManager`/`ModelDb` 建局、推进到玩家可操作，写出原生 `CombatState` 的确定性转储，并可用
+`--import-compare` 调 `src/Import` 导入 `Battle`、与 `golden.br` 的 `BATL` 逐字节对照。
+它不跑搜索。工程**不加入** `BlitzSolver.sln`；CI 没有游戏文件，只保证
 `dotnet build BlitzSolver.sln` 不受影响。
 
 需要本机游戏目录（`sts2.dll`、`GodotSharp.dll`、`0Harmony.dll`）。路径通过
@@ -171,8 +172,42 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --all --jobs 8 --out .l
 `--root <name>` 建单个根；`--all` 为每个根起一个子进程；`--compare-only <new> <ref>`
 逐根比较转储并打印第一处差异。当前 410 个输入与参考转储逐字节相同；参考转储由 CombatSolver `flash/m0` 的 `fe428fca` 生成（该提交给 M0 离线宿主加了同一份 `NativeStateDump`）。
 
-离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态。
-它不证明：原生状态到 `Battle`/`Rules` 的导入、前缀与额外回合准备根、实机运行。
+### 6.1 导入对照
+
+```bash
+# 单个根：建原生状态 → 导入 → 与 golden.br 的第一个/普通根 BATL 比较
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --import-compare
+
+# 397 个在范围根；13 个前缀 fixture 自动跳过
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --import-compare
+```
+
+每根输出 `same`、`diff` 或 `reject`。`diff` 随后打印 `BattleDump.Diff` 的前 24 行，每行带
+`+偏移 字段: golden=[...] import=[...]`；`reject` 打印稳定原因码与 detail。`--all` 汇总三类
+计数，并按首个差异字段、拒绝原因分组。当前：
+
+```text
+import same=397 diff=0 reject=0
+```
+
+`qf2-gradient-failure`、`ts-b-toolbox`、`ts-a-toasty` 的普通根分别是 GOLD 的下标 1/0/1；
+额外 8 个回合准备根不在本批。对照模式用原生第一个准备选项匹配对应的 golden 根，原因与字段
+来源见 [原生状态导入](import.md)。
+
+### 6.2 负例
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
+```
+
+默认在 `p8-c-rage-juggling-dark-embrace` 上验证三条路径：把 Power 的内部数据置空得到
+`missing-private-field`；向认领账本注入未认领条目得到 `unclaimed-private-state`；把
+`OfflineHost` 程序集里的测试 Power 挂到玩家身上得到 `third-party-content`。三条都必须拒绝，
+输出 `negative failures=0`。
+
+离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态；397 个在
+范围根能直接导入并与 GOLD 的 `BATL` 逐字节相同；3 类私有状态/第三方内容负例显式拒绝。
+它不证明：13 个前缀根、8 个额外回合准备根、实机运行，以及未捕获的第三方 Mod 内容。
 
 ## 7. 每层证明什么
 
@@ -183,18 +218,18 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --all --jobs 8 --out .l
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个冻结输入的原生 `CombatState` 与参考转储逐字节相同 | 导入 `Battle`、前缀/回合准备根、实机运行 |
+| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；397 个在范围根导入 `Battle` 与 GOLD 逐字节相同 | 前缀/额外回合准备根、实机运行、任意 Mod |
 
 这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的。它们不证明：BlitzSolver 能在真实游戏中导入状态、在真实战斗中部署、在界面上显示，或支持任意第三方 Mod。
 
 ## 8. 未验证项
 
 - **实机运行**：尚未在游戏内启动 BlitzSolver。
-- **状态导入**：离线宿主只建原生 `CombatState`；尚未把它投影成 `Battle`/`Rules`/评估配置。
+- **状态导入**：离线宿主的 `--import-compare` 已覆盖 397 个在范围根的 `Battle`；`Rules` 仍直接解码冻结对象，规则编译与评估配置分别留给 M2a-3/M2a-4。
 - **实机状态导入**：尚未从游戏运行时把 `CombatState`/`RunState` 投影成 `Battle`。
 - **部署**：尚未把搜索结果翻译回游戏动作并执行。
 - **界面**：没有设置页、进度、路线预览或失败提示。
-- **第三方 Mod**：没有实机 Mod 根；当前只验证 BCL 内的固定内容与冻结请求。
+- **第三方 Mod**：没有实机 Mod 根；导入层只显式拒绝非 `sts2` 程序集的模型，未做兼容层。
 - **Windows/Steam**：当前计时与验证在 Linux；Windows 未单独验证。
 
 这些项目在接入层完成前不应被文档或提交信息描述为已验证。冻结快照的更新条件见 [冻结快照](golden-data.md) 第 11 节。

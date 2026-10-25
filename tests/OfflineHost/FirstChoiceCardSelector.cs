@@ -10,11 +10,16 @@ namespace OfflineHost;
 
 internal sealed class FirstChoiceCardSelector : ICardSelector
 {
+    /// <summary>Card ids answered by this selector; used to identify the ordinary setup root.</summary>
+    public static List<string> LastSelections { get; } = [];
+
     public Task<IEnumerable<CardModel>> GetSelectedCards(
         IEnumerable<CardModel> options, int minSelect, int maxSelect)
     {
         List<CardModel> remaining = options.ToList();
         List<CardModel> selected = remaining.Count > 0 ? [remaining[0]] : [];
+        if (selected.Count > 0)
+            LastSelections.Add(selected[0].Id.Entry);
         if (selected.Count < minSelect || selected.Count > maxSelect)
             throw new InvalidOperationException(
                 $"原生测试选择 {selected.Count} 张牌，但界面要求 {minSelect}..{maxSelect} 张。");

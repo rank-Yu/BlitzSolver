@@ -4,8 +4,9 @@
 `RunManager`、`ModelDb` 与 `CombatState` 建出一场战斗，推进到玩家可操作，再把原生战斗状态
 写成确定性转储。它不启动 Godot 可执行文件，也不需要场景树。
 
-用途是 M2a 的第一步：先证明不启动游戏也能离线建出与冻结快照导出时相同的原生状态。
-本工程**不写导入器**，也不在 `BlitzSolver.sln` 中；CI 没有游戏文件，不会构建或运行它。
+用途是 M2a 的离线验证：先证明不启动游戏也能建出与冻结快照导出时相同的原生状态，再用
+`src/Import` 把状态导入 `Battle` 并与 GOLD 逐字节对照。本工程不在 `BlitzSolver.sln` 中；
+CI 没有游戏文件，不会构建或运行它。
 
 ## 需要游戏文件
 
@@ -51,6 +52,28 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 ```
 
 每个根一个子进程，避免游戏静态状态跨根污染；`--jobs` 取值 1 到 8。
+
+## 导入对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --root kg2-b-stomp --import-compare
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --all --jobs 8 --import-compare
+```
+
+每个根建原生状态、调 `BattleImporter.Import`，再与 `d1/<root>/golden.br` 的期望 `BATL`
+逐字节比较。结果只有 `same`、`diff`（打印 `BattleDump` 的前 24 个差异字段及偏移）与
+`reject`（打印稳定原因码）。`--all` 只跑 397 个在范围根，跳过 13 个前缀 fixture；额外 8 个
+回合准备根与 3 个普通根的处理见 [`docs/import.md`](../../docs/import.md)。
+
+负例模式：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
+```
+
+它验证读不到私有字段、未认领私有状态、第三方程序集内容三类拒绝。
 
 ## 与参考转储对照
 
