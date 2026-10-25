@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P11-E-STATUS-CARDS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP11E",
+  "ascension": 0,
+  "initialPlayerMaxHp": 9999,
+  "initialPlayerHp": 9999,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "POMMEL_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BATTLE_TRANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "REGRET",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NORMALITY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "VOID",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "timeoutSeconds": 120
+}

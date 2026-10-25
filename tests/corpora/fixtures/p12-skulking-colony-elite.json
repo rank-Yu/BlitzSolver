@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P12-SKULKING",
+  "characterId": "IRONCLAD",
+  "encounterId": "SKULKING_COLONY_ELITE",
+  "seed": "FLASHP12SKULK",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    120
+  ],
+  "initialEnemyCurrentHps": [
+    120
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "INERTIA_MOVE"
+  ]
+}

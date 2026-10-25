@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P1-FUZZY-WURM-WEAK",
+  "characterId": "IRONCLAD",
+  "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+  "seed": "FLASHP1C",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "TWIN_STRIKE", "pile": "Hand" },
+    { "cardId": "IRON_WAVE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "POMMEL_STRIKE", "pile": "Hand" },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "THUNDERCLAP", "pile": "Hand" },
+    { "cardId": "UPPERCUT", "pile": "Hand" },
+    { "cardId": "TWIN_STRIKE", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "IRON_WAVE", "pile": "Draw" },
+    { "cardId": "POMMEL_STRIKE", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Draw" },
+    { "cardId": "THUNDERCLAP", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "UPPERCUT", "pile": "Draw", "upgradeLevels": 1 }
+  ],
+  "powers": [
+    { "powerId": "WEAK_POWER", "target": "Player", "amount": 1 },
+    { "powerId": "FRAIL_POWER", "target": "Player", "amount": 1 },
+    { "powerId": "DEXTERITY_POWER", "target": "Player", "amount": 1 }
+  ],
+  "timeoutSeconds": 120
+}

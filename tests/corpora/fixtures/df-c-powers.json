@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-C-POWERS",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "DFC1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 20,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "CAPACITOR",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HAILSTORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MACHINE_LEARNING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "LOOP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CREATIVE_AI",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SPINNER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ECHO_FORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BUFFER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ITERATION",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FERAL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COOLANT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "THUNDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SMOKESTACK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TRASH_TO_TREASURE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SIGNAL_BOOST",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SUBROUTINE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFRAGMENT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FOCUSED_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HOTFIX",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HYPERBEAM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SYNTHESIS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CONSUMING_SHADOW",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "LIGHTNING_ROD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BIASED_COGNITION",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CAPACITOR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HAILSTORM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MACHINE_LEARNING",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "LOOP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CREATIVE_AI",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SPINNER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STORM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ECHO_FORM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BUFFER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ITERATION",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FERAL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "COOLANT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "THUNDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SMOKESTACK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TRASH_TO_TREASURE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SIGNAL_BOOST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SUBROUTINE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFRAGMENT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FOCUSED_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HOTFIX",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HYPERBEAM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CONSUMING_SHADOW",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "LIGHTNING_ROD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BIASED_COGNITION",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BULK_UP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SYNCHRONIZE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "DARK_ORB",
+      "count": 1,
+      "decimalMembers": {
+        "_evokeVal": 10
+      }
+    },
+    {
+      "orbId": "FROST_ORB",
+      "count": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

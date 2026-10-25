@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-QUEEN-CHAINS",
+  "characterId": "IRONCLAD",
+  "encounterId": "QUEEN_BOSS",
+  "seed": "FLASHA3QUEC",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    60,
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    60,
+    200
+  ],
+  "initialEnemyMoveIds": [
+    "STRONG_TACKLE_MOVE",
+    "PUPPET_STRINGS_MOVE"
+  ],
+  "timeoutSeconds": 180
+}

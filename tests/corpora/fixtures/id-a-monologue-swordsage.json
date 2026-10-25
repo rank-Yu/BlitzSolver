@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-ID-A-MONOLOGUE-SWORDSAGE",
+  "characterId": "REGENT",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHIDA",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 12,
+  "initialPlayerStars": 6,
+  "enemyCurrentHp": 600,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "MONOLOGUE", "pile": "Hand" },
+    { "cardId": "MONOLOGUE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SWORD_SAGE", "pile": "Hand" },
+    { "cardId": "SWORD_SAGE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SUMMON_FORTH", "pile": "Hand" },
+    { "cardId": "SOVEREIGN_BLADE", "pile": "Hand" },
+    { "cardId": "SOVEREIGN_BLADE", "pile": "Draw" },
+    { "cardId": "SOVEREIGN_BLADE", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_REGENT", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_REGENT", "pile": "Draw", "count": 4 },
+    { "cardId": "STRIKE_REGENT", "pile": "Discard", "count": 2 },
+    { "cardId": "DEFEND_REGENT", "pile": "Discard", "count": 2 }
+  ],
+  "timeoutSeconds": 180
+}

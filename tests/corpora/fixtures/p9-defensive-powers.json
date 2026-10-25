@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ],
+  "timeoutSeconds": 120,
+  "scenarioId": "FLASH-P9-DEFENSIVE-POWERS",
+  "seed": "FLASHP9E",
+  "potions": [
+    {
+      "potionId": "HEART_OF_IRON"
+    },
+    {
+      "potionId": "LIQUID_BRONZE"
+    },
+    {
+      "potionId": "MAZALETHS_GIFT"
+    }
+  ],
+  "clearPlayerHand": true
+}

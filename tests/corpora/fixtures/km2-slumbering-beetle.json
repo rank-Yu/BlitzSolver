@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KM2-SLUMBERING-BEETLE",
+  "characterId": "IRONCLAD",
+  "encounterId": "SLUMBERING_BEETLE_NORMAL",
+  "seed": "FLASHKM2SLMB",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [45, 40, 60],
+  "initialEnemyCurrentHps": [45, 40, 60],
+  "timeoutSeconds": 120
+}

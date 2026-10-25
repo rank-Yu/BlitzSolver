@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P4-A-POWER-CARDS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP4A",
+  "ascension": 0,
+  "initialPlayerHp": 60,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "FLAME_BARRIER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FLAME_BARRIER",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PYRE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "PYRE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEMON_FORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEMON_FORM",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "TWIN_STRIKE",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "POMMEL_STRIKE",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "IRON_WAVE",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "FLAME_BARRIER_POWER",
+      "target": "Player",
+      "amount": 4
+    },
+    {
+      "powerId": "DEMON_FORM_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "PYRE_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ],
+  "timeoutSeconds": 120
+}

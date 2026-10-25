@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P4-B-TEMPORARY-POWERS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP4B",
+  "ascension": 0,
+  "initialPlayerHp": 70,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "BARRICADE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BARRICADE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MANGLE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MANGLE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SETUP_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SETUP_STRIKE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SPITE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SPITE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "IRON_WAVE",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "OFFERING",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "BARRICADE_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "SETUP_STRIKE_POWER",
+      "target": "Player",
+      "amount": 3
+    },
+    {
+      "powerId": "MANGLE_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 4
+    },
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

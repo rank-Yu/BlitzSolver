@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-I-RUINED-HELMET",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2I",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "RUINED_HELMET",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    }
+  ],
+  "timeoutSeconds": 120
+}

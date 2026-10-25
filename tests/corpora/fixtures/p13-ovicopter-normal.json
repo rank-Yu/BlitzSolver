@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P13-OVICOPTER-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "OVICOPTER_NORMAL",
+  "seed": "FLASHP13OVI",
+  "ascension": 0,
+  "initialPlayerMaxHp": 90,
+  "initialPlayerHp": 90,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    100
+  ],
+  "initialEnemyCurrentHps": [
+    100
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "TENDERIZER_MOVE"
+  ]
+}

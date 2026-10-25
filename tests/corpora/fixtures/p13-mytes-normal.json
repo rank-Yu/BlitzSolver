@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P13-MYTES-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "MYTES_NORMAL",
+  "seed": "FLASHP13MYTE",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    70,
+    70
+  ],
+  "initialEnemyCurrentHps": [
+    70,
+    70
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "TOXIC_MOVE",
+    "SUCK_MOVE"
+  ]
+}

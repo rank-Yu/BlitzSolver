@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P16-POTIONS-CHARACTER",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP16P",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "potions": [
+    { "potionId": "ATTACK_POTION" },
+    { "potionId": "SKILL_POTION" },
+    { "potionId": "POWER_POTION" }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R3-A-DISTILLED-CHAOS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHR3A",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "potions": [
+    {
+      "potionId": "DISTILLED_CHAOS"
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "TWIN_STRIKE",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

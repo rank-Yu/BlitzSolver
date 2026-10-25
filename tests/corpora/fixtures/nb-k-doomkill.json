@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "k-doomkill",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "NBK1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 30,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "NEGATIVE_PULSE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "END_OF_DAYS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SCOURGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TIMES_UP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NEGATIVE_PULSE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "END_OF_DAYS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SCOURGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TIMES_UP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    30,
+    30
+  ],
+  "initialEnemyCurrentHps": [
+    30,
+    30
+  ]
+}

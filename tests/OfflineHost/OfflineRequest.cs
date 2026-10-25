@@ -1,0 +1,139 @@
+// Adapted from CombatSolver/src/Testing/Host/UnattendedTestProtocol.cs at commit a62f1850
+// (MIT, Copyright (c) 2026 Torch1230 and contributors).
+// Only the fields required to build the native root of the 410 frozen inputs are carried over.
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using MegaCrit.Sts2.Core.Map;
+using MegaCrit.Sts2.Core.Rooms;
+
+namespace OfflineHost;
+
+internal static class OfflineJson
+{
+    public static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record OfflineRequest
+{
+    public int SchemaVersion { get; init; } = 1;
+    public string ScenarioId { get; init; } = "SMOKE-001";
+    public string CharacterId { get; init; } = "IRONCLAD";
+    public string EncounterId { get; init; } = "FUZZY_WURM_CRAWLER_WEAK";
+    public string Seed { get; init; } = "COMBATSOLVER";
+    public string? GeneratedScenarioPath { get; init; }
+    public string? EvidenceDirectory { get; init; }
+    public string? CheckpointArchivePath { get; init; }
+    public string? ReplayPolicyOverridePath { get; init; }
+    public bool PreserveNativeCombatStateForTest { get; init; }
+    public int Ascension { get; init; }
+    public int ActIndexForTest { get; init; }
+    public RoomType TargetRoomType { get; init; } = RoomType.Monster;
+    public MapPointType TargetMapPointType { get; init; } = MapPointType.Unassigned;
+    public int EnemyCurrentHp { get; init; } = 1;
+    public int[] InitialEnemyMaxHps { get; init; } = [];
+    public int[] InitialEnemyCurrentHps { get; init; } = [];
+    public int[] InitialEnemyBlocks { get; init; } = [];
+    public int? InitialPlayerHp { get; init; }
+    public int? InitialPlayerMaxHp { get; init; }
+    public int? InitialPlayerBlock { get; init; }
+    public int? InitialPlayerEnergy { get; init; }
+    public int? InitialPlayerStars { get; init; }
+    public int? InitialRoundNumber { get; init; }
+    public int? InitialPlayerTurnNumber { get; init; }
+    public string[][] InitialEnemyStateLogs { get; init; } = [];
+    public Dictionary<string, int>[] InitialEnemyIntegerMembers { get; init; } = [];
+    public string[] InitialEnemyMoveIds { get; init; } = [];
+    public UnattendedCardInjection[] Cards { get; init; } =
+    [
+        new() { CardId = "STRIKE_IRONCLAD", Pile = "Hand", Count = 1 },
+    ];
+    public UnattendedCardInjection[] RunCards { get; init; } = [];
+    public UnattendedPowerInjection[] Powers { get; init; } = [];
+    public UnattendedOrbInjection[] Orbs { get; init; } = [];
+    public UnattendedPotionInjection[] Potions { get; init; } = [];
+    public UnattendedRelicInjection[] Relics { get; init; } = [];
+    public UnattendedRelicInjection[] CombatRelics { get; init; } = [];
+    public bool ClearPlayerHand { get; init; }
+    public bool ClearPlayerPiles { get; init; }
+    public bool ClearRunDeck { get; init; }
+    public bool ClearAllPowers { get; init; }
+    public double TimeoutSeconds { get; init; } = 120;
+
+    // Recognized but not applied in M2a-0: prefixes and turn-setup roots belong to M2a-5.
+    public JsonElement[] FlashPrefixActions { get; init; } = [];
+    public JsonElement[] FlashPrefixPlan { get; init; } = [];
+    public bool FlashTurnSetupRootForTest { get; init; }
+
+    // Search/deployment fields present in frozen fixture JSON. They do not affect root construction;
+    // ValidateSupported rejects the values this batch does not understand.
+    public bool UseNoveltyPortfolioForTest { get; init; }
+    public int? ExpectedUnexpectedReplansAtMost { get; init; }
+    public string? HeadlessFastModeForTest { get; init; }
+    public string? DeploymentFastModeForTest { get; init; }
+    public string? FlashSearchModeForTest { get; init; }
+    public int? DeploymentInterActionDelaySecondsForTest { get; init; }
+    public bool ExportBugReportAfterCombat { get; init; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class UnattendedPowerInjection
+{
+    public string PowerId { get; init; } = string.Empty;
+    public string Target { get; init; } = "Enemy";
+    public int TargetIndex { get; init; }
+    public string? PowerTarget { get; init; }
+    public int PowerTargetIndex { get; init; }
+    public string? Applier { get; init; }
+    public int ApplierIndex { get; init; }
+    public int Amount { get; init; } = 1;
+    public Dictionary<string, int> DynamicVars { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, int> InternalIntegerMembers { get; init; } = new(StringComparer.Ordinal);
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class UnattendedCardInjection
+{
+    public string CardId { get; init; } = string.Empty;
+    public string Pile { get; init; } = "Hand";
+    public int Count { get; init; } = 1;
+    public int UpgradeLevels { get; init; }
+    // Legacy single-card field present in one frozen fixture. The reference harness ignores it.
+    public int UpgradeLevel { get; init; }
+    public string? EnchantmentId { get; init; }
+    public int EnchantmentAmount { get; init; } = 1;
+    public string? AfflictionId { get; init; }
+    public int AfflictionAmount { get; init; } = 1;
+    public bool TreatAsDeckCard { get; init; }
+    public Dictionary<string, int> DynamicVars { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> EnumMembers { get; init; } = new(StringComparer.Ordinal);
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class UnattendedPotionInjection
+{
+    public string PotionId { get; init; } = string.Empty;
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class UnattendedRelicInjection
+{
+    public string RelicId { get; init; } = string.Empty;
+    public bool AddWithoutObtainedEffects { get; init; }
+    public Dictionary<string, int> IntegerMembers { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, bool> BooleanMembers { get; init; } = new(StringComparer.Ordinal);
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class UnattendedOrbInjection
+{
+    public string OrbId { get; init; } = string.Empty;
+    public int Count { get; init; } = 1;
+    public Dictionary<string, decimal> DecimalMembers { get; init; } = new(StringComparer.Ordinal);
+}

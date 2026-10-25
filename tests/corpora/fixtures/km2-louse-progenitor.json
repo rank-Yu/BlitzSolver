@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KM2-LOUSE-PROGENITOR",
+  "characterId": "IRONCLAD",
+  "encounterId": "LOUSE_PROGENITOR_NORMAL",
+  "seed": "FLASHKM2LOUS",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [80],
+  "initialEnemyCurrentHps": [80],
+  "timeoutSeconds": 120
+}

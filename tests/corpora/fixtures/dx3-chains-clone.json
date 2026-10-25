@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-CHAINS-CLONE",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHDX3CHN",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [200, 200],
+  "initialEnemyCurrentHps": [200, 200],
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "ADAPTIVE_STRIKE", "pile": "Hand", "afflictionId": "BOUND", "count": 2 },
+    { "cardId": "STRIKE_DEFECT", "pile": "Hand", "afflictionId": "BOUND", "count": 2 },
+    { "cardId": "DEFEND_DEFECT", "pile": "Draw", "count": 4 }
+  ],
+  "powers": [
+    { "powerId": "CHAINS_OF_BINDING_POWER", "target": "Player", "amount": 3 }
+  ]
+}

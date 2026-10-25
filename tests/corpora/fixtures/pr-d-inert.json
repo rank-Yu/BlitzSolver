@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-PR-D-INERT",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHPR-D",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "BING_BONG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DARKSTONE_PERIAPT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DATA_DISK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DELICATE_FROND",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DIAMOND_DIADEM",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DIVINE_DESTINY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FAKE_SNECKO_EYE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FUNERARY_MASK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NINJA_SCROLL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RADIANT_PEARL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TWISTED_FUNNEL",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "CONFUSED_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "LUMINESCE",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "LUMINESCE",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "LUMINESCE",
+      "pile": "Draw",
+      "upgradeLevel": 1
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "timeoutSeconds": 120,
+  "clearRunDeck": true
+}

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "SK-G-STARTERS-UPGRADED",
+  "characterId": "SILENT",
+  "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+  "seed": "SKG1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "NEUTRALIZE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 1,
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 1,
+      "count": 2
+    },
+    {
+      "cardId": "NEUTRALIZE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Draw",
+      "upgradeLevels": 1,
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "NEUTRALIZE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Draw"
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400
+  ]
+}

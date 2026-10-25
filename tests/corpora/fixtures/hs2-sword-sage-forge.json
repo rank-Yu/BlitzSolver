@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-HS2-SWORD-SAGE-FORGE",
+  "characterId": "REGENT",
+  "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+  "seed": "FLASHHS2SWORDSAGE",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    200
+  ],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "WROUGHT_IN_WAR",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SOVEREIGN_BLADE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_REGENT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_REGENT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_REGENT",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "SWORD_SAGE_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ],
+  "timeoutSeconds": 120
+}

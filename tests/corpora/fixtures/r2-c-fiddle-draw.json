@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R2-C-FIDDLE-DRAW",
+  "characterId": "IRONCLAD",
+  "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+  "seed": "FLASHR2C",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "FIDDLE",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 3
+    },
+    {
+      "cardId": "POMMEL_STRIKE",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "BATTLE_TRANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 5
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 5
+    },
+    {
+      "cardId": "POMMEL_STRIKE",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "BATTLE_TRANCE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

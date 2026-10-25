@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-J-GHOST-SEED",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2J",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    { "relicId": "GHOST_SEED", "addWithoutObtainedEffects": true }
+  ],
+  "cards": [
+    { "cardId": "INFERNAL_BLADE", "pile": "Hand", "count": 3 },
+    { "cardId": "ANGER", "pile": "Hand" },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand" },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 }
+  ],
+  "timeoutSeconds": 120
+}

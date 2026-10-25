@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-E-VICIOUS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2E",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "initialEnemyMaxHps": [400, 400],
+  "initialEnemyCurrentHps": [400, 400],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "VICIOUS", "pile": "Hand" },
+    { "cardId": "VICIOUS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BASH", "pile": "Hand" },
+    { "cardId": "UPPERCUT", "pile": "Hand" },
+    { "cardId": "THUNDERCLAP", "pile": "Hand" },
+    { "cardId": "SHOCKWAVE", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 5 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

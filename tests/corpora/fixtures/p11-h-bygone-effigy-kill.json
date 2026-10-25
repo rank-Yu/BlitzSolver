@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P11-H-BYGONE-EFFIGY-KILL",
+  "characterId": "IRONCLAD",
+  "encounterId": "BYGONE_EFFIGY_ELITE",
+  "seed": "FLASHP11H",
+  "ascension": 0,
+  "initialPlayerMaxHp": 80,
+  "initialPlayerHp": 80,
+  "enemyCurrentHp": 15,
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P1-NIBBITS-WEAK",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHP1B",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "TWIN_STRIKE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "IRON_WAVE", "pile": "Hand" },
+    { "cardId": "POMMEL_STRIKE", "pile": "Hand" },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Hand" },
+    { "cardId": "THUNDERCLAP", "pile": "Hand" },
+    { "cardId": "UPPERCUT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "TWIN_STRIKE", "pile": "Draw" },
+    { "cardId": "IRON_WAVE", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "POMMEL_STRIKE", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "THUNDERCLAP", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "UPPERCUT", "pile": "Draw" }
+  ],
+  "powers": [
+    { "powerId": "WEAK_POWER", "target": "Enemy", "targetIndex": 0, "amount": 2 },
+    { "powerId": "FRAIL_POWER", "target": "Enemy", "targetIndex": 0, "amount": 2 },
+    { "powerId": "DEXTERITY_POWER", "target": "Enemy", "targetIndex": 0, "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

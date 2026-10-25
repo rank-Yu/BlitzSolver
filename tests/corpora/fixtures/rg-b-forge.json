@@ -1,0 +1,159 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-RG-B-FORGE",
+ "characterId": "REGENT",
+ "encounterId": "NIBBITS_WEAK",
+ "seed": "RGB1",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 12,
+ "initialPlayerStars": 6,
+ "enemyCurrentHp": 400,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "REFINE_BLADE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "BULWARK",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "WROUGHT_IN_WAR",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CONQUEROR",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SEEKING_EDGE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "THE_SMITH",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "FURNACE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PARRY",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SOVEREIGN_BLADE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "REFINE_BLADE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "BULWARK",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "WROUGHT_IN_WAR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CONQUEROR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SEEKING_EDGE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "THE_SMITH",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "FURNACE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PARRY",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SOVEREIGN_BLADE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SOVEREIGN_BLADE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ARSENAL",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "ARSENAL",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PILLAR_OF_CREATION",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PILLAR_OF_CREATION",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SPOILS_OF_BATTLE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SPOILS_OF_BATTLE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  }
+ ],
+ "timeoutSeconds": 120,
+ "relics": [
+  {
+   "relicId": "REGALITE",
+   "addWithoutObtainedEffects": true
+  },
+  {
+   "relicId": "FENCING_MANUAL",
+   "addWithoutObtainedEffects": true
+  },
+  {
+   "relicId": "ORANGE_DOUGH",
+   "addWithoutObtainedEffects": true
+  },
+  {
+   "relicId": "BRILLIANT_SCARF",
+   "addWithoutObtainedEffects": true
+  }
+ ]
+}

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-H-CREATOR",
+  "characterId": "DEFECT",
+  "encounterId": "SLIMES_NORMAL",
+  "seed": "DFH1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 20,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "OVERCLOCK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TURBO",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FIGHT_THROUGH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ROCKET_PUNCH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "SMOKESTACK_POWER",
+      "target": "Player",
+      "amount": 9
+    },
+    {
+      "powerId": "TRASH_TO_TREASURE_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "DARK_ORB",
+      "count": 1,
+      "decimalMembers": {
+        "_evokeVal": 8
+      }
+    },
+    {
+      "orbId": "FROST_ORB",
+      "count": 1
+    },
+    {
+      "orbId": "LIGHTNING_ORB",
+      "count": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400,
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400,
+    400,
+    400
+  ]
+}

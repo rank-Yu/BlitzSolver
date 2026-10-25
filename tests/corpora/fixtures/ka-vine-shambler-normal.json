@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KA-VINE-SHAMBLER",
+  "characterId": "IRONCLAD",
+  "encounterId": "VINE_SHAMBLER_NORMAL",
+  "seed": "FLASHKAVINE",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    300
+  ],
+  "initialEnemyCurrentHps": [
+    300
+  ],
+  "initialEnemyMoveIds": [
+    "SWIPE_MOVE"
+  ],
+  "timeoutSeconds": 180
+}

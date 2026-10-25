@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "SK-E-POWERS",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "SKE1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "BLADE_DANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ACROBATICS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEADLY_POISON",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ACCURACY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "AFTERIMAGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFINITE_BLADES",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MASTER_PLANNER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "WELL_LAID_PLANS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FAN_OF_KNIVES",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NOXIOUS_FUMES",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ENVENOM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CORROSIVE_WAVE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ACCELERANT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TRACKING",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SPEEDSTER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BLUR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHADOW_STEP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PREDATOR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SIDESTEP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ],
+  "powers": [
+    {
+      "powerId": "ACCURACY_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "AFTERIMAGE_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "INFINITE_BLADES_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "MASTER_PLANNER_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "WELL_LAID_PLANS_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "FAN_OF_KNIVES_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "NOXIOUS_FUMES_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "ENVENOM_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "CORROSIVE_WAVE_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "ACCELERANT_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "SPEEDSTER_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "TRACKING_POWER",
+      "target": "Player",
+      "amount": 50
+    },
+    {
+      "powerId": "BLUR_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "SHADOW_STEP_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "DRAW_CARDS_NEXT_TURN_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "ENERGY_NEXT_TURN_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "STRANGLE_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 2
+    }
+  ]
+}

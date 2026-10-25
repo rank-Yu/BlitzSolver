@@ -1,0 +1,404 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-RG-A-STAR",
+ "characterId": "REGENT",
+ "encounterId": "NIBBITS_NORMAL",
+ "seed": "RGA1",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 9,
+ "initialPlayerStars": 9,
+ "enemyCurrentHp": 400,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "VENERATE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SOLAR_STRIKE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SHINING_STRIKE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GATHER_LIGHT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GLOW",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "ROYAL_GAMBLE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "ALIGNMENT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "HIDDEN_CACHE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CONVERGENCE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "BIG_BANG",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "STARDUST",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "HEAVENLY_DRILL",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "DYING_STAR",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "COMET",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "ASTRAL_PULSE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "BOMBARDMENT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "KNOCKOUT_BLOW",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "I_AM_INVINCIBLE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "VENERATE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SOLAR_STRIKE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SHINING_STRIKE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GATHER_LIGHT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GLOW",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ROYAL_GAMBLE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ALIGNMENT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "HIDDEN_CACHE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CONVERGENCE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "BIG_BANG",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "STARDUST",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "HEAVENLY_DRILL",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "DYING_STAR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "COMET",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ASTRAL_PULSE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "BOMBARDMENT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "KNOCKOUT_BLOW",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "I_AM_INVINCIBLE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "VENERATE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "KNOW_THY_PLACE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GAMMA_BLAST",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "RESONANCE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "KNOW_THY_PLACE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GAMMA_BLAST",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "RESONANCE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CELESTIAL_MIGHT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SEVEN_STARS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "LUNAR_BLAST",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CRESCENT_SPEAR",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PARTICLE_WALL",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CLOAK_OF_STARS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "DEVASTATE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PROPHESIZE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CELESTIAL_MIGHT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SEVEN_STARS",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "LUNAR_BLAST",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CRESCENT_SPEAR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PARTICLE_WALL",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CLOAK_OF_STARS",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "DEVASTATE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PROPHESIZE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GUIDING_STAR",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GUIDING_STAR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PATTER",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PATTER",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CRUSH_UNDER",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CRUSH_UNDER",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SPOILS_OF_BATTLE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SPOILS_OF_BATTLE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "BLACK_HOLE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "BLACK_HOLE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GLITTERSTREAM",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GLITTERSTREAM",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CRASH_LANDING",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CRASH_LANDING",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "RADIATE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "RADIATE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  }
+ ],
+ "timeoutSeconds": 120,
+ "relics": [
+  {
+   "relicId": "GALACTIC_DUST",
+   "addWithoutObtainedEffects": true
+  },
+  {
+   "relicId": "MINI_REGENT",
+   "addWithoutObtainedEffects": true
+  }
+ ]
+}

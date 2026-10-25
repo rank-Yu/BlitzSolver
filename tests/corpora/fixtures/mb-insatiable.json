@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-MB-INSATIABLE",
+  "characterId": "IRONCLAD",
+  "encounterId": "THE_INSATIABLE_BOSS",
+  "seed": "FLASHMBINSAT",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [321],
+  "initialEnemyCurrentHps": [321],
+  "timeoutSeconds": 120
+}

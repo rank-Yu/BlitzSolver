@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-QUEEN",
+  "characterId": "IRONCLAD",
+  "encounterId": "QUEEN_BOSS",
+  "seed": "FLASHA3QUE",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    40,
+    150
+  ],
+  "initialEnemyCurrentHps": [
+    40,
+    150
+  ],
+  "timeoutSeconds": 180,
+  "initialEnemyMoveIds": [
+    "STRONG_TACKLE_MOVE",
+    "BURN_BRIGHT_FOR_ME_MOVE"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-QF3-BURROWED-COMPENSATION",
+ "characterId": "REGENT",
+ "encounterId": "TUNNELER_WEAK",
+ "seed": "FLASHQF3BURROWED",
+ "ascension": 0,
+ "initialPlayerHp": 500,
+ "initialPlayerMaxHp": 500,
+ "initialPlayerEnergy": 9,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "clearRunDeck": true,
+ "initialEnemyMaxHps": [
+  500
+ ],
+ "initialEnemyCurrentHps": [
+  500
+ ],
+ "initialEnemyBlocks": [
+  1
+ ],
+ "timeoutSeconds": 120,
+ "powers": [
+  {
+   "powerId": "BURROWED_POWER",
+   "target": "Enemy",
+   "targetIndex": 0,
+   "amount": 1,
+   "applier": "Enemy",
+   "applierIndex": 0
+  },
+  {
+   "powerId": "THORNS_POWER",
+   "target": "Player",
+   "amount": 5
+  }
+ ],
+ "cards": [
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Hand"
+  }
+ ]
+}

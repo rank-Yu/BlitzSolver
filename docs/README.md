@@ -30,6 +30,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | `src/Core/Search/Ported/` | `BlitzSolver.Search`：从 CombatSolver `a62f1850` 移植的纯值依赖 |
 | `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`） |
 | `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/` |
+| [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState` 并转储；需要游戏文件，不在 CI 中运行 |
 | `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
 
 依赖方向：`Content → Engine`、`Search → Engine`。Engine 不引用 Content 或 Search，Search 也不引用 Content（内容通过注册表挂到引擎上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包。

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-TW-WATERFALL-GIANT",
+  "characterId": "IRONCLAD",
+  "encounterId": "WATERFALL_GIANT_BOSS",
+  "seed": "FLASHTWGIANT",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    30
+  ],
+  "initialEnemyCurrentHps": [
+    30
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KM2-PHROG-PARASITE",
+  "characterId": "IRONCLAD",
+  "encounterId": "PHROG_PARASITE_ELITE",
+  "seed": "FLASHKM2PHRG",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [30],
+  "initialEnemyCurrentHps": [30],
+  "timeoutSeconds": 120
+}

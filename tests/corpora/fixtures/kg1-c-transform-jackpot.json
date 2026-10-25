@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "KG1-C-TRANSFORM-JACKPOT",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "KG1TRANS",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "PRIMAL_FORCE", "pile": "Hand" },
+    { "cardId": "PRIMAL_FORCE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "JACKPOT", "pile": "Hand" },
+    { "cardId": "JACKPOT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand" },
+    { "cardId": "TWIN_STRIKE", "pile": "Hand" },
+    { "cardId": "BASH", "pile": "Hand" },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "BASH", "pile": "Draw", "count": 2 },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Draw", "count": 2 },
+    { "cardId": "TWIN_STRIKE", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

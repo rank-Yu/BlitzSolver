@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-K4-PLAYER-PLATING-THORNS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHK4",
+  "ascension": 0,
+  "enemyCurrentHp": 200,
+  "powers": [
+    { "powerId": "PLATING_POWER", "target": "Player", "amount": 4 },
+    { "powerId": "THORNS_POWER", "target": "Player", "amount": 3 }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P16-POTIONS-COLORLESS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP16C",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "potions": [
+    { "potionId": "COLORLESS_POTION" }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P10-D-EMPTY-CURSES",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP10D",
+  "ascension": 0,
+  "initialPlayerHp": 9999,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "ASCENDERS_BANE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CLUMSY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CURSE_OF_THE_BELL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FOLLY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GREED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SPORE_MIND",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GUILTY",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "INJURY",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "POOR_SLEEP",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "WRITHE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SPORE_MIND",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialPlayerMaxHp": 9999
+}

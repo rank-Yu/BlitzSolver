@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-ID-G-CALL-OF-THE-VOID",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHIDG",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 12,
+  "enemyCurrentHp": 700,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "CALL_OF_THE_VOID", "pile": "Hand" },
+    { "cardId": "CALL_OF_THE_VOID", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "FETCH", "pile": "Hand" },
+    { "cardId": "DELAY", "pile": "Hand" },
+    { "cardId": "DEFEND_NECROBINDER", "pile": "Hand", "count": 2 },
+    { "cardId": "STRIKE_NECROBINDER", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_NECROBINDER", "pile": "Draw", "count": 4 },
+    { "cardId": "STRIKE_NECROBINDER", "pile": "Discard", "count": 2 },
+    { "cardId": "DEFEND_NECROBINDER", "pile": "Discard", "count": 2 }
+  ],
+  "timeoutSeconds": 180
+}

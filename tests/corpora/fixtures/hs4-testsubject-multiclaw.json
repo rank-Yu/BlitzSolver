@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-HS4-TESTSUBJECT-MULTICLAW",
+  "characterId": "IRONCLAD",
+  "encounterId": "TEST_SUBJECT_BOSS",
+  "seed": "FLASHHS4MULTI",
+  "ascension": 10,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    1000
+  ],
+  "initialEnemyCurrentHps": [
+    1000
+  ],
+  "initialEnemyMoveIds": [
+    "MULTI_CLAW_MOVE"
+  ],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearRunDeck": true,
+  "clearAllPowers": true,
+  "cards": [],
+  "timeoutSeconds": 180,
+  "initialEnemyIntegerMembers": [
+    {
+      "_extraMultiClawCount": 1
+    }
+  ]
+}

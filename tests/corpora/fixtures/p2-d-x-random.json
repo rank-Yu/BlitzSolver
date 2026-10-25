@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P2-D-X-RANDOM",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP2D",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "WHIRLWIND", "pile": "Hand" },
+    { "cardId": "WHIRLWIND", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SWORD_BOOMERANG", "pile": "Hand" },
+    { "cardId": "SWORD_BOOMERANG", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PILLAGE", "pile": "Hand" },
+    { "cardId": "PILLAGE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "CINDER", "pile": "Hand" },
+    { "cardId": "CINDER", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "CONFLAGRATION", "pile": "Hand" },
+    { "cardId": "CONFLAGRATION", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 3 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Exhaust", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "STRENGTH_POWER", "target": "Player", "amount": 1 }
+  ],
+  "timeoutSeconds": 120
+}

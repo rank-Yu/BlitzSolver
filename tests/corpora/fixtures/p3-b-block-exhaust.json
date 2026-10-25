@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P3-B-BLOCK-EXHAUST",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHP3B",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "IMPERVIOUS", "pile": "Hand" },
+    { "cardId": "IMPERVIOUS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SECOND_WIND", "pile": "Hand" },
+    { "cardId": "SECOND_WIND", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "EXPECT_A_FIGHT", "pile": "Hand" },
+    { "cardId": "EXPECT_A_FIGHT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PACTS_END", "pile": "Hand" },
+    { "cardId": "PACTS_END", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "FEED", "pile": "Hand" },
+    { "cardId": "FEED", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Discard", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Discard", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Exhaust", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Exhaust" }
+  ],
+  "powers": [
+    { "powerId": "FEEL_NO_PAIN_POWER", "target": "Player", "amount": 3 },
+    { "powerId": "JUGGERNAUT_POWER", "target": "Player", "amount": 6 },
+    { "powerId": "STRENGTH_POWER", "target": "Player", "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P13-SPINY-TOAD-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "SPINY_TOAD_NORMAL",
+  "seed": "FLASHP13TOAD",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    80
+  ],
+  "initialEnemyCurrentHps": [
+    80
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "PROTRUDING_SPIKES_MOVE"
+  ]
+}

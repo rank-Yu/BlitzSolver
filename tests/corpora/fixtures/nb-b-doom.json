@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "NB-B-DOOM",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "NBB1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "NEGATIVE_PULSE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEATHBRINGER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "PUTREFY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NO_ESCAPE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TIMES_UP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEATH_MARCH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SOUL_STORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "END_OF_DAYS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BLIGHT_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SCOURGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NEGATIVE_PULSE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEATHBRINGER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PUTREFY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "NO_ESCAPE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TIMES_UP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEATH_MARCH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL_STORM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "END_OF_DAYS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BLIGHT_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SCOURGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEATHS_DOOR",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DEATHS_DOOR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "THE_SCYTHE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "THE_SCYTHE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400
+  ]
+}

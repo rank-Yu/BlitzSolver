@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P13-THE-OBSCURA-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "THE_OBSCURA_NORMAL",
+  "seed": "FLASHP13OBSC",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    100
+  ],
+  "initialEnemyCurrentHps": [
+    100
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "ILLUSION_MOVE"
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "NB-G1-UTILITY2",
+  "characterId": "NECROBINDER",
+  "encounterId": "SLIMES_NORMAL",
+  "seed": "NBG1",
+  "ascension": 0,
+  "initialPlayerHp": 120,
+  "initialPlayerMaxHp": 120,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "MELANCHOLY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DRAIN_POWER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "PARSE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INVOKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BANSHEES_CRY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MELANCHOLY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DRAIN_POWER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PARSE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "INVOKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BANSHEES_CRY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    200,
+    200,
+    200,
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    200,
+    200,
+    200,
+    200
+  ]
+}

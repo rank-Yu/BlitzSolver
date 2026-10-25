@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-QF-NEGATIVE-PULSE-ROSTER",
+  "characterId": "NECROBINDER",
+  "encounterId": "SCROLLS_OF_BITING_NORMAL",
+  "seed": "FLASHQFNEGATIVEPULSE",
+  "ascension": 0,
+  "actIndexForTest": 2,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 9,
+  "initialEnemyMaxHps": [5, 2000, 2000, 2000],
+  "initialEnemyCurrentHps": [5, 2000, 2000, 2000],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "clearRunDeck": true,
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "SLEIGHT_OF_FLESH", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "NEGATIVE_PULSE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_NECROBINDER", "pile": "Draw", "count": 2 }
+  ],
+  "flashPrefixActions": [ "PlayCard:SLEIGHT_OF_FLESH:0" ]
+}

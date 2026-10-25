@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX7-DISTILLED-CHAOS",
+  "characterId": "REGENT",
+  "encounterId": "KNIGHTS_ELITE",
+  "seed": "FLASHDX7CHAOS",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 3,
+  "initialPlayerStars": 3,
+  "initialEnemyCurrentHps": [108, 97, 89],
+  "initialEnemyMoveIds": ["RAM_MOVE", "HEX", "POWER_SHIELD_MOVE"],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "clearRunDeck": true,
+  "potions": [
+    {
+      "potionId": "DISTILLED_CHAOS"
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "MONARCHS_GAZE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_REGENT",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_REGENT",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_REGENT",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_REGENT",
+      "pile": "Hand",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

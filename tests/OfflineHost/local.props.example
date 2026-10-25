@@ -1,0 +1,21 @@
+<Project>
+  <!--
+    把本文件复制为同目录的 local.props 仅当自动 Steam 探测不适用。
+    local.props 已被 .gitignore 忽略，不要提交个人路径。
+  -->
+  <PropertyGroup Condition="'$(SteamRoot)' == '' and '$(OS)' == 'Windows_NT' and Exists('D:/Steam')">
+    <SteamRoot>D:/Steam</SteamRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SteamRoot)' == '' and '$(OS)' == 'Windows_NT'">
+    <SteamRoot>$(MSBuildProgramFiles32)/Steam</SteamRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SteamRoot)' == '' and '$(OS)' != 'Windows_NT'">
+    <SteamRoot>$(HOME)/.local/share/Steam</SteamRoot>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!-- 通常只需要改 SteamRoot；以下派生路径一般不用动。 -->
+    <Sts2Dir>$(SteamRoot)/steamapps/common/Slay the Spire 2</Sts2Dir>
+    <Sts2DataDir Condition="'$(OS)' == 'Windows_NT'">$(Sts2Dir)/data_sts2_windows_x86_64</Sts2Dir>
+    <Sts2DataDir Condition="'$(OS)' != 'Windows_NT'">$(Sts2Dir)/data_sts2_linuxbsd_x86_64</Sts2DataDir>
+  </PropertyGroup>
+</Project>

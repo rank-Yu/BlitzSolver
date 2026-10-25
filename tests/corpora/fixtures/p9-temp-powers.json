@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P9-TEMP-POWERS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP9D",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialEnemyMaxHps": [ 400, 400 ],
+  "initialEnemyCurrentHps": [ 400, 400 ],
+  "clearPlayerHand": true,
+  "potions": [
+    { "potionId": "FLEX_POTION" },
+    { "potionId": "SHACKLING_POTION" },
+    { "potionId": "SPEED_POTION" }
+  ],
+  "timeoutSeconds": 120
+}

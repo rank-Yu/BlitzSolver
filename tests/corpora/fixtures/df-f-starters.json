@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-F-STARTERS",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "DFF2",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ZAP",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DUALCAST",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ZAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DUALCAST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "DARK_ORB",
+      "count": 1,
+      "decimalMembers": {
+        "_evokeVal": 9
+      }
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400
+  ]
+}

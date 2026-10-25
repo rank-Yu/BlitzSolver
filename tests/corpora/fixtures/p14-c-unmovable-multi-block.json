@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P14-C-UNMOVABLE-MULTI-BLOCK",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P14CUNMOVABLE",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "SECOND_WIND",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SECOND_WIND",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "UNMOVABLE_POWER",
+      "target": "Player",
+      "amount": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

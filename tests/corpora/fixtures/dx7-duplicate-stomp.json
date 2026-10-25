@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX7-DUPLICATE-STOMP",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHDX7STOMP",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 500,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "clearRunDeck": true,
+  "cards": [
+    {
+      "cardId": "STOMP",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STOMP",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

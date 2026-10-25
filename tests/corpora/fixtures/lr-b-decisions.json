@@ -1,0 +1,64 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-LR-B-DECISIONS",
+ "characterId": "REGENT",
+ "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+ "seed": "LRD1",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 12,
+ "initialPlayerStars": 30,
+ "enemyCurrentHp": 500,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "DECISIONS_DECISIONS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "DECISIONS_DECISIONS",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Hand",
+   "count": 3
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Hand",
+   "upgradeLevels": 1,
+   "count": 2
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Hand",
+   "count": 2
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Draw",
+   "count": 6
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Draw",
+   "count": 4
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Draw",
+   "count": 2
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Discard",
+   "count": 4
+  }
+ ],
+ "timeoutSeconds": 120
+}

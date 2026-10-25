@@ -1,0 +1,138 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-LR-A-CHOICES",
+ "characterId": "REGENT",
+ "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+ "seed": "LRCH1",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 12,
+ "initialPlayerStars": 12,
+ "enemyCurrentHp": 500,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "TYRANNY",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "TYRANNY",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "FOREGONE_CONCLUSION",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "FOREGONE_CONCLUSION",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "COSMIC_INDIFFERENCE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "COSMIC_INDIFFERENCE",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PHOTON_CUT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PHOTON_CUT",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "HEIRLOOM_HAMMER",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "HEIRLOOM_HAMMER",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CHARGE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CHARGE",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GUARDS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GUARDS",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "BEGONE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "BEGONE",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GLIMMER",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GLIMMER",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SECRET_TECHNIQUE",
+   "pile": "Draw"
+  },
+  {
+   "cardId": "SECRET_TECHNIQUE",
+   "pile": "Draw",
+   "count": 2
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Draw",
+   "count": 3
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Draw",
+   "count": 3
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Draw",
+   "count": 2
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Discard",
+   "count": 3
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Discard",
+   "count": 2
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Discard"
+  }
+ ],
+ "timeoutSeconds": 120
+}

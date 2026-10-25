@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P13-TUNNELER-WEAK",
+  "characterId": "IRONCLAD",
+  "encounterId": "TUNNELER_WEAK",
+  "seed": "FLASHP13TUNN",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    80
+  ],
+  "initialEnemyCurrentHps": [
+    80
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "BURROW_MOVE"
+  ]
+}

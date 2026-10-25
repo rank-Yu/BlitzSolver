@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-LR-C2-GENERATION",
+ "characterId": "REGENT",
+ "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+ "seed": "LRC2",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 12,
+ "initialPlayerStars": 12,
+ "enemyCurrentHp": 800,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "COLLISION_COURSE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "COLLISION_COURSE",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "METEOR_SHOWER",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "METEOR_SHOWER",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "THE_SEALED_THRONE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "THE_SEALED_THRONE",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "VOID_FORM",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "VOID_FORM",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Draw",
+   "count": 4
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Draw",
+   "count": 4
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Draw",
+   "count": 2
+  },
+  {
+   "cardId": "GLIMMER",
+   "pile": "Draw"
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Discard",
+   "count": 4
+  }
+ ],
+ "potions": [
+  {
+   "potionId": "KINGS_COURAGE"
+  },
+  {
+   "potionId": "STAR_POTION"
+  }
+ ],
+ "timeoutSeconds": 120
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P3-D-FEED-FATAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+  "seed": "FLASHP3D",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "FEED", "pile": "Hand" },
+    { "cardId": "FEED", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "STRENGTH_POWER", "target": "Player", "amount": 200 }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "LS-H-REPTILE",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "LSH1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "REPTILE_TRINKET",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "potions": [
+    {
+      "potionId": "TOUCH_OF_INSANITY"
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "LEAP",
+      "pile": "Hand"
+    }
+  ],
+  "timeoutSeconds": 120
+}

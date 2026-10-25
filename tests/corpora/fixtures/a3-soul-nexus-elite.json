@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-SOULNEXUS",
+  "characterId": "IRONCLAD",
+  "encounterId": "SOUL_NEXUS_ELITE",
+  "seed": "FLASHA3SOU",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    150
+  ],
+  "initialEnemyCurrentHps": [
+    150
+  ],
+  "timeoutSeconds": 180
+}

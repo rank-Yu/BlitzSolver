@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P15-D-ATTACKS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP15D",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "DRAMATIC_ENTRANCE", "pile": "Hand" },
+    { "cardId": "DRAMATIC_ENTRANCE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "FLASH_OF_STEEL", "pile": "Hand" },
+    { "cardId": "FLASH_OF_STEEL", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "MIND_BLAST", "pile": "Hand" },
+    { "cardId": "MIND_BLAST", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "REND", "pile": "Hand" },
+    { "cardId": "REND", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "VOLLEY", "pile": "Hand" },
+    { "cardId": "VOLLEY", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "WEAK_POWER", "target": "Enemy", "targetIndex": 0, "amount": 2 },
+    { "powerId": "VULNERABLE_POWER", "target": "Enemy", "targetIndex": 0, "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

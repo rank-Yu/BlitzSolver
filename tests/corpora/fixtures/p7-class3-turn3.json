@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-CLASS3-TURN3",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7C3T3",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerBlock": 20,
+  "initialPlayerTurnNumber": 2,
+  "initialRoundNumber": 2,
+  "enemyCurrentHp": 200,
+  "relics": [
+    {
+      "relicId": "CHANDELIER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CAPTAINS_WHEEL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SPARKLING_ROUGE",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120
+}

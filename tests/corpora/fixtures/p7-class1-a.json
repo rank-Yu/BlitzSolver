@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-P7-CLASS1-A",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7A1",
+  "ascension": 0,
+  "initialPlayerHp": 80,
+  "enemyCurrentHp": 200,
+  "relics": [
+    {
+      "relicId": "AMETHYST_AUBERGINE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BOOK_OF_FIVE_RINGS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BOWLER_HAT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CAULDRON",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DINGY_RUG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DOLLYS_MIRROR",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DRAGON_FRUIT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ETERNAL_FEATHER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FRESNEL_LENS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FROZEN_EGG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "GIRYA",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "GNARLED_HAMMER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "JUZU_BRACELET",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "KIFUDA",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LASTING_CANDY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LAVA_LAMP",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LEES_WAFFLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LOOMING_FRUIT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LUCKY_FYSH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MANGO",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MEAL_TICKET",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MEAT_ON_THE_BONE",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120
+}

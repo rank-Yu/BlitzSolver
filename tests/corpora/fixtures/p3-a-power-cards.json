@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P3-A-POWER-CARDS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP3A",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FEEL_NO_PAIN",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FEEL_NO_PAIN",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "JUGGERNAUT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "JUGGERNAUT",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CRUELTY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CRUELTY",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SECOND_WIND",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SECOND_WIND",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw"
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "FEEL_NO_PAIN_POWER",
+      "target": "Player",
+      "amount": 3
+    },
+    {
+      "powerId": "JUGGERNAUT_POWER",
+      "target": "Player",
+      "amount": 6
+    },
+    {
+      "powerId": "CRUELTY_POWER",
+      "target": "Player",
+      "amount": 25
+    },
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "VULNERABLE_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 3
+    }
+  ],
+  "timeoutSeconds": 120
+}

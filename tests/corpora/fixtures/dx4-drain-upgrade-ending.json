@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX4-DRAIN-UPGRADE-ENDING",
+  "characterId": "NECROBINDER",
+  "encounterId": "SHRINKER_BEETLE_WEAK",
+  "seed": "FLASHDX4DRAIN",
+  "ascension": 0,
+  "initialPlayerMaxHp": 66,
+  "initialPlayerHp": 66,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    50
+  ],
+  "initialEnemyCurrentHps": [
+    1
+  ],
+  "clearPlayerPiles": true,
+  "timeoutSeconds": 180,
+  "cards": [
+    {
+      "cardId": "DRAIN_POWER",
+      "pile": "Hand",
+      "count": 1
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Discard",
+      "count": 2
+    }
+  ]
+}

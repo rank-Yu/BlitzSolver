@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P8-A-COUNTERS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P8ACOUNTERS",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "relics": [
+    {
+      "relicId": "ART_OF_WAR",
+      "addWithoutObtainedEffects": true,
+      "booleanMembers": {
+        "_anyAttacksPlayedThisTurn": true
+      }
+    },
+    {
+      "relicId": "KUNAI",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_attacksPlayedThisTurn": 2
+      }
+    },
+    {
+      "relicId": "KUSARIGAMA",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_attacksPlayedThisTurn": 2
+      }
+    },
+    {
+      "relicId": "LETTER_OPENER",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_skillsPlayedThisTurn": 2
+      }
+    },
+    {
+      "relicId": "NUNCHAKU",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_attacksPlayed": 8
+      }
+    },
+    {
+      "relicId": "ORNAMENTAL_FAN",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_attacksPlayedThisTurn": 2
+      }
+    },
+    {
+      "relicId": "PEN_NIB",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_attacksPlayed": 8
+      }
+    },
+    {
+      "relicId": "SHURIKEN",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_attacksPlayedThisTurn": 2
+      }
+    },
+    {
+      "relicId": "TUNING_FORK",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_skillsPlayed": 8
+      }
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 6
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialPlayerMaxHp": 200
+}

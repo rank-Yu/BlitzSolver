@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KM-TWO-TAILED-RATS-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "TWO_TAILED_RATS_NORMAL",
+  "seed": "FLASHKMRAT",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMoveIds": [
+    "SCRATCH_MOVE",
+    "DISEASE_BITE_MOVE",
+    "SCREECH_MOVE"
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    21,
+    21,
+    21
+  ],
+  "initialEnemyCurrentHps": [
+    21,
+    21,
+    21
+  ]
+}

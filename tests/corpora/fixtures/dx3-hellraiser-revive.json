@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-HELLRAISER-REVIVE",
+  "characterId": "IRONCLAD",
+  "encounterId": "TEST_SUBJECT_BOSS",
+  "seed": "FLASHDX3HRR",
+  "ascension": 0,
+  "initialPlayerMaxHp": 20,
+  "initialPlayerHp": 20,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    18
+  ],
+  "initialEnemyCurrentHps": [
+    18
+  ],
+  "timeoutSeconds": 180,
+  "cards": [
+    {
+      "cardId": "POMMEL_STRIKE",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "HELLRAISER_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ]
+}

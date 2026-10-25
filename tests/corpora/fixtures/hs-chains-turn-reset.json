@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-HS-CHAINS-TURN-RESET",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "HSCHAINSTURN",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    200,
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    200,
+    200
+  ],
+  "timeoutSeconds": 120,
+  "cards": [
+    {
+      "cardId": "SKIM",
+      "pile": "Hand",
+      "count": 1
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Draw",
+      "count": 12
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "CHAINS_OF_BINDING_POWER",
+      "target": "Player",
+      "amount": 3
+    }
+  ],
+  "flashPrefixActions": [
+    "PlayCard:SKIM:0",
+    "EndTurn"
+  ]
+}

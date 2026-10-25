@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-HS3-REGENT13-ROLLING",
+  "characterId": "REGENT",
+  "encounterId": "KNIGHTS_ELITE",
+  "seed": "FLASH-DECK-REGENT-13",
+  "targetRoomType": "Elite",
+  "targetMapPointType": "Elite",
+  "checkpointArchivePath": "",
+  "replayPolicyOverridePath": "",
+  "evidenceDirectory": "",
+  "ascension": 10,
+  "actIndexForTest": 2,
+  "enemyCurrentHp": 1000,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "cards": [],
+  "runCards": [
+    {
+      "cardId": "TERRAFORMING",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "PARTICLE_WALL",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "MONOLOGUE",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "SEEKING_EDGE",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "PILLAR_OF_CREATION",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "PARRY",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "STRIKE_REGENT",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "RADIATE",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "CONVERGENCE",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "ALIGNMENT",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "RADIATE",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "PARTICLE_WALL",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 1,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    },
+    {
+      "cardId": "ROLLING_BOULDER",
+      "pile": "Hand",
+      "count": 1,
+      "upgradeLevels": 0,
+      "enchantmentId": null,
+      "enchantmentAmount": 1,
+      "afflictionId": null,
+      "afflictionAmount": 1,
+      "treatAsDeckCard": false,
+      "dynamicVars": {},
+      "enumMembers": {}
+    }
+  ],
+  "potions": [
+    {
+      "potionId": "DUPLICATOR"
+    }
+  ],
+  "relics": [
+    {
+      "relicId": "BEATING_REMNANT",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {},
+      "booleanMembers": {}
+    },
+    {
+      "relicId": "PENDULUM",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {},
+      "booleanMembers": {}
+    },
+    {
+      "relicId": "PANTOGRAPH",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {},
+      "booleanMembers": {}
+    }
+  ],
+  "timeoutSeconds": 600,
+  "useNoveltyPortfolioForTest": false,
+  "expectedUnexpectedReplansAtMost": 0,
+  "headlessFastModeForTest": "Instant",
+  "deploymentFastModeForTest": "Instant",
+  "flashSearchModeForTest": "On",
+  "deploymentInterActionDelaySecondsForTest": 0,
+  "exportBugReportAfterCombat": true
+}

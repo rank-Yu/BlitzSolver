@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R2-F-NO-COMBAT",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHR2F",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "PAELS_CLAW",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_GROWTH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_HORN",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_TOOTH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_WING",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PANDORAS_BOX",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PHIAL_HOLSTER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "POMANDER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PRECARIOUS_SHEARS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PRECISE_SCISSORS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PRESERVED_FOG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SAND_CASTLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SCROLL_BOXES",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SEA_GLASS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SERE_TALON",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SIGNET_RING",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SILKEN_TRESS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SILVER_CRUCIBLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SMALL_CAPSULE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "STONE_HUMIDIFIER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "STORYBOOK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SWORD_OF_STONE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TANXS_WHISTLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TOUCH_OF_OROBAS",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

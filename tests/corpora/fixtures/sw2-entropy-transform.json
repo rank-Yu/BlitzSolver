@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "flash-sw2-entropy-transform",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "SW2ENTROPY",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "timeoutSeconds": 120,
+  "powers": [
+    { "powerId": "ENTROPY_POWER", "target": "Player", "amount": 2 }
+  ],
+  "cards": [
+    { "cardId": "STRIKE_DEFECT", "pile": "Hand" },
+    { "cardId": "STRIKE_DEFECT", "pile": "Hand" },
+    { "cardId": "DEFEND_DEFECT", "pile": "Hand" },
+    { "cardId": "DEFEND_DEFECT", "pile": "Hand" },
+    { "cardId": "ZAP", "pile": "Hand" },
+    { "cardId": "DUALCAST", "pile": "Draw" },
+    { "cardId": "STRIKE_DEFECT", "pile": "Draw" }
+  ]
+}

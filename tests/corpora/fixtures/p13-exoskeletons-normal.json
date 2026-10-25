@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P13-EXOSKELETONS-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "EXOSKELETONS_NORMAL",
+  "seed": "FLASHP13EXON",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    40,
+    40,
+    40,
+    40
+  ],
+  "initialEnemyCurrentHps": [
+    40,
+    40,
+    40,
+    40
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "SKITTER_MOVE",
+    "MANDIBLES_MOVE",
+    "ENRAGE_MOVE",
+    "SKITTER_MOVE"
+  ]
+}

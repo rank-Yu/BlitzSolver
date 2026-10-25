@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "l-osty-defense",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "NBL1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": false,
+  "cards": [
+    {
+      "cardId": "NECRO_MASTERY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "UNLEASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NECRO_MASTERY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UNLEASH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

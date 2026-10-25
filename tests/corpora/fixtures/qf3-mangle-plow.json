@@ -1,0 +1,43 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-QF3-MANGLE-PLOW",
+ "characterId": "IRONCLAD",
+ "encounterId": "CEREMONIAL_BEAST_BOSS",
+ "seed": "FLASHQF3MANGLEPLOW",
+ "ascension": 0,
+ "initialPlayerHp": 500,
+ "initialPlayerMaxHp": 500,
+ "initialPlayerEnergy": 9,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "clearRunDeck": true,
+ "initialEnemyMaxHps": [
+  100
+ ],
+ "initialEnemyCurrentHps": [
+  100
+ ],
+ "timeoutSeconds": 120,
+ "powers": [
+  {
+   "powerId": "PLOW_POWER",
+   "target": "Enemy",
+   "targetIndex": 0,
+   "amount": 250
+  },
+  {
+   "powerId": "MANGLE_POWER",
+   "target": "Enemy",
+   "targetIndex": 0,
+   "amount": 10,
+   "applier": "Player"
+  }
+ ],
+ "cards": [
+  {
+   "cardId": "STRIKE_IRONCLAD",
+   "pile": "Hand"
+  }
+ ]
+}

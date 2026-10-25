@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-M-THRASH",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2M",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "THRASH", "pile": "Hand" },
+    { "cardId": "THRASH", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BODY_SLAM", "pile": "Hand" },
+    { "cardId": "PERFECTED_STRIKE", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 3 }
+  ],
+  "timeoutSeconds": 120
+}

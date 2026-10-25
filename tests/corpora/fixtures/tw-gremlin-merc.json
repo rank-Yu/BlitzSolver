@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-TW-GREMLIN-MERC",
+  "characterId": "IRONCLAD",
+  "encounterId": "GREMLIN_MERC_NORMAL",
+  "seed": "FLASHTWMERC",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [47],
+  "initialEnemyCurrentHps": [47],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-ID-C-INSTANCED-POWERS",
+  "characterId": "REGENT",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHIDC",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 16,
+  "initialPlayerStars": 8,
+  "enemyCurrentHp": 800,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "ORBIT", "pile": "Hand" },
+    { "cardId": "PALE_BLUE_DOT", "pile": "Hand" },
+    { "cardId": "PALE_BLUE_DOT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "AUTOMATION", "pile": "Hand" },
+    { "cardId": "PANACHE", "pile": "Hand" },
+    { "cardId": "ROLLING_BOULDER", "pile": "Hand" },
+    { "cardId": "THE_BOMB", "pile": "Hand" },
+    { "cardId": "ORBIT", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_REGENT", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_REGENT", "pile": "Draw", "count": 4 },
+    { "cardId": "FALLING_STAR", "pile": "Draw", "count": 2 },
+    { "cardId": "STRIKE_REGENT", "pile": "Discard", "count": 2 },
+    { "cardId": "DEFEND_REGENT", "pile": "Discard", "count": 2 }
+  ],
+  "timeoutSeconds": 180
+}

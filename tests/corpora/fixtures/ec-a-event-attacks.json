@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-EC-A-EVENT-ATTACKS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHA",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "BYRD_SWOOP", "pile": "Hand" },
+    { "cardId": "BYRD_SWOOP", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "CLASH", "pile": "Hand" },
+    { "cardId": "CLASH", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "EXTERMINATE", "pile": "Hand" },
+    { "cardId": "EXTERMINATE", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "PECK", "pile": "Hand" },
+    { "cardId": "PECK", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "RIP_AND_TEAR", "pile": "Hand" },
+    { "cardId": "RIP_AND_TEAR", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "SQUASH", "pile": "Hand" },
+    { "cardId": "SQUASH", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "REBOUND", "pile": "Hand" },
+    { "cardId": "REBOUND", "pile": "Draw", "upgradeLevels": 1 }
+  ],
+  "timeoutSeconds": 120
+}

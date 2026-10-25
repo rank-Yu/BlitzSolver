@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P14-A-POWER-CARDS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P14APOWERS",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "AGGRESSION",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "AGGRESSION",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STONE_ARMOR",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STONE_ARMOR",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UNMOVABLE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "UNMOVABLE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "AGGRESSION_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "PLATING_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "UNMOVABLE_POWER",
+      "target": "Player",
+      "amount": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

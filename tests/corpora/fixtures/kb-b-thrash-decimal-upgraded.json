@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KB-B-THRASH-DECIMAL-UPGRADED",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKBB",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 800,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "powers": [
+    { "powerId": "WEAK_POWER", "target": "Player", "amount": 1 }
+  ],
+  "cards": [
+    { "cardId": "THRASH", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 3 }
+  ],
+  "timeoutSeconds": 120
+}

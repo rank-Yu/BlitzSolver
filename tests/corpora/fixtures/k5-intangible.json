@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-K5-INTANGIBLE",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHK5",
+  "ascension": 0,
+  "enemyCurrentHp": 200,
+  "powers": [
+    { "powerId": "INTANGIBLE_POWER", "target": "Player", "amount": 2 },
+    { "powerId": "INTANGIBLE_POWER", "target": "Enemy", "targetIndex": 1, "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

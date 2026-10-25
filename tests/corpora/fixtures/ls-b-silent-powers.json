@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "LS-B-SILENT-POWERS",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "LSB1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "SNECKO_SKULL",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "TOOLS_OF_THE_TRADE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BURST",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHADOWMELD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MIRAGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEADLY_POISON",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BURST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHADOWMELD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MIRAGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TOOLS_OF_THE_TRADE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ANTICIPATE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SERPENT_FORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "UNTOUCHABLE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ANTICIPATE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SERPENT_FORM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UNTOUCHABLE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "POISON_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 4
+    }
+  ],
+  "timeoutSeconds": 120
+}

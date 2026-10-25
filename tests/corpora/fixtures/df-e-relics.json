@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-E-RELICS",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "DFF1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 20,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "ZAP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GLASSWORK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COLD_SNAP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "ZAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GLASSWORK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "relics": [
+    {
+      "relicId": "GOLD_PLATED_CABLES",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RUNIC_CAPACITOR",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SYMBIOTIC_VIRUS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "POWER_CELL",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "DARK_ORB",
+      "count": 1,
+      "decimalMembers": {
+        "_evokeVal": 10
+      }
+    },
+    {
+      "orbId": "FROST_ORB",
+      "count": 1
+    },
+    {
+      "orbId": "LIGHTNING_ORB",
+      "count": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

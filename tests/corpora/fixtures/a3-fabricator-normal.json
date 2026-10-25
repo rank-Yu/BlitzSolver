@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-FABRICATOR",
+  "characterId": "IRONCLAD",
+  "encounterId": "FABRICATOR_NORMAL",
+  "seed": "FLASHA3FAB",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    30
+  ],
+  "initialEnemyCurrentHps": [
+    30
+  ],
+  "timeoutSeconds": 180,
+  "initialEnemyMoveIds": [
+    "FABRICATE_MOVE"
+  ],
+  "powers": [
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 50
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "LS-A-SILENT-ATTACKS",
+  "characterId": "SILENT",
+  "encounterId": "SLIMES_NORMAL",
+  "seed": "LSA1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "TINGSHA",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "HELICAL_DART",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAPER_KRANE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BELT_BUCKLE",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "KNIFE_TRAP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ECHOING_SLASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Exhaust"
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Exhaust"
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Exhaust",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PREPARED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BLADE_DANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "KNIFE_TRAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ECHOING_SLASH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "WEAK_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 2
+    },
+    {
+      "powerId": "POISON_POWER",
+      "target": "Enemy",
+      "targetIndex": 1,
+      "amount": 3
+    }
+  ],
+  "initialEnemyMaxHps": [
+    400,
+    400,
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    10,
+    400,
+    400
+  ],
+  "timeoutSeconds": 120
+}

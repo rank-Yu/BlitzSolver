@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-ID-B-NIGHTMARE-PHANTOM",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHIDB",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 12,
+  "enemyCurrentHp": 600,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "NIGHTMARE", "pile": "Hand" },
+    { "cardId": "NIGHTMARE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PHANTOM_BLADES", "pile": "Hand" },
+    { "cardId": "PHANTOM_BLADES", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SHIV", "pile": "Hand" },
+    { "cardId": "SHIV", "pile": "Hand" },
+    { "cardId": "BACKFLIP", "pile": "Hand" },
+    { "cardId": "SHIV", "pile": "Draw" },
+    { "cardId": "SHIV", "pile": "Draw" },
+    { "cardId": "STRIKE_SILENT", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_SILENT", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_SILENT", "pile": "Discard", "count": 2 }
+  ],
+  "timeoutSeconds": 180
+}

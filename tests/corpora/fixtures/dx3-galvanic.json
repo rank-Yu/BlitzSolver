@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-GALVANIC",
+  "characterId": "IRONCLAD",
+  "encounterId": "GLOBE_HEAD_NORMAL",
+  "seed": "FLASHDX3GAL",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [80],
+  "initialEnemyCurrentHps": [80],
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "INFLAME", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ]
+}

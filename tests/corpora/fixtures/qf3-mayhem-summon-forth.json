@@ -1,0 +1,26 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-QF3-MAYHEM-SUMMON-FORTH",
+ "characterId": "REGENT",
+ "encounterId": "SHRINKER_BEETLE_WEAK",
+ "seed": "FLASHQF3MAYHEM",
+ "ascension": 0,
+ "initialPlayerHp": 500,
+ "initialPlayerMaxHp": 500,
+ "initialPlayerEnergy": 3,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "clearRunDeck": true,
+ "initialEnemyMaxHps": [2000],
+ "initialEnemyCurrentHps": [2000],
+ "timeoutSeconds": 120,
+ "powers": [
+  { "powerId": "MAYHEM_POWER", "target": "Player", "amount": 2 }
+ ],
+ "cards": [
+  { "cardId": "DEFEND_REGENT", "pile": "Draw", "count": 5 },
+  { "cardId": "SUMMON_FORTH", "pile": "Draw" },
+  { "cardId": "SOVEREIGN_BLADE", "pile": "Draw", "upgradeLevels": 1 }
+ ]
+}

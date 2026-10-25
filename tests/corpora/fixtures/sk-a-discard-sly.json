@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "SK-A-DISCARD-SLY",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "SKA1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "ACROBATICS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DAGGER_THROW",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "PREPARED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CALCULATED_GAMBLE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "REFLEX",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TACTICIAN",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FLICK_FLACK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHADOW_STEP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STORM_OF_STEEL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HIDDEN_DAGGERS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ACROBATICS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DAGGER_THROW",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PREPARED",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CALCULATED_GAMBLE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "REFLEX",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TACTICIAN",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FLICK_FLACK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHADOW_STEP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STORM_OF_STEEL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HIDDEN_DAGGERS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HAND_TRICK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HAND_TRICK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ESCAPE_PLAN",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ESCAPE_PLAN",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "EXPERTISE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "EXPERTISE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 0
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 0
+    },
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Draw",
+      "upgradeLevels": 0
+    },
+    {
+      "cardId": "NEUTRALIZE",
+      "pile": "Draw",
+      "upgradeLevels": 0
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

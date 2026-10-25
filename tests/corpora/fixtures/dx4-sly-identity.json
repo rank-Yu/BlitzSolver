@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX4-SLY-IDENTITY",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHDX4SLY",
+  "ascension": 0,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    500,
+    500
+  ],
+  "initialEnemyCurrentHps": [
+    500,
+    500
+  ],
+  "timeoutSeconds": 180,
+  "cards": [
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Hand",
+      "count": 1
+    },
+    {
+      "cardId": "UNTOUCHABLE",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Draw",
+      "count": 4
+    }
+  ]
+}

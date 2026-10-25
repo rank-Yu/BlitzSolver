@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-HS3-CALAMITY-NESTED",
+  "characterId": "DEFECT",
+  "encounterId": "TEST_SUBJECT_BOSS",
+  "seed": "FLASHHS3CALAMITY",
+  "ascension": 10,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [1000],
+  "initialEnemyCurrentHps": [1000],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {"cardId": "UPROAR", "pile": "Hand", "count": 1},
+    {"cardId": "STRIKE_DEFECT", "pile": "Draw", "count": 5}
+  ],
+  "powers": [
+    {"powerId": "CALAMITY_POWER", "target": "Player", "amount": 1}
+  ],
+  "timeoutSeconds": 120
+}

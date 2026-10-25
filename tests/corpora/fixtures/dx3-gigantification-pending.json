@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-GIGANTIFICATION",
+  "characterId": "DEFECT",
+  "encounterId": "QUEEN_BOSS",
+  "seed": "FLASHDX3GIG",
+  "ascension": 0,
+  "initialPlayerMaxHp": 75,
+  "initialPlayerHp": 1,
+  "initialPlayerEnergy": 0,
+  "initialEnemyMaxHps": [211, 419],
+  "initialEnemyCurrentHps": [211, 419],
+  "initialEnemyMoveIds": ["STRONG_TACKLE_MOVE", "YOU_ARE_MINE_MOVE"],
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "STRIKE_DEFECT", "pile": "Hand", "count": 1 }
+  ],
+  "potions": [
+    { "potionId": "GIGANTIFICATION_POTION" }
+  ]
+}

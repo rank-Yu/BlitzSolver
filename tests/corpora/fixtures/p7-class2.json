@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-CLASS2",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7C2",
+  "ascension": 0,
+  "initialPlayerHp": 80,
+  "enemyCurrentHp": 200,
+  "relics": [
+    {
+      "relicId": "ANCHOR",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BAG_OF_MARBLES",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BAG_OF_PREPARATION",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BELLOWS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BLOOD_VIAL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FESTIVE_POPPER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LANTERN",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ODDLY_SMOOTH_STONE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PANTOGRAPH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RED_MASK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SLING_OF_COURAGE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "STONE_CRACKER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "VAJRA",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "VERY_HOT_COCOA",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120
+}

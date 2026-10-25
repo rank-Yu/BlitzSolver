@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-CLASS3-EMPTY-HAND",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7C3EH",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "relics": [
+    {
+      "relicId": "SCREAMING_FLAGON",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RIPPLE_BASIN",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-PR-H-POTIONS3",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHPR-H",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "potions": [
+    {
+      "potionId": "BONE_BREW"
+    },
+    {
+      "potionId": "FOCUS_POTION"
+    },
+    {
+      "potionId": "POTION_OF_CAPACITY"
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Hand",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "BONE_SHARDS",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "POKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HIGH_FIVE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "BONE_SHARDS",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "POKE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "HIGH_FIVE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "clearRunDeck": true
+}

@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KA-MYSTIC-LIGHTER",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHKALIGHTER",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    160
+  ],
+  "initialEnemyCurrentHps": [
+    160
+  ],
+  "clearPlayerHand": true,
+  "relics": [
+    {
+      "relicId": "MYSTIC_LIGHTER",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "SHARP",
+      "enchantmentAmount": 3
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "MOMENTUM",
+      "enchantmentAmount": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "CORRUPTED"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "INSTINCT"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "NIMBLE",
+      "enchantmentAmount": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "GOOPY",
+      "enchantmentAmount": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "VIGOROUS",
+      "enchantmentAmount": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "GLAM"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "SPIRAL"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "TEZCATARAS_EMBER"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "STEADY"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "ROYALLY_APPROVED"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "CLONE"
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Draw",
+      "enchantmentId": "SOWN",
+      "enchantmentAmount": 2
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Draw",
+      "enchantmentId": "SWIFT",
+      "enchantmentAmount": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "ADROIT",
+      "enchantmentAmount": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "enchantmentId": "INKY"
+    }
+  ],
+  "timeoutSeconds": 180
+}

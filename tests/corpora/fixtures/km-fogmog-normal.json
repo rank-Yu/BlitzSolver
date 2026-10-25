@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KM-FOGMOG-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "FOGMOG_NORMAL",
+  "seed": "FLASHKMFOG",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMoveIds": [
+    "ILLUSION_MOVE"
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    74
+  ],
+  "initialEnemyCurrentHps": [
+    40
+  ]
+}

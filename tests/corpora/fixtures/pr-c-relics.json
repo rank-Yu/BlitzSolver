@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-PR-C-RELICS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHPR-C",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "BIIIG_HUG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BOOKMARK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CHOICES_PARADOX",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CROSSBOW",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FUR_COAT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MUSIC_BOX",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_EYE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_LEGION",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SPIKED_GAUNTLETS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "THROWING_AXE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TOASTY_MITTENS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TOUGH_BANDAGES",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "UNDYING_SIGIL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BOOK_REPAIR_KNIFE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LUNAR_PASTRY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PHYLACTERY_UNBOUND",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SEAL_OF_GOLD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SNECKO_EYE",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 3
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "GOLD_AXE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GOLD_AXE",
+      "pile": "Draw"
+    }
+  ],
+  "timeoutSeconds": 120,
+  "clearRunDeck": true
+}

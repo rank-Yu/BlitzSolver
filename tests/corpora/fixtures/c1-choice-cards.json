@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-C1-CHOICE-CARDS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHC1",
+  "ascension": 0,
+  "initialPlayerHp": 60,
+  "initialPlayerEnergy": 6,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "ARMAMENTS", "pile": "Hand" },
+    { "cardId": "ARMAMENTS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "HEADBUTT", "pile": "Hand" },
+    { "cardId": "HEADBUTT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BURNING_PACT", "pile": "Hand" },
+    { "cardId": "BURNING_PACT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "TRUE_GRIT", "pile": "Hand" },
+    { "cardId": "TRUE_GRIT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BRAND", "pile": "Hand" },
+    { "cardId": "BRAND", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 3 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 3 },
+    { "cardId": "BASH", "pile": "Draw" },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Discard" },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Discard", "upgradeLevels": 1 },
+    { "cardId": "POMMEL_STRIKE", "pile": "Discard" }
+  ],
+  "powers": [
+    { "powerId": "FEEL_NO_PAIN_POWER", "target": "Player", "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

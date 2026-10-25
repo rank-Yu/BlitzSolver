@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KS-CORPSE-SLUGS-WEAK",
+  "characterId": "IRONCLAD",
+  "encounterId": "CORPSE_SLUGS_WEAK",
+  "seed": "FLASHKSSLUGW",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMoveIds": [
+    "WHIP_SLAP_MOVE",
+    "GLOMP_MOVE"
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    27,
+    27
+  ],
+  "initialEnemyCurrentHps": [
+    27,
+    27
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "LS-D-NECRO",
+  "characterId": "NECROBINDER",
+  "encounterId": "SLIMES_NORMAL",
+  "seed": "LSD1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "BIG_HAT",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "SENTRY_MODE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MISERY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "PAGESTORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SENTRY_MODE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MISERY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PAGESTORM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "ASCENDERS_BANE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DANSE_MACABRE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "REAPER_FORM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SEANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DANSE_MACABRE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "REAPER_FORM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SEANCE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "WEAK_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 2
+    },
+    {
+      "powerId": "VULNERABLE_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 2
+    },
+    {
+      "powerId": "POISON_POWER",
+      "target": "Enemy",
+      "targetIndex": 1,
+      "amount": 3
+    }
+  ],
+  "initialEnemyMaxHps": [
+    400,
+    400,
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400,
+    400,
+    400
+  ],
+  "timeoutSeconds": 120
+}

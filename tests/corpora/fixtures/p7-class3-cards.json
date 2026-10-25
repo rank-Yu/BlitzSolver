@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-CLASS3-CARDS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7C3CARDS",
+  "ascension": 0,
+  "initialPlayerHp": 80,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "relics": [
+    {
+      "relicId": "GAME_PIECE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RAZOR_TOOTH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "INTIMIDATING_HELMET",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "STRIKE_DUMMY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MINIATURE_CANNON",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CHARONS_ASHES",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw"
+    }
+  ],
+  "timeoutSeconds": 120
+}

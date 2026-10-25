@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX5-PEN-NIB-SLY",
+  "characterId": "SILENT",
+  "encounterId": "SHRINKER_BEETLE_WEAK",
+  "seed": "FLASHDX5PENNIB",
+  "ascension": 0,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 9,
+  "initialEnemyMaxHps": [
+    2000
+  ],
+  "initialEnemyCurrentHps": [
+    2000
+  ],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "clearRunDeck": true,
+  "timeoutSeconds": 180,
+  "relics": [
+    {
+      "relicId": "PEN_NIB",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "flashPrefixActions": [
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1",
+    "PlayCard:SHIV:0:1"
+  ],
+  "cards": [
+    {
+      "cardId": "SHIV",
+      "pile": "Hand",
+      "upgradeLevels": 0,
+      "count": 9
+    },
+    {
+      "cardId": "DAGGER_THROW",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FLICK_FLACK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 0,
+      "count": 5
+    }
+  ]
+}

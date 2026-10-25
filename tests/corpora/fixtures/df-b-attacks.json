@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-B-ATTACKS",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "DFB1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 20,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "BARRAGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "VOLTAIC",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FLAK_CANNON",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SUNDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BEAM_CELL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GO_FOR_THE_EYES",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COMPILE_DRIVER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FTL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HELIX_DRILL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CLAW",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GENETIC_ALGORITHM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ALL_FOR_ONE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ROCKET_PUNCH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SWEEPING_BEAM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "UPROAR",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GUNK_UP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SCRAPE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DOUBLE_ENERGY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SUPERCRITICAL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SKIM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CHARGE_BATTERY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BOOT_SEQUENCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BURN",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "WOUND",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SLIMED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BARRAGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "VOLTAIC",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FLAK_CANNON",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SUNDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BEAM_CELL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GO_FOR_THE_EYES",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "COMPILE_DRIVER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FTL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HELIX_DRILL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CLAW",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GENETIC_ALGORITHM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ALL_FOR_ONE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ROCKET_PUNCH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SWEEPING_BEAM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UPROAR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GUNK_UP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SCRAPE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DOUBLE_ENERGY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SUPERCRITICAL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SKIM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CHARGE_BATTERY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BOOT_SEQUENCE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "DARK_ORB",
+      "count": 1,
+      "decimalMembers": {
+        "_evokeVal": 10
+      }
+    },
+    {
+      "orbId": "FROST_ORB",
+      "count": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

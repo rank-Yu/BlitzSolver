@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-AXEBOTS",
+  "characterId": "IRONCLAD",
+  "encounterId": "AXEBOTS_NORMAL",
+  "seed": "FLASHA3AXE",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    30
+  ],
+  "initialEnemyCurrentHps": [
+    30
+  ],
+  "timeoutSeconds": 180,
+  "initialEnemyMoveIds": [
+    "BOOT_UP_MOVE"
+  ]
+}

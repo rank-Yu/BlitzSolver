@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P16-C-INSTANCED-POWERS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP16C",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 250,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "AUTOMATION", "pile": "Hand" },
+    { "cardId": "AUTOMATION", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PANACHE", "pile": "Hand" },
+    { "cardId": "PANACHE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "ROLLING_BOULDER", "pile": "Hand" },
+    { "cardId": "ROLLING_BOULDER", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "THE_BOMB", "pile": "Hand" },
+    { "cardId": "THE_BOMB", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "NOSTALGIA", "pile": "Hand" },
+    { "cardId": "STRATAGEM", "pile": "Hand" },
+    { "cardId": "MAYHEM", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "TWIN_STRIKE", "pile": "Draw", "count": 2 },
+    { "cardId": "POMMEL_STRIKE", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-QF2-GRADIENT-FAILURE",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "QF2GRADIENT",
+  "ascension": 0,
+  "relics": [
+    {
+      "relicId": "TOASTY_MITTENS"
+    }
+  ],
+  "potions": [
+    {
+      "potionId": "HEART_OF_IRON"
+    }
+  ],
+  "flashTurnSetupRootForTest": true,
+  "initialEnemyMaxHps": [
+    200,
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    200,
+    200
+  ],
+  "initialPlayerMaxHp": 80,
+  "initialPlayerHp": 80
+}

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P2-A-BASIC-ATTACKS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP2A",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerBlock": 12,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "BLUDGEON", "pile": "Hand" },
+    { "cardId": "BLUDGEON", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BODY_SLAM", "pile": "Hand" },
+    { "cardId": "BODY_SLAM", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BREAKTHROUGH", "pile": "Hand" },
+    { "cardId": "BREAKTHROUGH", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "HEMOKINESIS", "pile": "Hand" },
+    { "cardId": "HEMOKINESIS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BLOOD_WALL", "pile": "Hand" },
+    { "cardId": "BLOOD_WALL", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Exhaust", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "STRENGTH_POWER", "target": "Player", "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

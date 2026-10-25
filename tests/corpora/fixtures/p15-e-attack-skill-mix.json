@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P15-E-ATTACK-SKILL-MIX",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP15E",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "SALVO", "pile": "Hand" },
+    { "cardId": "SALVO", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "ULTIMATE_STRIKE", "pile": "Hand" },
+    { "cardId": "ULTIMATE_STRIKE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SHOCKWAVE", "pile": "Hand" },
+    { "cardId": "SHOCKWAVE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PROLONG", "pile": "Hand" },
+    { "cardId": "PROLONG", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PREP_TIME", "pile": "Hand" },
+    { "cardId": "PREP_TIME", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "PREP_TIME_POWER", "target": "Player", "amount": 4 }
+  ],
+  "timeoutSeconds": 120
+}

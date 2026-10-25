@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KA-CEREMONIAL-BEAST",
+  "characterId": "IRONCLAD",
+  "encounterId": "CEREMONIAL_BEAST_BOSS",
+  "seed": "FLASHKACEREMONIAL",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    300
+  ],
+  "initialEnemyCurrentHps": [
+    300
+  ],
+  "initialEnemyMoveIds": [
+    "STAMP_MOVE"
+  ],
+  "timeoutSeconds": 180
+}

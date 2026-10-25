@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P12-THE-KIN",
+  "characterId": "IRONCLAD",
+  "encounterId": "THE_KIN_BOSS",
+  "seed": "FLASHP12KIN",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    40,
+    40,
+    120
+  ],
+  "initialEnemyCurrentHps": [
+    40,
+    40,
+    120
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "POWER_DANCE_MOVE",
+    "QUICK_SLASH_MOVE",
+    "RITUAL_MOVE"
+  ]
+}

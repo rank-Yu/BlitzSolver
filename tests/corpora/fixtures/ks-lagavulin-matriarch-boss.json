@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KS-LAGAVULIN",
+  "characterId": "IRONCLAD",
+  "encounterId": "LAGAVULIN_MATRIARCH_BOSS",
+  "seed": "FLASHKSLAG",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMoveIds": [
+    "SLEEP_MOVE"
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    222
+  ],
+  "initialEnemyCurrentHps": [
+    222
+  ]
+}

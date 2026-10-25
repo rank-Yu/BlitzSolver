@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P12-SOUL-FYSH",
+  "characterId": "IRONCLAD",
+  "encounterId": "SOUL_FYSH_BOSS",
+  "seed": "FLASHP12FYSH",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    100
+  ],
+  "initialEnemyCurrentHps": [
+    100
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "FADE_MOVE"
+  ]
+}

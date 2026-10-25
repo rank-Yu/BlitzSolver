@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-QF5-ANGER-DAMPEN",
+  "characterId": "IRONCLAD",
+  "encounterId": "KNIGHTS_ELITE",
+  "seed": "FLASHQF5ANGER",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [108, 97, 89],
+  "initialEnemyCurrentHps": [108, 97, 6],
+  "initialEnemyMoveIds": ["FLAIL_MOVE", "SOUL_SLASH", "DAMPEN_MOVE"],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearRunDeck": true,
+  "clearAllPowers": true,
+  "timeoutSeconds": 180,
+  "flashPrefixActions": ["EndTurn"],
+  "cards": [
+    { "cardId": "ANGER", "pile": "Draw", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 8 }
+  ]
+}

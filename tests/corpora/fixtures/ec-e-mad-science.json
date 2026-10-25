@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-EC-E-MAD-SCIENCE",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHE",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Hand",
+      "enumMembers": {
+        "TinkerTimeType": "Attack",
+        "TinkerTimeRider": "Sapping"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Hand",
+      "enumMembers": {
+        "TinkerTimeType": "Attack",
+        "TinkerTimeRider": "Violence"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Hand",
+      "enumMembers": {
+        "TinkerTimeType": "Attack",
+        "TinkerTimeRider": "Choking"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Draw",
+      "enumMembers": {
+        "TinkerTimeType": "Skill",
+        "TinkerTimeRider": "Energized"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Draw",
+      "enumMembers": {
+        "TinkerTimeType": "Skill",
+        "TinkerTimeRider": "Wisdom"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Draw",
+      "enumMembers": {
+        "TinkerTimeType": "Skill",
+        "TinkerTimeRider": "Chaos"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Hand",
+      "enumMembers": {
+        "TinkerTimeType": "Power",
+        "TinkerTimeRider": "Expertise"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Hand",
+      "enumMembers": {
+        "TinkerTimeType": "Power",
+        "TinkerTimeRider": "Curious"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Draw",
+      "enumMembers": {
+        "TinkerTimeType": "Power",
+        "TinkerTimeRider": "Improvement"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Draw",
+      "upgradeLevels": 1,
+      "enumMembers": {
+        "TinkerTimeType": "Skill",
+        "TinkerTimeRider": "Chaos"
+      }
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Draw",
+      "upgradeLevels": 1,
+      "enumMembers": {
+        "TinkerTimeType": "Attack",
+        "TinkerTimeRider": "Violence"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Draw",
+      "upgradeLevels": 1,
+      "enumMembers": {
+        "TinkerTimeType": "Power",
+        "TinkerTimeRider": "Expertise"
+      }
+    },
+    {
+      "cardId": "MAD_SCIENCE",
+      "pile": "Hand",
+      "upgradeLevels": 1,
+      "enumMembers": {
+        "TinkerTimeType": "Power",
+        "TinkerTimeRider": "Improvement"
+      }
+    }
+  ],
+  "timeoutSeconds": 120
+}

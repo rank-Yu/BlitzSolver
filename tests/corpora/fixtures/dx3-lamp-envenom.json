@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-LAMP-ENVENOM",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHDX3LMP",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    200,
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    200,
+    200
+  ],
+  "timeoutSeconds": 180,
+  "cards": [
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Hand",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "ENVENOM_POWER",
+      "target": "Player",
+      "amount": 2
+    }
+  ],
+  "relics": [
+    {
+      "relicId": "UNSETTLING_LAMP"
+    },
+    {
+      "relicId": "SNECKO_SKULL"
+    }
+  ]
+}

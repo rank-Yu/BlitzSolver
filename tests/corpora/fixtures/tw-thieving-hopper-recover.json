@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-TW-THIEVING-HOPPER-RECOVER",
+  "characterId": "IRONCLAD",
+  "encounterId": "THIEVING_HOPPER_WEAK",
+  "seed": "FLASHTWHOPR",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    79
+  ],
+  "initialEnemyCurrentHps": [
+    79
+  ],
+  "timeoutSeconds": 120,
+  "powers": [
+    {
+      "powerId": "THORNS_POWER",
+      "target": "Player",
+      "amount": 100
+    }
+  ]
+}

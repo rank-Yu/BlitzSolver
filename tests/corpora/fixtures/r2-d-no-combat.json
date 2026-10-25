@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R2-D-NO-COMBAT",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHR2D",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "ALCHEMICAL_COFFER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ARCANE_SCROLL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ARCHAIC_TOOTH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ASTROLABE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BEAUTIFUL_BRACELET",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BLACK_BLOOD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BLACK_STAR",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CALLING_BELL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CHOSEN_CHEESE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CIRCLET",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CLAWS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CURSED_PEARL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DISTINGUISHED_CAPE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DOWSING_ROD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DREAM_CATCHER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DRIFTWOOD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DUSTY_TOME",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ELECTRIC_SHRYMP",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "EMBER_TEA",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "EMPTY_CAGE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FAKE_LEES_WAFFLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FAKE_MANGO",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FAKE_MERCHANTS_RUG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FISHING_ROD",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KB-D-BEATDOWN-RELOCATE-UPGRADED",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKBD",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 800,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "BEAT_DOWN", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "POMMEL_STRIKE", "pile": "Discard", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Discard", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

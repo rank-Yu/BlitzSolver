@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX5-BATTLEWORN-DUMMY-V1",
+  "characterId": "IRONCLAD",
+  "encounterId": "BATTLEWORN_DUMMY_EVENT_V1_ENCOUNTER",
+  "seed": "FLASHDX5DUMMY",
+  "ascension": 0,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 3,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "clearRunDeck": true,
+  "timeoutSeconds": 180,
+  "powers": [
+    {
+      "powerId": "BATTLEWORN_DUMMY_TIME_LIMIT_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 1
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    }
+  ],
+  "initialEnemyMaxHps": [
+    75
+  ],
+  "initialEnemyCurrentHps": [
+    75
+  ]
+}

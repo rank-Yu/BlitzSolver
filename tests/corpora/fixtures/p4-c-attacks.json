@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P4-C-ATTACKS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP4C",
+  "ascension": 0,
+  "initialPlayerHp": 60,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "RAMPAGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "RAMPAGE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FIEND_FIRE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FIEND_FIRE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "EVIL_EYE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "EVIL_EYE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FORGOTTEN_RITUAL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FORGOTTEN_RITUAL",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "SECOND_WIND",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "ANGER",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

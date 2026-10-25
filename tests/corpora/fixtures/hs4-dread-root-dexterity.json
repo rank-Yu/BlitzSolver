@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-HS4-DREAD-ROOT-DEXTERITY",
+  "characterId": "IRONCLAD",
+  "encounterId": "THE_LOST_AND_FORGOTTEN_NORMAL",
+  "seed": "FLASHHS4DREAD",
+  "ascension": 10,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialEnemyMaxHps": [
+    1000,
+    1000
+  ],
+  "initialEnemyCurrentHps": [
+    1000,
+    1000
+  ],
+  "initialEnemyMoveIds": [
+    "",
+    "DREAD"
+  ],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearRunDeck": true,
+  "clearAllPowers": true,
+  "cards": [],
+  "powers": [
+    {
+      "powerId": "DEXTERITY_POWER",
+      "target": "Enemy",
+      "targetIndex": 1,
+      "amount": 5
+    }
+  ],
+  "timeoutSeconds": 180
+}

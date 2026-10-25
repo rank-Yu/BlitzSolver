@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P15-H-RESTLESSNESS-ONLY",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP15H",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "RESTLESSNESS", "pile": "Hand" },
+    { "cardId": "RESTLESSNESS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 3 }
+  ],
+  "timeoutSeconds": 120
+}

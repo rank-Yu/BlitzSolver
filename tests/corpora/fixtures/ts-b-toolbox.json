@@ -1,0 +1,14 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-TS-B-TOOLBOX",
+ "characterId": "IRONCLAD",
+ "encounterId": "SLIMES_WEAK",
+ "seed": "TSB1",
+ "ascension": 0,
+ "relics": [
+  {
+   "relicId": "TOOLBOX"
+  }
+ ],
+ "flashTurnSetupRootForTest": true
+}

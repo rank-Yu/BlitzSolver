@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-P7-CLASS1-B",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7B1",
+  "ascension": 0,
+  "initialPlayerHp": 80,
+  "enemyCurrentHp": 200,
+  "relics": [
+    {
+      "relicId": "MEMBERSHIP_CARD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MINIATURE_TENT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MOLTEN_EGG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "OLD_COIN",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ORRERY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PEAR",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PLANISPHERE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "POTION_BELT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PRAYER_WHEEL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PUNCH_DAGGER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "REGAL_PILLOW",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ROYAL_STAMP",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SHOVEL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "STRAWBERRY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "THE_COURIER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TINY_MAILBOX",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TOXIC_EGG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WAR_PAINT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WHETSTONE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WHITE_BEAST_STATUE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WHITE_STAR",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WING_CHARM",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120
+}

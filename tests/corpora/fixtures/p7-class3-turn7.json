@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-CLASS3-TURN7",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7C3T7",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerTurnNumber": 7,
+  "initialRoundNumber": 7,
+  "enemyCurrentHp": 200,
+  "relics": [
+    {
+      "relicId": "STONE_CALENDAR",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-L-UNRELENTING",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2L",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "UNRELENTING", "pile": "Hand" },
+    { "cardId": "UNRELENTING", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BASH", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 3 }
+  ],
+  "timeoutSeconds": 120
+}

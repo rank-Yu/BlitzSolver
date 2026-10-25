@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-D-DUPLICATOR",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2D",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "potions": [
+    { "potionId": "DUPLICATOR" }
+  ],
+  "cards": [
+    { "cardId": "BASH", "pile": "Hand" },
+    { "cardId": "TWIN_STRIKE", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 3 }
+  ],
+  "timeoutSeconds": 120
+}

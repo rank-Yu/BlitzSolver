@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KM2-KAISER-CRAB",
+  "characterId": "IRONCLAD",
+  "encounterId": "KAISER_CRAB_BOSS",
+  "seed": "FLASHKM2KSRC",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [60, 60],
+  "initialEnemyCurrentHps": [60, 60],
+  "timeoutSeconds": 120
+}

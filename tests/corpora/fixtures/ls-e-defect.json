@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "LS-E-DEFECT",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "LSE1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "potions": [
+    {
+      "potionId": "ESSENCE_OF_DARKNESS"
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "LEAP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BOOST_AWAY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "METEOR_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MOMENTUM_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "QUADCAST",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "LEAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BOOST_AWAY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "METEOR_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MOMENTUM_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "QUADCAST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ZAP",
+      "pile": "Draw"
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "LIGHTNING_ORB",
+      "count": 1
+    }
+  ],
+  "timeoutSeconds": 120
+}

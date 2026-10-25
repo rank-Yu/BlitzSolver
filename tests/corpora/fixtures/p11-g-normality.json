@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P11-G-NORMALITY",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP11G",
+  "ascension": 0,
+  "initialPlayerMaxHp": 9999,
+  "initialPlayerHp": 9999,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "NORMALITY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 6
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 6
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 6
+    }
+  ],
+  "timeoutSeconds": 120
+}

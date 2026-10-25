@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P12-VANTOM",
+  "characterId": "IRONCLAD",
+  "encounterId": "VANTOM_BOSS",
+  "seed": "FLASHP12VANTOM",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    100
+  ],
+  "initialEnemyCurrentHps": [
+    100
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "PREPARE_MOVE"
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "SK-B-SHIV",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "SKB1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "BLADE_DANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CLOAK_AND_DAGGER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BLADE_OF_INK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "UP_MY_SLEEVE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "LEADING_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FAN_OF_KNIVES",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFINITE_BLADES",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ACCURACY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "AFTERIMAGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MASTER_PLANNER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BLADE_DANCE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CLOAK_AND_DAGGER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BLADE_OF_INK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UP_MY_SLEEVE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "LEADING_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FAN_OF_KNIVES",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "INFINITE_BLADES",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ACCURACY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "AFTERIMAGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MASTER_PLANNER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "WELL_LAID_PLANS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "WELL_LAID_PLANS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHIV",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 0
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 0
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

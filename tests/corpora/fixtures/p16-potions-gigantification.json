@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P16-POTIONS-GIGANTIFICATION",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP16G",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "potions": [
+    { "potionId": "GIGANTIFICATION_POTION" }
+  ],
+  "cards": [
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "BASH", "pile": "Hand" },
+    { "cardId": "TWIN_STRIKE", "pile": "Hand" },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KM2-BOWLBUGS-WEAK",
+  "characterId": "IRONCLAD",
+  "encounterId": "BOWLBUGS_WEAK",
+  "seed": "FLASHKM2N1",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialPlayerBlock": 25,
+  "initialEnemyMaxHps": [45, 40],
+  "initialEnemyCurrentHps": [45, 40],
+  "timeoutSeconds": 120
+}

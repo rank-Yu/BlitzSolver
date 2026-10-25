@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P15-B-DRAW-SEARCH",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP15B",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "MASTER_OF_STRATEGY", "pile": "Hand" },
+    { "cardId": "MASTER_OF_STRATEGY", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PURITY", "pile": "Hand" },
+    { "cardId": "PURITY", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SCRAWL", "pile": "Hand" },
+    { "cardId": "SCRAWL", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SECRET_TECHNIQUE", "pile": "Hand" },
+    { "cardId": "SECRET_TECHNIQUE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SECRET_WEAPON", "pile": "Hand" },
+    { "cardId": "SECRET_WEAPON", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

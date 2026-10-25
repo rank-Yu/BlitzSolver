@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-RAMPART",
+  "characterId": "IRONCLAD",
+  "encounterId": "TURRET_OPERATOR_WEAK",
+  "seed": "FLASHDX3RPT",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [10, 200],
+  "initialEnemyCurrentHps": [10, 200],
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 3 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 }
+  ]
+}

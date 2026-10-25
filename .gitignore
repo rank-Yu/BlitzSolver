@@ -2,3 +2,5 @@ artifacts/
 bin/
 obj/
 .local/
+
+tests/OfflineHost/local.props

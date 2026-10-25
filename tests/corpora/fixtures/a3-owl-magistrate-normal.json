@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-OWL",
+  "characterId": "IRONCLAD",
+  "encounterId": "OWL_MAGISTRATE_NORMAL",
+  "seed": "FLASHA3OWL",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    120
+  ],
+  "initialEnemyCurrentHps": [
+    120
+  ],
+  "timeoutSeconds": 180,
+  "initialEnemyMoveIds": [
+    "JUDICIAL_FLIGHT"
+  ]
+}

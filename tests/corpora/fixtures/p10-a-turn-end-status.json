@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P10-A-TURN-END-STATUS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP10A",
+  "ascension": 0,
+  "initialPlayerHp": 9999,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "BECKON",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BURN",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFECTION",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TOXIC",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "WITHER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BURN",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "INFECTION",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "TOXIC",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "WITHER",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "BECKON",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialPlayerMaxHp": 9999
+}

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P16-A-DAMAGE-HISTORY",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP16A",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 120,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "FISTICUFFS", "pile": "Hand" },
+    { "cardId": "FISTICUFFS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "GOLD_AXE", "pile": "Hand" },
+    { "cardId": "GOLD_AXE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "HAND_OF_GREED", "pile": "Hand" },
+    { "cardId": "HAND_OF_GREED", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "OMNISLICE", "pile": "Hand" },
+    { "cardId": "OMNISLICE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "TWIN_STRIKE", "pile": "Draw", "count": 2 },
+    { "cardId": "BASH", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

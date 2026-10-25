@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-CX-A-ENCHANTMENTS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHCXENCH",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    1
+  ],
+  "initialEnemyCurrentHps": [
+    1
+  ],
+  "clearPlayerPiles": true,
+  "cards": [
+    {
+      "cardId": "BATTLE_TRANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "SLUMBERING_ESSENCE"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "enchantmentId": "IMBUED"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "enchantmentId": "PERFECT_FIT"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "enchantmentId": "SLITHER"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand"
+    }
+  ],
+  "timeoutSeconds": 180
+}

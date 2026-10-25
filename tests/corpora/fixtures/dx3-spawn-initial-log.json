@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-SPAWN-LOG",
+  "characterId": "DEFECT",
+  "encounterId": "FABRICATOR_NORMAL",
+  "seed": "FLASHDX3SPW",
+  "ascension": 0,
+  "initialPlayerMaxHp": 75,
+  "initialPlayerHp": 1,
+  "initialPlayerEnergy": 0,
+  "initialEnemyMaxHps": [
+    211
+  ],
+  "initialEnemyCurrentHps": [
+    211
+  ],
+  "initialEnemyMoveIds": [
+    "FABRICATE_MOVE"
+  ],
+  "timeoutSeconds": 180,
+  "cards": [
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Hand",
+      "count": 1
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "POISON_POWER",
+      "target": "Player",
+      "amount": 5
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-H-ICE-CREAM",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2H",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    { "relicId": "ICE_CREAM", "addWithoutObtainedEffects": true }
+  ],
+  "cards": [
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "count": 3 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

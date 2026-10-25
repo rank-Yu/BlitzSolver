@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P7-CLASS3-TURN2",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P7C3T2",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerBlock": 20,
+  "enemyCurrentHp": 200,
+  "relics": [
+    {
+      "relicId": "BREAD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BRIMSTONE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CANDELABRA",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "HORN_CLEAT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MERCURY_HOURGLASS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CLOAK_CLASP",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RIPPLE_BASIN",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PARRYING_SHIELD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "STURDY_CLAMP",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120
+}

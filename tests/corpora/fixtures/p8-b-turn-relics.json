@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P8-B-TURN-RELICS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P8BTURNRELICS",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "relics": [
+    {
+      "relicId": "BURNING_STICKS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "CENTENNIAL_PUZZLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DEMON_TONGUE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "HAPPY_FLOWER",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_turnsSeen": 2
+      }
+    },
+    {
+      "relicId": "JOSS_PAPER",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_cardsExhausted": 4,
+        "_etherealCount": 1
+      }
+    },
+    {
+      "relicId": "ORICHALCUM",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PENDULUM",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_turnsSeen": 2
+      }
+    },
+    {
+      "relicId": "PERMAFROST",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "POCKETWATCH",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_cardsPlayedThisTurn": 1,
+        "_cardsPlayedLastTurn": 2
+      }
+    },
+    {
+      "relicId": "RAINBOW_RING",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_skillsPlayedThisTurn": 1,
+        "_powersPlayedThisTurn": 1,
+        "_activationCountThisTurn": 0
+      }
+    },
+    {
+      "relicId": "VENERABLE_TEA_SET",
+      "addWithoutObtainedEffects": true,
+      "booleanMembers": {
+        "_gainEnergyInNextCombat": true
+      }
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "DAZED",
+      "pile": "Hand",
+      "count": 5
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TRUE_GRIT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DARK_EMBRACE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialPlayerMaxHp": 200
+}

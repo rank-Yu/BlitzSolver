@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-RG-D-FORGE-CREATE",
+ "characterId": "REGENT",
+ "encounterId": "NIBBITS_NORMAL",
+ "seed": "RGD1",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 12,
+ "initialPlayerStars": 4,
+ "enemyCurrentHp": 400,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "REFINE_BLADE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "THE_SMITH",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "FURNACE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "BULWARK",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "REFINE_BLADE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "THE_SMITH",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "FURNACE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "BULWARK",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ARSENAL",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "ARSENAL",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PILLAR_OF_CREATION",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PILLAR_OF_CREATION",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  }
+ ],
+ "relics": [
+  {
+   "relicId": "REGALITE",
+   "addWithoutObtainedEffects": true
+  }
+ ],
+ "timeoutSeconds": 120
+}

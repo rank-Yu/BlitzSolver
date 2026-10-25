@@ -1,0 +1,30 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-QF3-HELLRAISER-ENTROPY",
+ "characterId": "IRONCLAD",
+ "encounterId": "SHRINKER_BEETLE_WEAK",
+ "seed": "FLASHQF3HELLRAISER",
+ "ascension": 0,
+ "initialPlayerHp": 500,
+ "initialPlayerMaxHp": 500,
+ "initialPlayerEnergy": 3,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "clearRunDeck": true,
+ "initialEnemyMaxHps": [500],
+ "initialEnemyCurrentHps": [5],
+ "timeoutSeconds": 120,
+ "powers": [
+  { "powerId": "HELLRAISER_POWER", "target": "Player", "amount": 1 },
+  { "powerId": "ENTROPY_POWER", "target": "Player", "amount": 1 }
+ ],
+ "cards": [
+  { "cardId": "STOMP", "pile": "Hand" },
+  { "cardId": "ASHEN_STRIKE", "pile": "Draw", "upgradeLevels": 1 },
+  { "cardId": "FIGHT_ME", "pile": "Draw", "upgradeLevels": 1 },
+  { "cardId": "STOMP", "pile": "Draw" },
+  { "cardId": "STRIKE_IRONCLAD", "pile": "Draw" },
+  { "cardId": "STRIKE_IRONCLAD", "pile": "Draw" }
+ ]
+}

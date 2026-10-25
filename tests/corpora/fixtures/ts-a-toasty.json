@@ -1,0 +1,14 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-TS-A-TOASTY",
+ "characterId": "IRONCLAD",
+ "encounterId": "NIBBITS_NORMAL",
+ "seed": "TSA1",
+ "ascension": 0,
+ "relics": [
+  {
+   "relicId": "TOASTY_MITTENS"
+  }
+ ],
+ "flashTurnSetupRootForTest": true
+}

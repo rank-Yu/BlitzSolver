@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P2-C-POWERS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP2C",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "TAUNT", "pile": "Hand" },
+    { "cardId": "TAUNT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BREAK", "pile": "Hand" },
+    { "cardId": "BREAK", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "TREMBLE", "pile": "Hand" },
+    { "cardId": "TREMBLE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "FIGHT_ME", "pile": "Hand" },
+    { "cardId": "FIGHT_ME", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "COLOSSUS", "pile": "Hand" },
+    { "cardId": "COLOSSUS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "VULNERABLE_POWER", "target": "Player", "amount": 3 },
+    { "powerId": "STRENGTH_POWER", "target": "Player", "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

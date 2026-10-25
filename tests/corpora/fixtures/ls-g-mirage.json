@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "LS-G-MIRAGE",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "LSG1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "MIRAGE",
+      "pile": "Hand"
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "DEXTERITY_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "SHADOWMELD_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ],
+  "timeoutSeconds": 120
+}

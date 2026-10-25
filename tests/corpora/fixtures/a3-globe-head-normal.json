@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-GLOBEHEAD",
+  "characterId": "IRONCLAD",
+  "encounterId": "GLOBE_HEAD_NORMAL",
+  "seed": "FLASHA3GLO",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    80
+  ],
+  "initialEnemyCurrentHps": [
+    80
+  ],
+  "timeoutSeconds": 180
+}

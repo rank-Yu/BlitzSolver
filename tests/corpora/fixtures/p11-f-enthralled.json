@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P11-F-ENTHRALLED",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP11F",
+  "ascension": 0,
+  "initialPlayerMaxHp": 9999,
+  "initialPlayerHp": 9999,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "ENTHRALLED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "timeoutSeconds": 120
+}

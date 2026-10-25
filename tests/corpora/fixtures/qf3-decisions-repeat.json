@@ -1,0 +1,37 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-QF3-DECISIONS-REPEAT",
+ "characterId": "REGENT",
+ "encounterId": "SHRINKER_BEETLE_WEAK",
+ "seed": "FLASHQF3DECISIONS",
+ "ascension": 0,
+ "initialPlayerHp": 500,
+ "initialPlayerMaxHp": 500,
+ "initialPlayerEnergy": 9,
+ "initialPlayerStars": 6,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "clearRunDeck": true,
+ "initialEnemyMaxHps": [
+  2000
+ ],
+ "initialEnemyCurrentHps": [
+  2000
+ ],
+ "timeoutSeconds": 120,
+ "cards": [
+  {
+   "cardId": "DECISIONS_DECISIONS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GATHER_LIGHT",
+   "pile": "Draw"
+  },
+  {
+   "cardId": "CLOAK_OF_STARS",
+   "pile": "Draw"
+  }
+ ]
+}

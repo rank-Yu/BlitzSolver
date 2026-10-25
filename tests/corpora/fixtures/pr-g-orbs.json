@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-PR-G-ORBS",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHPR-G",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "INFUSED_CORE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "METRONOME",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "EMOTION_CHIP",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "ZAP",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DUALCAST",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "ZAP",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "DUALCAST",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "clearRunDeck": true
+}

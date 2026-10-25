@@ -130,7 +130,29 @@ git diff --exit-code -- tests/Golden/data/manifest.json
 manifest 证明：文件集合、大小、SHA-256、计数与 provenance 自洽。
 manifest 不证明：语义正确性；它只保护冻结快照不被静默改动。
 
-## 6. 每层证明什么
+## 6. 离线宿主（需要游戏文件，不在 CI 中运行）
+
+`tests/OfflineHost` 是不启动 Godot 的控制台工程：它初始化游戏静态状态、用游戏自己的
+`RunManager`/`ModelDb` 建局、推进到玩家可操作，再写出原生 `CombatState` 的确定性转储。
+它不导入 `Battle`，也不跑搜索。工程**不加入** `BlitzSolver.sln`；CI 没有游戏文件，只保证
+`dotnet build BlitzSolver.sln` 不受影响。
+
+需要本机游戏目录（`sts2.dll`、`GodotSharp.dll`、`0Harmony.dll`）。路径通过
+`tests/OfflineHost/local.props` 配置；该文件被 git 忽略，模板是 `local.props.example`。
+RitsuLib 不需要。完整说明见 [`tests/OfflineHost/README.md`](../tests/OfflineHost/README.md)。
+
+```bash
+dotnet build tests/OfflineHost/OfflineHost.csproj -c Release
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --all --jobs 8 --out .local/offlinehost/out
+```
+
+`--root <name>` 建单个根；`--all` 为每个根起一个子进程；`--compare-only <new> <ref>`
+逐根比较转储并打印第一处差异。当前 410 个输入与参考转储逐字节相同；参考转储由 CombatSolver `flash/m0` 的 `fe428fca` 生成（该提交给 M0 离线宿主加了同一份 `NativeStateDump`）。
+
+离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态。
+它不证明：原生状态到 `Battle`/`Rules` 的导入、前缀与额外回合准备根、实机运行。
+
+## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |
 | --- | --- | --- |
@@ -139,12 +161,14 @@ manifest 不证明：语义正确性；它只保护冻结快照不被静默改�
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
+| 离线宿主（手动） | 410 个冻结输入的原生 `CombatState` 与参考转储逐字节相同 | 导入 `Battle`、前缀/回合准备根、实机运行 |
 
-这四层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的。它们不证明：BlitzSolver 能在真实游戏中导入状态、在真实战斗中部署、在界面上显示，或支持任意第三方 Mod。
+这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的。它们不证明：BlitzSolver 能在真实游戏中导入状态、在真实战斗中部署、在界面上显示，或支持任意第三方 Mod。
 
-## 7. 未验证项
+## 8. 未验证项
 
 - **实机运行**：尚未在游戏内启动 BlitzSolver。
+- **状态导入**：离线宿主只建原生 `CombatState`；尚未把它投影成 `Battle`/`Rules`/评估配置。
 - **实机状态导入**：尚未从游戏运行时把 `CombatState`/`RunState` 投影成 `Battle`。
 - **部署**：尚未把搜索结果翻译回游戏动作并执行。
 - **界面**：没有设置页、进度、路线预览或失败提示。

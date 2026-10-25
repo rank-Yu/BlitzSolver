@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P4-D-EXHAUST-DRAW",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP4D",
+  "ascension": 0,
+  "initialPlayerHp": 70,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "DRUM_OF_BATTLE", "pile": "Hand" },
+    { "cardId": "DRUM_OF_BATTLE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "NOT_YET", "pile": "Hand" },
+    { "cardId": "NOT_YET", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "FIEND_FIRE", "pile": "Hand" },
+    { "cardId": "FIEND_FIRE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SECOND_WIND", "pile": "Hand" },
+    { "cardId": "SECOND_WIND", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Draw", "count": 2 },
+    { "cardId": "IRON_WAVE", "pile": "Draw", "count": 2 },
+    { "cardId": "BLOOD_WALL", "pile": "Draw", "count": 2 },
+    { "cardId": "OFFERING", "pile": "Draw", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "STRENGTH_POWER", "target": "Player", "amount": 1 },
+    { "powerId": "VULNERABLE_POWER", "target": "Enemy", "targetIndex": 0, "amount": 2 }
+  ],
+  "timeoutSeconds": 120
+}

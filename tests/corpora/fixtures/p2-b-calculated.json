@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P2-B-CALCULATED",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHP2B",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerBlock": 15,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "PERFECTED_STRIKE", "pile": "Hand" },
+    { "cardId": "PERFECTED_STRIKE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "ASHEN_STRIKE", "pile": "Hand" },
+    { "cardId": "ASHEN_STRIKE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BULLY", "pile": "Hand" },
+    { "cardId": "BULLY", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DISMANTLE", "pile": "Hand" },
+    { "cardId": "DISMANTLE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "MOLTEN_FIST", "pile": "Hand" },
+    { "cardId": "MOLTEN_FIST", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw" },
+    { "cardId": "TWIN_STRIKE", "pile": "Draw" },
+    { "cardId": "POMMEL_STRIKE", "pile": "Draw" },
+    { "cardId": "BASH", "pile": "Draw" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Exhaust", "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Exhaust" }
+  ],
+  "powers": [
+    { "powerId": "VULNERABLE_POWER", "target": "Enemy", "targetIndex": 0, "amount": 5 }
+  ],
+  "timeoutSeconds": 120
+}

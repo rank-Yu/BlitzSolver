@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "flash-sw2-smart-bound-relic",
+  "characterId": "IRONCLAD",
+  "encounterId": "LOUSE_PROGENITOR_NORMAL",
+  "seed": "SW2SMARTBOUND",
+  "ascension": 0,
+  "initialPlayerHp": 120,
+  "initialPlayerMaxHp": 120,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 500,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "relics": [
+    { "relicId": "TUNING_FORK", "addWithoutObtainedEffects": true, "integerMembers": { "_skillsPlayed": 8 } }
+  ],
+  "potions": [
+    { "potionId": "FIRE_POTION" },
+    { "potionId": "SWIFT_POTION" }
+  ],
+  "cards": [
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 6 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "count": 4 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

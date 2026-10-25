@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "SK-F-XCALC",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "SKF1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "EXPOSE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SKEWER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DODGE_AND_ROLL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "RICOCHET",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BULLET_TIME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "POUNCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "PIERCING_WAIL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MURDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "OUTBREAK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "EXPOSE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SKEWER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DODGE_AND_ROLL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "RICOCHET",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DASH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BULLET_TIME",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "POUNCE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PIERCING_WAIL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MURDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "OUTBREAK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MEMENTO_MORI",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MEMENTO_MORI",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PRECISE_CUT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PRECISE_CUT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FINISHER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FINISHER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FLECHETTES",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FLECHETTES",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GOLD_AXE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PANACHE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "NEUTRALIZE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

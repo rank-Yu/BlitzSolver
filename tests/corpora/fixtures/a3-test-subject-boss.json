@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-TESTSUBJECT",
+  "characterId": "IRONCLAD",
+  "encounterId": "TEST_SUBJECT_BOSS",
+  "seed": "FLASHA3TES",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    1
+  ],
+  "initialEnemyCurrentHps": [
+    1
+  ],
+  "timeoutSeconds": 180,
+  "powers": [
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 50
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-LOST-FORGOTTEN",
+  "characterId": "IRONCLAD",
+  "encounterId": "THE_LOST_AND_FORGOTTEN_NORMAL",
+  "seed": "FLASHA3LOS",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    30,
+    30
+  ],
+  "initialEnemyCurrentHps": [
+    30,
+    30
+  ],
+  "timeoutSeconds": 180,
+  "initialEnemyMoveIds": [
+    "DEBILITATING_SMOG",
+    "MIASMA"
+  ],
+  "powers": [
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 10
+    }
+  ]
+}

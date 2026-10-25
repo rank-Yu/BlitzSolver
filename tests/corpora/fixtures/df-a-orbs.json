@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-A-ORBS",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "DFA1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "ZAP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DUALCAST",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GLACIER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GLASSWORK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ICE_LANCE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FUSION",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "RAINBOW",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CHILL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CHAOS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DARKNESS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHATTER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MULTI_CAST",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TEMPEST",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TESLA_COIL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "REFRACT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NULL",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COLD_SNAP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BALL_LIGHTNING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHADOW_SHIELD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COOLHEADED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ZAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DUALCAST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GLACIER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GLASSWORK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ICE_LANCE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FUSION",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "RAINBOW",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CHILL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CHAOS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DARKNESS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHATTER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MULTI_CAST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TEMPEST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TESLA_COIL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "REFRACT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "NULL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "COLD_SNAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BALL_LIGHTNING",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHADOW_SHIELD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "COOLHEADED",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "DARK_ORB",
+      "count": 1,
+      "decimalMembers": {
+        "_evokeVal": 10
+      }
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

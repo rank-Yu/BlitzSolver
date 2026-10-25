@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "NB-D-POWERS",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "NBD1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "COUNTDOWN",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NEUROSURGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHROUD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CALCIFY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "LETHALITY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HAUNT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "OBLIVION",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COUNTDOWN",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "NEUROSURGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHROUD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CALCIFY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "LETHALITY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HAUNT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "OBLIVION",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UNLEASH",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "UNLEASH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

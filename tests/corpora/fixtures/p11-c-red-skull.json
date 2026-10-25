@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P11-C-RED-SKULL",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP11C",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 90,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "RED_SKULL",
+      "addWithoutObtainedEffects": true,
+      "booleanMembers": {
+        "_strengthApplied": false
+      }
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 30
+    }
+  ],
+  "potions": [
+    {
+      "potionId": "BLOOD_POTION"
+    }
+  ],
+  "timeoutSeconds": 120
+}

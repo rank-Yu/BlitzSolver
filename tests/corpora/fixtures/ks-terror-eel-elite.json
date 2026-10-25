@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KS-TERROR-EEL",
+  "characterId": "IRONCLAD",
+  "encounterId": "TERROR_EEL_ELITE",
+  "seed": "FLASHKSEEL",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMoveIds": [
+    "CRASH_MOVE"
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    140
+  ],
+  "initialEnemyCurrentHps": [
+    140
+  ]
+}

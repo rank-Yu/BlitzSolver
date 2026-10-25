@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "NB-A-OSTY",
+  "characterId": "NECROBINDER",
+  "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+  "seed": "NBA1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "UNLEASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "POKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SNAP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HIGH_FIVE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BONE_SHARDS",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "RIGHT_HAND_HAND",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FLATTEN",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BODYGUARD",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UNLEASH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "POKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SNAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HIGH_FIVE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BONE_SHARDS",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "RIGHT_HAND_HAND",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FLATTEN",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "RATTLE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "RATTLE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SQUEEZE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SQUEEZE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PROTECTOR",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "PROTECTOR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SIC_EM",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SIC_EM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400
+  ]
+}

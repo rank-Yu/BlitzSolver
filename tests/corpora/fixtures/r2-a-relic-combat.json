@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R2-A-RELIC-COMBAT",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHR2A",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "TUNGSTEN_ROD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "THE_BOOT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FAKE_STRIKE_DUMMY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAPER_PHROG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FORGOTTEN_SOUL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "HAND_DRILL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DAUGHTER_OF_THE_WIND",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LOST_WISP",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MUMMIFIED_HAND",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RINGING_TRIANGLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "GREMLIN_HORN",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SWORD_BOOMERANG",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FIEND_FIRE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TRUE_GRIT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "POMMEL_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SWORD_BOOMERANG",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "TRUE_GRIT",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "FIEND_FIRE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "POMMEL_STRIKE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "powers": [
+    {
+      "powerId": "PLATING_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 8
+    }
+  ]
+}

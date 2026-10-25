@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ],
+  "timeoutSeconds": 120,
+  "scenarioId": "FLASH-P9-UTILITY-POWERS",
+  "seed": "FLASHP9G",
+  "potions": [
+    {
+      "potionId": "RADIANT_TINCTURE"
+    },
+    {
+      "potionId": "SHIP_IN_A_BOTTLE"
+    },
+    {
+      "potionId": "STABLE_SERUM"
+    }
+  ]
+}

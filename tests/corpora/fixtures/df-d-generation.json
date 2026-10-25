@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-D-GENERATION",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "DFE1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 20,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "OVERCLOCK",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "TURBO",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "FIGHT_THROUGH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "GUNK_UP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ADAPTIVE_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "WHITE_NOISE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COMPACT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "HOLOGRAM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "REBOOT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MODDED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "COOLHEADED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SCAVENGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BURN",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "WOUND",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SLIMED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "OVERCLOCK",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TURBO",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FIGHT_THROUGH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GUNK_UP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ADAPTIVE_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "WHITE_NOISE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "COMPACT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HOLOGRAM",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "REBOOT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "MODDED",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "COOLHEADED",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SCAVENGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Discard",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Discard",
+      "upgradeLevels": 1
+    }
+  ],
+  "orbs": [
+    {
+      "orbId": "DARK_ORB",
+      "count": 1,
+      "decimalMembers": {
+        "_evokeVal": 7
+      }
+    },
+    {
+      "orbId": "FROST_ORB",
+      "count": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

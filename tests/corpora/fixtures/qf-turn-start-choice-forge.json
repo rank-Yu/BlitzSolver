@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-QF-TURN-START-CHOICE-FORGE",
+  "characterId": "REGENT",
+  "encounterId": "SHRINKER_BEETLE_WEAK",
+  "seed": "FLASHQFTURNSTART",
+  "ascension": 0,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 9,
+  "initialEnemyMaxHps": [2000],
+  "initialEnemyCurrentHps": [2000],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "clearRunDeck": true,
+  "timeoutSeconds": 180,
+  "powers": [
+    { "powerId": "FURNACE_POWER", "target": "Player", "amount": 7 },
+    { "powerId": "FOREGONE_CONCLUSION_POWER", "target": "Player", "amount": 1 },
+    { "powerId": "TYRANNY_POWER", "target": "Player", "amount": 1 }
+  ],
+  "cards": [
+    { "cardId": "SOVEREIGN_BLADE", "pile": "Hand" },
+    { "cardId": "DEFEND_REGENT", "pile": "Draw", "count": 6 }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-QT2-ART-OF-WAR-ENDTURN",
+ "characterId": "DEFECT",
+ "encounterId": "SHRINKER_BEETLE_WEAK",
+ "seed": "FLASHQT2ARTOFWAR",
+ "ascension": 0,
+ "initialPlayerHp": 500,
+ "initialPlayerMaxHp": 500,
+ "initialPlayerEnergy": 3,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "clearRunDeck": true,
+ "initialEnemyMaxHps": [
+  500
+ ],
+ "initialEnemyCurrentHps": [
+  30
+ ],
+ "timeoutSeconds": 120,
+ "orbs": [
+  {
+   "orbId": "LIGHTNING_ORB",
+   "count": 2
+  },
+  {
+   "orbId": "FROST_ORB",
+   "count": 2
+  },
+  {
+   "orbId": "LIGHTNING_ORB",
+   "count": 1
+  }
+ ],
+ "powers": [
+  {
+   "powerId": "FOCUS_POWER",
+   "target": "Player",
+   "amount": 2
+  },
+  {
+   "powerId": "MACHINE_LEARNING_POWER",
+   "target": "Player",
+   "amount": 1
+  },
+  {
+   "powerId": "MIND_ROT_POWER",
+   "target": "Player",
+   "amount": 1
+  },
+  {
+   "powerId": "STRENGTH_POWER",
+   "target": "Player",
+   "amount": 2
+  },
+  {
+   "powerId": "DEXTERITY_POWER",
+   "target": "Player",
+   "amount": 2
+  },
+  {
+   "powerId": "SLOTH_POWER",
+   "target": "Player",
+   "amount": 3
+  },
+  {
+   "powerId": "CONSUMING_SHADOW_POWER",
+   "target": "Player",
+   "amount": 1
+  },
+  {
+   "powerId": "DISINTEGRATION_POWER",
+   "target": "Player",
+   "amount": 8
+  },
+  {
+   "powerId": "LIGHTNING_ROD_POWER",
+   "target": "Player",
+   "amount": 2
+  }
+ ],
+ "cards": [
+  {
+   "cardId": "STRIKE_DEFECT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "STRIKE_DEFECT",
+   "pile": "Hand"
+  }
+ ],
+ "relics": [
+  {
+   "relicId": "RUNIC_CAPACITOR",
+   "addWithoutObtainedEffects": true
+  },
+  {
+   "relicId": "ART_OF_WAR",
+   "addWithoutObtainedEffects": true
+  }
+ ],
+ "flashPrefixPlan": [
+  {
+   "kind": "PlayCard",
+   "turn": 1,
+   "cardId": "STRIKE_DEFECT",
+   "cardOccurrence": 0,
+   "targetIndex": 0,
+   "targetCombatId": 1,
+   "cardTitle": "",
+   "targetName": "",
+   "choice": null,
+   "nestedChoices": null,
+   "nestedChoicesBeforePrimary": 0,
+   "potionSlot": -1,
+   "potionId": "",
+   "potionTitle": "",
+   "turnStartChoices": null,
+   "relicEffects": [],
+   "replayCount": 0,
+   "cardStateKey": "",
+   "cardStateOccurrence": 0,
+   "endsPlayerTurn": false,
+   "cardUpgradeLevel": 0,
+   "cardEnchantmentId": "",
+   "isExecutable": true,
+   "actionTitle": ""
+  }
+ ]
+}

@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R2-E-NO-COMBAT",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHR2E",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "FRAGRANT_MUSHROOM",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "GLASS_EYE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "GLITTER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "GOLDEN_COMPASS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "GOLDEN_PEARL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "HEFTY_TABLET",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "JEWELRY_BOX",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "KALEIDOSCOPE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LARGE_CAPSULE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LAVA_ROCK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LEAD_PAPERWEIGHT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LEAFY_POULTICE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LORDS_PARASOL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "LOST_COFFER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MASSIVE_SCROLL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MAW_BANK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MEAT_CLEAVER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NEOWS_BONES",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NEOWS_SACRIFICE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NEOWS_TALISMAN",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NEOWS_TORMENT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NEW_LEAF",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NUTRITIOUS_OYSTER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "NUTRITIOUS_SOUP",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-RAMPAGE",
+  "characterId": "IRONCLAD",
+  "encounterId": "KNIGHTS_ELITE",
+  "seed": "FLASHDX3RMP",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [108, 97, 89],
+  "initialEnemyCurrentHps": [108, 97, 89],
+  "initialEnemyMoveIds": ["FLAIL_MOVE", "SOUL_SLASH", "DAMPEN_MOVE"],
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "RAMPAGE", "pile": "Hand", "upgradeLevels": 1, "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 }
+  ]
+}

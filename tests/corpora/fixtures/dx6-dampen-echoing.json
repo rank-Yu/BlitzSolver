@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX6-DAMPEN-ECHOING",
+  "characterId": "SILENT",
+  "encounterId": "KNIGHTS_ELITE",
+  "seed": "DX6DAMPEN1",
+  "ascension": 10,
+  "actIndexForTest": 2,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 3,
+  "initialEnemyCurrentHps": [108, 97, 8],
+  "initialEnemyMoveIds": ["RAM_MOVE", "HEX", "DAMPEN_MOVE"],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearRunDeck": true,
+  "clearAllPowers": true,
+  "timeoutSeconds": 180,
+  "flashPrefixActions": ["EndTurn"],
+  "cards": [
+    { "cardId": "ECHOING_SLASH", "pile": "Draw", "count": 1, "upgradeLevels": 1 },
+    { "cardId": "DEFEND_SILENT", "pile": "Draw", "count": 4 },
+    { "cardId": "STRIKE_SILENT", "pile": "Draw", "count": 5 }
+  ]
+}

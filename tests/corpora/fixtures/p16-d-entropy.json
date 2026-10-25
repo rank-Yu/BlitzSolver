@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P16-D-ENTROPY",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP16D",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 250,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "ENTROPY", "pile": "Hand" },
+    { "cardId": "ENTROPY", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 3 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 6 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 6 },
+    { "cardId": "TWIN_STRIKE", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

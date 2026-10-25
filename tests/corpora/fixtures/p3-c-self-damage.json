@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P3-C-SELF-DAMAGE",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP3C",
+  "ascension": 0,
+  "initialPlayerHp": 50,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "OFFERING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "OFFERING",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ANGER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ANGER",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DOMINATE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DOMINATE",
+      "pile": "Hand",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "CRUELTY_POWER",
+      "target": "Player",
+      "amount": 25
+    },
+    {
+      "powerId": "STRENGTH_POWER",
+      "target": "Player",
+      "amount": 1
+    },
+    {
+      "powerId": "VULNERABLE_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 3
+    }
+  ],
+  "timeoutSeconds": 120
+}

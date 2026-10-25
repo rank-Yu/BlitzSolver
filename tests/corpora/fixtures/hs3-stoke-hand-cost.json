@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-HS3-STOKE-HAND-COST",
+  "characterId": "IRONCLAD",
+  "encounterId": "SOUL_NEXUS_ELITE",
+  "seed": "FLASHHS3STOKE",
+  "ascension": 10,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    254
+  ],
+  "initialEnemyCurrentHps": [
+    254
+  ],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "STOKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SHRUG_IT_OFF",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STOMP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SECOND_WIND",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "JUGGERNAUT",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STOMP",
+      "pile": "Draw"
+    }
+  ],
+  "relics": [
+    {
+      "relicId": "BEATING_REMNANT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "DRAGON_FRUIT",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "KUSARIGAMA",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PEAR",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "timeoutSeconds": 120,
+  "powers": [
+    {
+      "powerId": "DARK_EMBRACE_POWER",
+      "target": "Player",
+      "amount": 1
+    }
+  ]
+}

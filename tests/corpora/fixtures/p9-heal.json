@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P9-HEAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP9M",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 100,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ],
+  "clearPlayerHand": true,
+  "potions": [
+    {
+      "potionId": "REGEN_POTION"
+    },
+    {
+      "potionId": "BLOOD_POTION"
+    },
+    {
+      "potionId": "BLOCK_POTION"
+    }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "DF-G-EXTRA",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "DFG1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {"cardId": "BULK_UP", "pile": "Hand", "upgradeLevels": 1},
+    {"cardId": "SYNCHRONIZE", "pile": "Hand", "upgradeLevels": 1},
+    {"cardId": "SYNTHESIS", "pile": "Hand", "upgradeLevels": 1},
+    {"cardId": "BIASED_COGNITION", "pile": "Hand", "upgradeLevels": 1},
+    {"cardId": "STRIKE_DEFECT", "pile": "Draw", "upgradeLevels": 1}
+  ],
+  "relics": [
+    {"relicId": "REPTILE_TRINKET", "addWithoutObtainedEffects": true}
+  ],
+  "potions": [
+    {"potionId": "FIRE_POTION"},
+    {"potionId": "SWIFT_POTION"}
+  ],
+  "orbs": [
+    {"orbId": "DARK_ORB", "count": 1, "decimalMembers": {"_evokeVal": 8}},
+    {"orbId": "FROST_ORB", "count": 1}
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [400, 400],
+  "initialEnemyCurrentHps": [400, 400]
+}

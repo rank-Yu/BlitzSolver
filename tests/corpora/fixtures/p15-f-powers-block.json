@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P15-F-POWERS-BLOCK",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP15F",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "PROWESS", "pile": "Hand" },
+    { "cardId": "PROWESS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "PANIC_BUTTON", "pile": "Hand" },
+    { "cardId": "PANIC_BUTTON", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "THE_GAMBIT", "pile": "Hand" },
+    { "cardId": "THE_GAMBIT", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand" },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "NO_BLOCK_POWER", "target": "Player", "amount": 2 },
+    { "powerId": "THE_GAMBIT_POWER", "target": "Player", "amount": 1 }
+  ],
+  "timeoutSeconds": 120
+}

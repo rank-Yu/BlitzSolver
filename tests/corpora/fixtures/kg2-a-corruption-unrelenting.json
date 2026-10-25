@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KG2-A-CORRUPTION-UNRELENTING",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHKG2A",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "CORRUPTION", "pile": "Hand" },
+    { "cardId": "CORRUPTION", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "UNRELENTING", "pile": "Hand" },
+    { "cardId": "UNRELENTING", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "BASH", "pile": "Hand" },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "count": 2 },
+    { "cardId": "SHRUG_IT_OFF", "pile": "Hand" },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

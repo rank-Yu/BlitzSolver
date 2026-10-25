@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P8-C-RAGE-JUGGLING-DARK-EMBRACE",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P8CIRONCLADPOWERS",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "JUGGLING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "RAGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DARK_EMBRACE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DAZED",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "RAGE_POWER",
+      "target": "Player",
+      "amount": 3
+    },
+    {
+      "powerId": "JUGGLING_POWER",
+      "target": "Player",
+      "amount": 2
+    },
+    {
+      "powerId": "DARK_EMBRACE_POWER",
+      "target": "Player",
+      "amount": 2
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialPlayerMaxHp": 200
+}

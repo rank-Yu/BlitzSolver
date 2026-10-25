@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DT-DOOM-FATAL-TIMING",
+  "characterId": "IRONCLAD",
+  "encounterId": "DECIMILLIPEDE_ELITE",
+  "seed": "FLASHDTDOOM",
+  "ascension": 0,
+  "initialPlayerMaxHp": 1000,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [20, 20, 20],
+  "initialEnemyCurrentHps": [20, 20, 20],
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearRunDeck": true,
+  "cards": [],
+  "relics": [
+    {
+      "relicId": "BOOK_REPAIR_KNIFE",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "DOOM_POWER",
+      "target": "Enemy",
+      "targetIndex": 0,
+      "amount": 20
+    },
+    {
+      "powerId": "DOOM_POWER",
+      "target": "Enemy",
+      "targetIndex": 1,
+      "amount": 20
+    },
+    {
+      "powerId": "DOOM_POWER",
+      "target": "Enemy",
+      "targetIndex": 2,
+      "amount": 20
+    }
+  ],
+  "timeoutSeconds": 120
+}

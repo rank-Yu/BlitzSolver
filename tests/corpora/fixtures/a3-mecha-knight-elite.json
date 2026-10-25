@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-MECHAKNIGHT",
+  "characterId": "IRONCLAD",
+  "encounterId": "MECHA_KNIGHT_ELITE",
+  "seed": "FLASHA3MEC",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    150
+  ],
+  "initialEnemyCurrentHps": [
+    150
+  ],
+  "timeoutSeconds": 180,
+  "initialEnemyMoveIds": [
+    "FLAMETHROWER_MOVE"
+  ]
+}

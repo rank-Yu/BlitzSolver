@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-A3-AEONGLASS",
+  "characterId": "IRONCLAD",
+  "encounterId": "AEONGLASS_BOSS",
+  "seed": "FLASHA3AEO",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    150
+  ],
+  "initialEnemyCurrentHps": [
+    150
+  ],
+  "timeoutSeconds": 180,
+  "initialEnemyMoveIds": [
+    "INCREASING_INTENSITY_MOVE"
+  ]
+}

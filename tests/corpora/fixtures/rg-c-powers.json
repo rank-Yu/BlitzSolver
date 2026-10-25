@@ -1,0 +1,155 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-RG-C-POWERS",
+ "characterId": "REGENT",
+ "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+ "seed": "RGC1",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 12,
+ "initialPlayerStars": 6,
+ "enemyCurrentHp": 400,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "CHILD_OF_THE_STARS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "GENESIS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "ARSENAL",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "REFLECT",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "CHILD_OF_THE_STARS",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GENESIS",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ARSENAL",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "REFLECT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "CHILD_OF_THE_STARS",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "GENESIS",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ARSENAL",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "REFLECT",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "VENERATE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "VENERATE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "SOLAR_STRIKE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "HEGEMONY",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "TERRAFORMING",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "NEUTRON_AEGIS",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "ROYALTIES",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "PILLAR_OF_CREATION",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "MONARCHS_GAZE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "HEGEMONY",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "TERRAFORMING",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "NEUTRON_AEGIS",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "ROYALTIES",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "PILLAR_OF_CREATION",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "MONARCHS_GAZE",
+   "pile": "Draw",
+   "upgradeLevels": 1
+  }
+ ],
+ "timeoutSeconds": 120,
+ "relics": [
+  {
+   "relicId": "GALACTIC_DUST",
+   "addWithoutObtainedEffects": true
+  }
+ ]
+}

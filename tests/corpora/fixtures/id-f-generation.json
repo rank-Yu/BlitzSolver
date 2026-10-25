@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-ID-F-GENERATION",
+  "characterId": "REGENT",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHIDF",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 16,
+  "initialPlayerStars": 10,
+  "enemyCurrentHp": 800,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "BUNDLE_OF_JOY", "pile": "Hand" },
+    { "cardId": "BUNDLE_OF_JOY", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "QUASAR", "pile": "Hand" },
+    { "cardId": "QUASAR", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "MANIFEST_AUTHORITY", "pile": "Hand" },
+    { "cardId": "MANIFEST_AUTHORITY", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "SPECTRUM_SHIFT", "pile": "Hand" },
+    { "cardId": "STRIKE_REGENT", "pile": "Draw", "count": 4 },
+    { "cardId": "DEFEND_REGENT", "pile": "Draw", "count": 4 },
+    { "cardId": "STRIKE_REGENT", "pile": "Discard", "count": 2 },
+    { "cardId": "DEFEND_REGENT", "pile": "Discard", "count": 2 }
+  ],
+  "timeoutSeconds": 180
+}

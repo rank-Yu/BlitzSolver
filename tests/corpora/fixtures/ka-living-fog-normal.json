@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-KA-LIVING-FOG",
+  "characterId": "IRONCLAD",
+  "encounterId": "LIVING_FOG_NORMAL",
+  "seed": "FLASHKAFOG",
+  "ascension": 0,
+  "initialPlayerMaxHp": 250,
+  "initialPlayerHp": 250,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    90
+  ],
+  "initialEnemyCurrentHps": [
+    90
+  ],
+  "initialEnemyMoveIds": [
+    "ADVANCED_GAS_MOVE"
+  ],
+  "timeoutSeconds": 180
+}

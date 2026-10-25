@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-VAMBRACE",
+  "characterId": "SILENT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHDX3VMB",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    200,
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    200,
+    200
+  ],
+  "timeoutSeconds": 180,
+  "cards": [
+    {
+      "cardId": "SURVIVOR",
+      "pile": "Hand",
+      "count": 1
+    },
+    {
+      "cardId": "ABRASIVE",
+      "pile": "Hand",
+      "upgradeLevels": 1,
+      "count": 1
+    },
+    {
+      "cardId": "STRIKE_SILENT",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_SILENT",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "NEUTRALIZE",
+      "pile": "Draw",
+      "count": 1
+    }
+  ],
+  "relics": [
+    {
+      "relicId": "VAMBRACE"
+    }
+  ]
+}

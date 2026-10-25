@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX7-DROPLET-FETCHED-POWER",
+  "characterId": "DEFECT",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHDX7DROPLET",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 500,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "clearRunDeck": true,
+  "potions": [
+    {
+      "potionId": "DROPLET_OF_PRECOGNITION"
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "DEFRAGMENT",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "ZAP",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Draw",
+      "count": 3
+    }
+  ],
+  "timeoutSeconds": 120
+}

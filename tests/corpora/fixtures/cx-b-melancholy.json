@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-CX-B-MELANCHOLY",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_WEAK",
+  "seed": "FLASHCXMELANCHOLY",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    1
+  ],
+  "initialEnemyCurrentHps": [
+    1
+  ],
+  "clearPlayerPiles": true,
+  "runCards": [
+    {
+      "cardId": "MELANCHOLY",
+      "count": 1
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MELANCHOLY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "MELANCHOLY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw"
+    }
+  ],
+  "timeoutSeconds": 180
+}

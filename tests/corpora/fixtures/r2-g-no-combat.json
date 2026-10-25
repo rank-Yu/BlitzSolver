@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R2-G-NO-COMBAT",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHR2G",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "TOY_BOX",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TRI_BOOMERANG",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WAR_HAMMER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WINGED_BOOTS",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WONGO_CUSTOMER_APPRECIATION_BADGE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "WONGOS_MYSTERY_TICKET",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "YUMMY_COOKIE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BIG_MUSHROOM",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BOOMING_CONCH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FAKE_ANCHOR",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "FAKE_BLOOD_VIAL",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "JEWELED_MASK",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ROYAL_POISON",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SWORD_OF_JADE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "TEA_OF_DISCOURTESY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BONE_TEA",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 2
+    }
+  ],
+  "timeoutSeconds": 120
+}

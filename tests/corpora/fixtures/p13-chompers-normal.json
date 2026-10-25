@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P13-CHOMPERS-NORMAL",
+  "characterId": "IRONCLAD",
+  "encounterId": "CHOMPERS_NORMAL",
+  "seed": "FLASHP13CHOMP",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [
+    60,
+    60
+  ],
+  "initialEnemyCurrentHps": [
+    60,
+    60
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMoveIds": [
+    "CLAMP_MOVE",
+    "SCREECH_MOVE"
+  ]
+}

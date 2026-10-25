@@ -1,0 +1,102 @@
+{
+ "schemaVersion": 1,
+ "scenarioId": "FLASH-LR-C1-HISTORY",
+ "characterId": "REGENT",
+ "encounterId": "FUZZY_WURM_CRAWLER_WEAK",
+ "seed": "LRC1",
+ "ascension": 0,
+ "initialPlayerHp": 3000,
+ "initialPlayerMaxHp": 3000,
+ "initialPlayerEnergy": 12,
+ "initialPlayerStars": 12,
+ "enemyCurrentHp": 800,
+ "clearPlayerHand": true,
+ "clearPlayerPiles": true,
+ "clearAllPowers": true,
+ "cards": [
+  {
+   "cardId": "SUPERMASSIVE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "SUPERMASSIVE",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "BEAT_INTO_SHAPE",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "BEAT_INTO_SHAPE",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "KINGLY_KICK",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "KINGLY_KICK",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "KINGLY_PUNCH",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "KINGLY_PUNCH",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "MAKE_IT_SO",
+   "pile": "Hand"
+  },
+  {
+   "cardId": "MAKE_IT_SO",
+   "pile": "Hand",
+   "upgradeLevels": 1
+  },
+  {
+   "cardId": "KINGLY_KICK",
+   "pile": "Draw",
+   "count": 2
+  },
+  {
+   "cardId": "KINGLY_PUNCH",
+   "pile": "Draw",
+   "count": 2
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Draw",
+   "count": 4
+  },
+  {
+   "cardId": "STRIKE_REGENT",
+   "pile": "Draw",
+   "count": 4
+  },
+  {
+   "cardId": "FALLING_STAR",
+   "pile": "Draw",
+   "count": 2
+  },
+  {
+   "cardId": "DEFEND_REGENT",
+   "pile": "Discard",
+   "count": 4
+  }
+ ],
+ "potions": [
+  {
+   "potionId": "KINGS_COURAGE"
+  },
+  {
+   "potionId": "STAR_POTION"
+  }
+ ],
+ "timeoutSeconds": 120
+}

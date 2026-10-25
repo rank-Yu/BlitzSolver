@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX4-DREAD-BASELINE",
+  "characterId": "DEFECT",
+  "encounterId": "THE_LOST_AND_FORGOTTEN_NORMAL",
+  "seed": "FLASHDX4DREAD",
+  "ascension": 0,
+  "initialPlayerMaxHp": 500,
+  "initialPlayerHp": 500,
+  "initialPlayerEnergy": 3,
+  "timeoutSeconds": 180,
+  "flashPrefixActions": [
+    "EndTurn"
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Hand",
+      "count": 1
+    },
+    {
+      "cardId": "DEFEND_DEFECT",
+      "pile": "Draw",
+      "count": 4
+    },
+    {
+      "cardId": "STRIKE_DEFECT",
+      "pile": "Draw",
+      "count": 4
+    }
+  ],
+  "initialEnemyCurrentHps": [
+    93,
+    106
+  ]
+}

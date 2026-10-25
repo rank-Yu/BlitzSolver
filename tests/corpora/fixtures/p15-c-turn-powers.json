@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-P15-C-TURN-POWERS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHP15C",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "THINKING_AHEAD", "pile": "Hand" },
+    { "cardId": "THINKING_AHEAD", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "RESTLESSNESS", "pile": "Hand" },
+    { "cardId": "RESTLESSNESS", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "ETERNAL_ARMOR", "pile": "Hand" },
+    { "cardId": "ETERNAL_ARMOR", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "FASTEN", "pile": "Hand" },
+    { "cardId": "FASTEN", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "ULTIMATE_DEFEND", "pile": "Hand" },
+    { "cardId": "ULTIMATE_DEFEND", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 3 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "powers": [
+    { "powerId": "FASTEN_POWER", "target": "Player", "amount": 4 }
+  ],
+  "timeoutSeconds": 120
+}

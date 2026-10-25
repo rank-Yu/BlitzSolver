@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-DAMPEN",
+  "characterId": "IRONCLAD",
+  "encounterId": "KNIGHTS_ELITE",
+  "seed": "FLASHDX3DMP",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [108, 97, 89],
+  "initialEnemyCurrentHps": [108, 97, 89],
+  "initialEnemyMoveIds": ["FLAIL_MOVE", "SOUL_SLASH", "DAMPEN_MOVE"],
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "upgradeLevels": 2, "count": 2 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Hand", "upgradeLevels": 2, "count": 2 },
+    { "cardId": "BASH", "pile": "Draw", "upgradeLevels": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 3 }
+  ]
+}

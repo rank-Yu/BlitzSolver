@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-K3-BASIC-POTIONS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHK3",
+  "ascension": 0,
+  "enemyCurrentHp": 200,
+  "potions": [
+    { "potionId": "FIRE_POTION" },
+    { "potionId": "BLOCK_POTION" },
+    { "potionId": "STRENGTH_POTION" }
+  ],
+  "timeoutSeconds": 120
+}

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-PR-E-OSTY-DOOM",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHPR-E",
+  "ascension": 0,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerHp": 300,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 500,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "BONE_FLUTE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BOOK_REPAIR_KNIFE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PHYLACTERY_UNBOUND",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PHYLACTERY_UNBOUND",
+      "addWithoutObtainedEffects": true
+    }
+  ],
+  "potions": [
+    {
+      "potionId": "POTION_OF_DOOM"
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "BONE_SHARDS",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "POKE",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "HIGH_FIVE",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "RATTLE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NO_ESCAPE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SIC_EM",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_NECROBINDER",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_NECROBINDER",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "BONE_SHARDS",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "POKE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "RATTLE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "NO_ESCAPE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SIC_EM",
+      "pile": "Draw"
+    }
+  ],
+  "timeoutSeconds": 120,
+  "clearRunDeck": true
+}

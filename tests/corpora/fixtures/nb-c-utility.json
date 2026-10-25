@@ -1,0 +1,323 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "NB-C-UTILITY",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "NBC1",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "AFTERLIFE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "REANIMATE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SPUR",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NECRO_MASTERY",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "PULL_AGGRO",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "CLEANSE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DIRGE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "WISP",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "BORROWED_TIME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "ENFEEBLING_TOUCH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "AFTERLIFE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "REANIMATE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SPUR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "NECRO_MASTERY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PULL_AGGRO",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CLEANSE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DIRGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "WISP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BORROWED_TIME",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ENFEEBLING_TOUCH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFY",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DEFY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FEAR",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "FEAR",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "HANG",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "HANG",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SHARED_FATE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SHARED_FATE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "FRIENDSHIP",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "FRIENDSHIP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEBILITATE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DEBILITATE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "VEILPIERCER",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "VEILPIERCER",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "ERADICATE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "ERADICATE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOW",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SOW",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "BURY",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "BURY",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "REAP",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "REAP",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEFILE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DEFILE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GRAVEBLAST",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "GRAVEBLAST",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DREDGE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "DREDGE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SEVERANCE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SEVERANCE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "REAVE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "REAVE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "GRAVE_WARDEN",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "GRAVE_WARDEN",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "UNDEATH",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "UNDEATH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SCULPTING_STRIKE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SCULPTING_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "TRANSFIGURE",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "TRANSFIGURE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "PULL_FROM_BELOW",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "PULL_FROM_BELOW",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "CAPTURE_SPIRIT",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "CAPTURE_SPIRIT",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ]
+}

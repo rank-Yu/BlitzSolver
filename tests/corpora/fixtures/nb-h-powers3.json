@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "NB-G2-POWERS3",
+  "characterId": "NECROBINDER",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "NBG2",
+  "ascension": 0,
+  "initialPlayerHp": 300,
+  "initialPlayerMaxHp": 300,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 200,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "SLEIGHT_OF_FLESH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SPIRIT_OF_ASH",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEVOUR_LIFE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "DEMESNE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "NEGATIVE_PULSE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SCULPTING_STRIKE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "SLEIGHT_OF_FLESH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SPIRIT_OF_ASH",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEVOUR_LIFE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "DEMESNE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "NEGATIVE_PULSE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SCULPTING_STRIKE",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "SOUL",
+      "pile": "Draw",
+      "upgradeLevels": 1
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialEnemyMaxHps": [
+    200,
+    200
+  ],
+  "initialEnemyCurrentHps": [
+    200,
+    200
+  ]
+}

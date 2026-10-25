@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-EC-D-QUEST-TOKEN",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHD",
+  "ascension": 0,
+  "initialPlayerHp": 3000,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    { "cardId": "BYRDONIS_EGG", "pile": "Hand" },
+    { "cardId": "DOWSING", "pile": "Hand" },
+    { "cardId": "LANTERN_KEY", "pile": "Hand" },
+    { "cardId": "SPOILS_MAP", "pile": "Hand" },
+    { "cardId": "BYRDONIS_EGG", "pile": "Draw" },
+    { "cardId": "DOWSING", "pile": "Draw" },
+    { "cardId": "LANTERN_KEY", "pile": "Discard" },
+    { "cardId": "SPOILS_MAP", "pile": "Discard" },
+    { "cardId": "LUMINESCE", "pile": "Hand" },
+    { "cardId": "LUMINESCE", "pile": "Hand", "upgradeLevels": 1 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Draw", "count": 2 }
+  ],
+  "timeoutSeconds": 120
+}

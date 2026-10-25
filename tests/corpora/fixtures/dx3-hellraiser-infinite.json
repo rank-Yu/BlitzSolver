@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-DX3-HELLRAISER-INFINITE",
+  "characterId": "IRONCLAD",
+  "encounterId": "WATERFALL_GIANT_BOSS",
+  "seed": "FLASHDX3HRI",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [10],
+  "initialEnemyCurrentHps": [10],
+  "timeoutSeconds": 180,
+  "cards": [
+    { "cardId": "POMMEL_STRIKE", "pile": "Hand", "count": 2 },
+    { "cardId": "STRIKE_IRONCLAD", "pile": "Hand", "count": 3 },
+    { "cardId": "DEFEND_IRONCLAD", "pile": "Draw", "count": 4 }
+  ],
+  "powers": [
+    { "powerId": "HELLRAISER_POWER", "target": "Player", "amount": 1 }
+  ]
+}

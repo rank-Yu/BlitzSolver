@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-MB-KNOWLEDGE-DEMON",
+  "characterId": "IRONCLAD",
+  "encounterId": "KNOWLEDGE_DEMON_BOSS",
+  "seed": "FLASHMBKNOW",
+  "ascension": 0,
+  "initialPlayerMaxHp": 3000,
+  "initialPlayerHp": 3000,
+  "initialPlayerEnergy": 3,
+  "initialEnemyMaxHps": [379],
+  "initialEnemyCurrentHps": [379],
+  "timeoutSeconds": 120
+}

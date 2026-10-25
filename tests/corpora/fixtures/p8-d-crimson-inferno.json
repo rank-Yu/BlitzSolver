@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "P8-D-CRIMSON-MANTLE-INFERNO",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "P8DSELFDAMAGE",
+  "ascension": 0,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 9,
+  "enemyCurrentHp": 300,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "cards": [
+    {
+      "cardId": "CRIMSON_MANTLE",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFERNO",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 2
+    },
+    {
+      "cardId": "BLOODLETTING",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 3
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 2
+    }
+  ],
+  "powers": [
+    {
+      "powerId": "CRIMSON_MANTLE_POWER",
+      "target": "Player",
+      "amount": 7,
+      "dynamicVars": {
+        "SelfDamage": 2
+      }
+    },
+    {
+      "powerId": "INFERNO_POWER",
+      "target": "Player",
+      "amount": 6,
+      "dynamicVars": {
+        "SelfDamage": 2
+      }
+    }
+  ],
+  "timeoutSeconds": 120,
+  "initialPlayerMaxHp": 200
+}

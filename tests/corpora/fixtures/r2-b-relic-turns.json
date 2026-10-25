@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "FLASH-R2-B-RELIC-TURNS",
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "seed": "FLASHR2B",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialPlayerEnergy": 3,
+  "enemyCurrentHp": 400,
+  "clearPlayerHand": true,
+  "clearPlayerPiles": true,
+  "clearAllPowers": true,
+  "relics": [
+    {
+      "relicId": "RINGING_TRIANGLE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "RUNIC_PYRAMID",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "IRON_CLUB",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "CardsPlayed": 2
+      }
+    },
+    {
+      "relicId": "IVORY_TILE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "MR_STRUGGLES",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SAI",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "VELVET_CHOKER",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "_cardsPlayedThisTurn": 3
+      }
+    },
+    {
+      "relicId": "FAKE_HAPPY_FLOWER",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "TurnsSeen": 4
+      }
+    },
+    {
+      "relicId": "FAKE_VENERABLE_TEA_SET",
+      "addWithoutObtainedEffects": true,
+      "booleanMembers": {
+        "GainEnergyInNextCombat": true
+      }
+    },
+    {
+      "relicId": "FAKE_ORICHALCUM",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "POLLINOUS_CORE",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "TurnsSeen": 3
+      }
+    },
+    {
+      "relicId": "RING_OF_THE_DRAKE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_BLOOD",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_FLESH",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PAELS_TEARS",
+      "addWithoutObtainedEffects": true,
+      "booleanMembers": {
+        "_hadLeftoverEnergy": true
+      }
+    },
+    {
+      "relicId": "BLESSED_ANTLER",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BLOOD_SOAKED_ROSE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "ECTOPLASM",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PHILOSOPHERS_STONE",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PRISMATIC_GEM",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "SOZU",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "PUMPKIN_CANDLE",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "KindleCount": 1
+      }
+    },
+    {
+      "relicId": "SELF_FORMING_CLAY",
+      "addWithoutObtainedEffects": true
+    },
+    {
+      "relicId": "BONE_TEA",
+      "addWithoutObtainedEffects": true,
+      "integerMembers": {
+        "CombatsLeft": 1
+      }
+    }
+  ],
+  "cards": [
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Hand",
+      "count": 4
+    },
+    {
+      "cardId": "BLUDGEON",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Hand"
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Draw",
+      "count": 6
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Draw",
+      "count": 6
+    },
+    {
+      "cardId": "BLUDGEON",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "INFLAME",
+      "pile": "Draw"
+    },
+    {
+      "cardId": "BASH",
+      "pile": "Draw",
+      "count": 2
+    },
+    {
+      "cardId": "STRIKE_IRONCLAD",
+      "pile": "Discard",
+      "count": 4
+    },
+    {
+      "cardId": "DEFEND_IRONCLAD",
+      "pile": "Discard",
+      "count": 4
+    }
+  ],
+  "timeoutSeconds": 120
+}

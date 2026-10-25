@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "characterId": "IRONCLAD",
+  "encounterId": "NIBBITS_NORMAL",
+  "ascension": 0,
+  "initialPlayerMaxHp": 200,
+  "initialPlayerHp": 200,
+  "initialEnemyMaxHps": [
+    400,
+    400
+  ],
+  "initialEnemyCurrentHps": [
+    400,
+    400
+  ],
+  "timeoutSeconds": 120,
+  "scenarioId": "FLASH-P9-REPLAY-SELECT",
+  "seed": "FLASHP9L",
+  "potions": [
+    {
+      "potionId": "LIQUID_MEMORIES"
+    },
+    {
+      "potionId": "SOLDIERS_STEW"
+    },
+    {
+      "potionId": "TOUCH_OF_INSANITY"
+    }
+  ]
+}
