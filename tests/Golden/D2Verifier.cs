@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using BlitzSolver.Engine;
 using BlitzSolver.Search;
@@ -6,27 +7,101 @@ namespace BlitzSolver.Golden;
 
 internal sealed record D2Summary(int Selected, int Equal, int Mismatch, long Expanded);
 
+internal sealed record D2Request(string Hash, string Path, int Weight);
+
+internal sealed record D2ShardPlan(
+    D2Request[] Selected,
+    long SelectedWeight,
+    int OldSelected,
+    long OldSelectedWeight);
+
 internal static class D2Verifier
 {
-    internal static D2Summary Run(string dataDirectory, int jobs, int shard, int shards)
+    /// <summary>
+    /// Loads every D2 request, takes its deterministic weight from the expected result's
+    /// expanded-node count, and assigns requests to shards with longest-processing-time first:
+    /// descending weight (ties by request hash ordinal), always to the currently lightest shard
+    /// (ties by lower shard index). Each plan's Selected array stays in descending weight order.
+    /// </summary>
+    internal static D2ShardPlan[] BuildPlans(string dataDirectory, int shards)
     {
         string requestDirectory = Path.Combine(dataDirectory, "d2", "requests");
         string expectedDirectory = Path.Combine(dataDirectory, "d2", "expected");
         if (!Directory.Exists(requestDirectory) || !Directory.Exists(expectedDirectory))
             throw new InvalidDataException("D2 requests/expected 目录不完整。");
-        string[] selected = Directory.EnumerateFiles(requestDirectory, "*.request.br")
+
+        string[] paths = Directory.EnumerateFiles(requestDirectory, "*.request.br")
             .OrderBy(static path => path, StringComparer.Ordinal)
-            .Where((_, index) => index % shards == shard)
             .ToArray();
+        D2Request[] requests = new D2Request[paths.Length];
+        for (int index = 0; index < paths.Length; index++)
+        {
+            string path = paths[index];
+            string hash = Path.GetFileName(path)[..^".request.br".Length];
+            string expectedPath = Path.Combine(expectedDirectory, hash + ".result.br");
+            if (!File.Exists(expectedPath))
+                throw new InvalidDataException($"D2 请求 {hash} 缺少期望结果。");
+            BeamResult expected = SearchCodec.DecodeResult(
+                GoldenFiles.ReadCompressed(expectedPath));
+            if (expected.ExpandedNodes < 0)
+                throw new InvalidDataException($"D2 请求 {hash} 的展开节点数为负。");
+            requests[index] = new D2Request(hash, path, expected.ExpandedNodes);
+        }
+
+        D2Request[] ordered = requests
+            .OrderByDescending(static request => request.Weight)
+            .ThenBy(static request => request.Hash, StringComparer.Ordinal)
+            .ToArray();
+        List<D2Request>[] buckets = new List<D2Request>[shards];
+        long[] weights = new long[shards];
+        for (int index = 0; index < shards; index++)
+            buckets[index] = [];
+        foreach (D2Request request in ordered)
+        {
+            int target = 0;
+            for (int candidate = 1; candidate < shards; candidate++)
+            {
+                if (weights[candidate] < weights[target])
+                    target = candidate;
+            }
+            buckets[target].Add(request);
+            weights[target] += request.Weight;
+        }
+
+        D2ShardPlan[] plans = new D2ShardPlan[shards];
+        for (int index = 0; index < shards; index++)
+        {
+            // Both lists inherit the global descending-weight order.
+            D2Request[] selected = [.. buckets[index]];
+            long oldWeight = 0;
+            int oldSelected = 0;
+            for (int oldIndex = index; oldIndex < requests.Length; oldIndex += shards)
+            {
+                oldWeight += requests[oldIndex].Weight;
+                oldSelected++;
+            }
+            plans[index] = new D2ShardPlan(selected, weights[index], oldSelected, oldWeight);
+        }
+        return plans;
+    }
+
+    internal static D2Summary Run(string dataDirectory, int jobs, int shard, int shards)
+    {
+        D2ShardPlan plan = BuildPlans(dataDirectory, shards)[shard];
+        D2Request[] selected = plan.Selected;
         if (selected.Length == 0)
             throw new InvalidDataException($"--shard {shard}/{shards} 没有选到 D2 请求。");
+        Console.WriteLine($"D2_SHARD shard={shard}/{shards} requests={selected.Length} "
+            + $"weight={plan.SelectedWeight} oldRequests={plan.OldSelected} "
+            + $"oldWeight={plan.OldSelectedWeight} jobs={jobs}");
 
         int equal = 0, completed = 0;
         long expanded = 0;
-        Parallel.ForEach(selected, new ParallelOptions { MaxDegreeOfParallelism = jobs }, path =>
+        void VerifyOne(D2Request request)
         {
-            string hash = Path.GetFileName(path)[..^".request.br".Length];
-            string expectedPath = Path.Combine(expectedDirectory, hash + ".result.br");
+            string path = request.Path;
+            string hash = request.Hash;
+            string expectedPath = Path.Combine(dataDirectory, "d2", "expected", hash + ".result.br");
             if (!File.Exists(expectedPath))
                 throw new InvalidDataException($"D2 请求 {hash} 缺少期望结果。");
 
@@ -59,7 +134,14 @@ internal static class D2Verifier
             int done = Interlocked.Increment(ref completed);
             if (done % 100 == 0)
                 Console.WriteLine($"D2 progress={done}/{selected.Length}");
-        });
+        }
+
+        // NoBuffering makes the orderable partitioner hand out one item at a time in enumeration
+        // order, so the heaviest request in the shard starts first.
+        Parallel.ForEach(
+            Partitioner.Create(selected, EnumerablePartitionerOptions.NoBuffering),
+            new ParallelOptions { MaxDegreeOfParallelism = jobs },
+            VerifyOne);
         return new D2Summary(selected.Length, equal, selected.Length - equal, expanded);
     }
 

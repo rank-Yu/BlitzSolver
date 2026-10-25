@@ -21,7 +21,7 @@ dotnet run --project tests/Golden -c Release -- verify tests/Golden/data --only 
 - 成功时最后一行是 `GOLDEN_VERIFY ... mismatched=0`；解码或一致性失败输出 `GOLDEN_INVALID <原因>`，非预期异常输出 `GOLDEN_FAILED <类型>: <消息>`，并以非零退出。
 - `--jobs N`：并行度，默认处理器数。
 - `--only d1|d2`：只跑一侧。
-- `--shard i/n`：按排好序的文件做 `index % n == i` 分片；D1 按根目录，D2 按请求文件。
+- `--shard i/n`：D1 按排好序的根目录做 `index % n == i`；D2 以期望结果的 `ExpandedNodes` 为权重，按权重降序分给当前最轻的分片，并在每片内从重到轻执行。未指定时跑全部请求。
 
 ## D1
 
