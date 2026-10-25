@@ -1,142 +1,142 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Silent;
+namespace BlitzSolver.Content.Cards.Silent;
 
-[FlashContent("DAGGER_THROW")]
-public sealed class DaggerThrow : FlashCardDef
+[BlitzContent("DAGGER_THROW")]
+public sealed class DaggerThrow : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
         // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashKernel.Draw(ref x, 1, fromHandDraw: false);
+        BlitzKernel.Draw(ref x, 1, fromHandDraw: false);
     }
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         // GetSpec: DaggerThrow → Discard, Hand, 1, every hand card.
         Span<int> options = stackalloc int[x.B.HandCount];
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Discard, FlashPile.Hand, options, 1, selected,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Discard, BlitzPile.Hand, options, 1, selected,
                 out int chosen))
         {
             return;
         }
-        FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, selected[..chosen], 0);
+        BlitzKernel.DiscardAndDraw(ref x, BlitzPile.Hand, selected[..chosen], 0);
     }
 }
 
-[FlashContent("FLICK_FLACK")]
-public sealed class FlickFlack : FlashCardDef
+[BlitzContent("FLICK_FLACK")]
+public sealed class FlickFlack : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("POISONED_STAB")]
-public sealed class PoisonedStab : FlashCardDef
+[BlitzContent("POISONED_STAB")]
+public sealed class PoisonedStab : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "PoisonPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.PoisonPower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.PoisonPower>(), 1);
     }
 }
 
-[FlashContent("RICOCHET")]
-public sealed class Ricochet : FlashCardDef
+[BlitzContent("RICOCHET")]
+public sealed class Ricochet : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
     // RandomTargetAttackCardMirrors.RicochetOnPlay: Repeat randomly aimed hits.
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), (int)FlashCardEffects.Var(x, 1));
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), (int)BlitzCardEffects.Var(x, 1));
 }
 
-[FlashContent("LEADING_STRIKE")]
+[BlitzContent("LEADING_STRIKE")]
 public sealed class LeadingStrike : ShivGeneratingCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Shivs", "Damage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         // BespokeCardMirrors.LeadingStrikeOnPlay: attack, then Shivs Shivs to hand.
-        FlashCardEffects.GeneralAttack(ref x, 1);
+        BlitzCardEffects.GeneralAttack(ref x, 1);
         if (x.NeedsChoice)
             return;
-        SilentContent.GenerateShivs(ref x, (int)FlashCardEffects.Var(x, 0), upgraded: false);
+        SilentContent.GenerateShivs(ref x, (int)BlitzCardEffects.Var(x, 0), upgraded: false);
     }
 }
 
-[FlashContent("SUCKER_PUNCH")]
-public sealed class SuckerPunch : FlashCardDef
+[BlitzContent("SUCKER_PUNCH")]
+public sealed class SuckerPunch : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "WeakPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.WeakPower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.WeakPower>(), 1);
     }
 }
 
-[FlashContent("SLICE")]
-public sealed class Slice : FlashCardDef
+[BlitzContent("SLICE")]
+public sealed class Slice : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("DAGGER_SPRAY")]
-public sealed class DaggerSpray : FlashCardDef
+[BlitzContent("DAGGER_SPRAY")]
+public sealed class DaggerSpray : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // BespokeCardMirrors.DaggerSprayOnPlay: two hits to all opponents.
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), hitCount: 2);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hitCount: 2);
 }
 
-[FlashContent("PREDATOR")]
-public sealed class Predator : FlashCardDef
+[BlitzContent("PREDATOR")]
+public sealed class Predator : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardEffectSpecRegistry.Predator: DrawCardsNextTurnPower with the fixed amount 2.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.DrawCardsNextTurnPower>(), 2, FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.DrawCardsNextTurnPower>(), 2, BlitzLimits.PlayerOwner);
     }
 }

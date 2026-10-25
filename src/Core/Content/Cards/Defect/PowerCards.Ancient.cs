@@ -1,18 +1,18 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Defect;
+namespace BlitzSolver.Content.Cards.Defect;
 
-[FlashContent("BIASED_COGNITION")]
-public sealed class BiasedCognition : FlashCardDef
+[BlitzContent("BIASED_COGNITION")]
+public sealed class BiasedCognition : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["FocusPower", "BiasedCognitionPower"];
 
     // CorePowerSupport.BiasedCognition: Focus first, then the per-turn Focus loss power.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.FocusPower>(), 0);
+        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.FocusPower>(), 0);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.BiasedCognitionPower>(), 1);
+        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.BiasedCognitionPower>(), 1);
     }
 }

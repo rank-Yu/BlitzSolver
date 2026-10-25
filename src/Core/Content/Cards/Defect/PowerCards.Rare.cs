@@ -1,98 +1,98 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Defect;
+namespace BlitzSolver.Content.Cards.Defect;
 
-[FlashContent("CONSUMING_SHADOW")]
-public sealed class ConsumingShadow : FlashCardDef
+[BlitzContent("CONSUMING_SHADOW")]
+public sealed class ConsumingShadow : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Repeat", "ConsumingShadowPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashKernel.ChannelOrbs(ref x, FlashKernel.OrbId("DARK_ORB"), (int)FlashCardEffects.Var(x, 0));
+        BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("DARK_ORB"), (int)BlitzCardEffects.Var(x, 0));
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.ConsumingShadowPower>(), 1);
+        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.ConsumingShadowPower>(), 1);
     }
 }
 
-[FlashContent("MACHINE_LEARNING")]
-public sealed class MachineLearning : FlashCardDef
+[BlitzContent("MACHINE_LEARNING")]
+public sealed class MachineLearning : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.MachineLearningPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.MachineLearningPower>(), 0);
 }
 
-[FlashContent("CREATIVE_AI")]
-public sealed class CreativeAi : FlashCardDef
+[BlitzContent("CREATIVE_AI")]
+public sealed class CreativeAi : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CreativeAi"];
 
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterPowers];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterPowers];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.CreativeAiPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.CreativeAiPower>(), 0);
 }
 
-[FlashContent("SPINNER")]
-public sealed class Spinner : FlashCardDef
+[BlitzContent("SPINNER")]
+public sealed class Spinner : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["SpinnerPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         if (x.Card.Upgrade > 0)
         {
-            FlashKernel.ChannelOrb(ref x, FlashKernel.OrbId("GLASS_ORB"));
+            BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("GLASS_ORB"));
             if (x.NeedsChoice)
                 return;
         }
-        FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.SpinnerPower>(), 0);
+        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.SpinnerPower>(), 0);
     }
 }
 
-[FlashContent("ECHO_FORM")]
-public sealed class EchoForm : FlashCardDef
+[BlitzContent("ECHO_FORM")]
+public sealed class EchoForm : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["EchoForm"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.EchoFormPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.EchoFormPower>(), 0);
 }
 
-[FlashContent("BUFFER")]
-public sealed class Buffer : FlashCardDef
+[BlitzContent("BUFFER")]
+public sealed class Buffer : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["BufferPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.BufferPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.BufferPower>(), 0);
 }
 
-[FlashContent("COOLANT")]
-public sealed class Coolant : FlashCardDef
+[BlitzContent("COOLANT")]
+public sealed class Coolant : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CoolantPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.CoolantPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.CoolantPower>(), 0);
 }
 
-[FlashContent("TRASH_TO_TREASURE")]
-public sealed class TrashToTreasure : FlashCardDef
+[BlitzContent("TRASH_TO_TREASURE")]
+public sealed class TrashToTreasure : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.TrashToTreasurePower>(), 1, FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.TrashToTreasurePower>(), 1, BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("DEFRAGMENT")]
-public sealed class Defragment : FlashCardDef
+[BlitzContent("DEFRAGMENT")]
+public sealed class Defragment : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["FocusPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.FocusPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.FocusPower>(), 0);
 }

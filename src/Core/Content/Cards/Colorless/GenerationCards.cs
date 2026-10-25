@@ -1,26 +1,26 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Colorless;
+namespace BlitzSolver.Content.Cards.Colorless;
 
-[FlashContent("BEAT_DOWN")]
-public sealed class BeatDown : FlashCardDef
+[BlitzContent("BEAT_DOWN")]
+public sealed class BeatDown : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        int count = (int)FlashCardEffects.Var(x, 0);
+        int count = (int)BlitzCardEffects.Var(x, 0);
         if (count <= 0)
             return;
         int pileCount = x.B.DiscardCount;
-        Span<FlashCard> candidates = stackalloc FlashCard[pileCount];
+        Span<BlitzCard> candidates = stackalloc BlitzCard[pileCount];
         Span<int> origins = stackalloc int[pileCount];
         int candidateCount = 0;
         for (int index = 0; index < pileCount; index++)
         {
-            FlashCard card = x.B.Cards[x.B.HandCount + x.B.DrawCount + index];
-            FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-            if (stats.Type == FlashCardType.Attack && !card.HasKeyword(FlashKeywords.Unplayable))
+            BlitzCard card = x.B.Cards[x.B.HandCount + x.B.DrawCount + index];
+            BlitzCardStats stats = x.R.Card(card.Id, card.Upgrade);
+            if (stats.Type == BlitzCardType.Attack && !card.HasKeyword(BlitzKeywords.Unplayable))
             {
                 candidates[candidateCount] = card;
                 origins[candidateCount] = index;
@@ -37,36 +37,36 @@ public sealed class BeatDown : FlashCardDef
             return;
         // The existing engine keeps the selected CardModel objects, so a card that an earlier
         // auto-play moves (drawn into hand, shuffled into the draw pile, exhausted, ...) is still
-        // played from its new pile. Flash marks each selected card with a one-action identity byte;
+        // played from its new pile. Blitz marks each selected card with a one-action identity byte;
         // the mark travels with the card value through every pile move and is cleared in finally.
-        int discardStart = FlashPiles.Start(x.B, FlashPile.Discard);
+        int discardStart = BlitzPiles.Start(x.B, BlitzPile.Discard);
         for (int item = 0; item < take; item++)
         {
-            ref FlashCard marked = ref x.B.Cards[discardStart + origins[item]];
+            ref BlitzCard marked = ref x.B.Cards[discardStart + origins[item]];
             marked.TransientMark = checked((byte)(item + 1));
         }
         try
         {
             for (int item = 0; item < take; item++)
             {
-                if (FlashKernel.IsOverOrEnding(x.B))
+                if (BlitzKernel.IsOverOrEnding(x.B))
                     return;
-                FlashCard selected = candidates[item];
-                FlashCardStats stats = x.R.Card(selected.Id, selected.Upgrade);
-                byte target = FlashLimits.NoOwner;
-                if (stats.Target == FlashTargetType.AnyEnemy)
+                BlitzCard selected = candidates[item];
+                BlitzCardStats stats = x.R.Card(selected.Id, selected.Upgrade);
+                byte target = BlitzLimits.NoOwner;
+                if (stats.Target == BlitzTargetType.AnyEnemy)
                 {
                     // BeatDown resolves the target before AutoPlay's playability check.
-                    target = FlashKernel.RandomHittableEnemy(ref x.B);
+                    target = BlitzKernel.RandomHittableEnemy(ref x.B);
                 }
-                if (!TryFindMarked(ref x.B, (byte)(item + 1), out FlashPile pile, out int position))
+                if (!TryFindMarked(ref x.B, (byte)(item + 1), out BlitzPile pile, out int position))
                 {
                     // The selected CardModel left every combat pile (removed from state, transformed
-                    // or detached). The existing engine would still play that object; Flash has no
+                    // or detached). The existing engine would still play that object; Blitz has no
                     // pile-free executing card representation, so this is an explicit boundary.
-                    throw new FlashUnsupportedException("BeatDown 选中的弃牌在结算前离开了战斗牌堆。");
+                    throw new BlitzUnsupportedException("BeatDown 选中的弃牌在结算前离开了战斗牌堆。");
                 }
-                FlashKernel.AutoPlay(ref x, pile, position, target);
+                BlitzKernel.AutoPlay(ref x, pile, position, target);
                 if (x.NeedsChoice)
                     return;
             }
@@ -77,21 +77,21 @@ public sealed class BeatDown : FlashCardDef
         }
     }
 
-    private static bool TryFindMarked(ref FlashBattle battle, byte mark, out FlashPile pile, out int index)
+    private static bool TryFindMarked(ref BlitzBattle battle, byte mark, out BlitzPile pile, out int index)
     {
         for (int absolute = 0; absolute < battle.CardCount; absolute++)
         {
             if (battle.Cards[absolute].TransientMark != mark)
                 continue;
-            pile = FlashPiles.PileOf(battle, absolute, out index);
+            pile = BlitzPiles.PileOf(battle, absolute, out index);
             return true;
         }
-        pile = FlashPile.Hand;
+        pile = BlitzPile.Hand;
         index = -1;
         return false;
     }
 
-    private static void ClearTransientMarks(ref FlashBattle battle)
+    private static void ClearTransientMarks(ref BlitzBattle battle)
     {
         // BeatDown reserves 1..63. Sly discard batches use 64..255 and may be nested around an
         // auto-played BeatDown, so their marks must survive this cleanup.
@@ -100,19 +100,19 @@ public sealed class BeatDown : FlashCardDef
             if (battle.Cards[position].TransientMark < 64)
                 battle.Cards[position].TransientMark = 0;
         }
-        for (int slot = 0; slot < FlashLimits.DetachedCards; slot++)
+        for (int slot = 0; slot < BlitzLimits.DetachedCards; slot++)
         {
             if (battle.DetachedCards[slot].TransientMark < 64)
                 battle.DetachedCards[slot].TransientMark = 0;
         }
     }
 
-    private static void BeatDownStableShuffle(Span<FlashCard> cards, Span<int> origins, FlashRules rules,
-        ref FlashBattle battle)
+    private static void BeatDownStableShuffle(Span<BlitzCard> cards, Span<int> origins, BlitzRules rules,
+        ref BlitzBattle battle)
     {
         // Native List<T>.StableShuffle: sort with CardModel.CompareTo, then Fisher-Yates.
-        FlashCardSort.SortWithOrigins(cards, origins, rules);
-        ref FlashRngState rng = ref battle.RngStream(FlashRngStream.Shuffle);
+        BlitzCardSort.SortWithOrigins(cards, origins, rules);
+        ref BlitzRngState rng = ref battle.RngStream(BlitzRngStream.Shuffle);
         for (int n = cards.Length; n > 1;)
         {
             n--;
@@ -123,16 +123,16 @@ public sealed class BeatDown : FlashCardDef
     }
 }
 
-[FlashContent("CATASTROPHE")]
-public sealed class Catastrophe : FlashCardDef
+[BlitzContent("CATASTROPHE")]
+public sealed class Catastrophe : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        int count = (int)FlashCardEffects.Var(x, 0);
-        Span<FlashCard> buffer = stackalloc FlashCard[FlashLimits.Cards];
-        Span<int> origins = stackalloc int[FlashLimits.Cards];
+        int count = (int)BlitzCardEffects.Var(x, 0);
+        Span<BlitzCard> buffer = stackalloc BlitzCard[BlitzLimits.Cards];
+        Span<int> origins = stackalloc int[BlitzLimits.Cards];
         for (int item = 0; item < count; item++)
         {
             int pileCount = x.B.DrawCount;
@@ -141,8 +141,8 @@ public sealed class Catastrophe : FlashCardDef
             int eligibleCount = 0;
             for (int index = 0; index < pileCount; index++)
             {
-                FlashCard card = x.B.Cards[x.B.HandCount + index];
-                if (!card.HasKeyword(FlashKeywords.Unplayable))
+                BlitzCard card = x.B.Cards[x.B.HandCount + index];
+                if (!card.HasKeyword(BlitzKeywords.Unplayable))
                 {
                     buffer[eligibleCount] = card;
                     origins[eligibleCount] = index;
@@ -160,22 +160,22 @@ public sealed class Catastrophe : FlashCardDef
                 shuffledCount = pileCount;
             }
             StableShuffle(buffer[..shuffledCount], origins[..shuffledCount], x.R, ref x.B);
-            FlashCard selected = buffer[0];
+            BlitzCard selected = buffer[0];
             int position = origins[0];
             if (position >= x.B.DrawCount
-                || !FlashFingerprint.Equal(FlashPiles.At(ref x.B, FlashPile.Draw, position), selected))
-                throw new FlashUnsupportedException("Catastrophe 选中的抽牌在结算前离开了抽牌堆。");
-            FlashKernel.AutoPlay(ref x, FlashPile.Draw, position);
+                || !BlitzFingerprint.Equal(BlitzPiles.At(ref x.B, BlitzPile.Draw, position), selected))
+                throw new BlitzUnsupportedException("Catastrophe 选中的抽牌在结算前离开了抽牌堆。");
+            BlitzKernel.AutoPlay(ref x, BlitzPile.Draw, position);
             if (x.NeedsChoice)
                 return;
         }
     }
 
-    private static void StableShuffle(Span<FlashCard> cards, Span<int> origins, FlashRules rules,
-        ref FlashBattle battle)
+    private static void StableShuffle(Span<BlitzCard> cards, Span<int> origins, BlitzRules rules,
+        ref BlitzBattle battle)
     {
-        FlashCardSort.SortWithOrigins(cards, origins, rules);
-        ref FlashRngState rng = ref battle.RngStream(FlashRngStream.Shuffle);
+        BlitzCardSort.SortWithOrigins(cards, origins, rules);
+        ref BlitzRngState rng = ref battle.RngStream(BlitzRngStream.Shuffle);
         for (int n = cards.Length; n > 1;)
         {
             n--;
@@ -186,68 +186,68 @@ public sealed class Catastrophe : FlashCardDef
     }
 }
 
-[FlashContent("JACKPOT")]
-public sealed class Jackpot : FlashCardDef
+[BlitzContent("JACKPOT")]
+public sealed class Jackpot : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
 
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterZeroCost];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterZeroCost];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        int count = (int)FlashCardEffects.Var(x, 1);
-        if (count > FlashLimits.Cards)
-            throw new FlashCapacityException("Cards", FlashLimits.Cards);
-        Span<FlashCard> generated = stackalloc FlashCard[Math.Max(0, count)];
-        int sampled = FlashKernel.SampleCardPool(ref x.B, x.R, FlashCardPools.CharacterZeroCost, count,
-            distinct: false, FlashRngStream.CombatCardGeneration, generated);
+        int count = (int)BlitzCardEffects.Var(x, 1);
+        if (count > BlitzLimits.Cards)
+            throw new BlitzCapacityException("Cards", BlitzLimits.Cards);
+        Span<BlitzCard> generated = stackalloc BlitzCard[Math.Max(0, count)];
+        int sampled = BlitzKernel.SampleCardPool(ref x.B, x.R, BlitzCardPools.CharacterZeroCost, count,
+            distinct: false, BlitzRngStream.CombatCardGeneration, generated);
         for (int index = 0; index < sampled; index++)
         {
             if (x.Card.Upgrade > 0)
-                FlashKernel.UpgradeCard(x.R, ref generated[index]);
-            FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Hand);
+                BlitzKernel.UpgradeCard(x.R, ref generated[index]);
+            BlitzKernel.AddGeneratedCard(ref x, generated[index], BlitzPile.Hand);
         }
     }
 }
 
-[FlashContent("JACK_OF_ALL_TRADES")]
-public sealed class JackOfAllTrades : FlashCardDef
+[BlitzContent("JACK_OF_ALL_TRADES")]
+public sealed class JackOfAllTrades : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.ColorlessExceptJackOfAllTrades];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.ColorlessExceptJackOfAllTrades];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        int count = (int)FlashCardEffects.Var(x, 0);
-        Span<FlashCard> generated = stackalloc FlashCard[Math.Max(0, count)];
-        int sampled = FlashKernel.SampleCardPool(ref x.B, x.R,
-            FlashCardPools.ColorlessExceptJackOfAllTrades, count, distinct: true,
-            FlashRngStream.CombatCardGeneration, generated);
+        int count = (int)BlitzCardEffects.Var(x, 0);
+        Span<BlitzCard> generated = stackalloc BlitzCard[Math.Max(0, count)];
+        int sampled = BlitzKernel.SampleCardPool(ref x.B, x.R,
+            BlitzCardPools.ColorlessExceptJackOfAllTrades, count, distinct: true,
+            BlitzRngStream.CombatCardGeneration, generated);
         for (int index = 0; index < sampled; index++)
-            FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Hand);
+            BlitzKernel.AddGeneratedCard(ref x, generated[index], BlitzPile.Hand);
     }
 }
 
-[FlashContent("SPLASH")]
-public sealed class Splash : FlashCardDef
+[BlitzContent("SPLASH")]
+public sealed class Splash : BlitzCardDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.OtherCharacterAttacks];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.OtherCharacterAttacks];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        Span<FlashCard> options = stackalloc FlashCard[3];
-        int count = FlashKernel.SampleCardPool(ref x.B, x.R, FlashCardPools.OtherCharacterAttacks, 3,
-            distinct: true, FlashRngStream.CombatCardGeneration, options);
+        Span<BlitzCard> options = stackalloc BlitzCard[3];
+        int count = BlitzKernel.SampleCardPool(ref x.B, x.R, BlitzCardPools.OtherCharacterAttacks, 3,
+            distinct: true, BlitzRngStream.CombatCardGeneration, options);
         if (count == 0)
             return;
         for (int index = 0; index < count; index++)
         {
             if (x.Card.Upgrade > 0)
-                FlashKernel.UpgradeCard(x.R, ref options[index]);
+                BlitzKernel.UpgradeCard(x.R, ref options[index]);
             x.GeneratedOptions[index] = options[index];
         }
         x.GeneratedOptionCount = count;
@@ -256,48 +256,48 @@ public sealed class Splash : FlashCardDef
         // therefore does not raise the flag; only the imported root's uncompensated risk does.
     }
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         int count = x.GeneratedOptionCount;
         if (count == 0)
             return;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseGeneratedCardsInRange(ref x, FlashChoiceEffect.GenerateToHand,
+        if (!BlitzKernel.ChooseGeneratedCardsInRange(ref x, BlitzChoiceEffect.GenerateToHand,
                 x.GeneratedOptions[..count], minCount: 0, maxCount: 1, selected, out int selectedCount))
             return;
         if (selectedCount == 0)
             return;
         // CardChoiceResolution.AddGeneratedSelectionToHand uses PredictedCard.Clone(), which clones
         // the prediction wrapper only and leaves IsClone false; it is not a gameplay clone.
-        FlashCard card = x.GeneratedOptions[selected[0]];
-        FlashKernel.MakeFreeThisTurn(x.R, ref card);
-        FlashKernel.AddGeneratedCard(ref x, card, FlashPile.Hand);
+        BlitzCard card = x.GeneratedOptions[selected[0]];
+        BlitzKernel.MakeFreeThisTurn(x.R, ref card);
+        BlitzKernel.AddGeneratedCard(ref x, card, BlitzPile.Hand);
     }
 }
 
-[FlashContent("ALCHEMIZE")]
-public sealed class Alchemize : FlashCardDef
+[BlitzContent("ALCHEMIZE")]
+public sealed class Alchemize : BlitzCardDef
 {
     public override bool GeneratesRandomPotion => true;
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        ushort potion = FlashKernel.GenerateRandomPotion(ref x.B, x.R);
-        if (FlashKernel.TryProcurePotion(ref x.B, potion))
+        ushort potion = BlitzKernel.GenerateRandomPotion(ref x.B, x.R);
+        if (BlitzKernel.TryProcurePotion(ref x.B, potion))
         {
             // SimulatedCombatState.RecordLongTermResource(20) after a successful procure.
-            x.B.AddCounter(FlashCounter.LongTermResourceValue, 20);
-            FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.Alchemize);
+            x.B.AddCounter(BlitzCounter.LongTermResourceValue, 20);
+            BlitzGrowthRewards.Add(ref x.B, BlitzGrowthSource.Alchemize);
         }
     }
 }
 
-[FlashContent("CALAMITY")]
-public sealed class Calamity : FlashCardDef
+[BlitzContent("CALAMITY")]
+public sealed class Calamity : BlitzCardDef
 {
     public override IReadOnlyList<string> AppliedPowers => ["CALAMITY_POWER"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.CalamityPower>(), 1, FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.CalamityPower>(), 1, BlitzLimits.PlayerOwner);
 }

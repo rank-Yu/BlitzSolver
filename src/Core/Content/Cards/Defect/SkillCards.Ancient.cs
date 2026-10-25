@@ -1,15 +1,15 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Defect;
+namespace BlitzSolver.Content.Cards.Defect;
 
-[FlashContent("QUADCAST")]
-public sealed class Quadcast : FlashCardDef
+[BlitzContent("QUADCAST")]
+public sealed class Quadcast : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Repeat"];
 
     // OrbCardMirrors.QuadcastOnPlay: OrbEvokeNext with Repeat hits; only the last one dequeues.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashKernel.EvokeNext(ref x, (int)FlashCardEffects.Var(x, 0));
+        BlitzKernel.EvokeNext(ref x, (int)BlitzCardEffects.Var(x, 0));
     }
 }

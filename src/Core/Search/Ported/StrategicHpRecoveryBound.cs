@@ -1,5 +1,5 @@
 // Ported from CombatSolver src/Search/StrategicHpRecoveryBound.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-namespace CombatSolver;
+namespace BlitzSolver.Search;
 
 /// <summary>
 /// A deliberately small closed set of roots whose future actions cannot restore player HP.

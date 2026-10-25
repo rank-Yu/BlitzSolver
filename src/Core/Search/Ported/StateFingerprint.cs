@@ -1,7 +1,7 @@
 // Ported from CombatSolver src/Search/StateFingerprint.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
 using System.Numerics;
 
-namespace CombatSolver;
+namespace BlitzSolver.Search;
 
 internal readonly record struct StateFingerprint(ulong First, ulong Second);
 

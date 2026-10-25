@@ -1,51 +1,51 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Silent;
+namespace BlitzSolver.Content.Cards.Silent;
 
-[FlashContent("STRIKE_SILENT")]
-public sealed class StrikeSilent : FlashCardDef
+[BlitzContent("STRIKE_SILENT")]
+public sealed class StrikeSilent : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("DEFEND_SILENT")]
-public sealed class DefendSilent : FlashCardDef
+[BlitzContent("DEFEND_SILENT")]
+public sealed class DefendSilent : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
 }
 
-[FlashContent("NEUTRALIZE")]
-public sealed class Neutralize : FlashCardDef
+[BlitzContent("NEUTRALIZE")]
+public sealed class Neutralize : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "WeakPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         // Neutralize.cs: DamageCmd.Attack, then PowerCmd.Apply<WeakPower>(target, Weak).
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.WeakPower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.WeakPower>(), 1);
     }
 }
 
-[FlashContent("SURVIVOR")]
-public sealed class Survivor : FlashCardDef
+[BlitzContent("SURVIVOR")]
+public sealed class Survivor : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         // GetSpec: Survivor → Discard, Hand, 1, every hand card. The played card is in the play pile
         // during resolution, so it is not an option; an empty hand asks nothing.
@@ -53,11 +53,11 @@ public sealed class Survivor : FlashCardDef
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Discard, FlashPile.Hand, options, 1, selected,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Discard, BlitzPile.Hand, options, 1, selected,
                 out int chosen))
         {
             return;
         }
-        FlashKernel.DiscardAndDraw(ref x, FlashPile.Hand, selected[..chosen], 0);
+        BlitzKernel.DiscardAndDraw(ref x, BlitzPile.Hand, selected[..chosen], 0);
     }
 }

@@ -1,107 +1,107 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Monsters.Act1;
+namespace BlitzSolver.Content.Monsters.Act1;
 
 /// <summary>ShrinkerBeetle: "SHRINKER_MOVE" applies ShrinkPower -1 to the player.</summary>
-[FlashContent("SHRINKER_BEETLE")]
-public sealed class ShrinkerBeetle : FlashMonsterDef
+[BlitzContent("SHRINKER_BEETLE")]
+public sealed class ShrinkerBeetle : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "SHRINKER_MOVE")
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.ShrinkPower>(), -1, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "SHRINKER_MOVE")
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.ShrinkPower>(), -1, owner);
     }
 }
 
 /// <summary>LeafSlimeS: "GOOP_MOVE" adds one Slimed to the discard pile.</summary>
-[FlashContent("LEAF_SLIME_S")]
-public sealed class LeafSlimeS : FlashMonsterDef
+[BlitzContent("LEAF_SLIME_S")]
+public sealed class LeafSlimeS : BlitzMonsterDef
 {
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SLIMED", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "GOOP_MOVE")
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "GOOP_MOVE")
             AddSlimed(ref x, count: 1);
     }
 
-    internal static void AddSlimed(ref FlashExec x, int count)
+    internal static void AddSlimed(ref BlitzExec x, int count)
     {
         for (int index = 0; index < count; index++)
-            FlashKernel.AddGeneratedCard(ref x, FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Slimed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
+            BlitzKernel.AddGeneratedCard(ref x, BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Slimed>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
     }
 }
 
 /// <summary>LeafSlimeM: "STICKY_SHOT" adds two Slimed to the discard pile.</summary>
-[FlashContent("LEAF_SLIME_M")]
-public sealed class LeafSlimeM : FlashMonsterDef
+[BlitzContent("LEAF_SLIME_M")]
+public sealed class LeafSlimeM : BlitzMonsterDef
 {
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SLIMED", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STICKY_SHOT")
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STICKY_SHOT")
             LeafSlimeS.AddSlimed(ref x, count: 2);
     }
 }
 
 /// <summary>TwigSlimeS: only attacks.</summary>
-[FlashContent("TWIG_SLIME_S")]
-public sealed class TwigSlimeS : FlashMonsterDef;
+[BlitzContent("TWIG_SLIME_S")]
+public sealed class TwigSlimeS : BlitzMonsterDef;
 
 /// <summary>TwigSlimeM: "STICKY_SHOT_MOVE" adds one Slimed to the discard pile.</summary>
-[FlashContent("TWIG_SLIME_M")]
-public sealed class TwigSlimeM : FlashMonsterDef
+[BlitzContent("TWIG_SLIME_M")]
+public sealed class TwigSlimeM : BlitzMonsterDef
 {
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SLIMED", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STICKY_SHOT_MOVE")
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STICKY_SHOT_MOVE")
             LeafSlimeS.AddSlimed(ref x, count: 1);
     }
 }
 
 /// <summary>Flyconid: spore moves apply Vulnerable/Frail 2 to the player.</summary>
-[FlashContent("FLYCONID")]
-public sealed class Flyconid : FlashMonsterDef
+[BlitzContent("FLYCONID")]
+public sealed class Flyconid : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "VULNERABLE_SPORES_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.VulnerablePower>(), 2, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.VulnerablePower>(), 2, owner);
                 break;
             case "FRAIL_SPORES_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.FrailPower>(), 2, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.FrailPower>(), 2, owner);
                 break;
         }
     }
 }
 
 /// <summary>Mawler: "ROAR_MOVE" applies Vulnerable 3 to the player.</summary>
-[FlashContent("MAWLER")]
-public sealed class Mawler : FlashMonsterDef
+[BlitzContent("MAWLER")]
+public sealed class Mawler : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
-            FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.VulnerablePower>(), 3, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
+            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.VulnerablePower>(), 3, owner);
     }
 }
 
 /// <summary>SnappingJaxfruit: "ENERGY_ORB_MOVE" applies Strength 2 to itself.</summary>
-[FlashContent("SNAPPING_JAXFRUIT")]
-public sealed class SnappingJaxfruit : FlashMonsterDef
+[BlitzContent("SNAPPING_JAXFRUIT")]
+public sealed class SnappingJaxfruit : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ENERGY_ORB_MOVE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ENERGY_ORB_MOVE")
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
     }
 }
 
@@ -109,38 +109,38 @@ public sealed class SnappingJaxfruit : FlashMonsterDef
 /// AxeRubyRaider: both swings gain <c>SwingBlock</c> move block (static value captured from the
 /// native model; MonsterMoveEffects "AxeRubyRaider", "SWING_1"/"SWING_2").
 /// </summary>
-[FlashContent("AXE_RUBY_RAIDER")]
-public sealed class AxeRubyRaider : FlashMonsterDef
+[BlitzContent("AXE_RUBY_RAIDER")]
+public sealed class AxeRubyRaider : BlitzMonsterDef
 {
     private const int SwingBlock = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["SwingBlock"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SWING_1":
             case "SWING_2":
-                FlashKernel.GainBlock(ref x, owner, rules.StaticInts[SwingBlock], FlashValueProps.Move, fromCard: false);
+                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[SwingBlock], BlitzValueProps.Move, fromCard: false);
                 break;
         }
     }
 }
 
 /// <summary>AssassinRubyRaider: only "KILLSHOT_MOVE", no non-attack effect.</summary>
-[FlashContent("ASSASSIN_RUBY_RAIDER")]
-public sealed class AssassinRubyRaider : FlashMonsterDef;
+[BlitzContent("ASSASSIN_RUBY_RAIDER")]
+public sealed class AssassinRubyRaider : BlitzMonsterDef;
 
 /// <summary>BruteRubyRaider: "ROAR_MOVE" applies Strength 3 to itself.</summary>
-[FlashContent("BRUTE_RUBY_RAIDER")]
-public sealed class BruteRubyRaider : FlashMonsterDef
+[BlitzContent("BRUTE_RUBY_RAIDER")]
+public sealed class BruteRubyRaider : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ROAR_MOVE")
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
     }
 }
 
@@ -148,27 +148,27 @@ public sealed class BruteRubyRaider : FlashMonsterDef
 /// CrossbowRubyRaider: "RELOAD_MOVE" gains 3 move block. The amount is a literal in
 /// MonsterMoveEffects.Apply ("CrossbowRubyRaider", "RELOAD_MOVE"), not a static model value.
 /// </summary>
-[FlashContent("CROSSBOW_RUBY_RAIDER")]
-public sealed class CrossbowRubyRaider : FlashMonsterDef
+[BlitzContent("CROSSBOW_RUBY_RAIDER")]
+public sealed class CrossbowRubyRaider : BlitzMonsterDef
 {
     private const int ReloadBlock = 3;
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "RELOAD_MOVE")
-            FlashKernel.GainBlock(ref x, owner, ReloadBlock, FlashValueProps.Move, fromCard: false);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "RELOAD_MOVE")
+            BlitzKernel.GainBlock(ref x, owner, ReloadBlock, BlitzValueProps.Move, fromCard: false);
     }
 }
 
 /// <summary>TrackerRubyRaider: "TRACK_MOVE" applies Frail 2 to the player.</summary>
-[FlashContent("TRACKER_RUBY_RAIDER")]
-public sealed class TrackerRubyRaider : FlashMonsterDef
+[BlitzContent("TRACKER_RUBY_RAIDER")]
+public sealed class TrackerRubyRaider : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "TRACK_MOVE")
-            FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.FrailPower>(), 2, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "TRACK_MOVE")
+            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.FrailPower>(), 2, owner);
     }
 }
 
@@ -176,17 +176,17 @@ public sealed class TrackerRubyRaider : FlashMonsterDef
 /// CubexConstruct: all three of its charging/blasting moves apply Strength 2 to itself. Its starting
 /// 13 block and one Artifact stack exist before the root and are imported, not replayed here.
 /// </summary>
-[FlashContent("CUBEX_CONSTRUCT")]
-public sealed class CubexConstruct : FlashMonsterDef
+[BlitzContent("CUBEX_CONSTRUCT")]
+public sealed class CubexConstruct : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "CHARGE_UP_MOVE":
             case "REPEATER_BLAST_MOVE":
             case "REPEATER_BLAST_MOVE_2":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
                 break;
         }
     }
@@ -196,48 +196,48 @@ public sealed class CubexConstruct : FlashMonsterDef
 /// SlitheringStrangler: "CONSTRICT" applies Constrict 3 to the player; "THWACK" gains 5 move block
 /// (literal in MonsterMoveEffects.Apply, "SlitheringStrangler", "THWACK").
 /// </summary>
-[FlashContent("SLITHERING_STRANGLER")]
-public sealed class SlitheringStrangler : FlashMonsterDef
+[BlitzContent("SLITHERING_STRANGLER")]
+public sealed class SlitheringStrangler : BlitzMonsterDef
 {
     private const int ThwackBlock = 5;
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "CONSTRICT":
-                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.ConstrictPower>(), 3, owner);
+                BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.ConstrictPower>(), 3, owner);
                 break;
             case "THWACK":
-                FlashKernel.GainBlock(ref x, owner, ThwackBlock, FlashValueProps.Move, fromCard: false);
+                BlitzKernel.GainBlock(ref x, owner, ThwackBlock, BlitzValueProps.Move, fromCard: false);
                 break;
         }
     }
 }
 
 /// <summary>Byrdonis: only "PECK_MOVE" and "SWOOP_MOVE"; its TerritorialPower is a starting power.</summary>
-[FlashContent("BYRDONIS")]
-public sealed class Byrdonis : FlashMonsterDef;
+[BlitzContent("BYRDONIS")]
+public sealed class Byrdonis : BlitzMonsterDef;
 
 /// <summary>Inklet: only attacks; its SlipperyPower starts in the root.</summary>
-[FlashContent("INKLET")]
-public sealed class Inklet : FlashMonsterDef;
+[BlitzContent("INKLET")]
+public sealed class Inklet : BlitzMonsterDef;
 
 /// <summary>
 /// BygoneEffigy: "WAKE_MOVE" applies Strength 10 to itself. The amount is a literal in
 /// <c>MonsterMoveEffects.Apply</c> ("BygoneEffigy", "WAKE_MOVE"); the native model exposes no
 /// dynamic or static value for it. Sleep moves have no effect.
 /// </summary>
-[FlashContent("BYGONE_EFFIGY")]
-public sealed class BygoneEffigy : FlashMonsterDef
+[BlitzContent("BYGONE_EFFIGY")]
+public sealed class BygoneEffigy : BlitzMonsterDef
 {
     private const int WakeStrength = 10;
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "WAKE_MOVE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), WakeStrength, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "WAKE_MOVE")
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), WakeStrength, owner);
     }
 }
 
@@ -246,19 +246,19 @@ public sealed class BygoneEffigy : FlashMonsterDef
 /// (<c>MonsterMoveEffects</c> "CorpseSlug"). WHIP_SLAP and GLOMP are compiled attacks. Its
 /// RavenousPower is a starting power; the private <c>_isRavenous</c> flag only selects animations.
 /// </summary>
-[FlashContent("CORPSE_SLUG")]
-public sealed class CorpseSlug : FlashMonsterDef
+[BlitzContent("CORPSE_SLUG")]
+public sealed class CorpseSlug : BlitzMonsterDef
 {
     private const int GoopFrailAmt = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["GoopFrailAmt"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "GOOP_MOVE")
-            FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.FrailPower>(), rules.StaticInts[GoopFrailAmt], owner);
+            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.FrailPower>(), rules.StaticInts[GoopFrailAmt], owner);
     }
 }
 
@@ -269,23 +269,23 @@ public sealed class CorpseSlug : FlashMonsterDef
 /// (none) and returns without other effects. Fogmog only knows the summon table; the compiler
 /// closes over it and compiles the EyeWithTeeth rule entry.
 /// </summary>
-[FlashContent("FOGMOG")]
-public sealed class Fogmog : FlashMonsterDef
+[BlitzContent("FOGMOG")]
+public sealed class Fogmog : BlitzMonsterDef
 {
     public override IReadOnlyList<string> SpawnedMonsterIds => ["EYE_WITH_TEETH"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "ILLUSION_MOVE":
-                FlashKernel.SpawnMonster(ref x, owner,
-                    x.R.SpawnRulesId(FlashRegistry.MonsterId<EyeWithTeeth>()),
-                    FlashKernel.SlotIndex(x.R, "illusion"), minion: false);
+                BlitzKernel.SpawnMonster(ref x, owner,
+                    x.R.SpawnRulesId(BlitzRegistry.MonsterId<EyeWithTeeth>()),
+                    BlitzKernel.SlotIndex(x.R, "illusion"), minion: false);
                 break;
             case "SWIPE_MOVE":
             case "SWIPE_RANDOM_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 1, owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 1, owner);
                 break;
         }
     }
@@ -298,8 +298,8 @@ public sealed class Fogmog : FlashMonsterDef
 /// (<c>MonsterMoveEffects</c> "EyeWithTeeth"). Its IllusionPower owns the revive: the kernel appends
 /// the synthetic REVIVE_MOVE node (<see cref="IllusionRevive"/>).
 /// </summary>
-[FlashContent("EYE_WITH_TEETH")]
-public sealed class EyeWithTeeth : FlashMonsterDef
+[BlitzContent("EYE_WITH_TEETH")]
+public sealed class EyeWithTeeth : BlitzMonsterDef
 {
     private const int DistractDazed = 3;
 
@@ -307,18 +307,18 @@ public sealed class EyeWithTeeth : FlashMonsterDef
 
     public override bool IllusionRevive => true;
 
-    public override void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    public override void ApplyEntrancePowers(ref BlitzExec x, byte owner)
     {
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.IllusionPower>(), 1, owner);
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.MinionPower>(), 1, FlashLimits.NoOwner);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.IllusionPower>(), 1, owner);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.MinionPower>(), 1, BlitzLimits.NoOwner);
     }
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "DISTRACT_MOVE")
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "DISTRACT_MOVE")
             return;
         for (int index = 0; index < DistractDazed; index++)
-            FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
+            BlitzKernel.AddGeneratedCard(ref x,
+                BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Dazed>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
     }
 }

@@ -1,5 +1,5 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Relics;
+namespace BlitzSolver.Content.Relics;
 
-[FlashContent("CIRCLET")] public sealed class Circlet : FlashRelicDef; // IsStackable
+[BlitzContent("CIRCLET")] public sealed class Circlet : BlitzRelicDef; // IsStackable

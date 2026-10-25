@@ -1,29 +1,29 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Powers;
+namespace BlitzSolver.Content.Powers;
 
 /// <summary>
 /// Native <c>ClarityPower</c>: draws one extra card per turn while its owner is the player and loses
 /// one stack at its owner's side turn start
 /// (<c>PersistentPowerSupport.TriggerOwnerAfterSideTurnStart</c>).
 /// </summary>
-[FlashContent("CLARITY_POWER")]
-public sealed class ClarityPower : FlashPowerDef
+[BlitzContent("CLARITY_POWER")]
+public sealed class ClarityPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     // ClarityPower.ModifyHandDraw: only the player's own clarity adds one, independent of the amount.
-    public override decimal ModifyHandDraw(ref FlashExec x, FlashListener self, decimal amount)
-        => self.Owner == FlashLimits.PlayerOwner ? amount + 1m : amount;
+    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
+        => self.Owner == BlitzLimits.PlayerOwner ? amount + 1m : amount;
 
     // PersistentPowerSupport.TriggerOwnerAfterSideTurnStart: decrement one stack.
-    public override void OwnerAfterSideTurnStart(ref FlashExec x, FlashListener self)
+    public override void OwnerAfterSideTurnStart(ref BlitzExec x, BlitzListener self)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
 
@@ -32,20 +32,20 @@ public sealed class ClarityPower : FlashPowerDef
 /// end it is removed and its amount of Strength is taken back
 /// (<c>EndTurnPowerSupport.TriggerRegular</c>, <c>SimulatedCombatState.RetireTemporaryStat</c>).
 /// </summary>
-[FlashContent("FLEX_POTION_POWER")]
-public sealed class FlexPotionPower : FlashPowerDef
+[BlitzContent("FLEX_POTION_POWER")]
+public sealed class FlexPotionPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
     public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     public override bool IsTemporaryPower => true;
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (participates)
-            FlashKernel.RetireTemporaryStrength(ref x, self);
+            BlitzKernel.RetireTemporaryStrength(ref x, self);
     }
 }
 
@@ -54,17 +54,17 @@ public sealed class FlexPotionPower : FlashPowerDef
 /// turn end it is removed and its amount of Strength is restored
 /// (<c>EndTurnPowerSupport.TriggerRegular</c>, <c>SimulatedCombatState.RetireTemporaryStat</c>).
 /// </summary>
-[FlashContent("SHACKLING_POTION_POWER")]
-public sealed class ShacklingPotionPower : FlashPowerDef
+[BlitzContent("SHACKLING_POTION_POWER")]
+public sealed class ShacklingPotionPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (participates)
-            FlashKernel.RetireTemporaryStrength(ref x, self);
+            BlitzKernel.RetireTemporaryStrength(ref x, self);
     }
 }
 
@@ -73,25 +73,25 @@ public sealed class ShacklingPotionPower : FlashPowerDef
 /// turn end it is removed and its amount of Dexterity is taken back
 /// (<c>EndTurnPowerSupport.TriggerRegular</c>, <c>SimulatedCombatState.RetireTemporaryStat</c>).
 /// </summary>
-[FlashContent("SPEED_POTION_POWER")]
-public sealed class SpeedPotionPower : FlashPowerDef
+[BlitzContent("SPEED_POTION_POWER")]
+public sealed class SpeedPotionPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
     public override string? InternallyAppliedPowerId => "DEXTERITY_POWER";
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     public override bool IsTemporaryPower => true;
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (!participates)
             return;
         int amount = x.B.Powers[self.Index].Amount;
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
         if (amount == 0)
             return;
-        FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<DexterityPower>(), -amount, self.Owner);
+        BlitzKernel.ApplyPower(ref x, self.Owner, BlitzRegistry.PowerId<DexterityPower>(), -amount, self.Owner);
     }
 }
 
@@ -100,27 +100,27 @@ public sealed class SpeedPotionPower : FlashPowerDef
 /// stack (<c>AfterEnergyResetMirrors.HandleRadiancePower</c>). No Energy Gain is not supported yet, so
 /// the guard only fires when that power is registered.
 /// </summary>
-[FlashContent("RADIANCE_POWER")]
-public sealed class RadiancePower : FlashPowerDef
+[BlitzContent("RADIANCE_POWER")]
+public sealed class RadiancePower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void AfterEnergyReset(ref FlashExec x, FlashListener self)
+    public override void AfterEnergyReset(ref BlitzExec x, BlitzListener self)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
         int amount = x.B.Powers[self.Index].Amount;
-        if (!FlashRegistry.TryPower("NO_ENERGY_GAIN_POWER", out ushort noEnergyGain)
-            || FlashKernel.GetAmount(x.B, self.Owner, noEnergyGain) <= 0)
+        if (!BlitzRegistry.TryPower("NO_ENERGY_GAIN_POWER", out ushort noEnergyGain)
+            || BlitzKernel.GetAmount(x.B, self.Owner, noEnergyGain) <= 0)
         {
-            FlashKernel.GainEnergy(ref x, x.R.PowerVar(Id, 0));
+            BlitzKernel.GainEnergy(ref x, x.R.PowerVar(Id, 0));
         }
         if (amount > 0)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
 
@@ -130,39 +130,39 @@ public sealed class RadiancePower : FlashPowerDef
 /// <c>CorePowerSupport.TriggerEnemySideTurnEndEffects</c> for enemies; the player's decrement happens
 /// in <c>CompletePlayerEarlySideTurnEndEffects</c> after the turn-end hand effects.
 /// </summary>
-[FlashContent("REGEN_POWER")]
-public sealed class RegenPower : FlashPowerDef
+[BlitzContent("REGEN_POWER")]
+public sealed class RegenPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void BeforeSideTurnEndEarly(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    public override void BeforeSideTurnEndEarly(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
     {
-        if (!FlashKernel.Participates(participants, self.Owner) || x.B.Creature(self.Owner).IsDead)
+        if (!BlitzKernel.Participates(participants, self.Owner) || x.B.Creature(self.Owner).IsDead)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            FlashKernel.Heal(ref x, self.Owner, amount);
+            BlitzKernel.Heal(ref x, self.Owner, amount);
     }
 
-    public override void EnemySideTurnEnd(ref FlashExec x, FlashListener self)
+    public override void EnemySideTurnEnd(ref BlitzExec x, BlitzListener self)
     {
         if (x.B.Creature(self.Owner).IsDead)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (amount <= 0)
             return;
-        FlashKernel.Heal(ref x, self.Owner, amount);
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+        BlitzKernel.Heal(ref x, self.Owner, amount);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 
     // CorePowerSupport.CompletePlayerEarlySideTurnEndEffects: the player's regen stack is removed after DoTurnEnd.
-    public override void CompletePlayerEarlySideTurnEnd(ref FlashExec x, FlashListener self)
+    public override void CompletePlayerEarlySideTurnEnd(ref BlitzExec x, BlitzListener self)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
 
@@ -171,35 +171,35 @@ public sealed class RegenPower : FlashPowerDef
 /// player's turn end, and the power loses one stack in
 /// <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c>.
 /// </summary>
-[FlashContent("RETAIN_HAND_POWER")]
-public sealed class RetainHandPower : FlashPowerDef
+[BlitzContent("RETAIN_HAND_POWER")]
+public sealed class RetainHandPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     // RetainHandPower.ShouldFlush: false for its owner's player, so the hand is not flushed.
-    public override bool ShouldFlush(ref FlashExec x, FlashListener self) => !FlashKernel.IsPlayerSide(self.Owner);
+    public override bool ShouldFlush(ref BlitzExec x, BlitzListener self) => !BlitzKernel.IsPlayerSide(self.Owner);
 }
 
 /// <summary>
 /// Native <c>BlockNextTurnPower</c>: when its owner's block is cleared, gains its amount as
 /// Unpowered block and is removed (<c>CorePowerSupport.TriggerAfterBlockCleared</c>).
 /// </summary>
-[FlashContent("BLOCK_NEXT_TURN_POWER")]
-public sealed class BlockNextTurnPower : FlashPowerDef
+[BlitzContent("BLOCK_NEXT_TURN_POWER")]
+public sealed class BlockNextTurnPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterBlockCleared(ref FlashExec x, FlashListener self)
+    public override void AfterBlockCleared(ref BlitzExec x, BlitzListener self)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount <= 0)
             return;
-        FlashKernel.GainBlock(ref x, self.Owner, amount, FlashValueProps.Unpowered, fromCard: false);
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+        BlitzKernel.GainBlock(ref x, self.Owner, amount, BlitzValueProps.Unpowered, fromCard: false);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
     }
 }
 
@@ -208,14 +208,14 @@ public sealed class BlockNextTurnPower : FlashPowerDef
 /// Unblockable | Unpowered damage with no dealer
 /// (<c>EndTurnPowerSupport.TriggerRegular</c>).
 /// </summary>
-[FlashContent("DEMISE_POWER")]
-public sealed class DemisePower : FlashPowerDef
+[BlitzContent("DEMISE_POWER")]
+public sealed class DemisePower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (!participates || x.B.Creature(self.Owner).IsDead)
             return;
@@ -224,8 +224,8 @@ public sealed class DemisePower : FlashPowerDef
             return;
         Span<byte> target = stackalloc byte[1];
         target[0] = self.Owner;
-        FlashKernel.Damage(ref x, target, amount,
-            FlashValueProps.Unblockable | FlashValueProps.Unpowered, FlashLimits.NoOwner,
+        BlitzKernel.Damage(ref x, target, amount,
+            BlitzValueProps.Unblockable | BlitzValueProps.Unpowered, BlitzLimits.NoOwner,
             hasCardSource: false, default);
     }
 }
@@ -235,26 +235,26 @@ public sealed class DemisePower : FlashPowerDef
 /// <c>AfterModifyingCardPlayCount</c> decrements the power, and the player turn end removes it
 /// (<c>ModifyCardPlayCountMirrors</c>, <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c>).
 /// </summary>
-[FlashContent("DUPLICATION_POWER")]
-public sealed class DuplicationPower : FlashPowerDef
+[BlitzContent("DUPLICATION_POWER")]
+public sealed class DuplicationPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
+    public override int ModifyCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card, byte target,
         int playCount)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return playCount;
         return playCount + 1;
     }
 
-    public override void AfterModifyingCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card)
+    public override void AfterModifyingCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
 
@@ -262,50 +262,50 @@ public sealed class DuplicationPower : FlashPowerDef
 /// Native <c>GigantificationPower</c>: the next powered Attack card play deals triple damage and
 /// consumes one stack. BeforeAttack records the armed attack, ModifyDamageMultiplicative applies 3x
 /// while the same card's attack runs, AfterAttack decrements. Aux0 is the armed flag; CommandToModify's
-/// card identity is unambiguous because Flash resolves one card attack at a time.
+/// card identity is unambiguous because Blitz resolves one card attack at a time.
 /// </summary>
-[FlashContent("GIGANTIFICATION_POWER")]
-public sealed class GigantificationPower : FlashPowerDef
+[BlitzContent("GIGANTIFICATION_POWER")]
+public sealed class GigantificationPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void BeforeAttack(ref FlashExec x, FlashListener self, byte attacker, FlashValueProps props)
+    public override void BeforeAttack(ref BlitzExec x, BlitzListener self, byte attacker, BlitzValueProps props)
     {
         // GigantificationPowerMirrors.BeforeAttack calls StateStore.GetPowerAmount(power) before any
         // predicate, for every attack (including the enemy's). That creates the native
         // PowerAmountPredictionState; the action-boundary synchronization restores the model amount
         // from it, so a player death during the same action leaves the power in place. The flag lets
-        // FlashKernel.HandlePlayerDeath keep the row; Step clears it at the stable boundary.
-        x.B.Powers[self.Index].Flags |= FlashPowerFlags.PendingAmountState;
+        // BlitzKernel.HandlePlayerDeath keep the row; Step clears it at the stable boundary.
+        x.B.Powers[self.Index].Flags |= BlitzPowerFlags.PendingAmountState;
         if (self.Owner != attacker || !props.IsPoweredAttack())
             return;
-        if (x.Card.Id == 0 || x.Stats?.Type != FlashCardType.Attack)
+        if (x.Card.Id == 0 || x.Stats?.Type != BlitzCardType.Attack)
             return;
         if (x.B.Powers[self.Index].Amount > 0)
             x.B.Powers[self.Index].Aux0 = 1;
     }
 
-    public override decimal ModifyDamageMultiplicative(ref FlashExec x, FlashListener self,
-        in FlashDamageContext damage, decimal amount)
+    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self,
+        in BlitzDamageContext damage, decimal amount)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || x.B.Powers[self.Index].Aux0 == 0)
+        if (self.Owner != BlitzLimits.PlayerOwner || x.B.Powers[self.Index].Aux0 == 0)
             return 1m;
         if (!damage.HasCardSource || !damage.Props.IsPoweredAttack())
             return 1m;
         return 3m;
     }
 
-    public override void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
+    public override void AfterAttack(ref BlitzExec x, BlitzListener self, byte attacker)
     {
         if (self.Owner != attacker)
             return;
-        ref FlashPower power = ref x.B.Powers[self.Index];
+        ref BlitzPower power = ref x.B.Powers[self.Index];
         if (power.Aux0 == 0)
             return;
         power.Aux0 = 0;
         if (power.Amount > 0)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, power.Amount - 1);
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, power.Amount - 1);
     }
 }

@@ -1,16 +1,16 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Colorless;
+namespace BlitzSolver.Content.Cards.Colorless;
 
 /// <summary>
 /// Native <c>Luminesce</c> (0-cost Token Skill, Exhaust/Retain): gains its Energy variable
 /// (<c>CardOnPlaySupport</c>'s ForgottenRitual / Fuel / Luminesce case calls
 /// <c>simulator.GainEnergy(card.Owner, card.DynamicVars.Energy.IntValue)</c>).
 /// </summary>
-[FlashContent("LUMINESCE")]
-public sealed class Luminesce : FlashCardDef
+[BlitzContent("LUMINESCE")]
+public sealed class Luminesce : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void OnPlay(ref FlashExec x) => FlashKernel.GainEnergy(ref x, FlashCardEffects.Var(x, 0));
+    public override void OnPlay(ref BlitzExec x) => BlitzKernel.GainEnergy(ref x, BlitzCardEffects.Var(x, 0));
 }

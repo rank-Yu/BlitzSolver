@@ -1,179 +1,179 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Necrobinder;
+namespace BlitzSolver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>BlightStrike</c>: attack, then apply Doom equal to the attack's blocked + unblocked damage against
 /// the target (<c>CorePowerSupport</c>'s BlightStrike case, which sums the play's damage entries;
 /// the single-target attack makes the last damage call that total).
 /// </summary>
-[FlashContent("BLIGHT_STRIKE")]
-public sealed class BlightStrike : FlashCardDef
+[BlitzContent("BLIGHT_STRIKE")]
+public sealed class BlightStrike : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        if (x.NeedsChoice || x.Target == FlashLimits.NoOwner)
+        if (x.NeedsChoice || x.Target == BlitzLimits.NoOwner)
             return;
         int damage = x.LastDamageTotal;
         if (damage > 0)
-            FlashKernel.ApplyPower(ref x, x.Target, FlashRegistry.PowerId<Powers.DoomPower>(), damage,
-                FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.DoomPower>(), damage,
+                BlitzLimits.PlayerOwner);
     }
 }
 
-[FlashContent("POKE")]
-public sealed class Poke : FlashCardDef
+[BlitzContent("POKE")]
+public sealed class Poke : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage"];
 
-    public override void OnPlay(ref FlashExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
+    public override void OnPlay(ref BlitzExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
 }
 
 /// <summary>
 /// <c>Snap</c>: Osty attack, then select a hand card without the local Retain keyword and add Retain
 /// (<c>CardChoiceSupport</c>'s ApplyRetain Spec and CardCmd.ApplyKeyword).
 /// </summary>
-[FlashContent("SNAP")]
-public sealed class Snap : FlashCardDef
+[BlitzContent("SNAP")]
+public sealed class Snap : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage"];
 
-    public override void OnPlay(ref FlashExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
+    public override void OnPlay(ref BlitzExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
-        Span<int> options = stackalloc int[FlashLimits.Cards];
+        Span<int> options = stackalloc int[BlitzLimits.Cards];
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            if (!x.B.Cards[index].HasKeyword(FlashKeywords.Retain))
+            if (!x.B.Cards[index].HasKeyword(BlitzKeywords.Retain))
                 options[count++] = index;
         }
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.ApplyRetain, FlashPile.Hand, options[..count], 1,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.ApplyRetain, BlitzPile.Hand, options[..count], 1,
                 selected, out int chosen))
         {
             return;
         }
         if (chosen > 0)
-            FlashPiles.At(ref x.B, FlashPile.Hand, selected[0]).Keywords |= FlashKeywords.Retain;
+            BlitzPiles.At(ref x.B, BlitzPile.Hand, selected[0]).Keywords |= BlitzKeywords.Retain;
     }
 }
 
-[FlashContent("FLATTEN")]
-public sealed class Flatten : FlashCardDef
+[BlitzContent("FLATTEN")]
+public sealed class Flatten : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage"];
 
-    public override void OnPlay(ref FlashExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
+    public override void OnPlay(ref BlitzExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
 
     // AfterAttackMirrors.HandleFlatten: after any attack by the owner's Osty, every Flatten copy in
     // combat gets SetThisTurn(0) (an absolute zero EndOfTurn modifier, one per trigger).
-    public override void AfterAttack(ref FlashExec x, FlashListener self, byte attacker)
+    public override void AfterAttack(ref BlitzExec x, BlitzListener self, byte attacker)
     {
-        if (attacker != FlashLimits.OstyOwner)
+        if (attacker != BlitzLimits.OstyOwner)
             return;
         // AfterAttackMirrors.HandleFlatten runs once per Flatten listener and zeroes that listener's
         // own card via State.FindCard(card): one modifier per Flatten copy, not per copy per listener.
         if ((uint)self.Index >= (uint)x.B.CardCount)
             return;
-        ref FlashCard listenerCard = ref x.B.Cards[self.Index];
+        ref BlitzCard listenerCard = ref x.B.Cards[self.Index];
         if (listenerCard.Id != Id)
             return;
-        FlashKernel.AddEnergyCostModifier(ref listenerCard, 0, FlashCostType.Absolute,
-            FlashCostExpiration.EndOfTurn, reduceOnly: false);
+        BlitzKernel.AddEnergyCostModifier(ref listenerCard, 0, BlitzCostType.Absolute,
+            BlitzCostExpiration.EndOfTurn, reduceOnly: false);
     }
 
     // SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat: a Flatten that enters combat after
     // Osty attacked this turn gets the same zero-cost modifier.
-    public override void AfterEnteredCombat(ref FlashExec x, FlashPile pile, int index)
+    public override void AfterEnteredCombat(ref BlitzExec x, BlitzPile pile, int index)
     {
-        if (x.B.Counter(FlashCounter.OstyAttacksThisTurn) <= 0)
+        if (x.B.Counter(BlitzCounter.OstyAttacksThisTurn) <= 0)
             return;
-        ref FlashCard card = ref FlashPiles.At(ref x.B, pile, index);
-        FlashKernel.AddEnergyCostModifier(ref card, 0, FlashCostType.Absolute, FlashCostExpiration.EndOfTurn,
+        ref BlitzCard card = ref BlitzPiles.At(ref x.B, pile, index);
+        BlitzKernel.AddEnergyCostModifier(ref card, 0, BlitzCostType.Absolute, BlitzCostExpiration.EndOfTurn,
             reduceOnly: false);
     }
 
 }
 
 /// <summary><c>Fear</c>: player attack, then Vulnerable on the target (<c>CorePowerSupport</c>).</summary>
-[FlashContent("FEAR")]
-public sealed class Fear : FlashCardDef
+[BlitzContent("FEAR")]
+public sealed class Fear : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "VulnerablePower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
 
-[FlashContent("SOW")]
-public sealed class Sow : FlashCardDef
+[BlitzContent("SOW")]
+public sealed class Sow : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("REAP")]
-public sealed class Reap : FlashCardDef
+[BlitzContent("REAP")]
+public sealed class Reap : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("DEFILE")]
-public sealed class Defile : FlashCardDef
+[BlitzContent("DEFILE")]
+public sealed class Defile : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
 /// <summary>
 /// <c>Graveblast</c>: attack, then move one discard-pile card to hand
 /// (<c>CardChoiceSupport</c>'s MoveToHand spec over the discard pile).
 /// </summary>
-[FlashContent("GRAVEBLAST")]
-public sealed class Graveblast : FlashCardDef
+[BlitzContent("GRAVEBLAST")]
+public sealed class Graveblast : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         Span<int> options = stackalloc int[x.B.DiscardCount];
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.MoveToHand, FlashPile.Discard, options, 1, selected,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.MoveToHand, BlitzPile.Discard, options, 1, selected,
                 out int chosen))
         {
             return;
         }
         if (chosen > 0)
-            FlashKernel.MoveSelected(ref x.B, FlashPile.Discard, selected[..chosen], FlashPile.Hand,
-                FlashPilePosition.Bottom);
+            BlitzKernel.MoveSelected(ref x.B, BlitzPile.Discard, selected[..chosen], BlitzPile.Hand,
+                BlitzPilePosition.Bottom);
     }
 }
 
@@ -181,24 +181,24 @@ public sealed class Graveblast : FlashCardDef
 /// <c>Reave</c>: attack, then the Cards variable's Souls (upgraded with the card) at random draw-pile
 /// positions (<c>CardEffectSpecRegistry</c>'s Reave completion).
 /// </summary>
-[FlashContent("REAVE")]
-public sealed class Reave : FlashCardDef
+[BlitzContent("REAVE")]
+public sealed class Reave : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SOUL", 0), ("SOUL", 1)];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         int count = (int)NecrobinderContent.Var(ref x, 1);
         bool upgraded = x.Card.Upgrade > 0;
         for (int index = 0; index < count; index++)
         {
-            FlashCard soul = NecrobinderContent.CreateSoul(x.B, x.R, upgraded);
-            if (!FlashKernel.AddGeneratedCard(ref x, soul, FlashPile.Draw, FlashPilePosition.Random)
+            BlitzCard soul = NecrobinderContent.CreateSoul(x.B, x.R, upgraded);
+            if (!BlitzKernel.AddGeneratedCard(ref x, soul, BlitzPile.Draw, BlitzPilePosition.Random)
                 || x.NeedsChoice)
                 return;
         }
@@ -209,30 +209,30 @@ public sealed class Reave : FlashCardDef
 /// <c>SculptingStrike</c>: attack, then add the local Ethereal keyword to a selected hand card
 /// (<c>CardChoiceSupport</c>'s ApplyEthereal spec + <c>CardCmd.ApplyKeyword</c>).
 /// </summary>
-[FlashContent("SCULPTING_STRIKE")]
-public sealed class SculptingStrike : FlashCardDef
+[BlitzContent("SCULPTING_STRIKE")]
+public sealed class SculptingStrike : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
-        Span<int> options = stackalloc int[FlashLimits.Cards];
+        Span<int> options = stackalloc int[BlitzLimits.Cards];
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            if (!x.B.Cards[index].HasKeyword(FlashKeywords.Ethereal))
+            if (!x.B.Cards[index].HasKeyword(BlitzKeywords.Ethereal))
                 options[count++] = index;
         }
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.ApplyEthereal, FlashPile.Hand, options[..count], 1,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.ApplyEthereal, BlitzPile.Hand, options[..count], 1,
                 selected, out int chosen))
         {
             return;
         }
         if (chosen > 0)
-            FlashPiles.At(ref x.B, FlashPile.Hand, selected[0]).Keywords |= FlashKeywords.Ethereal;
+            BlitzPiles.At(ref x.B, BlitzPile.Hand, selected[0]).Keywords |= BlitzKeywords.Ethereal;
     }
 }
 
@@ -241,30 +241,30 @@ public sealed class SculptingStrike : FlashCardDef
 /// (<c>CardSelectionCardMirrors.DrainPowerOnPlay</c>: filtered list, full Fisher-Yates with the
 /// CombatCardSelection stream, take the first Cards).
 /// </summary>
-[FlashContent("DRAIN_POWER")]
-public sealed class DrainPower : FlashCardDef
+[BlitzContent("DRAIN_POWER")]
+public sealed class DrainPower : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        int discardStart = FlashPiles.Start(x.B, FlashPile.Discard);
+        int discardStart = BlitzPiles.Start(x.B, BlitzPile.Discard);
         int discardCount = x.B.DiscardCount;
         Span<int> order = stackalloc int[discardCount];
         int candidates = 0;
         for (int index = 0; index < discardCount; index++)
         {
-            ref readonly FlashCard card = ref x.B.Cards[discardStart + index];
-            FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
+            ref readonly BlitzCard card = ref x.B.Cards[discardStart + index];
+            BlitzCardStats stats = x.R.Card(card.Id, card.Upgrade);
             if (card.Upgrade < stats.MaxUpgradeLevel)
                 order[candidates++] = index;
         }
         if (candidates == 0)
             return;
-        ref FlashRngState rng = ref x.B.RngStream(FlashRngStream.CombatCardSelection);
+        ref BlitzRngState rng = ref x.B.RngStream(BlitzRngStream.CombatCardSelection);
         for (int n = candidates; n > 1;)
         {
             n--;
@@ -274,9 +274,9 @@ public sealed class DrainPower : FlashCardDef
         int take = Math.Min((int)NecrobinderContent.Var(ref x, 1), candidates);
         // CombatPredictionSimulator.Upgrade is a no-op while the combat is ending; the random
         // selection (and its RNG draws) still happen first. A killing DrainPower must not upgrade.
-        if (FlashKernel.IsEnding(x.B))
+        if (BlitzKernel.IsEnding(x.B))
             return;
         for (int index = 0; index < take; index++)
-            FlashKernel.UpgradeCard(x.R, ref x.B.Cards[discardStart + order[index]]);
+            BlitzKernel.UpgradeCard(x.R, ref x.B.Cards[discardStart + order[index]]);
     }
 }

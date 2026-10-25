@@ -1,6 +1,6 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Necrobinder;
+namespace BlitzSolver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// Shared Necrobinder card helpers. The pet rules are the existing engine's
@@ -10,8 +10,8 @@ namespace CombatSolver.Flash.Content.Cards.Necrobinder;
 internal static class NecrobinderContent
 {
     /// <summary><c>Osty.CheckMissingWithAnim</c> as a state query: the pet exists and is alive.</summary>
-    public static bool HasOsty(in FlashBattle battle)
-        => (battle.Flags & FlashBattleFlags.OstyPresent) != 0 && battle.Osty.IsAlive;
+    public static bool HasOsty(in BlitzBattle battle)
+        => (battle.Flags & BlitzBattleFlags.OstyPresent) != 0 && battle.Osty.IsAlive;
 
     /// <summary>
     /// The Osty proxy attack: the native <c>DamageCmd.Attack(...).FromOsty(osty, card, cardPlay)</c> path
@@ -19,47 +19,47 @@ internal static class NecrobinderContent
     /// missing. The rule table's target type picks single/all/random targeting and the pet is the dealer, so
     /// its Strength/Weak apply and the attack history is recorded for the pet.
     /// </summary>
-    public static void OstyAttack(ref FlashExec x, decimal damage, int hitCount = 1)
+    public static void OstyAttack(ref BlitzExec x, decimal damage, int hitCount = 1)
     {
         if (!HasOsty(x.B))
             return;
-        FlashTargetType targetType = FlashRegistry.Card(x.Card.Id).TargetType(x.B, x.R, x.Card);
-        FlashAttackTargeting targeting = targetType switch
+        BlitzTargetType targetType = BlitzRegistry.Card(x.Card.Id).TargetType(x.B, x.R, x.Card);
+        BlitzAttackTargeting targeting = targetType switch
         {
-            FlashTargetType.AnyEnemy => FlashAttackTargeting.Single,
-            FlashTargetType.AllEnemies => FlashAttackTargeting.AllOpponents,
-            FlashTargetType.RandomEnemy => FlashAttackTargeting.Random,
-            _ => throw new FlashUnsupportedException($"Osty 攻击目标类型 {targetType} 尚未实现。"),
+            BlitzTargetType.AnyEnemy => BlitzAttackTargeting.Single,
+            BlitzTargetType.AllEnemies => BlitzAttackTargeting.AllOpponents,
+            BlitzTargetType.RandomEnemy => BlitzAttackTargeting.Random,
+            _ => throw new BlitzUnsupportedException($"Osty 攻击目标类型 {targetType} 尚未实现。"),
         };
-        FlashKernel.CardAttack(ref x, damage, hitCount, targeting, x.Target, FlashValueProps.Move,
-            FlashLimits.OstyOwner);
+        BlitzKernel.CardAttack(ref x, damage, hitCount, targeting, x.Target, BlitzValueProps.Move,
+            BlitzLimits.OstyOwner);
     }
 
     /// <summary>The i-th canonical variable of the current card.</summary>
-    public static decimal Var(ref FlashExec x, int index) => FlashCardEffects.Var(x, index);
+    public static decimal Var(ref BlitzExec x, int index) => BlitzCardEffects.Var(x, index);
 
     /// <summary><c>Soul.Create(owner, count, combatState)</c>'s canonical token card, upgraded by the source card.</summary>
-    public static FlashCard CreateSoul(in FlashBattle battle, FlashRules rules, bool upgraded)
+    public static BlitzCard CreateSoul(in BlitzBattle battle, BlitzRules rules, bool upgraded)
     {
-        if (!FlashRegistry.TryCard("SOUL", out ushort soul))
-            throw new FlashUnsupportedException("灵魂牌没有 Flash 定义。");
-        return FlashKernel.CreateCard(rules, soul, upgraded ? 1 : 0);
+        if (!BlitzRegistry.TryCard("SOUL", out ushort soul))
+            throw new BlitzUnsupportedException("灵魂牌没有 Blitz 定义。");
+        return BlitzKernel.CreateCard(rules, soul, upgraded ? 1 : 0);
     }
 
     /// <summary>Number of cards in every pile whose canonical tags include Osty attack (Squeeze).</summary>
-    public static int CountOstyAttackCards(in FlashBattle battle, FlashRules rules)
+    public static int CountOstyAttackCards(in BlitzBattle battle, BlitzRules rules)
     {
         int count = 0;
         for (int position = 0; position < battle.CardCount; position++)
         {
-            ref readonly FlashCard card = ref battle.Cards[position];
-            if ((rules.Card(card.Id, card.Upgrade).Tags & FlashCardTag.OstyAttack) != 0)
+            ref readonly BlitzCard card = ref battle.Cards[position];
+            if ((rules.Card(card.Id, card.Upgrade).Tags & BlitzCardTag.OstyAttack) != 0)
                 count++;
         }
         return count;
     }
 
     /// <summary><c>(CalculatedVar).Calculate</c>: CalculationBase + CalculationExtra/ExtraDamage × multiplier.</summary>
-    public static decimal Calculated(ref FlashExec x, int baseVar, int extraVar, decimal multiplier)
+    public static decimal Calculated(ref BlitzExec x, int baseVar, int extraVar, decimal multiplier)
         => Var(ref x, baseVar) + Var(ref x, extraVar) * multiplier;
 }

@@ -1,22 +1,22 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Monsters.Act2;
+namespace BlitzSolver.Content.Monsters.Act2;
 
 /// <summary>Chomper: "SCREECH_MOVE" adds three Dazed to the discard pile; its Artifact is a starting power.</summary>
-[FlashContent("CHOMPER")]
-public sealed class Chomper : FlashMonsterDef
+[BlitzContent("CHOMPER")]
+public sealed class Chomper : BlitzMonsterDef
 {
     private const int ScreechDazed = 3;
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("DAZED", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "SCREECH_MOVE")
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "SCREECH_MOVE")
             return;
         for (int index = 0; index < ScreechDazed; index++)
-            FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
+            BlitzKernel.AddGeneratedCard(ref x,
+                BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Dazed>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
     }
 }
 
@@ -25,38 +25,38 @@ public sealed class Chomper : FlashMonsterDef
 /// below three, otherwise only Strength 2 (MonsterMoveEffects "Entomancer"). Its starting
 /// PersonalHivePower is imported with the root.
 /// </summary>
-[FlashContent("ENTOMANCER")]
-public sealed class Entomancer : FlashMonsterDef
+[BlitzContent("ENTOMANCER")]
+public sealed class Entomancer : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "PHEROMONE_SPIT_MOVE")
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "PHEROMONE_SPIT_MOVE")
             return;
-        ushort hive = FlashRegistry.PowerId<Powers.PersonalHivePower>();
-        if (FlashKernel.GetAmount(x.B, owner, hive) >= 3)
+        ushort hive = BlitzRegistry.PowerId<Powers.PersonalHivePower>();
+        if (BlitzKernel.GetAmount(x.B, owner, hive) >= 3)
         {
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
             return;
         }
-        FlashKernel.ApplyPower(ref x, owner, hive, 1, owner);
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 1, owner);
+        BlitzKernel.ApplyPower(ref x, owner, hive, 1, owner);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 1, owner);
     }
 }
 
 /// <summary>Exoskeleton: "ENRAGE_MOVE" applies Strength 2 to itself; HardToKill is a starting power.</summary>
-[FlashContent("EXOSKELETON")]
-public sealed class Exoskeleton : FlashMonsterDef
+[BlitzContent("EXOSKELETON")]
+public sealed class Exoskeleton : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ENRAGE_MOVE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "ENRAGE_MOVE")
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
     }
 }
 
 /// <summary>Myte: "TOXIC_MOVE" adds two Toxic to the hand; "SUCK_MOVE" applies <c>SuckStrength</c> Strength.</summary>
-[FlashContent("MYTE")]
-public sealed class Myte : FlashMonsterDef
+[BlitzContent("MYTE")]
+public sealed class Myte : BlitzMonsterDef
 {
     private const int SuckStrength = 0;
 
@@ -64,20 +64,20 @@ public sealed class Myte : FlashMonsterDef
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("TOXIC", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "TOXIC_MOVE":
                 for (int index = 0; index < 2; index++)
                 {
-                    FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Toxic>()), FlashPile.Hand, creator: FlashLimits.NoOwner);
+                    BlitzKernel.AddGeneratedCard(ref x,
+                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Toxic>()), BlitzPile.Hand, creator: BlitzLimits.NoOwner);
                 }
                 break;
             case "SUCK_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[SuckStrength], owner);
                 break;
         }
@@ -91,8 +91,8 @@ public sealed class Myte : FlashMonsterDef
 /// SUMMON_BRANCH_STATE conditional lays eggs only while at most three enemies are alive
 /// (BranchMonsterAi.ResolveConditional).
 /// </summary>
-[FlashContent("OVICOPTER")]
-public sealed class Ovicopter : FlashMonsterDef
+[BlitzContent("OVICOPTER")]
+public sealed class Ovicopter : BlitzMonsterDef
 {
     private const int NutritionalPasteStrengthAmount = 0;
 
@@ -100,42 +100,42 @@ public sealed class Ovicopter : FlashMonsterDef
 
     public override IReadOnlyList<string> SpawnedMonsterIds => ["TOUGH_EGG"];
 
-    public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "SUMMON_BRANCH_STATE")
             return -1;
         int alive = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            if (x.B.Creature(FlashKernel.EnemyOwner(x.B.Roster[position])).IsAlive)
+            if (x.B.Creature(BlitzKernel.EnemyOwner(x.B.Roster[position])).IsAlive)
                 alive++;
         }
         return rules.NodeIndex(alive <= 3 ? "LAY_EGGS_MOVE" : "NUTRITIONAL_PASTE_MOVE");
     }
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "LAY_EGGS_MOVE":
                 for (int index = 0; index < 3; index++)
                 {
-                    string? slot = FlashKernel.LastFreeSlot(x.B, x.R);
+                    string? slot = BlitzKernel.LastFreeSlot(x.B, x.R);
                     if (slot == null)
                         break;
-                    FlashKernel.SpawnMonster(ref x, owner,
-                        x.R.SpawnRulesId(FlashRegistry.MonsterId<ToughEgg>()),
-                        FlashKernel.SlotIndex(x.R, slot), minion: true);
+                    BlitzKernel.SpawnMonster(ref x, owner,
+                        x.R.SpawnRulesId(BlitzRegistry.MonsterId<ToughEgg>()),
+                        BlitzKernel.SlotIndex(x.R, slot), minion: true);
                 }
                 break;
             case "TENDERIZER_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.VulnerablePower>(), 2, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.VulnerablePower>(), 2, owner);
                 break;
             case "NUTRITIONAL_PASTE_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[NutritionalPasteStrengthAmount], owner);
                 break;
         }
@@ -148,8 +148,8 @@ public sealed class Ovicopter : FlashMonsterDef
 /// Minion, rolls its new HP from the Niche stream in [HatchlingMinHp, HatchlingMaxHp] and sets both
 /// current and max HP (MonsterMoveEffects "ToughEgg"). The follow-up NIBBLE_MOVE is a plain attack.
 /// </summary>
-[FlashContent("TOUGH_EGG")]
-public sealed class ToughEgg : FlashMonsterDef
+[BlitzContent("TOUGH_EGG")]
+public sealed class ToughEgg : BlitzMonsterDef
 {
     private const int HatchlingMinHp = 0;
     private const int HatchlingMaxHp = 1;
@@ -160,28 +160,28 @@ public sealed class ToughEgg : FlashMonsterDef
     // AfterAddedToRoom is unreachable for a freshly summoned egg (it enters unhatched).
     public override IReadOnlyList<string> InertMonsterIntNames => ["_isHatched", "_hatched"];
 
-    public override void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    public override void ApplyEntrancePowers(ref BlitzExec x, byte owner)
     {
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.HatchPower>(),
-            x.B.Side == FlashSide.Enemy ? 2 : 1, owner);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.HatchPower>(),
+            x.B.Side == BlitzSide.Enemy ? 2 : 1, owner);
     }
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "HATCH_MOVE")
             return;
         for (int index = x.B.PowerCount - 1; index >= 0; index--)
         {
             if (x.B.Powers[index].Owner != owner)
                 continue;
-            if (FlashRegistry.Power(x.B.Powers[index].Id).NativeId == "MINION_POWER")
+            if (BlitzRegistry.Power(x.B.Powers[index].Id).NativeId == "MINION_POWER")
                 continue;
-            FlashKernel.SetPowerAmount(ref x.B, owner, x.B.Powers[index].Id, 0);
+            BlitzKernel.SetPowerAmount(ref x.B, owner, x.B.Powers[index].Id, 0);
         }
-        int hp = x.B.RngStream(FlashRngStream.Niche).NextInt(
+        int hp = x.B.RngStream(BlitzRngStream.Niche).NextInt(
             rules.StaticInts[HatchlingMinHp], rules.StaticInts[HatchlingMaxHp] + 1);
-        ref FlashCreature creature = ref x.B.Creature(owner);
+        ref BlitzCreature creature = ref x.B.Creature(owner);
         creature.MaxHp = hp;
         creature.CurrentHp = hp;
     }
@@ -191,18 +191,18 @@ public sealed class ToughEgg : FlashMonsterDef
 /// SpinyToad: "PROTRUDING_SPIKES_MOVE" applies Thorns 5; "SPIKE_EXPLOSION_MOVE" applies Thorns -5.
 /// The private <c>_isSpiny</c> flag only selects animations.
 /// </summary>
-[FlashContent("SPINY_TOAD")]
-public sealed class SpinyToad : FlashMonsterDef
+[BlitzContent("SPINY_TOAD")]
+public sealed class SpinyToad : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "PROTRUDING_SPIKES_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.ThornsPower>(), 5, owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.ThornsPower>(), 5, owner);
                 break;
             case "SPIKE_EXPLOSION_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.ThornsPower>(), -5, owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.ThornsPower>(), -5, owner);
                 break;
         }
     }
@@ -214,8 +214,8 @@ public sealed class SpinyToad : FlashMonsterDef
 /// itself; "HARDENING_STRIKE_MOVE" gains <c>HardeningStrikeBlock</c> move block. The private
 /// <c>_hasSummoned</c> flag only selects animations.
 /// </summary>
-[FlashContent("THE_OBSCURA")]
-public sealed class TheObscura : FlashMonsterDef
+[BlitzContent("THE_OBSCURA")]
+public sealed class TheObscura : BlitzMonsterDef
 {
     private const int HardeningStrikeBlock = 0;
 
@@ -226,27 +226,27 @@ public sealed class TheObscura : FlashMonsterDef
 
     public override IReadOnlyList<string> SpawnedMonsterIds => ["PARAFRIGHT"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "ILLUSION_MOVE":
-                FlashKernel.SpawnMonster(ref x, owner,
-                    x.R.SpawnRulesId(FlashRegistry.MonsterId<Parafright>()),
-                    FlashKernel.SlotIndex(x.R, "illusion"), minion: false);
+                BlitzKernel.SpawnMonster(ref x, owner,
+                    x.R.SpawnRulesId(BlitzRegistry.MonsterId<Parafright>()),
+                    BlitzKernel.SlotIndex(x.R, "illusion"), minion: false);
                 break;
             case "SAIL_MOVE":
                 for (int position = 0; position < x.B.RosterCount; position++)
                 {
-                    byte enemy = FlashKernel.EnemyOwner(x.B.Roster[position]);
+                    byte enemy = BlitzKernel.EnemyOwner(x.B.Roster[position]);
                     if (x.B.Creature(enemy).IsAlive)
-                        FlashKernel.ApplyPower(ref x, enemy, FlashRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
+                        BlitzKernel.ApplyPower(ref x, enemy, BlitzRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
                 }
                 break;
             case "HARDENING_STRIKE_MOVE":
-                FlashKernel.GainBlock(ref x, owner, rules.StaticInts[HardeningStrikeBlock],
-                    FlashValueProps.Move, fromCard: false);
+                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[HardeningStrikeBlock],
+                    BlitzValueProps.Move, fromCard: false);
                 break;
         }
     }
@@ -257,15 +257,15 @@ public sealed class TheObscura : FlashMonsterDef
 /// IllusionPower 1 (applier itself) and MinionPower 1 (no applier); its only move SLAM_MOVE is a plain
 /// attack. IllusionPower owns the revive, so the kernel appends the synthetic REVIVE_MOVE node.
 /// </summary>
-[FlashContent("PARAFRIGHT")]
-public sealed class Parafright : FlashMonsterDef
+[BlitzContent("PARAFRIGHT")]
+public sealed class Parafright : BlitzMonsterDef
 {
     public override bool IllusionRevive => true;
 
-    public override void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    public override void ApplyEntrancePowers(ref BlitzExec x, byte owner)
     {
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.IllusionPower>(), 1, owner);
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.MinionPower>(), 1, FlashLimits.NoOwner);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.IllusionPower>(), 1, owner);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.MinionPower>(), 1, BlitzLimits.NoOwner);
     }
 }
 
@@ -274,8 +274,8 @@ public sealed class Parafright : FlashMonsterDef
 /// (MonsterMoveEffects "Tunneler"). BurrowedPower owns the retained block, the block-break stun and the
 /// forced BITE_MOVE follow-up. The private <c>_isStunned</c> flag only selects animations.
 /// </summary>
-[FlashContent("TUNNELER")]
-public sealed class Tunneler : FlashMonsterDef
+[BlitzContent("TUNNELER")]
+public sealed class Tunneler : BlitzMonsterDef
 {
     private const int BlockGain = 0;
 
@@ -284,13 +284,13 @@ public sealed class Tunneler : FlashMonsterDef
     // TriggeredPowerSupport/MonsterMoveEffects write it; only the native animator reads it.
     public override IReadOnlyList<string> InertMonsterIntNames => ["_isStunned"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "BURROW_MOVE")
             return;
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.BurrowedPower>(), 1, owner);
-        FlashKernel.GainBlock(ref x, owner, rules.StaticInts[BlockGain], FlashValueProps.Move, fromCard: false);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.BurrowedPower>(), 1, owner);
+        BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[BlockGain], BlitzValueProps.Move, fromCard: false);
     }
 }
 
@@ -301,8 +301,8 @@ public sealed class Tunneler : FlashMonsterDef
 /// the existing engine's compensation). Attacks and branch weights come from the compiled state
 /// machine; THRASH/LUNGING_BITE have no extra effect.
 /// </summary>
-[FlashContent("THE_INSATIABLE")]
-public sealed class TheInsatiable : FlashMonsterDef
+[BlitzContent("THE_INSATIABLE")]
+public sealed class TheInsatiable : BlitzMonsterDef
 {
     private const int LiquifySandpit = 4;
     private const int LiquifyCardsPerPile = 3;
@@ -311,29 +311,29 @@ public sealed class TheInsatiable : FlashMonsterDef
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("FRANTIC_ESCAPE", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SALIVATE_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[0], owner);
                 break;
             case "LIQUIFY_GROUND_MOVE":
-                FlashKernel.ApplyPowerTargeted(ref x, owner, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.SandpitPower>(), LiquifySandpit, owner);
+                BlitzKernel.ApplyPowerTargeted(ref x, owner, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.SandpitPower>(), LiquifySandpit, owner);
                 for (int index = 0; index < LiquifyCardsPerPile; index++)
                 {
-                    FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.FranticEscape>()),
-                        FlashPile.Draw, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
+                    BlitzKernel.AddGeneratedCard(ref x,
+                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.FranticEscape>()),
+                        BlitzPile.Draw, BlitzPilePosition.Random, creator: BlitzLimits.NoOwner);
                 }
                 for (int index = 0; index < LiquifyCardsPerPile; index++)
                 {
-                    FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.FranticEscape>()),
-                        FlashPile.Discard, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
+                    BlitzKernel.AddGeneratedCard(ref x,
+                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.FranticEscape>()),
+                        BlitzPile.Discard, BlitzPilePosition.Random, creator: BlitzLimits.NoOwner);
                 }
                 break;
         }
@@ -349,8 +349,8 @@ public sealed class TheInsatiable : FlashMonsterDef
 /// after PONDER reads the counter (<c>BranchMonsterAi.Advance</c>): below three it returns to CURSE,
 /// otherwise SLAP.
 /// </summary>
-[FlashContent("KNOWLEDGE_DEMON")]
-public sealed class KnowledgeDemon : FlashMonsterDef
+[BlitzContent("KNOWLEDGE_DEMON")]
+public sealed class KnowledgeDemon : BlitzMonsterDef
 {
     private const int CurseSetCount = 3;
     private const int PonderHeal = 30;
@@ -368,77 +368,77 @@ public sealed class KnowledgeDemon : FlashMonsterDef
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards =>
         [("DISINTEGRATION", 0), ("MIND_ROT", 0), ("SLOTH", 0), ("WASTE_AWAY", 0)];
 
-    public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "CurseOfKnowledgeBranch")
             return -1;
         int counter = x.B.Enemy(owner).Ai[0];
         return rules.NodeIndex(counter < CurseSetCount ? "CURSE_OF_KNOWLEDGE_MOVE" : "SLAP_MOVE");
     }
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "CURSE_OF_KNOWLEDGE_MOVE":
                 ResolveCurseChoice(ref x, owner);
                 break;
             case "PONDER_MOVE":
-                FlashKernel.Heal(ref x, owner, PonderHeal);
+                BlitzKernel.Heal(ref x, owner, PonderHeal);
                 if (x.NeedsChoice)
                     return;
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[0], owner);
                 break;
         }
     }
 
-    private static void ResolveCurseChoice(ref FlashExec x, byte owner)
+    private static void ResolveCurseChoice(ref BlitzExec x, byte owner)
     {
         int counter = x.B.Enemy(owner).Ai[0];
         if ((uint)counter >= (uint)CurseSetCount)
-            throw new FlashUnsupportedException($"知识恶魔诅咒计数超出范围：{counter}。");
+            throw new BlitzUnsupportedException($"知识恶魔诅咒计数超出范围：{counter}。");
 
         Span<ushort> optionIds = stackalloc ushort[2];
-        optionIds[0] = FlashRegistry.CardId<Cards.Status.Disintegration>();
+        optionIds[0] = BlitzRegistry.CardId<Cards.Status.Disintegration>();
         optionIds[1] = counter switch
         {
-            0 => FlashRegistry.CardId<Cards.Status.MindRot>(),
-            1 => FlashRegistry.CardId<Cards.Status.Sloth>(),
-            _ => FlashRegistry.CardId<Cards.Status.WasteAway>(),
+            0 => BlitzRegistry.CardId<Cards.Status.MindRot>(),
+            1 => BlitzRegistry.CardId<Cards.Status.Sloth>(),
+            _ => BlitzRegistry.CardId<Cards.Status.WasteAway>(),
         };
-        Span<FlashCard> options = stackalloc FlashCard[2];
+        Span<BlitzCard> options = stackalloc BlitzCard[2];
         for (int index = 0; index < options.Length; index++)
-            options[index] = FlashKernel.CreateCard(x.R, optionIds[index]);
-        if (!FlashKernel.ChooseOption(ref x, FlashChoiceEffect.ApplyKnowledgeCurse, options, out int selected))
+            options[index] = BlitzKernel.CreateCard(x.R, optionIds[index]);
+        if (!BlitzKernel.ChooseOption(ref x, BlitzChoiceEffect.ApplyKnowledgeCurse, options, out int selected))
             return;
 
         ushort card = optionIds[selected];
-        if (card == FlashRegistry.CardId<Cards.Status.Disintegration>())
+        if (card == BlitzRegistry.CardId<Cards.Status.Disintegration>())
         {
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.DisintegrationPower>(), DisintegrationBase + counter, FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.DisintegrationPower>(), DisintegrationBase + counter, BlitzLimits.PlayerOwner);
         }
-        else if (card == FlashRegistry.CardId<Cards.Status.MindRot>())
+        else if (card == BlitzRegistry.CardId<Cards.Status.MindRot>())
         {
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.MindRotPower>(), MindRotAmount, FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.MindRotPower>(), MindRotAmount, BlitzLimits.PlayerOwner);
         }
-        else if (card == FlashRegistry.CardId<Cards.Status.Sloth>())
+        else if (card == BlitzRegistry.CardId<Cards.Status.Sloth>())
         {
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.SlothPower>(), SlothAmount, FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.SlothPower>(), SlothAmount, BlitzLimits.PlayerOwner);
         }
-        else if (card == FlashRegistry.CardId<Cards.Status.WasteAway>())
+        else if (card == BlitzRegistry.CardId<Cards.Status.WasteAway>())
         {
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.WasteAwayPower>(), WasteAwayAmount, FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.WasteAwayPower>(), WasteAwayAmount, BlitzLimits.PlayerOwner);
         }
         else
         {
-            throw new FlashUnsupportedException($"知识恶魔诅咒 {FlashRegistry.Card(card).NativeId} 没有模拟效果。");
+            throw new BlitzUnsupportedException($"知识恶魔诅咒 {BlitzRegistry.Card(card).NativeId} 没有模拟效果。");
         }
         x.B.Enemy(owner).Ai[0] = counter + 1;
     }

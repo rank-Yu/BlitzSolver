@@ -1,35 +1,35 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Defect;
+namespace BlitzSolver.Content.Cards.Defect;
 
-[FlashContent("SYNTHESIS")]
-public sealed class Synthesis : FlashCardDef
+[BlitzContent("SYNTHESIS")]
+public sealed class Synthesis : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardEffectSpecRegistry.Synthesis: attack, then one FreePowerPower.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.FreePowerPower>(), 1,
-            FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.FreePowerPower>(), 1,
+            BlitzLimits.PlayerOwner);
     }
 }
 
-[FlashContent("TESLA_COIL")]
-public sealed class TeslaCoil : FlashCardDef
+[BlitzContent("TESLA_COIL")]
+public sealed class TeslaCoil : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        Span<int> lightning = stackalloc int[FlashLimits.Orbs];
-        if (!FlashRegistry.TryOrb("LIGHTNING_ORB", out ushort id))
+        Span<int> lightning = stackalloc int[BlitzLimits.Orbs];
+        if (!BlitzRegistry.TryOrb("LIGHTNING_ORB", out ushort id))
             return;
         int count = 0;
         for (int index = 0; index < x.B.OrbCount; index++)
@@ -42,7 +42,7 @@ public sealed class TeslaCoil : FlashCardDef
         {
             for (int trigger = 0; trigger < triggers; trigger++)
             {
-                FlashKernel.OrbPassiveAt(ref x, lightning[index], x.Target);
+                BlitzKernel.OrbPassiveAt(ref x, lightning[index], x.Target);
                 if (x.NeedsChoice)
                     return;
             }
@@ -50,130 +50,130 @@ public sealed class TeslaCoil : FlashCardDef
     }
 }
 
-[FlashContent("REFRACT")]
-public sealed class Refract : FlashCardDef
+[BlitzContent("REFRACT")]
+public sealed class Refract : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Repeat", "Damage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 1), hitCount: 2);
+        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 1), hitCount: 2);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ChannelOrbs(ref x, FlashKernel.OrbId("GLASS_ORB"), (int)FlashCardEffects.Var(x, 0));
+        BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("GLASS_ORB"), (int)BlitzCardEffects.Var(x, 0));
     }
 }
 
-[FlashContent("NULL")]
-public sealed class Null : FlashCardDef
+[BlitzContent("NULL")]
+public sealed class Null : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "WeakPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         // OrbCardMirrors.NullOnPlay mirrors attack then channel; CorePowerSupport applies Weak after.
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ChannelOrb(ref x, FlashKernel.OrbId("DARK_ORB"));
+        BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("DARK_ORB"));
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.WeakPower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.WeakPower>(), 1);
     }
 }
 
-[FlashContent("ROCKET_PUNCH")]
-public sealed class RocketPunch : FlashCardDef
+[BlitzContent("ROCKET_PUNCH")]
+public sealed class RocketPunch : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
         // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashKernel.Draw(ref x, (int)FlashCardEffects.Var(x, 1), fromHandDraw: false);
+        BlitzKernel.Draw(ref x, (int)BlitzCardEffects.Var(x, 1), fromHandDraw: false);
     }
 
     // AfterCardGeneratedForCombatMirrors.HandleRocketPunch: a generated Status lowers this card's cost
-    // by 1 until played. All generated cards in Flash come from the player.
-    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position, byte creator)
+    // by 1 until played. All generated cards in Blitz come from the player.
+    public override void AfterCardGeneratedForCombat(ref BlitzExec x, BlitzListener self, int position, byte creator)
     {
-        if (creator != FlashLimits.PlayerOwner)
+        if (creator != BlitzLimits.PlayerOwner)
             return;
         if ((uint)position >= (uint)x.B.CardCount)
-            throw new FlashUnsupportedException("生成牌触发时该牌已不在牌堆。");
-        FlashCard generated = x.B.Cards[position];
-        if (FlashKernel.CardType(x.B, x.R, generated) != FlashCardType.Status)
+            throw new BlitzUnsupportedException("生成牌触发时该牌已不在牌堆。");
+        BlitzCard generated = x.B.Cards[position];
+        if (BlitzKernel.CardType(x.B, x.R, generated) != BlitzCardType.Status)
             return;
         if ((uint)self.Index >= (uint)x.B.CardCount)
-            throw new FlashUnsupportedException("火箭拳在生成牌结算前离开了牌堆。");
-        FlashKernel.AddEnergyCostModifier(ref x.B.Cards[self.Index], -1, FlashCostType.Relative,
-            FlashCostExpiration.WhenPlayed, reduceOnly: false);
+            throw new BlitzUnsupportedException("火箭拳在生成牌结算前离开了牌堆。");
+        BlitzKernel.AddEnergyCostModifier(ref x.B.Cards[self.Index], -1, BlitzCostType.Relative,
+            BlitzCostExpiration.WhenPlayed, reduceOnly: false);
     }
 }
 
-[FlashContent("FTL")]
-public sealed class Ftl : FlashCardDef
+[BlitzContent("FTL")]
+public sealed class Ftl : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "PlayMax", "Cards"];
 
     // CardDrawCardMirrors.FtlOnPlay: attack, then draw while fewer than PlayMax cards were played.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
         // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        if (x.B.Counter(FlashCounter.CardsPlayedThisTurn) < (int)FlashCardEffects.Var(x, 1))
-            FlashKernel.Draw(ref x, (int)FlashCardEffects.Var(x, 2), fromHandDraw: false);
+        if (x.B.Counter(BlitzCounter.CardsPlayedThisTurn) < (int)BlitzCardEffects.Var(x, 1))
+            BlitzKernel.Draw(ref x, (int)BlitzCardEffects.Var(x, 2), fromHandDraw: false);
     }
 }
 
-[FlashContent("SUNDER")]
-public sealed class Sunder : FlashCardDef
+[BlitzContent("SUNDER")]
+public sealed class Sunder : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Energy"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.Sunder: WasCardKill on the chosen target.
         if (x.CardKilledTarget)
-            FlashKernel.GainEnergy(ref x, FlashCardEffects.Var(x, 1));
+            BlitzKernel.GainEnergy(ref x, BlitzCardEffects.Var(x, 1));
     }
 }
 
-[FlashContent("SCRAPE")]
-public sealed class Scrape : FlashCardDef
+[BlitzContent("SCRAPE")]
+public sealed class Scrape : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
 
     // CardDrawCardMirrors.ScrapeOnPlay: attack, draw Cards, discard the drawn cards that are not free.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        Span<FlashCard> drawn = stackalloc FlashCard[FlashLimits.Cards];
-        Span<int> positions = stackalloc int[FlashLimits.Cards];
-        int count = FlashKernel.DrawInto(ref x, (int)FlashCardEffects.Var(x, 1), fromHandDraw: false, drawn,
+        Span<BlitzCard> drawn = stackalloc BlitzCard[BlitzLimits.Cards];
+        Span<int> positions = stackalloc int[BlitzLimits.Cards];
+        int count = BlitzKernel.DrawInto(ref x, (int)BlitzCardEffects.Var(x, 1), fromHandDraw: false, drawn,
             positions);
         if (x.NeedsChoice)
             return;
@@ -181,12 +181,12 @@ public sealed class Scrape : FlashCardDef
         int discard = 0;
         for (int index = 0; index < count; index++)
         {
-            FlashCard card = drawn[index];
-            int cost = FlashKernel.EnergyCostValueWithModifiers(x.B, x.R, card, FlashPile.Hand);
-            if ((card.Flags & FlashCardFlags.CostsX) != 0 || cost != 0)
+            BlitzCard card = drawn[index];
+            int cost = BlitzKernel.EnergyCostValueWithModifiers(x.B, x.R, card, BlitzPile.Hand);
+            if ((card.Flags & BlitzCardFlags.CostsX) != 0 || cost != 0)
                 chosen[discard++] = index;
         }
         if (discard > 0)
-            FlashCardEffects.DiscardDrawn(ref x, drawn, positions, chosen[..discard]);
+            BlitzCardEffects.DiscardDrawn(ref x, drawn, positions, chosen[..discard]);
     }
 }

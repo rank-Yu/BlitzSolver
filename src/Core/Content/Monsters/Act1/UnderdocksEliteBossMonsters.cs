@@ -1,20 +1,20 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Monsters.Act1;
+namespace BlitzSolver.Content.Monsters.Act1;
 
 /// <summary>
 /// FossilStalker: "TACKLE_MOVE" applies Frail 1 to the player (<c>MonsterMoveEffects</c>
 /// "FossilStalker"). Its SuckPower is a starting power imported from the root; LATCH/LASH are pure
 /// attacks and the random branch weights are compiled from the native model.
 /// </summary>
-[FlashContent("FOSSIL_STALKER")]
-public sealed class FossilStalker : FlashMonsterDef
+[BlitzContent("FOSSIL_STALKER")]
+public sealed class FossilStalker : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "TACKLE_MOVE")
-            FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                FlashRegistry.PowerId<Powers.FrailPower>(), 1, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "TACKLE_MOVE")
+            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                BlitzRegistry.PowerId<Powers.FrailPower>(), 1, owner);
     }
 }
 
@@ -26,8 +26,8 @@ public sealed class FossilStalker : FlashMonsterDef
 /// (<c>MonsterMoveEffects</c> "SoulFysh"; the Beckon counts are literals there: 1 random draw +
 /// 1 discard, and the model's GazeMoveAmount/ScreamMoveAmount static values).
 /// </summary>
-[FlashContent("SOUL_FYSH")]
-public sealed class SoulFysh : FlashMonsterDef
+[BlitzContent("SOUL_FYSH")]
+public sealed class SoulFysh : BlitzMonsterDef
 {
     private const int BeckonDrawAmount = 1;
     private const int BeckonDiscardAmount = 1;
@@ -39,31 +39,31 @@ public sealed class SoulFysh : FlashMonsterDef
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("BECKON", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "BECKON_MOVE":
                 for (int index = 0; index < BeckonDrawAmount; index++)
-                    FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()),
-                        FlashPile.Draw, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
+                    BlitzKernel.AddGeneratedCard(ref x,
+                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Beckon>()),
+                        BlitzPile.Draw, BlitzPilePosition.Random, creator: BlitzLimits.NoOwner);
                 for (int index = 0; index < BeckonDiscardAmount; index++)
-                    FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
+                    BlitzKernel.AddGeneratedCard(ref x,
+                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Beckon>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
                 break;
             case "GAZE_MOVE":
                 for (int index = 0; index < rules.StaticInts[GazeMoveAmount]; index++)
-                    FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Beckon>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
+                    BlitzKernel.AddGeneratedCard(ref x,
+                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Beckon>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
                 break;
             case "SCREAM_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.VulnerablePower>(), rules.StaticInts[ScreamMoveAmount], owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.VulnerablePower>(), rules.StaticInts[ScreamMoveAmount], owner);
                 break;
             case "FADE_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.IntangiblePower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.IntangiblePower>(),
                     FadeIntangible, owner);
                 break;
         }
@@ -75,18 +75,18 @@ public sealed class SoulFysh : FlashMonsterDef
 /// (<c>MonsterMoveEffects</c> "SkulkingColony"). Its HardenedShellPower is a starting power imported
 /// from the root; ZOOM/PIERCING_STABS are pure attacks.
 /// </summary>
-[FlashContent("SKULKING_COLONY")]
-public sealed class SkulkingColony : FlashMonsterDef
+[BlitzContent("SKULKING_COLONY")]
+public sealed class SkulkingColony : BlitzMonsterDef
 {
     private const int InertiaStrengthGain = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["InertiaStrengthGain"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "INERTIA_MOVE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                 rules.StaticInts[InertiaStrengthGain], owner);
     }
 }
@@ -97,22 +97,22 @@ public sealed class SkulkingColony : FlashMonsterDef
 /// attack. Its ShriekPower starts in the root; STUN_MOVE is a native state the existing engine never
 /// reaches (Shriek uses <c>CreatureCmd.Stun</c> with TERROR_MOVE as the follow-up).
 /// </summary>
-[FlashContent("TERROR_EEL")]
-public sealed class TerrorEel : FlashMonsterDef
+[BlitzContent("TERROR_EEL")]
+public sealed class TerrorEel : BlitzMonsterDef
 {
     private const int TerrorVulnerable = 99;
     private const int ThrashVigor = 6;
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "TERROR_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.VulnerablePower>(), TerrorVulnerable, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.VulnerablePower>(), TerrorVulnerable, owner);
                 break;
             case "THRASH_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.VigorPower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.VigorPower>(),
                     ThrashVigor, owner);
                 break;
         }
@@ -124,10 +124,10 @@ public sealed class TerrorEel : FlashMonsterDef
 /// <c>MonsterMoveEffects</c> lines 870-905; the pressure-gun bonus and Steam Eruption damage live in
 /// the AI registers projected from <c>SimulatedCombatState._pressureGunBonus</c> /
 /// <c>_steamEruptionDamage</c>. The death rewrite and forced phases are kernel-side
-/// (<see cref="FlashKernel.TryTriggerSteamEruptionDeath"/> / <see cref="FlashKernel.TryConsumeSteamForcedMove"/>).
+/// (<see cref="BlitzKernel.TryTriggerSteamEruptionDeath"/> / <see cref="BlitzKernel.TryConsumeSteamForcedMove"/>).
 /// </summary>
-[FlashContent("WATERFALL_GIANT")]
-public sealed class WaterfallGiant : FlashMonsterDef
+[BlitzContent("WATERFALL_GIANT")]
+public sealed class WaterfallGiant : BlitzMonsterDef
 {
     public override bool HasInfiniteHpDisplay => true;
 
@@ -140,59 +140,59 @@ public sealed class WaterfallGiant : FlashMonsterDef
 
     public override IReadOnlyList<string> AiRegisterNames => ["PressureGunBonus", "SteamEruptionDamage"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
-        ushort steam = FlashRegistry.PowerId<Powers.SteamEruptionPower>();
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        ushort steam = BlitzRegistry.PowerId<Powers.SteamEruptionPower>();
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "PRESSURIZE_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, steam, rules.StaticInts[PressurizeAmount], owner);
+                BlitzKernel.ApplyPower(ref x, owner, steam, rules.StaticInts[PressurizeAmount], owner);
                 break;
             case "STOMP_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.WeakPower>(), 1, owner);
-                FlashKernel.ApplyPower(ref x, owner, steam, 3, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.WeakPower>(), 1, owner);
+                BlitzKernel.ApplyPower(ref x, owner, steam, 3, owner);
                 break;
             case "RAM_MOVE":
             case "PRESSURE_UP_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, steam, 3, owner);
+                BlitzKernel.ApplyPower(ref x, owner, steam, 3, owner);
                 break;
             case "SIPHON_MOVE":
                 // MonsterMoveEffects: Heal(SiphonHeal * combat.Players.Count); single-player is 1.
-                FlashKernel.Heal(ref x, owner, rules.StaticInts[SiphonHeal]);
-                FlashKernel.ApplyPower(ref x, owner, steam, 3, owner);
+                BlitzKernel.Heal(ref x, owner, rules.StaticInts[SiphonHeal]);
+                BlitzKernel.ApplyPower(ref x, owner, steam, 3, owner);
                 break;
             case "PRESSURE_GUN_MOVE":
-                x.B.Enemy(owner).Ai[FlashKernel.PressureGunBonusRegister] = checked(
-                    x.B.Enemy(owner).Ai[FlashKernel.PressureGunBonusRegister] + rules.StaticInts[PressureGunIncrease]);
-                FlashKernel.ApplyPower(ref x, owner, steam, 3, owner);
+                x.B.Enemy(owner).Ai[BlitzKernel.PressureGunBonusRegister] = checked(
+                    x.B.Enemy(owner).Ai[BlitzKernel.PressureGunBonusRegister] + rules.StaticInts[PressureGunIncrease]);
+                BlitzKernel.ApplyPower(ref x, owner, steam, 3, owner);
                 break;
             case "ABOUT_TO_BLOW_MOVE":
                 // MonsterMoveEffects: combat.PrepareSteamEruption(move.Owner). The forced phase path
                 // calls the same helper before executing anything.
-                FlashKernel.PrepareSteamEruption(ref x, owner);
+                BlitzKernel.PrepareSteamEruption(ref x, owner);
                 break;
             case "EXPLODE_MOVE":
             {
                 Span<byte> self = stackalloc byte[1];
                 self[0] = owner;
-                FlashKernel.Kill(ref x, self, force: true);
+                BlitzKernel.Kill(ref x, self, force: true);
                 break;
             }
         }
     }
 
-    public override int ModifyAttackDamage(in FlashBattle battle, FlashRules rules, byte owner, int moveNode,
+    public override int ModifyAttackDamage(in BlitzBattle battle, BlitzRules rules, byte owner, int moveNode,
         int attackIndex, int damage)
     {
-        string nativeId = rules.MonsterRule(battle.Enemies[owner - FlashLimits.FirstEnemyOwner].Rules)
+        string nativeId = rules.MonsterRule(battle.Enemies[owner - BlitzLimits.FirstEnemyOwner].Rules)
             .Nodes[moveNode].NativeId;
         if (nativeId == "PRESSURE_GUN_MOVE")
-            return damage + battle.Enemies[owner - FlashLimits.FirstEnemyOwner].Ai[FlashKernel.PressureGunBonusRegister];
+            return damage + battle.Enemies[owner - BlitzLimits.FirstEnemyOwner].Ai[BlitzKernel.PressureGunBonusRegister];
         if (nativeId == "EXPLODE_MOVE")
         {
-            int recorded = battle.Enemies[owner - FlashLimits.FirstEnemyOwner].Ai[FlashKernel.SteamEruptionDamageRegister];
+            int recorded = battle.Enemies[owner - BlitzLimits.FirstEnemyOwner].Ai[BlitzKernel.SteamEruptionDamageRegister];
             return recorded != 0 ? recorded : damage;
         }
         return damage;

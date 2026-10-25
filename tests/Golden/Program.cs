@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using CombatSolver.Flash.Kernel;
-using FlashGolden;
+using BlitzSolver.Engine;
+using BlitzGolden;
 
-// Pure-core Flash golden verifier: Engine + Content + Search, with only the BCL as a dependency.
+// Pure-core Blitz golden verifier: Engine + Content + Search, with only the BCL as a dependency.
 
 if (args.Length == 0)
 {
@@ -15,8 +15,8 @@ try
     switch (args[0])
     {
         case "k0":
-            FlashRulesCodecContract.Run();
-            Console.WriteLine($"K0 Passed fields={FlashRules.SchemaFieldCount} battleBytes={Unsafe.SizeOf<FlashBattle>()}");
+            BlitzRulesCodecContract.Run();
+            Console.WriteLine($"K0 Passed fields={BlitzRules.SchemaFieldCount} battleBytes={Unsafe.SizeOf<BlitzBattle>()}");
             return 0;
         case "verify":
             return VerifyCommand.Run(args[1..]);
@@ -29,7 +29,7 @@ try
 }
 catch (InvalidDataException error)
 {
-    Console.Error.WriteLine($"FLASH_GOLDEN_INVALID {error.Message}");
+    Console.Error.WriteLine($"BLITZ_GOLDEN_INVALID {error.Message}");
     return 1;
 }
 catch (AggregateException error)
@@ -37,15 +37,15 @@ catch (AggregateException error)
     AggregateException flattened = error.Flatten();
     Exception? first = flattened.InnerExceptions.FirstOrDefault();
     if (first is InvalidDataException invalid)
-        Console.Error.WriteLine($"FLASH_GOLDEN_INVALID {invalid.Message}");
+        Console.Error.WriteLine($"BLITZ_GOLDEN_INVALID {invalid.Message}");
     else
-        Console.Error.WriteLine($"FLASH_GOLDEN_FAILED {first?.GetType().Name}: {first?.Message}");
+        Console.Error.WriteLine($"BLITZ_GOLDEN_FAILED {first?.GetType().Name}: {first?.Message}");
     return 1;
 }
 
 static void PrintUsage()
     => Console.Error.WriteLine(
-        "用法：FlashGolden verify <data-dir> [--jobs N] [--only d1|d2] [--shard i/n] | "
+        "用法：Golden verify <data-dir> [--jobs N] [--only d1|d2] [--shard i/n] | "
         + "manifest <data-dir> | k0");
 
 internal static class VerifyCommand
@@ -126,7 +126,7 @@ internal static class VerifyCommand
             (null, not null) => $"d2Selected={d2.Selected} d2Equal={d2.Equal} d2Mismatch={d2.Mismatch}",
             _ => "",
         };
-        Console.WriteLine($"FLASH_GOLDEN_VERIFY {totals} only={only} shard={shard}/{shards} mismatched=0");
+        Console.WriteLine($"BLITZ_GOLDEN_VERIFY {totals} only={only} shard={shard}/{shards} mismatched=0");
         return 0;
     }
 

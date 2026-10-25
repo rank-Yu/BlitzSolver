@@ -1,11 +1,11 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Ironclad;
+namespace BlitzSolver.Content.Cards.Ironclad;
 
-[FlashContent("GIANT_ROCK")]
-public sealed class GiantRock : FlashCardDef
+[BlitzContent("GIANT_ROCK")]
+public sealed class GiantRock : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }

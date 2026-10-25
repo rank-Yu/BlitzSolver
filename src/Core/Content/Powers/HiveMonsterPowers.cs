@@ -1,20 +1,20 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Powers;
+namespace BlitzSolver.Content.Powers;
 
 /// <summary>
 /// Native <c>HardToKillPower</c> (Exoskeleton, nine stacks applied in <c>AfterAddedToRoom</c>): the
 /// owner's damage taken from one hit is capped at the power amount
 /// (<c>ModifyDamageCap</c>). No private slot.
 /// </summary>
-[FlashContent("HARD_TO_KILL_POWER")]
-public sealed class HardToKillPower : FlashPowerDef
+[BlitzContent("HARD_TO_KILL_POWER")]
+public sealed class HardToKillPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override decimal ModifyDamageCap(ref FlashExec x, FlashListener self, in FlashDamageContext damage)
+    public override decimal ModifyDamageCap(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage)
         => damage.Target == self.Owner ? x.B.Powers[self.Index].Amount : decimal.MaxValue;
 }
 
@@ -23,27 +23,27 @@ public sealed class HardToKillPower : FlashPowerDef
 /// powered attack that hits the owner puts its amount of Dazed into the player's draw pile at random
 /// (<c>AfterDamageReceivedMirrors.HandlePersonalHivePower</c>). No private slot.
 /// </summary>
-[FlashContent("PERSONAL_HIVE_POWER")]
-public sealed class PersonalHivePower : FlashPowerDef
+[BlitzContent("PERSONAL_HIVE_POWER")]
+public sealed class PersonalHivePower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("DAZED", 0)];
 
-    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
     {
         if (result.Receiver != self.Owner || !result.Props.IsPoweredAttack())
             return;
-        if (dealer != FlashLimits.PlayerOwner && dealer != FlashLimits.OstyOwner)
+        if (dealer != BlitzLimits.PlayerOwner && dealer != BlitzLimits.OstyOwner)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         for (int index = 0; index < amount; index++)
         {
-            FlashKernel.AddGeneratedCard(ref x,
-                FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Dazed>()),
-                FlashPile.Draw, FlashPilePosition.Random, creator: FlashLimits.NoOwner);
+            BlitzKernel.AddGeneratedCard(ref x,
+                BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Dazed>()),
+                BlitzPile.Draw, BlitzPilePosition.Random, creator: BlitzLimits.NoOwner);
         }
     }
 }
@@ -53,18 +53,18 @@ public sealed class PersonalHivePower : FlashPowerDef
 /// end of its side (<c>EndTurnPowerSupport.TriggerRegular</c> case HatchPower). The count only gates
 /// the hatch animation; the move state machine already starts at HATCH_MOVE.
 /// </summary>
-[FlashContent("HATCH_POWER")]
-public sealed class HatchPower : FlashPowerDef
+[BlitzContent("HATCH_POWER")]
+public sealed class HatchPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (!participates)
             return;
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, x.B.Powers[self.Index].Amount - 1);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, x.B.Powers[self.Index].Amount - 1);
     }
 }
 
@@ -75,14 +75,14 @@ public sealed class HatchPower : FlashPowerDef
 /// the follow-up (<c>TriggeredPowerSupport.CompensateBurrow</c>). The private <c>_isStunned</c> flag
 /// is animation-only.
 /// </summary>
-[FlashContent("BURROWED_POWER")]
-public sealed class BurrowedPower : FlashPowerDef
+[BlitzContent("BURROWED_POWER")]
+public sealed class BurrowedPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
 
-    public override bool ShouldClearBlock(ref FlashExec x, FlashListener self, byte owner)
+    public override bool ShouldClearBlock(ref BlitzExec x, BlitzListener self, byte owner)
         => owner != self.Owner;
 
     // TriggeredPowerSupport.CompensateBurrow runs from CompensateHistorySince after the effect's
@@ -92,18 +92,18 @@ public sealed class BurrowedPower : FlashPowerDef
     // not see block breaks from the enemy turn or from a phase-two evoke.
     public override bool CompensatesBlockBreakAfterDamage => true;
 
-    public override void AfterBlockBrokenCompensated(ref FlashExec x, FlashListener self, byte target, byte breaker)
+    public override void AfterBlockBrokenCompensated(ref BlitzExec x, BlitzListener self, byte target, byte breaker)
     {
         if (target != self.Owner || x.B.Powers[self.Index].Amount <= 0)
             return;
         if (x.B.Creature(self.Owner).IsDead)
             return;
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
         int block = x.B.Creature(self.Owner).Block;
         if (block > 0)
-            FlashKernel.DamageBlock(ref x.B.Creature(self.Owner), block, FlashValueProps.Move);
-        FlashKernel.ForceStunnedMove(ref x, self.Owner,
-            FlashKernel.MonsterRules(ref x, self.Owner).NodeIndex("BITE_MOVE"));
+            BlitzKernel.DamageBlock(ref x.B.Creature(self.Owner), block, BlitzValueProps.Move);
+        BlitzKernel.ForceStunnedMove(ref x, self.Owner,
+            BlitzKernel.MonsterRules(ref x, self.Owner).NodeIndex("BITE_MOVE"));
     }
 }
 
@@ -114,35 +114,35 @@ public sealed class BurrowedPower : FlashPowerDef
 /// when it reaches zero force-kill the recorded target through the damage pipeline while both the
 /// owner and the target are alive. The native screen/music hooks are out of scope.
 /// </summary>
-[FlashContent("SANDPIT_POWER")]
-public sealed class SandpitPower : FlashPowerDef
+[BlitzContent("SANDPIT_POWER")]
+public sealed class SandpitPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     // SimulatedCombatState.ApplyTargeted branches on PowerInstanceType.Instanced: every LIQUIFY_GROUND
     // adds a fresh native Sandpit instance instead of stacking into the previous one.
     public override bool IsInstanced => true;
 
-    public override void GlobalAfterSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void GlobalAfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
-        if (side != FlashSide.Enemy || !participates)
+        if (side != BlitzSide.Enemy || !participates)
             return;
-        ref FlashPower power = ref x.B.Powers[self.Index];
+        ref BlitzPower power = ref x.B.Powers[self.Index];
         if (power.Amount <= 0)
             return;
         byte target = power.Target;
         int remaining = power.Amount - 1;
-        FlashKernel.SetPowerAmountAt(ref x.B, self.Index, remaining);
+        BlitzKernel.SetPowerAmountAt(ref x.B, self.Index, remaining);
         if (remaining > 0)
             return;
-        if (target == FlashLimits.NoOwner)
-            throw new FlashUnsupportedException("流沙坑归零时没有目标。");
+        if (target == BlitzLimits.NoOwner)
+            throw new BlitzUnsupportedException("流沙坑归零时没有目标。");
         if (!x.B.Creature(self.Owner).IsAlive || !x.B.Creature(target).IsAlive)
             return;
         Span<byte> victims = stackalloc byte[1];
         victims[0] = target;
-        FlashKernel.Kill(ref x, victims, force: true);
+        BlitzKernel.Kill(ref x, victims, force: true);
     }
 }

@@ -1,107 +1,107 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Ironclad;
+namespace BlitzSolver.Content.Cards.Ironclad;
 
-[FlashContent("STAMPEDE")]
-public sealed class Stampede : FlashCardDef
+[BlitzContent("STAMPEDE")]
+public sealed class Stampede : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Power"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.StampedePower>(), (int)FlashCardEffects.Var(x, 0),
-            FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.StampedePower>(), (int)BlitzCardEffects.Var(x, 0),
+            BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("INFLAME")]
-public sealed class Inflame : FlashCardDef
+[BlitzContent("INFLAME")]
+public sealed class Inflame : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.StrengthPower>(),
-            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("FEEL_NO_PAIN")]
-public sealed class FeelNoPain : FlashCardDef
+[BlitzContent("FEEL_NO_PAIN")]
+public sealed class FeelNoPain : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Power"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.FeelNoPainPower>(),
-            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.FeelNoPainPower>(),
+            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("CRUELTY")]
-public sealed class Cruelty : FlashCardDef
+[BlitzContent("CRUELTY")]
+public sealed class Cruelty : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CrueltyPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.CrueltyPower>(),
-            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.CrueltyPower>(),
+            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("JUGGLING")]
-public sealed class Juggling : FlashCardDef
+[BlitzContent("JUGGLING")]
+public sealed class Juggling : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.JugglingPower>(),
-            1, FlashLimits.PlayerOwner);
-        int index = FlashKernel.FindPower(x.B, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.JugglingPower>());
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.JugglingPower>(),
+            1, BlitzLimits.PlayerOwner);
+        int index = BlitzKernel.FindPower(x.B, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.JugglingPower>());
         if (index < 0)
-            throw new FlashUnsupportedException("杂耍状态施加后未找到对应 Power。");
+            throw new BlitzUnsupportedException("杂耍状态施加后未找到对应 Power。");
         // SimulatedCombatState.InitializeJugglingAfterApplied: attacks started this turn.
-        x.B.Powers[index].Aux0 = x.B.Counter(FlashCounter.AttackPlayStartsThisTurn);
+        x.B.Powers[index].Aux0 = x.B.Counter(BlitzCounter.AttackPlayStartsThisTurn);
     }
 }
 
-[FlashContent("INFERNO")]
-public sealed class Inferno : FlashCardDef
+[BlitzContent("INFERNO")]
+public sealed class Inferno : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["InfernoPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        ushort id = FlashRegistry.PowerId<Powers.InfernoPower>();
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, id, (int)FlashCardEffects.Var(x, 0),
-            FlashLimits.PlayerOwner);
-        int index = FlashKernel.FindPower(x.B, FlashLimits.PlayerOwner, id);
+        ushort id = BlitzRegistry.PowerId<Powers.InfernoPower>();
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, id, (int)BlitzCardEffects.Var(x, 0),
+            BlitzLimits.PlayerOwner);
+        int index = BlitzKernel.FindPower(x.B, BlitzLimits.PlayerOwner, id);
         if (index < 0)
-            throw new FlashUnsupportedException("炼狱状态施加后未找到对应 Power。");
+            throw new BlitzUnsupportedException("炼狱状态施加后未找到对应 Power。");
         // CardOnPlaySupport: InfernoPower.IncrementSelfDamage.
         x.B.Powers[index].Aux0++;
     }
 }
 
-[FlashContent("STONE_ARMOR")]
-public sealed class StoneArmor : FlashCardDef
+[BlitzContent("STONE_ARMOR")]
+public sealed class StoneArmor : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["PlatingPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.PlatingPower>(),
-            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.PlatingPower>(),
+            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("RUPTURE")]
-public sealed class Rupture : FlashCardDef
+[BlitzContent("RUPTURE")]
+public sealed class Rupture : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.RupturePower>(),
-            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.RupturePower>(),
+            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("VICIOUS")]
-public sealed class Vicious : FlashCardDef
+[BlitzContent("VICIOUS")]
+public sealed class Vicious : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.ViciousPower>(),
-            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.ViciousPower>(),
+            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }

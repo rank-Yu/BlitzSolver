@@ -1,35 +1,35 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Monsters.Act1;
+namespace BlitzSolver.Content.Monsters.Act1;
 
-[FlashContent("FUZZY_WURM_CRAWLER")]
-public sealed class FuzzyWurmCrawler : FlashMonsterDef
+[BlitzContent("FUZZY_WURM_CRAWLER")]
+public sealed class FuzzyWurmCrawler : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "INHALE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 7, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "INHALE")
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 7, owner);
     }
 }
 
-[FlashContent("NIBBIT")]
-public sealed class Nibbit : FlashMonsterDef
+[BlitzContent("NIBBIT")]
+public sealed class Nibbit : BlitzMonsterDef
 {
     private const int SliceBlock = 0;
     private const int HissStrengthGain = 1;
 
     public override IReadOnlyList<string> StaticIntNames => ["SliceBlock", "HissStrengthGain"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SLICE_MOVE":
-                FlashKernel.GainBlock(ref x, owner, rules.StaticInts[SliceBlock], FlashValueProps.Move, fromCard: false);
+                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[SliceBlock], BlitzValueProps.Move, fromCard: false);
                 break;
             case "HISS_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), rules.StaticInts[HissStrengthGain], owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), rules.StaticInts[HissStrengthGain], owner);
                 break;
         }
     }
@@ -42,33 +42,33 @@ public sealed class Nibbit : FlashMonsterDef
 /// EscapeArtistPower 5 is applied by the root capture; the override keeps a summoned instance
 /// consistent (no encounter summons one today).
 /// </summary>
-[FlashContent("THIEVING_HOPPER")]
-public sealed class ThievingHopper : FlashMonsterDef
+[BlitzContent("THIEVING_HOPPER")]
+public sealed class ThievingHopper : BlitzMonsterDef
 {
-    public override void ApplyEntrancePowers(ref FlashExec x, byte owner)
+    public override void ApplyEntrancePowers(ref BlitzExec x, byte owner)
     {
         // ThievingHopper.AfterAddedToRoom: PowerCmd.Apply<EscapeArtistPower>(..., 5m, ...).
-        FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.EscapeArtistPower>(), 5, owner);
+        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.EscapeArtistPower>(), 5, owner);
     }
 
-    public override void BeforeMove(ref FlashExec x, byte owner, int moveNode)
+    public override void BeforeMove(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "THIEVERY_MOVE")
-            FlashKernel.StealCardForThievery(ref x, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "THIEVERY_MOVE")
+            BlitzKernel.StealCardForThievery(ref x, owner);
     }
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "FLUTTER_MOVE":
                 // MonsterMoveEffects.Apply: Apply<FlutterPower>(5).
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.FlutterPower>(), 5, owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.FlutterPower>(), 5, owner);
                 break;
             case "ESCAPE_MOVE":
                 // MonsterMoveEffects.Apply: combat.CreatureEscaped(move.Owner); the stolen SwipePower
                 // is removed without recovering its card.
-                FlashKernel.EscapeEnemy(ref x, owner);
+                BlitzKernel.EscapeEnemy(ref x, owner);
                 break;
         }
     }

@@ -1,38 +1,38 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Ironclad;
+namespace BlitzSolver.Content.Cards.Ironclad;
 
-[FlashContent("STRIKE_IRONCLAD")]
-public sealed class StrikeIronclad : FlashCardDef
+[BlitzContent("STRIKE_IRONCLAD")]
+public sealed class StrikeIronclad : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("DEFEND_IRONCLAD")]
-public sealed class DefendIronclad : FlashCardDef
+[BlitzContent("DEFEND_IRONCLAD")]
+public sealed class DefendIronclad : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
 }
 
-[FlashContent("BASH")]
-public sealed class Bash : FlashCardDef
+[BlitzContent("BASH")]
+public sealed class Bash : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "VulnerablePower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }

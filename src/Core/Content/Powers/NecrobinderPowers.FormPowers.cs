@@ -1,29 +1,29 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Powers;
+namespace BlitzSolver.Content.Powers;
 
 /// <summary>
 /// Native <c>DanseMacabrePower</c>: when its owner plays a card whose resolved energy cost is at
 /// least the power's <c>Energy</c> var (2), gain its amount of unpowered block
 /// (<c>BeforeCardPlayedMirrors.HandleDanseMacabrePower</c>).
 /// </summary>
-[FlashContent("DANSE_MACABRE_POWER")]
-public sealed class DanseMacabrePower : FlashPowerDef
+[BlitzContent("DANSE_MACABRE_POWER")]
+public sealed class DanseMacabrePower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
         if (x.CurrentPlayEnergyValue < x.R.PowerVar(Id, 0))
             return;
-        FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.B.Powers[self.Index].Amount,
-            FlashValueProps.Unpowered, fromCard: false);
+        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.B.Powers[self.Index].Amount,
+            BlitzValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -32,26 +32,26 @@ public sealed class DanseMacabrePower : FlashPowerDef
 /// damage, apply Doom to the target equal to TotalDamage × amount, with the power owner as applier
 /// and no card source (<c>AfterDamageGivenMirrors.HandleReaperFormPower</c>).
 /// </summary>
-[FlashContent("REAPER_FORM_POWER")]
-public sealed class ReaperFormPower : FlashPowerDef
+[BlitzContent("REAPER_FORM_POWER")]
+public sealed class ReaperFormPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterDamageGiven(ref FlashExec x, FlashListener self, in FlashDamageResult result,
+    public override void AfterDamageGiven(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result,
         byte dealer)
     {
-        if (dealer != FlashLimits.PlayerOwner && dealer != FlashLimits.OstyOwner)
+        if (dealer != BlitzLimits.PlayerOwner && dealer != BlitzLimits.OstyOwner)
             return;
         if (!result.Props.IsPoweredAttack())
             return;
         int total = result.BlockedDamage + result.UnblockedDamage;
         if (total <= 0)
             return;
-        if (!FlashRegistry.TryPower("DOOM_POWER", out ushort doom))
-            throw new FlashUnsupportedException("Doom 没有 Flash 定义。");
-        FlashKernel.ApplyPowerWithoutCardSource(ref x, result.Receiver, doom,
+        if (!BlitzRegistry.TryPower("DOOM_POWER", out ushort doom))
+            throw new BlitzUnsupportedException("Doom 没有 Blitz 定义。");
+        BlitzKernel.ApplyPowerWithoutCardSource(ref x, result.Receiver, doom,
             total * x.B.Powers[self.Index].Amount, self.Owner);
     }
 }

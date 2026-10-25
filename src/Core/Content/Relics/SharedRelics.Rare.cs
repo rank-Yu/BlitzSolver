@@ -1,34 +1,34 @@
-using CombatSolver.Flash.Content.Powers;
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Content.Powers;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Relics;
+namespace BlitzSolver.Content.Relics;
 
 /// <summary>
 /// <c>Bookmark</c>: after the turn-end flush, pick one retained hand card that is not X-cost and whose
 /// local cost is positive, and add an until-played −1
 /// (<c>SimulatedCombatState.TriggerBookmarkAfterFlush</c> / <c>CorePowerSupport.FlushPlayerHandAtTurnEnd</c>).
 /// </summary>
-[FlashContent("BOOKMARK")]
-public sealed class Bookmark : FlashRelicDef
+[BlitzContent("BOOKMARK")]
+public sealed class Bookmark : BlitzRelicDef
 {
-    public override void AfterFlush(ref FlashExec x, FlashListener self)
+    public override void AfterFlush(ref BlitzExec x, BlitzListener self)
     {
         int handCount = x.B.HandCount;
         Span<int> candidates = stackalloc int[handCount];
         int count = 0;
         for (int index = 0; index < handCount; index++)
         {
-            ref readonly FlashCard card = ref x.B.Cards[index];
-            if ((card.Flags & FlashCardFlags.CostsX) != 0)
+            ref readonly BlitzCard card = ref x.B.Cards[index];
+            if ((card.Flags & BlitzCardFlags.CostsX) != 0)
                 continue;
-            if (FlashKernel.EnergyCostWithLocalModifiers(x.B, card) > 0)
+            if (BlitzKernel.EnergyCostWithLocalModifiers(x.B, card) > 0)
                 candidates[count++] = index;
         }
         if (count == 0)
             return;
-        int pick = candidates[x.B.RngStream(FlashRngStream.CombatCardSelection).NextInt(0, count)];
-        FlashKernel.AddEnergyCostModifier(ref x.B.Cards[pick], -1, FlashCostType.Relative,
-            FlashCostExpiration.WhenPlayed, reduceOnly: false);
+        int pick = candidates[x.B.RngStream(BlitzRngStream.CombatCardSelection).NextInt(0, count)];
+        BlitzKernel.AddEnergyCostModifier(ref x.B.Cards[pick], -1, BlitzCostType.Relative,
+            BlitzCostExpiration.WhenPlayed, reduceOnly: false);
     }
 }
 
@@ -38,35 +38,35 @@ public sealed class Bookmark : FlashRelicDef
 /// <c>StatefulRelicState</c> Current/Previous pair and rotate in
 /// <c>SimulatedCombatState.RecordRelicRoundDamage</c>.
 /// </summary>
-[FlashContent("EMOTION_CHIP")]
-public sealed class EmotionChip : FlashRelicDef
+[BlitzContent("EMOTION_CHIP")]
+public sealed class EmotionChip : BlitzRelicDef
 {
-    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
     {
-        if (result.Receiver == FlashLimits.PlayerOwner && result.UnblockedDamage > 0)
+        if (result.Receiver == BlitzLimits.PlayerOwner && result.UnblockedDamage > 0)
             x.B.Relics[self.Index].Aux = 1;
     }
 
-    public override void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
+    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
     {
         if (x.B.Relics[self.Index].Counter == 0)
             return;
         int count = x.B.OrbCount;
         for (int index = 0; index < count; index++)
         {
-            FlashKernel.TriggerOrbPassive(ref x, index);
+            BlitzKernel.TriggerOrbPassive(ref x, index);
             if (x.NeedsChoice)
                 return;
         }
         // SimulatedCombatState.ReactiveRelics.TriggerEmotionChip runs
         // TriggeredPowerSupport.CompensateHistorySince after all passives; this is the one old call
         // site outside the card/potion/turn-end boundaries, so flush the deferred block-break here.
-        FlashKernel.ApplyBlockBreakCompensations(ref x);
+        BlitzKernel.ApplyBlockBreakCompensations(ref x);
     }
 
-    public override void AfterRelicRound(ref FlashExec x, FlashListener self)
+    public override void AfterRelicRound(ref BlitzExec x, BlitzListener self)
     {
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         relic.Counter = relic.Aux;
         relic.Aux = 0;
     }
@@ -77,19 +77,19 @@ public sealed class EmotionChip : FlashRelicDef
 /// deals its Unpowered Damage to every hittable enemy (<c>AfterOrbChanneledMirrors.HandleMetronome</c>).
 /// The counter is not reset by the trigger.
 /// </summary>
-[FlashContent("METRONOME")]
-public sealed class Metronome : FlashRelicDef
+[BlitzContent("METRONOME")]
+public sealed class Metronome : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "OrbCount"];
 
-    public override void AfterOrbChanneled(ref FlashExec x, FlashListener self, in FlashOrb orb)
+    public override void AfterOrbChanneled(ref BlitzExec x, BlitzListener self, in BlitzOrb orb)
     {
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
         if (relic.Counter != (int)x.R.RelicVar(Id, 1))
             return;
-        FlashCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered,
-            FlashLimits.PlayerOwner);
+        BlitzCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), BlitzValueProps.Unpowered,
+            BlitzLimits.PlayerOwner);
     }
 }
 
@@ -97,16 +97,16 @@ public sealed class Metronome : FlashRelicDef
 /// <c>ToughBandages</c>: after one of the current side's cards is discarded, gain its Block variable
 /// (Unpowered; <c>AfterCardDiscardedMirrors.HandleToughBandages</c>).
 /// </summary>
-[FlashContent("TOUGH_BANDAGES")]
-public sealed class ToughBandages : FlashRelicDef
+[BlitzContent("TOUGH_BANDAGES")]
+public sealed class ToughBandages : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void AfterCardDiscarded(ref FlashExec x, FlashListener self, in FlashCard card)
+    public override void AfterCardDiscarded(ref BlitzExec x, BlitzListener self, in BlitzCard card)
     {
-        if (x.B.Side != FlashSide.Player)
+        if (x.B.Side != BlitzSide.Player)
             return;
-        FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered,
+        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.R.RelicVar(Id, 0), BlitzValueProps.Unpowered,
             fromCard: false);
     }
 }
@@ -115,16 +115,16 @@ public sealed class ToughBandages : FlashRelicDef
 /// <c>LunarPastry</c>: gains its Stars variable at the end of each side turn it participates in
 /// (<c>SimulatedCombatState.TriggerRelicsAfterSideTurnEnd</c> case LunarPastry).
 /// </summary>
-[FlashContent("LUNAR_PASTRY")]
-public sealed class LunarPastry : FlashRelicDef
+[BlitzContent("LUNAR_PASTRY")]
+public sealed class LunarPastry : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Stars"];
 
-    public override void AfterSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void AfterSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side)
     {
-        if (side != FlashSide.Player)
+        if (side != BlitzSide.Player)
             return;
-        FlashKernel.GainStars(ref x, (int)x.R.RelicVar(Id, 0));
+        BlitzKernel.GainStars(ref x, (int)x.R.RelicVar(Id, 0));
     }
 }
 
@@ -132,18 +132,18 @@ public sealed class LunarPastry : FlashRelicDef
 /// <c>Chandelier</c>: <c>AfterSideTurnStart</c>, player turn 3, gains 3 energy
 /// (<c>TriggerRelicsAfterSideTurnStart</c>).
 /// </summary>
-[FlashContent("CHANDELIER")]
-public sealed class Chandelier : FlashRelicDef
+[BlitzContent("CHANDELIER")]
+public sealed class Chandelier : BlitzRelicDef
 {
     // Chandelier.cs: EnergyVar(3), _energyTurn = 3.
     private const int EnergyTurn = 3;
 
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void AfterSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
     {
-        if (side == FlashSide.Player && x.B.PlayerTurn == EnergyTurn)
-            FlashKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
+        if (side == BlitzSide.Player && x.B.PlayerTurn == EnergyTurn)
+            BlitzKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
     }
 }
 
@@ -151,19 +151,19 @@ public sealed class Chandelier : FlashRelicDef
 /// <c>CaptainsWheel</c>: <c>AfterBlockCleared</c>, player turn 3, gains 18 unpowered block
 /// (<c>SimulatedCombatState.ReactiveRelics.TriggerRelicsAfterBlockCleared</c>).
 /// </summary>
-[FlashContent("CAPTAINS_WHEEL")]
-public sealed class CaptainsWheel : FlashRelicDef
+[BlitzContent("CAPTAINS_WHEEL")]
+public sealed class CaptainsWheel : BlitzRelicDef
 {
     // CaptainsWheel.cs: BlockVar(18m, ValueProp.Unpowered); block turn 3 is a code constant.
     private const int BlockTurn = 3;
 
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void AfterBlockCleared(ref FlashExec x, FlashListener self)
+    public override void AfterBlockCleared(ref BlitzExec x, BlitzListener self)
     {
         if (x.B.PlayerTurn == BlockTurn)
-            FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.R.RelicVar(Id, 0),
-                FlashValueProps.Unpowered, fromCard: false);
+            BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.R.RelicVar(Id, 0),
+                BlitzValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -171,18 +171,18 @@ public sealed class CaptainsWheel : FlashRelicDef
 /// <c>CloakClasp</c>: <c>BeforeSideTurnEnd</c> hook (normal pass) gains 1 unpowered block per card in hand
 /// (<c>BeforeSideTurnEndMirrors.HandleCloakClasp</c>).
 /// </summary>
-[FlashContent("CLOAK_CLASP")]
-public sealed class CloakClasp : FlashRelicDef
+[BlitzContent("CLOAK_CLASP")]
+public sealed class CloakClasp : BlitzRelicDef
 {
     // CloakClasp.cs: BlockVar(1m, ValueProp.Unpowered), multiplied by the hand count.
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    public override void BeforeSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
     {
-        if (!FlashKernel.Participates(participants, self.Owner) || x.B.HandCount == 0)
+        if (!BlitzKernel.Participates(participants, self.Owner) || x.B.HandCount == 0)
             return;
-        FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.B.HandCount * x.R.RelicVar(Id, 0),
-            FlashValueProps.Unpowered, fromCard: false);
+        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.B.HandCount * x.R.RelicVar(Id, 0),
+            BlitzValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -191,19 +191,19 @@ public sealed class CloakClasp : FlashRelicDef
 /// hittable enemy (<c>BeforeSideTurnEndMirrors.HandleStoneCalendar</c>). The existing engine reads the
 /// turn number, not a private counter, so no imported state is needed.
 /// </summary>
-[FlashContent("STONE_CALENDAR")]
-public sealed class StoneCalendar : FlashRelicDef
+[BlitzContent("STONE_CALENDAR")]
+public sealed class StoneCalendar : BlitzRelicDef
 {
     // StoneCalendar.cs: DamageVar(52m, ValueProp.Unpowered), DynamicVar("DamageTurn", 7m).
     public override IReadOnlyList<string> VarNames => ["Damage", "DamageTurn"];
 
-    public override void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    public override void BeforeSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
     {
-        if (!FlashKernel.Participates(participants, self.Owner)
+        if (!BlitzKernel.Participates(participants, self.Owner)
             || x.B.PlayerTurn != (int)x.R.RelicVar(Id, 1))
             return;
-        FlashCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered,
-            FlashLimits.PlayerOwner);
+        BlitzCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), BlitzValueProps.Unpowered,
+            BlitzLimits.PlayerOwner);
     }
 }
 
@@ -211,17 +211,17 @@ public sealed class StoneCalendar : FlashRelicDef
 /// <c>GamePiece</c>: <c>AfterCardPlayed</c>, after a Power card, draws 1
 /// (<c>AfterCardPlayedMirrors.HandleGamePiece</c>).
 /// </summary>
-[FlashContent("GAME_PIECE")]
-public sealed class GamePiece : FlashRelicDef
+[BlitzContent("GAME_PIECE")]
+public sealed class GamePiece : BlitzRelicDef
 {
     // GamePiece.cs: CardsVar(1).
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power)
+        if (BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Power)
             return;
-        FlashKernel.Draw(ref x, (int)x.R.RelicVar(Id, 0), fromHandDraw: false);
+        BlitzKernel.Draw(ref x, (int)x.R.RelicVar(Id, 0), fromHandDraw: false);
     }
 }
 
@@ -229,37 +229,37 @@ public sealed class GamePiece : FlashRelicDef
 /// <c>RazorTooth</c>: <c>AfterCardPlayed</c> upgrades the played Attack or Skill when it is still
 /// upgradable (<c>AfterCardPlayedMirrors.HandleRazorTooth</c>).
 /// </summary>
-[FlashContent("RAZOR_TOOTH")]
-public sealed class RazorTooth : FlashRelicDef
+[BlitzContent("RAZOR_TOOTH")]
+public sealed class RazorTooth : BlitzRelicDef
 {
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        FlashCardStats stats = x.R.Card(play.Card.Id, play.Card.Upgrade);
-        if (stats.Type is not (FlashCardType.Attack or FlashCardType.Skill))
+        BlitzCardStats stats = x.R.Card(play.Card.Id, play.Card.Upgrade);
+        if (stats.Type is not (BlitzCardType.Attack or BlitzCardType.Skill))
             return;
         if (play.Card.Upgrade >= stats.MaxUpgradeLevel)
             return;
-        FlashCardEffects.UpgradeCurrentCard(ref x);
+        BlitzCardEffects.UpgradeCurrentCard(ref x);
     }
 }
 
 /// <summary>
 /// <c>IntimidatingHelmet</c>: <c>BeforeCardPlayed</c>, when the play's energy value is at least 2, gains
-/// 4 unpowered block (<c>BeforeCardPlayedMirrors.HandleIntimidatingHelmet</c>; Flash's
-/// <see cref="FlashExec.XValue"/> carries the same <c>CardPlay.Resources.EnergyValue</c>).
+/// 4 unpowered block (<c>BeforeCardPlayedMirrors.HandleIntimidatingHelmet</c>; Blitz's
+/// <see cref="BlitzExec.XValue"/> carries the same <c>CardPlay.Resources.EnergyValue</c>).
 /// </summary>
-[FlashContent("INTIMIDATING_HELMET")]
-public sealed class IntimidatingHelmet : FlashRelicDef
+[BlitzContent("INTIMIDATING_HELMET")]
+public sealed class IntimidatingHelmet : BlitzRelicDef
 {
     // IntimidatingHelmet.cs: BlockVar(4m, ValueProp.Unpowered), EnergyVar(2).
     public override IReadOnlyList<string> VarNames => ["Block", "Energy"];
 
-    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
         if (x.XValue < (int)x.R.RelicVar(Id, 1))
             return;
-        FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.R.RelicVar(Id, 0),
-            FlashValueProps.Unpowered, fromCard: false);
+        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.R.RelicVar(Id, 0),
+            BlitzValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -267,15 +267,15 @@ public sealed class IntimidatingHelmet : FlashRelicDef
 /// <c>CharonsAshes</c>: <c>AfterCardExhausted</c> deals 3 unpowered damage to every hittable enemy
 /// (<c>AfterCardExhaustedMirrors.HandleCharonsAshes</c>).
 /// </summary>
-[FlashContent("CHARONS_ASHES")]
-public sealed class CharonsAshes : FlashRelicDef
+[BlitzContent("CHARONS_ASHES")]
+public sealed class CharonsAshes : BlitzRelicDef
 {
     // CharonsAshes.cs: DamageVar(3m, ValueProp.Unpowered).
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void AfterCardExhausted(ref FlashExec x, FlashListener self, in FlashCard card, bool causedByEthereal)
-        => FlashCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered,
-            FlashLimits.PlayerOwner);
+    public override void AfterCardExhausted(ref BlitzExec x, BlitzListener self, in BlitzCard card, bool causedByEthereal)
+        => BlitzCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), BlitzValueProps.Unpowered,
+            BlitzLimits.PlayerOwner);
 }
 
 /// <summary>
@@ -283,17 +283,17 @@ public sealed class CharonsAshes : FlashRelicDef
 /// <c>BlockAfterPreventingClear</c> keeps at most 10
 /// (<c>PersistentRelicSupport.ShouldClearBlock</c>/<c>BlockAfterPreventingClear</c>).
 /// </summary>
-[FlashContent("STURDY_CLAMP")]
-public sealed class SturdyClamp : FlashRelicDef
+[BlitzContent("STURDY_CLAMP")]
+public sealed class SturdyClamp : BlitzRelicDef
 {
     // SturdyClamp.cs: BlockVar(10m, ValueProp.Unpowered); the engine reads DynamicVars.Block.
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override bool ShouldClearBlock(ref FlashExec x, FlashListener self, byte owner)
-        => owner != FlashLimits.PlayerOwner;
+    public override bool ShouldClearBlock(ref BlitzExec x, BlitzListener self, byte owner)
+        => owner != BlitzLimits.PlayerOwner;
 
-    public override int BlockAfterPreventingClear(ref FlashExec x, FlashListener self, byte owner, int block)
-        => owner == FlashLimits.PlayerOwner ? (int)Math.Min(block, x.R.RelicVar(Id, 0)) : block;
+    public override int BlockAfterPreventingClear(ref BlitzExec x, BlitzListener self, byte owner, int block)
+        => owner == BlitzLimits.PlayerOwner ? (int)Math.Min(block, x.R.RelicVar(Id, 0)) : block;
 }
 
 /// <summary>
@@ -301,13 +301,13 @@ public sealed class SturdyClamp : FlashRelicDef
 /// <c>HpLossReduction</c> (<c>ModifyHpLostMirrors</c> native fallback,
 /// <c>PredictionCoverage.IsVerifiedNativeRelicHook</c>). <c>AfterModifyingHpLostAfterOsty</c> only flashes.
 /// </summary>
-[FlashContent("TUNGSTEN_ROD")]
-public sealed class TungstenRod : FlashRelicDef
+[BlitzContent("TUNGSTEN_ROD")]
+public sealed class TungstenRod : BlitzRelicDef
 {
     // TungstenRod.cs: DynamicVar("HpLossReduction", 1m).
     public override IReadOnlyList<string> VarNames => ["HpLossReduction"];
 
-    public override decimal ModifyHpLostAfterOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss,
+    public override decimal ModifyHpLostAfterOsty(ref BlitzExec x, BlitzListener self, in BlitzHpLossContext loss,
         decimal amount)
     {
         if (loss.Target != self.Owner)
@@ -321,13 +321,13 @@ public sealed class TungstenRod : FlashRelicDef
 /// <c>CombatCardSelection</c> stream and makes it free this turn
 /// (<c>AfterCardPlayedMirrors.HandleMummifiedHand</c>; native <c>CardModel.SetToFreeThisTurn</c>).
 /// </summary>
-[FlashContent("MUMMIFIED_HAND")]
-public sealed class MummifiedHand : FlashRelicDef
+[BlitzContent("MUMMIFIED_HAND")]
+public sealed class MummifiedHand : BlitzRelicDef
 {
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B)
-            || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power)
+        if (!BlitzKernel.IsInProgress(x.B)
+            || BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Power)
             return;
         // Native: naturallyCostly.Where(CostsResources), then all hand.Where(CostsResources),
         // then naturallyCostly, then all hand. Rng.NextItem consumes the stream only for a non-empty list.
@@ -343,10 +343,10 @@ public sealed class MummifiedHand : FlashRelicDef
         // CardModel.SetToFreeThisTurn: the energy modifier is only added when the card's base cost is
         // not negative (an Unplayable card stays Unplayable with no modifier), and the star cost is
         // set to 0 for this turn.
-        FlashKernel.MakeFreeThisTurn(x.R, ref x.B.Cards[index]);
+        BlitzKernel.MakeFreeThisTurn(x.R, ref x.B.Cards[index]);
     }
 
-    private static int PickHandCard(ref FlashExec x, bool naturallyCostly, bool costsResources)
+    private static int PickHandCard(ref BlitzExec x, bool naturallyCostly, bool costsResources)
     {
         int matches = 0;
         for (int index = 0; index < x.B.HandCount; index++)
@@ -356,7 +356,7 @@ public sealed class MummifiedHand : FlashRelicDef
         }
         if (matches == 0)
             return -1;
-        int pick = x.B.RngStream(FlashRngStream.CombatCardSelection).NextInt(0, matches);
+        int pick = x.B.RngStream(BlitzRngStream.CombatCardSelection).NextInt(0, matches);
         for (int index = 0; index < x.B.HandCount; index++)
         {
             if (!Matches(ref x, index, naturallyCostly, costsResources))
@@ -367,41 +367,41 @@ public sealed class MummifiedHand : FlashRelicDef
         throw new InvalidOperationException("手牌随机选择没有落到任何候选。");
     }
 
-    private static bool Matches(ref FlashExec x, int index, bool naturallyCostly, bool costsResources)
+    private static bool Matches(ref BlitzExec x, int index, bool naturallyCostly, bool costsResources)
     {
         if (naturallyCostly && !IsNaturallyCostly(x.B, x.B.Cards[index]))
             return false;
         if (!costsResources)
             return true;
-        ref readonly FlashCard card = ref x.B.Cards[index];
-        return FlashKernel.EnergyCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0
-            || FlashKernel.StarCostWithModifiers(x.B, x.R, card, FlashPile.Hand) > 0;
+        ref readonly BlitzCard card = ref x.B.Cards[index];
+        return BlitzKernel.EnergyCostWithModifiers(x.B, x.R, card, BlitzPile.Hand) > 0
+            || BlitzKernel.StarCostWithModifiers(x.B, x.R, card, BlitzPile.Hand) > 0;
     }
 
     /// <summary>
     /// <c>CardEnergyCost.GetWithModifiers(CostModifiers.None)</c>: the current base cost (upgrade
     /// included) without local or global modifiers. A negative (Unplayable) or X cost is not costly.
     /// </summary>
-    private static bool IsNaturallyCostly(in FlashBattle battle, in FlashCard card)
+    private static bool IsNaturallyCostly(in BlitzBattle battle, in BlitzCard card)
         => card.BaseStarCost > 0 || card.BaseCost > 0;
 }
 
 /// <summary>
 /// <c>IvoryTile</c>: <c>AfterCardPlayed</c> gains Energy when the play's energy value reaches
-/// <c>EnergyThreshold</c> (<c>AfterCardPlayedMirrors.HandleIvoryTile</c>; <see cref="FlashExec.XValue"/>
+/// <c>EnergyThreshold</c> (<c>AfterCardPlayedMirrors.HandleIvoryTile</c>; <see cref="BlitzExec.XValue"/>
 /// carries <c>CardPlay.Resources.EnergyValue</c>).
 /// </summary>
-[FlashContent("IVORY_TILE")]
-public sealed class IvoryTile : FlashRelicDef
+[BlitzContent("IVORY_TILE")]
+public sealed class IvoryTile : BlitzRelicDef
 {
     // IvoryTile.cs: EnergyVar(1), EnergyVar("EnergyThreshold", 3).
     public override IReadOnlyList<string> VarNames => ["Energy", "EnergyThreshold"];
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
         if (x.XValue < (int)x.R.RelicVar(Id, 1))
             return;
-        FlashKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
+        BlitzKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
     }
 }
 
@@ -409,10 +409,10 @@ public sealed class IvoryTile : FlashRelicDef
 /// <c>IceCream</c>: the player keeps their energy between turns after the first
 /// (<c>PersistentRelicSupport.ShouldPlayerResetEnergy</c>: the native relic returns false from turn 2).
 /// </summary>
-[FlashContent("ICE_CREAM")]
-public sealed class IceCream : FlashRelicDef
+[BlitzContent("ICE_CREAM")]
+public sealed class IceCream : BlitzRelicDef
 {
-    public override bool ShouldPlayerResetEnergy(in FlashBattle battle, FlashRules rules, FlashListener self,
+    public override bool ShouldPlayerResetEnergy(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
         byte player)
         => self.Owner != player || battle.PlayerTurn <= 1;
 }
@@ -421,21 +421,21 @@ public sealed class IceCream : FlashRelicDef
 /// <c>RuinedHelmet</c>: the first positive Strength received this combat is doubled
 /// (<c>SimulatedCombatState.ModifyPowerAmountForRelics</c> / <c>ModifyPowerAmountForRuinedHelmet</c>,
 /// native <c>TryModifyPowerAmountReceived</c> and <c>AfterModifyingPowerAmountReceived</c>). The
-/// used flag lives in <see cref="FlashRelicFlags.UsedThisCombat"/>; the bridge projects
+/// used flag lives in <see cref="BlitzRelicFlags.UsedThisCombat"/>; the bridge projects
 /// <c>RuinedHelmet._usedThisCombat</c>.
 /// </summary>
-[FlashContent("RUINED_HELMET")]
-public sealed class RuinedHelmet : FlashRelicDef
+[BlitzContent("RUINED_HELMET")]
+public sealed class RuinedHelmet : BlitzRelicDef
 {
-    public override bool TryModifyPowerAmountReceived(in FlashBattle battle, FlashRules rules, FlashListener self,
+    public override bool TryModifyPowerAmountReceived(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
         ushort powerId, byte target, int amount, out int modified)
     {
         modified = amount;
         if (amount <= 0
             || target != self.Owner
-            || !FlashRegistry.TryPower("STRENGTH_POWER", out ushort strength)
+            || !BlitzRegistry.TryPower("STRENGTH_POWER", out ushort strength)
             || powerId != strength
-            || (battle.Relics[self.Index].Flags & FlashRelicFlags.UsedThisCombat) != 0)
+            || (battle.Relics[self.Index].Flags & BlitzRelicFlags.UsedThisCombat) != 0)
         {
             return false;
         }
@@ -443,9 +443,9 @@ public sealed class RuinedHelmet : FlashRelicDef
         return true;
     }
 
-    public override void AfterModifyingPowerAmountReceived(ref FlashExec x, FlashListener self, ushort powerId,
+    public override void AfterModifyingPowerAmountReceived(ref BlitzExec x, BlitzListener self, ushort powerId,
         byte target)
-        => x.B.Relics[self.Index].Flags |= FlashRelicFlags.UsedThisCombat;
+        => x.B.Relics[self.Index].Flags |= BlitzRelicFlags.UsedThisCombat;
 }
 
 /// <summary>
@@ -453,88 +453,88 @@ public sealed class RuinedHelmet : FlashRelicDef
 /// <c>SimulatedCombatState.TriggerRelicsAfterHandEmptied</c> (the existing engine does not dispatch a
 /// generic relic hook for it), so the definition only makes the relic admissible.
 /// </summary>
-[FlashContent("UNCEASING_TOP")]
-public sealed class UnceasingTop : FlashRelicDef;
+[BlitzContent("UNCEASING_TOP")]
+public sealed class UnceasingTop : BlitzRelicDef;
 
 /// <summary>
 /// <c>Bellows</c>: <c>AfterPlayerTurnStart</c> upgrades the hand only when the turn number is &lt;= 1
 /// (<c>ContinueRelicsAfterPlayerTurnStart</c>). The player turn 1 start is before the root and turn 2 no
 /// longer satisfies the condition.
 /// </summary>
-[FlashContent("BELLOWS")]
-public sealed class Bellows : FlashRelicDef;
+[BlitzContent("BELLOWS")]
+public sealed class Bellows : BlitzRelicDef;
 
 /// <summary>
 /// <c>GamblingChip</c>: <c>AfterPlayerTurnStart</c> offers its discard/draw choice only on turn 1
 /// (<c>TurnStartChoiceSupport.ResolveDiscardAndDraw</c> from <c>ContinueRelicsAfterPlayerTurnStart</c>).
 /// The choice belongs to the player turn start, before the play-phase root.
 /// </summary>
-[FlashContent("GAMBLING_CHIP")]
-public sealed class GamblingChip : FlashRelicDef;
+[BlitzContent("GAMBLING_CHIP")]
+public sealed class GamblingChip : BlitzRelicDef;
 
 /// <summary>
 /// <c>VexingPuzzlebox</c>: <c>AfterPlayerTurnStart</c> generates one free card only when the turn number is
 /// 1 (<c>ContinueRelicsAfterPlayerTurnStart</c>), at the player turn start before the play-phase root.
 /// </summary>
-[FlashContent("VEXING_PUZZLEBOX")]
-public sealed class VexingPuzzlebox : FlashRelicDef
+[BlitzContent("VEXING_PUZZLEBOX")]
+public sealed class VexingPuzzlebox : BlitzRelicDef
 {
     // Turn-start generation samples the character pool; the turn-setup root is captured before
     // this hook fires, so the rules table must carry the generated card stats.
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
 }
 
 /// <summary><c>FrozenEgg</c>: merchant/card-reward upgrade hooks and <c>IsAllowed</c> only.</summary>
-[FlashContent("FROZEN_EGG")]
-public sealed class FrozenEgg : FlashRelicDef;
+[BlitzContent("FROZEN_EGG")]
+public sealed class FrozenEgg : BlitzRelicDef;
 
 /// <summary><c>Girya</c>: <c>AfterRoomEntered</c>, <c>TryModifyRestSiteOptions</c> and <c>IsAllowed</c> only.</summary>
-[FlashContent("GIRYA")]
-public sealed class Girya : FlashRelicDef;
+[BlitzContent("GIRYA")]
+public sealed class Girya : BlitzRelicDef;
 
 /// <summary><c>Mango</c>: <c>AfterObtained</c> max-HP gain only.</summary>
-[FlashContent("MANGO")]
-public sealed class Mango : FlashRelicDef;
+[BlitzContent("MANGO")]
+public sealed class Mango : BlitzRelicDef;
 
 /// <summary>
 /// <c>MeatOnTheBone</c>: <c>BeforeCombatStart</c> and <c>AfterCurrentHpChanged</c> only maintain the
 /// relic status for the after-victory heal in <c>AfterCombatVictoryEarly</c>. The existing engine's
 /// combat-hook catalog marks it NotCombatRelevant, so there is no combat dispatch to mirror.
 /// </summary>
-[FlashContent("MEAT_ON_THE_BONE")]
-public sealed class MeatOnTheBone : FlashRelicDef;
+[BlitzContent("MEAT_ON_THE_BONE")]
+public sealed class MeatOnTheBone : BlitzRelicDef;
 
 /// <summary><c>MoltenEgg</c>: merchant/card-reward upgrade hooks and <c>IsAllowed</c> only.</summary>
-[FlashContent("MOLTEN_EGG")]
-public sealed class MoltenEgg : FlashRelicDef;
+[BlitzContent("MOLTEN_EGG")]
+public sealed class MoltenEgg : BlitzRelicDef;
 
 /// <summary><c>OldCoin</c>: <c>AfterObtained</c> gold gain and <c>IsAllowed</c> only.</summary>
-[FlashContent("OLD_COIN")]
-public sealed class OldCoin : FlashRelicDef;
+[BlitzContent("OLD_COIN")]
+public sealed class OldCoin : BlitzRelicDef;
 
 /// <summary><c>PrayerWheel</c>: <c>TryModifyRewards</c> only.</summary>
-[FlashContent("PRAYER_WHEEL")]
-public sealed class PrayerWheel : FlashRelicDef;
+[BlitzContent("PRAYER_WHEEL")]
+public sealed class PrayerWheel : BlitzRelicDef;
 
 /// <summary><c>Shovel</c>: <c>TryModifyRestSiteOptions</c> and <c>IsAllowed</c> only.</summary>
-[FlashContent("SHOVEL")]
-public sealed class Shovel : FlashRelicDef;
+[BlitzContent("SHOVEL")]
+public sealed class Shovel : BlitzRelicDef;
 
 /// <summary><c>TheCourier</c>: <c>ModifyMerchantPrice</c> and <c>ShouldRefillMerchantEntry</c> only.</summary>
-[FlashContent("THE_COURIER")]
-public sealed class TheCourier : FlashRelicDef;
+[BlitzContent("THE_COURIER")]
+public sealed class TheCourier : BlitzRelicDef;
 
 /// <summary><c>ToxicEgg</c>: merchant/card-reward upgrade hooks and <c>IsAllowed</c> only.</summary>
-[FlashContent("TOXIC_EGG")]
-public sealed class ToxicEgg : FlashRelicDef;
+[BlitzContent("TOXIC_EGG")]
+public sealed class ToxicEgg : BlitzRelicDef;
 
 /// <summary><c>WhiteBeastStatue</c>: <c>ShouldForcePotionReward</c> and <c>IsAllowed</c> only.</summary>
-[FlashContent("WHITE_BEAST_STATUE")]
-public sealed class WhiteBeastStatue : FlashRelicDef;
+[BlitzContent("WHITE_BEAST_STATUE")]
+public sealed class WhiteBeastStatue : BlitzRelicDef;
 
 /// <summary><c>WhiteStar</c>: <c>TryModifyRewards</c> and <c>IsAllowed</c> only.</summary>
-[FlashContent("WHITE_STAR")]
-public sealed class WhiteStar : FlashRelicDef;
+[BlitzContent("WHITE_STAR")]
+public sealed class WhiteStar : BlitzRelicDef;
 
 /// <summary>
 /// <c>ArtOfWar</c>: <c>AfterCardPlayed</c> marks an attack played this turn; <c>AfterSideTurnEnd</c>
@@ -543,32 +543,32 @@ public sealed class WhiteStar : FlashRelicDef;
 /// <c>TriggerRelicsAfterEnergyReset</c>).
 /// Counter = any attack played this turn (0/1), Aux = any attack played last turn (0/1).
 /// </summary>
-[FlashContent("ART_OF_WAR")]
-public sealed class ArtOfWar : FlashRelicDef
+[BlitzContent("ART_OF_WAR")]
+public sealed class ArtOfWar : BlitzRelicDef
 {
     // ArtOfWar.cs: EnergyVar("GainEnergy", 1).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (FlashKernel.CardType(x.B, x.R, play.Card) == FlashCardType.Attack)
+        if (BlitzKernel.CardType(x.B, x.R, play.Card) == BlitzCardType.Attack)
             x.B.Relics[self.Index].Counter = 1;
     }
 
-    public override void AfterSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void AfterSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side)
     {
-        if (side != FlashSide.Player)
+        if (side != BlitzSide.Player)
             return;
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         relic.Aux = relic.Counter;
         relic.Counter = 0;
     }
 
-    public override void AfterEnergyReset(ref FlashExec x, FlashListener self)
+    public override void AfterEnergyReset(ref BlitzExec x, BlitzListener self)
     {
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         if (x.B.PlayerTurn > 1 && relic.Aux == 0)
-            FlashKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
+            BlitzKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
         relic.Counter = 0;
         relic.Aux = 0;
     }
@@ -580,20 +580,20 @@ public sealed class ArtOfWar : FlashRelicDef
 /// <c>RelicPredictionStateSupport.ResetBeforeSideTurnStart</c>).
 /// Counter = 1 once triggered this turn.
 /// </summary>
-[FlashContent("DEMON_TONGUE")]
-public sealed class DemonTongue : FlashRelicDef
+[BlitzContent("DEMON_TONGUE")]
+public sealed class DemonTongue : BlitzRelicDef
 {
-    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
     {
-        if (!FlashKernel.IsInProgress(x.B) || x.B.Side != FlashSide.Player
-            || result.Receiver != FlashLimits.PlayerOwner || result.UnblockedDamage <= 0
+        if (!BlitzKernel.IsInProgress(x.B) || x.B.Side != BlitzSide.Player
+            || result.Receiver != BlitzLimits.PlayerOwner || result.UnblockedDamage <= 0
             || x.B.Relics[self.Index].Counter != 0)
             return;
         x.B.Relics[self.Index].Counter = 1;
-        FlashKernel.Heal(ref x, FlashLimits.PlayerOwner, result.UnblockedDamage);
+        BlitzKernel.Heal(ref x, BlitzLimits.PlayerOwner, result.UnblockedDamage);
     }
 
-    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
         => x.B.Relics[self.Index].Counter = 0;
 }
 
@@ -603,26 +603,26 @@ public sealed class DemonTongue : FlashRelicDef
 /// <c>RelicPredictionStateSupport.ResetBeforeSideTurnStart</c>).
 /// Counter = attacks played this turn.
 /// </summary>
-[FlashContent("KUNAI")]
-public sealed class Kunai : FlashRelicDef
+[BlitzContent("KUNAI")]
+public sealed class Kunai : BlitzRelicDef
 {
     // Kunai.cs: CardsVar(3), PowerVar<DexterityPower>(1m).
     public override IReadOnlyList<string> VarNames => ["Cards", "DexterityPower"];
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B) || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
+        if (!BlitzKernel.IsInProgress(x.B) || BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Attack)
             return;
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
         // ApplyRelicStatPower declines while the combat is ending; the counter still increments.
-        if (relic.Counter % (int)x.R.RelicVar(Id, 0) != 0 || FlashKernel.IsEnding(x.B))
+        if (relic.Counter % (int)x.R.RelicVar(Id, 0) != 0 || BlitzKernel.IsEnding(x.B))
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<DexterityPower>(),
-            (int)x.R.RelicVar(Id, 1), FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<DexterityPower>(),
+            (int)x.R.RelicVar(Id, 1), BlitzLimits.PlayerOwner);
     }
 
-    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
         => x.B.Relics[self.Index].Counter = 0;
 }
 
@@ -634,23 +634,23 @@ public sealed class Kunai : FlashRelicDef
 /// <c>PersistentPowerSupport.GetStatefulRelicHandDrawContribution</c>).
 /// Counter = cards played this turn, Aux = cards played last turn.
 /// </summary>
-[FlashContent("POCKETWATCH")]
-public sealed class Pocketwatch : FlashRelicDef
+[BlitzContent("POCKETWATCH")]
+public sealed class Pocketwatch : BlitzRelicDef
 {
     // Pocketwatch.cs: DynamicVar("CardThreshold", 3m), CardsVar(3).
     public override IReadOnlyList<string> VarNames => ["CardThreshold", "Cards"];
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
         => x.B.Relics[self.Index].Counter++;
 
-    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
     {
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         relic.Aux = relic.Counter;
         relic.Counter = 0;
     }
 
-    public override decimal ModifyHandDraw(ref FlashExec x, FlashListener self, decimal amount)
+    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
     {
         if (x.B.PlayerTurn == 1 || x.B.Relics[self.Index].Aux > x.R.RelicVar(Id, 0))
             return amount;
@@ -663,40 +663,40 @@ public sealed class Pocketwatch : FlashRelicDef
 /// applies Strength and Dexterity and stops counting (<c>AfterCardPlayedMirrors.HandleRainbowRing</c>,
 /// <c>BeforeSideTurnStart</c> reset). Counter = activation count this turn (the latch), Aux = Powers
 /// played this turn; the attack and Skill counts are the kernel's
-/// <see cref="FlashCounter.AttacksPlayedThisTurn"/> and <see cref="FlashCounter.SkillCardsPlayedThisTurn"/>
+/// <see cref="BlitzCounter.AttacksPlayedThisTurn"/> and <see cref="BlitzCounter.SkillCardsPlayedThisTurn"/>
 /// (the existing engine's own fields are not read after the latch closes).
 /// </summary>
-[FlashContent("RAINBOW_RING")]
-public sealed class RainbowRing : FlashRelicDef
+[BlitzContent("RAINBOW_RING")]
+public sealed class RainbowRing : BlitzRelicDef
 {
     // RainbowRing.cs: PowerVar<StrengthPower>(1m), PowerVar<DexterityPower>(1m).
     public override IReadOnlyList<string> VarNames => ["StrengthPower", "DexterityPower"];
 
-    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
     {
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         relic.Counter = 0;
         relic.Aux = 0;
     }
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B) || x.B.Relics[self.Index].Counter >= 1)
+        if (!BlitzKernel.IsInProgress(x.B) || x.B.Relics[self.Index].Counter >= 1)
             return;
-        FlashCardType type = FlashKernel.CardType(x.B, x.R, play.Card);
-        int attacks = x.B.Counter(FlashCounter.AttacksPlayedThisTurn) + (type == FlashCardType.Attack ? 1 : 0);
-        int skills = x.B.Counter(FlashCounter.SkillCardsPlayedThisTurn) + (type == FlashCardType.Skill ? 1 : 0);
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
-        if (type == FlashCardType.Power)
+        BlitzCardType type = BlitzKernel.CardType(x.B, x.R, play.Card);
+        int attacks = x.B.Counter(BlitzCounter.AttacksPlayedThisTurn) + (type == BlitzCardType.Attack ? 1 : 0);
+        int skills = x.B.Counter(BlitzCounter.SkillCardsPlayedThisTurn) + (type == BlitzCardType.Skill ? 1 : 0);
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        if (type == BlitzCardType.Power)
             relic.Aux++;
         if (attacks == 0 || skills == 0 || relic.Aux == 0)
             return;
-        if (!FlashKernel.IsEnding(x.B))
+        if (!BlitzKernel.IsEnding(x.B))
         {
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<StrengthPower>(),
-                (int)x.R.RelicVar(Id, 0), FlashLimits.PlayerOwner);
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<DexterityPower>(),
-                (int)x.R.RelicVar(Id, 1), FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<StrengthPower>(),
+                (int)x.R.RelicVar(Id, 0), BlitzLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<DexterityPower>(),
+                (int)x.R.RelicVar(Id, 1), BlitzLimits.PlayerOwner);
         }
         relic.Counter = 1;
     }
@@ -707,26 +707,26 @@ public sealed class RainbowRing : FlashRelicDef
 /// <c>BeforeSideTurnStart</c> resets the counter (<c>AfterCardPlayedMirrors.HandleShuriken</c>).
 /// Counter = attacks played this turn.
 /// </summary>
-[FlashContent("SHURIKEN")]
-public sealed class Shuriken : FlashRelicDef
+[BlitzContent("SHURIKEN")]
+public sealed class Shuriken : BlitzRelicDef
 {
     // Shuriken.cs: CardsVar(3), PowerVar<StrengthPower>(1m).
     public override IReadOnlyList<string> VarNames => ["Cards", "StrengthPower"];
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (!FlashKernel.IsInProgress(x.B) || FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Attack)
+        if (!BlitzKernel.IsInProgress(x.B) || BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Attack)
             return;
-        ref FlashRelic relic = ref x.B.Relics[self.Index];
+        ref BlitzRelic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
         // ApplyRelicStatPower declines while the combat is ending; the counter still increments.
-        if (relic.Counter % (int)x.R.RelicVar(Id, 0) != 0 || FlashKernel.IsEnding(x.B))
+        if (relic.Counter % (int)x.R.RelicVar(Id, 0) != 0 || BlitzKernel.IsEnding(x.B))
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<StrengthPower>(),
-            (int)x.R.RelicVar(Id, 1), FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<StrengthPower>(),
+            (int)x.R.RelicVar(Id, 1), BlitzLimits.PlayerOwner);
     }
 
-    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
         => x.B.Relics[self.Index].Counter = 0;
 }
 
@@ -740,13 +740,13 @@ public sealed class Shuriken : FlashRelicDef
 /// integer <c>UnblockedDamage</c>); the bridge projects
 /// <c>BeatingRemnantPredictionState.DamageReceivedThisTurn</c>.
 /// </summary>
-[FlashContent("BEATING_REMNANT")]
-public sealed class BeatingRemnant : FlashRelicDef
+[BlitzContent("BEATING_REMNANT")]
+public sealed class BeatingRemnant : BlitzRelicDef
 {
     // BeatingRemnant.cs: DynamicVar("MaxHpLoss", 20m).
     public override IReadOnlyList<string> VarNames => ["MaxHpLoss"];
 
-    public override decimal ModifyHpLostAfterOsty(ref FlashExec x, FlashListener self, in FlashHpLossContext loss,
+    public override decimal ModifyHpLostAfterOsty(ref BlitzExec x, BlitzListener self, in BlitzHpLossContext loss,
         decimal amount)
     {
         if (loss.Target != self.Owner)
@@ -754,13 +754,13 @@ public sealed class BeatingRemnant : FlashRelicDef
         return Math.Min(amount, x.R.RelicVar(Id, 0) - x.B.Relics[self.Index].Counter);
     }
 
-    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
     {
         if (result.Receiver == self.Owner)
             x.B.Relics[self.Index].Counter += result.UnblockedDamage;
     }
 
-    public override void BeforeSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
         => x.B.Relics[self.Index].Counter = 0;
 }
 
@@ -770,26 +770,26 @@ public sealed class BeatingRemnant : FlashRelicDef
 /// (<c>DeathPreventerMirrors.LizardTailMirrors</c>). Counter = WasUsed (0/1); the bridge projects
 /// <c>LizardTailPredictionState.WasUsed</c>.
 /// </summary>
-[FlashContent("LIZARD_TAIL")]
-public sealed class LizardTail : FlashRelicDef
+[BlitzContent("LIZARD_TAIL")]
+public sealed class LizardTail : BlitzRelicDef
 {
     // LizardTail.cs: HealVar(50m).
     public override IReadOnlyList<string> VarNames => ["Heal"];
 
-    public override bool ShouldDieLate(ref FlashExec x, FlashListener self, byte creature)
+    public override bool ShouldDieLate(ref BlitzExec x, BlitzListener self, byte creature)
         => creature != self.Owner || x.B.Relics[self.Index].Counter != 0;
 
-    public override void AfterPreventingDeath(ref FlashExec x, FlashListener self, byte creature)
+    public override void AfterPreventingDeath(ref BlitzExec x, BlitzListener self, byte creature)
     {
         x.B.Relics[self.Index].Counter = 1;
         decimal amount = Math.Max(1m, x.B.Creature(creature).MaxHp * (x.R.RelicVar(Id, 0) / 100m));
         int hpBeforeRevive = x.B.Creature(creature).CurrentHp;
-        FlashKernel.Heal(ref x, creature, amount);
+        BlitzKernel.Heal(ref x, creature, amount);
         int restored = x.B.Creature(creature).CurrentHp - hpBeforeRevive;
         if (restored > 0)
         {
-            x.B.AddCounter(FlashCounter.DeathSaveRelicHpRestored, restored);
-            x.B.AddCounter(FlashCounter.DeathSaveUseCount, 1);
+            x.B.AddCounter(BlitzCounter.DeathSaveRelicHpRestored, restored);
+            x.B.AddCounter(BlitzCounter.DeathSaveUseCount, 1);
         }
     }
 }
@@ -798,34 +798,34 @@ public sealed class LizardTail : FlashRelicDef
 /// <c>HelicalDart</c>: after a card with the Shiv tag is played, apply 1 temporary Dexterity
 /// (<c>AfterCardPlayedMirrors.HandleHelicalDart</c> → <c>ApplyTemporaryDexterity</c>).
 /// </summary>
-[FlashContent("HELICAL_DART")]
-public sealed class HelicalDart : FlashRelicDef
+[BlitzContent("HELICAL_DART")]
+public sealed class HelicalDart : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if ((x.R.Card(play.Card.Id, play.Card.Upgrade).Tags & FlashCardTag.Shiv) == 0)
+        if ((x.R.Card(play.Card.Id, play.Card.Upgrade).Tags & BlitzCardTag.Shiv) == 0)
             return;
         int amount = (int)x.R.RelicVar(Id, 0);
-        ushort temporary = FlashRegistry.PowerId<Powers.HelicalDartPower>();
-        ushort dexterity = FlashRegistry.PowerId<Powers.DexterityPower>();
-        bool alreadyApplied = FlashKernel.GetAmount(x.B, FlashLimits.PlayerOwner, temporary) != 0;
+        ushort temporary = BlitzRegistry.PowerId<Powers.HelicalDartPower>();
+        ushort dexterity = BlitzRegistry.PowerId<Powers.DexterityPower>();
+        bool alreadyApplied = BlitzKernel.GetAmount(x.B, BlitzLimits.PlayerOwner, temporary) != 0;
         if (!alreadyApplied)
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, dexterity, amount, FlashLimits.PlayerOwner);
-        int applied = FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, temporary, amount,
-            FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, dexterity, amount, BlitzLimits.PlayerOwner);
+        int applied = BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, temporary, amount,
+            BlitzLimits.PlayerOwner);
         if (alreadyApplied && applied != 0)
-            FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, dexterity, applied, FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, dexterity, applied, BlitzLimits.PlayerOwner);
     }
 }
 
 /// <summary>
 /// <c>PaperKrane</c>: <c>ModifyWeakMultiplier</c> subtracts 0.15 for powered attacks against the
-/// owner. The existing engine routes it through <c>WeakPower</c>'s multiplier; the Flash kernel reads
+/// owner. The existing engine routes it through <c>WeakPower</c>'s multiplier; the Blitz kernel reads
 /// the relic there, so this definition only declares the rule-table variable.
 /// </summary>
-[FlashContent("PAPER_KRANE")]
-public sealed class PaperKrane : FlashRelicDef
+[BlitzContent("PAPER_KRANE")]
+public sealed class PaperKrane : BlitzRelicDef
 {
 }

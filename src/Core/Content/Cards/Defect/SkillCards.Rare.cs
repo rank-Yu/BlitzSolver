@@ -1,44 +1,44 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Defect;
+namespace BlitzSolver.Content.Cards.Defect;
 
-[FlashContent("GENETIC_ALGORITHM")]
-public sealed class GeneticAlgorithm : FlashCardDef
+[BlitzContent("GENETIC_ALGORITHM")]
+public sealed class GeneticAlgorithm : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block", "Increase"];
 
     // CardEffectSpecRegistry.GeneticAlgorithm: block, then IncreasedBlock += Increase and
     // CurrentBlock = 1 + IncreasedBlock. The deck version also records long-term growth.
     // IncreasedBlock is carried in Private (ProjectPrivate).
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralBlock(ref x, 0);
+        BlitzCardEffects.GeneralBlock(ref x, 0);
         if (x.NeedsChoice)
             return;
-        int increase = (int)FlashCardEffects.Var(x, 1);
+        int increase = (int)BlitzCardEffects.Var(x, 1);
         if (increase <= 0)
             return;
         int position = x.B.PlayCount - 1;
         if (position < 0)
             throw new InvalidOperationException("基因算法没有正在打出的卡。");
-        ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
+        ref BlitzCard played = ref BlitzPiles.At(ref x.B, BlitzPile.Play, position);
         if (played.Id != x.Card.Id)
             throw new InvalidOperationException("打出堆顶不是当前卡。");
         if (increase > short.MaxValue - played.Var0 || increase > short.MaxValue - played.Private)
-            throw new FlashUnsupportedException("基因算法的格挡累加超出卡牌私有计数范围。");
+            throw new BlitzUnsupportedException("基因算法的格挡累加超出卡牌私有计数范围。");
         played.Var0 = (short)(played.Var0 + increase);
         played.Private = (short)(played.Private + increase);
         x.Card = played;
-        if ((played.Flags & FlashCardFlags.DeckCard) != 0)
+        if ((played.Flags & BlitzCardFlags.DeckCard) != 0)
         {
-            x.B.AddCounter(FlashCounter.LongTermResourceValue, increase);
-            FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.GeneticAlgorithm);
+            x.B.AddCounter(BlitzCounter.LongTermResourceValue, increase);
+            BlitzGrowthRewards.Add(ref x.B, BlitzGrowthSource.GeneticAlgorithm);
         }
     }
 
-    public override void ProjectPrivate(ref FlashCard card) => card.Private = card.Var0;
+    public override void ProjectPrivate(ref BlitzCard card) => card.Private = card.Var0;
 
-    public override void AfterDowngraded(ref FlashBattle battle, int position)
+    public override void AfterDowngraded(ref BlitzBattle battle, int position)
     {
         // GeneticAlgorithm.AfterDowngraded → UpdateBlock: CurrentBlock = 1 + IncreasedBlock. Level 0's
         // canonical Block is 1, so the delta is IncreasedBlock.
@@ -46,101 +46,101 @@ public sealed class GeneticAlgorithm : FlashCardDef
     }
 }
 
-[FlashContent("RAINBOW")]
-public sealed class Rainbow : FlashCardDef
+[BlitzContent("RAINBOW")]
+public sealed class Rainbow : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashKernel.ChannelOrb(ref x, FlashKernel.OrbId("LIGHTNING_ORB"));
+        BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("LIGHTNING_ORB"));
         if (x.NeedsChoice)
             return;
-        FlashKernel.ChannelOrb(ref x, FlashKernel.OrbId("FROST_ORB"));
+        BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("FROST_ORB"));
         if (x.NeedsChoice)
             return;
-        FlashKernel.ChannelOrb(ref x, FlashKernel.OrbId("DARK_ORB"));
+        BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("DARK_ORB"));
     }
 }
 
-[FlashContent("MULTI_CAST")]
-public sealed class MultiCast : FlashCardDef
+[BlitzContent("MULTI_CAST")]
+public sealed class MultiCast : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        int count = FlashKernel.ResolveEnergyXValue(ref x);
+        int count = BlitzKernel.ResolveEnergyXValue(ref x);
         if (x.Card.Upgrade > 0)
             count++;
-        FlashKernel.EvokeNext(ref x, repeat: count);
+        BlitzKernel.EvokeNext(ref x, repeat: count);
     }
 }
 
-[FlashContent("SIGNAL_BOOST")]
-public sealed class SignalBoost : FlashCardDef
+[BlitzContent("SIGNAL_BOOST")]
+public sealed class SignalBoost : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["SignalBoostPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.SignalBoostPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.SignalBoostPower>(), 0);
 }
 
-[FlashContent("VOLTAIC")]
-public sealed class Voltaic : FlashCardDef
+[BlitzContent("VOLTAIC")]
+public sealed class Voltaic : BlitzCardDef
 {
     // OrbCardMirrors.VoltaicOnPlay: CalculatedVarSpecRegistry.CountLightningChannels then channel.
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ChannelOrbs(ref x, FlashKernel.OrbId("LIGHTNING_ORB"),
-            x.B.Counter(FlashCounter.LightningChannels));
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("LIGHTNING_ORB"),
+            x.B.Counter(BlitzCounter.LightningChannels));
 }
 
-[FlashContent("SUPERCRITICAL")]
-public sealed class Supercritical : FlashCardDef
+[BlitzContent("SUPERCRITICAL")]
+public sealed class Supercritical : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void OnPlay(ref FlashExec x) => FlashKernel.GainEnergy(ref x, FlashCardEffects.Var(x, 0));
+    public override void OnPlay(ref BlitzExec x) => BlitzKernel.GainEnergy(ref x, BlitzCardEffects.Var(x, 0));
 }
 
-[FlashContent("REBOOT")]
-public sealed class Reboot : FlashCardDef
+[BlitzContent("REBOOT")]
+public sealed class Reboot : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     // CardDrawCardMirrors.RebootOnPlay.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.MoveHandToDraw(ref x);
+        BlitzCardEffects.MoveHandToDraw(ref x);
         if (x.NeedsChoice)
             return;
-        FlashKernel.Shuffle(ref x);
+        BlitzKernel.Shuffle(ref x);
         if (x.NeedsChoice)
             return;
-        FlashKernel.Draw(ref x, (int)FlashCardEffects.Var(x, 0), fromHandDraw: false);
+        BlitzKernel.Draw(ref x, (int)BlitzCardEffects.Var(x, 0), fromHandDraw: false);
     }
 }
 
-[FlashContent("MODDED")]
-public sealed class Modded : FlashCardDef
+[BlitzContent("MODDED")]
+public sealed class Modded : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Repeat", "Cards"];
 
     // Draw is inferred; CardEffectSpecRegistry.Modded adds slots and then +1 cost this combat.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashKernel.Draw(ref x, (int)FlashCardEffects.Var(x, 1), fromHandDraw: false);
+        BlitzKernel.Draw(ref x, (int)BlitzCardEffects.Var(x, 1), fromHandDraw: false);
         if (x.NeedsChoice)
             return;
-        FlashKernel.AddOrbSlots(ref x.B, (int)FlashCardEffects.Var(x, 0));
+        BlitzKernel.AddOrbSlots(ref x.B, (int)BlitzCardEffects.Var(x, 0));
         UpdatePlayedCardCost(ref x);
     }
 
-    private static void UpdatePlayedCardCost(ref FlashExec x)
+    private static void UpdatePlayedCardCost(ref BlitzExec x)
     {
         int position = x.B.PlayCount - 1;
         if (position < 0)
             throw new InvalidOperationException("改装没有正在打出的卡。");
-        ref FlashCard played = ref FlashPiles.At(ref x.B, FlashPile.Play, position);
+        ref BlitzCard played = ref BlitzPiles.At(ref x.B, BlitzPile.Play, position);
         if (played.Id != x.Card.Id)
             throw new InvalidOperationException("打出堆顶不是当前卡。");
-        FlashKernel.AddEnergyCostModifier(ref played, 1, FlashCostType.Relative,
-            FlashCostExpiration.EndOfCombat, reduceOnly: false);
+        BlitzKernel.AddEnergyCostModifier(ref played, 1, BlitzCostType.Relative,
+            BlitzCostExpiration.EndOfCombat, reduceOnly: false);
     }
 }

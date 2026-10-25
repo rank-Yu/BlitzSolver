@@ -1,104 +1,104 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Event;
+namespace BlitzSolver.Content.Cards.Event;
 
-[FlashContent("BYRD_SWOOP")]
-public sealed class ByrdSwoop : FlashCardDef
+[BlitzContent("BYRD_SWOOP")]
+public sealed class ByrdSwoop : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // Native OnPlay is a plain DamageCmd.Attack; CardOnPlayInferrer infers the attack recipe.
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("CALTROPS")]
-public sealed class Caltrops : FlashCardDef
+[BlitzContent("CALTROPS")]
+public sealed class Caltrops : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["ThornsPower"];
 
     // CorePowerSupport.ApplyCardPowers: combat.Apply<ThornsPower>(owner, ThornsPower, owner).
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.ThornsPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.ThornsPower>(), 0);
 }
 
-[FlashContent("CLASH")]
-public sealed class Clash : FlashCardDef
+[BlitzContent("CLASH")]
+public sealed class Clash : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardIsPlayableMirrors.HandleClash: playable only while every hand card is an Attack.
-    public override bool IsPlayable(in FlashBattle battle, FlashRules rules, in FlashCard card)
+    public override bool IsPlayable(in BlitzBattle battle, BlitzRules rules, in BlitzCard card)
     {
         for (int index = 0; index < battle.HandCount; index++)
         {
-            ref readonly FlashCard handCard = ref battle.Cards[index];
-            if (FlashKernel.CardType(battle, rules, handCard) != FlashCardType.Attack)
+            ref readonly BlitzCard handCard = ref battle.Cards[index];
+            if (BlitzKernel.CardType(battle, rules, handCard) != BlitzCardType.Attack)
                 return false;
         }
         return true;
     }
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("DISTRACTION")]
-public sealed class Distraction : FlashCardDef
+[BlitzContent("DISTRACTION")]
+public sealed class Distraction : BlitzCardDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
 
     // CardGenerationCardMirrors.DistractionOnPlay: one distinct unlocked character Skill at upgrade 0,
     // free this turn, added to hand. No choice is recorded.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        Span<FlashCard> generated = stackalloc FlashCard[1];
-        int count = FlashCardEffects.SampleCharacterCardsOfType(ref x.B, x.R, FlashCardType.Skill, 1,
+        Span<BlitzCard> generated = stackalloc BlitzCard[1];
+        int count = BlitzCardEffects.SampleCharacterCardsOfType(ref x.B, x.R, BlitzCardType.Skill, 1,
             generated);
         for (int index = 0; index < count; index++)
         {
-            FlashKernel.MakeFreeThisTurn(x.R, ref generated[index]);
-            if (!FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Hand))
+            BlitzKernel.MakeFreeThisTurn(x.R, ref generated[index]);
+            if (!BlitzKernel.AddGeneratedCard(ref x, generated[index], BlitzPile.Hand))
                 return;
         }
     }
 }
 
-[FlashContent("DUAL_WIELD")]
-public sealed class DualWield : FlashCardDef
+[BlitzContent("DUAL_WIELD")]
+public sealed class DualWield : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     // CardChoiceSupport.GetSpec: Duplicate, Hand, 1, Attack or Power hand cards.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
     }
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         Span<int> options = stackalloc int[x.B.HandCount];
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            ref readonly FlashCard card = ref x.B.Cards[index];
-            FlashCardType type = FlashKernel.CardType(x.B, x.R, card);
-            if (type is FlashCardType.Attack or FlashCardType.Power)
+            ref readonly BlitzCard card = ref x.B.Cards[index];
+            BlitzCardType type = BlitzKernel.CardType(x.B, x.R, card);
+            if (type is BlitzCardType.Attack or BlitzCardType.Power)
                 options[count++] = index;
         }
         if (count == 0)
             return;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Duplicate, FlashPile.Hand, options[..count], 1,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Duplicate, BlitzPile.Hand, options[..count], 1,
                 selected, out int chosen))
         {
             return;
         }
         if (chosen == 0)
             return;
-        FlashCard original = FlashPiles.At(ref x.B, FlashPile.Hand, selected[0]);
-        int copies = (int)FlashCardEffects.Var(x, 0);
+        BlitzCard original = BlitzPiles.At(ref x.B, BlitzPile.Hand, selected[0]);
+        int copies = (int)BlitzCardEffects.Var(x, 0);
         for (int index = 0; index < copies; index++)
         {
-            FlashCard clone = FlashKernel.CloneCard(original);
-            if (!FlashKernel.AddGeneratedCard(ref x, clone, FlashPile.Hand))
+            BlitzCard clone = BlitzKernel.CloneCard(original);
+            if (!BlitzKernel.AddGeneratedCard(ref x, clone, BlitzPile.Hand))
                 return;
             if (x.NeedsChoice)
                 return;
@@ -106,95 +106,95 @@ public sealed class DualWield : FlashCardDef
     }
 }
 
-[FlashContent("ENLIGHTENMENT")]
-public sealed class Enlightenment : FlashCardDef
+[BlitzContent("ENLIGHTENMENT")]
+public sealed class Enlightenment : BlitzCardDef
 {
     // CardPileOnPlaySupport.ReduceHandCosts: every hand card is set to 1, reduce-only; upgraded for
     // the whole combat, otherwise this turn or until played.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCostExpiration expiration = x.Card.Upgrade > 0
-            ? FlashCostExpiration.EndOfCombat
-            : FlashCostExpiration.EndOfTurnOrWhenPlayed;
+        BlitzCostExpiration expiration = x.Card.Upgrade > 0
+            ? BlitzCostExpiration.EndOfCombat
+            : BlitzCostExpiration.EndOfTurnOrWhenPlayed;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            FlashKernel.AddEnergyCostModifier(ref x.B.Cards[index], 1, FlashCostType.Absolute,
+            BlitzKernel.AddEnergyCostModifier(ref x.B.Cards[index], 1, BlitzCostType.Absolute,
                 expiration, reduceOnly: true);
         }
     }
 }
 
-[FlashContent("ENTRENCH")]
-public sealed class Entrench : FlashCardDef
+[BlitzContent("ENTRENCH")]
+public sealed class Entrench : BlitzCardDef
 {
     // BespokeCardMirrors.EntrenchOnPlay: gain block equal to the current block with
     // Unpowered | Move and the card as source.
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, x.B.Creature(FlashLimits.PlayerOwner).Block,
-            FlashValueProps.Unpowered | FlashValueProps.Move, fromCard: true);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.B.Creature(BlitzLimits.PlayerOwner).Block,
+            BlitzValueProps.Unpowered | BlitzValueProps.Move, fromCard: true);
 }
 
-[FlashContent("EXTERMINATE")]
-public sealed class Exterminate : FlashCardDef
+[BlitzContent("EXTERMINATE")]
+public sealed class Exterminate : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), (int)FlashCardEffects.Var(x, 1));
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), (int)BlitzCardEffects.Var(x, 1));
 }
 
-[FlashContent("FEEDING_FRENZY")]
-public sealed class FeedingFrenzy : FlashCardDef
+[BlitzContent("FEEDING_FRENZY")]
+public sealed class FeedingFrenzy : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
     // CardPowerOnPlaySupport.FeedingFrenzy: Strength first, then the temporary power. The temporary
     // power's native BeforeApplied is not run by combat.Apply, so this is not ApplyTemporaryStrength.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        int amount = (int)FlashCardEffects.Var(x, 0);
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.StrengthPower>(), amount, FlashLimits.PlayerOwner);
+        int amount = (int)BlitzCardEffects.Var(x, 0);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.StrengthPower>(), amount, BlitzLimits.PlayerOwner);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.FeedingFrenzyPower>(), amount, FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.FeedingFrenzyPower>(), amount, BlitzLimits.PlayerOwner);
     }
 }
 
-[FlashContent("HELLO_WORLD")]
-public sealed class HelloWorld : FlashCardDef
+[BlitzContent("HELLO_WORLD")]
+public sealed class HelloWorld : BlitzCardDef
 {
     public override IReadOnlyList<string> AppliedPowers => ["HELLO_WORLD_POWER"];
 
     // CardPowerOnPlaySupport.HelloWorld: combat.Apply<HelloWorldPower>(owner, 1, owner).
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.HelloWorldPower>(), 1, FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.HelloWorldPower>(), 1, BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("METAMORPHOSIS")]
-public sealed class Metamorphosis : FlashCardDef
+[BlitzContent("METAMORPHOSIS")]
+public sealed class Metamorphosis : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAttacks];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAttacks];
 
     // CardGenerationCardMirrors.MetamorphosisOnPlay: GetUnlockedCharacterAttacksForCombat (with
     // replacement, one NextItem per card), each free this combat, into the draw pile at a random
     // position in generation order.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        int count = (int)FlashCardEffects.Var(x, 0);
-        if (count > FlashLimits.Cards)
-            throw new FlashCapacityException("Metamorphosis.Generated", FlashLimits.Cards);
-        Span<FlashCard> generated = stackalloc FlashCard[Math.Max(0, count)];
-        int sampled = FlashKernel.SampleCardPool(ref x.B, x.R, FlashCardPools.CharacterAttacks, count,
-            distinct: false, FlashRngStream.CombatCardGeneration, generated);
+        int count = (int)BlitzCardEffects.Var(x, 0);
+        if (count > BlitzLimits.Cards)
+            throw new BlitzCapacityException("Metamorphosis.Generated", BlitzLimits.Cards);
+        Span<BlitzCard> generated = stackalloc BlitzCard[Math.Max(0, count)];
+        int sampled = BlitzKernel.SampleCardPool(ref x.B, x.R, BlitzCardPools.CharacterAttacks, count,
+            distinct: false, BlitzRngStream.CombatCardGeneration, generated);
         for (int index = 0; index < sampled; index++)
         {
-            FlashKernel.MakeFreeThisCombat(x.R, ref generated[index]);
-            if (!FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Draw, FlashPilePosition.Random))
+            BlitzKernel.MakeFreeThisCombat(x.R, ref generated[index]);
+            if (!BlitzKernel.AddGeneratedCard(ref x, generated[index], BlitzPile.Draw, BlitzPilePosition.Random))
                 return;
             if (x.NeedsChoice)
                 return;
@@ -202,89 +202,89 @@ public sealed class Metamorphosis : FlashCardDef
     }
 }
 
-[FlashContent("OUTMANEUVER")]
-public sealed class Outmaneuver : FlashCardDef
+[BlitzContent("OUTMANEUVER")]
+public sealed class Outmaneuver : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
     // CardPowerOnPlaySupport.Outmaneuver: combat.Apply<EnergyNextTurnPower>(owner, Energy, owner).
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.EnergyNextTurnPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.EnergyNextTurnPower>(), 0);
 }
 
-[FlashContent("PECK")]
-public sealed class Peck : FlashCardDef
+[BlitzContent("PECK")]
+public sealed class Peck : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), (int)FlashCardEffects.Var(x, 1));
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), (int)BlitzCardEffects.Var(x, 1));
 }
 
-[FlashContent("REBOUND")]
-public sealed class Rebound : FlashCardDef
+[BlitzContent("REBOUND")]
+public sealed class Rebound : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override IReadOnlyList<string> AppliedPowers => ["REBOUND_POWER"];
 
     // Inferred attack; CardEffectSpecRegistry.Rebound applies ReboundPower 1 afterwards.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.ReboundPower>(), 1, FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.ReboundPower>(), 1, BlitzLimits.PlayerOwner);
     }
 }
 
-[FlashContent("RIP_AND_TEAR")]
-public sealed class RipAndTear : FlashCardDef
+[BlitzContent("RIP_AND_TEAR")]
+public sealed class RipAndTear : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // RandomTargetAttackCardMirrors.RipAndTearOnPlay: two hits on random opponents (each hit rerolls).
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0), hitCount: 2);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hitCount: 2);
 }
 
-[FlashContent("SQUASH")]
-public sealed class Squash : FlashCardDef
+[BlitzContent("SQUASH")]
+public sealed class Squash : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "VulnerablePower"];
 
     // Inferred attack; CorePowerSupport.ApplyCardPowers applies Vulnerable after the enemy-death pass.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
 
-[FlashContent("STACK")]
-public sealed class Stack : FlashCardDef
+[BlitzContent("STACK")]
+public sealed class Stack : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "CalculationExtra", "CalculatedBlock"];
 
     // CalculatedVarSpecRegistry's Stack multiplier is the discard pile count:
     // CalculatedBlock = CalculationBase + CalculationExtra × count; GeneralCardMirrors' block recipe
     // uses CalculatedBlock.Props (Move) with the card as source.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        decimal block = FlashCardEffects.Var(x, 0)
-            + FlashCardEffects.Var(x, 1) * x.B.DiscardCount;
-        FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, block, FlashValueProps.Move, fromCard: true);
+        decimal block = BlitzCardEffects.Var(x, 0)
+            + BlitzCardEffects.Var(x, 1) * x.B.DiscardCount;
+        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, block, BlitzValueProps.Move, fromCard: true);
     }
 }
 
-[FlashContent("TORIC_TOUGHNESS")]
-public sealed class ToricToughness : FlashCardDef
+[BlitzContent("TORIC_TOUGHNESS")]
+public sealed class ToricToughness : BlitzCardDef
 {
     // The card creates an instanced power whose rows can be removed in the same listener pass; the
     // root must enable the occurrence-tracked power passes (as the Orbit card does).
@@ -294,23 +294,23 @@ public sealed class ToricToughness : FlashCardDef
 
     // CorePowerSupport.ApplyCardPowers.ToricToughness: gain the Block variable's block, then add an
     // instanced ToricToughnessPower with Turns and store the settled block amount on that instance.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        decimal gained = FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner,
-            FlashCardEffects.Var(x, 1), FlashValueProps.Move, fromCard: true);
+        decimal gained = BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner,
+            BlitzCardEffects.Var(x, 1), BlitzValueProps.Move, fromCard: true);
         if (x.NeedsChoice)
             return;
-        int turns = (int)FlashCardEffects.Var(x, 0);
-        ushort id = FlashRegistry.PowerId<Powers.ToricToughnessPower>();
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, id, turns, FlashLimits.PlayerOwner);
+        int turns = (int)BlitzCardEffects.Var(x, 0);
+        ushort id = BlitzRegistry.PowerId<Powers.ToricToughnessPower>();
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, id, turns, BlitzLimits.PlayerOwner);
         if (x.NeedsChoice)
             return;
-        int index = FlashKernel.FindLastPower(x.B, FlashLimits.PlayerOwner, id);
+        int index = BlitzKernel.FindLastPower(x.B, BlitzLimits.PlayerOwner, id);
         if (index < 0)
             return;
         // SimulatedCombatState.AddPowerInstance sets _target = owner (unlike Apply<T>).
-        x.B.Powers[index].Target = FlashLimits.PlayerOwner;
-        FlashKernel.SetInstanceBlockValue(ref x.B, index, gained);
+        x.B.Powers[index].Target = BlitzLimits.PlayerOwner;
+        BlitzKernel.SetInstanceBlockValue(ref x.B, index, gained);
     }
 }
 
@@ -318,11 +318,11 @@ public sealed class ToricToughness : FlashCardDef
 /// <c>MadScience</c> (TinkerTime event): the saved <c>TinkerTimeType</c> selects Attack (damage),
 /// Skill (block) or Power (one of three setup powers), and <c>TinkerTimeRider</c> adds the rider
 /// chosen by the event. Existing engine: <c>CardGenerationCardMirrors.MadScienceOnPlay</c> reads
-/// both saved properties; the rule table is canonical Attack/No rider, so Flash packs the two saved
-/// enum values into <see cref="FlashCard.Private"/> and projects them at admission.
+/// both saved properties; the rule table is canonical Attack/No rider, so Blitz packs the two saved
+/// enum values into <see cref="BlitzCard.Private"/> and projects them at admission.
 /// </summary>
-[FlashContent("MAD_SCIENCE")]
-public sealed class MadScience : FlashCardDef
+[BlitzContent("MAD_SCIENCE")]
+public sealed class MadScience : BlitzCardDef
 {
     // Native TinkerTime.RiderEffect values.
     public const int RiderNone = 0;
@@ -342,112 +342,112 @@ public sealed class MadScience : FlashCardDef
         "EnergizedEnergy", "WisdomCards", "ExpertiseStrength", "ExpertiseDexterity", "CuriousReduction",
     ];
 
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
 
     public override bool HasDynamicCardType => true;
 
-    public override int PrivateRider(in FlashCard card) => RiderOf(card);
+    public override int PrivateRider(in BlitzCard card) => RiderOf(card);
 
     public static short Encode(int type, int rider) => checked((short)((byte)type | ((byte)rider << 8)));
 
-    public static FlashCardType TypeOf(in FlashCard card) => (FlashCardType)(card.Private & 0xFF);
+    public static BlitzCardType TypeOf(in BlitzCard card) => (BlitzCardType)(card.Private & 0xFF);
 
-    public static int RiderOf(in FlashCard card) => (card.Private >> 8) & 0xFF;
+    public static int RiderOf(in BlitzCard card) => (card.Private >> 8) & 0xFF;
 
-    public override FlashCardType CardType(in FlashBattle battle, FlashRules rules, in FlashCard card)
+    public override BlitzCardType CardType(in BlitzBattle battle, BlitzRules rules, in BlitzCard card)
         => TypeOf(card);
 
-    public override FlashTargetType TargetType(in FlashBattle battle, FlashRules rules, in FlashCard card)
-        => TypeOf(card) == FlashCardType.Attack ? FlashTargetType.AnyEnemy : FlashTargetType.Self;
+    public override BlitzTargetType TargetType(in BlitzBattle battle, BlitzRules rules, in BlitzCard card)
+        => TypeOf(card) == BlitzCardType.Attack ? BlitzTargetType.AnyEnemy : BlitzTargetType.Self;
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardType type = TypeOf(x.Card);
+        BlitzCardType type = TypeOf(x.Card);
         int rider = RiderOf(x.Card);
         switch (type)
         {
-            case FlashCardType.Attack:
-                FlashCardEffects.Attack(ref x, FlashCardEffects.Var(x, 0),
-                    rider == RiderViolence ? (int)FlashCardEffects.Var(x, 4) : 1);
+            case BlitzCardType.Attack:
+                BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0),
+                    rider == RiderViolence ? (int)BlitzCardEffects.Var(x, 4) : 1);
                 if (x.NeedsChoice)
                     return;
                 ApplyRider(ref x, rider);
                 break;
-            case FlashCardType.Skill:
-                FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, FlashCardEffects.Var(x, 1),
-                    FlashValueProps.Move, fromCard: true);
+            case BlitzCardType.Skill:
+                BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, BlitzCardEffects.Var(x, 1),
+                    BlitzValueProps.Move, fromCard: true);
                 if (x.NeedsChoice)
                     return;
                 ApplyRider(ref x, rider);
                 break;
-            case FlashCardType.Power:
+            case BlitzCardType.Power:
                 ApplyPowerRider(ref x, rider);
                 break;
             default:
-                throw new FlashUnsupportedException($"MadScience 的 TinkerTimeType {(int)type} 不是可打出的类型。");
+                throw new BlitzUnsupportedException($"MadScience 的 TinkerTimeType {(int)type} 不是可打出的类型。");
         }
     }
 
-    private static void ApplyRider(ref FlashExec x, int rider)
+    private static void ApplyRider(ref BlitzExec x, int rider)
     {
         switch (rider)
         {
             case RiderSapping:
-                FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.WeakPower>(), 2);
+                BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.WeakPower>(), 2);
                 if (x.NeedsChoice)
                     return;
-                FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 3);
+                BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 3);
                 break;
             case RiderChoking:
-                FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.StranglePower>(), 5);
+                BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.StranglePower>(), 5);
                 break;
             case RiderEnergized:
-                FlashKernel.GainEnergy(ref x, FlashCardEffects.Var(x, 6));
+                BlitzKernel.GainEnergy(ref x, BlitzCardEffects.Var(x, 6));
                 break;
             case RiderWisdom:
-                FlashKernel.Draw(ref x, FlashCardEffects.Var(x, 7), fromHandDraw: false);
+                BlitzKernel.Draw(ref x, BlitzCardEffects.Var(x, 7), fromHandDraw: false);
                 break;
             case RiderChaos:
             {
-                Span<FlashCard> generated = stackalloc FlashCard[1];
-                int count = FlashKernel.SampleCardPool(ref x.B, x.R, FlashCardPools.CharacterAll, 1,
-                    distinct: true, FlashRngStream.CombatCardGeneration, generated);
+                Span<BlitzCard> generated = stackalloc BlitzCard[1];
+                int count = BlitzKernel.SampleCardPool(ref x.B, x.R, BlitzCardPools.CharacterAll, 1,
+                    distinct: true, BlitzRngStream.CombatCardGeneration, generated);
                 if (count == 0)
                     return;
-                FlashKernel.MakeFreeThisTurn(x.R, ref generated[0]);
-                FlashKernel.AddGeneratedCard(ref x, generated[0], FlashPile.Hand);
+                BlitzKernel.MakeFreeThisTurn(x.R, ref generated[0]);
+                BlitzKernel.AddGeneratedCard(ref x, generated[0], BlitzPile.Hand);
                 break;
             }
         }
     }
 
-    private static void ApplyPowerRider(ref FlashExec x, int rider)
+    private static void ApplyPowerRider(ref BlitzExec x, int rider)
     {
         switch (rider)
         {
             case RiderExpertise:
-                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.StrengthPower>(), (int)FlashCardEffects.Var(x, 8),
-                    FlashLimits.PlayerOwner);
+                BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.StrengthPower>(), (int)BlitzCardEffects.Var(x, 8),
+                    BlitzLimits.PlayerOwner);
                 if (x.NeedsChoice)
                     return;
-                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.DexterityPower>(), (int)FlashCardEffects.Var(x, 9),
-                    FlashLimits.PlayerOwner);
+                BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.DexterityPower>(), (int)BlitzCardEffects.Var(x, 9),
+                    BlitzLimits.PlayerOwner);
                 break;
             case RiderCurious:
-                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.CuriousPower>(), (int)FlashCardEffects.Var(x, 10),
-                    FlashLimits.PlayerOwner);
+                BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.CuriousPower>(), (int)BlitzCardEffects.Var(x, 10),
+                    BlitzLimits.PlayerOwner);
                 break;
             case RiderImprovement:
             {
                 // CardGenerationCardMirrors.MadScienceOnPlay records the growth reward only when the
                 // ImprovementPower amount actually increased.
-                int applied = FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.ImprovementPower>(), 1, FlashLimits.PlayerOwner);
+                int applied = BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.ImprovementPower>(), 1, BlitzLimits.PlayerOwner);
                 if (applied > 0)
-                    FlashGrowthRewards.Add(ref x.B, FlashGrowthSource.MadScience);
+                    BlitzGrowthRewards.Add(ref x.B, BlitzGrowthSource.MadScience);
                 break;
             }
         }

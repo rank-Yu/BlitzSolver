@@ -1,53 +1,53 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Regent;
+namespace BlitzSolver.Content.Cards.Regent;
 
-[FlashContent("STRIKE_REGENT")]
-public sealed class StrikeRegent : FlashCardDef
+[BlitzContent("STRIKE_REGENT")]
+public sealed class StrikeRegent : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("DEFEND_REGENT")]
-public sealed class DefendRegent : FlashCardDef
+[BlitzContent("DEFEND_REGENT")]
+public sealed class DefendRegent : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
 }
 
 /// <summary>
 /// <c>FallingStar</c> (2 star cost): DamageCmd.Attack, then CorePowerSupport's
 /// <c>FallingStar</c> case applies Weak and then Vulnerable after the deferred enemy deaths.
 /// </summary>
-[FlashContent("FALLING_STAR")]
-public sealed class FallingStar : FlashCardDef
+[BlitzContent("FALLING_STAR")]
+public sealed class FallingStar : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "VulnerablePower", "WeakPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
-        if (x.NeedsChoice || x.Target == FlashLimits.NoOwner)
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice || x.Target == BlitzLimits.NoOwner)
             return;
-        FlashKernel.ApplyPower(ref x, x.Target, FlashRegistry.PowerId<Powers.WeakPower>(),
-            (int)FlashCardEffects.Var(x, 2), FlashLimits.PlayerOwner);
-        FlashKernel.ApplyPower(ref x, x.Target, FlashRegistry.PowerId<Powers.VulnerablePower>(),
-            (int)FlashCardEffects.Var(x, 1), FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.WeakPower>(),
+            (int)BlitzCardEffects.Var(x, 2), BlitzLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.VulnerablePower>(),
+            (int)BlitzCardEffects.Var(x, 1), BlitzLimits.PlayerOwner);
     }
 }
 
 /// <summary><c>Venerate</c>: CardOnPlaySupport's <c>Venerate</c> case gains the Stars variable.</summary>
-[FlashContent("VENERATE")]
-public sealed class Venerate : FlashCardDef
+[BlitzContent("VENERATE")]
+public sealed class Venerate : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Stars"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.GainStars(ref x, (int)FlashCardEffects.Var(x, 0));
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.GainStars(ref x, (int)BlitzCardEffects.Var(x, 0));
 }

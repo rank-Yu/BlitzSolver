@@ -1,28 +1,28 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Powers;
+namespace BlitzSolver.Content.Powers;
 
 /// <summary>
 /// <c>AmbergrisPower</c>: while its amount is positive its owner takes another player turn instead of
 /// the enemy turn; <c>AfterTakingExtraTurn</c> decrements it
 /// (<c>ExtraTurnMirrors</c> registers both callbacks).
 /// </summary>
-[FlashContent("AMBERGRIS_POWER")]
-public sealed class AmbergrisPower : FlashPowerDef
+[BlitzContent("AMBERGRIS_POWER")]
+public sealed class AmbergrisPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override bool ShouldTakeExtraTurn(ref FlashExec x, FlashListener self)
-        => self.Owner == FlashLimits.PlayerOwner && x.B.Powers[self.Index].Amount > 0;
+    public override bool ShouldTakeExtraTurn(ref BlitzExec x, BlitzListener self)
+        => self.Owner == BlitzLimits.PlayerOwner && x.B.Powers[self.Index].Amount > 0;
 
-    public override void AfterTakingExtraTurn(ref FlashExec x, FlashListener self)
+    public override void AfterTakingExtraTurn(ref BlitzExec x, BlitzListener self)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
         int amount = x.B.Powers[self.Index].Amount;
-        FlashKernel.SetPowerAmount(ref x.B, FlashLimits.PlayerOwner, Id, amount - 1);
+        BlitzKernel.SetPowerAmount(ref x.B, BlitzLimits.PlayerOwner, Id, amount - 1);
     }
 }
 
@@ -31,24 +31,24 @@ public sealed class AmbergrisPower : FlashPowerDef
 /// random this-combat cost in 0..3 (<c>AfterCardDrawnMirrors.HandleConfusedPower</c> →
 /// <c>CardEnergyCost.SetThisCombat(CombatEnergyCosts.NextInt(4))</c>).
 /// </summary>
-[FlashContent("CONFUSED_POWER")]
-public sealed class ConfusedPower : FlashPowerDef
+[BlitzContent("CONFUSED_POWER")]
+public sealed class ConfusedPower : BlitzPowerDef
 {
     private const int CostRange = 4;
 
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
 
-    public override void AfterCardDrawn(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
+    public override void AfterCardDrawn(ref BlitzExec x, BlitzListener self, int drawnPosition, bool fromHandDraw)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || (uint)drawnPosition >= (uint)x.B.HandCount)
+        if (self.Owner != BlitzLimits.PlayerOwner || (uint)drawnPosition >= (uint)x.B.HandCount)
             return;
-        ref FlashCard card = ref x.B.Cards[drawnPosition];
+        ref BlitzCard card = ref x.B.Cards[drawnPosition];
         if (x.R.Card(card.Id, card.Upgrade).EnergyCost < 0)
             return;
-        int cost = x.B.RngStream(FlashRngStream.CombatEnergyCosts).NextInt(CostRange);
-        FlashKernel.AddEnergyCostModifier(ref card, cost, FlashCostType.Absolute,
-            FlashCostExpiration.EndOfCombat, reduceOnly: false);
+        int cost = x.B.RngStream(BlitzRngStream.CombatEnergyCosts).NextInt(CostRange);
+        BlitzKernel.AddEnergyCostModifier(ref card, cost, BlitzCostType.Absolute,
+            BlitzCostExpiration.EndOfCombat, reduceOnly: false);
     }
 }

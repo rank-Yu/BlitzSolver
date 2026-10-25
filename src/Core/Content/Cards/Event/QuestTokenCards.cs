@@ -1,43 +1,43 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Event;
+namespace BlitzSolver.Content.Cards.Event;
 
-[FlashContent("BYRDONIS_EGG")]
-public sealed class ByrdonisEgg : FlashCardDef
+[BlitzContent("BYRDONIS_EGG")]
+public sealed class ByrdonisEgg : BlitzCardDef
 {
     // Native CardType.Quest, cost -1, Unplayable; no OnPlay override.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
     }
 }
 
-[FlashContent("DOWSING")]
-public sealed class Dowsing : FlashCardDef
+[BlitzContent("DOWSING")]
+public sealed class Dowsing : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Rooms"];
 
     // Native CardType.Quest, cost -1, Unplayable; the Rooms variable is only read out of combat.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
     }
 }
 
-[FlashContent("LANTERN_KEY")]
-public sealed class LanternKey : FlashCardDef
+[BlitzContent("LANTERN_KEY")]
+public sealed class LanternKey : BlitzCardDef
 {
     // Native CardType.Quest, cost -1, Unplayable; only map-point / event hooks out of combat.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
     }
 }
 
-[FlashContent("SPOILS_MAP")]
-public sealed class SpoilsMap : FlashCardDef
+[BlitzContent("SPOILS_MAP")]
+public sealed class SpoilsMap : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Gold"];
 
     // Native CardType.Quest, cost -1, Unplayable; only act-map hooks out of combat.
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
     }
 }

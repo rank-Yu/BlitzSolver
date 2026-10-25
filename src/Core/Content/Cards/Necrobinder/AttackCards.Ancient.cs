@@ -1,17 +1,17 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Necrobinder;
+namespace BlitzSolver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>Protector</c>: Osty attack whose calculated damage is CalculationBase + ExtraDamage × Osty's max HP
 /// (<c>CalculatedVarSpecRegistry.Protector</c>).
 /// </summary>
-[FlashContent("PROTECTOR")]
-public sealed class Protector : FlashCardDef
+[BlitzContent("PROTECTOR")]
+public sealed class Protector : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         if (!NecrobinderContent.HasOsty(x.B))
             return;

@@ -2,12 +2,11 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
-using CombatSolver;
-using CombatSolver.Flash.Kernel;
-using CombatSolver.Flash.Search;
-using CombatSolver.Flash.Search.Scoring;
+using BlitzSolver.Search;
+using BlitzSolver.Engine;
+using BlitzSolver.Search.Scoring;
 
-namespace FlashGolden;
+namespace BlitzGolden;
 
 internal sealed record D1Summary(
     int Files,
@@ -31,7 +30,7 @@ internal sealed record D1FileResult(
 
 internal static class D1Verifier
 {
-    private static readonly ConcurrentDictionary<string, FlashRules> RulesCache = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, BlitzRules> RulesCache = new(StringComparer.Ordinal);
 
     internal static D1Summary Run(string dataDirectory, int jobs, int shard, int shards)
     {
@@ -83,21 +82,21 @@ internal static class D1Verifier
 
         using JsonDocument meta = JsonDocument.Parse(File.ReadAllText(metaPath));
         JsonElement metaRoot = meta.RootElement;
-        if (metaRoot.GetProperty("formatVersion").GetInt32() != FlashCodec.FormatVersion)
+        if (metaRoot.GetProperty("formatVersion").GetInt32() != BlitzCodec.FormatVersion)
             throw new InvalidDataException($"根 {rootName} 的格式版本不符。");
-        if (metaRoot.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<FlashBattle>())
-            throw new InvalidDataException($"根 {rootName} 的 FlashBattle 大小不符。");
+        if (metaRoot.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<BlitzBattle>())
+            throw new InvalidDataException($"根 {rootName} 的 BlitzBattle 大小不符。");
 
-        FlashGoldenRootRecord record = FlashGoldenData.Decode(GoldenFiles.ReadCompressed(goldenPath));
-        FlashRules rules = LoadRules(dataDirectory, record.RulesSha256);
-        FlashSearchCase config = LoadConfig(directory, rootName, record.RulesSha256);
-        FlashScorer scorer = config.Options.Scorer
+        BlitzGoldenRootRecord record = BlitzGoldenData.Decode(GoldenFiles.ReadCompressed(goldenPath));
+        BlitzRules rules = LoadRules(dataDirectory, record.RulesSha256);
+        BlitzSearchCase config = LoadConfig(directory, rootName, record.RulesSha256);
+        BlitzScorer scorer = config.Options.Scorer
             ?? throw new InvalidDataException($"根 {rootName} 的特征配置没有 Scorer。");
-        FlashBoundFeatures? bound = config.Options.Bound;
+        BlitzBoundFeatures? bound = config.Options.Bound;
         int rootActionCount = config.Options.InitialActionCount;
 
         if (record.Roots.Count == 0)
-            throw new InvalidDataException($"根 {rootName} 没有 Flash 根。");
+            throw new InvalidDataException($"根 {rootName} 没有 Blitz 根。");
         JsonElement counts = metaRoot.GetProperty("counts");
         if (counts.GetProperty("roots").GetInt32() != record.Roots.Count
             || counts.GetProperty("k1").GetInt32() != record.K1.Count
@@ -109,13 +108,13 @@ internal static class D1Verifier
 
         for (int index = 0; index < record.Roots.Count; index++)
         {
-            FlashGoldenBattleRoot root = record.Roots[index];
+            BlitzGoldenBattleRoot root = record.Roots[index];
             CheckFeatures(rootName, $"root[{index}]", root.Battle, rootActionCount,
                 scorer, bound, root.ScoreHash, root.BoundStatus, root.BoundHash);
             featureStates++;
         }
 
-        foreach (FlashGoldenK1Action entry in record.K1)
+        foreach (BlitzGoldenK1Action entry in record.K1)
         {
             if ((uint)entry.RootIndex >= (uint)record.Roots.Count)
                 throw new InvalidDataException($"根 {rootName} 的 K1 根下标 {entry.RootIndex} 越界。");
@@ -123,7 +122,7 @@ internal static class D1Verifier
                 scorer, bound, rootActionCount, ref featureStates, ref featureTraits);
         }
 
-        foreach (FlashGoldenWalk walk in record.Walks)
+        foreach (BlitzGoldenWalk walk in record.Walks)
         {
             if ((uint)walk.RootIndex >= (uint)record.Roots.Count)
                 throw new InvalidDataException($"根 {rootName} 的游走根下标 {walk.RootIndex} 越界。");
@@ -140,17 +139,17 @@ internal static class D1Verifier
             walkStates, transitions, featureStates, featureTraits);
     }
 
-    private static void VerifyK1(string rootName, in FlashBattle root, FlashGoldenK1Action entry,
-        FlashRules rules, FlashScorer scorer, FlashBoundFeatures? bound, int rootActionCount,
+    private static void VerifyK1(string rootName, in BlitzBattle root, BlitzGoldenK1Action entry,
+        BlitzRules rules, BlitzScorer scorer, BlitzBoundFeatures? bound, int rootActionCount,
         ref long featureStates, ref long featureTraits)
     {
-        FlashAction action = entry.BaseAction;
+        BlitzAction action = entry.BaseAction;
         for (int index = 0; index < entry.Requests.Length; index++)
         {
-            FlashBattle partial = root;
-            FlashStepResult result = FlashKernel.Step(ref partial, action, rules,
-                out FlashChoiceRequest request, out _);
-            if (result != FlashStepResult.NeedsChoice)
+            BlitzBattle partial = root;
+            BlitzStepResult result = BlitzKernel.Step(ref partial, action, rules,
+                out BlitzChoiceRequest request, out _);
+            if (result != BlitzStepResult.NeedsChoice)
                 throw Mismatch(rootName, $"K1 root={entry.RootIndex} choice[{index}] expected needs-choice but got {result}");
             CompareRequest(rootName, $"K1 root={entry.RootIndex} choice[{index}]", entry.Requests[index], request);
             if (index >= entry.Selections.Length)
@@ -160,62 +159,62 @@ internal static class D1Verifier
         if (entry.Requests.Length != entry.Selections.Length)
             throw Mismatch(rootName, $"K1 root={entry.RootIndex} request/selection counts differ");
 
-        FlashBattle child = root;
-        FlashStepResult final = FlashKernel.Step(ref child, action, rules, out _, out bool historyRisk);
-        if (final != FlashStepResult.Completed)
+        BlitzBattle child = root;
+        BlitzStepResult final = BlitzKernel.Step(ref child, action, rules, out _, out bool historyRisk);
+        if (final != BlitzStepResult.Completed)
             throw Mismatch(rootName, $"K1 root={entry.RootIndex} final step returned {final}");
-        ulong expectedChild = FlashCodec.BattleHash(child);
+        ulong expectedChild = BlitzCodec.BattleHash(child);
         if (entry.ChildHash != expectedChild)
             throw Mismatch(rootName, $"K1 root={entry.RootIndex} child hash expected={entry.ChildHash:X16} actual={expectedChild:X16}");
-        if (entry.Ended != !FlashKernel.IsInProgress(child))
-            throw Mismatch(rootName, $"K1 root={entry.RootIndex} ended expected={entry.Ended} actual={!FlashKernel.IsInProgress(child)}");
+        if (entry.Ended != !BlitzKernel.IsInProgress(child))
+            throw Mismatch(rootName, $"K1 root={entry.RootIndex} ended expected={entry.Ended} actual={!BlitzKernel.IsInProgress(child)}");
 
-        FlashScoreFeatures after = CheckFeatures(rootName, $"K1 root={entry.RootIndex}", child, 1,
+        BlitzScoreFeatures after = CheckFeatures(rootName, $"K1 root={entry.RootIndex}", child, 1,
             scorer, bound, entry.ScoreHash, entry.BoundStatus, entry.BoundHash);
         featureStates++;
-        FlashScoreFeatures before = scorer.Features(root, rootActionCount);
+        BlitzScoreFeatures before = scorer.Features(root, rootActionCount);
         CheckTrait(rootName, $"K1 root={entry.RootIndex}", root, before, after, child, action,
             rules, historyRisk, entry.TraitPresent, entry.TraitHash);
         if (entry.TraitPresent)
             featureTraits++;
     }
 
-    private static void VerifyWalk(string rootName, FlashGoldenWalk walk, in FlashBattle root,
-        FlashRules rules, FlashScorer scorer, FlashBoundFeatures? bound, int rootActionCount,
+    private static void VerifyWalk(string rootName, BlitzGoldenWalk walk, in BlitzBattle root,
+        BlitzRules rules, BlitzScorer scorer, BlitzBoundFeatures? bound, int rootActionCount,
         ref long featureStates, ref long featureTraits, ref int walkStates, ref int transitions)
     {
-        FlashBattle battle = root;
-        Span<FlashAction> actions = stackalloc FlashAction[FlashKernel.MaxLegalActions];
+        BlitzBattle battle = root;
+        Span<BlitzAction> actions = stackalloc BlitzAction[BlitzKernel.MaxLegalActions];
         for (int stateIndex = 0; stateIndex < walk.States.Count; stateIndex++)
         {
-            FlashGoldenState state = walk.States[stateIndex];
-            ulong hash = FlashCodec.BattleHash(battle);
+            BlitzGoldenState state = walk.States[stateIndex];
+            ulong hash = BlitzCodec.BattleHash(battle);
             if (state.StateHash != hash)
                 throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} hash expected={state.StateHash:X16} actual={hash:X16}");
-            int count = FlashKernel.LegalActions(battle, rules, actions);
+            int count = BlitzKernel.LegalActions(battle, rules, actions);
             if (count != state.LegalActions.Length)
                 throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} legal count expected={state.LegalActions.Length} actual={count}");
             for (int index = 0; index < count; index++)
             {
-                FlashAction actual = actions[index];
-                FlashAction expected = state.LegalActions[index];
+                BlitzAction actual = actions[index];
+                BlitzAction expected = state.LegalActions[index];
                 if (!GoldenFiles.ActionEquals(actual, expected))
                     throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} legal[{index}] mismatch");
                 if (index >= state.ImmediateStatuses.Length)
                     throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} missing status {index}");
-                FlashBattle copy = battle;
+                BlitzBattle copy = battle;
                 byte status;
-                FlashChoiceRequest request = default;
+                BlitzChoiceRequest request = default;
                 try
                 {
-                    FlashStepResult result = FlashKernel.Step(ref copy, actual, rules, out request, out _);
-                    status = result == FlashStepResult.NeedsChoice ? (byte)1 : (byte)0;
+                    BlitzStepResult result = BlitzKernel.Step(ref copy, actual, rules, out request, out _);
+                    status = result == BlitzStepResult.NeedsChoice ? (byte)1 : (byte)0;
                 }
-                catch (FlashUnsupportedException)
+                catch (BlitzUnsupportedException)
                 {
                     status = 2;
                 }
-                catch (FlashCapacityException)
+                catch (BlitzCapacityException)
                 {
                     status = 2;
                 }
@@ -234,13 +233,13 @@ internal static class D1Verifier
             }
             transitions++;
 
-            FlashAction action = state.StepBase;
+            BlitzAction action = state.StepBase;
             for (int index = 0; index < state.StepRequests.Length; index++)
             {
-                FlashBattle partial = battle;
-                FlashStepResult result = FlashKernel.Step(ref partial, action, rules,
-                    out FlashChoiceRequest request, out _);
-                if (result != FlashStepResult.NeedsChoice)
+                BlitzBattle partial = battle;
+                BlitzStepResult result = BlitzKernel.Step(ref partial, action, rules,
+                    out BlitzChoiceRequest request, out _);
+                if (result != BlitzStepResult.NeedsChoice)
                     throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} step choice[{index}] expected needs-choice but got {result}");
                 CompareRequest(rootName, $"walk seed={walk.Seed} state={stateIndex} step choice[{index}]",
                     state.StepRequests[index], request);
@@ -251,20 +250,20 @@ internal static class D1Verifier
             if (state.StepRequests.Length != state.StepSelections.Length)
                 throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} step request/selection counts differ");
 
-            FlashBattle child = battle;
-            FlashStepResult final = FlashKernel.Step(ref child, action, rules, out _, out bool historyRisk);
-            if (final != FlashStepResult.Completed)
+            BlitzBattle child = battle;
+            BlitzStepResult final = BlitzKernel.Step(ref child, action, rules, out _, out bool historyRisk);
+            if (final != BlitzStepResult.Completed)
                 throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} step returned {final}");
-            ulong childHash = FlashCodec.BattleHash(child);
+            ulong childHash = BlitzCodec.BattleHash(child);
             if (state.ChildHash != childHash)
                 throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} child hash expected={state.ChildHash:X16} actual={childHash:X16}");
-            if (state.Ended != !FlashKernel.IsInProgress(child))
-                throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} ended expected={state.Ended} actual={!FlashKernel.IsInProgress(child)}");
+            if (state.Ended != !BlitzKernel.IsInProgress(child))
+                throw Mismatch(rootName, $"walk seed={walk.Seed} state={stateIndex} ended expected={state.Ended} actual={!BlitzKernel.IsInProgress(child)}");
 
-            FlashScoreFeatures after = CheckFeatures(rootName, $"walk seed={walk.Seed} state={stateIndex}",
+            BlitzScoreFeatures after = CheckFeatures(rootName, $"walk seed={walk.Seed} state={stateIndex}",
                 child, 1, scorer, bound, state.ScoreHash, state.BoundStatus, state.BoundHash);
             featureStates++;
-            FlashScoreFeatures before = scorer.Features(battle, 0);
+            BlitzScoreFeatures before = scorer.Features(battle, 0);
             CheckTrait(rootName, $"walk seed={walk.Seed} state={stateIndex}", battle, before, after, child,
                 action, rules, historyRisk, state.TraitPresent, state.TraitHash);
             if (state.TraitPresent)
@@ -275,12 +274,12 @@ internal static class D1Verifier
             throw Mismatch(rootName, $"walk seed={walk.Seed} ended without the recorded terminal state");
     }
 
-    private static FlashScoreFeatures CheckFeatures(string rootName, string where, in FlashBattle battle,
-        int actionCount, FlashScorer scorer, FlashBoundFeatures? bound, ulong scoreHash,
+    private static BlitzScoreFeatures CheckFeatures(string rootName, string where, in BlitzBattle battle,
+        int actionCount, BlitzScorer scorer, BlitzBoundFeatures? bound, ulong scoreHash,
         byte boundStatus, ulong boundHash)
     {
-        FlashScoreFeatures features = scorer.Features(battle, actionCount);
-        ulong actualScore = FlashGoldenHash.Score(features);
+        BlitzScoreFeatures features = scorer.Features(battle, actionCount);
+        ulong actualScore = BlitzGoldenHash.Score(features);
         if (actualScore != scoreHash)
             throw Mismatch(rootName, $"{where} scoreHash expected={scoreHash:X16} actual={actualScore:X16}");
 
@@ -297,9 +296,9 @@ internal static class D1Verifier
         else
         {
             actualStatus = 1;
-            FlashBoundValues values = bound.Evaluate(battle, features.ExplicitPotionStrategicCost,
+            BlitzBoundValues values = bound.Evaluate(battle, features.ExplicitPotionStrategicCost,
                 includeSmartPotionLowerBound: true);
-            actualBound = FlashGoldenHash.Bound(values);
+            actualBound = BlitzGoldenHash.Bound(values);
         }
         if (actualStatus != boundStatus)
             throw Mismatch(rootName, $"{where} boundStatus expected={boundStatus} actual={actualStatus}");
@@ -308,9 +307,9 @@ internal static class D1Verifier
         return features;
     }
 
-    private static void CheckTrait(string rootName, string where, in FlashBattle beforeBattle,
-        in FlashScoreFeatures before, in FlashScoreFeatures after, in FlashBattle child,
-        in FlashAction action, FlashRules rules, bool historyRisk, bool present, ulong expected)
+    private static void CheckTrait(string rootName, string where, in BlitzBattle beforeBattle,
+        in BlitzScoreFeatures before, in BlitzScoreFeatures after, in BlitzBattle child,
+        in BlitzAction action, BlitzRules rules, bool historyRisk, bool present, ulong expected)
     {
         if (!present)
         {
@@ -318,16 +317,16 @@ internal static class D1Verifier
                 throw Mismatch(rootName, $"{where} trait hash present=false expected={expected:X16}");
             return;
         }
-        bool pure = FlashBeamSolver.IsPureTransitionForTesting(beforeBattle, child, action, rules, historyRisk);
-        bool declined = FlashBeamSolver.DeclinedExtraTurn(beforeBattle);
-        SearchRouteTraits traits = FlashBeamSolver.ClassifyRouteTraitsForTesting(before, after, action, declined, !pure);
-        FlashBeamSolver.PocketwatchState(child, rules, out int threshold, out int played);
-        ulong actual = FlashGoldenHash.Trait(traits, pure, declined, threshold, played);
+        bool pure = BlitzBeamSolver.IsPureTransitionForTesting(beforeBattle, child, action, rules, historyRisk);
+        bool declined = BlitzBeamSolver.DeclinedExtraTurn(beforeBattle);
+        SearchRouteTraits traits = BlitzBeamSolver.ClassifyRouteTraitsForTesting(before, after, action, declined, !pure);
+        BlitzBeamSolver.PocketwatchState(child, rules, out int threshold, out int played);
+        ulong actual = BlitzGoldenHash.Trait(traits, pure, declined, threshold, played);
         if (actual != expected)
             throw Mismatch(rootName, $"{where} traitHash expected={expected:X16} actual={actual:X16}");
     }
 
-    private static FlashRules LoadRules(string dataDirectory, string hash)
+    private static BlitzRules LoadRules(string dataDirectory, string hash)
         => RulesCache.GetOrAdd(hash, key =>
         {
             string path = Path.Combine(dataDirectory, "objects", "rules", key + ".br");
@@ -337,23 +336,23 @@ internal static class D1Verifier
             string actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             if (actual != key)
                 throw new InvalidDataException($"规则对象 {key} 的 SHA-256 是 {actual}。");
-            return FlashRulesCodec.Decode(bytes);
+            return BlitzRulesCodec.Decode(bytes);
         });
 
-    private static FlashSearchCase LoadConfig(string directory, string rootName, string rulesHash)
+    private static BlitzSearchCase LoadConfig(string directory, string rootName, string rulesHash)
     {
         string path = Path.Combine(directory, "config.br");
         if (!File.Exists(path))
             throw new InvalidDataException($"缺少 D1 特征配置：{path}");
-        FlashSearchCase config = FlashSearchCodec.DecodeRequest(GoldenFiles.ReadCompressed(path));
-        string actual = Convert.ToHexString(SHA256.HashData(FlashRulesCodec.Encode(config.Rules))).ToLowerInvariant();
+        BlitzSearchCase config = BlitzSearchCodec.DecodeRequest(GoldenFiles.ReadCompressed(path));
+        string actual = Convert.ToHexString(SHA256.HashData(BlitzRulesCodec.Encode(config.Rules))).ToLowerInvariant();
         if (actual != rulesHash)
             throw new InvalidDataException($"根 {rootName} 的特征配置规则哈希是 {actual}，期望 {rulesHash}。");
         return config;
     }
 
     private static void CompareRequest(string rootName, string where,
-        in FlashChoiceRequest expected, in FlashChoiceRequest actual)
+        in BlitzChoiceRequest expected, in BlitzChoiceRequest actual)
     {
         if (expected.Kind != actual.Kind || expected.Effect != actual.Effect
             || expected.Timing != actual.Timing || expected.Source != actual.Source
@@ -375,7 +374,7 @@ internal static class D1Verifier
         {
             for (int index = 0; index < expected.OptionCount; index++)
             {
-                if (!FlashFingerprint.Equal(expected.GeneratedOptions[index], actual.GeneratedOptions[index]))
+                if (!BlitzFingerprint.Equal(expected.GeneratedOptions[index], actual.GeneratedOptions[index]))
                     throw Mismatch(rootName, $"{where} generated option[{index}] mismatch");
             }
         }

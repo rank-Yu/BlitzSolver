@@ -1,15 +1,15 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Status;
+namespace BlitzSolver.Content.Cards.Status;
 
 /// <summary>
 /// Native <c>Dazed</c>: cost 0, Unplayable, Ethereal. It never executes an OnPlay effect; the kernel
 /// exhausts it from the hand at turn end through the Ethereal flag.
 /// </summary>
-[FlashContent("DAZED")]
-public sealed class Dazed : FlashCardDef
+[BlitzContent("DAZED")]
+public sealed class Dazed : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
     }
 }

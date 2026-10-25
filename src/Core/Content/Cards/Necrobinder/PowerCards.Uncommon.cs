@@ -1,114 +1,114 @@
-using CombatSolver.Flash.Content.Powers;
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Content.Powers;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Necrobinder;
+namespace BlitzSolver.Content.Cards.Necrobinder;
 
-[FlashContent("PAGESTORM")]
-public sealed class Pagestorm : FlashCardDef
+[BlitzContent("PAGESTORM")]
+public sealed class Pagestorm : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     public override IReadOnlyList<string> AppliedPowers => ["PAGESTORM_POWER"];
 
     // CardPowerOnPlaySupport: combat.Apply<PagestormPower>(owner, card.DynamicVars.Cards.IntValue, owner).
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<PagestormPower>(), (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<PagestormPower>(), (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("DANSE_MACABRE")]
-public sealed class DanseMacabre : FlashCardDef
+[BlitzContent("DANSE_MACABRE")]
+public sealed class DanseMacabre : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["DanseMacabrePower"];
 
     public override IReadOnlyList<string> AppliedPowers => ["DANSE_MACABRE_POWER"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<DanseMacabrePower>(), (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<DanseMacabrePower>(), (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }
 
 /// <summary>
 /// <c>Friendship</c>: lose Strength, then apply FriendshipPower for its Energy
 /// (<c>CorePowerSupport</c>'s Friendship case).
 /// </summary>
-[FlashContent("FRIENDSHIP")]
-public sealed class Friendship : FlashCardDef
+[BlitzContent("FRIENDSHIP")]
+public sealed class Friendship : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower", "Energy"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.StrengthPower>(),
-            -(int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+            -(int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.FriendshipPower>(),
-            (int)NecrobinderContent.Var(ref x, 1), FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.FriendshipPower>(),
+            (int)NecrobinderContent.Var(ref x, 1), BlitzLimits.PlayerOwner);
     }
 }
 
 /// <summary><c>Countdown</c>: apply CountdownPower for its amount (<c>CardPowerOnPlaySupport</c>).</summary>
-[FlashContent("COUNTDOWN")]
-public sealed class Countdown : FlashCardDef
+[BlitzContent("COUNTDOWN")]
+public sealed class Countdown : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CountdownPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.CountdownPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.CountdownPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
 }
 
 /// <summary><c>Shroud</c>: apply ShroudPower for its Block variable (<c>CardPowerOnPlaySupport.SToZ</c>).</summary>
-[FlashContent("SHROUD")]
-public sealed class Shroud : FlashCardDef
+[BlitzContent("SHROUD")]
+public sealed class Shroud : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.ShroudPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.ShroudPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
 }
 
 /// <summary><c>Calcify</c>: apply CalcifyPower (<c>CardPowerOnPlaySupport</c>).</summary>
-[FlashContent("CALCIFY")]
-public sealed class Calcify : FlashCardDef
+[BlitzContent("CALCIFY")]
+public sealed class Calcify : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalcifyPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.CalcifyPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.CalcifyPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
 }
 
 /// <summary><c>Lethality</c>: apply LethalityPower (<c>CardPowerOnPlaySupport</c>).</summary>
-[FlashContent("LETHALITY")]
-public sealed class Lethality : FlashCardDef
+[BlitzContent("LETHALITY")]
+public sealed class Lethality : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["LethalityPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.LethalityPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.LethalityPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
 }
 
 /// <summary><c>Haunt</c>: apply HauntPower for its HpLoss variable (<c>CardPowerOnPlaySupport</c>).</summary>
-[FlashContent("HAUNT")]
-public sealed class Haunt : FlashCardDef
+[BlitzContent("HAUNT")]
+public sealed class Haunt : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["HpLoss"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.HauntPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.HauntPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("SLEIGHT_OF_FLESH")]
-public sealed class SleightOfFlesh : FlashCardDef
+[BlitzContent("SLEIGHT_OF_FLESH")]
+public sealed class SleightOfFlesh : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["SleightOfFleshPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.SleightOfFleshPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.SleightOfFleshPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
 }

@@ -1,8 +1,8 @@
-using CombatSolver.Flash.Content.Afflictions;
-using CombatSolver.Flash.Content.Monsters.Act1;
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Content.Afflictions;
+using BlitzSolver.Content.Monsters.Act1;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Powers;
+namespace BlitzSolver.Content.Powers;
 
 /// <summary>
 /// <c>PlowPower</c> (Ceremonial Beast's STAMP_MOVE): when the owner takes unblocked damage and its
@@ -11,45 +11,45 @@ namespace CombatSolver.Flash.Content.Powers;
 /// <c>AfterDamageReceivedMirrors.HandlePlowPower</c>; the stun is the existing engine's
 /// <c>ForceStunnedMove</c> (not the native <c>CreatureCmd.Stun</c> overload).
 /// </summary>
-[FlashContent("PLOW_POWER")]
-public sealed class PlowPower : FlashPowerDef
+[BlitzContent("PLOW_POWER")]
+public sealed class PlowPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterDamageReceived(ref FlashExec x, FlashListener self, in FlashDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
     {
         if (result.Receiver != self.Owner || result.UnblockedDamage <= 0)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (x.B.Creature(self.Owner).CurrentHp > amount)
             return;
-        ushort strength = FlashRegistry.TryPower("STRENGTH_POWER", out ushort strengthId)
+        ushort strength = BlitzRegistry.TryPower("STRENGTH_POWER", out ushort strengthId)
             ? strengthId
             : ushort.MaxValue;
         for (int index = x.B.PowerCount - 1; index >= 0; index--)
         {
-            ref readonly FlashPower power = ref x.B.Powers[index];
+            ref readonly BlitzPower power = ref x.B.Powers[index];
             if (power.Owner != self.Owner)
                 continue;
             // AfterDamageReceivedMirrors.HandlePlowPower removes every TemporaryStrengthPower
             // subclass (Mangle, SetupStrike, PiercingWail, ...) plus StrengthPower itself. The
             // temporary family has no single native id; the definition records the stat it feeds.
-            FlashPowerDef def = FlashRegistry.Power(power.Id);
+            BlitzPowerDef def = BlitzRegistry.Power(power.Id);
             bool temporaryStrength = def.IsTemporaryPower
                 && def.InternallyAppliedPowerId == "STRENGTH_POWER";
             if (power.Id == strength || temporaryStrength)
-                FlashKernel.SetPowerAmount(ref x.B, self.Owner, power.Id, 0);
+                BlitzKernel.SetPowerAmount(ref x.B, self.Owner, power.Id, 0);
         }
         int nextNode = -1;
-        if (x.B.Enemies[self.Owner - FlashLimits.FirstEnemyOwner].MonsterId
-            == FlashRegistry.MonsterId<CeremonialBeast>())
+        if (x.B.Enemies[self.Owner - BlitzLimits.FirstEnemyOwner].MonsterId
+            == BlitzRegistry.MonsterId<CeremonialBeast>())
         {
-            nextNode = FlashKernel.MonsterRules(ref x, self.Owner).NodeIndex("BEAST_CRY_MOVE");
+            nextNode = BlitzKernel.MonsterRules(ref x, self.Owner).NodeIndex("BEAST_CRY_MOVE");
         }
-        FlashKernel.ForceStunnedMove(ref x, self.Owner, nextNode);
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+        BlitzKernel.ForceStunnedMove(ref x, self.Owner, nextNode);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
     }
 }
 
@@ -60,22 +60,22 @@ public sealed class PlowPower : FlashPowerDef
 /// (<c>CorePowerSupport.TriggerPlayerRegularSideTurnEndEffects</c>), after which the normalization
 /// clears the afflictions.
 /// </summary>
-[FlashContent("RINGING_POWER")]
-public sealed class RingingPower : FlashPowerDef
+[BlitzContent("RINGING_POWER")]
+public sealed class RingingPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
 
-    public override bool ShouldPlay(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card)
+    public override bool ShouldPlay(in BlitzBattle battle, BlitzRules rules, BlitzListener self, in BlitzCard card)
     {
-        if (card.AfflictionId != FlashRegistry.AfflictionId<RingingAffliction>() + 1)
+        if (card.AfflictionId != BlitzRegistry.AfflictionId<RingingAffliction>() + 1)
             return true;
-        return battle.Counter(FlashCounter.CardPlaySeriesStartedThisTurn) == 0;
+        return battle.Counter(BlitzCounter.CardPlaySeriesStartedThisTurn) == 0;
     }
 
-    public override void PlayerSideTurnEnd(ref FlashExec x, FlashListener self)
-        => FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+    public override void PlayerSideTurnEnd(ref BlitzExec x, BlitzListener self)
+        => BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
 }
 
 /// <summary>
@@ -83,23 +83,23 @@ public sealed class RingingPower : FlashPowerDef
 /// the power's amount to their energy cost (<c>TryModifyEnergyCostInCombat</c>). Removed at the
 /// player's turn end; the normalization clears Entangled afterwards.
 /// </summary>
-[FlashContent("TANGLED_POWER")]
-public sealed class TangledPower : FlashPowerDef
+[BlitzContent("TANGLED_POWER")]
+public sealed class TangledPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override decimal TryModifyEnergyCostInCombat(in FlashBattle battle, FlashRules rules, FlashListener self,
-        in FlashCard card, FlashPile pile, decimal amount)
+    public override decimal TryModifyEnergyCostInCombat(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
+        in BlitzCard card, BlitzPile pile, decimal amount)
     {
-        if (card.AfflictionId != FlashRegistry.AfflictionId<EntangledAffliction>() + 1)
+        if (card.AfflictionId != BlitzRegistry.AfflictionId<EntangledAffliction>() + 1)
             return amount;
         return amount + battle.Powers[self.Index].Amount;
     }
 
-    public override void PlayerSideTurnEnd(ref FlashExec x, FlashListener self)
-        => FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+    public override void PlayerSideTurnEnd(ref BlitzExec x, BlitzListener self)
+        => BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
 }
 
 /// <summary>
@@ -108,40 +108,40 @@ public sealed class TangledPower : FlashPowerDef
 /// them. Mirrors <c>ShouldPlayMirrors</c>, <c>AfterCardPlayedMirrors.HandleSmoggyPower</c> and
 /// <c>EndTurnPowerSupport.TriggerRegular</c>'s SmoggyPower case.
 /// </summary>
-[FlashContent("SMOGGY_POWER")]
-public sealed class SmoggyPower : FlashPowerDef
+[BlitzContent("SMOGGY_POWER")]
+public sealed class SmoggyPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Single;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
 
-    public override bool ShouldPlay(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card)
-        => card.AfflictionId != FlashRegistry.AfflictionId<SmogAffliction>() + 1;
+    public override bool ShouldPlay(in BlitzBattle battle, BlitzRules rules, BlitzListener self, in BlitzCard card)
+        => card.AfflictionId != BlitzRegistry.AfflictionId<SmogAffliction>() + 1;
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
         if (play.Position < 0 || play.Position >= x.B.CardCount)
             return;
-        ref readonly FlashCard played = ref x.B.Cards[play.Position];
-        FlashCardStats stats = x.R.Card(played.Id, played.Upgrade);
-        if (stats.Type != FlashCardType.Skill)
+        ref readonly BlitzCard played = ref x.B.Cards[play.Position];
+        BlitzCardStats stats = x.R.Card(played.Id, played.Upgrade);
+        if (stats.Type != BlitzCardType.Skill)
             return;
-        ushort smog = FlashRegistry.AfflictionId<SmogAffliction>();
+        ushort smog = BlitzRegistry.AfflictionId<SmogAffliction>();
         for (int position = 0; position < x.B.CardCount; position++)
         {
-            ref readonly FlashCard card = ref x.B.Cards[position];
-            if (card.AfflictionId != 0 || FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill)
+            ref readonly BlitzCard card = ref x.B.Cards[position];
+            if (card.AfflictionId != 0 || BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Skill)
                 continue;
-            FlashKernel.ApplyAffliction(ref x, position, smog, 1);
+            BlitzKernel.ApplyAffliction(ref x, position, smog, 1);
             if (x.NeedsChoice)
                 return;
         }
     }
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (participates)
-            FlashKernel.ClearAfflictions(ref x.B, FlashRegistry.AfflictionId<SmogAffliction>());
+            BlitzKernel.ClearAfflictions(ref x.B, BlitzRegistry.AfflictionId<SmogAffliction>());
     }
 }
 
@@ -151,20 +151,20 @@ public sealed class SmoggyPower : FlashPowerDef
 /// by the normalization pass. The native <c>AfterPowerAmountChanged</c> body is not mirrored by the
 /// existing engine, which normalizes instead.
 /// </summary>
-[FlashContent("VITAL_SPARK_POWER")]
-public sealed class VitalSparkPower : FlashPowerDef
+[BlitzContent("VITAL_SPARK_POWER")]
+public sealed class VitalSparkPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
         if (play.Position < 0 || play.Position >= x.B.CardCount
-            || x.B.Cards[play.Position].AfflictionId != FlashRegistry.AfflictionId<TaintedAffliction>() + 1)
+            || x.B.Cards[play.Position].AfflictionId != BlitzRegistry.AfflictionId<TaintedAffliction>() + 1)
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<TaintedPower>(),
-            x.B.Powers[self.Index].Amount, FlashLimits.NoOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<TaintedPower>(),
+            x.B.Powers[self.Index].Amount, BlitzLimits.NoOwner);
     }
 }
 
@@ -172,14 +172,14 @@ public sealed class VitalSparkPower : FlashPowerDef
 /// <c>TaintedPower</c>: adds its amount to the owner's powered attacks and is removed at the end of
 /// the enemy side. Mirrors <c>TaintedPower.ModifyDamageAdditive</c> and the EndTurnPowerSupport case.
 /// </summary>
-[FlashContent("TAINTED_POWER")]
-public sealed class TaintedPower : FlashPowerDef
+[BlitzContent("TAINTED_POWER")]
+public sealed class TaintedPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override decimal ModifyDamageAdditive(ref FlashExec x, FlashListener self, in FlashDamageContext damage,
+    public override decimal ModifyDamageAdditive(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage,
         decimal amount)
     {
         if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack())
@@ -187,10 +187,10 @@ public sealed class TaintedPower : FlashPowerDef
         return x.B.Powers[self.Index].Amount;
     }
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
-        if (side == FlashSide.Enemy)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+        if (side == BlitzSide.Enemy)
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
     }
 }
 
@@ -199,13 +199,13 @@ public sealed class TaintedPower : FlashPowerDef
 /// and the normalization clears Hexed. Mirrors <c>CorePowerSupport.ApplyEnemyDeathPowers</c>'s
 /// <c>RemoveHexPower</c>.
 /// </summary>
-[FlashContent("HEX_POWER")]
-public sealed class HexPower : FlashPowerDef
+[BlitzContent("HEX_POWER")]
+public sealed class HexPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void ApplierDied(ref FlashExec x, FlashListener self)
-        => FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+    public override void ApplierDied(ref BlitzExec x, BlitzListener self)
+        => BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
 }

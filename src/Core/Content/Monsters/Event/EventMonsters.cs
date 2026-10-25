@@ -1,25 +1,25 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Monsters.Event;
+namespace BlitzSolver.Content.Monsters.Event;
 
 /// <summary>
 /// FakeMerchantMonster: SWIPE_MOVE is a plain attack, SPEW_COINS_MOVE is 2×8, THROW_RELIC_MOVE applies
 /// Frail 1 to the player as a monster debuff, ENRAGE_MOVE applies Strength 2 to itself
 /// (<c>MonsterMoveEffects</c> "FakeMerchantMonster").
 /// </summary>
-[FlashContent("FAKE_MERCHANT_MONSTER")]
-public sealed class FakeMerchantMonster : FlashMonsterDef
+[BlitzContent("FAKE_MERCHANT_MONSTER")]
+public sealed class FakeMerchantMonster : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "ENRAGE_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
                 break;
             case "THROW_RELIC_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.FrailPower>(), 1, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.FrailPower>(), 1, owner);
                 break;
         }
     }
@@ -30,13 +30,13 @@ public sealed class FakeMerchantMonster : FlashMonsterDef
 /// Strength 3 and FLAIL_MOVE/RAM_MOVE are plain attacks (<c>MonsterMoveEffects</c>
 /// "MysteriousKnight"/"FlailKnight"). Its starting Strength 6 and Plating 6 come from the root.
 /// </summary>
-[FlashContent("MYSTERIOUS_KNIGHT")]
-public sealed class MysteriousKnight : FlashMonsterDef
+[BlitzContent("MYSTERIOUS_KNIGHT")]
+public sealed class MysteriousKnight : BlitzMonsterDef
 {
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        if (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "WAR_CHANT")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
+        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "WAR_CHANT")
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
     }
 }
 
@@ -46,8 +46,8 @@ public sealed class MysteriousKnight : FlashMonsterDef
 /// room is ended by the event script before the player acts). The definition keeps a synthesized
 /// root simulatable without inventing an effect.
 /// </summary>
-[FlashContent("ARCHITECT")]
-public sealed class Architect : FlashMonsterDef
+[BlitzContent("ARCHITECT")]
+public sealed class Architect : BlitzMonsterDef
 {
 }
 
@@ -55,20 +55,20 @@ public sealed class Architect : FlashMonsterDef
 /// The three Battleworn Dummy variants (75/150/300 HP) share the native single-node NOTHING_MOVE loop
 /// and the BattlewornDummyTimeLimitPower applied by <c>AfterAddedToRoom</c>. That power arrives in the
 /// root power table; <see cref="Powers.BattlewornDummyTimeLimitPower"/> models the decrement and
-/// rejects the timeout boundary (the native escape / encounter RanOutOfTime flag has no Flash
+/// rejects the timeout boundary (the native escape / encounter RanOutOfTime flag has no Blitz
 /// outcome).
 /// </summary>
-[FlashContent("BATTLE_FRIEND_V1")]
-public sealed class BattleFriendV1 : FlashMonsterDef
+[BlitzContent("BATTLE_FRIEND_V1")]
+public sealed class BattleFriendV1 : BlitzMonsterDef
 {
 }
 
-[FlashContent("BATTLE_FRIEND_V2")]
-public sealed class BattleFriendV2 : FlashMonsterDef
+[BlitzContent("BATTLE_FRIEND_V2")]
+public sealed class BattleFriendV2 : BlitzMonsterDef
 {
 }
 
-[FlashContent("BATTLE_FRIEND_V3")]
-public sealed class BattleFriendV3 : FlashMonsterDef
+[BlitzContent("BATTLE_FRIEND_V3")]
+public sealed class BattleFriendV3 : BlitzMonsterDef
 {
 }

@@ -1,5 +1,5 @@
 // Ported from CombatSolver src/Search/ActEndingBossPolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-namespace CombatSolver;
+namespace BlitzSolver.Search;
 
 /// <summary>
 /// How much the HP this fight costs actually matters to the run.

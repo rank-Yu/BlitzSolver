@@ -1,6 +1,6 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Potions;
+namespace BlitzSolver.Content.Potions;
 
 /// <summary>
 /// The shared 0..1 GenerateToHand choice of the four card-generation potions. Candidate generation is
@@ -11,26 +11,26 @@ namespace CombatSolver.Flash.Content.Potions;
 /// </summary>
 internal static class GenerateToHand
 {
-    public static void Choose(ref FlashExec x, FlashCardType? type, string poolKey)
+    public static void Choose(ref BlitzExec x, BlitzCardType? type, string poolKey)
     {
-        Span<FlashCard> options = stackalloc FlashCard[3];
+        Span<BlitzCard> options = stackalloc BlitzCard[3];
         int count;
         if (type is { } cardType)
-            count = FlashCardEffects.SampleCharacterCardsOfType(ref x.B, x.R, cardType, 3, options);
+            count = BlitzCardEffects.SampleCharacterCardsOfType(ref x.B, x.R, cardType, 3, options);
         else
-            count = FlashKernel.SampleCardPool(ref x.B, x.R, poolKey, 3, distinct: true,
-                FlashRngStream.CombatCardGeneration, options);
+            count = BlitzKernel.SampleCardPool(ref x.B, x.R, poolKey, 3, distinct: true,
+                BlitzRngStream.CombatCardGeneration, options);
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseGeneratedCardsInRange(ref x, FlashChoiceEffect.GenerateToHand, options[..count],
+        if (!BlitzKernel.ChooseGeneratedCardsInRange(ref x, BlitzChoiceEffect.GenerateToHand, options[..count],
                 0, 1, selected, out int selectedCount))
             return;
         for (int index = 0; index < selectedCount; index++)
         {
             // PotionChoiceSupport.Apply uses PredictedCard.Clone (not CreateClone): the value is copied
             // without setting IsClone.
-            FlashCard card = options[selected[index]];
-            FlashKernel.MakeFreeThisTurn(x.R, ref card);
-            FlashKernel.AddGeneratedCard(ref x, card, FlashPile.Hand);
+            BlitzCard card = options[selected[index]];
+            BlitzKernel.MakeFreeThisTurn(x.R, ref card);
+            BlitzKernel.AddGeneratedCard(ref x, card, BlitzPile.Hand);
             if (x.NeedsChoice)
                 return;
         }

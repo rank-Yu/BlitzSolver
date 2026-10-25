@@ -1,6 +1,6 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Relics;
+namespace BlitzSolver.Content.Relics;
 
 /// <summary>
 /// Native <c>Vambrace</c>: the first card-sourced block each combat is doubled once; the triggering
@@ -9,16 +9,16 @@ namespace CombatSolver.Flash.Content.Relics;
 /// <c>ModifyBlockMultiplicativeMirrors.HandleVambrace</c> and
 /// <c>AfterCardPlayedMirrors.HandleVambrace</c> (VambracePredictionState).
 /// </summary>
-[FlashContent("VAMBRACE")]
-public sealed class Vambrace : FlashRelicDef
+[BlitzContent("VAMBRACE")]
+public sealed class Vambrace : BlitzRelicDef
 {
     public override bool IsIdentityContent => true;
 
-    public override decimal ModifyBlockMultiplicative(ref FlashExec x, FlashListener self, in FlashBlockContext block,
+    public override decimal ModifyBlockMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzBlockContext block,
         decimal amount)
     {
         if (x.B.Relics[self.Index].Counter != 0
-            || (block.Props & FlashValueProps.Move) == 0
+            || (block.Props & BlitzValueProps.Move) == 0
             || !block.HasCardSource)
         {
             return 1m;
@@ -28,8 +28,8 @@ public sealed class Vambrace : FlashRelicDef
         return 2m;
     }
 
-    public override void AfterModifyingBlockAmount(ref FlashExec x, FlashListener self, decimal modified,
-        in FlashBlockContext block)
+    public override void AfterModifyingBlockAmount(ref BlitzExec x, BlitzListener self, decimal modified,
+        in BlitzBlockContext block)
     {
         if (modified <= 0m || !block.HasCardSource)
             return;
@@ -38,11 +38,11 @@ public sealed class Vambrace : FlashRelicDef
         x.VambraceTriggerSerial = x.CardPowerSourceSerial;
     }
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
         if (x.B.Relics[self.Index].Counter != 0 || !x.VambraceTriggerActive)
             return;
-        int relative = play.Position - FlashPiles.Start(x.B, FlashPile.Play);
+        int relative = play.Position - BlitzPiles.Start(x.B, BlitzPile.Play);
         if (relative != x.VambraceTriggerPosition || x.VambraceTriggerSerial != x.LastCardPowerSourceSerial)
             return;
         x.B.Relics[self.Index].Counter = 1;
@@ -56,48 +56,48 @@ public sealed class Vambrace : FlashRelicDef
 /// <c>SimulatedCombatState.ObserveUnsettlingLamp/ModifyPowerAmountForUnsettlingLamp/
 /// CompleteCardPowerApplication</c>.
 /// </summary>
-[FlashContent("UNSETTLING_LAMP")]
-public sealed class UnsettlingLamp : FlashRelicDef
+[BlitzContent("UNSETTLING_LAMP")]
+public sealed class UnsettlingLamp : BlitzRelicDef
 {
     public override bool IsIdentityContent => true;
 
     public override bool IsUnsettlingLamp => true;
 
-    public override void BeforePowerAmountChanged(ref FlashExec x, FlashListener self, ushort powerId, int amount,
+    public override void BeforePowerAmountChanged(ref BlitzExec x, BlitzListener self, ushort powerId, int amount,
         byte target, byte applier, int cardSourceSerial)
     {
         if (cardSourceSerial == 0
             || x.LampTriggerSerial != 0
             || x.B.Relics[self.Index].Counter != 0
             || applier != self.Owner
-            || FlashKernel.IsPlayerSide(target))
+            || BlitzKernel.IsPlayerSide(target))
         {
             return;
         }
-        FlashPowerDef def = FlashRegistry.Power(powerId);
-        if (!def.IsVisible || def.TypeForAmount(amount) != FlashPowerType.Debuff)
+        BlitzPowerDef def = BlitzRegistry.Power(powerId);
+        if (!def.IsVisible || def.TypeForAmount(amount) != BlitzPowerType.Debuff)
             return;
-        if (FlashRegistry.TryPower("ARTIFACT_POWER", out ushort artifact)
-            && FlashKernel.GetAmount(x.B, target, artifact) > 0)
+        if (BlitzRegistry.TryPower("ARTIFACT_POWER", out ushort artifact)
+            && BlitzKernel.GetAmount(x.B, target, artifact) > 0)
         {
             return;
         }
         x.LampTriggerSerial = cardSourceSerial;
         if (!def.IsTemporaryPower || def.InternallyAppliedPowerId is not { } internalId)
             return;
-        if (!FlashRegistry.TryPower(internalId, out ushort internalPower))
-            throw new FlashUnsupportedException($"临时 Power {def.NativeId} 的内部 Power {internalId} 没有定义。");
+        if (!BlitzRegistry.TryPower(internalId, out ushort internalPower))
+            throw new BlitzUnsupportedException($"临时 Power {def.NativeId} 的内部 Power {internalId} 没有定义。");
         for (int index = 0; index < x.LampInternalTypeCount; index++)
         {
             if (x.LampInternalTypes[index] == internalPower)
                 return;
         }
-        if (x.LampInternalTypeCount >= FlashLimits.LampInternalPowerTypes)
-            throw new FlashCapacityException("LampInternalPowerTypes", FlashLimits.LampInternalPowerTypes);
+        if (x.LampInternalTypeCount >= BlitzLimits.LampInternalPowerTypes)
+            throw new BlitzCapacityException("LampInternalPowerTypes", BlitzLimits.LampInternalPowerTypes);
         x.LampInternalTypes[x.LampInternalTypeCount++] = internalPower;
     }
 
-    public override decimal ModifyPowerAmountGivenMultiplicative(ref FlashExec x, FlashListener self,
+    public override decimal ModifyPowerAmountGivenMultiplicative(ref BlitzExec x, BlitzListener self,
         ushort powerId, byte giver, byte target, decimal amount, int cardSourceSerial)
     {
         if (cardSourceSerial == 0
@@ -111,7 +111,7 @@ public sealed class UnsettlingLamp : FlashRelicDef
             if (x.LampInternalTypes[index] == powerId)
                 return 1m;
         }
-        if (FlashRegistry.Power(powerId).TypeForAmount((int)amount) != FlashPowerType.Debuff)
+        if (BlitzRegistry.Power(powerId).TypeForAmount((int)amount) != BlitzPowerType.Debuff)
             return 1m;
         return 2m;
     }

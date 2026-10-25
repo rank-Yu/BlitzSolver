@@ -1,132 +1,132 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Powers;
+namespace BlitzSolver.Content.Powers;
 
-[FlashContent("FOCUS_POWER")]
-public sealed class FocusPower : FlashPowerDef
+[BlitzContent("FOCUS_POWER")]
+public sealed class FocusPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     public override bool AllowNegative => true;
 
-    public override decimal ModifyOrbValue(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashOrb orb,
+    public override decimal ModifyOrbValue(in BlitzBattle battle, BlitzRules rules, BlitzListener self, in BlitzOrb orb,
         decimal value)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return value;
         return Math.Max(value + battle.Powers[self.Index].Amount, 0m);
     }
 }
 
-public abstract class TemporaryFocusDef : FlashPowerDef
+public abstract class TemporaryFocusDef : BlitzPowerDef
 {
-    public override FlashPowerType Type => IsPositive ? FlashPowerType.Buff : FlashPowerType.Debuff;
+    public override BlitzPowerType Type => IsPositive ? BlitzPowerType.Buff : BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
     protected virtual bool IsPositive => true;
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (participates)
-            FlashKernel.RetireTemporaryFocus(ref x, self);
+            BlitzKernel.RetireTemporaryFocus(ref x, self);
     }
 }
 
-[FlashContent("FOCUSED_STRIKE_POWER")]
+[BlitzContent("FOCUSED_STRIKE_POWER")]
 public sealed class FocusedStrikePower : TemporaryFocusDef;
 
-[FlashContent("HOTFIX_POWER")]
+[BlitzContent("HOTFIX_POWER")]
 public sealed class HotfixPower : TemporaryFocusDef;
 
-[FlashContent("SYNCHRONIZE_POWER")]
+[BlitzContent("SYNCHRONIZE_POWER")]
 public sealed class SynchronizePower : TemporaryFocusDef;
 
-[FlashContent("HYPERBEAM_FOCUS_DOWN_POWER")]
+[BlitzContent("HYPERBEAM_FOCUS_DOWN_POWER")]
 public sealed class HyperbeamFocusDownPower : TemporaryFocusDef
 {
     protected override bool IsPositive => false;
 }
 
-[FlashContent("ITERATION_POWER")]
-public sealed class IterationPower : FlashPowerDef
+[BlitzContent("ITERATION_POWER")]
+public sealed class IterationPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterCardDrawn(ref FlashExec x, FlashListener self, int drawnPosition, bool fromHandDraw)
+    public override void AfterCardDrawn(ref BlitzExec x, BlitzListener self, int drawnPosition, bool fromHandDraw)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
         if ((uint)drawnPosition >= (uint)x.B.CardCount)
-            throw new FlashUnsupportedException("抽牌触发时抽到的牌已不在牌堆。");
-        FlashCard card = x.B.Cards[drawnPosition];
-        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
+            throw new BlitzUnsupportedException("抽牌触发时抽到的牌已不在牌堆。");
+        BlitzCard card = x.B.Cards[drawnPosition];
+        if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Status)
             return;
-        if (x.B.Counter(FlashCounter.StatusCardsDrawnThisTurn) > 1)
+        if (x.B.Counter(BlitzCounter.StatusCardsDrawnThisTurn) > 1)
             return;
-        FlashKernel.Draw(ref x, x.B.Powers[self.Index].Amount, fromHandDraw: false);
+        BlitzKernel.Draw(ref x, x.B.Powers[self.Index].Amount, fromHandDraw: false);
     }
 }
 
-[FlashContent("MACHINE_LEARNING_POWER")]
-public sealed class MachineLearningPower : FlashPowerDef
+[BlitzContent("MACHINE_LEARNING_POWER")]
+public sealed class MachineLearningPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override decimal ModifyHandDraw(ref FlashExec x, FlashListener self, decimal amount)
-        => self.Owner == FlashLimits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
+    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
+        => self.Owner == BlitzLimits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
 }
 
-[FlashContent("LOOP_POWER")]
-public sealed class LoopPower : FlashPowerDef
+[BlitzContent("LOOP_POWER")]
+public sealed class LoopPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterPlayerTurnStart(ref FlashExec x, FlashListener self)
+    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || x.B.OrbCount == 0)
+        if (self.Owner != BlitzLimits.PlayerOwner || x.B.OrbCount == 0)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         for (int index = 0; index < amount; index++)
         {
-            FlashKernel.OrbPassiveAt(ref x, 0);
+            BlitzKernel.OrbPassiveAt(ref x, 0);
             if (x.NeedsChoice)
                 return;
         }
     }
 }
 
-[FlashContent("CREATIVE_AI_POWER")]
-public sealed class CreativeAiPower : FlashPowerDef
+[BlitzContent("CREATIVE_AI_POWER")]
+public sealed class CreativeAiPower : BlitzPowerDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.CharacterPowers];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterPowers];
 
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void BeforeHandDraw(ref FlashExec x, FlashListener self)
+    public override void BeforeHandDraw(ref BlitzExec x, BlitzListener self)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
         int amount = x.B.Powers[self.Index].Amount;
-        Span<FlashCard> generated = stackalloc FlashCard[FlashLimits.MaxHandSize];
+        Span<BlitzCard> generated = stackalloc BlitzCard[BlitzLimits.MaxHandSize];
         int count = 0;
         for (int index = 0; index < amount; index++)
         {
             // CardFactory.GetDistinctForCombat(..., 1, CombatCardGeneration) once per stack.
             if (count >= generated.Length)
-                throw new FlashCapacityException("CreativeAi.Generated", generated.Length);
-            if (FlashCardEffects.SampleCharacterCardsOfType(ref x.B, x.R, FlashCardType.Power, 1,
-                    generated[count..], FlashCardPools.CharacterPowers) == 0)
+                throw new BlitzCapacityException("CreativeAi.Generated", generated.Length);
+            if (BlitzCardEffects.SampleCharacterCardsOfType(ref x.B, x.R, BlitzCardType.Power, 1,
+                    generated[count..], BlitzCardPools.CharacterPowers) == 0)
             {
                 break;
             }
@@ -135,7 +135,7 @@ public sealed class CreativeAiPower : FlashPowerDef
         // TurnStartPowerSupport queues all generated cards first, then adds them one by one.
         for (int index = 0; index < count; index++)
         {
-            if (!FlashKernel.AddGeneratedCard(ref x, generated[index], FlashPile.Hand))
+            if (!BlitzKernel.AddGeneratedCard(ref x, generated[index], BlitzPile.Hand))
                 return;
             if (x.NeedsChoice)
                 return;
@@ -143,205 +143,205 @@ public sealed class CreativeAiPower : FlashPowerDef
     }
 }
 
-[FlashContent("SPINNER_POWER")]
-public sealed class SpinnerPower : FlashPowerDef
+[BlitzContent("SPINNER_POWER")]
+public sealed class SpinnerPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterEnergyReset(ref FlashExec x, FlashListener self)
+    public override void AfterEnergyReset(ref BlitzExec x, BlitzListener self)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
-        FlashKernel.ChannelOrbs(ref x, FlashKernel.OrbId("GLASS_ORB"), x.B.Powers[self.Index].Amount);
+        BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("GLASS_ORB"), x.B.Powers[self.Index].Amount);
     }
 }
 
-[FlashContent("LIGHTNING_ROD_POWER")]
-public sealed class LightningRodPower : FlashPowerDef
+[BlitzContent("LIGHTNING_ROD_POWER")]
+public sealed class LightningRodPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterEnergyReset(ref FlashExec x, FlashListener self)
+    public override void AfterEnergyReset(ref BlitzExec x, BlitzListener self)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
         int amount = x.B.Powers[self.Index].Amount;
-        FlashKernel.ChannelOrb(ref x, FlashKernel.OrbId("LIGHTNING_ORB"));
+        BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("LIGHTNING_ORB"));
         if (x.NeedsChoice)
             return;
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, amount - 1);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, amount - 1);
     }
 }
 
-[FlashContent("FREE_POWER_POWER")]
-public sealed class FreePowerPower : FlashPowerDef
+[BlitzContent("FREE_POWER_POWER")]
+public sealed class FreePowerPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override decimal TryModifyEnergyCostInCombatLate(in FlashBattle battle, FlashRules rules, FlashListener self,
-        in FlashCard card, FlashPile pile, decimal amount)
+    public override decimal TryModifyEnergyCostInCombatLate(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
+        in BlitzCard card, BlitzPile pile, decimal amount)
     {
-        if (self.Owner != FlashLimits.PlayerOwner
-            || FlashRegistry.Card(card.Id).CardType(battle, rules, card) != FlashCardType.Power)
+        if (self.Owner != BlitzLimits.PlayerOwner
+            || BlitzRegistry.Card(card.Id).CardType(battle, rules, card) != BlitzCardType.Power)
             return amount;
-        return pile is FlashPile.Hand or FlashPile.Play ? 0m : amount;
+        return pile is BlitzPile.Hand or BlitzPile.Play ? 0m : amount;
     }
 
-    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (FlashKernel.CardType(x.B, x.R, play.Card) != FlashCardType.Power)
+        if (BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Power)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, amount - 1);
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, amount - 1);
     }
 }
 
-[FlashContent("HAILSTORM_POWER")]
-public sealed class HailstormPower : FlashPowerDef
+[BlitzContent("HAILSTORM_POWER")]
+public sealed class HailstormPower : BlitzPowerDef
 {
     public override IReadOnlyList<string> VarNames => ["FrostOrbs"];
 
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    public override void BeforeSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
     {
-        if (!FlashKernel.Participates(participants, self.Owner))
+        if (!BlitzKernel.Participates(participants, self.Owner))
             return;
-        int frost = FlashKernel.CountOrbs(x.B, "FROST_ORB");
+        int frost = BlitzKernel.CountOrbs(x.B, "FROST_ORB");
         if (frost < (int)x.R.PowerVar(x.B.Powers[self.Index].Id, 0))
             return;
-        FlashCardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, FlashValueProps.Unpowered,
+        BlitzCardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, BlitzValueProps.Unpowered,
             self.Owner);
     }
 }
 
-[FlashContent("STORM_POWER")]
-public sealed class StormPower : FlashPowerDef
+[BlitzContent("STORM_POWER")]
+public sealed class StormPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (FlashKernel.CardType(x.B, x.R, play.Card) == FlashCardType.Power)
-            x.PushCardPlayPair(FlashCardPlayPairKind.StormLightning, self.Owner, x.B.Powers[self.Index].Id,
+        if (BlitzKernel.CardType(x.B, x.R, play.Card) == BlitzCardType.Power)
+            x.PushCardPlayPair(BlitzCardPlayPairKind.StormLightning, self.Owner, x.B.Powers[self.Index].Id,
                 x.B.Powers[self.Index].Amount);
     }
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (x.TryTakeCardPlayPair(FlashCardPlayPairKind.StormLightning, self.Owner, x.B.Powers[self.Index].Id,
+        if (x.TryTakeCardPlayPair(BlitzCardPlayPairKind.StormLightning, self.Owner, x.B.Powers[self.Index].Id,
                 out int amount) && amount > 0)
         {
-            FlashKernel.ChannelOrbs(ref x, FlashKernel.OrbId("LIGHTNING_ORB"), amount);
+            BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("LIGHTNING_ORB"), amount);
         }
     }
 }
 
-[FlashContent("SUBROUTINE_POWER")]
-public sealed class SubroutinePower : FlashPowerDef
+[BlitzContent("SUBROUTINE_POWER")]
+public sealed class SubroutinePower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void BeforeCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (FlashKernel.CardType(x.B, x.R, play.Card) == FlashCardType.Power)
-            x.PushCardPlayPair(FlashCardPlayPairKind.SubroutineEnergy, self.Owner, x.B.Powers[self.Index].Id,
+        if (BlitzKernel.CardType(x.B, x.R, play.Card) == BlitzCardType.Power)
+            x.PushCardPlayPair(BlitzCardPlayPairKind.SubroutineEnergy, self.Owner, x.B.Powers[self.Index].Id,
                 x.B.Powers[self.Index].Amount);
     }
 
-    public override void AfterCardPlayed(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
-        if (x.TryTakeCardPlayPair(FlashCardPlayPairKind.SubroutineEnergy, self.Owner, x.B.Powers[self.Index].Id,
+        if (x.TryTakeCardPlayPair(BlitzCardPlayPairKind.SubroutineEnergy, self.Owner, x.B.Powers[self.Index].Id,
                 out int amount) && amount > 0)
         {
-            FlashKernel.GainEnergy(ref x, amount);
+            BlitzKernel.GainEnergy(ref x, amount);
         }
     }
 }
 
-[FlashContent("THUNDER_POWER")]
-public sealed class ThunderPower : FlashPowerDef
+[BlitzContent("THUNDER_POWER")]
+public sealed class ThunderPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterOrbEvoked(ref FlashExec x, FlashListener self, in FlashOrb orb,
+    public override void AfterOrbEvoked(ref BlitzExec x, BlitzListener self, in BlitzOrb orb,
         scoped ReadOnlySpan<byte> targets)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || !FlashRegistry.TryOrb("LIGHTNING_ORB", out ushort lightning)
+        if (self.Owner != BlitzLimits.PlayerOwner || !BlitzRegistry.TryOrb("LIGHTNING_ORB", out ushort lightning)
             || orb.Id != lightning)
         {
             return;
         }
-        Span<byte> living = stackalloc byte[FlashLimits.Enemies + 1];
+        Span<byte> living = stackalloc byte[BlitzLimits.Enemies + 1];
         int count = 0;
         foreach (byte target in targets)
         {
-            if (FlashKernel.IsHittable(x.B, target))
+            if (BlitzKernel.IsHittable(x.B, target))
                 living[count++] = target;
         }
         if (count > 0)
-            FlashKernel.Damage(ref x, living[..count], x.B.Powers[self.Index].Amount, FlashValueProps.Unpowered,
+            BlitzKernel.Damage(ref x, living[..count], x.B.Powers[self.Index].Amount, BlitzValueProps.Unpowered,
                 self.Owner, hasCardSource: false, default);
     }
 }
 
-[FlashContent("SMOKESTACK_POWER")]
-public sealed class SmokestackPower : FlashPowerDef
+[BlitzContent("SMOKESTACK_POWER")]
+public sealed class SmokestackPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position, byte creator)
+    public override void AfterCardGeneratedForCombat(ref BlitzExec x, BlitzListener self, int position, byte creator)
     {
-        if (creator != FlashLimits.PlayerOwner)
+        if (creator != BlitzLimits.PlayerOwner)
             return;
         if ((uint)position >= (uint)x.B.CardCount)
-            throw new FlashUnsupportedException("生成牌触发时该牌已不在牌堆。");
-        FlashCard card = x.B.Cards[position];
-        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
+            throw new BlitzUnsupportedException("生成牌触发时该牌已不在牌堆。");
+        BlitzCard card = x.B.Cards[position];
+        if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Status)
             return;
-        FlashCardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, FlashValueProps.Unpowered,
+        BlitzCardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, BlitzValueProps.Unpowered,
             self.Owner);
     }
 }
 
-[FlashContent("TRASH_TO_TREASURE_POWER")]
-public sealed class TrashToTreasurePower : FlashPowerDef
+[BlitzContent("TRASH_TO_TREASURE_POWER")]
+public sealed class TrashToTreasurePower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterCardGeneratedForCombat(ref FlashExec x, FlashListener self, int position, byte creator)
+    public override void AfterCardGeneratedForCombat(ref BlitzExec x, BlitzListener self, int position, byte creator)
     {
-        if (creator != FlashLimits.PlayerOwner)
+        if (creator != BlitzLimits.PlayerOwner)
             return;
         if ((uint)position >= (uint)x.B.CardCount)
-            throw new FlashUnsupportedException("生成牌触发时该牌已不在牌堆。");
-        FlashCard card = x.B.Cards[position];
-        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Status)
+            throw new BlitzUnsupportedException("生成牌触发时该牌已不在牌堆。");
+        BlitzCard card = x.B.Cards[position];
+        if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Status)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         for (int index = 0; index < amount; index++)
         {
-            ushort orb = FlashKernel.RandomOrb(ref x.B);
-            if (!FlashKernel.ChannelOrb(ref x, orb))
+            ushort orb = BlitzKernel.RandomOrb(ref x.B);
+            if (!BlitzKernel.ChannelOrb(ref x, orb))
                 return;
             if (x.NeedsChoice)
                 return;
@@ -349,139 +349,139 @@ public sealed class TrashToTreasurePower : FlashPowerDef
     }
 }
 
-[FlashContent("ECHO_FORM_POWER")]
-public sealed class EchoFormPower : FlashPowerDef
+[BlitzContent("ECHO_FORM_POWER")]
+public sealed class EchoFormPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
+    public override int ModifyCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card, byte target,
         int playCount)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return playCount;
-        int started = x.B.Counter(FlashCounter.CardPlaySeriesStartedThisTurn);
+        int started = x.B.Counter(BlitzCounter.CardPlaySeriesStartedThisTurn);
         return started < x.B.Powers[self.Index].Amount ? playCount + 1 : playCount;
     }
 }
 
-[FlashContent("SIGNAL_BOOST_POWER")]
-public sealed class SignalBoostPower : FlashPowerDef
+[BlitzContent("SIGNAL_BOOST_POWER")]
+public sealed class SignalBoostPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override int ModifyCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card, byte target,
+    public override int ModifyCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card, byte target,
         int playCount)
-        => FlashKernel.CardType(x.B, x.R, card) == FlashCardType.Power ? playCount + 1 : playCount;
+        => BlitzKernel.CardType(x.B, x.R, card) == BlitzCardType.Power ? playCount + 1 : playCount;
 
-    public override void AfterModifyingCardPlayCount(ref FlashExec x, FlashListener self, in FlashCard card)
+    public override void AfterModifyingCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            FlashKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, amount - 1);
+            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, amount - 1);
     }
 }
 
-[FlashContent("FERAL_POWER")]
-public sealed class FeralPower : FlashPowerDef
+[BlitzContent("FERAL_POWER")]
+public sealed class FeralPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    // FeralPredictionState.zeroCostAttacksPlayed lives in FlashPower.Aux0.
-    public override void OwnerAfterSideTurnStart(ref FlashExec x, FlashListener self)
+    // FeralPredictionState.zeroCostAttacksPlayed lives in BlitzPower.Aux0.
+    public override void OwnerAfterSideTurnStart(ref BlitzExec x, BlitzListener self)
     {
         x.B.Powers[self.Index].Aux0 = 0;
     }
 
-    public override FlashPile ModifyCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
-        bool isAutoPlay, int energyValue, FlashPile location, out FlashPilePosition position)
+    public override BlitzPile ModifyCardPlayResultLocation(ref BlitzExec x, BlitzListener self, in BlitzCard card,
+        bool isAutoPlay, int energyValue, BlitzPile location, out BlitzPilePosition position)
     {
-        position = FlashPilePosition.Bottom;
-        // Native FeralPower checks CardModel.IsDupe, not IsClone. The only dupes Flash creates are the
-        // HistoryCourse auto-play copies; FlashCard.IsClone marks native CreateClone copies
+        position = BlitzPilePosition.Bottom;
+        // Native FeralPower checks CardModel.IsDupe, not IsClone. The only dupes Blitz creates are the
+        // HistoryCourse auto-play copies; BlitzCard.IsClone marks native CreateClone copies
         // (AdaptiveStrike), which FeralPower does not exclude.
         if (x.CurrentPlayIsHistoryCourseDupe
-            || FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Attack || energyValue > 0)
+            || BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Attack || energyValue > 0)
             return location;
-        ref FlashPower power = ref x.B.Powers[self.Index];
+        ref BlitzPower power = ref x.B.Powers[self.Index];
         if (power.Aux0 >= power.Amount)
             return location;
-        position = FlashPilePosition.Top;
-        return FlashPile.Hand;
+        position = BlitzPilePosition.Top;
+        return BlitzPile.Hand;
     }
 
-    public override void AfterModifyingCardPlayResultLocation(ref FlashExec x, FlashListener self, in FlashCard card,
-        FlashPile location)
+    public override void AfterModifyingCardPlayResultLocation(ref BlitzExec x, BlitzListener self, in BlitzCard card,
+        BlitzPile location)
     {
         x.B.Powers[self.Index].Aux0++;
     }
 }
 
-[FlashContent("CONSUMING_SHADOW_POWER")]
-public sealed class ConsumingShadowPower : FlashPowerDef
+[BlitzContent("CONSUMING_SHADOW_POWER")]
+public sealed class ConsumingShadowPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (!participates || x.B.OrbCount == 0)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         for (int index = 0; index < amount && x.B.OrbCount > 0; index++)
         {
-            FlashKernel.EvokeOrb(ref x, x.B.OrbCount - 1);
+            BlitzKernel.EvokeOrb(ref x, x.B.OrbCount - 1);
             if (x.NeedsChoice)
                 return;
         }
     }
 }
 
-[FlashContent("COOLANT_POWER")]
-public sealed class CoolantPower : FlashPowerDef
+[BlitzContent("COOLANT_POWER")]
+public sealed class CoolantPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void OwnerAfterSideTurnStart(ref FlashExec x, FlashListener self)
+    public override void OwnerAfterSideTurnStart(ref BlitzExec x, BlitzListener self)
     {
-        int block = FlashKernel.DistinctOrbCount(x.B) * x.B.Powers[self.Index].Amount;
+        int block = BlitzKernel.DistinctOrbCount(x.B) * x.B.Powers[self.Index].Amount;
         if (block > 0)
-            FlashKernel.GainBlock(ref x, self.Owner, block, FlashValueProps.Unpowered, fromCard: false);
+            BlitzKernel.GainBlock(ref x, self.Owner, block, BlitzValueProps.Unpowered, fromCard: false);
     }
 }
 
-[FlashContent("BIASED_COGNITION_POWER")]
-public sealed class BiasedCognitionPower : FlashPowerDef
+[BlitzContent("BIASED_COGNITION_POWER")]
+public sealed class BiasedCognitionPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Debuff;
+    public override BlitzPowerType Type => BlitzPowerType.Debuff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void OwnerAfterSideTurnStart(ref FlashExec x, FlashListener self)
+    public override void OwnerAfterSideTurnStart(ref BlitzExec x, BlitzListener self)
     {
-        FlashKernel.ApplyPower(ref x, self.Owner, FlashRegistry.PowerId<FocusPower>(),
+        BlitzKernel.ApplyPower(ref x, self.Owner, BlitzRegistry.PowerId<FocusPower>(),
             -x.B.Powers[self.Index].Amount, self.Owner);
     }
 }
 
-[FlashContent("REPTILE_TRINKET_POWER")]
-public sealed class ReptileTrinketPower : FlashPowerDef
+[BlitzContent("REPTILE_TRINKET_POWER")]
+public sealed class ReptileTrinketPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void EndTurnRegular(ref FlashExec x, FlashListener self, FlashSide side, bool participates)
+    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
     {
         if (participates)
-            FlashKernel.RetireTemporaryStrength(ref x, self);
+            BlitzKernel.RetireTemporaryStrength(ref x, self);
     }
 }

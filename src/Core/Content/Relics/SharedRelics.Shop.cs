@@ -1,27 +1,27 @@
-using CombatSolver.Flash.Content.Powers;
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Content.Powers;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Relics;
+namespace BlitzSolver.Content.Relics;
 
 /// <summary>
 /// <c>UndyingSigil</c>: powered attacks from a doomed creature against its owner are multiplied by
 /// DamageDecrease (<c>ModifyDamageMirrors.HandleUndyingSigil</c>).
 /// </summary>
-[FlashContent("UNDYING_SIGIL")]
-public sealed class UndyingSigil : FlashRelicDef
+[BlitzContent("UNDYING_SIGIL")]
+public sealed class UndyingSigil : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["DamageDecrease"];
 
-    public override decimal ModifyDamageMultiplicative(ref FlashExec x, FlashListener self,
-        in FlashDamageContext damage, decimal amount)
+    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self,
+        in BlitzDamageContext damage, decimal amount)
     {
-        if (damage.Dealer == FlashLimits.NoOwner
-            || damage.Dealer == FlashLimits.PlayerOwner
-            || damage.Target != FlashLimits.PlayerOwner
+        if (damage.Dealer == BlitzLimits.NoOwner
+            || damage.Dealer == BlitzLimits.PlayerOwner
+            || damage.Target != BlitzLimits.PlayerOwner
             || !damage.Props.IsPoweredAttack())
             return 1m;
-        ushort doom = FlashRegistry.PowerId<Powers.DoomPower>();
-        return x.B.Creature(damage.Dealer).CurrentHp <= FlashKernel.GetAmount(x.B, damage.Dealer, doom)
+        ushort doom = BlitzRegistry.PowerId<Powers.DoomPower>();
+        return x.B.Creature(damage.Dealer).CurrentHp <= BlitzKernel.GetAmount(x.B, damage.Dealer, doom)
             ? x.R.RelicVar(Id, 0)
             : 1m;
     }
@@ -31,8 +31,8 @@ public sealed class UndyingSigil : FlashRelicDef
 /// <c>NinjaScroll</c>: adds 3 Shivs to hand at the first <c>BeforeHandDraw</c>, before the captured
 /// root; the Shivs are already in the root hand.
 /// </summary>
-[FlashContent("NINJA_SCROLL")]
-public sealed class NinjaScroll : FlashRelicDef
+[BlitzContent("NINJA_SCROLL")]
+public sealed class NinjaScroll : BlitzRelicDef
 {
 }
 
@@ -42,13 +42,13 @@ public sealed class NinjaScroll : FlashRelicDef
 /// <c>AfterSideTurnStart</c> lose-2-energy case is turn 1 only and belongs to the combat-start turn,
 /// before the root.
 /// </summary>
-[FlashContent("BREAD")]
-public sealed class Bread : FlashRelicDef
+[BlitzContent("BREAD")]
+public sealed class Bread : BlitzRelicDef
 {
     // Bread.cs: EnergyVar("GainEnergy", 1).
     public override IReadOnlyList<string> VarNames => ["GainEnergy"];
 
-    public override decimal ModifyMaxEnergy(ref FlashExec x, FlashListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
         => x.B.PlayerTurn == 1 ? amount : amount + x.R.RelicVar(Id, 0);
 }
 
@@ -56,18 +56,18 @@ public sealed class Bread : FlashRelicDef
 /// <c>ScreamingFlagon</c>: <c>BeforeSideTurnEnd</c>, with an empty hand, deals 20 unpowered damage to
 /// every hittable enemy (<c>BeforeSideTurnEndMirrors.HandleScreamingFlagon</c>).
 /// </summary>
-[FlashContent("SCREAMING_FLAGON")]
-public sealed class ScreamingFlagon : FlashRelicDef
+[BlitzContent("SCREAMING_FLAGON")]
+public sealed class ScreamingFlagon : BlitzRelicDef
 {
     // ScreamingFlagon.cs: DamageVar(20m, ValueProp.Unpowered).
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void BeforeSideTurnEnd(ref FlashExec x, FlashListener self, FlashSide side, ushort participants)
+    public override void BeforeSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
     {
-        if (!FlashKernel.Participates(participants, self.Owner) || x.B.HandCount != 0)
+        if (!BlitzKernel.Participates(participants, self.Owner) || x.B.HandCount != 0)
             return;
-        FlashCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered,
-            FlashLimits.PlayerOwner);
+        BlitzCardEffects.DamageAllEnemies(ref x, x.R.RelicVar(Id, 0), BlitzValueProps.Unpowered,
+            BlitzLimits.PlayerOwner);
     }
 }
 
@@ -75,25 +75,25 @@ public sealed class ScreamingFlagon : FlashRelicDef
 /// <c>Brimstone</c>: <c>AfterSideTurnStart</c> on every player turn applies 2 Strength to the player and
 /// 1 Strength to every living opponent (<c>TriggerRelicsAfterSideTurnStart</c>).
 /// </summary>
-[FlashContent("BRIMSTONE")]
-public sealed class Brimstone : FlashRelicDef
+[BlitzContent("BRIMSTONE")]
+public sealed class Brimstone : BlitzRelicDef
 {
     // Brimstone.cs: PowerVar<StrengthPower>("SelfStrength", 2m), ("EnemyStrength", 1m).
     public override IReadOnlyList<string> VarNames => ["SelfStrength", "EnemyStrength"];
 
-    public override void AfterSideTurnStart(ref FlashExec x, FlashListener self, FlashSide side)
+    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
     {
-        if (side != FlashSide.Player)
+        if (side != BlitzSide.Player)
             return;
-        ushort strength = FlashRegistry.PowerId<StrengthPower>();
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, strength, (int)x.R.RelicVar(Id, 0),
-            FlashLimits.PlayerOwner);
+        ushort strength = BlitzRegistry.PowerId<StrengthPower>();
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, strength, (int)x.R.RelicVar(Id, 0),
+            BlitzLimits.PlayerOwner);
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte owner = FlashKernel.EnemyOwner(x.B.Roster[position]);
-            if (!FlashKernel.IsHittable(x.B, owner))
+            byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
+            if (!BlitzKernel.IsHittable(x.B, owner))
                 continue;
-            FlashKernel.ApplyPower(ref x, owner, strength, (int)x.R.RelicVar(Id, 1), FlashLimits.NoOwner);
+            BlitzKernel.ApplyPower(ref x, owner, strength, (int)x.R.RelicVar(Id, 1), BlitzLimits.NoOwner);
         }
     }
 }
@@ -102,27 +102,27 @@ public sealed class Brimstone : FlashRelicDef
 /// <c>RingingTriangle</c>: <c>ShouldFlush</c> declines the owner's hand flush on player turn 1 only
 /// (<c>PersistentRelicSupport.ShouldFlush</c> uses the simulated turn number).
 /// </summary>
-[FlashContent("RINGING_TRIANGLE")]
-public sealed class RingingTriangle : FlashRelicDef
+[BlitzContent("RINGING_TRIANGLE")]
+public sealed class RingingTriangle : BlitzRelicDef
 {
-    public override bool ShouldFlush(ref FlashExec x, FlashListener self) => x.B.PlayerTurn > 1;
+    public override bool ShouldFlush(ref BlitzExec x, BlitzListener self) => x.B.PlayerTurn > 1;
 }
 
 /// <summary>
 /// <c>TheAbacus</c>: <c>AfterShuffle</c> gains its unpowered block when the shuffling player is its
 /// owner (<c>AfterShuffleMirrors.HandleTheAbacus</c>).
 /// </summary>
-[FlashContent("THE_ABACUS")]
-public sealed class TheAbacus : FlashRelicDef
+[BlitzContent("THE_ABACUS")]
+public sealed class TheAbacus : BlitzRelicDef
 {
     // TheAbacus.cs: BlockVar(6m, ValueProp.Unpowered).
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void AfterShuffle(ref FlashExec x, FlashListener self, byte shuffler)
+    public override void AfterShuffle(ref BlitzExec x, BlitzListener self, byte shuffler)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || shuffler != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner || shuffler != BlitzLimits.PlayerOwner)
             return;
-        FlashKernel.GainBlock(ref x, self.Owner, x.R.RelicVar(Id, 0), FlashValueProps.Unpowered, fromCard: false);
+        BlitzKernel.GainBlock(ref x, self.Owner, x.R.RelicVar(Id, 0), BlitzValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -130,16 +130,16 @@ public sealed class TheAbacus : FlashRelicDef
 /// <c>ChemicalX</c>: <c>ModifyXValue</c> adds its <c>Increase</c> variable to an X value read by its
 /// owner's card (<c>CardModel.ResolveEnergyXValue</c>); the native <c>BeforeCardPlayed</c> only flashes.
 /// </summary>
-[FlashContent("CHEMICAL_X")]
-public sealed class ChemicalX : FlashRelicDef
+[BlitzContent("CHEMICAL_X")]
+public sealed class ChemicalX : BlitzRelicDef
 {
     // ChemicalX.cs: DynamicVar("Increase", 2m).
     public override IReadOnlyList<string> VarNames => ["Increase"];
 
-    public override int ModifyXValue(in FlashBattle battle, FlashRules rules, FlashListener self, in FlashCard card,
+    public override int ModifyXValue(in BlitzBattle battle, BlitzRules rules, BlitzListener self, in BlitzCard card,
         int value)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return value;
         return value + (int)rules.RelicVar(Id, 0);
     }
@@ -150,23 +150,23 @@ public sealed class ChemicalX : FlashRelicDef
 /// (<c>SimulatedCombatState.CardEventHistory.AfterCardEnteredCombat</c> /
 /// <c>GhostSeedMirrors.AfterCardEnteredCombat</c>).
 /// </summary>
-[FlashContent("GHOST_SEED")]
-public sealed class GhostSeed : FlashRelicDef
+[BlitzContent("GHOST_SEED")]
+public sealed class GhostSeed : BlitzRelicDef
 {
-    public override void AfterCardEnteredCombat(ref FlashExec x, FlashListener self, FlashPile pile, int index,
-        in FlashCard card)
+    public override void AfterCardEnteredCombat(ref BlitzExec x, BlitzListener self, BlitzPile pile, int index,
+        in BlitzCard card)
     {
-        if (self.Owner != FlashLimits.PlayerOwner)
+        if (self.Owner != BlitzLimits.PlayerOwner)
             return;
-        FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-        if (stats.Rarity != FlashCardRarity.Basic
-            || (stats.Tags & (FlashCardTag.Strike | FlashCardTag.Defend)) == 0)
+        BlitzCardStats stats = x.R.Card(card.Id, card.Upgrade);
+        if (stats.Rarity != BlitzCardRarity.Basic
+            || (stats.Tags & (BlitzCardTag.Strike | BlitzCardTag.Defend)) == 0)
         {
             return;
         }
-        ref FlashCard stored = ref FlashPiles.At(ref x.B, pile, index);
-        if ((stored.Keywords & FlashKeywords.Ethereal) == 0)
-            stored.Keywords |= FlashKeywords.Ethereal;
+        ref BlitzCard stored = ref BlitzPiles.At(ref x.B, pile, index);
+        if ((stored.Keywords & BlitzKeywords.Ethereal) == 0)
+            stored.Keywords |= BlitzKeywords.Ethereal;
     }
 }
 
@@ -174,95 +174,95 @@ public sealed class GhostSeed : FlashRelicDef
 /// <c>SlingOfCourage</c>: <c>AfterRoomEntered</c> applies Strength only for an elite room, during combat
 /// setup, and has no later hook.
 /// </summary>
-[FlashContent("SLING_OF_COURAGE")]
-public sealed class SlingOfCourage : FlashRelicDef;
+[BlitzContent("SLING_OF_COURAGE")]
+public sealed class SlingOfCourage : BlitzRelicDef;
 
 /// <summary>
 /// <c>Toolbox</c>: <c>BeforeHandDraw</c> offers its colourless card choice only on turn 1
 /// (<c>SimulatedCombatState.Relics.ContinueRelicsBeforeHandDraw</c>), i.e. at the player turn start
 /// before the play-phase root.
 /// </summary>
-[FlashContent("TOOLBOX")]
-public sealed class Toolbox : FlashRelicDef
+[BlitzContent("TOOLBOX")]
+public sealed class Toolbox : BlitzRelicDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [FlashCardPools.ColorlessAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.ColorlessAll];
 
     public override bool MayGenerateIdentityContent => true;
 }
 
 /// <summary><c>Cauldron</c>: <c>AfterObtained</c> potion rewards only.</summary>
-[FlashContent("CAULDRON")]
-public sealed class Cauldron : FlashRelicDef;
+[BlitzContent("CAULDRON")]
+public sealed class Cauldron : BlitzRelicDef;
 
 /// <summary><c>DingyRug</c>: <c>ModifyCardRewardCreationOptions</c> only.</summary>
-[FlashContent("DINGY_RUG")]
-public sealed class DingyRug : FlashRelicDef;
+[BlitzContent("DINGY_RUG")]
+public sealed class DingyRug : BlitzRelicDef;
 
 /// <summary><c>DollysMirror</c>: <c>AfterObtained</c> card duplication only.</summary>
-[FlashContent("DOLLYS_MIRROR")]
-public sealed class DollysMirror : FlashRelicDef;
+[BlitzContent("DOLLYS_MIRROR")]
+public sealed class DollysMirror : BlitzRelicDef;
 
 /// <summary><c>DragonFruit</c>: <c>AfterGoldGained</c> only; the existing engine mirrors it in <c>GoldGainedMirrors</c>, outside combat.</summary>
-[FlashContent("DRAGON_FRUIT")]
-public sealed class DragonFruit : FlashRelicDef;
+[BlitzContent("DRAGON_FRUIT")]
+public sealed class DragonFruit : BlitzRelicDef;
 
 /// <summary><c>GnarledHammer</c>: <c>AfterObtained</c> card upgrades only.</summary>
-[FlashContent("GNARLED_HAMMER")]
-public sealed class GnarledHammer : FlashRelicDef;
+[BlitzContent("GNARLED_HAMMER")]
+public sealed class GnarledHammer : BlitzRelicDef;
 
 /// <summary><c>Kifuda</c>: <c>AfterObtained</c> only.</summary>
-[FlashContent("KIFUDA")]
-public sealed class Kifuda : FlashRelicDef;
+[BlitzContent("KIFUDA")]
+public sealed class Kifuda : BlitzRelicDef;
 
 /// <summary>
 /// <c>LavaLamp</c>: <c>AfterDamageReceived</c> only records <c>TookDamageThisCombat</c>, consumed by
 /// <c>TryModifyCardRewardOptionsLate</c> after combat. The existing engine registers it with
 /// <c>AfterDamageReceivedMirrors.RegisterIgnored&lt;LavaLamp&gt;()</c>, so it has no combat effect.
 /// </summary>
-[FlashContent("LAVA_LAMP")]
-public sealed class LavaLamp : FlashRelicDef;
+[BlitzContent("LAVA_LAMP")]
+public sealed class LavaLamp : BlitzRelicDef;
 
 /// <summary><c>LeesWaffle</c>: <c>AfterObtained</c> max-HP gain only.</summary>
-[FlashContent("LEES_WAFFLE")]
-public sealed class LeesWaffle : FlashRelicDef;
+[BlitzContent("LEES_WAFFLE")]
+public sealed class LeesWaffle : BlitzRelicDef;
 
 /// <summary><c>MembershipCard</c>: <c>ModifyMerchantPrice</c> only.</summary>
-[FlashContent("MEMBERSHIP_CARD")]
-public sealed class MembershipCard : FlashRelicDef;
+[BlitzContent("MEMBERSHIP_CARD")]
+public sealed class MembershipCard : BlitzRelicDef;
 
 /// <summary><c>MiniatureTent</c>: <c>ShouldDisableRemainingRestSiteOptions</c> only.</summary>
-[FlashContent("MINIATURE_TENT")]
-public sealed class MiniatureTent : FlashRelicDef;
+[BlitzContent("MINIATURE_TENT")]
+public sealed class MiniatureTent : BlitzRelicDef;
 
 /// <summary><c>Orrery</c>: <c>AfterObtained</c> card rewards only.</summary>
-[FlashContent("ORRERY")]
-public sealed class Orrery : FlashRelicDef;
+[BlitzContent("ORRERY")]
+public sealed class Orrery : BlitzRelicDef;
 
 /// <summary><c>PunchDagger</c>: <c>AfterObtained</c> only.</summary>
-[FlashContent("PUNCH_DAGGER")]
-public sealed class PunchDagger : FlashRelicDef;
+[BlitzContent("PUNCH_DAGGER")]
+public sealed class PunchDagger : BlitzRelicDef;
 
 /// <summary><c>RoyalStamp</c>: <c>AfterObtained</c> only.</summary>
-[FlashContent("ROYAL_STAMP")]
-public sealed class RoyalStamp : FlashRelicDef;
+[BlitzContent("ROYAL_STAMP")]
+public sealed class RoyalStamp : BlitzRelicDef;
 
 /// <summary><c>WingCharm</c>: <c>TryModifyCardRewardOptionsLate</c> only.</summary>
-[FlashContent("WING_CHARM")]
-public sealed class WingCharm : FlashRelicDef;
+[BlitzContent("WING_CHARM")]
+public sealed class WingCharm : BlitzRelicDef;
 
 /// <summary>
 /// <c>BurningSticks</c>: the first Skill exhausted in the combat puts a clone into the hand
 /// (<c>AfterCardExhaustedMirrors.HandleBurningSticks</c>).
 /// Counter = 1 once used this combat.
 /// </summary>
-[FlashContent("BURNING_STICKS")]
-public sealed class BurningSticks : FlashRelicDef
+[BlitzContent("BURNING_STICKS")]
+public sealed class BurningSticks : BlitzRelicDef
 {
-    public override void AfterCardExhausted(ref FlashExec x, FlashListener self, in FlashCard card, bool causedByEthereal)
+    public override void AfterCardExhausted(ref BlitzExec x, BlitzListener self, in BlitzCard card, bool causedByEthereal)
     {
-        if (FlashKernel.CardType(x.B, x.R, card) != FlashCardType.Skill || x.B.Relics[self.Index].Counter != 0)
+        if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Skill || x.B.Relics[self.Index].Counter != 0)
             return;
-        if (!FlashKernel.AddGeneratedCard(ref x, FlashKernel.CloneCard(card), FlashPile.Hand))
+        if (!BlitzKernel.AddGeneratedCard(ref x, BlitzKernel.CloneCard(card), BlitzPile.Hand))
             return;
         x.B.Relics[self.Index].Counter = 1;
     }
@@ -274,21 +274,21 @@ public sealed class BurningSticks : FlashRelicDef
 /// used (<c>SimulatedCombatState.TriggerRelicsAfterPotionUsed</c>, gated by the relic's
 /// StatefulRelicState.Current flag).
 /// </summary>
-[FlashContent("BELT_BUCKLE")]
-public sealed class BeltBuckle : FlashRelicDef
+[BlitzContent("BELT_BUCKLE")]
+public sealed class BeltBuckle : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 
-    public override void AfterPotionUsed(ref FlashExec x, FlashListener self, ushort potionId)
+    public override void AfterPotionUsed(ref BlitzExec x, BlitzListener self, ushort potionId)
     {
         if (x.B.Relics[self.Index].Counter != 0 || HasAvailablePotion(x.B))
             return;
         x.B.Relics[self.Index].Counter = 1;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.DexterityPower>(), (int)x.R.RelicVar(Id, 0), FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.DexterityPower>(), (int)x.R.RelicVar(Id, 0), BlitzLimits.PlayerOwner);
     }
 
-    private static bool HasAvailablePotion(in FlashBattle battle)
+    private static bool HasAvailablePotion(in BlitzBattle battle)
     {
         for (int slot = 0; slot < battle.PotionSlotCount; slot++)
         {

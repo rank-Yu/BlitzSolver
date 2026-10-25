@@ -1,24 +1,24 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Powers;
+namespace BlitzSolver.Content.Powers;
 
 /// <summary>
 /// Native <c>SelfFormingClayPower</c>: when its owner's block is cleared, gains block equal to the
 /// power amount and removes itself (<c>CorePowerSupport.TriggerAfterBlockCleared</c>).
 /// </summary>
-[FlashContent("SELF_FORMING_CLAY_POWER")]
-public sealed class SelfFormingClayPower : FlashPowerDef
+[BlitzContent("SELF_FORMING_CLAY_POWER")]
+public sealed class SelfFormingClayPower : BlitzPowerDef
 {
-    public override FlashPowerType Type => FlashPowerType.Buff;
+    public override BlitzPowerType Type => BlitzPowerType.Buff;
 
-    public override FlashPowerStackType StackType => FlashPowerStackType.Counter;
+    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
 
-    public override void AfterBlockCleared(ref FlashExec x, FlashListener self)
+    public override void AfterBlockCleared(ref BlitzExec x, BlitzListener self)
     {
         int amount = x.B.Powers[self.Index].Amount;
-        FlashKernel.GainBlock(ref x, self.Owner, amount, FlashValueProps.Unpowered, fromCard: false);
+        BlitzKernel.GainBlock(ref x, self.Owner, amount, BlitzValueProps.Unpowered, fromCard: false);
         if (x.NeedsChoice)
             return;
-        FlashKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
     }
 }

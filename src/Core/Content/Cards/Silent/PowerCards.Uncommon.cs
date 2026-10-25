@@ -1,14 +1,14 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Silent;
+namespace BlitzSolver.Content.Cards.Silent;
 
 /// <summary>
 /// Native <c>PhantomBlades</c>: apply PhantomBladesPower and, on the first stack, give every Shiv in
 /// combat the local Retain keyword (<c>PhantomBladesPowerMirrors.AfterApplied</c>, called when the
 /// power transitions from zero). Existing engine: <c>CardPowerOnPlaySupport</c>'s PhantomBlades case.
 /// </summary>
-[FlashContent("PHANTOM_BLADES")]
-public sealed class PhantomBlades : FlashCardDef
+[BlitzContent("PHANTOM_BLADES")]
+public sealed class PhantomBlades : BlitzCardDef
 {
     public override bool IsIdentityContent => true;
 
@@ -16,74 +16,74 @@ public sealed class PhantomBlades : FlashCardDef
 
     public override IReadOnlyList<string> AppliedPowers => ["PHANTOM_BLADES_POWER"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        if (!FlashRegistry.TryPower("PHANTOM_BLADES_POWER", out ushort power))
-            throw new FlashUnsupportedException("PhantomBlades 需要 PHANTOM_BLADES_POWER 定义。");
-        bool alreadyPresent = FlashKernel.GetAmount(x.B, FlashLimits.PlayerOwner, power) > 0;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, power, (int)FlashCardEffects.Var(x, 0),
-            FlashLimits.PlayerOwner);
+        if (!BlitzRegistry.TryPower("PHANTOM_BLADES_POWER", out ushort power))
+            throw new BlitzUnsupportedException("PhantomBlades 需要 PHANTOM_BLADES_POWER 定义。");
+        bool alreadyPresent = BlitzKernel.GetAmount(x.B, BlitzLimits.PlayerOwner, power) > 0;
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, power, (int)BlitzCardEffects.Var(x, 0),
+            BlitzLimits.PlayerOwner);
         if (x.NeedsChoice || alreadyPresent)
             return;
         for (int position = 0; position < x.B.CardCount; position++)
         {
-            ref FlashCard card = ref x.B.Cards[position];
-            FlashCardStats stats = x.R.Card(card.Id, card.Upgrade);
-            if ((stats.Tags & FlashCardTag.Shiv) != 0)
-                card.Keywords |= FlashKeywords.Retain;
+            ref BlitzCard card = ref x.B.Cards[position];
+            BlitzCardStats stats = x.R.Card(card.Id, card.Upgrade);
+            if ((stats.Tags & BlitzCardTag.Shiv) != 0)
+                card.Keywords |= BlitzKeywords.Retain;
         }
     }
 }
 
-[FlashContent("NOXIOUS_FUMES")]
-public sealed class NoxiousFumes : FlashCardDef
+[BlitzContent("NOXIOUS_FUMES")]
+public sealed class NoxiousFumes : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["PoisonPerTurn"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.NoxiousFumesPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.NoxiousFumesPower>(), 0);
 }
 
-[FlashContent("ACCELERANT")]
-public sealed class Accelerant : FlashCardDef
+[BlitzContent("ACCELERANT")]
+public sealed class Accelerant : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Accelerant"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.AccelerantPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.AccelerantPower>(), 0);
 }
 
-[FlashContent("INFINITE_BLADES")]
+[BlitzContent("INFINITE_BLADES")]
 public sealed class InfiniteBlades : ShivGeneratingCardDef
 {
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-            FlashRegistry.PowerId<Powers.InfiniteBladesPower>(), 1, FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+            BlitzRegistry.PowerId<Powers.InfiniteBladesPower>(), 1, BlitzLimits.PlayerOwner);
 }
 
-[FlashContent("ACCURACY")]
-public sealed class Accuracy : FlashCardDef
+[BlitzContent("ACCURACY")]
+public sealed class Accuracy : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["AccuracyPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.AccuracyPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.AccuracyPower>(), 0);
 }
 
-[FlashContent("SPEEDSTER")]
-public sealed class Speedster : FlashCardDef
+[BlitzContent("SPEEDSTER")]
+public sealed class Speedster : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["SpeedsterPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.SpeedsterPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.SpeedsterPower>(), 0);
 }
 
-[FlashContent("FOOTWORK")]
-public sealed class Footwork : FlashCardDef
+[BlitzContent("FOOTWORK")]
+public sealed class Footwork : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToOwner(ref x, FlashRegistry.PowerId<Powers.DexterityPower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.DexterityPower>(), 0);
 }

@@ -1,36 +1,36 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Ironclad;
+namespace BlitzSolver.Content.Cards.Ironclad;
 
-[FlashContent("SHRUG_IT_OFF")]
-public sealed class ShrugItOff : FlashCardDef
+[BlitzContent("SHRUG_IT_OFF")]
+public sealed class ShrugItOff : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block", "Cards"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralBlock(ref x, 0);
-        FlashKernel.Draw(ref x, FlashCardEffects.Var(x, 1), fromHandDraw: false);
+        BlitzCardEffects.GeneralBlock(ref x, 0);
+        BlitzKernel.Draw(ref x, BlitzCardEffects.Var(x, 1), fromHandDraw: false);
     }
 }
 
-[FlashContent("ARMAMENTS")]
-public sealed class Armaments : FlashCardDef
+[BlitzContent("ARMAMENTS")]
+public sealed class Armaments : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         // Inferred BlockVar recipe, then CorePowerSupport: the upgraded card upgrades every upgradable
         // hand card in hand order.
-        FlashCardEffects.GeneralBlock(ref x, 0);
+        BlitzCardEffects.GeneralBlock(ref x, 0);
         if (x.NeedsChoice || x.Card.Upgrade == 0)
             return;
         for (int index = 0; index < x.B.HandCount; index++)
-            FlashKernel.UpgradeCard(x.R, ref x.B.Cards[index]);
+            BlitzKernel.UpgradeCard(x.R, ref x.B.Cards[index]);
     }
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         // GetSpec: Armaments when !IsUpgraded → Upgrade, Hand, 1, upgradable hand cards.
         if (x.Card.Upgrade != 0)
@@ -39,34 +39,34 @@ public sealed class Armaments : FlashCardDef
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            ref readonly FlashCard card = ref x.B.Cards[index];
+            ref readonly BlitzCard card = ref x.B.Cards[index];
             if (card.Upgrade < x.R.Card(card.Id, card.Upgrade).MaxUpgradeLevel)
                 options[count++] = index;
         }
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Upgrade, FlashPile.Hand, options[..count], 1, selected, out int chosen))
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Upgrade, BlitzPile.Hand, options[..count], 1, selected, out int chosen))
             return;
-        FlashKernel.UpgradeSelected(ref x, FlashPile.Hand, selected[..chosen]);
+        BlitzKernel.UpgradeSelected(ref x, BlitzPile.Hand, selected[..chosen]);
     }
 }
 
-[FlashContent("TRUE_GRIT")]
-public sealed class TrueGrit : FlashCardDef
+[BlitzContent("TRUE_GRIT")]
+public sealed class TrueGrit : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         // CardSelectionCardMirrors.TrueGritOnPlay: block, then the base card exhausts a random hand
         // card (Rng.CombatCardSelection.NextItem; no draw from an empty hand).
-        FlashCardEffects.GeneralBlock(ref x, 0);
+        BlitzCardEffects.GeneralBlock(ref x, 0);
         if (x.NeedsChoice || x.Card.Upgrade != 0 || x.B.HandCount == 0)
             return;
-        int pick = x.B.RngStream(FlashRngStream.CombatCardSelection).NextInt(0, x.B.HandCount);
-        FlashKernel.Exhaust(ref x, FlashPile.Hand, pick);
+        int pick = x.B.RngStream(BlitzRngStream.CombatCardSelection).NextInt(0, x.B.HandCount);
+        BlitzKernel.Exhaust(ref x, BlitzPile.Hand, pick);
     }
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         // GetSpec: TrueGrit when IsUpgraded → Exhaust, Hand, 1, every hand card.
         if (x.Card.Upgrade == 0)
@@ -75,52 +75,52 @@ public sealed class TrueGrit : FlashCardDef
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Exhaust, FlashPile.Hand, options, 1, selected, out int chosen))
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Exhaust, BlitzPile.Hand, options, 1, selected, out int chosen))
             return;
-        FlashKernel.ExhaustSelected(ref x, FlashPile.Hand, selected[..chosen]);
+        BlitzKernel.ExhaustSelected(ref x, BlitzPile.Hand, selected[..chosen]);
     }
 }
 
-[FlashContent("HAVOC")]
-public sealed class Havoc : FlashCardDef
+[BlitzContent("HAVOC")]
+public sealed class Havoc : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.AutoPlayFromDrawPile(ref x, 1, forceExhaust: true);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.AutoPlayFromDrawPile(ref x, 1, forceExhaust: true);
 }
 
-[FlashContent("BLOOD_WALL")]
-public sealed class BloodWall : FlashCardDef
+[BlitzContent("BLOOD_WALL")]
+public sealed class BloodWall : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["HpLoss", "Block"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralBlock(ref x, 1);
+        BlitzCardEffects.GeneralBlock(ref x, 1);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.LoseHp(ref x, FlashCardEffects.Var(x, 0));
+        BlitzCardEffects.LoseHp(ref x, BlitzCardEffects.Var(x, 0));
     }
 }
 
-[FlashContent("TAUNT")]
-public sealed class Taunt : FlashCardDef
+[BlitzContent("TAUNT")]
+public sealed class Taunt : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block", "VulnerablePower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralBlock(ref x, 0);
+        BlitzCardEffects.GeneralBlock(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
 
-[FlashContent("TREMBLE")]
-public sealed class Tremble : FlashCardDef
+[BlitzContent("TREMBLE")]
+public sealed class Tremble : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["VulnerablePower"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 0);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 0);
 }

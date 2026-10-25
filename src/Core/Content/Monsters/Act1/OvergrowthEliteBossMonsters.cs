@@ -1,31 +1,31 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Monsters.Act1;
+namespace BlitzSolver.Content.Monsters.Act1;
 
 /// <summary>
 /// Vantom: "DISMEMBER_MOVE" adds three Wounds to the discard pile; "PREPARE_MOVE" applies Strength 2
 /// to itself (MonsterMoveEffects "Vantom", literals). Its SlipperyPower 8/9 is a starting power
 /// imported from the root, not replayed here.
 /// </summary>
-[FlashContent("VANTOM")]
-public sealed class Vantom : FlashMonsterDef
+[BlitzContent("VANTOM")]
+public sealed class Vantom : BlitzMonsterDef
 {
     private const int DismemberWounds = 3;
     private const int PrepareStrength = 2;
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("WOUND", 0)];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        switch (FlashKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "DISMEMBER_MOVE":
                 for (int index = 0; index < DismemberWounds; index++)
-                    FlashKernel.AddGeneratedCard(ref x,
-                        FlashKernel.CreateCard(x.R, FlashRegistry.CardId<Cards.Status.Wound>()), FlashPile.Discard, creator: FlashLimits.NoOwner);
+                    BlitzKernel.AddGeneratedCard(ref x,
+                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Wound>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
                 break;
             case "PREPARE_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                     PrepareStrength, owner);
                 break;
         }
@@ -37,28 +37,28 @@ public sealed class Vantom : FlashMonsterDef
 /// (both <c>ApplyFromMonster</c>), and "RITUAL_MOVE" applies Strength <c>RitualStrength</c> to itself
 /// (<c>MonsterMoveEffects</c> "KinPriest"; the existing engine applies Strength, not RitualPower).
 /// </summary>
-[FlashContent("KIN_PRIEST")]
-public sealed class KinPriest : FlashMonsterDef
+[BlitzContent("KIN_PRIEST")]
+public sealed class KinPriest : BlitzMonsterDef
 {
     private const int RitualStrength = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["RitualStrength"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "ORB_OF_FRAILTY_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.FrailPower>(), 1, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.FrailPower>(), 1, owner);
                 break;
             case "ORB_OF_WEAKNESS_MOVE":
-                FlashKernel.ApplyPowerFromMonster(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.WeakPower>(), 1, owner);
+                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.WeakPower>(), 1, owner);
                 break;
             case "RITUAL_MOVE":
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[RitualStrength], owner);
                 break;
         }
@@ -70,18 +70,18 @@ public sealed class KinPriest : FlashMonsterDef
 /// (<c>MonsterMoveEffects</c> "KinFollower"). Its MinionPower is a starting power imported from the
 /// root. The encounter's first follower starts on the dance move; that initial state is imported.
 /// </summary>
-[FlashContent("KIN_FOLLOWER")]
-public sealed class KinFollower : FlashMonsterDef
+[BlitzContent("KIN_FOLLOWER")]
+public sealed class KinFollower : BlitzMonsterDef
 {
     private const int DanceStrength = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["DanceStrength"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "POWER_DANCE_MOVE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                 rules.StaticInts[DanceStrength], owner);
     }
 }
@@ -98,33 +98,33 @@ public sealed class KinFollower : FlashMonsterDef
 /// imported; the branch is only walked for a fresh initial roll, and the four-gardener encounter
 /// spawns them in slot order, so the enemy index recovers the native slot.
 /// </summary>
-[FlashContent("PHANTASMAL_GARDENER")]
-public sealed class PhantasmalGardener : FlashMonsterDef
+[BlitzContent("PHANTASMAL_GARDENER")]
+public sealed class PhantasmalGardener : BlitzMonsterDef
 {
     private const int EnlargeStr = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["EnlargeStr"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "ENLARGE_MOVE")
-            FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(),
+            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
                 rules.StaticInts[EnlargeStr], owner);
     }
 
-    public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "INIT_MOVE")
             return -1;
-        string move = (owner - FlashLimits.FirstEnemyOwner) switch
+        string move = (owner - BlitzLimits.FirstEnemyOwner) switch
         {
             0 => "FLAIL_MOVE",
             1 => "BITE_MOVE",
             2 => "LASH_MOVE",
             3 => "ENLARGE_MOVE",
-            int index => throw new FlashUnsupportedException($"花园幽灵鳗没有第 {index} 个槽位的初始行动。"),
+            int index => throw new BlitzUnsupportedException($"花园幽灵鳗没有第 {index} 个槽位的初始行动。"),
         };
         return rules.NodeIndex(move);
     }
@@ -141,8 +141,8 @@ public sealed class PhantasmalGardener : FlashMonsterDef
 /// it dynamically from the AsleepPower amount (<c>BranchMonsterAi.ResolveConditional</c>) rather than
 /// the root-frozen selection, so the definition overrides ResolveConditional.
 /// </summary>
-[FlashContent("LAGAVULIN_MATRIARCH")]
-public sealed class LagavulinMatriarch : FlashMonsterDef
+[BlitzContent("LAGAVULIN_MATRIARCH")]
+public sealed class LagavulinMatriarch : BlitzMonsterDef
 {
     private const int Slash2Block = 0;
 
@@ -152,33 +152,33 @@ public sealed class LagavulinMatriarch : FlashMonsterDef
     // does (move selection reads the AsleepPower amount, and STUNNED only clears Plating).
     public override IReadOnlyList<string> InertMonsterIntNames => ["_isAwake"];
 
-    public override void ApplyMoveEffects(ref FlashExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SLASH2_MOVE":
-                FlashKernel.GainBlock(ref x, owner, rules.StaticInts[Slash2Block], FlashValueProps.Move, fromCard: false);
+                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[Slash2Block], BlitzValueProps.Move, fromCard: false);
                 break;
             case "SOUL_SIPHON_MOVE":
-                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.StrengthPower>(), -2, owner);
-                FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner,
-                    FlashRegistry.PowerId<Powers.DexterityPower>(), -2, owner);
-                FlashKernel.ApplyPower(ref x, owner, FlashRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.StrengthPower>(), -2, owner);
+                BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
+                    BlitzRegistry.PowerId<Powers.DexterityPower>(), -2, owner);
+                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
                 break;
             case "STUNNED":
-                FlashKernel.SetPowerAmount(ref x.B, owner, FlashRegistry.PowerId<Powers.PlatingPower>(), 0);
+                BlitzKernel.SetPowerAmount(ref x.B, owner, BlitzRegistry.PowerId<Powers.PlatingPower>(), 0);
                 break;
         }
     }
 
-    public override int ResolveConditional(ref FlashExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
     {
-        FlashMonsterRules rules = FlashKernel.MonsterRules(ref x, owner);
+        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "SLEEP_BRANCH")
             return -1;
-        return FlashKernel.GetAmount(x.B, owner, FlashRegistry.PowerId<Powers.AsleepPower>()) > 0
+        return BlitzKernel.GetAmount(x.B, owner, BlitzRegistry.PowerId<Powers.AsleepPower>()) > 0
             ? rules.NodeIndex("SLEEP_MOVE")
             : rules.NodeIndex("SLASH_MOVE");
     }

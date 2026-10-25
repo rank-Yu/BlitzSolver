@@ -1,29 +1,29 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Necrobinder;
+namespace BlitzSolver.Content.Cards.Necrobinder;
 
-[FlashContent("STRIKE_NECROBINDER")]
-public sealed class StrikeNecrobinder : FlashCardDef
+[BlitzContent("STRIKE_NECROBINDER")]
+public sealed class StrikeNecrobinder : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
-[FlashContent("DEFEND_NECROBINDER")]
-public sealed class DefendNecrobinder : FlashCardDef
+[BlitzContent("DEFEND_NECROBINDER")]
+public sealed class DefendNecrobinder : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
 }
 
-[FlashContent("BODYGUARD")]
-public sealed class Bodyguard : FlashCardDef
+[BlitzContent("BODYGUARD")]
+public sealed class Bodyguard : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Summon"];
 
-    public override void OnPlay(ref FlashExec x) => FlashKernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
+    public override void OnPlay(ref BlitzExec x) => BlitzKernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
 }
 
 /// <summary>
@@ -32,12 +32,12 @@ public sealed class Bodyguard : FlashCardDef
 /// The rule table stores CalculationBase and ExtraDamage, so the card computes the native
 /// <c>CalculatedVar.Calculate</c> formula itself.
 /// </summary>
-[FlashContent("UNLEASH")]
-public sealed class Unleash : FlashCardDef
+[BlitzContent("UNLEASH")]
+public sealed class Unleash : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         if (!NecrobinderContent.HasOsty(x.B))
             return;

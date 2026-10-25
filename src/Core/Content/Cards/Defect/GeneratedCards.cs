@@ -1,11 +1,11 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Defect;
+namespace BlitzSolver.Content.Cards.Defect;
 
-[FlashContent("FUEL")]
-public sealed class Fuel : FlashCardDef
+[BlitzContent("FUEL")]
+public sealed class Fuel : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void OnPlay(ref FlashExec x) => FlashKernel.GainEnergy(ref x, FlashCardEffects.Var(x, 0));
+    public override void OnPlay(ref BlitzExec x) => BlitzKernel.GainEnergy(ref x, BlitzCardEffects.Var(x, 0));
 }

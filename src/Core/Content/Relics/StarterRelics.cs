@@ -1,10 +1,10 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Relics;
+namespace BlitzSolver.Content.Relics;
 
 /// <summary>Native <c>BurningBlood</c>: heals after combat only, so it has no in-combat hooks.</summary>
-[FlashContent("BURNING_BLOOD")]
-public sealed class BurningBlood : FlashRelicDef;
+[BlitzContent("BURNING_BLOOD")]
+public sealed class BurningBlood : BlitzRelicDef;
 
 /// <summary>
 /// <c>RingOfTheSnake</c>: <c>ModifyHandDraw</c> adds Cards while <c>TurnNumber &lt;= 1</c>
@@ -12,12 +12,12 @@ public sealed class BurningBlood : FlashRelicDef;
 /// <c>PersistentPowerSupport.GetTurnBasedHandDrawContribution</c>). The turn 1 hand draw happens before
 /// the root, so later roots see nothing from it.
 /// </summary>
-[FlashContent("RING_OF_THE_SNAKE")]
-public sealed class RingOfTheSnake : FlashRelicDef
+[BlitzContent("RING_OF_THE_SNAKE")]
+public sealed class RingOfTheSnake : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override decimal ModifyHandDraw(ref FlashExec x, FlashListener self, decimal amount)
+    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
         => x.B.PlayerTurn <= 1 ? amount + x.R.RelicVar(Id, 0) : amount;
 }
 
@@ -27,15 +27,15 @@ public sealed class RingOfTheSnake : FlashRelicDef
 /// (<c>AfterEnergyResetLate</c>; the existing engine's relic batch calls it at the same point,
 /// <c>TurnStartRelicSupport.TriggerAfterEnergyResetLate</c>).
 /// </summary>
-[FlashContent("BOUND_PHYLACTERY")]
-public sealed class BoundPhylactery : FlashRelicDef
+[BlitzContent("BOUND_PHYLACTERY")]
+public sealed class BoundPhylactery : BlitzRelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Summon"];
 
-    public override void AfterEnergyResetLate(ref FlashExec x, FlashListener self)
+    public override void AfterEnergyResetLate(ref BlitzExec x, BlitzListener self)
     {
-        if (self.Owner != FlashLimits.PlayerOwner || x.B.PlayerTurn <= 1)
+        if (self.Owner != BlitzLimits.PlayerOwner || x.B.PlayerTurn <= 1)
             return;
-        FlashKernel.SummonOsty(ref x, (int)x.R.RelicVar(Id, 0));
+        BlitzKernel.SummonOsty(ref x, (int)x.R.RelicVar(Id, 0));
     }
 }

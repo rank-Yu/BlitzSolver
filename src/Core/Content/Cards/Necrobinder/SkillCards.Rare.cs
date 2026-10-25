@@ -1,58 +1,58 @@
-using CombatSolver.Flash.Content.Powers;
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Content.Powers;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Necrobinder;
+namespace BlitzSolver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>EndOfDays</c>: apply Doom to every hittable enemy, then kill the doomed ones together
 /// (<c>DoomPower.GetDoomedCreatures</c> + <c>DoomPower.DoomKill</c>; <c>CardOnPlaySupport.Batch042</c>).
 /// </summary>
-[FlashContent("END_OF_DAYS")]
-public sealed class EndOfDays : FlashCardDef
+[BlitzContent("END_OF_DAYS")]
+public sealed class EndOfDays : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["DoomPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         int amount = (int)NecrobinderContent.Var(ref x, 0);
-        ushort doomId = FlashRegistry.PowerId<Powers.DoomPower>();
-        Span<byte> doomed = stackalloc byte[FlashLimits.Enemies];
+        ushort doomId = BlitzRegistry.PowerId<Powers.DoomPower>();
+        Span<byte> doomed = stackalloc byte[BlitzLimits.Enemies];
         int count = 0;
         // ApplyEndOfDays resolves power changes after each enemy; a Sleight of Flesh death compacts
         // the live roster, so visit the same snapshot the native loop sees.
-        Span<byte> owners = stackalloc byte[FlashLimits.Enemies];
-        int rosterCount = FlashKernel.RosterOwners(x.B, owners);
+        Span<byte> owners = stackalloc byte[BlitzLimits.Enemies];
+        int rosterCount = BlitzKernel.RosterOwners(x.B, owners);
         for (int position = 0; position < rosterCount; position++)
         {
             byte enemy = owners[position];
-            if (!FlashKernel.IsHittable(x.B, enemy))
+            if (!BlitzKernel.IsHittable(x.B, enemy))
                 continue;
-            FlashKernel.ApplyPower(ref x, enemy, doomId, amount, FlashLimits.PlayerOwner);
+            BlitzKernel.ApplyPower(ref x, enemy, doomId, amount, BlitzLimits.PlayerOwner);
             if (x.NeedsChoice)
                 return;
             // ApplyEndOfDays drains the pending amount changes before its Doom threshold check,
             // so ShroudPower's block gain lands while the combat is still running.
-            FlashKernel.ResolvePowerAmountChanges(ref x);
+            BlitzKernel.ResolvePowerAmountChanges(ref x);
             if (x.NeedsChoice)
                 return;
-            FlashKernel.ApplyEnemyDeathPowers(ref x);
+            BlitzKernel.ApplyEnemyDeathPowers(ref x);
             if (x.NeedsChoice)
                 return;
         }
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte enemy = FlashKernel.EnemyOwner(x.B.Roster[position]);
-            if (!FlashKernel.IsHittable(x.B, enemy))
+            byte enemy = BlitzKernel.EnemyOwner(x.B.Roster[position]);
+            if (!BlitzKernel.IsHittable(x.B, enemy))
                 continue;
-            int doom = FlashKernel.GetAmount(x.B, enemy, doomId);
+            int doom = BlitzKernel.GetAmount(x.B, enemy, doomId);
             if (doom > 0 && x.B.Creature(enemy).CurrentHp <= doom)
                 doomed[count++] = enemy;
         }
         if (count > 0)
-            FlashKernel.DoomKill(ref x, doomed[..count]);
+            BlitzKernel.DoomKill(ref x, doomed[..count]);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
     }
 }
 
@@ -60,20 +60,20 @@ public sealed class EndOfDays : FlashCardDef
 /// <c>Sacrifice</c>: block for three times Osty's max HP, then kill the pet with force
 /// (<c>BespokeCardMirrors.SacrificeOnPlay</c>). Nothing happens while Osty is missing.
 /// </summary>
-[FlashContent("SACRIFICE")]
-public sealed class Sacrifice : FlashCardDef
+[BlitzContent("SACRIFICE")]
+public sealed class Sacrifice : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         if (!NecrobinderContent.HasOsty(x.B))
             return;
         decimal block = x.B.Osty.MaxHp * 3;
         Span<byte> osty = stackalloc byte[1];
-        osty[0] = FlashLimits.OstyOwner;
-        FlashKernel.Kill(ref x, osty, force: true);
+        osty[0] = BlitzLimits.OstyOwner;
+        BlitzKernel.Kill(ref x, osty, force: true);
         if (x.NeedsChoice)
             return;
-        FlashKernel.GainBlock(ref x, FlashLimits.PlayerOwner, block, FlashValueProps.Move, fromCard: true);
+        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, block, BlitzValueProps.Move, fromCard: true);
     }
 }
 
@@ -82,8 +82,8 @@ public sealed class Sacrifice : FlashCardDef
 /// (<c>CardChoiceSupport</c>'s Seance spec, <c>CardChoiceResolution</c>'s TransformSelectedCards).
 /// The replacement is the level-0 canonical Soul; the upgrade only reduces Seance's cost.
 /// </summary>
-[FlashContent("SEANCE")]
-public sealed class Seance : FlashCardDef
+[BlitzContent("SEANCE")]
+public sealed class Seance : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
@@ -91,71 +91,71 @@ public sealed class Seance : FlashCardDef
     // table has no Soul stats and the first transform reports an unsupported kernel boundary.
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SOUL", 0)];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         if (x.B.DrawCount == 0)
             return;
-        if (!FlashRegistry.TryCard("SOUL", out ushort soul))
-            throw new FlashUnsupportedException("Soul 没有 Flash 定义。");
-        int count = Math.Min((int)FlashCardEffects.Var(x, 0), x.B.DrawCount);
+        if (!BlitzRegistry.TryCard("SOUL", out ushort soul))
+            throw new BlitzUnsupportedException("Soul 没有 Blitz 定义。");
+        int count = Math.Min((int)BlitzCardEffects.Var(x, 0), x.B.DrawCount);
         if (count <= 0)
             return;
         Span<int> options = stackalloc int[x.B.DrawCount];
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[count];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Transform, FlashPile.Draw, options, count, selected,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Transform, BlitzPile.Draw, options, count, selected,
                 out int chosen))
         {
             return;
         }
-        FlashKernel.TransformCards(ref x, FlashPile.Draw, selected[..chosen],
-            FlashKernel.CreateCard(x.R, soul), upgrade: 0);
+        BlitzKernel.TransformCards(ref x, BlitzPile.Draw, selected[..chosen],
+            BlitzKernel.CreateCard(x.R, soul), upgrade: 0);
     }
 }
 
 /// <summary><c>Reanimate</c>: summon Osty for the Summon variable (<c>CardOnPlaySupport.Batch043</c>).</summary>
-[FlashContent("REANIMATE")]
-public sealed class Reanimate : FlashCardDef
+[BlitzContent("REANIMATE")]
+public sealed class Reanimate : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Summon"];
 
-    public override void OnPlay(ref FlashExec x) => FlashKernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
+    public override void OnPlay(ref BlitzExec x) => BlitzKernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
 }
 
 /// <summary>
 /// <c>SharedFate</c>: lose PlayerStrengthLoss Strength, then apply EnemyStrengthLoss to the target
 /// (<c>CorePowerSupport</c>'s SharedFate case).
 /// </summary>
-[FlashContent("SHARED_FATE")]
-public sealed class SharedFate : FlashCardDef
+[BlitzContent("SHARED_FATE")]
+public sealed class SharedFate : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["EnemyStrengthLoss", "PlayerStrengthLoss"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        ushort strength = FlashRegistry.PowerId<Powers.StrengthPower>();
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, strength,
-            -(int)NecrobinderContent.Var(ref x, 1), FlashLimits.PlayerOwner);
-        if (x.NeedsChoice || x.Target == FlashLimits.NoOwner)
+        ushort strength = BlitzRegistry.PowerId<Powers.StrengthPower>();
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, strength,
+            -(int)NecrobinderContent.Var(ref x, 1), BlitzLimits.PlayerOwner);
+        if (x.NeedsChoice || x.Target == BlitzLimits.NoOwner)
             return;
-        FlashKernel.ApplyPower(ref x, x.Target, strength, -(int)NecrobinderContent.Var(ref x, 0),
-            FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, x.Target, strength, -(int)NecrobinderContent.Var(ref x, 0),
+            BlitzLimits.PlayerOwner);
     }
 }
 
 /// <summary><c>Oblivion</c>: apply OblivionPower to the target for its Doom variable (<c>CardOnPlaySupport</c>).</summary>
-[FlashContent("OBLIVION")]
-public sealed class Oblivion : FlashCardDef
+[BlitzContent("OBLIVION")]
+public sealed class Oblivion : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["DoomPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        if (x.Target == FlashLimits.NoOwner)
+        if (x.Target == BlitzLimits.NoOwner)
             return;
-        FlashKernel.ApplyPower(ref x, x.Target, FlashRegistry.PowerId<Powers.OblivionPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.OblivionPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
     }
 }
 
@@ -163,20 +163,20 @@ public sealed class Oblivion : FlashCardDef
 /// <c>Undeath</c>: player block, then a clone of this card into the discard pile
 /// (<c>CardEffectSpecRegistry</c>'s Undeath completion + <c>CardModel.CreateClone</c>).
 /// </summary>
-[FlashContent("UNDEATH")]
-public sealed class Undeath : FlashCardDef
+[BlitzContent("UNDEATH")]
+public sealed class Undeath : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("UNDEATH", 0), ("UNDEATH", 1)];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralBlock(ref x, 0);
+        BlitzCardEffects.GeneralBlock(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashCard clone = FlashKernel.CloneCard(x.Card);
-        FlashKernel.AddGeneratedCard(ref x, clone, FlashPile.Discard);
+        BlitzCard clone = BlitzKernel.CloneCard(x.Card);
+        BlitzKernel.AddGeneratedCard(ref x, clone, BlitzPile.Discard);
     }
 }
 
@@ -184,31 +184,31 @@ public sealed class Undeath : FlashCardDef
 /// <c>Transfigure</c>: add one this-combat cost to a selected hand card and increase its base replay
 /// count (<c>CardChoiceResolution.ModifySelectedCard</c>).
 /// </summary>
-[FlashContent("TRANSFIGURE")]
-public sealed class Transfigure : FlashCardDef
+[BlitzContent("TRANSFIGURE")]
+public sealed class Transfigure : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
     }
 
-    public override void OwnChoice(ref FlashExec x)
+    public override void OwnChoice(ref BlitzExec x)
     {
         Span<int> options = stackalloc int[x.B.HandCount];
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        if (!FlashKernel.ChooseCards(ref x, FlashChoiceEffect.Modify, FlashPile.Hand, options, 1, selected,
+        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Modify, BlitzPile.Hand, options, 1, selected,
                 out int chosen))
         {
             return;
         }
         if (chosen == 0)
             return;
-        ref FlashCard card = ref FlashPiles.At(ref x.B, FlashPile.Hand, selected[0]);
-        int cost = FlashKernel.EnergyCostWithLocalModifiers(x.B, card);
-        if ((card.Flags & FlashCardFlags.CostsX) == 0 && cost >= 0)
+        ref BlitzCard card = ref BlitzPiles.At(ref x.B, BlitzPile.Hand, selected[0]);
+        int cost = BlitzKernel.EnergyCostWithLocalModifiers(x.B, card);
+        if ((card.Flags & BlitzCardFlags.CostsX) == 0 && cost >= 0)
         {
-            FlashKernel.AddEnergyCostModifier(ref card, 1, FlashCostType.Relative, FlashCostExpiration.EndOfCombat,
+            BlitzKernel.AddEnergyCostModifier(ref card, 1, BlitzCostType.Relative, BlitzCostExpiration.EndOfCombat,
                 reduceOnly: false);
         }
         card.ReplayCount = checked((byte)(card.ReplayCount + 1));
@@ -221,23 +221,23 @@ public sealed class Transfigure : FlashCardDef
 /// <c>ExhaustPile.Cards.Where(...).ToArray()</c>: positions are taken before the loop and shifted only by
 /// the removals of earlier plays, so a card that exhausts back into the pile is not played again.
 /// </summary>
-[FlashContent("EIDOLON")]
-public sealed class Eidolon : FlashCardDef
+[BlitzContent("EIDOLON")]
+public sealed class Eidolon : BlitzCardDef
 {
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         Span<int> positions = stackalloc int[x.B.ExhaustCount];
         int count = 0;
         for (int offset = 0; offset < x.B.ExhaustCount; offset++)
         {
-            FlashCard card = FlashPiles.At(ref x.B, FlashPile.Exhaust, offset);
-            if (card.HasKeyword(FlashKeywords.Ethereal) && !card.HasKeyword(FlashKeywords.Unplayable))
+            BlitzCard card = BlitzPiles.At(ref x.B, BlitzPile.Exhaust, offset);
+            if (card.HasKeyword(BlitzKeywords.Ethereal) && !card.HasKeyword(BlitzKeywords.Unplayable))
                 positions[count++] = offset;
         }
         for (int index = 0; index < count; index++)
         {
             int position = positions[index];
-            if (!FlashKernel.AutoPlay(ref x, FlashPile.Exhaust, position))
+            if (!BlitzKernel.AutoPlay(ref x, BlitzPile.Exhaust, position))
                 return;
             if (x.NeedsChoice)
                 return;

@@ -1,13 +1,13 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Ironclad;
+namespace BlitzSolver.Content.Cards.Ironclad;
 
-[FlashContent("CORRUPTION")]
-public sealed class Corruption : FlashCardDef
+[BlitzContent("CORRUPTION")]
+public sealed class Corruption : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Power"];
 
-    public override void OnPlay(ref FlashExec x)
-        => FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.CorruptionPower>(),
-            (int)FlashCardEffects.Var(x, 0), FlashLimits.PlayerOwner);
+    public override void OnPlay(ref BlitzExec x)
+        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.CorruptionPower>(),
+            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
 }

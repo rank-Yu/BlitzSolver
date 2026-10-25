@@ -1,20 +1,20 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Cards.Necrobinder;
+namespace BlitzSolver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>DeathMarch</c>: calculated attack with CalculationBase + ExtraDamage × non-hand draws this turn
 /// (<c>CalculatedVarSpecRegistry.DeathMarch</c>).
 /// </summary>
-[FlashContent("DEATH_MARCH")]
-public sealed class DeathMarch : FlashCardDef
+[BlitzContent("DEATH_MARCH")]
+public sealed class DeathMarch : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        int draws = x.B.Counter(FlashCounter.NonHandDrawsThisTurn);
-        FlashCardEffects.Attack(ref x, NecrobinderContent.Calculated(ref x, 0, 1, draws));
+        int draws = x.B.Counter(BlitzCounter.NonHandDrawsThisTurn);
+        BlitzCardEffects.Attack(ref x, NecrobinderContent.Calculated(ref x, 0, 1, draws));
     }
 }
 
@@ -22,16 +22,16 @@ public sealed class DeathMarch : FlashCardDef
 /// <c>PullFromBelow</c>: Osty-free attack with CalculatedHits = CalculationBase + CalculationExtra ×
 /// Ethereal card plays this combat (<c>CalculatedVarSpecRegistry.PullFromBelow</c>).
 /// </summary>
-[FlashContent("PULL_FROM_BELOW")]
-public sealed class PullFromBelow : FlashCardDef
+[BlitzContent("PULL_FROM_BELOW")]
+public sealed class PullFromBelow : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "CalculationBase", "CalculationExtra"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         int hits = (int)NecrobinderContent.Calculated(ref x, 1, 2,
-            x.B.Counter(FlashCounter.EtherealPlays));
-        FlashCardEffects.Attack(ref x, NecrobinderContent.Var(ref x, 0), hits);
+            x.B.Counter(BlitzCounter.EtherealPlays));
+        BlitzCardEffects.Attack(ref x, NecrobinderContent.Var(ref x, 0), hits);
     }
 }
 
@@ -40,8 +40,8 @@ public sealed class PullFromBelow : FlashCardDef
 /// Existing engine: <c>CardDrawCardMirrors.FetchOnPlay</c> and
 /// <c>SimulatedCombatState.WasFetchPlayedThisTurn</c>/<c>_fetchCardsPlayedThisTurn</c>.
 /// </summary>
-[FlashContent("FETCH")]
-public sealed class Fetch : FlashCardDef
+[BlitzContent("FETCH")]
+public sealed class Fetch : BlitzCardDef
 {
     public override bool IsIdentityContent => true;
 
@@ -49,15 +49,15 @@ public sealed class Fetch : FlashCardDef
 
     public override bool TracksFetchPlay => true;
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         if (!NecrobinderContent.HasOsty(x.B))
             return;
         NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
         if (x.NeedsChoice)
             return;
-        if ((x.Card.Private & FlashKernel.FetchPlayedBit) == 0)
-            FlashKernel.Draw(ref x, (int)NecrobinderContent.Var(ref x, 1), fromHandDraw: false);
+        if ((x.Card.Private & BlitzKernel.FetchPlayedBit) == 0)
+            BlitzKernel.Draw(ref x, (int)NecrobinderContent.Var(ref x, 1), fromHandDraw: false);
     }
 }
 
@@ -65,20 +65,20 @@ public sealed class Fetch : FlashCardDef
 /// <c>HighFive</c>: playable only while Osty is alive; Osty hits all enemies, then every hittable enemy
 /// gains Vulnerable (<c>CorePowerSupport</c>'s HighFive case).
 /// </summary>
-[FlashContent("HIGH_FIVE")]
-public sealed class HighFive : FlashCardDef
+[BlitzContent("HIGH_FIVE")]
+public sealed class HighFive : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage", "VulnerablePower"];
 
-    public override bool IsPlayable(in FlashBattle battle, FlashRules rules, in FlashCard card)
+    public override bool IsPlayable(in BlitzBattle battle, BlitzRules rules, in BlitzCard card)
         => NecrobinderContent.HasOsty(battle);
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToAllEnemies(ref x, FlashRegistry.PowerId<Powers.VulnerablePower>(), 1);
+        BlitzCardEffects.ApplyToAllEnemies(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
 
@@ -86,12 +86,12 @@ public sealed class HighFive : FlashCardDef
 /// <c>BoneShards</c>: Osty hits all enemies, the player gains block, then the pet is killed with force
 /// (<c>CardEffectSpecRegistry</c>'s BoneShards completion, after the inferred attack/block mirror).
 /// </summary>
-[FlashContent("BONE_SHARDS")]
-public sealed class BoneShards : FlashCardDef
+[BlitzContent("BONE_SHARDS")]
+public sealed class BoneShards : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage", "Block"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         // BoneShardsOnPlay wraps attack + block in Osty.CheckMissingWithAnim: both are skipped when the
         // pet is missing or dead. The sacrifice in CardEffectSpecRegistry uses the same alive gate.
@@ -100,40 +100,40 @@ public sealed class BoneShards : FlashCardDef
         NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.GeneralBlock(ref x, 1);
+        BlitzCardEffects.GeneralBlock(ref x, 1);
         if (x.NeedsChoice || !NecrobinderContent.HasOsty(x.B))
             return;
         Span<byte> osty = stackalloc byte[1];
-        osty[0] = FlashLimits.OstyOwner;
-        FlashKernel.Kill(ref x, osty, force: true);
+        osty[0] = BlitzLimits.OstyOwner;
+        BlitzKernel.Kill(ref x, osty, force: true);
     }
 }
 
-[FlashContent("RIGHT_HAND_HAND")]
-public sealed class RightHandHand : FlashCardDef
+[BlitzContent("RIGHT_HAND_HAND")]
+public sealed class RightHandHand : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage", "Energy"];
 
-    public override void OnPlay(ref FlashExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
+    public override void OnPlay(ref BlitzExec x) => NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
 
     // RightHandHand.AfterCardPlayedLate: the listener does NOT check that the played card is this copy;
     // after any play that spent at least the Energy variable, each RightHandHand copy sitting in the
     // discard pile goes back to hand (AfterCardPlayedMirrors.HandleRightHandHand).
-    public override void AfterCardPlayedLate(ref FlashExec x, FlashListener self, in FlashCardPlayInfo play)
+    public override void AfterCardPlayedLate(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
     {
         if ((uint)self.Index >= (uint)x.B.CardCount)
             return;
-        ref readonly FlashCard card = ref x.B.Cards[self.Index];
+        ref readonly BlitzCard card = ref x.B.Cards[self.Index];
         if (card.Id != Id)
             return;
         if (x.CurrentPlayEnergyValue < x.R.Card(card.Id, card.Upgrade).Vars[1])
             return;
-        int start = FlashPiles.Start(x.B, FlashPile.Discard);
-        int count = FlashPiles.Count(x.B, FlashPile.Discard);
+        int start = BlitzPiles.Start(x.B, BlitzPile.Discard);
+        int count = BlitzPiles.Count(x.B, BlitzPile.Discard);
         if (self.Index < start || self.Index >= start + count)
             return;
-        FlashKernel.MoveCard(ref x.B, FlashPile.Discard, self.Index - start, FlashPile.Hand,
-            FlashPilePosition.Bottom);
+        BlitzKernel.MoveCard(ref x.B, BlitzPile.Discard, self.Index - start, BlitzPile.Hand,
+            BlitzPilePosition.Bottom);
     }
 }
 
@@ -141,16 +141,16 @@ public sealed class RightHandHand : FlashCardDef
 /// <c>Rattle</c>: Osty attack whose hit count is the CalculatedHits variable,
 /// CalculationBase + CalculationExtra × (1 + Osty's attacks this turn).
 /// </summary>
-[FlashContent("RATTLE")]
-public sealed class Rattle : FlashCardDef
+[BlitzContent("RATTLE")]
+public sealed class Rattle : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage", "CalculationBase", "CalculationExtra"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         if (!NecrobinderContent.HasOsty(x.B))
             return;
-        decimal multiplier = 1 + x.B.Counter(FlashCounter.OstyAttacksThisTurn);
+        decimal multiplier = 1 + x.B.Counter(BlitzCounter.OstyAttacksThisTurn);
         int hits = (int)NecrobinderContent.Calculated(ref x, 1, 2, multiplier);
         NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0), hits);
     }
@@ -160,17 +160,17 @@ public sealed class Rattle : FlashCardDef
 /// <c>SicEm</c>: Osty attack, then apply SicEmPower to the target even when the pet was missing
 /// (<c>CardEffectSpecRegistry</c>'s SicEm target power).
 /// </summary>
-[FlashContent("SIC_EM")]
-public sealed class SicEm : FlashCardDef
+[BlitzContent("SIC_EM")]
+public sealed class SicEm : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["OstyDamage", "SicEmPower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
         NecrobinderContent.OstyAttack(ref x, NecrobinderContent.Var(ref x, 0));
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.SicEmPower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.SicEmPower>(), 1);
     }
 }
 
@@ -178,22 +178,22 @@ public sealed class SicEm : FlashCardDef
 /// <c>Debilitate</c>: attack, then apply DebilitatePower to the target
 /// (<c>CardEffectSpecRegistry</c>'s target DebilitatePower).
 /// </summary>
-[FlashContent("DEBILITATE")]
-public sealed class Debilitate : FlashCardDef
+[BlitzContent("DEBILITATE")]
+public sealed class Debilitate : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "DebilitatePower"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        FlashKernel.ApplyEnemyDeathPowers(ref x);
+        BlitzKernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        FlashCardEffects.ApplyToTarget(ref x, FlashRegistry.PowerId<Powers.DebilitatePower>(), 1);
+        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.DebilitatePower>(), 1);
     }
 }
 
@@ -201,52 +201,52 @@ public sealed class Debilitate : FlashCardDef
 /// <c>Veilpiercer</c>: attack, then one VeilpiercerPower on the player
 /// (<c>CardEffectSpecRegistry</c>'s owner VeilpiercerPower).
 /// </summary>
-[FlashContent("VEILPIERCER")]
-public sealed class Veilpiercer : FlashCardDef
+[BlitzContent("VEILPIERCER")]
+public sealed class Veilpiercer : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashKernel.ApplyPower(ref x, FlashLimits.PlayerOwner, FlashRegistry.PowerId<Powers.VeilpiercerPower>(), 1,
-            FlashLimits.PlayerOwner);
+        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.VeilpiercerPower>(), 1,
+            BlitzLimits.PlayerOwner);
     }
 }
 
-[FlashContent("BURY")]
-public sealed class Bury : FlashCardDef
+[BlitzContent("BURY")]
+public sealed class Bury : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref FlashExec x) => FlashCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
 }
 
 /// <summary>
 /// <c>Severance</c>: attack, then three unupgraded Souls — one to the draw pile at a random position,
 /// one to the discard pile, one to hand (<c>CardEffectSpecRegistry</c>'s Severance completion).
 /// </summary>
-[FlashContent("SEVERANCE")]
-public sealed class Severance : FlashCardDef
+[BlitzContent("SEVERANCE")]
+public sealed class Severance : BlitzCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SOUL", 0)];
 
-    public override void OnPlay(ref FlashExec x)
+    public override void OnPlay(ref BlitzExec x)
     {
-        FlashCardEffects.GeneralAttack(ref x, 0);
+        BlitzCardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        FlashCard soul = NecrobinderContent.CreateSoul(x.B, x.R, upgraded: false);
-        if (!FlashKernel.AddGeneratedCard(ref x, soul, FlashPile.Draw, FlashPilePosition.Random)
+        BlitzCard soul = NecrobinderContent.CreateSoul(x.B, x.R, upgraded: false);
+        if (!BlitzKernel.AddGeneratedCard(ref x, soul, BlitzPile.Draw, BlitzPilePosition.Random)
             || x.NeedsChoice)
             return;
-        if (!FlashKernel.AddGeneratedCard(ref x, soul, FlashPile.Discard)
+        if (!BlitzKernel.AddGeneratedCard(ref x, soul, BlitzPile.Discard)
             || x.NeedsChoice)
             return;
-        FlashKernel.AddGeneratedCard(ref x, soul, FlashPile.Hand);
+        BlitzKernel.AddGeneratedCard(ref x, soul, BlitzPile.Hand);
     }
 }

@@ -4,9 +4,9 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlitzSolver.Core", "src\Core\BlitzSolver.Core.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A11}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlashKernelChecks", "tests\KernelChecks\FlashKernelChecks.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A12}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KernelChecks", "tests\KernelChecks\KernelChecks.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A12}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlashGolden", "tests\Golden\FlashGolden.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A13}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Golden", "tests\Golden\Golden.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A13}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

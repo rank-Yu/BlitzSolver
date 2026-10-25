@@ -1,20 +1,20 @@
-using CombatSolver.Flash.Kernel;
+using BlitzSolver.Engine;
 
-namespace CombatSolver.Flash.Content.Potions;
+namespace BlitzSolver.Content.Potions;
 
-[FlashContent("POTION_SHAPED_ROCK")]
-public sealed class PotionShapedRock : FlashPotionDef
+[BlitzContent("POTION_SHAPED_ROCK")]
+public sealed class PotionShapedRock : BlitzPotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // PotionShapedRock when target != null: Damage(target, Damage, Damage.Props, owner).
-    public override void OnUse(ref FlashExec x)
+    public override void OnUse(ref BlitzExec x)
     {
-        if (x.Target == FlashLimits.NoOwner)
+        if (x.Target == BlitzLimits.NoOwner)
             return;
         Span<byte> targets = stackalloc byte[1];
         targets[0] = x.Target;
-        FlashKernel.Damage(ref x, targets, FlashKernel.PotionVar(x, this, 0),
-            FlashKernel.PotionVarProps(x, this, 0), FlashLimits.PlayerOwner, hasCardSource: false, default);
+        BlitzKernel.Damage(ref x, targets, BlitzKernel.PotionVar(x, this, 0),
+            BlitzKernel.PotionVarProps(x, this, 0), BlitzLimits.PlayerOwner, hasCardSource: false, default);
     }
 }

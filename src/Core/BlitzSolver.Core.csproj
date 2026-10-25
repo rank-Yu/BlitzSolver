@@ -2,10 +2,10 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <AssemblyName>BlitzSolver.Core</AssemblyName>
-    <RootNamespace>CombatSolver</RootNamespace>
+    <RootNamespace>BlitzSolver</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="FlashKernelChecks" />
-    <InternalsVisibleTo Include="FlashGolden" />
+    <InternalsVisibleTo Include="BlitzSolver.KernelChecks" />
+    <InternalsVisibleTo Include="BlitzSolver.Golden" />
   </ItemGroup>
 </Project>
