@@ -58,8 +58,12 @@ internal static class Program
         bool configCompare = false;
         bool compiledRules = false;
         string? liveCompareDir = null;
+        string? searchCompareDir = null;
         string? emitLiveRequestsDir = null;
         string? liveRootsFile = null;
+        string? searchTier = null;
+        int? searchCancelAfterMilliseconds = null;
+        bool searchNormal = false;
         int jobs = 1;
 
         for (int index = 0; index < args.Length; index++)
@@ -112,6 +116,18 @@ internal static class Program
                 case "--live-compare" when index + 1 < args.Length:
                     liveCompareDir = args[++index];
                     break;
+                case "--search-compare" when index + 1 < args.Length:
+                    searchCompareDir = args[++index];
+                    break;
+                case "--search-tier" when index + 1 < args.Length:
+                    searchTier = args[++index];
+                    break;
+                case "--search-normal":
+                    searchNormal = true;
+                    break;
+                case "--search-cancel-after-ms" when index + 1 < args.Length:
+                    searchCancelAfterMilliseconds = int.Parse(args[++index]);
+                    break;
                 case "--emit-live-requests" when index + 1 < args.Length:
                     emitLiveRequestsDir = args[++index];
                     break;
@@ -132,7 +148,22 @@ internal static class Program
             return Compare(compareOnlyNew, compareOnlyRef!, roots: null);
 
         if (emitLiveRequestsDir != null)
+        {
+            if (searchTier != null || searchNormal || searchCancelAfterMilliseconds != null)
+                return EmitLiveRequests(data, corpora, emitLiveRequestsDir, liveRootsFile, all, root,
+                    searchTier, searchNormal, searchCancelAfterMilliseconds);
             return EmitLiveRequests(data, corpora, emitLiveRequestsDir, liveRootsFile, all, root);
+        }
+        if (searchCompareDir != null)
+        {
+            if (all || root != null || importCompare || rulesCompare || configCompare
+                || emitLiveRequestsDir != null || liveCompareDir != null)
+            {
+                Console.Error.WriteLine("--search-compare 不能与 --root/--all 或其它对照模式同时使用。");
+                return 2;
+            }
+            return SearchCompare.Run(data, corpora, searchCompareDir);
+        }
         if (liveCompareDir != null)
         {
             if (all || root != null || importCompare || rulesCompare || configCompare || emitLiveRequestsDir != null)
@@ -145,6 +176,12 @@ internal static class Program
         if (liveRootsFile != null)
         {
             Console.Error.WriteLine("--roots-file 只能与 --emit-live-requests 一起使用。");
+            return 2;
+        }
+        if (searchTier != null || searchNormal || searchCancelAfterMilliseconds != null)
+        {
+            Console.Error.WriteLine(
+                "--search-tier/--search-normal/--search-cancel-after-ms 只能与 --emit-live-requests 一起使用。");
             return 2;
         }
 
@@ -679,8 +716,26 @@ internal static class Program
     }
 
     private static int EmitLiveRequests(string data, string corpora, string output, string? rootsFile,
-        bool all, string? root)
+        bool all, string? root, string? searchTier = null, bool searchNormal = false,
+        int? searchCancelAfterMilliseconds = null)
     {
+        if (searchCancelAfterMilliseconds is < 1)
+        {
+            Console.Error.WriteLine("--search-cancel-after-ms 必须是正整数。");
+            return 2;
+        }
+        if (searchTier != null)
+        {
+            try
+            {
+                _ = SearchPerformanceProfile.ParseTier(searchTier);
+            }
+            catch (UnsupportedImportException error)
+            {
+                Console.Error.WriteLine($"INVALID_INPUT {error.Detail}");
+                return 2;
+            }
+        }
         string[] roots;
         if (rootsFile != null)
         {
@@ -735,6 +790,12 @@ internal static class Program
             }
             if (request.GeneratedScenarioPath is { Length: > 0 } scenarioPath)
                 request = request with { GeneratedScenarioPath = Path.GetFullPath(scenarioPath) };
+            if (searchTier != null)
+                request = request with { SearchTier = searchTier };
+            if (searchNormal)
+                request = request with { DeterministicSearchForTest = false };
+            if (searchCancelAfterMilliseconds is { } cancelAfter)
+                request = request with { SearchCancelAfterMillisecondsForTest = cancelAfter };
             string path = Path.Combine(output, name + ".json");
             File.WriteAllText(path, JsonSerializer.Serialize(request, OfflineJson.Options));
             emitted.Add(name);
@@ -762,7 +823,10 @@ internal static class Program
               dotnet OfflineHost.dll --compare-only <newDir> <referenceDir>
               dotnet OfflineHost.dll --all --compare <referenceDir>
               dotnet OfflineHost.dll --live-compare <resultDir>
+              dotnet OfflineHost.dll --search-compare <resultDir>
               dotnet OfflineHost.dll --emit-live-requests <dir> (--root <name> | --roots-file <file> | --all)
+                  [--search-tier Low|Medium|High|VeryHigh] [--search-normal]
+                  [--search-cancel-after-ms N]
             """);
     }
 }

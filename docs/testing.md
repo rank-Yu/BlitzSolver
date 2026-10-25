@@ -158,7 +158,8 @@ manifest 不证明：语义正确性；它只保护冻结快照不被静默改�
 `RunManager`/`ModelDb` 建局、推进到玩家可操作，写出原生 `CombatState` 的确定性转储，并可用
 `--import-compare` 调 `src/Import` 导入 `Battle`、与 `golden.br` 的 `BATL` 逐字节对照，用
 `--rules-compare` 编译 `Rules` 后与冻结规则对象逐字节对照，或用 `--config-compare` 编译
-`ScoreRules`/`BoundFeatures.Config` 后与 `config.br` 逐字节对照。它不跑搜索。工程**不加入**
+`ScoreRules`/`BoundFeatures.Config` 后与 `config.br` 逐字节对照；`--search-compare` 还能
+重放游戏写出的确定性 `SREQ`/`SRES` 并核对离线组装的请求。工程**不加入**
 `BlitzSolver.sln`；CI 没有游戏文件，只保证 `dotnet build BlitzSolver.sln` 不受影响。
 
 需要本机游戏目录（`sts2.dll`、`GodotSharp.dll`、`0Harmony.dll`）。路径通过
@@ -240,28 +241,28 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --conf
 config same=410 diff=0 reject=0 full=410 subparts=0
 ```
 
-### 6.4 实机结果对照
+### 6.4 实机捕获结果对照
 
-Mod 在无头游戏里把 `BATL`/`RULE`/`SREQ`/`native.txt` 写进结果目录后，离线宿主可以对照：
+Mod 在无头游戏里把 `BATL`/`RULE`/`SREQ.capture`/`native.txt` 写进结果目录后，离线宿主可以对照：
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --live-compare .local/m2b0-20-results
+  --live-compare .local/m2b1-20-results
 ```
 
 每根比较：
 
 - `BATL` 与 `d1/<root>/golden.br` 的期望根（回合准备 fixture 按 `setupSelections` 选根）；
 - `RULE` 与冻结规则对象；
-- `SREQ` 与 `config.br`（回合准备 fixture 为 `scope=subparts`，只比评分/下界子部件）；
+- `SREQ.capture` 与 `config.br`（回合准备 fixture 为 `scope=subparts`，只比评分/下界子部件；
+  旧结果没有 `SREQ.capture` 时回退到 `SREQ`）；
 - `native.txt` 与离线宿主用同一请求重建的 `NativeStateDump`。
 
 输出逐根 `live ... status=same ... native=same`，最后汇总
-`live roots=N same=... diff=... reject=... native=...`。M2b-0 的 20 个普通根全部相同：
-一个游戏进程依次跑完，Mod 侧总耗时 190.370s（平均 9.52s/根），实例准备加运行墙钟
-3m25s；`--live-compare` 20 根 3.3s，`same=20 diff=0 reject=0 native=20`。3 个回合准备
-fixture 另行捕获，`sreq=subparts`、`native=same`；共存探针输出
-`COEXISTENCE check=passed`。启动脚本、协议与限制见 [Mod 入口与无头捕获](mod.md)。
+`live roots=N same=... diff=... reject=... native=...`。M2b-0 的 20 个普通根在 M2b-1 复跑仍
+全部相同：两部分各 10 根，`same=10 diff=0 reject=0 native=10`；3 个回合准备 fixture 另行
+捕获，`sreq=subparts`、`native=same`；共存探针输出 `COEXISTENCE check=passed`。启动脚本、
+协议与限制见 [Mod 入口与无头捕获](mod.md)。
 
 生成实机请求：
 
@@ -273,8 +274,39 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 ```
 
 `--all` 跳过 13 个前缀输入，输出 397 个普通请求；回合准备 fixture 也在其中。
+`--emit-live-requests` 还接受 `--search-tier Low|Medium|High|VeryHigh`（默认 `Medium`）、
+`--search-normal`（关掉确定性软时间）与 `--search-cancel-after-ms N`（取消测试）。
 
-### 6.5 负例
+### 6.5 实机搜索请求/结果对照
+
+测试模式在捕获后默认用中档确定性选项求解一次（软时间关闭，只留 480,000 节点上限），写
+`SREQ`/`SRES`/`search.json`。离线宿主：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --search-compare .local/m2b1-20-results
+```
+
+逐根做两件事：
+
+1. 解码游戏 `SREQ`，用同一 `BeamSolver` 离线重解，`SearchCodec.EncodeResult` 后与游戏
+   `SRES` 逐字节比较；
+2. 用离线宿主重建同一原生根、导入并编译规则/评估配置，再按 `status.searchTier` 与
+   `status.deterministicSearch` 调用同一个 `SearchRequestCompiler`，与游戏 `SREQ` 逐字节
+   比较。
+
+输出逐根 `search=same sreq=same sres=same`，汇总
+`search-compare roots=N same=... diff=... reject=... skipped=...`。非确定性测量结果计为
+`skipped reason=measure-only`，回合准备根计为 `skipped reason=turn-setup-root`。
+
+M2b-1 的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=same sres=same`，
+`diff=0 reject=0 skipped=0`。`quality-REGENT-013` 的“中”档正常搜索（120s 软时间）实测
+63.3s、142,048 个展开节点、托管堆峰值约 1.96GB、工作集峰值约 3.21GB；另外两个 PF1 重根
+`quality-IRONCLAD-013`、`quality-DEFECT-012` 在本请求下分别 2.8s / 2.1s。取消测试用
+`quality-REGENT-013` 在 1s 时取消，输出 `searchStatus=cancelled, workerExited=true`，随后
+返回主菜单，没有后台任务残留。完整数值与字段来源见 M2b-1 报告。
+
+### 6.6 负例
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
@@ -288,8 +320,9 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态；410 个
 输入（418 个根）能导入并与 GOLD 的 `BATL` 逐字节相同，也能编译出与冻结规则对象逐字节相同
 的 `Rules`，还能编译出与 `config.br` 相同的评分表与下界；3 类私有状态/第三方内容负例显式
-拒绝。它不证明：搜索/部署、界面、准备阶段的多段选择，以及未捕获的第三方 Mod 内容。实机
-状态导入已由 `src/Mod` 的 20 根捕获与 `--live-compare` 覆盖。
+拒绝。它不证明：实机部署、界面、准备阶段的多段选择，以及未捕获的第三方 Mod 内容。实机
+状态导入与单 Beam 搜索已由 `src/Mod` 的 20 根捕获、`--live-compare` 与 `--search-compare`
+覆盖。
 
 ## 7. 每层证明什么
 
@@ -300,16 +333,17 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 搜索/部署、任意 Mod、语料外前缀/准备阶段 |
-| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；共存检查通过 | 搜索、部署、界面、397 根全量、Windows 脚本、第三方 Mod |
+| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 实机部署、任意 Mod、语料外前缀/准备阶段 |
+| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
+| 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 部署、跨回合续用、界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
 
-这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的。它们不证明：BlitzSolver 能在真实游戏中导入状态、在真实战斗中部署、在界面上显示，或支持任意第三方 Mod。
+这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的，并且能在真实游戏中导入状态、对捕获的根做一次单 Beam 搜索。它们不证明：BlitzSolver 能在真实战斗中部署路线、在界面上显示，或支持任意第三方 Mod。
 
 ## 8. 未验证项
 
-- **实机全量**：M2b-0 只验证了 20 个普通根与 3 个回合准备 fixture 的单根捕获；397 个普通根的整轮运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
-- **搜索与部署**：尚未把搜索结果接到实机动作、回合对账或自动执行。
-- **界面**：没有设置页、进度、路线预览或失败提示。
+- **实机全量**：M2b-1 只验证了 20 个普通根的确定性搜索与 3 个 PF1 重根的中档测量；397 个普通根的整轮运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
+- **部署**：搜索已接入，但尚未把路线接到实机动作、回合对账或自动执行。
+- **界面**：没有设置页、进度、路线预览或失败提示；普通玩家只有 `F8` 单次触发。
 - **前缀根**：实机测试模式显式拒绝前缀动作；继续由离线宿主的 `PrefixReplay` 覆盖。
 - **回合准备多根**：实机只捕获第一个准备选项；完整 `config.br` 的多根排序仍只在离线宿主验证。
 - **第三方 Mod**：没有实机 Mod 根；导入层只显式拒绝非 `sts2` 程序集的模型，未做兼容层。

@@ -4,7 +4,7 @@
 
 本文保留 `BeamSolver` 的搜索、评估、剪枝与容量合同。CombatSolver 时期的接入、请求参数、路线物化、Off/On 与回落已整体移到 [archive/combatsolver-integration.md](archive/combatsolver-integration.md)，仅作历史参考。
 
-本节部分条目仍以 CombatSolver 的接入层词汇（Bridge、协调器、Off/On、`Mode`、`StateImporter`）说明移植来源；这些类型在当前仓库不存在，当前仓库只提供 `BeamSolver` 本身。
+本节部分条目仍以 CombatSolver 的接入层词汇（Bridge、协调器、Off/On、`Mode`、`StateImporter`）说明移植来源；这些类型在当前仓库不存在。当前仓库的接入层是 `src/Import/SearchRequestCompiler`（请求组装）与 `src/Mod/SearchSession`（游戏内单次驱动），用法见 [Mod 入口、无头捕获与实机搜索](mod.md)。
 
 ## 1. BeamSolver
 

@@ -1,4 +1,5 @@
 using MegaCrit.Sts2.Core.Modding;
+using MegaCrit.Sts2.Core.Nodes;
 using STS2RitsuLib;
 using STS2RitsuLib.Patching.Core;
 
@@ -43,11 +44,28 @@ public static class ModEntry
             return;
         }
 
-        // 本批只需要战斗生命周期与测试模式；普通游戏时两个回调都是空操作。
-        RitsuLibFramework.SubscribeLifecycle<CombatStartingEvent>(static _ => { });
-        RitsuLibFramework.SubscribeLifecycle<CombatEndedEvent>(static _ => TestSession.OnCombatEnded());
+        // 本批只需要战斗生命周期与测试模式；普通游戏时除搜索取消外没有副作用。
+        RitsuLibFramework.SubscribeLifecycle<CombatStartingEvent>(
+            static _ => SearchSession.OnCombatStarting());
+        RitsuLibFramework.SubscribeLifecycle<CombatEndedEvent>(static _ =>
+        {
+            SearchSession.OnCombatEnded();
+            TestSession.OnCombatEnded();
+        });
         if (TestMode)
             RitsuLibFramework.SubscribeLifecycle<GameReadyEvent>(static _ => TestSession.Start());
+
+        NGame? host = NGame.Instance;
+        if (host == null)
+        {
+            ModLog.Warn("[BlitzSolver] HOTKEY_DISABLED reason=NGame_instance_missing");
+        }
+        else
+        {
+            host.AddChild(new SearchHotkeyNode());
+            host.TreeExiting += static () => SearchSession.Cancel("tree_exiting");
+            ModLog.Info("[BlitzSolver] HOTKEY_READY key=F8 action=single_search");
+        }
     }
 
     private static bool CombatSolverPresent()

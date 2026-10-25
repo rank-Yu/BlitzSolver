@@ -99,11 +99,61 @@ internal static class TestSession
                 stage = "settle";
                 await GodotCombatWaiter.SettleAsync(host);
                 stage = "capture";
-                Capture(resultDirectory, root, request, combat, stopwatch.ElapsedMilliseconds);
-                ok++;
-                results.Add(new ResultEntry(root, "ok", stage, stopwatch.ElapsedMilliseconds, null,
-                    [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest));
-                ModLog.Info($"[BlitzSolver] CAPTURE_OK root={root} ms={stopwatch.ElapsedMilliseconds}");
+                CapturedSearch? captured = Capture(resultDirectory, root, request, combat);
+                SearchRunResult? search = null;
+                string? searchFailure = null;
+                if (captured != null)
+                {
+                    stage = "search";
+                    search = await SearchSession.RunAsync(
+                        host, root, captured.SearchCase, captured.Deterministic, captured.Tier,
+                        resultDirectory, request.SearchCancelAfterMillisecondsForTest);
+                    bool expectedCancel = request.SearchCancelAfterMillisecondsForTest is not null;
+                    bool searchOk = search.Status == "ok"
+                        || expectedCancel && search.Status == "cancelled" && search.WorkerExited;
+                    if (!searchOk)
+                        searchFailure = $"search {search.Status}: {search.Error}";
+                    else if (search.RouteSummary.Length > 0)
+                        ModLog.Info($"[BlitzSolver] SEARCH_ROUTE root={root} {search.RouteSummary}");
+                }
+                stage = captured == null ? "capture" : "status";
+                SearchPerformanceTier tier = SearchPerformanceProfile.ParseTier(request.SearchTier);
+                WriteJson(Path.Combine(resultDirectory, "status.json"), new StatusEntry(
+                    2, root, "ok", stage, stopwatch.ElapsedMilliseconds, searchFailure,
+                    [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest, 0,
+                    search?.Status ?? (captured == null ? "skipped" : "not_started"),
+                    tier.ToString(), request.DeterministicSearchForTest,
+                    search?.ElapsedMilliseconds ?? 0,
+                    search?.ManagedHeapPeakBytes ?? 0,
+                    search?.WorkingSetPeakBytes ?? 0,
+                    search?.AllocatedBytes ?? 0,
+                    search?.ExpandedNodes ?? 0,
+                    search?.Transitions ?? 0,
+                    search?.TurnsSearched ?? 0,
+                    search?.Victory ?? false,
+                    search?.Score ?? 0,
+                    search?.RouteActionCount ?? 0,
+                    search?.WorkerExited ?? captured == null,
+                    search?.Error));
+                if (searchFailure == null)
+                {
+                    ok++;
+                    results.Add(new ResultEntry(root, "ok", stage, stopwatch.ElapsedMilliseconds, null,
+                        [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest,
+                        search?.Status ?? "skipped", search?.ElapsedMilliseconds ?? 0));
+                    ModLog.Info(
+                        $"[BlitzSolver] CAPTURE_OK root={root} ms={stopwatch.ElapsedMilliseconds} "
+                        + $"search={search?.Status ?? "skipped"}");
+                }
+                else
+                {
+                    failed++;
+                    results.Add(new ResultEntry(root, "failed", stage, stopwatch.ElapsedMilliseconds,
+                        searchFailure, [.. FirstChoiceCardSelector.LastSelections],
+                        request.FlashTurnSetupRootForTest, search?.Status ?? "failed",
+                        search?.ElapsedMilliseconds ?? 0));
+                    ModLog.Error($"[BlitzSolver] SEARCH_FAILED root={root} stage={stage} {searchFailure}");
+                }
             }
             catch (UnsupportedImportException error)
             {
@@ -175,6 +225,8 @@ internal static class TestSession
             bool breakAfterCleanup = false;
             try
             {
+                if (!await SearchSession.CancelAndWaitAsync(host, "request_cleanup", 10_000))
+                    throw new TimeoutException("搜索取消后仍未退出。");
                 await ResetToMainMenuAsync(host);
             }
             catch (TimeoutException error)
@@ -195,6 +247,12 @@ internal static class TestSession
                 break;
             }
         }
+        if (!await SearchSession.CancelAndWaitAsync(host, "test_done", 10_000))
+        {
+            failed++;
+            results.Add(Failure("all-done-cancel", "cleanup", total,
+                "测试结束时后台搜索仍未退出", null, false));
+        }
         total.Stop();
         DoneEntry done = new(1, files.Length, ok, failed, total.Elapsed.TotalMilliseconds, [.. results]);
         WriteJson(Path.Combine(resultRoot, "done.json"), done);
@@ -205,8 +263,8 @@ internal static class TestSession
         host.GetTree().Quit(failed == 0 ? 0 : 1);
     }
 
-    private static void Capture(string directory, string root, OfflineRequest request,
-        CombatState combat, long elapsedMilliseconds)
+    private static CapturedSearch? Capture(string directory, string root, OfflineRequest request,
+        CombatState combat)
     {
         Player player = LocalContext.GetMe(combat)
             ?? throw new InvalidOperationException("找不到本地玩家。");
@@ -231,23 +289,26 @@ internal static class TestSession
             InitialActionCount = 0,
             TurnSetupRoot = request.FlashTurnSetupRootForTest,
         };
-        SearchCase searchCase = EvaluationConfigCompiler.CompileRequest(
+        SearchCase captureCase = EvaluationConfigCompiler.CompileRequest(
             combat, player, rules, battle, policy, facts);
-        byte[] requestBytes = SearchCodec.EncodeRequest(searchCase);
         WriteBytes(Path.Combine(directory, "BATL"), battleBytes);
         WriteBytes(Path.Combine(directory, "RULE"), rulesBytes);
-        WriteBytes(Path.Combine(directory, "SREQ"), requestBytes);
+        WriteBytes(Path.Combine(directory, "SREQ.capture"), SearchCodec.EncodeRequest(captureCase));
         NativeStateDump.Write(combat, Path.Combine(directory, "native.txt"));
-        WriteJson(Path.Combine(directory, "status.json"), new StatusEntry(
-            1, root, "ok", "capture", elapsedMilliseconds, null,
-            [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest, 0));
+        if (request.FlashTurnSetupRootForTest)
+            return null;
+        SearchPerformanceTier tier = SearchPerformanceProfile.ParseTier(request.SearchTier);
+        SearchCase searchCase = SearchRequestCompiler.CompileRequest(
+            combat, player, rules, battle, policy, facts,
+            SearchPerformanceProfile.For(tier), request.DeterministicSearchForTest);
+        return new CapturedSearch(searchCase, request.DeterministicSearchForTest, tier);
     }
 
     private static ResultEntry Failure(string root, string stage, Stopwatch stopwatch,
         string error, string[]? selections, bool turnSetupRoot)
     {
         return new ResultEntry(root, "failed", stage, stopwatch.ElapsedMilliseconds, error,
-            selections ?? [], turnSetupRoot);
+            selections ?? [], turnSetupRoot, "failed", 0);
     }
 
     private static void Validate(OfflineRequest request)
@@ -258,6 +319,10 @@ internal static class TestSession
             throw new NotSupportedException("本批实机捕获只支持普通根；前缀根请用离线宿主。");
         if (request.GeneratedScenarioPath is { Length: > 0 } path && !Path.IsPathRooted(path))
             throw new NotSupportedException($"generatedScenarioPath 必须是绝对路径：{path}");
+        _ = SearchPerformanceProfile.ParseTier(request.SearchTier);
+        if (request.SearchCancelAfterMillisecondsForTest is <= 0)
+            throw new NotSupportedException(
+                $"searchCancelAfterMillisecondsForTest 必须为正：{request.SearchCancelAfterMillisecondsForTest}");
     }
 
     private static async Task WaitForMainMenuReadyAsync(NGame host)
@@ -308,6 +373,11 @@ internal static class TestSession
         File.Move(temporary, path, true);
     }
 
+    private sealed record CapturedSearch(
+        SearchCase SearchCase,
+        bool Deterministic,
+        SearchPerformanceTier Tier);
+
     private sealed record StatusEntry(
         int SchemaVersion,
         string Root,
@@ -317,7 +387,22 @@ internal static class TestSession
         string? Error,
         string[] SetupSelections,
         bool TurnSetupRoot,
-        int InitialActionCount);
+        int InitialActionCount,
+        string SearchStatus,
+        string SearchTier,
+        bool DeterministicSearch,
+        long SearchElapsedMs,
+        long SearchManagedHeapPeakBytes,
+        long SearchWorkingSetPeakBytes,
+        long SearchAllocatedBytes,
+        int SearchExpandedNodes,
+        int SearchTransitions,
+        int SearchTurns,
+        bool SearchVictory,
+        double SearchScore,
+        int SearchRouteActions,
+        bool SearchWorkerExited,
+        string? SearchError);
 
     private sealed record ResultEntry(
         string Root,
@@ -326,7 +411,9 @@ internal static class TestSession
         long ElapsedMs,
         string? Error,
         string[] SetupSelections,
-        bool TurnSetupRoot);
+        bool TurnSetupRoot,
+        string SearchStatus,
+        long SearchElapsedMs);
 
     private sealed record DoneEntry(
         int SchemaVersion,

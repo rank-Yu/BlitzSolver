@@ -72,6 +72,12 @@ internal sealed record OfflineRequest
     public JsonElement[] FlashPrefixPlan { get; init; } = [];
     public bool FlashTurnSetupRootForTest { get; init; }
 
+    // M2b-1 search test protocol. The tier defaults to Medium; deterministic removes only the soft
+    // time budget so a game result can be replayed byte for byte offline.
+    public string SearchTier { get; init; } = "Medium";
+    public bool DeterministicSearchForTest { get; init; } = true;
+    public int? SearchCancelAfterMillisecondsForTest { get; init; }
+
     // Search/deployment fields present in frozen fixture JSON. They do not affect root construction;
     // ValidateSupported rejects the values this batch does not understand.
     public bool UseNoveltyPortfolioForTest { get; init; }

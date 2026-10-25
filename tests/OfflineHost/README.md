@@ -142,10 +142,42 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --live-compare .local/m2b0-20-results
 ```
 
-逐根比较 `BATL`（与 `golden.br` 的期望根）、`RULE`（与冻结规则对象）、`SREQ`（与
-`config.br`；回合准备 fixture 为 `scope=subparts`）和 `native.txt`（离线重建同一根后的
-`NativeStateDump`）。输出 `live roots=N same=... diff=... reject=... native=...`。
+逐根比较 `BATL`（与 `golden.br` 的期望根）、`RULE`（与冻结规则对象）、`SREQ.capture`
+（与 `config.br`；回合准备 fixture 为 `scope=subparts`；旧结果没有该文件时回退到 `SREQ`）
+和 `native.txt`（离线重建同一根后的 `NativeStateDump`）。输出
+`live roots=N same=... diff=... reject=... native=...`。
 启动脚本详见 [`docs/mod.md`](../../docs/mod.md)。
+
+生成请求时可以指定搜索选项：
+
+```bash
+# 默认中档确定性（去软时间，保留 480,000 节点上限）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --emit-live-requests .local/live-requests --roots-file .local/m2b0-20-roots.txt
+
+# 正常中档（带 120s 软时间），用于耗时/内存测量
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --emit-live-requests .local/heavy --root quality-REGENT-013 \
+  --search-tier Medium --search-normal
+
+# 到 1s 取消
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --emit-live-requests .local/cancel --root quality-REGENT-013 \
+  --search-tier Medium --search-normal --search-cancel-after-ms 1000
+```
+
+对照游戏写出的确定性搜索请求与结果：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --search-compare .local/m2b1-20-results
+```
+
+对每个 `status.searchStatus=ok` 且 `deterministicSearch=true` 的结果目录：解码游戏 `SREQ`，
+用同一 `BeamSolver` 离线重解并与游戏 `SRES` 逐字节比较；同时用离线宿主自己重建原生根、
+导入并调用同一个 `SearchRequestCompiler`，与游戏 `SREQ` 逐字节比较。输出
+`search-compare roots=N same=... diff=... reject=... skipped=...`。正常档测量结果计为
+`skipped reason=measure-only`，回合准备根计为 `skipped reason=turn-setup-root`。
 
 ## 与参考转储对照
 

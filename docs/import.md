@@ -249,6 +249,45 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 （与 `tests/Golden/GoldenHash.cs` 同一份代码），对照 `golden.br` 的 `scoreHash`/`boundHash`。
 410 个输入做完整请求；418 个根逐一对照哈希。
 
+### 4.5 搜索请求编译器
+
+`SearchRequestCompiler` 在 M2a 的导入/评估配置之上组装完整 `SearchCase`，离线宿主与 Mod
+共用。它不接原生 `SimulationSnapshot`，而是从已导入的 `Battle`、编译出的 `Rules`、
+`SearchPolicy`、根事实与性能档位直接构造 `BeamOptions`：
+
+| 字段 | 来源 |
+| --- | --- |
+| `BeamWidth` / `MaxExpandedNodes` / `SoftTimeBudget` | `SearchPerformanceProfile.For(tier)`；确定性测试把软时间改为 `TimeSpan.MaxValue` |
+| `MaxTurns` | 64 |
+| `InitialPlayerMaxHp` | `Battle.Player.MaxHp` |
+| `Scorer` / `Bound` | `EvaluationConfigCompiler.CompileScorer` / `CompileBound` |
+| `Ordering` | `Battle.Player.CurrentHp/MaxHp` + `ScoreRules.BossHpRelief` / `PostCombatRelicHeal` |
+| `Potions` / `EffectivePotionPolicy` | `Smart`；无指令、无最早回合/使用次数限制 |
+| `InitialPlayerTurn` / `InitialSearchTurn` | `Battle.PlayerTurn` |
+| `InitialActionCount` / 前缀药水计数 | `EvaluationRootFacts` |
+| `TheftPolicy` | `SearchPolicy.TheftPolicy` 的 Core 枚举映射 |
+| `Act3BossStrategy` | `SearchPolicy.Act3BossStrategy` |
+| `PreserveReplayAllocatorOpening` | 未融化 `ThrowingAxe._usedThisCombat == false` |
+| `AmbergrisPotionId` | `ScoreRules.AmbergrisPotionId` |
+
+档位值直接取 Flash 主搜索成员：
+
+| 档位 | Beam | 节点上限 | 软时间 |
+| --- | ---: | ---: | ---: |
+| 低 | 180 | 240,000 | 60 秒 |
+| 中 | 240 | 480,000 | 120 秒 |
+| 高 | 360 | 1,000,000 | 180 秒 |
+| 极高 | 540 | 2,000,000 | 300 秒 |
+
+CombatSolver 档位里的 `MaxCardBranchesPerNode`/`MaxPileChoiceBranchesPerAction`/
+`MaxHandChoiceBranchesPerAction` 只用于旧引擎协调器；Flash 与 Blitz 都固定 32 个选择分支，
+因此不进入 `BeamOptions`。novelty、计划承诺、早期侦察、incumbent、`HpTargetStop`、药水审计
+与 `PowerCommitments` 保持默认；`PotionReplacementHpCredit` 也暂为 0（未接药水奖励预测）。
+字段取舍与完整对照见 [Mod 入口与无头捕获](mod.md) 第 7 节。
+
+请求编译器只读原生模型；worker 只拿到请求里的 `Battle`/`Rules`/冻结数组，不再读取 live
+战斗。确定性请求不附加 pacer，保证游戏 `SREQ` 离线重放与游戏 `SRES` 逐字节相同。
+
 ## 5. 拒绝规则
 
 所有拒绝抛 `UnsupportedImportException`，`Reason` 是稳定字符串。绝不返回带默认值的半份
@@ -403,7 +442,8 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
 - `Component`/`KnownNativeCertificate`/`HasOnlyPostCombatHealing` 的第三方 run/combat
   订阅者、BaseLib card modifier、AdaptedOnPlay 按离线宿主的固定“无第三方”口径处理；实机 Mod
   根需要另行拒绝或补证据。
-- 实机捕获已接入（`src/Mod`）：20 个普通根的 `BATL`/`RULE`/`SREQ` 与 `NativeStateDump`
-  均与冻结快照/离线宿主逐字节相同；3 个回合准备 fixture 的 `BATL`/`RULE`/`NativeStateDump`
-  相同，`SREQ` 为评分/下界子部件比较。前缀根与完整准备阶段多根排序仍只在离线宿主验证。
-  见 [Mod 入口与无头捕获](mod.md)。
+- 实机捕获与单 Beam 搜索已接入（`src/Mod`）：20 个普通根的 `BATL`/`RULE`/`SREQ.capture` 与
+  `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；同样的 20 根在确定性求解后，游戏
+  `SREQ` 与离线组装的请求逐字节相同、游戏 `SRES` 与离线重解逐字节相同。3 个回合准备 fixture
+  的 `BATL`/`RULE`/`NativeStateDump` 相同，`SREQ.capture` 为评分/下界子部件比较，搜索跳过。
+  前缀根与完整准备阶段多根排序仍只在离线宿主验证。见 [Mod 入口与无头捕获](mod.md)。

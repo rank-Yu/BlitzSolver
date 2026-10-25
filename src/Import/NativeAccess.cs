@@ -23,6 +23,7 @@ internal static class NativeAccess
     private static readonly FieldInfo TenderCardsPlayedField = RequiredField(typeof(TenderPower), "_cardsPlayedThisTurn");
     private static readonly FieldInfo NemesisField = RequiredField(typeof(NemesisPower), "_shouldApplyIntangible");
     private static readonly FieldInfo RuinedHelmetUsedField = RequiredField(typeof(RuinedHelmet), "_usedThisCombat");
+    private static readonly FieldInfo ThrowingAxeUsedField = RequiredField(typeof(ThrowingAxe), "_usedThisCombat");
     private static readonly FieldInfo UnsettlingLampField = RequiredField(typeof(UnsettlingLamp), "_isFinishedTriggering");
 
     public static Assembly OriginalAssembly => GameAssembly;
@@ -107,6 +108,11 @@ internal static class NativeAccess
         => RuinedHelmetUsedField.GetValue(relic) is bool value
             ? value
             : throw new UnsupportedImportException(ImportReason.MissingPrivateField, "RuinedHelmet._usedThisCombat 缺失");
+
+    public static bool ThrowingAxeUsed(ThrowingAxe relic)
+        => ThrowingAxeUsedField.GetValue(relic) is bool value
+            ? value
+            : throw new UnsupportedImportException(ImportReason.MissingPrivateField, "ThrowingAxe._usedThisCombat 缺失");
 
     public static bool UnsettlingLampFinished(UnsettlingLamp relic)
         => UnsettlingLampField.GetValue(relic) is bool value

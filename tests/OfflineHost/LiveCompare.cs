@@ -181,11 +181,14 @@ internal static class LiveCompare
             byte[] actualRequest;
             try
             {
-                actualRequest = File.ReadAllBytes(Path.Combine(directory, "SREQ"));
+                string captureRequest = Path.Combine(directory, "SREQ.capture");
+                if (!File.Exists(captureRequest))
+                    captureRequest = Path.Combine(directory, "SREQ");
+                actualRequest = File.ReadAllBytes(captureRequest);
             }
             catch (FileNotFoundException)
             {
-                Console.Error.WriteLine($"root={name} status=reject reason=missing-sreq");
+                Console.Error.WriteLine($"root={name} status=reject reason=missing-sreq-capture");
                 rejected++;
                 continue;
             }
