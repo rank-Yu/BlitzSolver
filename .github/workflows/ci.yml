@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: Build, K0 and D1
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build BlitzSolver.sln -c Release
+      - run: dotnet run --project tests/KernelChecks -c Release --no-build
+      - run: dotnet run --project tests/Golden -c Release --no-build -- k0
+      - run: dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data --only d1
+
+  search:
+    name: D2 shard ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build tests/Golden -c Release
+      - run: dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data --only d2 --shard ${{ matrix.shard }}/4
