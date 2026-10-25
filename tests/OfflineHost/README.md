@@ -67,6 +67,24 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `reject`（打印稳定原因码）。`--all` 只跑 397 个在范围根，跳过 13 个前缀 fixture；额外 8 个
 回合准备根与 3 个普通根的处理见 [`docs/import.md`](../../docs/import.md)。
 
+`--compiled-rules` 改用 `RulesCompiler.Compile` 的输出来导入：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --import-compare --compiled-rules
+```
+
+## 规则编译对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --rules-compare
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --rules-compare
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
+```
+
+`--rules-compare` 对每个根编译 `Rules`、用 `RulesCodec.Encode` 编码，再与该根冻结规则对象
+逐字节比较；`diff` 打印 `RulesDiff` 的第一处表/项。`--rules-table-check` 校验
+`src/Import/MirrorRiskTables.cs` 与 `ModelDb.All`/Blitz Registry 的 id 集合完全一致。
+
 负例模式：
 
 ```bash

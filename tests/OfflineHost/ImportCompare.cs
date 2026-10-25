@@ -30,10 +30,12 @@ internal sealed record ImportResult(ImportStatus Status, string Reason, string F
 internal static class ImportCompare
 {
     public static ImportResult Run(string data, string root, CombatState state,
-        IReadOnlyList<string> setupSelections, bool preInjectionSetupRoot)
+        IReadOnlyList<string> setupSelections, bool preInjectionSetupRoot, bool compiledRules = false)
     {
+        Player player = LocalContext.GetMe(state)
+            ?? throw new InvalidOperationException("找不到本地玩家。");
         Battle expected;
-        Rules rules;
+        Rules? rules = null;
         try
         {
             string directory = Path.Combine(data, "d1", root);
@@ -44,7 +46,8 @@ internal static class ImportCompare
             GoldenRootRecord golden = GoldenData.Decode(ReadBrotli(Path.Combine(directory, "golden.br")));
             (Battle expectedRoot, int rootIndex) = SelectExpectedRoot(golden, setupSelections, preInjectionSetupRoot);
             expected = expectedRoot;
-            rules = RulesCodec.Decode(ReadBrotli(Path.Combine(data, "objects", "rules", sha + ".br")));
+            if (!compiledRules)
+                rules = RulesCodec.Decode(ReadBrotli(Path.Combine(data, "objects", "rules", sha + ".br")));
             Console.WriteLine($"IMPORT-ROOT index={rootIndex} of={golden.Roots.Count}");
         }
         catch (InvalidDataException error)
@@ -52,12 +55,35 @@ internal static class ImportCompare
             return new(ImportStatus.Rejected, "invalid-golden", "", error.Message);
         }
 
-        Player player = LocalContext.GetMe(state)
-            ?? throw new InvalidOperationException("找不到本地玩家。");
+        if (compiledRules)
+        {
+            try
+            {
+                if (state.RunState is not MegaCrit.Sts2.Core.Runs.RunState runState)
+                {
+                    return new(ImportStatus.Rejected, ImportReason.RulesMismatch, "",
+                        "原生战斗的 RunState 不是具体 RunState");
+                }
+                rules = RulesCompiler.Compile(state, player, runState);
+            }
+            catch (UnsupportedImportException error)
+            {
+                return new(ImportStatus.Rejected, error.Reason, "", error.Detail);
+            }
+            catch (UnsupportedException error)
+            {
+                return new(ImportStatus.Rejected, "core-unsupported", "", error.Message);
+            }
+            catch (CapacityException error)
+            {
+                return new(ImportStatus.Rejected, ImportReason.Capacity, error.Region, error.Message);
+            }
+        }
+
         Battle actual;
         try
         {
-            actual = BattleImporter.Import(state, player, rules,
+            actual = BattleImporter.Import(state, player, rules!,
                 preInjectionSetupRoot ? ImportOptions.Default with { TurnSetupRoot = true } : ImportOptions.Default);
         }
         catch (UnsupportedImportException error)
@@ -81,13 +107,16 @@ internal static class ImportCompare
     }
 
     public static Rules LoadRules(string data, string root)
+        => RulesCodec.Decode(LoadRulesBytes(data, root));
+
+    public static byte[] LoadRulesBytes(string data, string root)
     {
         string directory = Path.Combine(data, "d1", root);
         using System.Text.Json.JsonDocument meta = System.Text.Json.JsonDocument.Parse(
             File.ReadAllText(Path.Combine(directory, "meta.json")));
         string sha = meta.RootElement.GetProperty("rulesSha256").GetString()
             ?? throw new InvalidDataException($"{root} 缺少 rulesSha256。");
-        return RulesCodec.Decode(ReadBrotli(Path.Combine(data, "objects", "rules", sha + ".br")));
+        return ReadBrotli(Path.Combine(data, "objects", "rules", sha + ".br"));
     }
 
     private static (Battle Root, int Index) SelectExpectedRoot(GoldenRootRecord golden,

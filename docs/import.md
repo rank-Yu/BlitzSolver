@@ -6,19 +6,24 @@
 `SimulatedCombatState` 影子状态。它是仓库中唯一引用 `sts2.dll`、Godot/Harmony 类型并读取游戏
 模型私有字段的层；`Core` 不引用它，`BlitzSolver.sln` 也不包含它（CI 没有游戏文件）。
 
-本页说明入口、字段来源、拒绝规则与离线对照方式。冻结快照格式见 [冻结快照](golden-data.md)，
-复跑命令见 [测试与验证](testing.md)。
+本页说明入口、字段来源、规则编译、拒绝规则与离线对照方式。冻结快照格式见
+[冻结快照](golden-data.md)，复跑命令见 [测试与验证](testing.md)。
 
 ## 1. 入口与输入
 
 ```csharp
+Rules rules = RulesCompiler.Compile(combatState, player, runState);
 Battle battle = BattleImporter.Import(combatState, player, rules, options);
 ```
 
-- `combatState`：当前原生战斗；导入只读，不改状态。
+- `combatState`：当前原生战斗；导入与规则编译都只读，不改状态。
 - `player`：本地单人玩家；根要求玩家出牌阶段（`RequirePlayPhase`）。
-- `rules`：该根的冻结 `Rules` 对象，来自 `meta.json` 的 `rulesSha256` 对应
-  `objects/rules/<sha>.br`，由 `RulesCodec.Decode` 解码。规则编译是 M2a-3，本批不重编。
+- `runState`：玩家所在跑局。规则编译从它读取当前地图坐标、解锁状态与
+  `CardMultiplayerConstraint`，并把它作为召唤物 scratch 创建路径的 RunRng；必须与
+  `combatState.RunState` 是同一个实例。
+- `rules`：`RulesCompiler` 编译出的该根规则表。`BattleImporter` 不再要求冻结对象；离线
+  `--import-compare` 默认仍解码 `objects/rules/<sha>.br`，加 `--compiled-rules` 时改用编译
+  结果。
 - `options`：在根上没有原生对应物的少量事实（`ShufflesCrossed`、`HasRisk`、事件失败边界、
   回合准备普通根标记）。默认值描述普通出牌阶段根。
 
@@ -37,7 +42,7 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 | `Flags` | `CombatManager.IsAboutToLose`、`Player.IsActiveForHooks`、`Player.Osty`、旧快照风险 | 直接读 + 根事实 |
 | `Player`,`Osty` | `Creature.CurrentHp/MaxHp/Block`；本回合未格挡伤害来自原生 History | 直接读 + History |
 | `Rng`（9 条） | `RunState.Rng` 的 9 条流 | 直接读 |
-| `Enemies` | `CombatState.Enemies`、`MonsterModel.NextMove/StateLog`、`MoveStateMachine`、`Rules.MonsterRule` | 直接读；AI 节点映射用冻结规则，不重编 |
+| `Enemies` | `CombatState.Enemies`、`MonsterModel.NextMove/StateLog`、`MoveStateMachine`、`Rules.MonsterRule` | 直接读；AI 节点映射由规则编译器冻结 |
 | `Powers` | `Creature.Powers` 的原生顺序，按 owner 分组 | `FlashStateProjections` 的 case 表移植；私有字段由 `NativeAccess` 集中读取 |
 | `Relics` | `Player.Relics` 顺序 | `ProjectRelic` 移植；`StatefulRelicState` 从原生字段或原生 History 读取 |
 | `Cards` | 五堆原生顺序、`CardModel`、`Rules.Card(id, upgrade)` | `FlashStateImporter.Card` 移植 |
@@ -51,27 +56,93 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 `VitalSparkNormalizedAmount` 在普通根是 `int.MinValue`，回合准备普通根是 0（旧桥在准备阶段
 至少做过一次规范化）。
 
-## 3. 拒绝规则
+## 3. 规则编译
+
+`RulesCompiler` 输入原生战斗、玩家与 `RunState`，输出 `Rules`。语义以 CombatSolver
+`src/Flash/Bridge/FlashRulesCompiler.cs`（`a62f1850`）为准；旧引擎的模拟状态访问改成原生模型
+读取，不复制 `src/Engine` 的状态定义。
+
+### 3.1 30 个构造参数
+
+| # | 参数 | 实现 |
+| ---: | --- | --- |
+| 1 | `Cards` | 原生 `CardModel.ToMutable()` + `UpgradeInternal/FinalizeUpgradeInternal` 克隆规范卡；根卡/生成卡/卡池卡按升级等级建表 |
+| 2 | `PowerVars` | canonical Power 的 `DynamicVars[name].BaseValue`，名字来自 Blitz `PowerDef.VarNames` |
+| 3 | `Potions` | canonical 药水的目标/稀有度/变量；战略成本查固定政策表（Token=0、High=18、Elevated=14、其余=9） |
+| 4 | `RelicVars` | canonical 遗物的 `DynamicVars[name].BaseValue` |
+| 5 | `Monsters` | 原生 `MonsterMoveStateMachine`、静态权重、条件分支、攻击意图与怪物私有整数；已知敌人按根上模型编译 |
+| 6 | `SpawnRules` | 从已知敌人的 `MonsterDef.SpawnedMonsterIds` 做 BFS，首次出现顺序分配下标 |
+| 7 | `CardPools` | 玩家真实解锁状态 + `CardFactory.FilterForCombat` + 单人/多人约束 |
+| 8 | `PotionPool` | `PotionFactory.GetPotionOptions` + `CanBeGeneratedInCombat` |
+| 9 | `OutOfCombatPotionPool` | 同一药水选项，不带战斗内过滤 |
+| 10 | `RootPotions` | 原生药水槽的 `id+1` |
+| 11 | `PowerDeathHistoryRisk` | 查 `MirrorRiskTables` 静态表 |
+| 12 | `HasEncounter` | 原生 `Encounter != null` |
+| 13 | `EncounterSlots` | 原生 `Encounter.Slots` 顺序 |
+| 14 | `RootEnemyCount` | 原生 `CombatState.Enemies.Count` |
+| 15 | `BaseMaxEnergy` | `Player.MaxEnergy`（未经过 Hook 的基础值） |
+| 16 | `PlayerSlotIndex` | 单人恒 0 |
+| 17 | `BaseOrbSlotCount` | `Player.Character.BaseOrbSlotCount` |
+| 18 | `RootSwordSageAmount` | 玩家 `SwordSagePower` 的当前量 |
+| 19 | `UnsettlingLampRelicId` | 遗物顺序中第一个 `UnsettlingLamp` 的规则 id |
+| 20 | `HasIdentityContent` | 角色类型 + SwordSage + 根卡/Power/遗物的 Blitz 身份标记 |
+| 21 | `HasShuffleOrderEnchantment` | 根卡附魔的 `HookMaskExt.ModifyShuffleOrder` |
+| 22 | `HasBeforeFlushEnchantment` | 根卡附魔的 `HookMaskExt.BeforeFlush` |
+| 23 | `HasTheftContent` | 两个盗贼遭遇、盗贼怪物或根上的盗贼 Power |
+| 24 | `HasDecimalCardVars` | 已编译卡牌中任一 `UsesDecimalDamageVar` |
+| 25 | `HasInfiniteHpDisplayMonster` | 已知敌人或召唤闭包中任一 `HasInfiniteHpDisplay` |
+| 26 | `HasPaelsLegion` | 未融化遗物中的 `PaelsLegion` |
+| 27 | `FurCoatSpawnHpOne` | 未融化 `FurCoat` 的标记坐标包含当前地图坐标 |
+| 28 | `RootLostHpMask` | 原生 History 的本回合未格挡伤害，玩家/Osty/每个敌人一位 |
+| 29 | `HasHistoryCourse` | 未融化遗物中的 `HistoryCourse` |
+| 30 | `PenNibRelicIndex` | 遗物行中 `PenNib` 的下标（融化遗物也计数） |
+
+卡牌规范值不读根卡：根卡可能带 Dampen、附魔或临时修饰。编译器取 `CanonicalInstance`，
+按目标升级等级逐级克隆并升级；升级后的 `CurrentUpgradeLevel` 必须等于目标等级，否则以
+`unsupported-card` 拒绝。卡池与药水池都使用玩家 `UnlockState` 的同一份解锁状态。
+
+已知敌人的静态参数与初始 AI 寄存器由 `NativeAccess.MonsterInt` 读取；召唤物在私有 scratch
+`CombatState` 中通过 `ToMutable` + `SetUpForCombat` 创建，因此其状态机、初始节点和静态值
+不依赖根上的同类型敌人。召唤闭包保持原生 BFS 顺序。
+
+### 3.2 镜像覆盖率静态表
+
+`Card.PlaysRecordRisk` 与 `Rules.PowerDeathHistoryRisk` 不是游戏数据，而是旧引擎
+`CardOnPlayMirrors.ResolveDispatchKind` / `AfterDeathMirrors.ResolveDispatchKind` 的镜像覆盖率。
+本仓库不重写这套推断逻辑，而是把结果冻结为 `src/Import/MirrorRiskTables.cs`：
+
+- 导出源：CombatSolver `src/Flash/Bridge/FlashRulesCompiler.cs` 的同一查询，源提交 `a62f1850`；
+- 覆盖 603 个原版卡牌 id、283 个原版 Power id（`ModelDb.All` 的全量 canonical 内容）；
+- 表里没有的 id 以 `missing-mirror-risk` 显式拒绝，不默认为 false；
+- `--rules-table-check` 对照 `ModelDb.All` 检查遗漏/多余 id，并检查 Blitz Registry 的每个
+  card/power id 都有表项。
+
+导出钩子提交在 CombatSolver `flash/m0` 的 `91641ff0`（环境变量 `M2A3_RULES_TABLES_DUMP`），读取 `a62f1850` 的原引擎；游戏或 CombatSolver 更新后用它重新导出，再用 `--rules-table-check` 复核。
+
+## 4. 拒绝规则
 
 所有拒绝抛 `UnsupportedImportException`，`Reason` 是稳定字符串。绝不返回带默认值的半份
-`Battle`。
+`Battle` 或半份 `Rules`。
 
 | 原因码 | 含义 |
 | --- | --- |
 | `multi-player` | 玩家数不是 1，或多人专用内容 |
 | `root-phase` | 根不在玩家出牌阶段 |
-| `unsupported-card/power/relic/potion/orb/monster/enchantment/affliction` | 内容定义缺失 |
+| `unsupported-card/power/relic/potion/orb/monster/enchantment/affliction` | 内容定义或变量缺失 |
+| `unsupported-closure` | 生成卡/Power/卡池/药水池/召唤闭包缺定义 |
+| `missing-mirror-risk` | 静态镜像覆盖率表没有该 card/power id |
 | `test-content` / `deprecated-content` | Mock/废弃内容 |
 | `third-party-content` | 模型类型来自 `sts2` 以外的程序集 |
 | `missing-private-field` | 读取层找不到字段、内部数据为 null 或类型不符 |
 | `unclaimed-private-state` | 捕获了私有状态，但没有任何投影认领 |
 | `unrepresentable-state` | 原生值无法用 `Battle` 表示（分数、越界、复制品等） |
 | `capacity` | 固定容量不足 |
-| `rules-mismatch` | 原生根与传入的 `Rules` 不一致 |
+| `rules-mismatch` | 原生根与传入的 `Rules` 不一致，或 `RunState` 不是同一实例 |
 | `known-enemy-history` | 已逃离/已死亡敌人破坏了 `KnownEnemies` 顺序 |
 | `run-deck-hook` | 牌组卡实现局外监听 Hook |
+| `invalid-golden` / `rules-build` | 离线对照的冻结对象损坏，或规则编译内部不变量失败 |
 
-### 3.1 全有或全无
+### 4.1 全有或全无
 
 `PrivateStateLedger` 在导入前枚举旧桥会捕获的根私有状态：
 
@@ -84,13 +155,13 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 丢掉状态。没有捕获条目的怪物私有整数也要么被 `MonsterDef.AiRegisterNames`/惰性名单认领，
 要么拒绝。
 
-### 3.2 第三方内容
+### 4.2 第三方内容
 
 所有读到的 `AbstractModel`（卡、Power、遗物、药水、球、怪物、附魔、苦难）先检查类型程序集
 必须是 `sts2`；否则以 `third-party-content` 拒绝。`RejectRunListenerDeckCards` 对玩家牌组做
 同样的检查，并拒绝带局外监听 Hook 的非惰性牌组卡。
 
-## 4. 离线对照模式
+## 5. 离线对照模式
 
 `tests/OfflineHost` 的 `--import-compare` 为每个根建原生状态、导入，再与
 `d1/<root>/golden.br` 的期望 `BATL` 逐字节比较：
@@ -102,17 +173,32 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --all --jobs 8 --import-compare
 ```
 
-每根只产生三种结果：
+`--rules-compare` 编译 `Rules`，用 `RulesCodec.Encode` 编码后与该根的冻结规则对象逐字节比较；
+不一致时打印 `RulesDiff` 的第一处表/项及前 16 行差异：
 
-- `IMPORT status=same`；
-- `IMPORT status=diff field=<字段>`：随后打印 `BattleDump.Diff` 的前 24 行，
-  每行带 `+偏移 字段: golden=[...] import=[...]`；
-- `IMPORT status=reject reason=<原因码>`，随后一行 detail。
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --root kg2-b-stomp --rules-compare
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --all --jobs 8 --rules-compare
+```
 
-`--all` 只对照 397 个根（410 个输入去掉 13 个带 `flashPrefixActions`/`flashPrefixPlan` 的
-fixture），汇总 `same/diff/reject`，并分别按首个差异字段、拒绝原因分组计数。
+`--import-compare --compiled-rules` 改用 `RulesCompiler` 的结果导入，而不是解码冻结对象：
 
-### 4.1 回合准备的三个普通根
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --all --jobs 8 --import-compare --compiled-rules
+```
+
+每根只产生三种结果：`same`、`diff`、`reject`。`--all` 只对照 397 个根（410 个输入去掉 13 个
+带 `flashPrefixActions`/`flashPrefixPlan` 的 fixture），汇总 `same/diff/reject`，并分别按首个
+差异字段/表、拒绝原因分组计数。`--rules-table-check` 在初始化游戏静态状态后校验静态表：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
+```
+
+### 5.1 回合准备的三个普通根
 
 `qf2-gradient-failure`、`ts-b-toolbox`、`ts-a-toasty` 是回合准备 fixture。它们各自的
 `golden.br` 有 4/3/4 个根：1 个普通根 + 8 个额外准备根（不在本批范围）。普通根是旧桥用
@@ -128,9 +214,24 @@ fixture），汇总 `same/diff/reject`，并分别按首个差异字段、拒绝
 这 3 个普通根的普通原生状态是在测试宿主注入初始状态**之前**捕获的；对照模式因此跳过
 `InjectInitialStateAsync`。额外 8 个准备根与 13 个前缀根都留给 M2a-5。
 
-## 5. 当前结果与限制
+## 6. 当前结果与限制
 
-`--all --jobs 8 --import-compare` 当前：
+`--all --jobs 8 --rules-compare` 当前：
+
+```text
+rules-objects distinct=376 roots=397
+rules same=397 diff=0 reject=0
+```
+
+397 个在范围根覆盖 376 个不同冻结规则对象；410 个输入合计 388 个对象，余下 12 个只被前缀根
+使用。`--rules-table-check` 当前：
+
+```text
+RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
+  missing_cards=0 extra_cards=0 missing_powers=0 extra_powers=0 registry_missing=0
+```
+
+`--all --jobs 8 --import-compare --compiled-rules` 当前：
 
 ```text
 import same=397 diff=0 reject=0
@@ -151,4 +252,6 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
   捕获 Start 时刻的卡对象集合；M2a-5 应改为传入真实的根卡集合。
 - 手牌上限读游戏的 `CardPile.MaxCardsInHand`（当前为 10）。RitsuLib 等 Mod 另行修改手牌上限的方式不在支持范围。
 - 私有字段读取绑定当前游戏版本；字段缺失、类型不符或内部数据为 null 都显式拒绝。
+- 镜像覆盖率表是由 `a62f1850` 一次性导出的数据，不是运行时推断；游戏或 CombatSolver 更新后
+  必须重新导出并用 `--rules-table-check` 校验。
 - 未接入实机；只在离线宿主上验证。

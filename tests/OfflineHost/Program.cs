@@ -53,6 +53,9 @@ internal static class Program
         bool all = false;
         bool importCompare = false;
         bool importNegative = false;
+        bool rulesCompare = false;
+        bool rulesTableCheck = false;
+        bool compiledRules = false;
         int jobs = 1;
 
         for (int index = 0; index < args.Length; index++)
@@ -67,6 +70,15 @@ internal static class Program
                     break;
                 case "--import-negative":
                     importNegative = true;
+                    break;
+                case "--rules-compare":
+                    rulesCompare = true;
+                    break;
+                case "--rules-table-check":
+                    rulesTableCheck = true;
+                    break;
+                case "--compiled-rules":
+                    compiledRules = true;
                     break;
                 case "--root" when index + 1 < args.Length:
                     root = args[++index];
@@ -105,9 +117,21 @@ internal static class Program
 
         if (importNegative)
             return BuildNegative(data, corpora, root ?? "p8-c-rage-juggling-dark-embrace");
+        if (rulesTableCheck)
+            return BuildRulesTableCheck();
+        if (compiledRules && !importCompare)
+        {
+            Console.Error.WriteLine("--compiled-rules 只能与 --import-compare 一起使用。");
+            return 2;
+        }
+        if (rulesCompare && importCompare)
+        {
+            Console.Error.WriteLine("--rules-compare 与 --import-compare 不能同时使用。");
+            return 2;
+        }
         if (!all && root == null)
         {
-            Console.Error.WriteLine("需要 --root <name>、--all，或 --compare-only <new> <ref>。");
+            Console.Error.WriteLine("需要 --root <name>、--all、--rules-table-check，或 --compare-only <new> <ref>。");
             return 2;
         }
         if (jobs is < 1 or > 8)
@@ -120,36 +144,46 @@ internal static class Program
         if (root != null)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            int code = BuildInProcess(data, corpora, output, root, importCompare);
+            int code = BuildInProcess(data, corpora, output, root, importCompare,
+                rulesCompare, compiledRules);
             stopwatch.Stop();
             if (code != 0)
                 return code;
             Console.WriteLine($"root={root} ms={stopwatch.Elapsed.TotalMilliseconds:0}");
+            if (rulesCompare)
+                return LastRulesResult == RulesStatus.Different ? 1 : 0;
             if (importCompare)
                 return LastImportResult == ImportStatus.Different ? 1 : 0;
             return compareDir == null ? 0 : Compare(output, compareDir, [root]);
         }
 
         string[] roots = EnumerateRoots(data);
-        if (importCompare)
+        if (importCompare || rulesCompare)
             roots = [.. roots.Where(name => !HasPrefix(data, corpora, name))];
         Console.WriteLine($"roots={roots.Length} jobs={jobs} out={output}");
+        if (rulesCompare)
+            PrintRulesObjectCoverage(data, roots);
         int failures = 0;
         long totalMilliseconds = 0;
         object gate = new();
         int same = 0, different = 0, rejected = 0;
         Dictionary<string, int> diffGroups = new(StringComparer.Ordinal);
         Dictionary<string, int> rejectGroups = new(StringComparer.Ordinal);
+        Dictionary<string, int> rulesDiffGroups = new(StringComparer.Ordinal);
+        Dictionary<string, int> rulesRejectGroups = new(StringComparer.Ordinal);
         Parallel.ForEach(
             roots,
             new ParallelOptions { MaxDegreeOfParallelism = jobs },
             name =>
             {
                 Stopwatch stopwatch = Stopwatch.StartNew();
-                (int code, string stdout) = BuildChild(data, corpora, output, name, importCompare);
+                (int code, string stdout) = BuildChild(data, corpora, output, name,
+                    importCompare, rulesCompare, compiledRules);
                 stopwatch.Stop();
                 List<string> importLines = stdout.Split('\n')
                     .Where(line => line.StartsWith("IMPORT ", StringComparison.Ordinal)).ToList();
+                List<string> rulesLines = stdout.Split('\n')
+                    .Where(line => line.StartsWith("RULES ", StringComparison.Ordinal)).ToList();
                 lock (gate)
                 {
                     totalMilliseconds += (long)stopwatch.Elapsed.TotalMilliseconds;
@@ -171,6 +205,22 @@ internal static class Program
                             rejectGroups[reason] = rejectGroups.GetValueOrDefault(reason) + 1;
                         }
                     }
+                    foreach (string line in rulesLines)
+                    {
+                        if (line.Contains("status=same", StringComparison.Ordinal)) same++;
+                        else if (line.Contains("status=diff", StringComparison.Ordinal))
+                        {
+                            different++;
+                            string table = ValueOf(line, "table=");
+                            rulesDiffGroups[table] = rulesDiffGroups.GetValueOrDefault(table) + 1;
+                        }
+                        else if (line.Contains("status=reject", StringComparison.Ordinal))
+                        {
+                            rejected++;
+                            string reason = ValueOf(line, "reason=");
+                            rulesRejectGroups[reason] = rulesRejectGroups.GetValueOrDefault(reason) + 1;
+                        }
+                    }
                 }
                 Console.WriteLine($"root={name} ms={stopwatch.Elapsed.TotalMilliseconds:0} status={(code == 0 ? "ok" : "fail")}");
             });
@@ -184,6 +234,16 @@ internal static class Program
             foreach ((string key, int count) in rejectGroups.OrderByDescending(entry => entry.Value)
                          .ThenBy(entry => entry.Key, StringComparer.Ordinal))
                 Console.WriteLine($"import-reject reason={key} count={count}");
+        }
+        else if (rulesCompare)
+        {
+            Console.WriteLine($"rules same={same} diff={different} reject={rejected}");
+            foreach ((string key, int count) in rulesDiffGroups.OrderByDescending(entry => entry.Value)
+                         .ThenBy(entry => entry.Key, StringComparer.Ordinal))
+                Console.WriteLine($"rules-diff table={key} count={count}");
+            foreach ((string key, int count) in rulesRejectGroups.OrderByDescending(entry => entry.Value)
+                         .ThenBy(entry => entry.Key, StringComparer.Ordinal))
+                Console.WriteLine($"rules-reject reason={key} count={count}");
         }
         int compareCode = compareDir == null ? 0 : Compare(output, compareDir, roots);
         return failures == 0 && different == 0 ? compareCode : 1;
@@ -199,7 +259,8 @@ internal static class Program
             .ToArray()!;
     }
 
-    private static (int Code, string Stdout) BuildChild(string data, string corpora, string output, string root, bool importCompare)
+    private static (int Code, string Stdout) BuildChild(string data, string corpora, string output,
+        string root, bool importCompare, bool rulesCompare, bool compiledRules)
     {
         ProcessStartInfo start = new("dotnet")
         {
@@ -218,6 +279,10 @@ internal static class Program
         start.ArgumentList.Add(output);
         if (importCompare)
             start.ArgumentList.Add("--import-compare");
+        if (rulesCompare)
+            start.ArgumentList.Add("--rules-compare");
+        if (compiledRules)
+            start.ArgumentList.Add("--compiled-rules");
         using Process process = Process.Start(start)
             ?? throw new InvalidOperationException("无法启动子进程。");
         Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
@@ -236,6 +301,32 @@ internal static class Program
         return (process.ExitCode, stdout);
     }
 
+    private static int BuildRulesTableCheck()
+    {
+        MainLoopContext loop = new();
+        SynchronizationContext.SetSynchronizationContext(loop);
+        GameBootstrap.ApplyGodotBypasses();
+        GameBootstrap.SkipGodotNodeStaticConstructors();
+        GameBootstrap.InitializeStaticState();
+        return RulesTableCheck.Run();
+    }
+
+    private static void PrintRulesObjectCoverage(string data, IReadOnlyList<string> roots)
+    {
+        HashSet<string> objects = new(StringComparer.Ordinal);
+        foreach (string root in roots)
+        {
+            using JsonDocument meta = JsonDocument.Parse(
+                File.ReadAllText(Path.Combine(data, "d1", root, "meta.json")));
+            if (meta.RootElement.TryGetProperty("rulesSha256", out JsonElement sha)
+                && sha.GetString() is { Length: > 0 } value)
+            {
+                objects.Add(value);
+            }
+        }
+        Console.WriteLine($"rules-objects distinct={objects.Count} roots={roots.Count}");
+    }
+
     private static int BuildNegative(string data, string corpora, string root)
     {
         MainLoopContext loop = new();
@@ -251,7 +342,10 @@ internal static class Program
 
     private static ImportStatus LastImportResult { get; set; }
 
-    private static int BuildInProcess(string data, string corpora, string output, string root, bool importCompare)
+    private static RulesStatus LastRulesResult { get; set; }
+
+    private static int BuildInProcess(string data, string corpora, string output, string root,
+        bool importCompare, bool rulesCompare, bool compiledRules)
     {
         OfflineRequest request = LoadRequest(data, corpora, root);
         string stage = "init";
@@ -266,7 +360,7 @@ internal static class Program
             // The ordinary root of a turn-setup fixture was captured before the test host injected
             // its initial-state patch (the extra 8 setup roots are out of M2a-1 scope). Compare that
             // pre-injection Play root; the default card injection belongs to the post-capture state.
-            bool preInjectionSetupRoot = importCompare && request.FlashTurnSetupRootForTest;
+            bool preInjectionSetupRoot = (importCompare || rulesCompare) && request.FlashTurnSetupRootForTest;
             FirstChoiceCardSelector.LastSelections.Clear();
             Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request, preInjectionSetupRoot);
             loop.RunUntilCompleted(build, TimeSpan.FromSeconds(600), $"建局 {root}");
@@ -275,10 +369,20 @@ internal static class Program
             string path = Path.Combine(output, root + ".native.txt");
             NativeStateDump.Write(combat, path);
             Console.WriteLine($"root={root} dump={path}");
-            if (importCompare)
+            if (rulesCompare)
+            {
+                RulesResult result = RulesCompare.Run(data, root, combat);
+                LastRulesResult = result.Status;
+                Console.WriteLine(result.Line);
+                if (result.Status == RulesStatus.Different)
+                    Console.WriteLine(result.Detail);
+                else if (result.Status == RulesStatus.Rejected)
+                    Console.WriteLine($"  detail={result.Detail}");
+            }
+            else if (importCompare)
             {
                 ImportResult result = ImportCompare.Run(data, root, combat, [.. FirstChoiceCardSelector.LastSelections],
-                    preInjectionSetupRoot);
+                    preInjectionSetupRoot, compiledRules);
                 LastImportResult = result.Status;
                 Console.WriteLine(result.Line);
                 if (result.Status == ImportStatus.Different)
@@ -453,8 +557,10 @@ internal static class Program
             用法：
               dotnet OfflineHost.dll --root <name> [--out <dir>] [--data <dir>] [--corpora <dir>]
               dotnet OfflineHost.dll --all [--jobs 1..8] [--out <dir>]
-              dotnet OfflineHost.dll --root <name> --import-compare
-              dotnet OfflineHost.dll --all --jobs 1..8 --import-compare
+              dotnet OfflineHost.dll --root <name> --import-compare [--compiled-rules]
+              dotnet OfflineHost.dll --all --jobs 1..8 --import-compare [--compiled-rules]
+              dotnet OfflineHost.dll --all --jobs 1..8 --rules-compare
+              dotnet OfflineHost.dll --rules-table-check
               dotnet OfflineHost.dll --import-negative [--root <name>]
               dotnet OfflineHost.dll --compare-only <newDir> <referenceDir>
               dotnet OfflineHost.dll --all --compare <referenceDir>

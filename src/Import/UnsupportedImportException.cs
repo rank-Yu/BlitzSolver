@@ -14,6 +14,8 @@ public static class ImportReason
     public const string UnsupportedMonster = "unsupported-monster";
     public const string UnsupportedEnchantment = "unsupported-enchantment";
     public const string UnsupportedAffliction = "unsupported-affliction";
+    public const string UnsupportedClosure = "unsupported-closure";
+    public const string MissingMirrorRisk = "missing-mirror-risk";
     public const string Unrepresentable = "unrepresentable-state";
     public const string Capacity = "capacity";
     public const string ThirdPartyContent = "third-party-content";
