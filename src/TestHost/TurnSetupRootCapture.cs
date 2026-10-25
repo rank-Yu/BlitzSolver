@@ -1,6 +1,8 @@
+// Adapted from CombatSolver/tools/search/OfflineSearchHarness/TurnSetupRootCapture.cs and
+// src/Runtime/PlayerTurnSetupPatches.cs at commit a62f1850
+// (MIT, Copyright (c) 2026 Torch1230 and contributors).
 // Captures the player CombatState at the CombatManager.SetupPlayerTurn entry point, before the
-// native setup page runs. CombatSolver's TurnSetupRootCapture/PlayerTurnSetupPatches capture the same
-// point; the offline host only needs the exact card-object set to mark cards created during setup.
+// native setup page runs; only the exact card-object set is kept.
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
@@ -8,7 +10,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 
-namespace OfflineHost;
+namespace BlitzSolver.TestHost;
 
 internal static class TurnSetupRootCapture
 {
@@ -23,7 +25,7 @@ internal static class TurnSetupRootCapture
     {
         if (_harmony != null)
             return;
-        _harmony = new Harmony("BlitzSolver.OfflineHost.TurnSetupRootCapture");
+        _harmony = new Harmony("BlitzSolver.TurnSetupRootCapture");
         _harmony.Patch(
             AccessTools.Method(typeof(CombatManager), "SetupPlayerTurn"),
             prefix: new HarmonyMethod(typeof(TurnSetupRootCapture), nameof(Prefix)));
@@ -35,7 +37,7 @@ internal static class TurnSetupRootCapture
         Enabled = true;
     }
 
-    private static bool Prefix(CombatManager __instance)
+    internal static bool Prefix(CombatManager __instance)
     {
         if (!Enabled || StartCards != null)
             return true;

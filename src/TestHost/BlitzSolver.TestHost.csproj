@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    测试宿主共享层：建局、注入与原生状态转储。它会写游戏状态，因此不属于只读的 Import 层。
+    tests/OfflineHost 引用本工程；src/Mod 把同一份源码编进 BlitzSolver.dll。本工程不加入
+    BlitzSolver.sln（CI 没有游戏文件）。
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>BlitzSolver.TestHost</AssemblyName>
+    <RootNamespace>BlitzSolver.TestHost</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)/../../tests/OfflineHost/GameReferences.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../Core/BlitzSolver.Core.csproj" />
+    <ProjectReference Include="../Import/BlitzSolver.Import.csproj" />
+  </ItemGroup>
+</Project>

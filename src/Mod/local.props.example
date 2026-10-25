@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    复制为同目录 local.props（已被 .gitignore 忽略）后按本机路径修改。
+    构建只读取游戏/RitsuLib 程序集，不会把 Mod 安装进游戏目录。
+  -->
+  <PropertyGroup>
+    <Sts2Dir>/path/to/Slay the Spire 2</Sts2Dir>
+    <RitsuWorkshopRoot>/path/to/steamapps/workshop/content/2868840/3747602295</RitsuWorkshopRoot>
+    <RitsuLibReferenceTarget>0.111.0</RitsuLibReferenceTarget>
+    <ModOutputDir>$(MSBuildThisFileDirectory)../../artifacts/mod/BlitzSolver</ModOutputDir>
+  </PropertyGroup>
+</Project>

@@ -57,6 +57,9 @@ internal static class Program
         bool rulesTableCheck = false;
         bool configCompare = false;
         bool compiledRules = false;
+        string? liveCompareDir = null;
+        string? emitLiveRequestsDir = null;
+        string? liveRootsFile = null;
         int jobs = 1;
 
         for (int index = 0; index < args.Length; index++)
@@ -106,6 +109,15 @@ internal static class Program
                     compareOnlyNew = args[++index];
                     compareOnlyRef = args[++index];
                     break;
+                case "--live-compare" when index + 1 < args.Length:
+                    liveCompareDir = args[++index];
+                    break;
+                case "--emit-live-requests" when index + 1 < args.Length:
+                    emitLiveRequestsDir = args[++index];
+                    break;
+                case "--roots-file" when index + 1 < args.Length:
+                    liveRootsFile = args[++index];
+                    break;
                 case "--help" or "-h":
                     PrintUsage();
                     return 0;
@@ -118,6 +130,23 @@ internal static class Program
 
         if (compareOnlyNew != null)
             return Compare(compareOnlyNew, compareOnlyRef!, roots: null);
+
+        if (emitLiveRequestsDir != null)
+            return EmitLiveRequests(data, corpora, emitLiveRequestsDir, liveRootsFile, all, root);
+        if (liveCompareDir != null)
+        {
+            if (all || root != null || importCompare || rulesCompare || configCompare || emitLiveRequestsDir != null)
+            {
+                Console.Error.WriteLine("--live-compare 不能与 --root/--all 或其它对照模式同时使用。");
+                return 2;
+            }
+            return LiveCompare.Run(data, corpora, liveCompareDir);
+        }
+        if (liveRootsFile != null)
+        {
+            Console.Error.WriteLine("--roots-file 只能与 --emit-live-requests 一起使用。");
+            return 2;
+        }
 
         if (importNegative)
             return BuildNegative(data, corpora, root ?? "p8-c-rage-juggling-dark-embrace");
@@ -381,7 +410,7 @@ internal static class Program
         GameBootstrap.SkipGodotNodeStaticConstructors();
         GameBootstrap.InitializeStaticState();
         OfflineRequest request = LoadRequest(data, corpora, root);
-        Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request);
+        Task<CombatState> build = ScenarioBuilder.BuildAsync(new OfflineCombatWaiter(loop), request);
         loop.RunUntilCompleted(build, TimeSpan.FromSeconds(600), $"负例建局 {root}");
         return ImportNegative.Run(data, root, build.GetAwaiter().GetResult());
     }
@@ -445,7 +474,7 @@ internal static class Program
             }
 
             FirstChoiceCardSelector.LastSelections.Clear();
-            Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request);
+            Task<CombatState> build = ScenarioBuilder.BuildAsync(new OfflineCombatWaiter(loop), request);
             loop.RunUntilCompleted(build, TimeSpan.FromSeconds(600), $"建局 {root}");
             CombatState combat = build.GetAwaiter().GetResult();
             stage = "dump";
@@ -523,7 +552,7 @@ internal static class Program
         }
     }
 
-    private static OfflineRequest LoadRequest(string data, string corpora, string root)
+    internal static OfflineRequest LoadRequest(string data, string corpora, string root)
     {
         string metaPath = Path.Combine(data, "d1", root, "meta.json");
         using JsonDocument meta = JsonDocument.Parse(File.ReadAllText(metaPath));
@@ -649,6 +678,74 @@ internal static class Program
         return end < 0 ? line[start..] : line[start..end];
     }
 
+    private static int EmitLiveRequests(string data, string corpora, string output, string? rootsFile,
+        bool all, string? root)
+    {
+        string[] roots;
+        if (rootsFile != null)
+        {
+            if (all || root != null)
+            {
+                Console.Error.WriteLine("--roots-file 不能与 --root/--all 同时使用。");
+                return 2;
+            }
+            roots = File.ReadAllLines(rootsFile)
+                .Select(static line => line.Trim())
+                .Where(static line => line.Length > 0 && !line.StartsWith('#'))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(static name => name, StringComparer.Ordinal)
+                .ToArray();
+        }
+        else if (all)
+        {
+            if (root != null)
+            {
+                Console.Error.WriteLine("--all 与 --root 不能同时使用。");
+                return 2;
+            }
+            roots = EnumerateRoots(data);
+        }
+        else if (root != null)
+        {
+            roots = [root];
+        }
+        else
+        {
+            Console.Error.WriteLine("--emit-live-requests 需要 --root、--roots-file 或 --all。");
+            return 2;
+        }
+        Directory.CreateDirectory(output);
+        List<string> emitted = [];
+        foreach (string name in roots)
+        {
+            OfflineRequest request;
+            try
+            {
+                request = LoadRequest(data, corpora, name);
+            }
+            catch (InvalidDataException error)
+            {
+                Console.Error.WriteLine($"root={name} INVALID_INPUT {error.Message}");
+                return 2;
+            }
+            if (request.FlashPrefixActions.Length != 0 || request.FlashPrefixPlan.Length != 0)
+            {
+                Console.WriteLine($"root={name} skipped=prefix");
+                continue;
+            }
+            if (request.GeneratedScenarioPath is { Length: > 0 } scenarioPath)
+                request = request with { GeneratedScenarioPath = Path.GetFullPath(scenarioPath) };
+            string path = Path.Combine(output, name + ".json");
+            File.WriteAllText(path, JsonSerializer.Serialize(request, OfflineJson.Options));
+            emitted.Add(name);
+            Console.WriteLine($"root={name} request={path}");
+        }
+        File.WriteAllText(Path.Combine(output, "manifest.json"),
+            JsonSerializer.Serialize(new { schemaVersion = 1, roots = emitted }, OfflineJson.Options));
+        Console.WriteLine($"emit-live-requests roots={emitted.Count} out={output}");
+        return 0;
+    }
+
     private static void PrintUsage()
     {
         Console.WriteLine("""
@@ -664,6 +761,8 @@ internal static class Program
               dotnet OfflineHost.dll --import-negative [--root <name>]
               dotnet OfflineHost.dll --compare-only <newDir> <referenceDir>
               dotnet OfflineHost.dll --all --compare <referenceDir>
+              dotnet OfflineHost.dll --live-compare <resultDir>
+              dotnet OfflineHost.dll --emit-live-requests <dir> (--root <name> | --roots-file <file> | --all)
             """);
     }
 }

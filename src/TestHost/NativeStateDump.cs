@@ -11,7 +11,7 @@ using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Random;
 
-namespace OfflineHost;
+namespace BlitzSolver.TestHost;
 
 internal static class NativeStateDump
 {
@@ -36,7 +36,7 @@ internal static class NativeStateDump
         Raw("combat.side", state.CurrentSide.ToString());
         Raw("combat.phase", combat.Phase.ToString());
         Raw("combat.encounter", state.Encounter?.Id.Entry ?? "-");
-        Line("combat.nextCombatId", $"{state._nextCreatureId}");
+        Line("combat.nextCombatId", $"{NativeAccess.NextCreatureId(state)}");
         Raw("combat.inProgress", CombatManager.Instance.IsInProgress ? "true" : "false");
 
         AppendCreature(text, "player", player.Creature);

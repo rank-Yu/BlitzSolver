@@ -4,3 +4,6 @@ obj/
 .local/
 
 tests/OfflineHost/local.props
+
+src/Mod/local.props
+src/Mod/.godot/

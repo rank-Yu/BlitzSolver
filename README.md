@@ -8,7 +8,8 @@
 
 - 搜索核心（引擎、内容、搜索）已经独立成只依赖 .NET 基础库的 `BlitzSolver.Core`，覆盖五个角色卡池、296 个遗物、65 种药水与三幕全部遭遇。
 - 冻结快照回归（`tests/Golden`）不需要游戏文件，就能证明内核与搜索的每一步都和导出时的原引擎结果一致。
-- **还不能在游戏里运行。** 实机状态导入、动作部署与界面正在开发。
+- Mod 骨架已能在无头游戏中加载，并在可出牌时把 20 个普通根捕获、导入；`Battle`、`Rules`、
+  评估配置与原生状态转储都与冻结快照/离线宿主逐字节相同。搜索、动作部署与界面尚未接入。
 
 ## 目录
 
@@ -19,6 +20,8 @@
 | `src/Core/Search` | `BeamSolver`、状态评估与按功能归位的路线质量、资源策略、新颖度搜索 |
 | `tests/KernelChecks` | 内核合同（K0） |
 | `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data` |
+| `src/Mod` | RitsuLib Mod 入口、无头捕获测试模式；不加入 `BlitzSolver.sln` |
+| `tools/testing` | Linux 无头实例启动与请求/结果轮询 |
 | `tests/corpora/quality` | 120 根质量语料（五个角色 × 三幕） |
 | `docs` | 规格文档，从 [docs/README.md](docs/README.md) 进入 |
 

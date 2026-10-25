@@ -11,11 +11,13 @@ BlitzSolver（极速战斗求解器）是《杀戮尖塔 2》的单人整场战�
 | `src/Core/Engine` | `BlitzSolver.Engine` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
 | `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
 | `src/Core/Search` | `BlitzSolver.Search`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
-| `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层 |
+| `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏 |
+| `src/TestHost` | `BlitzSolver.TestHost` | 无头与离线共用的建局、注入与原生状态转储；只在测试中使用，会写游戏状态 |
+| `src/Mod` | `BlitzSolver` | RitsuLib `ModInitializer` 入口、战斗生命周期、无头捕获测试模式；不加入 `BlitzSolver.sln` |
 | `tests/KernelChecks` | | 内核合同（K0） |
 | `tests/Golden` | | 冻结快照校验器与数据 |
 
-依赖方向：`Content → Engine`、`Search → Engine`、`Import → Core`。`Engine` 不引用 `Content` 或 `Search`，`Search` 也不引用 `Content`；内容通过 `Registry` 挂到引擎上。`Import` 是唯一允许引用游戏程序集、Godot/Harmony 类型并读取模型私有字段的层；它不加入 `BlitzSolver.sln`。
+依赖方向：`Content → Engine`、`Search → Engine`、`Mod → Import → Core`。`Engine` 不引用 `Content` 或 `Search`，`Search` 也不引用 `Content`；内容通过 `Registry` 挂到引擎上。`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁，但不直接读私有字段。`Import` 与 `Mod` 都不加入 `BlitzSolver.sln`。
 
 ## 2. 硬约束
 

@@ -1,0 +1,17 @@
+{
+  "id": "BlitzSolver",
+  "name": "极速战斗求解器",
+  "author": "rank-Yu",
+  "description": "极速战斗求解器（Blitz Solver）：整场战斗路线搜索。本版本提供 Mod 骨架、无头捕获与导入对照，不搜索、不部署。",
+  "version": "0.1.0",
+  "has_pck": false,
+  "has_dll": true,
+  "affects_gameplay": false,
+  "min_game_version": "0.111.0",
+  "dependencies": [
+    {
+      "id": "STS2-RitsuLib",
+      "min_version": "0.6.0"
+    }
+  ]
+}

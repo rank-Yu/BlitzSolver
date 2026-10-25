@@ -163,7 +163,8 @@ manifest 不证明：语义正确性；它只保护冻结快照不被静默改�
 
 需要本机游戏目录（`sts2.dll`、`GodotSharp.dll`、`0Harmony.dll`）。路径通过
 `tests/OfflineHost/local.props` 配置；该文件被 git 忽略，模板是 `local.props.example`。
-RitsuLib 不需要。完整说明见 [`tests/OfflineHost/README.md`](../tests/OfflineHost/README.md)。
+RitsuLib 不需要。建局、注入与转储代码与 Mod 共用 `src/TestHost/`，不在两边复制。
+完整说明见 [`tests/OfflineHost/README.md`](../tests/OfflineHost/README.md)。
 
 ```bash
 dotnet build tests/OfflineHost/OfflineHost.csproj -c Release
@@ -239,7 +240,41 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --conf
 config same=410 diff=0 reject=0 full=410 subparts=0
 ```
 
-### 6.4 负例
+### 6.4 实机结果对照
+
+Mod 在无头游戏里把 `BATL`/`RULE`/`SREQ`/`native.txt` 写进结果目录后，离线宿主可以对照：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --live-compare .local/m2b0-20-results
+```
+
+每根比较：
+
+- `BATL` 与 `d1/<root>/golden.br` 的期望根（回合准备 fixture 按 `setupSelections` 选根）；
+- `RULE` 与冻结规则对象；
+- `SREQ` 与 `config.br`（回合准备 fixture 为 `scope=subparts`，只比评分/下界子部件）；
+- `native.txt` 与离线宿主用同一请求重建的 `NativeStateDump`。
+
+输出逐根 `live ... status=same ... native=same`，最后汇总
+`live roots=N same=... diff=... reject=... native=...`。M2b-0 的 20 个普通根全部相同：
+一个游戏进程依次跑完，Mod 侧总耗时 190.370s（平均 9.52s/根），实例准备加运行墙钟
+3m25s；`--live-compare` 20 根 3.3s，`same=20 diff=0 reject=0 native=20`。3 个回合准备
+fixture 另行捕获，`sreq=subparts`、`native=same`；共存探针输出
+`COEXISTENCE check=passed`。启动脚本、协议与限制见 [Mod 入口与无头捕获](mod.md)。
+
+生成实机请求：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --emit-live-requests .local/live-requests --roots-file .local/m2b0-20-roots.txt
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --emit-live-requests .local/live-requests-all --all
+```
+
+`--all` 跳过 13 个前缀输入，输出 397 个普通请求；回合准备 fixture 也在其中。
+
+### 6.5 负例
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
@@ -253,7 +288,8 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态；410 个
 输入（418 个根）能导入并与 GOLD 的 `BATL` 逐字节相同，也能编译出与冻结规则对象逐字节相同
 的 `Rules`，还能编译出与 `config.br` 相同的评分表与下界；3 类私有状态/第三方内容负例显式
-拒绝。它不证明：实机运行、准备阶段的多段选择，以及未捕获的第三方 Mod 内容。
+拒绝。它不证明：搜索/部署、界面、准备阶段的多段选择，以及未捕获的第三方 Mod 内容。实机
+状态导入已由 `src/Mod` 的 20 根捕获与 `--live-compare` 覆盖。
 
 ## 7. 每层证明什么
 
@@ -264,18 +300,19 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 实机运行、任意 Mod、语料外前缀/准备阶段 |
+| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 搜索/部署、任意 Mod、语料外前缀/准备阶段 |
+| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；共存检查通过 | 搜索、部署、界面、397 根全量、Windows 脚本、第三方 Mod |
 
 这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的。它们不证明：BlitzSolver 能在真实游戏中导入状态、在真实战斗中部署、在界面上显示，或支持任意第三方 Mod。
 
 ## 8. 未验证项
 
-- **实机运行**：尚未在游戏内启动 BlitzSolver。
-- **状态导入**：离线宿主的 `--import-compare` 已覆盖 410 个输入（418 个根）的 `Battle`；`--rules-compare` 已覆盖全部 388 个冻结规则对象；`--config-compare` 已覆盖全部评估配置。
-- **实机状态导入**：尚未从游戏运行时把 `CombatState`/`RunState` 投影成 `Battle`。
-- **部署**：尚未把搜索结果翻译回游戏动作并执行。
+- **实机全量**：M2b-0 只验证了 20 个普通根与 3 个回合准备 fixture 的单根捕获；397 个普通根的整轮运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
+- **搜索与部署**：尚未把搜索结果接到实机动作、回合对账或自动执行。
 - **界面**：没有设置页、进度、路线预览或失败提示。
+- **前缀根**：实机测试模式显式拒绝前缀动作；继续由离线宿主的 `PrefixReplay` 覆盖。
+- **回合准备多根**：实机只捕获第一个准备选项；完整 `config.br` 的多根排序仍只在离线宿主验证。
 - **第三方 Mod**：没有实机 Mod 根；导入层只显式拒绝非 `sts2` 程序集的模型，未做兼容层。
-- **Windows/Steam**：当前计时与验证在 Linux；Windows 未单独验证。
+- **Windows/Steam**：当前计时与验证在 Linux；Windows `.ps1` 启动脚本留待后续。
 
 这些项目在接入层完成前不应被文档或提交信息描述为已验证。冻结快照的更新条件见 [冻结快照](golden-data.md) 第 11 节。

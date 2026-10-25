@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Rooms;
 
-namespace OfflineHost;
+namespace BlitzSolver.TestHost;
 
 internal static class OfflineJson
 {

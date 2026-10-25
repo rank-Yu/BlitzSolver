@@ -27,6 +27,10 @@ internal static class NativeAccess
 
     public static Assembly OriginalAssembly => GameAssembly;
 
+    /// <summary>Read-only next-creature id used by the native state dump in TestHost.</summary>
+    public static uint NextCreatureId(MegaCrit.Sts2.Core.Combat.CombatState state)
+        => state._nextCreatureId;
+
     /// <summary>Whether the model's type belongs to the audited game assembly.</summary>
     public static bool IsOriginal(AbstractModel model)
         => ReferenceEquals(model.GetType().Assembly, GameAssembly);

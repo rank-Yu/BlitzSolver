@@ -28,7 +28,7 @@ internal sealed class SetupRootSet
     {
         TurnSetupCardSelector firstSelector = new(0);
         TurnSetupRootCapture.BeginBuild();
-        Task<CombatState> firstBuild = ScenarioBuilder.BuildAsync(loop, request,
+        Task<CombatState> firstBuild = ScenarioBuilder.BuildAsync(new OfflineCombatWaiter(loop), request,
             skipInitialInjection: true, firstSelector);
         loop.RunUntilCompleted(firstBuild, TimeSpan.FromSeconds(600), "建局 setup[0]");
         CombatState firstCombat = firstBuild.GetAwaiter().GetResult();
@@ -50,7 +50,7 @@ internal sealed class SetupRootSet
         SearchPolicy? policy = null;
         if (needConfig)
         {
-            policy = ConfigCompare.ApplyOverrides(
+            policy = SearchPolicyOverrides.ApplyOverrides(
                 SearchPolicyCapture.Capture(firstCombat, player), request, player);
             EvaluationRootFacts facts = EvaluationRootFacts.Default with
             {
@@ -71,7 +71,7 @@ internal sealed class SetupRootSet
                 RunManager.Instance.CleanUp(true);
                 TurnSetupRootCapture.BeginBuild();
                 TurnSetupCardSelector selector = new(index);
-                Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request,
+                Task<CombatState> build = ScenarioBuilder.BuildAsync(new OfflineCombatWaiter(loop), request,
                     skipInitialInjection: true, selector);
                 loop.RunUntilCompleted(build, TimeSpan.FromSeconds(600), $"建局 setup[{index}]");
                 CombatState combat = build.GetAwaiter().GetResult();

@@ -3,11 +3,16 @@
 [返回文档索引](README.md)
 
 `src/Import` 把游戏原生的 `CombatState` 直接投影成定长 `Battle`，不建 CombatSolver 的
-`SimulatedCombatState` 影子状态。它是仓库中唯一引用 `sts2.dll`、Godot/Harmony 类型并读取游戏
-模型私有字段的层；`Core` 不引用它，`BlitzSolver.sln` 也不包含它（CI 没有游戏文件）。
+`SimulatedCombatState` 影子状态。它是只读的导入/规则编译层，集中读取游戏模型私有字段；
+`Core` 不引用它，`BlitzSolver.sln` 也不包含它（CI 没有游戏文件）。建局、注入与原生状态转储
+在独立的 `src/TestHost`，该层也会引用 `sts2.dll`/Harmony 并通过 publicizer 访问原生内部成员，
+但只用于测试。
 
 本页说明入口、字段来源、规则编译、评估配置编译、拒绝规则与离线对照方式。冻结快照格式见
 [冻结快照](golden-data.md)，复跑命令见 [测试与验证](testing.md)。
+
+本层只读原生状态与模型；建局、注入与转储会写游戏状态，放在独立的 `src/TestHost`
+（`BlitzSolver.TestHost`），由离线宿主与 Mod 共用。
 
 ## 1. 入口与输入
 
@@ -385,7 +390,7 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
 - 前缀回放的规则表由 `RulesCompiler.CompileAfterPrefix` 从“前缀前原生状态 + 回放后
   `Battle`”重建；前缀动作本身不在游戏里执行，因此如果后续前缀包含内核尚未支持的结算，会以
   `prefix-plan`/内核异常显式拒绝，而不是回退到游戏重放。
-- 回合准备分支的**选取与排序**没有独立复现：M0 的枚举会按语义去重、限额并按自己的顺序排列（Toasty Mittens 5 个原生选项留下 4 个根），对照时借用 `golden.br` 的选择记录来对齐。各分支的状态内容是独立重建的。实机生成回合准备根时，需要移植 CombatSolver 的枚举规则（`CaptureTurnSetupRootsForFlash`），并另做对照。
+- 回合准备分支的**选取与排序**没有独立复现：M0 的枚举会按语义去重、限额并按自己的顺序排列（Toasty Mittens 5 个原生选项留下 4 个根），对照时借用 `golden.br` 的选择记录来对齐。各分支的状态内容是独立重建的。实机测试模式只捕获第一个准备选项；完整枚举与 GOLD 顺序仍需后续批次对照。
 - 回合准备根目前按原生准备页的每个选项重建整场战斗；多段准备选择（一次准备阶段多次选牌）
   尚未在语料中出现，遇到时选择器的数量合同会失败而不是静默取第一个。
 - 手牌上限读游戏的 `CardPile.MaxCardsInHand`（当前为 10）。RitsuLib 等 Mod 另行修改手牌上限的方式不在支持范围。
@@ -398,4 +403,7 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
 - `Component`/`KnownNativeCertificate`/`HasOnlyPostCombatHealing` 的第三方 run/combat
   订阅者、BaseLib card modifier、AdaptedOnPlay 按离线宿主的固定“无第三方”口径处理；实机 Mod
   根需要另行拒绝或补证据。
-- 未接入实机；只在离线宿主上验证。
+- 实机捕获已接入（`src/Mod`）：20 个普通根的 `BATL`/`RULE`/`SREQ` 与 `NativeStateDump`
+  均与冻结快照/离线宿主逐字节相同；3 个回合准备 fixture 的 `BATL`/`RULE`/`NativeStateDump`
+  相同，`SREQ` 为评分/下界子部件比较。前缀根与完整准备阶段多根排序仍只在离线宿主验证。
+  见 [Mod 入口与无头捕获](mod.md)。

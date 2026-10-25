@@ -5,7 +5,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.TestSupport;
 
-namespace OfflineHost;
+namespace BlitzSolver.TestHost;
 
 // Owned only by the generated-scenario setup scope.
 internal sealed class GeneratedScenarioCardSelector(string[][]? requested) : ICardSelector

@@ -1,0 +1,71 @@
+using Godot;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Context;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes;
+using MegaCrit.Sts2.Core.Runs;
+using BlitzSolver.TestHost;
+
+namespace BlitzSolver;
+
+/// <summary>在真实游戏主线程上建局并等原生战斗进入本地玩家的 Play 阶段。</summary>
+internal sealed class GodotCombatWaiter(NGame host) : ICombatHost
+{
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(180);
+
+    public async Task<RunState> StartRunAsync(CharacterModel character, int ascension, string seed)
+    {
+        await host.GameStartupComplete;
+        TestHostLog.Trace("run.startup_complete");
+        return await host.StartNewSingleplayerRun(
+            character,
+            shouldSave: false,
+            ActModel.GetDefaultList(),
+            [],
+            seed,
+            GameMode.Standard,
+            ascension);
+    }
+
+    public async Task<CombatState> WaitForPlayableCombatAsync()
+    {
+        DateTime deadline = DateTime.UtcNow + Timeout;
+        while (true)
+        {
+            CombatState? state = CombatManager.Instance.DebugOnlyGetState();
+            Player? player = state == null ? null : LocalContext.GetMe(state);
+            if (state != null
+                && CombatManager.Instance.IsInProgress
+                && state.CurrentSide == CombatSide.Player
+                && player?.PlayerCombatState?.Phase == PlayerTurnPhase.Play)
+            {
+                return state;
+            }
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException(
+                    "等玩家出牌阶段超时。" +
+                    $"in_progress={CombatManager.Instance.IsInProgress} " +
+                    $"side={state?.CurrentSide.ToString() ?? "-"} " +
+                    $"phase={player?.PlayerCombatState?.Phase.ToString() ?? "-"}");
+            }
+            await NextFrameAsync(host);
+        }
+    }
+
+    /// <summary>
+    /// 交付捕获前让回合开始的可视/计时协程（例如 FakeHappyFlower 的 1 秒激活）结束。
+    /// 这些协程会临时改变原生公开状态；离线宿主在消息泵里会立即走完，实机需要等计时器。
+    /// </summary>
+    internal static async Task SettleAsync(NGame host)
+    {
+        await RunManager.Instance.ActionExecutor.FinishedExecutingActions();
+        SceneTree tree = host.GetTree();
+        await host.ToSignal(tree.CreateTimer(1.5), SceneTreeTimer.SignalName.Timeout);
+        await RunManager.Instance.ActionExecutor.FinishedExecutingActions();
+    }
+
+    internal static async Task NextFrameAsync(NGame host)
+        => await host.ToSignal(host.GetTree(), SceneTree.SignalName.ProcessFrame);
+}

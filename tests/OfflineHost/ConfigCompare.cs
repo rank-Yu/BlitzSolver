@@ -181,7 +181,7 @@ internal static class ConfigCompare
         };
         try
         {
-            policy = ApplyOverrides(SearchPolicyCapture.Capture(state, player), request, player);
+            policy = SearchPolicyOverrides.ApplyOverrides(SearchPolicyCapture.Capture(state, player), request, player);
             scorer = EvaluationConfigCompiler.CompileScorer(state, player, rules, replay.Battle,
                 policy, facts, rankBaselineRoot: pre, rankBaselineRules: preRules);
             bound = EvaluationConfigCompiler.CompileBound(state, player, replay.Battle, policy, facts);
@@ -284,7 +284,7 @@ internal static class ConfigCompare
         SearchPolicy policy;
         try
         {
-            policy = ApplyOverrides(SearchPolicyCapture.Capture(state, player), request, player);
+            policy = SearchPolicyOverrides.ApplyOverrides(SearchPolicyCapture.Capture(state, player), request, player);
         }
         catch (UnsupportedImportException error)
         {
@@ -339,139 +339,6 @@ internal static class ConfigCompare
     }
 
 
-
-    internal static SearchPolicy ApplyOverrides(SearchPolicy policy, OfflineRequest request,
-        Player player)
-    {
-        if (request.GrowthBudgets is { } budgets)
-            policy = policy with { GrowthBudgets = budgets.ToPolicy() };
-        if (request.IgnoreLongTermRewards is { } ignore)
-            policy = policy with { IgnoreLongTermRewards = ignore };
-        if (request.ActTransitionBossHpStrategy is { Length: > 0 } actStrategy)
-            policy = policy with { ActTransitionBossHpStrategy = ParseBossStrategy(actStrategy) };
-        if (request.FinalBossHpStrategy is { Length: > 0 } finalStrategy)
-            policy = policy with { FinalBossHpStrategy = ParseBossStrategy(finalStrategy) };
-        if (request.TheftPolicyForTest is { Length: > 0 } theft)
-            policy = policy with { TheftPolicy = ParseTheftPolicy(theft) };
-        if (request.Act3BossStrategyForTest is { } act3)
-            policy = policy with { Act3BossStrategy = act3 };
-        if (request.BaseScoreOnlyForTest is { } baseOnly)
-            policy = policy with { BaseScoreOnly = baseOnly };
-        if (request.ContinuousThreatRankingForTest is { } continuous)
-            policy = policy with { ContinuousThreatRanking = continuous };
-        if (request.BeamWeightTermForTest is { Length: > 0 } term
-            || request.BeamWeightScaleForTest is { } scale)
-        {
-            if (request.BeamWeightTermForTest is not { Length: > 0 } termText
-                || request.BeamWeightScaleForTest is not { } scaleValue)
-            {
-                throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                    "BeamWeightTermForTest 与 BeamWeightScaleForTest 必须同时给出");
-            }
-            if (!Enum.TryParse(termText, ignoreCase: true, out SearchBeamWeightTerm parsed))
-            {
-                throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                    $"未知 BeamWeightTermForTest：{termText}");
-            }
-            policy = policy with
-            {
-                BeamWeightPerturbation = new SearchBeamWeightPerturbation(parsed, scaleValue),
-            };
-        }
-        if (request.RelicCounterRules.Length != 0)
-            policy = policy with { RelicTargets = ParseRelicTargets(request.RelicCounterRules, player) };
-        return policy;
-    }
-
-    private static SearchBossHpStrategy ParseBossStrategy(string text)
-        => Enum.TryParse(text, ignoreCase: true, out SearchBossHpStrategy value)
-            ? value
-            : throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"未知 Boss HP 策略：{text}");
-
-    private static SearchTheftPolicy ParseTheftPolicy(string text)
-        => Enum.TryParse(text, ignoreCase: true, out SearchTheftPolicy value)
-            ? value
-            : throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"未知偷窃策略：{text}");
-
-    private static IReadOnlyList<SearchRelicCounterTarget> ParseRelicTargets(
-        IReadOnlyList<OfflineRelicCounterRule> rules, Player player)
-    {
-        List<SearchRelicCounterTarget> targets = [];
-        HashSet<SearchRelicCounter> seen = [];
-        foreach (OfflineRelicCounterRule rule in rules)
-        {
-            if (!Enum.TryParse(rule.Id, ignoreCase: true, out SearchRelicCounter id)
-                || !Enum.IsDefined(id))
-            {
-                throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                    $"未知遗物计数目标：{rule.Id}");
-            }
-            if (!rule.Enabled || !OwnsRelic(player, id))
-                continue;
-            int period = RelicPeriod(id);
-            if (!seen.Add(id) || rule.Minimum < 0 || rule.Maximum < rule.Minimum
-                || rule.Maximum >= period || rule.HpAllowance is < 0 or > 1000
-                || rule.Priority is < 1 or > 3)
-            {
-                throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                    $"遗物计数规则非法：{rule.Id}");
-            }
-            if (rule.Minimum > 0 || rule.Maximum < period - 1)
-            {
-                targets.Add(new SearchRelicCounterTarget(id, rule.Minimum, rule.Maximum,
-                    rule.HpAllowance, period, rule.Priority));
-            }
-        }
-        targets.Sort(static (left, right) => left.Id.CompareTo(right.Id));
-        return targets;
-    }
-
-    private static bool OwnsRelic(Player player, SearchRelicCounter id)
-    {
-        foreach (var relic in player.Relics)
-        {
-            if (relic.IsMelted)
-                continue;
-            if (IdentifyRelic(relic) == id)
-                return true;
-        }
-        return false;
-    }
-
-    private static SearchRelicCounter? IdentifyRelic(MegaCrit.Sts2.Core.Models.RelicModel relic)
-        => relic switch
-        {
-            MegaCrit.Sts2.Core.Models.Relics.HappyFlower => SearchRelicCounter.HappyFlower,
-            MegaCrit.Sts2.Core.Models.Relics.FakeHappyFlower => SearchRelicCounter.FakeHappyFlower,
-            MegaCrit.Sts2.Core.Models.Relics.Pendulum => SearchRelicCounter.Pendulum,
-            MegaCrit.Sts2.Core.Models.Relics.PollinousCore => SearchRelicCounter.PollinousCore,
-            MegaCrit.Sts2.Core.Models.Relics.PenNib => SearchRelicCounter.PenNib,
-            MegaCrit.Sts2.Core.Models.Relics.Nunchaku => SearchRelicCounter.Nunchaku,
-            MegaCrit.Sts2.Core.Models.Relics.TuningFork => SearchRelicCounter.TuningFork,
-            MegaCrit.Sts2.Core.Models.Relics.JossPaper => SearchRelicCounter.JossPaper,
-            MegaCrit.Sts2.Core.Models.Relics.IronClub => SearchRelicCounter.IronClub,
-            MegaCrit.Sts2.Core.Models.Relics.GalacticDust => SearchRelicCounter.GalacticDust,
-            MegaCrit.Sts2.Core.Models.Relics.MeatOnTheBone => SearchRelicCounter.MeatOnTheBone,
-            _ => null,
-        };
-
-    private static int RelicPeriod(SearchRelicCounter id) => id switch
-    {
-        SearchRelicCounter.HappyFlower => 3,
-        SearchRelicCounter.FakeHappyFlower => 5,
-        SearchRelicCounter.Pendulum => 3,
-        SearchRelicCounter.PollinousCore => 4,
-        SearchRelicCounter.PenNib => 10,
-        SearchRelicCounter.Nunchaku => 10,
-        SearchRelicCounter.TuningFork => 10,
-        SearchRelicCounter.JossPaper => 5,
-        SearchRelicCounter.IronClub => 4,
-        SearchRelicCounter.GalacticDust => 10,
-        SearchRelicCounter.MeatOnTheBone => 2,
-        _ => throw new ArgumentOutOfRangeException(nameof(id)),
-    };
 
     private static ConfigResult CheckHashes(GoldenBattleRoot golden,
         Battle battle, Scorer scorer, BoundFeatures bound, int actionCount, bool subParts)

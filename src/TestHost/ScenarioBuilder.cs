@@ -28,13 +28,13 @@ using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Unlocks;
 using MegaCrit.Sts2.Core.ValueProps;
 
-namespace OfflineHost;
+namespace BlitzSolver.TestHost;
 
 internal static class ScenarioBuilder
 {
     private const int MaxBulkCardInjectionCount = 4096;
 
-    internal static async Task<CombatState> BuildAsync(MainLoopContext loop, OfflineRequest request,
+    internal static async Task<CombatState> BuildAsync(ICombatHost waiter, OfflineRequest request,
         bool skipInitialInjection = false, TurnSetupCardSelector? turnSetupSelector = null)
     {
         GeneratedScenarioSetup setup = GeneratedScenarioSetup.Prepare(request);
@@ -42,9 +42,10 @@ internal static class ScenarioBuilder
         ResolvedGeneratedCombatScenario? generated = setup.Resolved;
         GeneratedScenarioCardSelector? generatedSelector = setup.Selector;
         ValidateSupported(request);
+        TestHostLog.Trace("scenario.validate");
 
-        CharacterModel character = OfflineCombat.ResolveUnique(ModelDb.AllCharacters, request.CharacterId, "角色");
-        EncounterModel encounter = OfflineCombat.ResolveUnique(
+        CharacterModel character = NativeLookup.ResolveUnique(ModelDb.AllCharacters, request.CharacterId, "角色");
+        EncounterModel encounter = NativeLookup.ResolveUnique(
             ModelDb.All.OfType<EncounterModel>(), request.EncounterId, "遭遇");
 
         if (RunManager.Instance.IsInProgress)
@@ -68,19 +69,9 @@ internal static class ScenarioBuilder
                 ? CardSelectCmd.PushSelector(new FirstChoiceCardSelector(), localOnly: true)
                 : null;
 
-        HarnessLog.Trace("scenario.start_run");
-        UnlockState unlockState = SaveManager.Instance.GenerateUnlockStateFromProgress();
-        RunState runState = RunState.CreateForNewRun(
-            [Player.CreateForNewRun(character, unlockState, 1uL)],
-            ActModel.GetDefaultList().Select(act => act.ToMutable()).ToList(),
-            [],
-            GameMode.Standard,
-            request.Ascension,
-            request.Seed);
-        RunManager.Instance.SetUpNewSingleplayer(runState, shouldSave: false);
-        await RunManager.Instance.FinalizeStartingRelics();
-        RunManager.Instance.Launch();
-        await RunManager.Instance.EnterAct(0, doTransition: false);
+        TestHostLog.Trace("scenario.start_run");
+        RunState runState = await waiter.StartRunAsync(character, request.Ascension, request.Seed);
+        TestHostLog.Trace("scenario.run_started");
 
         if (request.ActIndexForTest != 0)
         {
@@ -122,12 +113,13 @@ internal static class ScenarioBuilder
                 RoomType.Boss => MapPointType.Boss,
                 _ => throw new InvalidOperationException($"只支持战斗房间，收到 {request.TargetRoomType}。"),
             };
-        HarnessLog.Trace("scenario.enter_room");
+        TestHostLog.Trace("scenario.enter_room");
         await RunManager.Instance.EnterRoomDebug(
             request.TargetRoomType, targetMapPointType, mutableEncounter);
-        HarnessLog.Trace("scenario.wait_playable");
+        TestHostLog.Trace("scenario.wait_playable");
 
-        CombatState combat = OfflineCombat.WaitForPlayableCombat(loop);
+        CombatState combat = await waiter.WaitForPlayableCombatAsync();
+        TestHostLog.Trace("scenario.playable");
         Player combatPlayer = LocalContext.GetMe(combat)
             ?? throw new InvalidOperationException("进入战斗后找不到本地玩家。");
         generatedSelector?.AssertConsumed();
@@ -475,7 +467,7 @@ internal static class ScenarioBuilder
         if (injection.UpgradeLevel is < 0 or > 1)
             throw new NotSupportedException($"不支持的卡牌 upgradeLevel：{injection.UpgradeLevel}。");
 
-        CardModel canonical = OfflineCombat.ResolveUnique(ModelDb.AllCards, injection.CardId, "卡牌");
+        CardModel canonical = NativeLookup.ResolveUnique(ModelDb.AllCards, injection.CardId, "卡牌");
         List<CardModel> cards = [];
         for (int index = 0; index < injection.Count; index++)
         {
@@ -499,7 +491,7 @@ internal static class ScenarioBuilder
             ApplyCardEnumMembers(card, injection.EnumMembers);
             if (!string.IsNullOrWhiteSpace(injection.EnchantmentId))
             {
-                EnchantmentModel enchantment = OfflineCombat.ResolveUnique(
+                EnchantmentModel enchantment = NativeLookup.ResolveUnique(
                     ModelDb.DebugEnchantments, injection.EnchantmentId, "附魔").ToMutable();
                 if (!enchantment.CanEnchant(card))
                     throw new InvalidOperationException(
@@ -508,7 +500,7 @@ internal static class ScenarioBuilder
             }
             if (!string.IsNullOrWhiteSpace(injection.AfflictionId))
             {
-                AfflictionModel affliction = OfflineCombat.ResolveUnique(
+                AfflictionModel affliction = NativeLookup.ResolveUnique(
                     ModelDb.DebugAfflictions, injection.AfflictionId, "苦难").ToMutable();
                 await CardCmd.Afflict(affliction, card, injection.AfflictionAmount);
             }
@@ -528,7 +520,7 @@ internal static class ScenarioBuilder
                 $"注入跑局卡牌数量 {injection.Count} 超出 1-{MaxBulkCardInjectionCount}。");
         if (injection.UpgradeLevel is < 0 or > 1)
             throw new NotSupportedException($"不支持的卡牌 upgradeLevel：{injection.UpgradeLevel}。");
-        CardModel canonical = OfflineCombat.ResolveUnique(ModelDb.AllCards, injection.CardId, "卡牌");
+        CardModel canonical = NativeLookup.ResolveUnique(ModelDb.AllCards, injection.CardId, "卡牌");
         for (int index = 0; index < injection.Count; index++)
         {
             CardModel card = runState.CreateCard(canonical, player);
@@ -543,7 +535,7 @@ internal static class ScenarioBuilder
             ApplyCardEnumMembers(card, injection.EnumMembers);
             if (!string.IsNullOrWhiteSpace(injection.EnchantmentId))
             {
-                EnchantmentModel enchantment = OfflineCombat.ResolveUnique(
+                EnchantmentModel enchantment = NativeLookup.ResolveUnique(
                     ModelDb.DebugEnchantments, injection.EnchantmentId, "附魔").ToMutable();
                 if (!enchantment.CanEnchant(card))
                     throw new InvalidOperationException($"附魔 {enchantment.Id} 不能用于测试卡牌 {card.Id}。");
@@ -551,7 +543,7 @@ internal static class ScenarioBuilder
             }
             if (!string.IsNullOrWhiteSpace(injection.AfflictionId))
             {
-                AfflictionModel affliction = OfflineCombat.ResolveUnique(
+                AfflictionModel affliction = NativeLookup.ResolveUnique(
                     ModelDb.DebugAfflictions, injection.AfflictionId, "苦难").ToMutable();
                 await CardCmd.Afflict(affliction, card, injection.AfflictionAmount);
             }
@@ -596,7 +588,7 @@ internal static class ScenarioBuilder
     {
         if (injection.Count is < 1 or > 20)
             throw new InvalidOperationException($"注入充能球数量 {injection.Count} 超出 1-20。");
-        OrbModel canonical = OfflineCombat.ResolveUnique(ModelDb.Orbs, injection.OrbId, "充能球");
+        OrbModel canonical = NativeLookup.ResolveUnique(ModelDb.Orbs, injection.OrbId, "充能球");
         var choiceContext = new BlockingPlayerChoiceContext();
         for (int index = 0; index < injection.Count; index++)
         {
@@ -609,7 +601,7 @@ internal static class ScenarioBuilder
 
     private static async Task InjectRelicAsync(Player player, UnattendedRelicInjection injection)
     {
-        RelicModel canonical = OfflineCombat.ResolveUnique(ModelDb.AllRelics, injection.RelicId, "遗物");
+        RelicModel canonical = NativeLookup.ResolveUnique(ModelDb.AllRelics, injection.RelicId, "遗物");
         RelicModel relic = canonical.ToMutable();
         if (injection.AddWithoutObtainedEffects)
             player.AddRelicInternal(relic);
@@ -665,7 +657,7 @@ internal static class ScenarioBuilder
             ? player.Creature
             : ResolvePowerInjectionCreature(
                 combatState, player, injection.Applier, injection.ApplierIndex, "施加者");
-        PowerModel canonical = OfflineCombat.ResolveUnique(ModelDb.AllPowers, injection.PowerId, "Power");
+        PowerModel canonical = NativeLookup.ResolveUnique(ModelDb.AllPowers, injection.PowerId, "Power");
         PowerModel power = canonical.ToMutable();
         foreach ((string key, int value) in injection.DynamicVars)
         {
@@ -725,7 +717,7 @@ internal static class ScenarioBuilder
 
     private static void InjectPotionForTest(Player player, string potionId)
     {
-        PotionModel canonical = OfflineCombat.ResolveUnique(ModelDb.AllPotions, potionId, "药水");
+        PotionModel canonical = NativeLookup.ResolveUnique(ModelDb.AllPotions, potionId, "药水");
         PotionModel potion = canonical.ToMutable();
         int slot = Enumerable.Range(0, player.PotionSlots.Count)
             .FirstOrDefault(index => player.GetPotionAtSlotIndex(index) == null, -1);

@@ -4,9 +4,10 @@
 `RunManager`、`ModelDb` 与 `CombatState` 建出一场战斗，推进到玩家可操作，再把原生战斗状态
 写成确定性转储。它不启动 Godot 可执行文件，也不需要场景树。
 
-用途是 M2a 的离线验证：先证明不启动游戏也能建出与冻结快照导出时相同的原生状态，再用
-`src/Import` 把状态导入 `Battle` 并与 GOLD 逐字节对照。本工程不在 `BlitzSolver.sln` 中；
-CI 没有游戏文件，不会构建或运行它。
+用途是 M2a/M2b 的离线验证：先证明不启动游戏也能建出与冻结快照导出时相同的原生状态，再用
+`src/Import` 把状态导入 `Battle` 并与 GOLD 逐字节对照；也用于对照 Mod 在无头游戏里写出的
+实机捕获结果。建局、注入与转储代码与 Mod 共用 `src/TestHost/`。本工程不在
+`BlitzSolver.sln` 中；CI 没有游戏文件，不会构建或运行它。
 
 ## 需要游戏文件
 
@@ -120,6 +121,31 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 ```
 
 它验证读不到私有字段、未认领私有状态、第三方程序集内容三类拒绝。
+
+## 实机请求与结果对照
+
+为 Mod 的无头测试生成请求（文件名就是结果根名）：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --emit-live-requests .local/live-requests --roots-file .local/m2b0-20-roots.txt
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --emit-live-requests .local/live-requests-all --all
+```
+
+`--all` 跳过 13 个前缀输入，生成 397 个普通请求。`generatedScenarioPath` 会写成绝对路径。
+
+对照 Mod 写出的结果目录：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --live-compare .local/m2b0-20-results
+```
+
+逐根比较 `BATL`（与 `golden.br` 的期望根）、`RULE`（与冻结规则对象）、`SREQ`（与
+`config.br`；回合准备 fixture 为 `scope=subparts`）和 `native.txt`（离线重建同一根后的
+`NativeStateDump`）。输出 `live roots=N same=... diff=... reject=... native=...`。
+启动脚本详见 [`docs/mod.md`](../../docs/mod.md)。
 
 ## 与参考转储对照
 
