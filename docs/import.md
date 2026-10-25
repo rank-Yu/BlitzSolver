@@ -78,6 +78,20 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 - 原生会在敌人死亡后把它从 `CombatState.Enemies` 移除并重置行动状态机。实时导入用会话开始时
   冻结的已知敌人顺序保留墓碑行；预测为 `Reviving` 的行按复活行导入，行动/AI 仍从原生
   `MonsterModel` 读取。永久死亡行不读已经重置的行动状态机。
+- `Roster` 按 `CombatState.Enemies` 的当前顺序导入（原生 `AddCreature` 后按 encounter slot
+  稳定排序）。冻结的已知顺序只决定敌人行下标；之后出现的召唤物按 `CombatId` 升序追加，恢复
+  内核的创建顺序，而不是原生槽位顺序。
+- 卡牌 `Keywords` 只读 `CardModel.GetKeywordsWithSources(KeywordSources.Local)`。
+  `CardModel.Keywords` 还会运行 `TryModifyKeywordsInCombat`（HexPower 给 Hexed 卡加
+  Ethereal）；该授予在内核里是惰性查询，写进卡行会在 Hex 移除后残留并被重复计数。
+- `Reconciliation` 导入的 `SOVEREIGN_BLADE` 把 `Private` 写为当前 `SWORD_SAGE_POWER` 层数：
+  原生 `BaseReplayCount` 已包含该牌见过的每次 SwordSage 加成。根捕获仍写
+  `Rules.RootSwordSageAmount`，保持冻结基线。
+- 合成 `STUNNED`/`REVIVE_MOVE` 只存在于 `MonsterModel.NextMove`，不在 `StateLog` 或
+  `MoveStateMachine.States`；后继统一从 `NextMove.FollowUpState?.Id ?? FollowUpStateId` 读取。
+  `STUNNED` 且原生持有 `ImbalancedPower` 时同时置 `EnemyFlags.SkipNextMove`：该 Power 的
+  `AfterDamageGiven` 只会在完全格挡的攻击后调用 `CreatureCmd.Stun`（或置 BowlbugRock
+  `IsOffBalance`），这是原生唯一的失衡眩晕来源。
 
 ## 3. 规则编译
 

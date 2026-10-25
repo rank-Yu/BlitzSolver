@@ -68,11 +68,20 @@ internal sealed class LiveCombatTracker
     /// <summary>Refreshes the known order with summons that appeared after the combat root.</summary>
     internal void Refresh(CombatState state)
     {
+        // CombatState.Enemies is sorted by encounter slot, not creation order. The predicted enemy
+        // table appends in creation order after the frozen root rows, so recover that order from the
+        // monotonically assigned CombatId before appending; otherwise Ovicopter's eggs (and any
+        // multi-summon move) land at different indices than the simulation.
+        List<NativeCreature> added = [];
         foreach (NativeCreature creature in state.Enemies)
         {
             if (creature.IsAlive && !Contains(creature))
-                _known.Add(creature);
+                added.Add(creature);
         }
+        added.Sort(static (left, right)
+            => (left.CombatId ?? int.MaxValue).CompareTo(right.CombatId ?? int.MaxValue));
+        foreach (NativeCreature creature in added)
+            _known.Add(creature);
     }
 
     /// <summary>Imports a live search root, carrying the last observed non-native ledgers.</summary>

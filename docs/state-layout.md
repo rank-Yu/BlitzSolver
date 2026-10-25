@@ -45,7 +45,7 @@
 - `ReturnToHandNextTurn`（Bolas/ThrummingHatchet，`CostState` bit 4）：对应 `SimulatedCombatState._returnToHandNextTurn` 的成员关系；导入时按原牌对象投影，`BeforeHandDraw` 的返回手牌阶段清位。
 - `DampenOriginalUpgrade`：卡牌被 MagiKnight 的 DampenPower 降级前的升级等级加一（0 表示未降级）。`DowngradeCard` 在把卡牌重置到 0 级动态变量、基础费用与本地关键字时写入；`RestoreDampenedCards` 在最后一个施法者死亡时按该值逐级恢复。
 
-`CardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`Keywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸为 92 字节。`TransientMark` 是一次动作内的对象身份标记，占用原有尾部填充字节：`BeatDown` 使用 1..63；64..255 是共享的动态分配区间，由栈上的 `Exec.TransientMarkBase` 分配互不重叠的嵌套区间（Sly/Stoke、`DecisionsDecisions` 的重复自动打出、Mayhem 的自动预打出队列）。0 表示未标记，动作结束前清除，稳定边界恒为 0，克隆与生成卡从 0 开始。
+`CardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`Keywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸为 92 字节。`TransientMark` 是一次动作内的对象身份标记，占用原有尾部填充字节：`BeatDown` 使用 1..63；64..255 是共享的动态分配区间，由栈上的 `Exec.TransientMarkBase` 分配互不重叠的嵌套区间（Sly/Stoke、`DecisionsDecisions` 的重复自动打出、Mayhem 的自动预打出队列）。嵌套批次丢弃同一张已带外层标记的卡时，内层在自动打出前把外层标记写回，再让卡值随自动打出移动；0 表示未标记，动作结束前清除，稳定边界恒为 0，克隆与生成卡从 0 开始。
 
 这组内容没有新增计数器，Hook 位沿用 `HookMaskExt` 的 `1UL << 16`，`Card`/`Battle` 尺寸不变。`AmountOnTurnStart` 只对三个会被结算读取的 Power 保存（`DrawCardsNextTurnPower`、`SummonNextTurnPower`、`HelloWorldPower`），其余 Power 在导入与回合开始快照时保持 0；这是把原生模型里“镜像扣层尚未同步”的滞后值归一化，避免 Blitz 立即扣层后与旧投影差异（依据见 [准入](archive/admission-and-verification.md)）。
 

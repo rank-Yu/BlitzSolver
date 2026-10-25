@@ -177,8 +177,14 @@ internal static class NativeAccess
         MonsterMoveStateMachine machine = monster.MoveStateMachine
             ?? throw new UnsupportedImportException(ImportReason.MissingPrivateField,
                 $"{monster.Id.Entry} 没有行动状态机");
+        // The synthetic STUNNED and REVIVE_MOVE states are created by Creature.StunInternal and
+        // IllusionPower.AfterDeath and are only installed as NextMove; they are never registered in
+        // States or StateLog. Their dynamic follow-up lives on that MoveState object, so read the
+        // current move first and fall back to the registered state table for every earlier move.
+        if (string.Equals(monster.NextMove.Id, moveId, StringComparison.Ordinal))
+            return monster.NextMove.FollowUpState?.Id ?? monster.NextMove.FollowUpStateId;
         return machine.States.TryGetValue(moveId, out MonsterState? state) && state is MoveState move
-            ? move.FollowUpStateId
+            ? move.FollowUpState?.Id ?? move.FollowUpStateId
             : null;
     }
 

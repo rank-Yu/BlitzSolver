@@ -244,7 +244,7 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 
 **执行**：STUNNED 没有攻击，跳过 `BeforeAttack`/`AfterAttack`；`MonsterDef.ApplyMoveEffects` 仍以 `STUNNED` 调用，怪物定义可据此实现 `MonsterMoveEffects.Apply` 的 STUNNED 分支（例如乐加维林族母清空格挡）。STUNNED 本身不写行动日志。
 
-**导入**：旧引擎当前行动 Id 为 `STUNNED` 时映射到合成节点，后继（`FollowUpState?.Id ?? FollowUpStateId`）映射到 `ForcedMove`；后继仍是 `STUNNED` 时显式拒绝。进行中的 must-perform-once 行动由节点标志表示，`PerformedMoveThisRound` 在稳定边界上为 0，因此导入后不会误推进。
+**导入**：旧引擎当前行动 Id 为 `STUNNED` 时映射到合成节点，后继（`FollowUpState?.Id ?? FollowUpStateId`）映射到 `ForcedMove`；后继仍是 `STUNNED` 时显式拒绝。合成 `STUNNED`/`REVIVE_MOVE` 只安装在 `MonsterModel.NextMove`，不会登记进 `StateLog` 或 `MoveStateMachine.States`，因此不能按注册表查后继。当前行动 `STUNNED` 且原生持有 `ImbalancedPower` 时同时置 `EnemyFlags.SkipNextMove`：`ImbalancedPower.AfterDamageGiven` 只在完全格挡的攻击后调用 `CreatureCmd.Stun`（BowlbugRock 走 `IsOffBalance`），这是该眩晕的唯一原生来源。进行中的 must-perform-once 行动由节点标志表示，`PerformedMoveThisRound` 在稳定边界上为 0，因此导入后不会误推进。
 
 **乐加维林族母的 `_isAwake`**：现有引擎在 AsleepPower/STUNNED 中写入、在指纹与续接文本中读取，但行动选择读 AsleepPower 数量（`BranchMonsterAi.ResolveConditional`），该布尔值不影响后续结算。`DescribeBlitzUnrepresentableState` 只放过 `(LagavulinMatriarch, "_isAwake")` 这个已证明惰性的 `_monsterIntStates` 条目（不修改模拟器状态）；其他怪物私有整数仍被拒绝。
 

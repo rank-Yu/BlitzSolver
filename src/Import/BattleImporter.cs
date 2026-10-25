@@ -375,6 +375,12 @@ public static class BattleImporter
                         $"{monster.Id.Entry} 的 STUNNED 后继仍是 STUNNED");
                 enemy.Move = checked((byte)machine.StunnedNode);
                 enemy.ForcedMove = checked((byte)NodeIndex(machine, followUp, monster));
+                // ImbalancedPower is the native source of a fully-blocked-attack stun: its
+                // AfterDamageGiven either calls CreatureCmd.Stun or sets BowlbugRock.IsOffBalance.
+                // Both outcomes install the synthetic STUNNED move and make the monster lose its
+                // next action; no other native Stun source coexists with this power.
+                if (HasImbalancedPower(creature))
+                    enemy.Flags |= EnemyFlags.SkipNextMove;
             }
             else if (current == "REVIVE_MOVE")
             {
@@ -410,16 +416,56 @@ public static class BattleImporter
             projections.ProjectMonster(creature, Registry.Monster(monsterId), ref enemy);
         }
         int rosterCount = 0;
-        for (int position = 0; position < known.Count; position++)
+        // The native roster is CombatState.Enemies' current order. Root capture passes that same
+        // list as KnownEnemies, but a live import keeps a stable known order (root rows plus later
+        // summons) so dead rows survive removal; appending that known order would ignore the native
+        // slot sort after a summon (Fogmog, Ovicopter, Fabricator). Walk the native roster and map
+        // each creature back to its stable row instead.
+        for (int nativeIndex = 0; nativeIndex < state.Enemies.Count; nativeIndex++)
         {
-            Creature creature = known[position];
+            Creature creature = state.Enemies[nativeIndex];
+            int position = KnownIndex(known, creature);
+            if (position < 0)
+                continue;
             bool reviving = options.RevivingEnemies?.Contains(position) == true;
-            if (!reviving && (!creature.IsAlive || !ContainsCreature(state.Enemies, creature)))
+            if (!reviving && !creature.IsAlive)
                 continue;
             battle.Roster[rosterCount++] = checked((byte)position);
             battle.Enemies[position].Flags |= EnemyFlags.InCombat;
         }
+        // A reviving row is native-visible, but keep the explicit set as a fallback if the game has
+        // already removed it from CombatState.Enemies; the current row order is the only thing left.
+        if (options.RevivingEnemies is { Count: > 0 } revivingRows)
+        {
+            for (int position = 0; position < known.Count; position++)
+            {
+                if (!revivingRows.Contains(position) || InRoster(in battle, rosterCount, position))
+                    continue;
+                battle.Roster[rosterCount++] = checked((byte)position);
+                battle.Enemies[position].Flags |= EnemyFlags.InCombat;
+            }
+        }
         battle.RosterCount = checked((byte)rosterCount);
+    }
+
+    private static int KnownIndex(IReadOnlyList<Creature> known, Creature creature)
+    {
+        for (int index = 0; index < known.Count; index++)
+        {
+            if (ReferenceEquals(known[index], creature))
+                return index;
+        }
+        return -1;
+    }
+
+    private static bool InRoster(in Battle battle, int count, int position)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            if (battle.Roster[index] == position)
+                return true;
+        }
+        return false;
     }
 
     private static int NodeIndex(MonsterRules machine, string nativeId, MonsterModel monster)
@@ -534,6 +580,11 @@ public static class BattleImporter
         throw new UnsupportedImportException(ImportReason.Capacity, $"SwipePower 被偷卡 {Limits.DetachedCards}");
     }
 
+    private static int CurrentSwordSageAmount(in Battle battle)
+        => Registry.TryPower("SWORD_SAGE_POWER", out ushort swordSage)
+            ? Kernel.GetAmount(in battle, Limits.PlayerOwner, swordSage)
+            : 0;
+
     private static void ImportCards(ref Battle battle, Player player, PlayerCombatState playerState, Rules rules,
         NativeHistory history, ImportOptions options)
     {
@@ -570,7 +621,16 @@ public static class BattleImporter
                     : !options.TurnSetupRoot || card.DeckVersion != null;
                 Card value = Card(ref battle, card, rules, rootCard, originalUpgrade);
                 if (card is SovereignBlade)
-                    value.Private = checked((short)rules.RootSwordSageAmount);
+                {
+                    // At a live boundary the native BaseReplayCount already includes every
+                    // SwordSage amount this blade has seen, so its applied-replay ledger is the
+                    // current power amount. Importing the root baseline here would make the next
+                    // NormalizeSwordSageReplays add the delta a second time. A fresh root capture
+                    // keeps the frozen root baseline the old bridge recorded.
+                    value.Private = options.Reconciliation
+                        ? checked((short)CurrentSwordSageAmount(in battle))
+                        : checked((short)rules.RootSwordSageAmount);
+                }
                 else if (history.FetchPlayedThisTurn(card))
                     value.Private |= FetchPlayedBit;
                 if (history.ReturnsToHand(card))
@@ -610,7 +670,11 @@ public static class BattleImporter
         {
             Id = id,
             Upgrade = checked((byte)upgrade),
-            Keywords = MapKeywords(card.Keywords),
+            // LocalKeywords is the card's own state. Keywords also runs the combat hook
+            // (HexPower.TryModifyKeywordsInCombat adds Ethereal to Hexed cards); that grant is a
+            // lazy query in Blitz and must not be written into the card row, or it survives after
+            // HexPower/Hexed is gone and is counted twice by Kernel.HasKeyword.
+            Keywords = MapKeywords(card.GetKeywordsWithSources(KeywordSources.Local)),
             BaseCost = checked((sbyte)card.EnergyCost._base),
             BaseStarCost = checked((sbyte)card.BaseStarCost),
             ReplayCount = checked((byte)card.BaseReplayCount),
@@ -864,6 +928,16 @@ public static class BattleImporter
                 throw new UnsupportedImportException(ImportReason.Unrepresentable, $"{orb.Id.Entry} 私有值 {stored}");
             battle.Orbs[index] = new Orb { Id = checked((byte)id), Aux = (int)stored };
         }
+    }
+
+    private static bool HasImbalancedPower(Creature creature)
+    {
+        foreach (PowerModel power in creature.Powers)
+        {
+            if (power.Amount > 0 && string.Equals(power.Id.Entry, "IMBALANCED_POWER", StringComparison.Ordinal))
+                return true;
+        }
+        return false;
     }
 
     private static bool ContainsCreature(IReadOnlyList<Creature> creatures, Creature creature)

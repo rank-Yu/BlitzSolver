@@ -61,6 +61,10 @@ public static partial class Kernel
             throw new CapacityException("TransientMarks", 256 - 64);
         x.TransientMarkBase = checked((byte)(markBase + selected.Length));
         int markStart = 64 + markBase;
+        // A nested discard (Acrobatics discarding a card that the enclosing Calculated Gamble
+        // already marked) reuses the same card value. Each batch needs its own identity byte, so
+        // remember the outer mark and put it back before the inner auto-play moves the card on.
+        Span<byte> outerMarks = stackalloc byte[selected.Length];
         try
         {
             for (int item = 0; item < cards.Length; item++)
@@ -86,7 +90,9 @@ public static partial class Kernel
                 if (x.B.DiscardCount > 0
                     && Fingerprint.Equal(Piles.At(ref x.B, Pile.Discard, x.B.DiscardCount - 1), card))
                 {
-                    x.B.Cards[Piles.Start(x.B, Pile.Discard) + x.B.DiscardCount - 1].TransientMark = mark;
+                    ref Card discarded = ref Piles.At(ref x.B, Pile.Discard, x.B.DiscardCount - 1);
+                    outerMarks[slyCount - 1] = discarded.TransientMark;
+                    discarded.TransientMark = mark;
                 }
             }
             Draw(ref x, drawCount, fromHandDraw: false);
@@ -104,7 +110,7 @@ public static partial class Kernel
                         $"弃牌 {Registry.Card(sly[item].Card.Id).NativeId}+{sly[item].Card.Upgrade} " +
                         $"在自动打出前失去瞬态标记（cards={x.B.CardCount}）。");
                 }
-                x.B.Cards[Piles.Start(x.B, currentPile) + currentIndex].TransientMark = 0;
+                x.B.Cards[Piles.Start(x.B, currentPile) + currentIndex].TransientMark = outerMarks[item];
                 AutoPlay(ref x, currentPile, currentIndex);
                 if (x.NeedsChoice)
                     return;

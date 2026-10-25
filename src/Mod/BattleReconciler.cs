@@ -22,12 +22,31 @@ internal static class BattleReconciler
         Battle left = Normalize(in expected);
         Battle right = Normalize(in actual);
         List<string> lines = BattleDump.Diff(left, right, "predicted", "live");
+        for (int index = 0; index < lines.Count; index++)
+            lines[index] = AnnotatePowerId(lines[index], in left);
         if (lines.Count > MaxDiffLines)
         {
             lines.RemoveRange(MaxDiffLines, lines.Count - MaxDiffLines);
             lines.Add($"... 还有更多差异（已截断到 {MaxDiffLines} 行）");
         }
         return [.. lines];
+    }
+
+    /// <summary>Adds the predicted power's native id to a <c>Power[i].Field</c> dump line.</summary>
+    private static string AnnotatePowerId(string line, in Battle battle)
+    {
+        int start = line.IndexOf("Power[", StringComparison.Ordinal);
+        if (start < 0)
+            return line;
+        int digits = start + "Power[".Length;
+        int end = line.IndexOf(']', digits);
+        if (end < 0 || !int.TryParse(line.AsSpan(digits, end - digits), out int row)
+            || (uint)row >= (uint)battle.PowerCount)
+        {
+            return line;
+        }
+        string nativeId = Registry.Power(battle.Powers[row].Id).NativeId;
+        return line[..end] + ":" + nativeId + line[end..];
     }
 
     internal static Battle Normalize(in Battle battle)
@@ -71,12 +90,36 @@ internal static class BattleReconciler
             Power power = copy.Powers[read];
             if (IsPermanentlyDeadOwner(in copy, power.Owner))
                 continue;
-            if (string.Equals(Registry.Power(power.Id).NativeId, "NIGHTMARE_POWER",
-                    StringComparison.Ordinal))
+            PowerDef def = Registry.Power(power.Id);
+            if (string.Equals(def.NativeId, "NIGHTMARE_POWER", StringComparison.Ordinal))
             {
                 // Nightmare's native PowerModel.Target is null; the kernel and the frozen import
                 // both project it as the player owner. The field does not drive the power.
                 power.Target = Limits.PlayerOwner;
+            }
+            if (HasSyntheticOwnerTarget(def.NativeId))
+            {
+                // TheBomb/Panache/ToricToughness use PowerCmd.Apply, which leaves PowerModel.Target
+                // null; the old AddPowerInstance projection wrote the owner. None of the three reads
+                // Target, and the native row is null, so compare the field both ways as NoOwner.
+                power.Target = Limits.NoOwner;
+            }
+            if (def.NativeId is "WEAK_POWER" or "DEXTERITY_POWER")
+            {
+                // Weak: SlimedBerserker passes a null applier natively while the port passes the
+                // monster. Dexterity: BeltBuckle.ApplyDexterity explicitly passes null while the port
+                // passes the player. Neither definition overrides ApplierDied and neither reads
+                // Power.Applier (Weak keys on the owner, Dexterity on the block target), so the
+                // field is unreachable for these two rows.
+                power.Applier = Limits.NoOwner;
+            }
+            if ((power.Flags & PowerFlags.SkipNextTickFromMonster) != 0 && !def.TicksAtEnemySideEnd)
+            {
+                // ApplyFromMonster records a solver-side one-shot skip for powers outside the native
+                // duration-skip set. A power that never reaches TickDurations (ChainsOfBinding) can
+                // never consume it, and the native PowerModel has no such field, so the bit is
+                // unreachable state; clear it on both sides. Powers that do tick keep it strict.
+                power.Flags &= ~PowerFlags.SkipNextTickFromMonster;
             }
             copy.Powers[write++] = power;
         }
@@ -85,6 +128,9 @@ internal static class BattleReconciler
         copy.PowerCount = checked((byte)write);
         return copy;
     }
+
+    private static bool HasSyntheticOwnerTarget(string nativeId)
+        => nativeId is "THE_BOMB_POWER" or "PANACHE_POWER" or "TORIC_TOUGHNESS_POWER";
 
     private static bool IsPermanentlyDeadOwner(in Battle battle, byte owner)
     {

@@ -71,7 +71,17 @@ internal sealed class ActionDeployer(
                         $"未知动作 {planned.Action.Kind}");
             }
             await WaitForBoundaryAsync(planned.After, token);
-            selector.AssertConsumed();
+            // Native selectors return an empty selection without asking once the combat is over or
+            // ending (CardSelectCmd.FromHand), so an attack that kills the last enemy can leave a
+            // planned post-damage choice unrequested. The predicted action is terminal, its choice
+            // has no observable effect, and no later boundary compares it; do not turn that into a
+            // deployment failure.
+            if (planned.After.Outcome == Outcome.None || CombatManager.Instance.IsInProgress)
+                selector.AssertConsumed();
+            else if (selector.PendingCount > 0)
+                ModLog.Info(
+                    $"[BlitzSolver] DEPLOY_CHOICE_SKIPPED_TERMINAL turn={planned.Before.PlayerTurn} " +
+                    $"index={planned.Index} action={planned.Action} pending={selector.PendingCount}");
         }
         catch (ChoicePlanMismatchException error)
         {

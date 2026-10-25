@@ -371,7 +371,9 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
    `ChoicePlanMismatchException`，会话暂停并清空路线，不用空选择或默认选择继续。
 
 原生会在“选项数 ≤ 最小选择数且不要求手动确认”时自己选满、不调用 `ICardSelector`。路线
-回放把这部分标成 implicit，不放进原生选择队列；其余选择都必须被游戏实际请求。
+回放把这部分标成 implicit，不放进原生选择队列；其余选择都必须被游戏实际请求。若预测动作
+本身是终局（例如 Snap 的 Osty 攻击击杀最后一个敌人），原生在 `IsOverOrEnding` 后直接返回空
+选择、不请求选择器；此时未消费的计划选择不再算失败，因为战斗已结束且没有后续边界比较它。
 
 ### 9.3 逐步核对
 
@@ -393,6 +395,15 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
 - 永久死亡敌人的 AI 节点/日志/寄存器，以及它们名下的 Power 行：原生在死亡移除后已重置或
   保留为不可达墓碑；两者都从比较视图移除，复活行不适用。
 - `NIGHTMARE_POWER.Target`：原生为 null、内核/冻结导入投影为玩家；Power 本身不使用该字段。
+- `THE_BOMB_POWER`/`PANACHE_POWER`/`TORIC_TOUGHNESS_POWER.Target`：原生 `PowerCmd.Apply`
+  留 null，旧 `AddPowerInstance` 投影写 owner；三者都不读 `Target`，比较视图统一为
+  `NoOwner`。
+- `WEAK_POWER`/`DEXTERITY_POWER.Applier`：原生 SlimedBerserker 的 Weak 与 BeltBuckle 的
+  Dexterity 传 null applier，移植侧分别传怪物/玩家；两者都不覆写 `ApplierDied`、也不读
+  `Power.Applier`，比较视图统一为 `NoOwner`。
+- `Power.Flags.SkipNextTickFromMonster`：`ApplyFromMonster` 的求解器侧一次性跳过标记，原生
+  `PowerModel` 没有该字段。只对不会进入 `TickDurations` 的 Power（如 ChainsOfBinding）清零：
+  它们永远消费不到这个位；会衰减的 Power 仍严格比较。
 
 其余字段（HP、护甲、能量、星能、牌堆顺序、卡值、9 条 RNG、计数、Powers、Relics、Orbs、
 药水、回合/侧/阶段、结局）都按 `BattleCodec` 字节比较，没有容差。

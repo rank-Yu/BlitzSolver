@@ -308,10 +308,10 @@ internal static class AutoCombatSession
                         failures++;
                         consecutiveFailures++;
                         deviationLog.Add(new AutoDeviationEntry(turn, index,
-                            Describe(route[index].Action), diff));
+                            Describe(route[index]), diff));
                         ModLog.Error(
                             $"[BlitzSolver] TURN_DEVIATION turn={turn} index={index} " +
-                            $"action={Describe(route[index].Action)} diff={string.Join(" | ", diff)}");
+                            $"action={Describe(route[index])} diff={string.Join(" | ", diff)}");
                         route = null;
                         if (consecutiveFailures >= MaximumConsecutiveFailures)
                         {
@@ -345,7 +345,7 @@ internal static class AutoCombatSession
                         failureLog.Add(new AutoFailureEntry(turn, error.Reason, error.Message));
                         ModLog.Error(
                             $"[BlitzSolver] DEPLOY_FAILURE turn={turn} index={index} " +
-                            $"action={Describe(action.Action)} reason={error.Reason} detail={error.Message}");
+                            $"action={Describe(action)} reason={error.Reason} detail={error.Message}");
                         route = null;
                         break;
                     }
@@ -357,10 +357,10 @@ internal static class AutoCombatSession
                         failures++;
                         consecutiveFailures++;
                         deviationLog.Add(new AutoDeviationEntry(turn, index,
-                            Describe(action.Action), diff));
+                            Describe(action), diff));
                         ModLog.Error(
                             $"[BlitzSolver] ACTION_DEVIATION turn={turn} index={index} " +
-                            $"action={Describe(action.Action)} diff={string.Join(" | ", diff)}");
+                            $"action={Describe(action)} diff={string.Join(" | ", diff)}");
                         route = null;
                         break;
                     }
@@ -368,7 +368,7 @@ internal static class AutoCombatSession
                     if (terminal)
                         ModLog.Info(
                             $"[BlitzSolver] DEPLOY_TERMINAL_CONFIRMED turn={turn} index={index} " +
-                            $"action={Describe(action.Action)} outcome={action.After.Outcome}");
+                            $"action={Describe(action)} outcome={action.After.Outcome}");
                     if (action.Action.Kind == PlayerActionKind.UsePotion)
                     {
                         ushort stored = action.Before.Potions[action.Action.PotionSlot];
@@ -379,7 +379,7 @@ internal static class AutoCombatSession
                         turnEnded = true;
                     ModLog.Info(
                         $"[BlitzSolver] DEPLOY_OK turn={turn} index={index} " +
-                        $"action={Describe(action.Action)} outcome={action.After.Outcome} " +
+                        $"action={Describe(action)} outcome={action.After.Outcome} " +
                         $"next_turn={action.After.PlayerTurn}");
                     index++;
                     if (terminal)
@@ -641,5 +641,22 @@ internal static class AutoCombatSession
             return _cancelReason;
     }
 
-    private static string Describe(PlayerAction action) => action.ToString();
+    private static string Describe(ReplayedAction action)
+    {
+        string text = action.Action.ToString();
+        if (action.Action.Kind == PlayerActionKind.PlayCard
+            && action.Action.HandIndex < action.Before.HandCount)
+        {
+            Card card = action.Before.Cards[action.Action.HandIndex];
+            text += $"[{Registry.Card(card.Id).NativeId}+{card.Upgrade}]";
+        }
+        else if (action.Action.Kind == PlayerActionKind.UsePotion
+            && action.Action.PotionSlot < action.Before.PotionSlotCount)
+        {
+            ushort stored = action.Before.Potions[action.Action.PotionSlot];
+            if (stored != 0)
+                text += $"[{Registry.Potion((ushort)(stored - 1)).NativeId}]";
+        }
+        return text;
+    }
 }
