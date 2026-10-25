@@ -37,6 +37,6 @@ dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/d
 
 ## 来源与许可
 
-搜索核心最初由 rank-Yu 作为 [CombatSolver](https://github.com/Torch1230/CombatSolver) 的可选后端 Flash 开发，提交历史随本仓库保留。
+搜索核心最初由 rank-Yu 在 [CombatSolver](https://github.com/Torch1230/CombatSolver) 里作为可选后端 Flash 编写，提交历史随本仓库保留。引擎与内容按 CombatSolver 模拟引擎的方法划分与结算顺序翻译成定长结构体实现，并与它逐步差分校验；部分依赖直接移植自 CombatSolver。CombatSolver 的模拟引擎又使用并改造了 [Random Foreseer](https://github.com/hotwords123/StS2.RandomForeseer) 的部分实现。
 
-本仓库以 [MIT 许可证](LICENSE) 发布。部分依赖移植自 CombatSolver，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+本仓库以 [MIT 许可证](LICENSE) 发布。上述来源关系与 CombatSolver、Random Foreseer 的许可证原文见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

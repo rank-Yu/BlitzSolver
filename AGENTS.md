@@ -39,6 +39,8 @@ BlitzSolver（极速战斗求解器）是《杀戮尖塔 2》的单人整场战�
 ## 4. 移植代码
 
 - 从 CombatSolver 移植的代码在文件头保留来源路径、源提交与 MIT 声明，并在 `THIRD_PARTY_NOTICES.md` 列出移植范围。
+- 参照 CombatSolver 翻译编写的代码（例如对照原引擎的结算顺序、原版 Runtime 的部署流程）同样属于 `THIRD_PARTY_NOTICES.md` 的来源范围；范围扩大时同步更新该文件。不从 CombatSolver 的 `src/Engine` 复制状态定义或方法体。
+- `LICENSE` 与 `THIRD_PARTY_NOTICES.md` 随每个二进制发布包一起提供。
 - 只移植 BlitzSolver 实际读取的成员，语义与注释原样保留；要改语义时另起提交，并按第 3 节处理。
 
 ## 5. 验证

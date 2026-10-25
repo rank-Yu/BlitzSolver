@@ -2,18 +2,21 @@
 
 ## CombatSolver
 
-BlitzSolver 的部分源码移植自 CombatSolver，按其 MIT 许可证使用。
-
-Portions of BlitzSolver are ported from CombatSolver and used under its MIT License.
-
 - 项目 / Project：CombatSolver
 - 仓库 / Repository：https://github.com/Torch1230/CombatSolver
-- 移植范围 / Ported code：`src/Core/Search/Ported/`。每个文件开头注明源文件路径与源提交（`a62f1850`），只带过来 BlitzSolver 实际读取的成员。
-  Each file names its source path and source commit (`a62f1850`) in its header and carries only the members BlitzSolver reads.
+- 许可证 / License：MIT（原文见下）
 
-BlitzSolver 的搜索核心（`src/Core/Engine`、`src/Core/Content`、`src/Core/Search` 中移植目录以外的部分）最初由 rank-Yu 作为 CombatSolver 的可选后端 Flash 开发，提交历史随本仓库保留。
+BlitzSolver 与 CombatSolver 的来源关系：
 
-The search core outside the ported directory was originally written by rank-Yu as Flash, an optional CombatSolver backend; its commit history is preserved in this repository.
+- **翻译编写**：`src/Core/Engine`、`src/Core/Content` 与 `src/Core/Search`（`Ported/` 以外）最初由 rank-Yu 在 CombatSolver 的分支里作为可选搜索后端 Flash 编写，提交历史随本仓库保留。引擎与内容按 CombatSolver 模拟引擎、镜像与预测代码的方法划分和结算顺序翻译成定长结构体实现；搜索的状态评估按 CombatSolver 搜索的评估逐字段移植。它们在 CombatSolver 中与原引擎逐步差分校验。
+- **直接移植**：`src/Core/Search/Ported/` 的文件从 CombatSolver（源提交 `a62f1850`）移植，只带过来 BlitzSolver 实际读取的成员；每个文件开头注明源文件路径与源提交。
+- **冻结快照**：`tests/Golden/data` 由 CombatSolver 中的导出工具生成，来源提交记录在 `manifest.json` 的 `provenance`。
+
+How BlitzSolver relates to CombatSolver:
+
+- **Translated**: `src/Core/Engine`, `src/Core/Content` and `src/Core/Search` (outside `Ported/`) were first written by rank-Yu as Flash, an optional search backend in a CombatSolver branch; their commit history is preserved here. The engine and content translate the method structure and resolution order of CombatSolver's simulation engine, mirror and prediction code into a fixed-size struct implementation, and the search ports CombatSolver's state evaluation field by field. They were differentially validated step by step against that engine.
+- **Ported**: files in `src/Core/Search/Ported/` are copied from CombatSolver (source commit `a62f1850`), carrying only the members BlitzSolver reads; each file names its source path and commit in its header.
+- **Frozen snapshots**: `tests/Golden/data` was produced by export tooling in CombatSolver; the source commits are recorded in the `provenance` of `manifest.json`.
 
 CombatSolver 许可证原文 / CombatSolver license:
 
@@ -40,3 +43,47 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Random Foreseer
+
+- 项目 / Project：Random Foreseer
+- 作者与版权人 / Author and copyright holder：hotwords123
+- GitHub：https://github.com/hotwords123/StS2.RandomForeseer
+- 创意工坊 / Steam Workshop：https://steamcommunity.com/sharedfiles/filedetails/?id=3747531952
+- 许可证 / License：MIT（原文见下）
+
+CombatSolver 的内置战斗模拟核心使用并改造了 Random Foreseer 的部分实现。BlitzSolver 的引擎与内容是对该模拟核心的翻译（见上），因此可能包含源自 Random Foreseer 的部分，这些部分按 Random Foreseer 的 MIT 许可证使用。BlitzSolver 不加载、也不分发 Random Foreseer 的程序集。
+
+CombatSolver's built-in combat simulation core uses and modifies portions of Random Foreseer. BlitzSolver's engine and content translate that core (see above), so they may contain portions derived from Random Foreseer; those portions are used under Random Foreseer's MIT License. BlitzSolver neither loads nor distributes the Random Foreseer assembly.
+
+Random Foreseer 许可证原文 / Random Foreseer license:
+
+```text
+MIT License
+
+Copyright (c) 2026 hotwords123
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## 分发 / Distribution
+
+本文件与 `LICENSE` 必须随源码与每个二进制发布包一起提供。
+
+This file and `LICENSE` must accompany the source and every binary release.
