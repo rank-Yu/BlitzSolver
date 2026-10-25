@@ -1,5 +1,6 @@
 using BlitzSolver.Engine;
 using BlitzSolver.Search.Scoring;
+using BlitzSolver.Search.Novelty;
 
 namespace BlitzSolver.Search;
 

@@ -1,5 +1,7 @@
 using System.Text;
 using BlitzSolver.Engine;
+using BlitzSolver.Search.Policy;
+using BlitzSolver.Search.Quality;
 using BlitzSolver.Search.Scoring;
 
 namespace BlitzSolver.Search;
@@ -170,18 +172,18 @@ internal static class SearchCodec
         bool hasBound = Codec.ReadBool(reader);
         BoundFeatures? bound = hasBound ? new BoundFeatures(DecodeBoundConfig(reader)) : null;
         bool hasIncumbent = Codec.ReadBool(reader);
-        PrimarySearchIncumbent? incumbent = null;
+        SearchIncumbent? incumbent = null;
         if (hasIncumbent)
         {
             int deficit = reader.ReadInt32();
             int turn = reader.ReadInt32();
             bool hasCost = Codec.ReadBool(reader);
             int costValue = reader.ReadInt32();
-            incumbent = new PrimarySearchIncumbent(deficit, turn, hasCost ? costValue : null);
+            incumbent = new SearchIncumbent(deficit, turn, hasCost ? costValue : null);
         }
-        SolverPotionPolicy effective = ReadEnumInt<SolverPotionPolicy>(reader, "有效药水政策");
-        SolverTheftPolicy? theft = Codec.ReadBool(reader)
-            ? ReadEnumInt<SolverTheftPolicy>(reader, "窃取政策") : null;
+        PotionUseMode effective = ReadEnumInt<PotionUseMode>(reader, "有效药水政策");
+        TheftPolicy? theft = Codec.ReadBool(reader)
+            ? ReadEnumInt<TheftPolicy>(reader, "窃取政策") : null;
         ForcedPotionDirectives forced = DecodeForcedDirectives(reader);
         bool enforceForced = Codec.ReadBool(reader);
         int minPotions = reader.ReadInt32();
@@ -273,7 +275,7 @@ internal static class SearchCodec
         int maximumValue = reader.ReadInt32();
         int? maximum = hasMaximum ? maximumValue : null;
         PotionStrategySnapshot strategy = DecodePotionStrategy(reader);
-        SolverPotionPolicy effective = ReadEnumInt<SolverPotionPolicy>(reader, "药水政策");
+        PotionUseMode effective = ReadEnumInt<PotionUseMode>(reader, "药水政策");
         bool forceDisabled = Codec.ReadBool(reader);
         return new PotionPolicy(earliest, maximum, strategy, effective, forceDisabled);
     }
@@ -292,7 +294,7 @@ internal static class SearchCodec
 
     private static PotionStrategySnapshot DecodePotionStrategy(BinaryReader reader)
     {
-        SolverPotionPolicy defaultPolicy = ReadEnumInt<SolverPotionPolicy>(reader, "药水默认政策");
+        PotionUseMode defaultPolicy = ReadEnumInt<PotionUseMode>(reader, "药水默认政策");
         int count = Codec.ReadCount(reader, Limits.PotionSlots, "药水指令");
         PotionSlotDirective[] directives = new PotionSlotDirective[count];
         for (int index = 0; index < count; index++)
@@ -301,7 +303,7 @@ internal static class SearchCodec
             string potionId = Codec.ReadString(reader)
                 ?? throw new InvalidDataException("药水指令 id 缺失。");
             directives[index] = new PotionSlotDirective(slot, potionId,
-                ReadEnumInt<SolverPotionDirective>(reader, "药水指令"));
+                ReadEnumInt<PotionDirective>(reader, "药水指令"));
         }
         return new PotionStrategySnapshot(defaultPolicy, directives);
     }
@@ -485,7 +487,7 @@ internal static class SearchCodec
         }
         writer.Write(rules.IgnoreLongTermRewards);
         writer.Write(rules.TheftPolicy != null);
-        writer.Write((int)(rules.TheftPolicy ?? SolverTheftPolicy.LetEscape));
+        writer.Write((int)(rules.TheftPolicy ?? TheftPolicy.LetEscape));
         writer.Write(rules.InitialEnemyCount);
         writer.Write(rules.InitialPersistentBuffValue);
         writer.Write(rules.InitialEnemyStrengthSuppression);
@@ -584,8 +586,8 @@ internal static class SearchCodec
         bool ignoreLongTerm = Codec.ReadBool(reader);
         bool hasTheft = Codec.ReadBool(reader);
         int theftValue = reader.ReadInt32();
-        SolverTheftPolicy? theft = hasTheft
-            ? ReadEnumInt<SolverTheftPolicy>(theftValue, "窃取政策") : null;
+        TheftPolicy? theft = hasTheft
+            ? ReadEnumInt<TheftPolicy>(theftValue, "窃取政策") : null;
         int enemyCount = reader.ReadInt32();
         int persistent = reader.ReadInt32();
         int suppression = reader.ReadInt32();

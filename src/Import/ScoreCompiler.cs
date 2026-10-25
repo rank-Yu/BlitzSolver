@@ -5,6 +5,7 @@
 using BlitzSolver.Engine;
 using BlitzSolver.Search;
 using BlitzSolver.Search.Scoring;
+using BlitzSolver.Search.Policy;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -117,7 +118,7 @@ internal static class ScoreCompiler
                     (BeamWeightTerm)(int)perturbation.Term, perturbation.Scale)
                 : null,
             IgnoreLongTermRewards = policy.IgnoreLongTermRewards,
-            TheftPolicy = policy.TheftPolicy is { } theft ? (SolverTheftPolicy)(int)theft : null,
+            TheftPolicy = policy.TheftPolicy is { } theft ? (TheftPolicy)(int)theft : null,
             InitialEnemyCount = state.Enemies.Count,
             InitialPersistentBuffValue = persistent,
             InitialEnemyStrengthSuppression = suppression,

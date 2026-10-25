@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using BlitzSolver.Engine;
 using BlitzSolver.Search;
+using BlitzSolver.Search.Policy;
 
 namespace BlitzSolver.Search.Scoring;
 
@@ -452,9 +453,9 @@ internal sealed class Scorer
         int deathSaveHpRestored = battle.Counter(Counter.DeathSaveRelicHpRestored)
             + battle.Counter(Counter.DeathSavePotionHpRestored);
         int deathSaveUseCount = battle.Counter(Counter.DeathSaveUseCount);
-        double hpWeight = SolverWeights.Hp;
+        double hpWeight = ScoreWeights.Hp;
         double score = dead || projectedHp <= 0
-            ? SolverWeights.DeathPenalty
+            ? ScoreWeights.DeathPenalty
             : projectedHp * hpWeight;
         score += (battle.Player.MaxHp - _score.InitialPlayerMaxHp) * hpWeight;
         score -= cumulativePlayerHpLost * hpWeight;
@@ -487,8 +488,8 @@ internal sealed class Scorer
             : CaptureGrowthRewards(battle);
         int growthHpCredit = _score.GrowthBudgets.Credit(growthRewards);
         score += Math.Min(
-            realizedLongTermResourceValue * SolverWeights.LongTermResourceBeamValue,
-            SolverWeights.LongTermResourceBeamCap);
+            realizedLongTermResourceValue * ScoreWeights.LongTermResourceBeamValue,
+            ScoreWeights.LongTermResourceBeamCap);
         score += (double)growthHpCredit * hpWeight;
         RelicCounterEvaluation relicCounters = EvaluateRelicCounters(battle, won);
         score += (double)(relicCounters.HpCredit + relicCounters.HealingHpCredit) * hpWeight;
@@ -499,10 +500,10 @@ internal sealed class Scorer
         int strategyGoalCount = growthRewards.Total + relicCounters.SatisfiedPriority;
 
         int angerCopiesGenerated = battle.Counter(Counter.AngerCopiesGenerated);
-        score += angerCopiesGenerated * SolverWeights.AngerCopyBeamPenalty;
+        score += angerCopiesGenerated * ScoreWeights.AngerCopyBeamPenalty;
         if (won)
-            score += SolverWeights.VictoryBonus;
-        score += enemyHp * SolverWeights.EnemyHp;
+            score += ScoreWeights.VictoryBonus;
+        score += enemyHp * ScoreWeights.EnemyHp;
 
         int liveDeckClutter = 0;
         int liveCardCount = battle.HandCount + battle.DrawCount + battle.DiscardCount;
@@ -528,7 +529,7 @@ internal sealed class Scorer
                 }
             }
         }
-        score += liveDeckClutter * SolverWeights.LiveDeckClutterPenalty;
+        score += liveDeckClutter * ScoreWeights.LiveDeckClutterPenalty;
 
         // SimulatedCombatState's outstanding-stolen-resource counters. Only theft roots carry them; the
         // root flag keeps every other root off these per-node scans.
@@ -539,8 +540,8 @@ internal sealed class Scorer
             outstandingStolenResource = Kernel.OutstandingStolenResource(battle);
             minimumOutstandingStolenResource = Kernel.MinimumOutstandingStolenResource(battle);
         }
-        if (_score.TheftPolicy == SolverTheftPolicy.PreserveResources)
-            score += outstandingStolenResource * SolverWeights.OutstandingStolenResourcePenalty;
+        if (_score.TheftPolicy == TheftPolicy.PreserveResources)
+            score += outstandingStolenResource * ScoreWeights.OutstandingStolenResourcePenalty;
 
         int retainedAttackValue = 0;
         for (int pile = 0; pile < 3; pile++)
@@ -866,17 +867,17 @@ internal sealed class Scorer
         }
 
         int vulnerableAttackWindow = Math.Min(
-            SolverWeights.VulnerableAttackWindowCap,
+            ScoreWeights.VulnerableAttackWindowCap,
             retainedAttackValue);
         score += (long)focusTargetVulnerableTurns
             * vulnerableAttackWindow
-            * SolverWeights.VulnerableAttackMultiplierBeamValue;
+            * ScoreWeights.VulnerableAttackMultiplierBeamValue;
         score += (long)Math.Max(0, vulnerable - focusTargetVulnerableTurns)
             * vulnerableAttackWindow
-            * SolverWeights.OffTargetVulnerableAttackMultiplierBeamValue;
-        score += actionCount * SolverWeights.ActionPenalty;
+            * ScoreWeights.OffTargetVulnerableAttackMultiplierBeamValue;
+        score += actionCount * ScoreWeights.ActionPenalty;
         if (risk)
-            score += SolverWeights.RiskPenalty;
+            score += ScoreWeights.RiskPenalty;
 
         int potionUseCount = 0;
         int potionStrategicCost = 0;
@@ -1271,8 +1272,8 @@ internal sealed class Scorer
                 CardScore cardScore = _score.Card(card.Id, card.Upgrade);
                 double perPlayValue = Math.Max(4d, BranchCardValue(battle, card, stats, cardScore));
                 total += (int)Math.Ceiling(perPlayValue * replayCount);
-                if (total >= SolverWeights.ReplayPotentialBeamCap)
-                    return SolverWeights.ReplayPotentialBeamCap;
+                if (total >= ScoreWeights.ReplayPotentialBeamCap)
+                    return ScoreWeights.ReplayPotentialBeamCap;
             }
         }
         return total;
@@ -1856,7 +1857,7 @@ internal sealed class Scorer
             remainingTurns = Math.Clamp(
                 estimatedCycles * Math.Max(1, (int)Math.Ceiling(deckSize / 5d)),
                 1,
-                SolverWeights.SetupValueHorizonTurns);
+                ScoreWeights.SetupValueHorizonTurns);
             reachableCards = actualDeckSize == 0
                 ? 0
                 : Math.Min(deckSize * 2, remainingTurns * cardsPerTurn);
@@ -2602,18 +2603,18 @@ internal sealed class Scorer
         if (_score.BaseScoreOnly)
             return features.Score;
         int persistentBuffCap = _score.IsActEndingBoss
-            ? SolverWeights.PersistentBuffDeltaBeamCap
-            : SolverWeights.StandardPersistentBuffDeltaBeamCap;
+            ? ScoreWeights.PersistentBuffDeltaBeamCap
+            : ScoreWeights.StandardPersistentBuffDeltaBeamCap;
         double persistentBuffValue = _score.IsActEndingBoss
-            ? SolverWeights.PersistentBuffDeltaBeamValue
-            : SolverWeights.StandardPersistentBuffDeltaBeamValue;
+            ? ScoreWeights.PersistentBuffDeltaBeamValue
+            : ScoreWeights.StandardPersistentBuffDeltaBeamValue;
         bool useLatentSetup = _score.IsActEndingBoss || _score.InitialEnemyCount > 1;
         int strengthSuppressionHorizon = _score.IsActEndingBoss
-            ? SolverWeights.BossEnemyStrengthSuppressionHorizon
-            : SolverWeights.StandardEnemyStrengthSuppressionHorizon;
+            ? ScoreWeights.BossEnemyStrengthSuppressionHorizon
+            : ScoreWeights.StandardEnemyStrengthSuppressionHorizon;
         int weakExpectedHpSaved = _score.IsActEndingBoss
-            ? SolverWeights.BossEnemyWeakExpectedHpSaved
-            : SolverWeights.StandardEnemyWeakExpectedHpSaved;
+            ? ScoreWeights.BossEnemyWeakExpectedHpSaved
+            : ScoreWeights.StandardEnemyWeakExpectedHpSaved;
         double baseScore = features.Score;
         if (_score.ContinuousThreatRanking && !terminal && isEndTurn
             && !features.PlayerDead && features.ProjectedPlayerHp <= 0)
@@ -2626,53 +2627,53 @@ internal sealed class Scorer
                 (reachable, _, _) = ReachableHandPotential(battle);
             if (reachable > 0)
             {
-                baseScore = features.Score - SolverWeights.DeathPenalty
-                    + features.ProjectedPlayerHp * SolverWeights.Hp;
+                baseScore = features.Score - ScoreWeights.DeathPenalty
+                    + features.ProjectedPlayerHp * ScoreWeights.Hp;
             }
         }
         double score = baseScore
-            + Math.Min(SolverWeights.CurrentEnergyBeamCap, features.Energy)
-                * SolverWeights.CurrentEnergyBeamValue
+            + Math.Min(ScoreWeights.CurrentEnergyBeamCap, features.Energy)
+                * ScoreWeights.CurrentEnergyBeamValue
             + Math.Min(
                     persistentBuffCap,
                     Math.Max(0, features.PersistentBuffValue - _score.InitialPersistentBuffValue))
                 * persistentBuffValue
             + (useLatentSetup
-                ? Math.Min(SolverWeights.LatentSetupBeamCap, features.LatentSetupValue)
-                    * SolverWeights.LatentSetupBeamValue
+                ? Math.Min(ScoreWeights.LatentSetupBeamCap, features.LatentSetupValue)
+                    * ScoreWeights.LatentSetupBeamValue
                 : 0d)
             + (_score.IsActEndingBoss
-                ? features.FutureResourceValue * SolverWeights.FutureResourceBeamValue
+                ? features.FutureResourceValue * ScoreWeights.FutureResourceBeamValue
                 : 0d)
             + Math.Min(
-                    SolverWeights.ReplayPotentialBeamCap,
+                    ScoreWeights.ReplayPotentialBeamCap,
                     features.ReplayPotentialValue)
-                * SolverWeights.ReplayPotentialBeamValue
-            + RetainedAttackGrowth(features) * SolverWeights.RetainedAttackGrowthBeamValue
-            + features.DelayedDamageValue * SolverWeights.DelayedDamageBeamValue
-            + features.SandpitRemaining * SolverWeights.SandpitTurnBeamValue
+                * ScoreWeights.ReplayPotentialBeamValue
+            + RetainedAttackGrowth(features) * ScoreWeights.RetainedAttackGrowthBeamValue
+            + features.DelayedDamageValue * ScoreWeights.DelayedDamageBeamValue
+            + features.SandpitRemaining * ScoreWeights.SandpitTurnBeamValue
             + Math.Min(
-                    SolverWeights.EnemyStrengthSuppressionBeamCap,
+                    ScoreWeights.EnemyStrengthSuppressionBeamCap,
                     Math.Max(0, features.EnemyStrengthSuppression - _score.InitialEnemyStrengthSuppression))
                 * strengthSuppressionHorizon
-                * SolverWeights.Hp
+                * ScoreWeights.Hp
             + Math.Min(
-                    SolverWeights.EnemyWeakTurnsBeamCap,
+                    ScoreWeights.EnemyWeakTurnsBeamCap,
                     Math.Max(0, features.EnemyWeakTurns - _score.InitialEnemyWeakTurns))
                 * weakExpectedHpSaved
-                * SolverWeights.Hp;
+                * ScoreWeights.Hp;
         // The existing ranking scales one term for non-terminal nodes only. Terminal children never
         // enter a retention pool, but their rank is still computed before the terminal check.
         if (!terminal && _score.BeamWeightPerturbation is { Scale: not 1d } perturbation)
         {
             double term = perturbation.Term switch
             {
-                BeamWeightTerm.CurrentEnergy => Math.Min(SolverWeights.CurrentEnergyBeamCap, features.Energy)
-                    * SolverWeights.CurrentEnergyBeamValue,
+                BeamWeightTerm.CurrentEnergy => Math.Min(ScoreWeights.CurrentEnergyBeamCap, features.Energy)
+                    * ScoreWeights.CurrentEnergyBeamValue,
                 BeamWeightTerm.PersistentBuffDelta => Math.Min(persistentBuffCap,
                         Math.Max(0, features.PersistentBuffValue - _score.InitialPersistentBuffValue))
                     * persistentBuffValue,
-                BeamWeightTerm.EnemyHp => features.EnemyHp * SolverWeights.EnemyHp,
+                BeamWeightTerm.EnemyHp => features.EnemyHp * ScoreWeights.EnemyHp,
                 _ => throw new InvalidOperationException("Unknown Beam sensitivity term."),
             };
             score += (perturbation.Scale - 1d) * term;
@@ -2724,6 +2725,6 @@ internal sealed class Scorer
 
     private int RetainedAttackGrowth(in ScoreFeatures features)
         => Math.Min(
-            SolverWeights.RetainedAttackGrowthBeamCap,
+            ScoreWeights.RetainedAttackGrowthBeamCap,
             Math.Max(0, features.RetainedAttackValue - _score.InitialRetainedAttackValue));
 }

@@ -2,6 +2,9 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BlitzSolver.Engine;
+using BlitzSolver.Search.Novelty;
+using BlitzSolver.Search.Policy;
+using BlitzSolver.Search.Quality;
 using BlitzSolver.Search.Scoring;
 
 namespace BlitzSolver.Search;
@@ -38,13 +41,13 @@ internal sealed record BeamOptions(
     public BoundFeatures? Bound { get; init; }
 
     /// <summary>The request's initial incumbent, already translated to Blitz player-turn units.</summary>
-    public PrimarySearchIncumbent? Incumbent { get; init; }
+    public SearchIncumbent? Incumbent { get; init; }
 
     /// <summary>The existing primary member's effective potion policy, used to qualify incumbent tightening.</summary>
-    public SolverPotionPolicy EffectivePotionPolicy { get; init; } = SolverPotionPolicy.Smart;
+    public PotionUseMode EffectivePotionPolicy { get; init; } = PotionUseMode.Smart;
 
     /// <summary>The request's theft policy; <c>PreserveResources</c> adds the existing final ordering's recovery keys.</summary>
-    public SolverTheftPolicy? TheftPolicy { get; init; }
+    public TheftPolicy? TheftPolicy { get; init; }
 
     /// <summary>
     /// The request's forced potion directives, as canonical Blitz potion ids. Only a request without a
@@ -148,7 +151,7 @@ internal sealed record BeamOptions(
     public int InitialSearchTurn { get; init; }
 
     /// <summary>
-    /// <c>SolverSearchProfile.SecondRankBand</c>: the global prune's ordinary seats come from score
+    /// <c>the existing search's SecondRankBand</c>: the global prune's ordinary seats come from score
     /// ranks W+1..2W instead of the top W. Required representatives, power-commitment seats and plan
     /// seats are unchanged. Only the members that explicitly set the profile switch read it.
     /// </summary>
@@ -162,7 +165,7 @@ internal sealed record BeamOptions(
     public int SecondRankBandWidth { get; init; }
 
     /// <summary>
-    /// <c>SolverSearchProfile.AggressivePowerCommitment</c>: raise the power-commitment seat quota to
+    /// <c>the existing search's AggressivePowerCommitment</c>: raise the power-commitment seat quota to
     /// half the beam and extend a commitment's lifetime from two round transitions to three. The
     /// per-node commitment metadata is route history, not <see cref="Battle"/> state.
     /// </summary>
@@ -283,13 +286,13 @@ internal sealed record PotionPolicy(
     int EarliestPlayerTurn,
     int? MaximumUses,
     PotionStrategySnapshot Strategy,
-    SolverPotionPolicy EffectivePolicy,
+    PotionUseMode EffectivePolicy,
     bool ForceAllDisabled)
 {
     public static PotionPolicy Disabled { get; } = new(
         int.MaxValue, 0,
-        new PotionStrategySnapshot(SolverPotionPolicy.Disabled, Array.Empty<PotionSlotDirective>()),
-        SolverPotionPolicy.Disabled, false);
+        new PotionStrategySnapshot(PotionUseMode.Disabled, Array.Empty<PotionSlotDirective>()),
+        PotionUseMode.Disabled, false);
 
     /// <summary><c>PotionStrategySnapshot.AllowsExplicitUse</c> for the potion now in the slot.</summary>
     public bool AllowsExplicitUse(int slot, ushort potionId)
@@ -302,7 +305,7 @@ internal sealed record PotionPolicy(
 
 /// <summary>
 /// The request's forced potion directives (<c>PotionStrategySnapshot.Directives</c> with
-/// <see cref="SolverPotionDirective.Force"/>), resolved to canonical Blitz potion ids. A directive is
+/// <see cref="PotionDirective.Force"/>), resolved to canonical Blitz potion ids. A directive is
 /// satisfied by one explicit use of that potion identity in its slot; the fixed prefix's uses are
 /// folded into <paramref name="AlreadyUsedMask"/> because they are not Blitz nodes.
 /// </summary>
@@ -509,8 +512,8 @@ internal sealed partial class BeamSolver
     private readonly BoundFeatures? _bound;
     private readonly bool _pruneEqualHp;
     private readonly bool _preservePotionCostOpportunities;
-    private readonly SolverPotionPolicy _effectivePotionPolicy;
-    private readonly SolverTheftPolicy? _theftPolicy;
+    private readonly PotionUseMode _effectivePotionPolicy;
+    private readonly TheftPolicy? _theftPolicy;
     private readonly bool _auditPotionPolicy;
     private readonly ForcedPotionDirectives _forcedPotionDirectives;
     private readonly bool _enforceForcedPotionDirectives;
@@ -524,7 +527,7 @@ internal sealed partial class BeamSolver
     private Dictionary<int, Candidate>? _auditBestByPotionCount;
     private Candidate? _bestPotionFree;
     private bool _anyAuditedVictory;
-    private PrimarySearchIncumbent? _incumbent;
+    private SearchIncumbent? _incumbent;
     private int _expanded;
     private int _transitions;
     private int _duplicates;
@@ -654,10 +657,10 @@ internal sealed partial class BeamSolver
         _endedCompactions = 0;
         _endedCompressedStates = 0;
         _capacityDropped.Clear();
-        bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
+        bool preserveTheft = _theftPolicy == TheftPolicy.PreserveResources;
         int bandWidth = _options.SecondRankBandWidth > 0
             ? _options.SecondRankBandWidth : width;
-        bool checkPotionQuota = _effectivePotionPolicy != SolverPotionPolicy.Disabled;
+        bool checkPotionQuota = _effectivePotionPolicy != PotionUseMode.Disabled;
         Pool current = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
@@ -965,13 +968,13 @@ internal sealed partial class BeamSolver
         int optionalPotionCount = Math.Max(0, features.ExplicitPotionUseCount - forcedCount);
         int optionalPotionStrategicCost = OptionalPotionStrategicCost(
             features.ExplicitPotionStrategicCost, optionalPotionCount, forcedCost);
-        SolverPotionPolicy effectivePotionPolicy = _effectivePotionPolicy switch
+        PotionUseMode effectivePotionPolicy = _effectivePotionPolicy switch
         {
-            SolverPotionPolicy.RequireAtLeastOne when forcedCount > 0 => SolverPotionPolicy.Smart,
-            SolverPotionPolicy.Disabled when optionalPotionCount > 0 => SolverPotionPolicy.Smart,
+            PotionUseMode.RequireAtLeastOne when forcedCount > 0 => PotionUseMode.Smart,
+            PotionUseMode.Disabled when optionalPotionCount > 0 => PotionUseMode.Smart,
             _ => _effectivePotionPolicy,
         };
-        int policyHpDeficit = effectivePotionPolicy == SolverPotionPolicy.RequireAtLeastOne
+        int policyHpDeficit = effectivePotionPolicy == PotionUseMode.RequireAtLeastOne
             ? key.StrategicHpDeficit
                 + PotionUsePolicy.AdditionalRequiredUseStrategicHpCost(optionalPotionStrategicCost)
             : key.StrategicHpDeficit;
@@ -1121,13 +1124,13 @@ internal sealed partial class BeamSolver
             return false;
         }
         bool protectsDeathSave = hasPotionFree && potionFreeWon && candidate.Key.Won
-            && _effectivePotionPolicy != SolverPotionPolicy.Disabled
+            && _effectivePotionPolicy != PotionUseMode.Disabled
             && candidate.Key.OptionalPotionCount > 0
             && candidate.ProjectedDeathSaveUseCount < potionFreeDeathSaves;
         // FinalPlanOrdering.Select: under the preserve policy, more potion use is allowed when it
         // recovers outstanding loot; the soft-policy exception requires an actual potion use, while
         // the Ambergris exception applies to the recovered-loot key even with zero potions.
-        bool recoversLoot = _theftPolicy == SolverTheftPolicy.PreserveResources
+        bool recoversLoot = _theftPolicy == TheftPolicy.PreserveResources
             && candidate.Key.OutstandingStolenResource < potionFreeOutstanding;
         bool recoversLootWithPotion = recoversLoot && candidate.PotionUseCount > 0;
         bool passesSoftPolicy = PotionUsePolicy.IsEligible(
@@ -1177,7 +1180,7 @@ internal sealed partial class BeamSolver
         }
         comparison = left.Key.DeathSaveUseCount.CompareTo(right.Key.DeathSaveUseCount);
         if (comparison != 0) return comparison;
-        if (_theftPolicy == SolverTheftPolicy.PreserveResources)
+        if (_theftPolicy == TheftPolicy.PreserveResources)
         {
             comparison = left.Key.OutstandingStolenResource.CompareTo(right.Key.OutstandingStolenResource);
             if (comparison != 0) return comparison;
@@ -1248,11 +1251,11 @@ internal sealed partial class BeamSolver
         int ForcedUseCount,
         int ForcedStrategicHpCost,
         int ForcedAmbergrisCount,
-        SolverPotionPolicy EffectivePotionPolicy);
+        PotionUseMode EffectivePotionPolicy);
 
     private RouteKey Key(in Battle state, in ScoreFeatures features, int actionCount)
     {
-        bool won = SolverInterimResultOrdering.IsCompleteVictory(
+        bool won = InterimResultOrdering.IsCompleteVictory(
             actionCount, features.AllEnemiesDead, features.PlayerDead, features.ProjectedPlayerHp);
         int relicHeal = ActEndingBossPolicy.RankedPostCombatRelicHeal(
             _ordering.PostCombatRelicHeal, won, features.PlayerHp, features.PlayerMaxHp);
@@ -1269,7 +1272,7 @@ internal sealed partial class BeamSolver
         // members keep their prior route key so the Blitz adoption decisions they already passed do
         // not move; the exact-layer requests port the key together with the potion filter.
         int policyHpDeficit = _auditPotionPolicy
-            && _effectivePotionPolicy == SolverPotionPolicy.RequireAtLeastOne
+            && _effectivePotionPolicy == PotionUseMode.RequireAtLeastOne
                 ? strategicHpDeficit
                     + PotionUsePolicy.AdditionalRequiredUseStrategicHpCost(optionalPotionStrategicCost)
                 : strategicHpDeficit;
@@ -1277,7 +1280,7 @@ internal sealed partial class BeamSolver
             won,
             !features.PlayerDead && features.ProjectedPlayerHp > 0,
             features.ProjectedDeathSaveUseCount,
-            _theftPolicy == SolverTheftPolicy.PreserveResources ? features.OutstandingStolenResource : 0,
+            _theftPolicy == TheftPolicy.PreserveResources ? features.OutstandingStolenResource : 0,
             strategicHpDeficit,
             features.StrategyGoalHpCredit,
             features.StrategyGoalCount,
@@ -1305,7 +1308,7 @@ internal sealed partial class BeamSolver
         comparison = left.DeathSaveUseCount.CompareTo(right.DeathSaveUseCount);
         if (comparison != 0) return comparison;
         // TheftEncounterStrategy.CompareRecovery: only the preserve policy ranks the unrecovered loot.
-        if (_theftPolicy == SolverTheftPolicy.PreserveResources)
+        if (_theftPolicy == TheftPolicy.PreserveResources)
         {
             comparison = left.OutstandingStolenResource.CompareTo(right.OutstandingStolenResource);
             if (comparison != 0) return comparison;
@@ -2004,16 +2007,16 @@ internal sealed partial class BeamSolver
 
     /// <summary>
     /// The existing primary member's terminal-victory tightening
-    /// (<c>TightenPrimarySearchIncumbentAtTurnLayer</c>): a complete, risk-free, potion-free victory
+    /// (<c>TightenSearchIncumbentAtTurnLayer</c>): a complete, risk-free, potion-free victory
     /// publishes a strictly better incumbent at the commit boundary, so the same layer's retention can
     /// use it. The shared <see cref="PrimaryIncumbentTable"/> is not connected.
     /// </summary>
     private void TightenIncumbent(in Battle state, int node, in ScoreFeatures features, in RouteKey key)
     {
-        // the existing search's TightenPrimarySearchIncumbentAtTurnLayer: only a potion-free victory, or an
+        // the existing search's TightenSearchIncumbentAtTurnLayer: only a potion-free victory, or an
         // exact audited layer with a baseline and no enforced directives, may establish the bound.
         bool canEstablishPotionFree = _options.MinimumPotionUses == 0
-            && _effectivePotionPolicy is SolverPotionPolicy.Disabled or SolverPotionPolicy.Smart;
+            && _effectivePotionPolicy is PotionUseMode.Disabled or PotionUseMode.Smart;
         bool canEstablishExactPotion = _potionFreeBaseline != null
             && _options.MinimumPotionUses > 0
             && _options.Potions.MaximumUses == _options.MinimumPotionUses
@@ -2037,8 +2040,8 @@ internal sealed partial class BeamSolver
                 _ordering.PostCombatRelicHeal, true, features.PlayerHp, features.PlayerMaxHp),
             _bound.BossHpRelief,
             features.DeathSaveHpRestored) - features.StrategicHpCredit;
-        PrimarySearchIncumbent? candidate = _incumbent;
-        if (PrimaryIncumbentPolicy.TryTightenPrimarySearchIncumbent(
+        SearchIncumbent? candidate = _incumbent;
+        if (IncumbentPolicy.TryTightenIncumbent(
                 auditedPotionFreeBaseline: _potionFreeBaseline,
                 minimumPotionUses: _options.MinimumPotionUses,
                 maximumPotionUses: _options.Potions.MaximumUses,
@@ -2062,7 +2065,7 @@ internal sealed partial class BeamSolver
     /// </summary>
     private void PrunePool(Pool pool)
     {
-        PrimarySearchIncumbent? incumbent = _bound == null ? null : _incumbent;
+        SearchIncumbent? incumbent = _bound == null ? null : _incumbent;
         int? ceiling = _smartPotionEligibilityHpCeiling;
         if (ceiling is null && (incumbent is null || _bound is null))
             return;
@@ -2079,7 +2082,7 @@ internal sealed partial class BeamSolver
                 bool costClosed = !_preservePotionCostOpportunities
                     || (bounded.ExplicitPotionStrategicCost is { } cost
                         && values.ExplicitPotionStrategicCost >= cost);
-                incumbentPrune = PrimaryIncumbentPolicy.ShouldPruneByPrimaryIncumbent(
+                incumbentPrune = IncumbentPolicy.ShouldPruneByIncumbent(
                     values.StrategicHpLowerBound,
                     pool.State(read).PlayerTurn,
                     bounded,
@@ -2140,7 +2143,7 @@ internal sealed partial class BeamSolver
         // final ordering still charges the cost. Non-audit members keep the correction.
         double rank = _auditPotionPolicy && _options.MinimumPotionUses > 1
             ? pureRank
-            : pureRank - features.ExplicitPotionStrategicCost * SolverWeights.Hp;
+            : pureRank - features.ExplicitPotionStrategicCost * ScoreWeights.Hp;
         return (features.Score, rank, pureRank, features.ExplicitPotionStrategicCost, features);
     }
 
@@ -2626,7 +2629,7 @@ internal sealed partial class BeamSolver
             features.RelicSatisfiedMask,
             features.StrategyGoalCount,
             features.AngerCopiesGenerated,
-            Math.Min(SolverWeights.RetainedAttackGrowthBeamCap,
+            Math.Min(ScoreWeights.RetainedAttackGrowthBeamCap,
                 Math.Max(0, features.RetainedAttackValue - initialRetainedAttackValue)),
             0,
             features.PlayableAttackCount,
@@ -2678,9 +2681,9 @@ internal sealed partial class BeamSolver
                 + features.EnemyStrengthSuppression * 32
                 + features.EnemyWeakTurns * 8
                 + features.FocusTargetVulnerableTurns * 4
-                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
+                    * Math.Min(ScoreWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
                 + Math.Max(0, features.EnemyVulnerableTurns - features.FocusTargetVulnerableTurns)
-                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
+                    * Math.Min(ScoreWeights.VulnerableAttackWindowCap, features.RetainedAttackValue)
                 + features.DelayedDamageValue
                 - features.LiveDeckClutter * 8;
     }
@@ -3108,9 +3111,9 @@ internal sealed partial class BeamSolver
                 + facts.EnemyStrengthSuppression * 32
                 + facts.EnemyWeakTurns * 8
                 + facts.FocusTargetVulnerableTurns * 4
-                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, facts.RetainedAttackValue)
+                    * Math.Min(ScoreWeights.VulnerableAttackWindowCap, facts.RetainedAttackValue)
                 + Math.Max(0, facts.EnemyVulnerableTurns - facts.FocusTargetVulnerableTurns)
-                    * Math.Min(SolverWeights.VulnerableAttackWindowCap, facts.RetainedAttackValue)
+                    * Math.Min(ScoreWeights.VulnerableAttackWindowCap, facts.RetainedAttackValue)
                 + facts.DelayedDamageValue
                 - facts.LiveDeckClutter * 8,
             SearchRouteTraits.RevivalWindow => facts.RevivingEnemyCount * 1024
@@ -6145,7 +6148,7 @@ internal sealed partial class BeamSolver
                 ? orderedPileQuota
                 : Math.Min(width, limit + 1);
             int exactStateRounds = Math.Min(
-                SolverWeights.ExactStatesPerProjectedShuffleOrder, orderedPileRounds);
+                ScoreWeights.ExactStatesPerProjectedShuffleOrder, orderedPileRounds);
             for (int round = 0; round < exactStateRounds && required.Count < quota; round++)
             {
                 for (int index = 0; index < _orderedPileCohorts.Count; index++)
@@ -6183,7 +6186,7 @@ internal sealed partial class BeamSolver
             AddTacticalGroup(candidates, BestTacticalGroupBy(bucket,
                 slot => _facts[slot].ProjectedShuffleOrderValue, descending: true));
             for (int index = 0; index < bucket.Groups.Count
-                && candidates.Count < SolverWeights.PocketwatchParetoCandidatesPerCadence; index++)
+                && candidates.Count < ScoreWeights.PocketwatchParetoCandidatesPerCadence; index++)
             {
                 AddTacticalGroup(candidates, bucket.Groups[index]);
             }
@@ -6278,13 +6281,13 @@ internal sealed partial class BeamSolver
                 }
                 variantsForPrefix.Sort(new OrderedPileVariantComparer(this));
                 for (int index = 0; index < variantsForPrefix.Count
-                    && index < SolverWeights.ExactStatesPerProjectedShuffleOrder; index++)
+                    && index < ScoreWeights.ExactStatesPerProjectedShuffleOrder; index++)
                 {
                     variants.Add(variantsForPrefix[index]);
                 }
             }
             variants.Sort(new OrderedPileVariantComparer(this));
-            int take = Math.Min(SolverWeights.OrderedPileVariantsPerTacticalState, variants.Count);
+            int take = Math.Min(ScoreWeights.OrderedPileVariantsPerTacticalState, variants.Count);
             List<int> cohort = new(take);
             for (int index = 0; index < take; index++)
                 cohort.Add(variants[index]);

@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using BlitzSolver.Engine;
+using BlitzSolver.Search.Novelty;
+using BlitzSolver.Search.Policy;
+using BlitzSolver.Search.Quality;
 using BlitzSolver.Search.Scoring;
 
 namespace BlitzSolver.Search;
@@ -190,9 +193,9 @@ internal sealed partial class BeamSolver
         int noveltyPoolLimit = Math.Min(Math.Max(poolLimit, noveltyOptions.MaxOpen * 2), budgetStates);
         _endedCompactionTarget = noveltyPoolLimit;
         int initialChildren = Math.Min(noveltyPoolLimit, Math.Max(256, width * 8));
-        bool preserveTheft = _theftPolicy == SolverTheftPolicy.PreserveResources;
+        bool preserveTheft = _theftPolicy == TheftPolicy.PreserveResources;
         int bandWidth = _options.SecondRankBandWidth > 0 ? _options.SecondRankBandWidth : width;
-        bool checkPotionQuota = _effectivePotionPolicy != SolverPotionPolicy.Disabled;
+        bool checkPotionQuota = _effectivePotionPolicy != PotionUseMode.Disabled;
         Pool next = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
@@ -366,7 +369,7 @@ internal sealed partial class BeamSolver
         return result;
 
         bool keyWon(in ScoreFeatures features, int actionCount)
-            => SolverInterimResultOrdering.IsCompleteVictory(actionCount, features.AllEnemiesDead,
+            => InterimResultOrdering.IsCompleteVictory(actionCount, features.AllEnemiesDead,
                 features.PlayerDead, features.ProjectedPlayerHp);
     }
 
@@ -390,7 +393,7 @@ internal sealed partial class BeamSolver
     {
         if (_options.HpTargetStop is not { } stop)
             return false;
-        if (!SolverInterimResultOrdering.IsCompleteVictory(Depth(node), features.AllEnemiesDead,
+        if (!InterimResultOrdering.IsCompleteVictory(Depth(node), features.AllEnemiesDead,
                 features.PlayerDead, features.ProjectedPlayerHp))
         {
             return false;

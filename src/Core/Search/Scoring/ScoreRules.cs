@@ -1,5 +1,6 @@
 using BlitzSolver.Engine;
 using BlitzSolver.Search;
+using BlitzSolver.Search.Policy;
 
 namespace BlitzSolver.Search.Scoring;
 
@@ -312,7 +313,7 @@ internal sealed class ScoreRules
 
     public required bool IgnoreLongTermRewards { get; init; }
 
-    public required SolverTheftPolicy? TheftPolicy { get; init; }
+    public required TheftPolicy? TheftPolicy { get; init; }
 
     public required int InitialEnemyCount { get; init; }
 

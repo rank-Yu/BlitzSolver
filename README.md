@@ -16,7 +16,7 @@
 | --- | --- |
 | `src/Core/Engine` | 状态布局、回合与出牌管线、结算、规则表 |
 | `src/Core/Content` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
-| `src/Core/Search` | `BeamSolver` 与状态评估；`Ported/` 是移植自 CombatSolver 的依赖 |
+| `src/Core/Search` | `BeamSolver`、状态评估与按功能归位的路线质量、资源策略、新颖度搜索 |
 | `tests/KernelChecks` | 内核合同（K0） |
 | `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data` |
 | `tests/corpora/quality` | 120 根质量语料（五个角色 × 三幕） |

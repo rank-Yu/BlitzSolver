@@ -254,7 +254,7 @@ internal static class PowerEvidence
             return Math.Clamp(
                 (_features.EnemyHp + damagePerTurn - 1) / damagePerTurn,
                 1,
-                SolverWeights.SetupValueHorizonTurns);
+                ScoreWeights.SetupValueHorizonTurns);
         }
 
         public int EnergyUnit()

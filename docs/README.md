@@ -25,10 +25,12 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | --- | --- |
 | `src/Core/Engine/` | `BlitzSolver.Engine`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
 | `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
-| `src/Core/Search/` | `BlitzSolver.Search`：`BeamSolver`、搜索容器、评分与下界 |
-| `src/Core/Search/Scoring/` | `BlitzSolver.Search.Scoring`：状态评估 |
+| `src/Core/Search/` | `BlitzSolver.Search`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
+| `src/Core/Search/Quality/` | `BlitzSolver.Search.Quality`：路线质量比较与 incumbent 剪枝 |
+| `src/Core/Search/Policy/` | `BlitzSolver.Search.Policy`：药水、偷窃、成长、遗物计数与首领结算策略 |
+| `src/Core/Search/Scoring/` | `BlitzSolver.Search.Scoring`：状态评估、评分权重与能力牌估值 |
+| `src/Core/Search/Novelty/` | `BlitzSolver.Search.Novelty`：Bfws 新颖度容器、选项与遥测 |
 | `src/Import/` | `BlitzSolver.Import`：原生 `CombatState` → `Battle` 导入；唯一允许读游戏模型与私有字段的层 |
-| `src/Core/Search/Ported/` | `BlitzSolver.Search`：从 CombatSolver `a62f1850` 移植的纯值依赖 |
 | `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`） |
 | `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/` |
 | [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState` 并转储；需要游戏文件，不在 CI 中运行 |

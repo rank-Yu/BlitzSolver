@@ -10,7 +10,7 @@ BlitzSolver（极速战斗求解器）是《杀戮尖塔 2》的单人整场战�
 | --- | --- | --- |
 | `src/Core/Engine` | `BlitzSolver.Engine` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
 | `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
-| `src/Core/Search` | `BlitzSolver.Search`（含 `.Scoring`） | `BeamSolver` 与状态评估；`Ported/` 是移植自 CombatSolver 的依赖 |
+| `src/Core/Search` | `BlitzSolver.Search`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
 | `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层 |
 | `tests/KernelChecks` | | 内核合同（K0） |
 | `tests/Golden` | | 冻结快照校验器与数据 |
