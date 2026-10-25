@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "rg-a-star",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-rg-a-star.json\u0022}",
+  "rulesSha256": "b58f91bcec93a5705e1c598e00f898d2e931177e324285e994b104838eafd26e",
+  "counts": {
+    "roots": 1,
+    "k1": 15,
+    "walks": 32,
+    "walkStates": 633,
+    "transitions": 601
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "dx4-sly-identity",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-dx4-sly-identity.json\u0022}",
+  "rulesSha256": "b4238f5e1226c3d21ed418b96f1e74274a80dc224dbf6e640512b81d98818369",
+  "counts": {
+    "roots": 1,
+    "k1": 30,
+    "walks": 32,
+    "walkStates": 1920,
+    "transitions": 1920
+  }
+}

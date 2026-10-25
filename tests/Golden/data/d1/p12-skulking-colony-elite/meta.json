@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "p12-skulking-colony-elite",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p12-skulking-colony-elite.json\u0022}",
+  "rulesSha256": "bb868adfbf8b6fb8cf59dacd87a3a2bd8c19bd9266f3bd3c07b59aed27a03801",
+  "counts": {
+    "roots": 1,
+    "k1": 7,
+    "walks": 32,
+    "walkStates": 1392,
+    "transitions": 1360
+  }
+}

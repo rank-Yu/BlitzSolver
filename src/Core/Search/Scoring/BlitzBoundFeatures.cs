@@ -284,31 +284,31 @@ internal sealed class BlitzBoundFeatures
         return _config.InitialExplicitPotionUses + uses - automaticAfterRoot;
     }
 
-    /// <summary>K5: the members that differ, as <c>name old=… blitz=…</c>.</summary>
-    public static List<string> Diff(in BlitzBoundValues old, in BlitzBoundValues blitz)
+    /// <summary>K5: the members that differ, as <c>name expected=… actual=…</c>.</summary>
+    public static List<string> Diff(in BlitzBoundValues expected, in BlitzBoundValues actual)
     {
         List<string> lines = [];
         void Check<T>(string name, T left, T right)
         {
             if (!EqualityComparer<T>.Default.Equals(left, right))
-                lines.Add($"{name} old={left} blitz={right}");
+                lines.Add($"{name} expected={left} actual={right}");
         }
-        Check(nameof(BlitzBoundValues.HasRisk), old.HasRisk, blitz.HasRisk);
-        Check(nameof(BlitzBoundValues.FutureHealPotential), old.FutureHealPotential, blitz.FutureHealPotential);
-        Check(nameof(BlitzBoundValues.RemainingHealingPotential), old.RemainingHealingPotential, blitz.RemainingHealingPotential);
-        Check(nameof(BlitzBoundValues.FutureHealUsed), old.FutureHealUsed, blitz.FutureHealUsed);
-        Check(nameof(BlitzBoundValues.CumulativePlayerHpLost), old.CumulativePlayerHpLost, blitz.CumulativePlayerHpLost);
-        Check(nameof(BlitzBoundValues.RecoveredPlayerHp), old.RecoveredPlayerHp, blitz.RecoveredPlayerHp);
-        Check(nameof(BlitzBoundValues.PlayerHp), old.PlayerHp, blitz.PlayerHp);
-        Check(nameof(BlitzBoundValues.PlayerMaxHp), old.PlayerMaxHp, blitz.PlayerMaxHp);
-        Check(nameof(BlitzBoundValues.DeathSaveHpRestored), old.DeathSaveHpRestored, blitz.DeathSaveHpRestored);
+        Check(nameof(BlitzBoundValues.HasRisk), expected.HasRisk, actual.HasRisk);
+        Check(nameof(BlitzBoundValues.FutureHealPotential), expected.FutureHealPotential, actual.FutureHealPotential);
+        Check(nameof(BlitzBoundValues.RemainingHealingPotential), expected.RemainingHealingPotential, actual.RemainingHealingPotential);
+        Check(nameof(BlitzBoundValues.FutureHealUsed), expected.FutureHealUsed, actual.FutureHealUsed);
+        Check(nameof(BlitzBoundValues.CumulativePlayerHpLost), expected.CumulativePlayerHpLost, actual.CumulativePlayerHpLost);
+        Check(nameof(BlitzBoundValues.RecoveredPlayerHp), expected.RecoveredPlayerHp, actual.RecoveredPlayerHp);
+        Check(nameof(BlitzBoundValues.PlayerHp), expected.PlayerHp, actual.PlayerHp);
+        Check(nameof(BlitzBoundValues.PlayerMaxHp), expected.PlayerMaxHp, actual.PlayerMaxHp);
+        Check(nameof(BlitzBoundValues.DeathSaveHpRestored), expected.DeathSaveHpRestored, actual.DeathSaveHpRestored);
         Check(nameof(BlitzBoundValues.ExplicitPotionStrategicCost),
-            old.ExplicitPotionStrategicCost, blitz.ExplicitPotionStrategicCost);
-        Check(nameof(BlitzBoundValues.StrategicHpLowerBound), old.StrategicHpLowerBound, blitz.StrategicHpLowerBound);
+            expected.ExplicitPotionStrategicCost, actual.ExplicitPotionStrategicCost);
+        Check(nameof(BlitzBoundValues.StrategicHpLowerBound), expected.StrategicHpLowerBound, actual.StrategicHpLowerBound);
         Check(nameof(BlitzBoundValues.SmartPotionRemainingHealingPotential),
-            old.SmartPotionRemainingHealingPotential, blitz.SmartPotionRemainingHealingPotential);
+            expected.SmartPotionRemainingHealingPotential, actual.SmartPotionRemainingHealingPotential);
         Check(nameof(BlitzBoundValues.SmartPotionHpLowerBound),
-            old.SmartPotionHpLowerBound, blitz.SmartPotionHpLowerBound);
+            expected.SmartPotionHpLowerBound, actual.SmartPotionHpLowerBound);
         return lines;
     }
 }

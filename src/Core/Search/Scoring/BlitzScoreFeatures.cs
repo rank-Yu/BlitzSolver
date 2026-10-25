@@ -7,7 +7,7 @@ namespace BlitzSolver.Search.Scoring;
 /// The evaluation values BlitzBeam ranks by, computed from a <see cref="BlitzBattle"/>
 /// by <see cref="BlitzScorer"/>. Every member has the name and meaning of the
 /// <see cref="SimulationSnapshot"/> member it mirrors (<c>the existing search's Snapshot</c>), and the K4
-/// check (docs/flash-search/admission-and-verification.md §3) requires each one to equal the snapshot
+/// check (docs/archive/admission-and-verification.md §3) requires each one to equal the snapshot
 /// of the same state. <see cref="Score"/> is compared as an exact double.
 /// </summary>
 internal readonly record struct BlitzScoreFeatures
@@ -198,124 +198,124 @@ internal readonly record struct BlitzScoreFeatures
     public ulong UnorderedPileKeyFirst { get; init; }
     public ulong UnorderedPileKeySecond { get; init; }
 
-    /// <summary>One line per member that differs, as <c>name old=… blitz=…</c>.</summary>
-    public static List<string> Diff(in BlitzScoreFeatures old, in BlitzScoreFeatures blitz)
+    /// <summary>One line per member that differs, as <c>name expected=… actual=…</c>.</summary>
+    public static List<string> Diff(in BlitzScoreFeatures expected, in BlitzScoreFeatures actual)
     {
         List<string> lines = [];
         void Check<T>(string name, T left, T right)
         {
             if (!EqualityComparer<T>.Default.Equals(left, right))
-                lines.Add($"{name} old={left} blitz={right}");
+                lines.Add($"{name} expected={left} actual={right}");
         }
-        Check(nameof(Score), BitConverter.DoubleToInt64Bits(old.Score), BitConverter.DoubleToInt64Bits(blitz.Score));
+        Check(nameof(Score), BitConverter.DoubleToInt64Bits(expected.Score), BitConverter.DoubleToInt64Bits(actual.Score));
         if (lines.Count > 0)
-            lines[0] = $"{nameof(Score)} old={old.Score:R} blitz={blitz.Score:R} delta={blitz.Score - old.Score:R}";
-        Check(nameof(PlayerDead), old.PlayerDead, blitz.PlayerDead);
-        Check(nameof(AllEnemiesDead), old.AllEnemiesDead, blitz.AllEnemiesDead);
-        Check(nameof(PlayerHp), old.PlayerHp, blitz.PlayerHp);
-        Check(nameof(PlayerMaxHp), old.PlayerMaxHp, blitz.PlayerMaxHp);
-        Check(nameof(PlayerBlock), old.PlayerBlock, blitz.PlayerBlock);
-        Check(nameof(OstyHp), old.OstyHp, blitz.OstyHp);
-        Check(nameof(OstyMaxHp), old.OstyMaxHp, blitz.OstyMaxHp);
-        Check(nameof(CumulativePlayerHpLost), old.CumulativePlayerHpLost, blitz.CumulativePlayerHpLost);
-        Check(nameof(RecoveredPlayerHp), old.RecoveredPlayerHp, blitz.RecoveredPlayerHp);
-        Check(nameof(DeathSaveHpRestored), old.DeathSaveHpRestored, blitz.DeathSaveHpRestored);
-        Check(nameof(DeathSaveUseCount), old.DeathSaveUseCount, blitz.DeathSaveUseCount);
-        Check(nameof(ProjectedDeathSaveUseCount), old.ProjectedDeathSaveUseCount, blitz.ProjectedDeathSaveUseCount);
-        Check(nameof(ProjectedPlayerHp), old.ProjectedPlayerHp, blitz.ProjectedPlayerHp);
-        Check(nameof(DefensiveBlockValue), old.DefensiveBlockValue, blitz.DefensiveBlockValue);
-        Check(nameof(LongTermResourceValue), old.LongTermResourceValue, blitz.LongTermResourceValue);
-        Check(nameof(GrowthHpCredit), old.GrowthHpCredit, blitz.GrowthHpCredit);
-        Check(nameof(GrowthRewardCount), old.GrowthRewardCount, blitz.GrowthRewardCount);
+            lines[0] = $"{nameof(Score)} expected={expected.Score:R} actual={actual.Score:R} delta={actual.Score - expected.Score:R}";
+        Check(nameof(PlayerDead), expected.PlayerDead, actual.PlayerDead);
+        Check(nameof(AllEnemiesDead), expected.AllEnemiesDead, actual.AllEnemiesDead);
+        Check(nameof(PlayerHp), expected.PlayerHp, actual.PlayerHp);
+        Check(nameof(PlayerMaxHp), expected.PlayerMaxHp, actual.PlayerMaxHp);
+        Check(nameof(PlayerBlock), expected.PlayerBlock, actual.PlayerBlock);
+        Check(nameof(OstyHp), expected.OstyHp, actual.OstyHp);
+        Check(nameof(OstyMaxHp), expected.OstyMaxHp, actual.OstyMaxHp);
+        Check(nameof(CumulativePlayerHpLost), expected.CumulativePlayerHpLost, actual.CumulativePlayerHpLost);
+        Check(nameof(RecoveredPlayerHp), expected.RecoveredPlayerHp, actual.RecoveredPlayerHp);
+        Check(nameof(DeathSaveHpRestored), expected.DeathSaveHpRestored, actual.DeathSaveHpRestored);
+        Check(nameof(DeathSaveUseCount), expected.DeathSaveUseCount, actual.DeathSaveUseCount);
+        Check(nameof(ProjectedDeathSaveUseCount), expected.ProjectedDeathSaveUseCount, actual.ProjectedDeathSaveUseCount);
+        Check(nameof(ProjectedPlayerHp), expected.ProjectedPlayerHp, actual.ProjectedPlayerHp);
+        Check(nameof(DefensiveBlockValue), expected.DefensiveBlockValue, actual.DefensiveBlockValue);
+        Check(nameof(LongTermResourceValue), expected.LongTermResourceValue, actual.LongTermResourceValue);
+        Check(nameof(GrowthHpCredit), expected.GrowthHpCredit, actual.GrowthHpCredit);
+        Check(nameof(GrowthRewardCount), expected.GrowthRewardCount, actual.GrowthRewardCount);
         foreach (GrowthSource source in Enum.GetValues<GrowthSource>())
         {
             Check($"{nameof(GrowthRewards)}.{source}",
-                old.GrowthRewards.Get(source), blitz.GrowthRewards.Get(source));
+                expected.GrowthRewards.Get(source), actual.GrowthRewards.Get(source));
         }
-        Check(nameof(StrategyGoalHpCredit), old.StrategyGoalHpCredit, blitz.StrategyGoalHpCredit);
-        Check(nameof(StrategicHpCredit), old.StrategicHpCredit, blitz.StrategicHpCredit);
-        Check(nameof(StrategyGoalCount), old.StrategyGoalCount, blitz.StrategyGoalCount);
-        Check(nameof(RelicSatisfiedMask), old.RelicSatisfiedMask, blitz.RelicSatisfiedMask);
-        Check(nameof(RelicTargetMask), old.RelicTargetMask, blitz.RelicTargetMask);
-        Check(nameof(RelicCounterValues), old.RelicCounterValues, blitz.RelicCounterValues);
-        Check(nameof(RelicTargetMinimums), old.RelicTargetMinimums, blitz.RelicTargetMinimums);
-        Check(nameof(RelicTargetMaximums), old.RelicTargetMaximums, blitz.RelicTargetMaximums);
-        Check(nameof(RelicHpCredit), old.RelicHpCredit, blitz.RelicHpCredit);
-        Check(nameof(RelicDistance), old.RelicDistance, blitz.RelicDistance);
-        Check(nameof(RelicSatisfiedPriority), old.RelicSatisfiedPriority, blitz.RelicSatisfiedPriority);
-        Check(nameof(RelicHealingHpCredit), old.RelicHealingHpCredit, blitz.RelicHealingHpCredit);
-        Check(nameof(AngerCopiesGenerated), old.AngerCopiesGenerated, blitz.AngerCopiesGenerated);
-        Check(nameof(EnemyHp), old.EnemyHp, blitz.EnemyHp);
-        Check(nameof(EnemyBlock), old.EnemyBlock, blitz.EnemyBlock);
-        Check(nameof(RawEnemyHp), old.RawEnemyHp, blitz.RawEnemyHp);
-        Check(nameof(MaxCurrentEnemyHp), old.MaxCurrentEnemyHp, blitz.MaxCurrentEnemyHp);
-        Check(nameof(AliveEnemyCount), old.AliveEnemyCount, blitz.AliveEnemyCount);
-        Check(nameof(AliveEnemyMask), old.AliveEnemyMask, blitz.AliveEnemyMask);
-        Check(nameof(RevivingEnemyCount), old.RevivingEnemyCount, blitz.RevivingEnemyCount);
-        Check(nameof(LiveDeckClutter), old.LiveDeckClutter, blitz.LiveDeckClutter);
-        Check(nameof(LiveDeckSize), old.LiveDeckSize, blitz.LiveDeckSize);
-        Check(nameof(OutstandingStolenResource), old.OutstandingStolenResource, blitz.OutstandingStolenResource);
-        Check(nameof(MinimumOutstandingStolenResource), old.MinimumOutstandingStolenResource,
-            blitz.MinimumOutstandingStolenResource);
-        Check(nameof(RetainedAttackValue), old.RetainedAttackValue, blitz.RetainedAttackValue);
-        Check(nameof(FocusTargetCombatId), old.FocusTargetCombatId, blitz.FocusTargetCombatId);
-        Check(nameof(FocusTargetPressure), old.FocusTargetPressure, blitz.FocusTargetPressure);
-        Check(nameof(FocusTargetRemainingHp), old.FocusTargetRemainingHp, blitz.FocusTargetRemainingHp);
-        Check(nameof(FocusTargetCurrentThreat), old.FocusTargetCurrentThreat, blitz.FocusTargetCurrentThreat);
-        Check(nameof(FocusTargetVulnerableTurns), old.FocusTargetVulnerableTurns, blitz.FocusTargetVulnerableTurns);
-        Check(nameof(MostVulnerableTargetCombatId), old.MostVulnerableTargetCombatId, blitz.MostVulnerableTargetCombatId);
-        Check(nameof(EnemyVulnerableTurns), old.EnemyVulnerableTurns, blitz.EnemyVulnerableTurns);
-        Check(nameof(Energy), old.Energy, blitz.Energy);
-        Check(nameof(Stars), old.Stars, blitz.Stars);
-        Check(nameof(HandCount), old.HandCount, blitz.HandCount);
-        Check(nameof(Turn), old.Turn, blitz.Turn);
-        Check(nameof(ReachableHandValue), old.ReachableHandValue, blitz.ReachableHandValue);
-        Check(nameof(ZeroCostPlayableCount), old.ZeroCostPlayableCount, blitz.ZeroCostPlayableCount);
-        Check(nameof(PlayableAttackCount), old.PlayableAttackCount, blitz.PlayableAttackCount);
-        Check(nameof(PersistentBuffValue), old.PersistentBuffValue, blitz.PersistentBuffValue);
-        Check(nameof(StrategicRetentionValue), old.StrategicRetentionValue, blitz.StrategicRetentionValue);
-        Check(nameof(StrategicDamagePotential), old.StrategicDamagePotential, blitz.StrategicDamagePotential);
-        Check(nameof(StrategicPreventionPotential), old.StrategicPreventionPotential, blitz.StrategicPreventionPotential);
-        Check(nameof(StrategicResourcePotential), old.StrategicResourcePotential, blitz.StrategicResourcePotential);
-        Check(nameof(StrategicCardAccessPotential), old.StrategicCardAccessPotential, blitz.StrategicCardAccessPotential);
-        Check(nameof(StrategicScalingPotential), old.StrategicScalingPotential, blitz.StrategicScalingPotential);
-        Check(nameof(HasRisk), old.HasRisk, blitz.HasRisk);
-        Check(nameof(Act3BossInteractions), old.Act3BossInteractions, blitz.Act3BossInteractions);
-        Check(nameof(FirstAttackDamage), old.FirstAttackDamage, blitz.FirstAttackDamage);
-        Check(nameof(EtherealDrawTriggers), old.EtherealDrawTriggers, blitz.EtherealDrawTriggers);
-        Check(nameof(PagestormBonusDrawCapacity), old.PagestormBonusDrawCapacity,
-            blitz.PagestormBonusDrawCapacity);
-        Check(nameof(HighEnergyPlays), old.HighEnergyPlays, blitz.HighEnergyPlays);
-        Check(nameof(DemesneEnergyGain), old.DemesneEnergyGain, blitz.DemesneEnergyGain);
-        Check(nameof(DemesneDrawGain), old.DemesneDrawGain, blitz.DemesneDrawGain);
-        Check(nameof(PersistentSetupTraits), old.PersistentSetupTraits, blitz.PersistentSetupTraits);
-        Check(nameof(StrategicSetupTraits), old.StrategicSetupTraits, blitz.StrategicSetupTraits);
-        Check(nameof(LatentSetupValue), old.LatentSetupValue, blitz.LatentSetupValue);
-        Check(nameof(FutureResourceValue), old.FutureResourceValue, blitz.FutureResourceValue);
-        Check(nameof(ReplayPotentialValue), old.ReplayPotentialValue, blitz.ReplayPotentialValue);
-        Check(nameof(DelayedDamageValue), old.DelayedDamageValue, blitz.DelayedDamageValue);
-        Check(nameof(ReactiveDamageValue), old.ReactiveDamageValue, blitz.ReactiveDamageValue);
-        Check(nameof(OffensiveProgressValue), old.OffensiveProgressValue, blitz.OffensiveProgressValue);
-        Check(nameof(SandpitRemaining), old.SandpitRemaining, blitz.SandpitRemaining);
-        Check(nameof(EnemyStrengthSuppression), old.EnemyStrengthSuppression, blitz.EnemyStrengthSuppression);
-        Check(nameof(EnemyWeakTurns), old.EnemyWeakTurns, blitz.EnemyWeakTurns);
-        Check(nameof(PotionUseCount), old.PotionUseCount, blitz.PotionUseCount);
-        Check(nameof(PotionStrategicCost), old.PotionStrategicCost, blitz.PotionStrategicCost);
-        Check(nameof(AutomaticPotionUseCount), old.AutomaticPotionUseCount, blitz.AutomaticPotionUseCount);
-        Check(nameof(ExplicitPotionStrategicCost), old.ExplicitPotionStrategicCost, blitz.ExplicitPotionStrategicCost);
-        Check(nameof(ExplicitPotionUseCount), old.ExplicitPotionUseCount, blitz.ExplicitPotionUseCount);
-        Check(nameof(ProjectedShuffleOrderValue), old.ProjectedShuffleOrderValue,
-            blitz.ProjectedShuffleOrderValue);
-        Check(nameof(CanTriggerArtOfWarNextTurn), old.CanTriggerArtOfWarNextTurn,
-            blitz.CanTriggerArtOfWarNextTurn);
-        Check(nameof(EnemyCombatDistributionFirst), old.EnemyCombatDistributionFirst,
-            blitz.EnemyCombatDistributionFirst);
-        Check(nameof(EnemyCombatDistributionSecond), old.EnemyCombatDistributionSecond,
-            blitz.EnemyCombatDistributionSecond);
-        Check(nameof(EnemyControlDistributionFirst), old.EnemyControlDistributionFirst,
-            blitz.EnemyControlDistributionFirst);
-        Check(nameof(EnemyControlDistributionSecond), old.EnemyControlDistributionSecond,
-            blitz.EnemyControlDistributionSecond);
+        Check(nameof(StrategyGoalHpCredit), expected.StrategyGoalHpCredit, actual.StrategyGoalHpCredit);
+        Check(nameof(StrategicHpCredit), expected.StrategicHpCredit, actual.StrategicHpCredit);
+        Check(nameof(StrategyGoalCount), expected.StrategyGoalCount, actual.StrategyGoalCount);
+        Check(nameof(RelicSatisfiedMask), expected.RelicSatisfiedMask, actual.RelicSatisfiedMask);
+        Check(nameof(RelicTargetMask), expected.RelicTargetMask, actual.RelicTargetMask);
+        Check(nameof(RelicCounterValues), expected.RelicCounterValues, actual.RelicCounterValues);
+        Check(nameof(RelicTargetMinimums), expected.RelicTargetMinimums, actual.RelicTargetMinimums);
+        Check(nameof(RelicTargetMaximums), expected.RelicTargetMaximums, actual.RelicTargetMaximums);
+        Check(nameof(RelicHpCredit), expected.RelicHpCredit, actual.RelicHpCredit);
+        Check(nameof(RelicDistance), expected.RelicDistance, actual.RelicDistance);
+        Check(nameof(RelicSatisfiedPriority), expected.RelicSatisfiedPriority, actual.RelicSatisfiedPriority);
+        Check(nameof(RelicHealingHpCredit), expected.RelicHealingHpCredit, actual.RelicHealingHpCredit);
+        Check(nameof(AngerCopiesGenerated), expected.AngerCopiesGenerated, actual.AngerCopiesGenerated);
+        Check(nameof(EnemyHp), expected.EnemyHp, actual.EnemyHp);
+        Check(nameof(EnemyBlock), expected.EnemyBlock, actual.EnemyBlock);
+        Check(nameof(RawEnemyHp), expected.RawEnemyHp, actual.RawEnemyHp);
+        Check(nameof(MaxCurrentEnemyHp), expected.MaxCurrentEnemyHp, actual.MaxCurrentEnemyHp);
+        Check(nameof(AliveEnemyCount), expected.AliveEnemyCount, actual.AliveEnemyCount);
+        Check(nameof(AliveEnemyMask), expected.AliveEnemyMask, actual.AliveEnemyMask);
+        Check(nameof(RevivingEnemyCount), expected.RevivingEnemyCount, actual.RevivingEnemyCount);
+        Check(nameof(LiveDeckClutter), expected.LiveDeckClutter, actual.LiveDeckClutter);
+        Check(nameof(LiveDeckSize), expected.LiveDeckSize, actual.LiveDeckSize);
+        Check(nameof(OutstandingStolenResource), expected.OutstandingStolenResource, actual.OutstandingStolenResource);
+        Check(nameof(MinimumOutstandingStolenResource), expected.MinimumOutstandingStolenResource,
+            actual.MinimumOutstandingStolenResource);
+        Check(nameof(RetainedAttackValue), expected.RetainedAttackValue, actual.RetainedAttackValue);
+        Check(nameof(FocusTargetCombatId), expected.FocusTargetCombatId, actual.FocusTargetCombatId);
+        Check(nameof(FocusTargetPressure), expected.FocusTargetPressure, actual.FocusTargetPressure);
+        Check(nameof(FocusTargetRemainingHp), expected.FocusTargetRemainingHp, actual.FocusTargetRemainingHp);
+        Check(nameof(FocusTargetCurrentThreat), expected.FocusTargetCurrentThreat, actual.FocusTargetCurrentThreat);
+        Check(nameof(FocusTargetVulnerableTurns), expected.FocusTargetVulnerableTurns, actual.FocusTargetVulnerableTurns);
+        Check(nameof(MostVulnerableTargetCombatId), expected.MostVulnerableTargetCombatId, actual.MostVulnerableTargetCombatId);
+        Check(nameof(EnemyVulnerableTurns), expected.EnemyVulnerableTurns, actual.EnemyVulnerableTurns);
+        Check(nameof(Energy), expected.Energy, actual.Energy);
+        Check(nameof(Stars), expected.Stars, actual.Stars);
+        Check(nameof(HandCount), expected.HandCount, actual.HandCount);
+        Check(nameof(Turn), expected.Turn, actual.Turn);
+        Check(nameof(ReachableHandValue), expected.ReachableHandValue, actual.ReachableHandValue);
+        Check(nameof(ZeroCostPlayableCount), expected.ZeroCostPlayableCount, actual.ZeroCostPlayableCount);
+        Check(nameof(PlayableAttackCount), expected.PlayableAttackCount, actual.PlayableAttackCount);
+        Check(nameof(PersistentBuffValue), expected.PersistentBuffValue, actual.PersistentBuffValue);
+        Check(nameof(StrategicRetentionValue), expected.StrategicRetentionValue, actual.StrategicRetentionValue);
+        Check(nameof(StrategicDamagePotential), expected.StrategicDamagePotential, actual.StrategicDamagePotential);
+        Check(nameof(StrategicPreventionPotential), expected.StrategicPreventionPotential, actual.StrategicPreventionPotential);
+        Check(nameof(StrategicResourcePotential), expected.StrategicResourcePotential, actual.StrategicResourcePotential);
+        Check(nameof(StrategicCardAccessPotential), expected.StrategicCardAccessPotential, actual.StrategicCardAccessPotential);
+        Check(nameof(StrategicScalingPotential), expected.StrategicScalingPotential, actual.StrategicScalingPotential);
+        Check(nameof(HasRisk), expected.HasRisk, actual.HasRisk);
+        Check(nameof(Act3BossInteractions), expected.Act3BossInteractions, actual.Act3BossInteractions);
+        Check(nameof(FirstAttackDamage), expected.FirstAttackDamage, actual.FirstAttackDamage);
+        Check(nameof(EtherealDrawTriggers), expected.EtherealDrawTriggers, actual.EtherealDrawTriggers);
+        Check(nameof(PagestormBonusDrawCapacity), expected.PagestormBonusDrawCapacity,
+            actual.PagestormBonusDrawCapacity);
+        Check(nameof(HighEnergyPlays), expected.HighEnergyPlays, actual.HighEnergyPlays);
+        Check(nameof(DemesneEnergyGain), expected.DemesneEnergyGain, actual.DemesneEnergyGain);
+        Check(nameof(DemesneDrawGain), expected.DemesneDrawGain, actual.DemesneDrawGain);
+        Check(nameof(PersistentSetupTraits), expected.PersistentSetupTraits, actual.PersistentSetupTraits);
+        Check(nameof(StrategicSetupTraits), expected.StrategicSetupTraits, actual.StrategicSetupTraits);
+        Check(nameof(LatentSetupValue), expected.LatentSetupValue, actual.LatentSetupValue);
+        Check(nameof(FutureResourceValue), expected.FutureResourceValue, actual.FutureResourceValue);
+        Check(nameof(ReplayPotentialValue), expected.ReplayPotentialValue, actual.ReplayPotentialValue);
+        Check(nameof(DelayedDamageValue), expected.DelayedDamageValue, actual.DelayedDamageValue);
+        Check(nameof(ReactiveDamageValue), expected.ReactiveDamageValue, actual.ReactiveDamageValue);
+        Check(nameof(OffensiveProgressValue), expected.OffensiveProgressValue, actual.OffensiveProgressValue);
+        Check(nameof(SandpitRemaining), expected.SandpitRemaining, actual.SandpitRemaining);
+        Check(nameof(EnemyStrengthSuppression), expected.EnemyStrengthSuppression, actual.EnemyStrengthSuppression);
+        Check(nameof(EnemyWeakTurns), expected.EnemyWeakTurns, actual.EnemyWeakTurns);
+        Check(nameof(PotionUseCount), expected.PotionUseCount, actual.PotionUseCount);
+        Check(nameof(PotionStrategicCost), expected.PotionStrategicCost, actual.PotionStrategicCost);
+        Check(nameof(AutomaticPotionUseCount), expected.AutomaticPotionUseCount, actual.AutomaticPotionUseCount);
+        Check(nameof(ExplicitPotionStrategicCost), expected.ExplicitPotionStrategicCost, actual.ExplicitPotionStrategicCost);
+        Check(nameof(ExplicitPotionUseCount), expected.ExplicitPotionUseCount, actual.ExplicitPotionUseCount);
+        Check(nameof(ProjectedShuffleOrderValue), expected.ProjectedShuffleOrderValue,
+            actual.ProjectedShuffleOrderValue);
+        Check(nameof(CanTriggerArtOfWarNextTurn), expected.CanTriggerArtOfWarNextTurn,
+            actual.CanTriggerArtOfWarNextTurn);
+        Check(nameof(EnemyCombatDistributionFirst), expected.EnemyCombatDistributionFirst,
+            actual.EnemyCombatDistributionFirst);
+        Check(nameof(EnemyCombatDistributionSecond), expected.EnemyCombatDistributionSecond,
+            actual.EnemyCombatDistributionSecond);
+        Check(nameof(EnemyControlDistributionFirst), expected.EnemyControlDistributionFirst,
+            actual.EnemyControlDistributionFirst);
+        Check(nameof(EnemyControlDistributionSecond), expected.EnemyControlDistributionSecond,
+            actual.EnemyControlDistributionSecond);
         return lines;
     }
 }

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "rg-d-forge-create",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-rg-d-forge-create.json\u0022}",
+  "rulesSha256": "6a96b112c1b57be165f5c3a0852443ae115561a4549ca97f2fffae0edb973752",
+  "counts": {
+    "roots": 1,
+    "k1": 7,
+    "walks": 32,
+    "walkStates": 662,
+    "transitions": 630
+  }
+}

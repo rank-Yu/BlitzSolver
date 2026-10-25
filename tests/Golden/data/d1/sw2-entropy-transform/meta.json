@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "sw2-entropy-transform",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-sw2-entropy-transform.json\u0022}",
+  "rulesSha256": "feaf809538797aff1271257992fc8882c6aa6f6d616c80574a3fb1ed04425159",
+  "counts": {
+    "roots": 1,
+    "k1": 17,
+    "walks": 32,
+    "walkStates": 868,
+    "transitions": 837
+  }
+}

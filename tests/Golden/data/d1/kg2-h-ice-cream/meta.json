@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "kg2-h-ice-cream",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-kg2-h-ice-cream.json\u0022}",
+  "rulesSha256": "67020e73463d12b52dd91fe24aa1d5f971ea6eb909e28544d9e5631ce55ebcc8",
+  "counts": {
+    "roots": 1,
+    "k1": 8,
+    "walks": 32,
+    "walkStates": 1286,
+    "transitions": 1254
+  }
+}

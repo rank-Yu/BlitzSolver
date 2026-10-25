@@ -76,7 +76,7 @@ public sealed class BlitzGoldenState
 /// <summary>Canonical action, choice-request and D1 file encoding. No padding bytes are written.</summary>
 public static class BlitzGoldenData
 {
-    private const uint Magic = 0x31444746; // "FGD1"
+    internal const uint Magic = 0x444C4F47; // "GOLD"
 
     public static byte[] Encode(BlitzGoldenRootRecord record)
         => BlitzCodec.ToBytes(writer =>

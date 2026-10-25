@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "p15-c-turn-powers",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p15-c-turn-powers.json\u0022}",
+  "rulesSha256": "66717393c60356173220480ad74ad5c10280d19d75c47c9390a85da0cfc25901",
+  "counts": {
+    "roots": 1,
+    "k1": 29,
+    "walks": 32,
+    "walkStates": 1920,
+    "transitions": 1920
+  }
+}

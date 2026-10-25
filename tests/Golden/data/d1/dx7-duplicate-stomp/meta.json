@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "dx7-duplicate-stomp",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-dx7-duplicate-stomp.json\u0022}",
+  "rulesSha256": "ac76310013ed2f61a363718a8c7a94b5eb721260f2543ccb54e2f949073f4794",
+  "counts": {
+    "roots": 1,
+    "k1": 5,
+    "walks": 32,
+    "walkStates": 488,
+    "transitions": 456
+  }
+}

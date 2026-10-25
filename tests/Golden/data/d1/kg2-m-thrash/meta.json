@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "kg2-m-thrash",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-kg2-m-thrash.json\u0022}",
+  "rulesSha256": "603d42e63e2f4c8e0f0562b1c6318cb1d4291d13b74dd00c9145be90e4503410",
+  "counts": {
+    "roots": 1,
+    "k1": 13,
+    "walks": 32,
+    "walkStates": 775,
+    "transitions": 743
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "quality-SILENT-007",
+  "input": "{\u0022kind\u0022:\u0022quality\u0022,\u0022spec\u0022:\u0022coverage/corpora/flash-quality/SILENT-007/spec.json\u0022,\u0022request\u0022:\u0022coverage/corpora/flash-quality/SILENT-007/request.json\u0022}",
+  "rulesSha256": "50a4b1459c16451a8b65f0ddcb084b2e9e32ce2e7d79976382c7d0fa7b983bdc",
+  "counts": {
+    "roots": 1,
+    "k1": 15,
+    "walks": 48,
+    "walkStates": 1672,
+    "transitions": 1624
+  }
+}

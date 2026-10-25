@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "a3-axebots-normal",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-a3-axebots-normal.json\u0022}",
+  "rulesSha256": "67556a40ca5943b700ab0f2d694f0b4228eb795d945787e1f6dbdc9a5b44cebd",
+  "counts": {
+    "roots": 1,
+    "k1": 7,
+    "walks": 32,
+    "walkStates": 1920,
+    "transitions": 1920
+  }
+}

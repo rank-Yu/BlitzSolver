@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "nb-g-utility2",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-nb-g-utility2.json\u0022}",
+  "rulesSha256": "e10c430b897605fc995f13fbb262c071485fc835b65bbd37ffdabcf362bef5bd",
+  "counts": {
+    "roots": 1,
+    "k1": 10,
+    "walks": 32,
+    "walkStates": 1425,
+    "transitions": 1393
+  }
+}

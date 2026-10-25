@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "p16-potions-gigantification",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p16-potions-gigantification.json\u0022}",
+  "rulesSha256": "7d8c9f0fa363bcf5ad31247ef887833e6cf52e9a4dd57c758417adc1b2ec45d0",
+  "counts": {
+    "roots": 1,
+    "k1": 12,
+    "walks": 32,
+    "walkStates": 857,
+    "transitions": 825
+  }
+}

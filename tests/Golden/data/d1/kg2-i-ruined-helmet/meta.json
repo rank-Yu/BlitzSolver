@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "kg2-i-ruined-helmet",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-kg2-i-ruined-helmet.json\u0022}",
+  "rulesSha256": "1fcd822bf67656f8fc4a38e42c85f6cece51534ec982ffeafbdc111f00567052",
+  "counts": {
+    "roots": 1,
+    "k1": 3,
+    "walks": 32,
+    "walkStates": 1920,
+    "transitions": 1920
+  }
+}

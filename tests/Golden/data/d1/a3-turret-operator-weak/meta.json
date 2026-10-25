@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "a3-turret-operator-weak",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-a3-turret-operator-weak.json\u0022}",
+  "rulesSha256": "af92b569936baf1a6918a2ad004905ae279c306f68435161ed5546e6af8aae31",
+  "counts": {
+    "roots": 1,
+    "k1": 13,
+    "walks": 32,
+    "walkStates": 105,
+    "transitions": 73
+  }
+}

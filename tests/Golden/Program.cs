@@ -16,7 +16,10 @@ try
     {
         case "k0":
             BlitzRulesCodecContract.Run();
-            Console.WriteLine($"K0 Passed fields={BlitzRules.SchemaFieldCount} battleBytes={Unsafe.SizeOf<BlitzBattle>()}");
+            string magics = BlitzFormatContract.Run();
+            Console.WriteLine($"K0 Passed fields={BlitzRules.SchemaFieldCount} "
+                + $"battleBytes={Unsafe.SizeOf<BlitzBattle>()} formatVersion={BlitzCodec.FormatVersion} "
+                + $"magics={magics}");
             return 0;
         case "verify":
             return VerifyCommand.Run(args[1..]);
@@ -29,7 +32,7 @@ try
 }
 catch (InvalidDataException error)
 {
-    Console.Error.WriteLine($"BLITZ_GOLDEN_INVALID {error.Message}");
+    Console.Error.WriteLine($"GOLDEN_INVALID {error.Message}");
     return 1;
 }
 catch (AggregateException error)
@@ -37,9 +40,9 @@ catch (AggregateException error)
     AggregateException flattened = error.Flatten();
     Exception? first = flattened.InnerExceptions.FirstOrDefault();
     if (first is InvalidDataException invalid)
-        Console.Error.WriteLine($"BLITZ_GOLDEN_INVALID {invalid.Message}");
+        Console.Error.WriteLine($"GOLDEN_INVALID {invalid.Message}");
     else
-        Console.Error.WriteLine($"BLITZ_GOLDEN_FAILED {first?.GetType().Name}: {first?.Message}");
+        Console.Error.WriteLine($"GOLDEN_FAILED {first?.GetType().Name}: {first?.Message}");
     return 1;
 }
 
@@ -126,7 +129,7 @@ internal static class VerifyCommand
             (null, not null) => $"d2Selected={d2.Selected} d2Equal={d2.Equal} d2Mismatch={d2.Mismatch}",
             _ => "",
         };
-        Console.WriteLine($"BLITZ_GOLDEN_VERIFY {totals} only={only} shard={shard}/{shards} mismatched=0");
+        Console.WriteLine($"GOLDEN_VERIFY {totals} only={only} shard={shard}/{shards} mismatched=0");
         return 0;
     }
 

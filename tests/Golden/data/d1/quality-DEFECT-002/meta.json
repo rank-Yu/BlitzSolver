@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "quality-DEFECT-002",
+  "input": "{\u0022kind\u0022:\u0022quality\u0022,\u0022spec\u0022:\u0022coverage/corpora/flash-quality/DEFECT-002/spec.json\u0022,\u0022request\u0022:\u0022coverage/corpora/flash-quality/DEFECT-002/request.json\u0022}",
+  "rulesSha256": "83b6f502fa7ff12c608bf3a2731e17861dbbd8bb2999d9400ecd3dbab86f4174",
+  "counts": {
+    "roots": 1,
+    "k1": 6,
+    "walks": 48,
+    "walkStates": 1571,
+    "transitions": 1523
+  }
+}

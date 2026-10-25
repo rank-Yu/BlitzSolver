@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "id-c-instanced-powers",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-id-c-instanced-powers.json\u0022}",
+  "rulesSha256": "5e39ccb2373d7e88dd8ed98968a3a8e7a8e0c50908cbbafd573f78bb5db44089",
+  "counts": {
+    "roots": 1,
+    "k1": 8,
+    "walks": 32,
+    "walkStates": 542,
+    "transitions": 510
+  }
+}

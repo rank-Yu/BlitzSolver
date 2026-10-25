@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "k3-basic-potions",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-k3-basic-potions.json\u0022}",
+  "rulesSha256": "3286613611625ea5c50d7dd37c17628114f936948c4e5e06bb9723f6754131a3",
+  "counts": {
+    "roots": 1,
+    "k1": 16,
+    "walks": 32,
+    "walkStates": 741,
+    "transitions": 709
+  }
+}

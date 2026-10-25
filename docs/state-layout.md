@@ -214,9 +214,9 @@
 
 ## 5. 容量与失败
 
-- 任何写入超过容量都抛 `BlitzCapacityException`，携带区块名与容量。搜索展开中的这类异常是**子状态边界**：`BlitzBeamSolver` 只丢弃抛出异常的那一个子状态（选择请求的每个选项分支各自独立），按区块名计数进 `BlitzBeamResult.CapacityDroppedChildren`，其余子状态照常提交与去重；不截断、不覆盖、不逐出。内核不支持的语义（`BlitzUnsupportedException`）仍让整次 Blitz 求解作废；On 模式写 `BLITZ_SEARCH_FAILED` 并停止部署。
+- 任何写入超过容量都抛 `BlitzCapacityException`，携带区块名与容量。搜索展开中的这类异常是**子状态边界**：`BlitzBeamSolver` 只丢弃抛出异常的那一个子状态（选择请求的每个选项分支各自独立），按区块名计数进 `BlitzBeamResult.CapacityDroppedChildren`，其余子状态照常提交与去重；不截断、不覆盖、不逐出。内核不支持的语义（`BlitzUnsupportedException`）仍让整次 Blitz 求解作废；On 模式写 `SEARCH_FAILED` 并停止部署。
 - 两个可增长池（`next`/`ended`）各自的上限是 `min(width × (MaxLegalActions + 1), 16,512)` 个状态：`16,512 = floor(200 MiB / sizeof(BlitzBattle))` 向下取整到 64 槽块（12,696 B 状态时 200 MiB 可容纳 16,518 个，取 16,512 个 = 209,636,352 B）。`PoolStateBudgetBytes = 200 MiB` 是单池上限，两个池各自计。回合结束层（`ended`）达到上限时按与回合边界相同的保留规则压缩到 `width × 8` 后继续，不整次回落；压缩次数与被压缩子状态数记入 `EndedCompactions`/`EndedCompressedStates`。`next` 达到上限时每个装不下的唯一子状态逐个丢弃并计数。语义见 [搜索](search.md#1-blitzbeamsolver) 的“回合结束层压缩”。
-- 根状态本身超过容量（根导入或根评分在展开循环之前抛出）仍是导入拒绝：整次 Blitz 求解作废，On 模式写 `BLITZ_SEARCH_FAILED reason=kernel-capacity` 并停止部署，不部分提交。
+- 根状态本身超过容量（根导入或根评分在展开循环之前抛出）仍是导入拒绝：整次 Blitz 求解作废，On 模式写 `SEARCH_FAILED reason=kernel-capacity` 并停止部署，不部分提交。
 - 准入阶段按牌组规模和可生成内容估计上限，明显超出容量的根直接不准入，避免搜索中途失败。
 - 数值钳制与旧引擎一致（HP、格挡、能量、Power 数量钳制在 ±999,999,999），由内核统一实现。
 

@@ -11,6 +11,7 @@ internal static class ManifestProvenance
     internal const string D1 = "75217006903195bc94654680423bb9ca580ec48a";
     internal const string D2 = "75217006903195bc94654680423bb9ca580ec48a";
     internal const string D1Config = "66a43838d89e7a03b05c0f04d5e4941ff555baec";
+    internal const string FormatMigration = "v1→v2 只改了数据格式里的名字（魔数、版本、容量键与根名），字段值不变。";
 }
 
 internal static class ManifestBuilder
@@ -22,10 +23,7 @@ internal static class ManifestBuilder
         + @"|d2/requests/[0-9a-f]{64}\.request\.br"
         + @"|d2/expected/[0-9a-f]{64}\.result\.br"
         + @"|d2/replay-report-[0-9]+-of-[0-9]+\.json"
-        + @"|d2/rules-index-[0-9]+-of-[0-9]+\.json"
-        + @"|d2/replay-[0-9]+\.log"
-        + @"|d2/raw/[^/]+/[0-9a-f]{64}(?:\.[0-9]+\.[0-9]+)?\.capture\.br"
-        + @"|d2/raw/[^/]+/unsupported\.log)$",
+        + @"|d2/rules-index-[0-9]+-of-[0-9]+\.json)$",
         RegexOptions.CultureInvariant);
 
     internal static void Write(string dataDirectory)
@@ -157,7 +155,7 @@ internal static class ManifestBuilder
             .Where(static entry => entry.Path.StartsWith("objects/rules/", StringComparison.Ordinal))
             .Select(static entry => entry.Path["objects/rules/".Length..^".br".Length])
             .ToHashSet(StringComparer.Ordinal);
-        // FRS1 embeds its complete FRUL bytes: D2 rules-index values do not reference
+        // SREQ embeds its complete RULE bytes: D2 rules-index values do not reference
         // objects/rules entries. Only D1 meta.rulesSha256 does.
         string[] orphanRules = ruleObjects.Where(hash => !referencedRules.Contains(hash))
             .Order(StringComparer.Ordinal).ToArray();
@@ -191,11 +189,12 @@ internal static class ManifestBuilder
         {
             writer.WriteStartObject();
             writer.WriteNumber("formatVersion", BlitzCodec.FormatVersion);
-            writer.WriteNumber("flashBattleSize", Unsafe.SizeOf<BlitzBattle>());
+            writer.WriteNumber("battleSize", Unsafe.SizeOf<BlitzBattle>());
             writer.WriteStartObject("provenance");
             writer.WriteString("d1", ManifestProvenance.D1);
             writer.WriteString("d2", ManifestProvenance.D2);
             writer.WriteString("d1Config", ManifestProvenance.D1Config);
+            writer.WriteString("formatMigration", ManifestProvenance.FormatMigration);
             writer.WriteEndObject();
             writer.WriteString("compression", "brotli");
             writer.WriteStartObject("counts");

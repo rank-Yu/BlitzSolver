@@ -3526,7 +3526,7 @@ internal sealed partial class BlitzBeamSolver
             // cannot get a seat is dropped and counted as a capacity boundary; the cumulative
             // end-turn pool is compacted in AddEndTurnChild instead.
             if (Count >= _maxCapacity)
-                throw new BlitzCapacityException("FlashBeam.Pool", _maxCapacity);
+                throw new BlitzCapacityException("Beam.Pool", _maxCapacity);
             if ((Count & ChunkedArray<BlitzBattle>.ChunkMask) != 0)
             {
                 _scratchReserved = false;
@@ -3723,7 +3723,7 @@ internal sealed partial class BlitzBeamSolver
             // The capacity bound is checked only after the state is known to be unique: a duplicate or a
             // terminal child built in the scratch slot never needs a seat.
             if (Count >= _maxCapacity)
-                throw new BlitzCapacityException("FlashBeam.Pool", _maxCapacity);
+                throw new BlitzCapacityException("Beam.Pool", _maxCapacity);
             RetentionFacts facts = knownFacts;
             if (!factsReady)
             {

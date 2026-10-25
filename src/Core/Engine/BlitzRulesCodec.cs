@@ -10,7 +10,7 @@ namespace BlitzSolver.Engine;
 /// </summary>
 public static class BlitzRulesCodec
 {
-    private const uint Magic = 0x4C555246; // "FRUL"
+    internal const uint Magic = 0x454C5552; // "RULE"
 
     /// <summary>Matches <see cref="BlitzRules.SchemaFieldCount"/>; the K0 contract checks both.</summary>
     internal const int EncodedFieldCount = 30;

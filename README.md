@@ -33,7 +33,7 @@ dotnet run --project tests/Golden -c Release --no-build -- k0
 dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data
 ```
 
-`verify` 重放 418 个根、48 万个游走状态（约 10 秒），并对 1,983 个搜索请求重新求解（8 并行约 6 分钟）。`--only d1|d2`、`--shard i/n`、`--jobs N` 可以拆开运行。
+`verify` 重放 418 个根、48 万个游走状态（约 12 秒），并对 1,983 个搜索请求重新求解（8 并行约 5 分钟）。`--only d1|d2`、`--shard i/n`、`--jobs N` 可以拆开运行。
 
 ## 来源与许可
 

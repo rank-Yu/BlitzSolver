@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "quality-REGENT-007",
+  "input": "{\u0022kind\u0022:\u0022quality\u0022,\u0022spec\u0022:\u0022coverage/corpora/flash-quality/REGENT-007/spec.json\u0022,\u0022request\u0022:\u0022coverage/corpora/flash-quality/REGENT-007/request.json\u0022}",
+  "rulesSha256": "47fab8351a4e8cbf0e007c6682153952a5dda2ad3bbbc61505cb65e5e3049c73",
+  "counts": {
+    "roots": 1,
+    "k1": 8,
+    "walks": 48,
+    "walkStates": 1154,
+    "transitions": 1106
+  }
+}

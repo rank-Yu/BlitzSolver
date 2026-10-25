@@ -83,10 +83,10 @@ internal static class BlitzNoveltyFacts
     }
 
     /// <summary>One line per fact that differs, or an empty list when the two multisets are equal.</summary>
-    public static List<string> Diff(IReadOnlyList<BfwsFact> old, IReadOnlyList<BfwsFact> blitz)
+    public static List<string> Diff(IReadOnlyList<BfwsFact> expected, IReadOnlyList<BfwsFact> actual)
     {
-        string[] left = Canonical(old).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        string[] right = Canonical(blitz).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        string[] left = Canonical(expected).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        string[] right = Canonical(actual).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         List<string> lines = [];
         int i = 0, j = 0;
         while (i < left.Length || j < right.Length)
@@ -100,7 +100,7 @@ internal static class BlitzNoveltyFacts
                 j++;
                 continue;
             }
-            lines.Add(comparison < 0 ? $"novelty-fact old-only {left[i++]}" : $"novelty-fact blitz-only {right[j++]}");
+            lines.Add(comparison < 0 ? $"novelty-fact expected-only {left[i++]}" : $"novelty-fact actual-only {right[j++]}");
             if (lines.Count == 6)
                 break;
         }

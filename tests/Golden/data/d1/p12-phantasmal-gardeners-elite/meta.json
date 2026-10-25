@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "p12-phantasmal-gardeners-elite",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p12-phantasmal-gardeners-elite.json\u0022}",
+  "rulesSha256": "1a897735f8ac87fe4bcd2dab7d395a4559648ca386e52535abb73f2e9ee429ec",
+  "counts": {
+    "roots": 1,
+    "k1": 22,
+    "walks": 32,
+    "walkStates": 1336,
+    "transitions": 1304
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "ts-b-toolbox",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-ts-b-toolbox.json\u0022}",
+  "rulesSha256": "78233fa1a3f606d147406a8fd97a53cfc8e992fed2f6d1488619a9a6b451e09d",
+  "counts": {
+    "roots": 3,
+    "k1": 39,
+    "walks": 96,
+    "walkStates": 2368,
+    "transitions": 2272
+  }
+}

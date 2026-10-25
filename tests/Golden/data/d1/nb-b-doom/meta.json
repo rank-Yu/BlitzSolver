@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "nb-b-doom",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-nb-b-doom.json\u0022}",
+  "rulesSha256": "89bb3251b980301db08d101ed3479bda9a7551b3e7a020acdad311947e797ce3",
+  "counts": {
+    "roots": 1,
+    "k1": 11,
+    "walks": 32,
+    "walkStates": 858,
+    "transitions": 826
+  }
+}

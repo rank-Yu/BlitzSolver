@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "qp1-ashwater",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-qp1-ashwater.json\u0022}",
+  "rulesSha256": "560d35553b693d8af6ff2aacd308f15e02b8f63d88d46c0bcb777d2cafb013fe",
+  "counts": {
+    "roots": 1,
+    "k1": 74,
+    "walks": 32,
+    "walkStates": 1623,
+    "transitions": 1593
+  }
+}

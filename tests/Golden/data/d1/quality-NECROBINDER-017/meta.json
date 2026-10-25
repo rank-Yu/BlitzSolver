@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "quality-NECROBINDER-017",
+  "input": "{\u0022kind\u0022:\u0022quality\u0022,\u0022spec\u0022:\u0022coverage/corpora/flash-quality/NECROBINDER-017/spec.json\u0022,\u0022request\u0022:\u0022coverage/corpora/flash-quality/NECROBINDER-017/request.json\u0022}",
+  "rulesSha256": "7bfc4204168a08e617a256f85af1525b1e6b4ba10b30ddaf20f2f675f49b891d",
+  "counts": {
+    "roots": 1,
+    "k1": 12,
+    "walks": 48,
+    "walkStates": 1344,
+    "transitions": 1296
+  }
+}

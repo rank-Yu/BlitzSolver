@@ -17,4 +17,4 @@ PowerShell 先设置 `$env:DOTNET_TieredCompilation = '0'`，再运行相同 dot
 
 输出 JSON 中的 `benchmark` 是纵切内容上的 Beam 形工作负载耗时（复制、执行、哈希分别计时）和测量循环的托管分配量，只作为内核性能的回归参考，不代表完整搜索耗时。
 
-差分正确性不在本项目里检查，见 [Blitz 测试记录](../../../../docs/flash-search/testing.md)。
+差分正确性不在本项目里检查，见 [测试与验证](../../docs/testing.md)。

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "rg-c-powers",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-rg-c-powers.json\u0022}",
+  "rulesSha256": "893740e5e7f9f21bf415dfa459bb4b98c676bdadfa56f68b7a89e624587b19d6",
+  "counts": {
+    "roots": 1,
+    "k1": 11,
+    "walks": 32,
+    "walkStates": 776,
+    "transitions": 744
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "sk-d-simple",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-sk-d-simple.json\u0022}",
+  "rulesSha256": "6f21ce57a845d9113e391ce3a2261bbb64b0fa065e7622cdadef48ab8f9edc9a",
+  "counts": {
+    "roots": 1,
+    "k1": 17,
+    "walks": 32,
+    "walkStates": 1920,
+    "transitions": 1920
+  }
+}

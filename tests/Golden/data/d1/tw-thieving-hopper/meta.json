@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "tw-thieving-hopper",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-tw-thieving-hopper.json\u0022}",
+  "rulesSha256": "483ee6b683626769e8d9d38de1dca0b16de1d52d8f09f8464ee7e3017f4906ea",
+  "counts": {
+    "roots": 1,
+    "k1": 7,
+    "walks": 32,
+    "walkStates": 730,
+    "transitions": 698
+  }
+}

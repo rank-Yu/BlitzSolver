@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "pr-b-potions2",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-pr-b-potions2.json\u0022}",
+  "rulesSha256": "8d00508bdc43471b309e219766e150ad778bc45836eebf7bd81ae36b5b7dcf5e",
+  "counts": {
+    "roots": 1,
+    "k1": 19,
+    "walks": 32,
+    "walkStates": 706,
+    "transitions": 674
+  }
+}

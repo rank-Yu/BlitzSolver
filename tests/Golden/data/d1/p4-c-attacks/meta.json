@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "p4-c-attacks",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p4-c-attacks.json\u0022}",
+  "rulesSha256": "248f9d35d66d4e49e0688eedda396257ce8c00d9d54f607401f7ab01451ba40e",
+  "counts": {
+    "roots": 1,
+    "k1": 13,
+    "walks": 32,
+    "walkStates": 737,
+    "transitions": 705
+  }
+}

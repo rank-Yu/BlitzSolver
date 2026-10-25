@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "qf-misery-roster",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-qf-misery-roster.json\u0022}",
+  "rulesSha256": "850313e84d9caf422aa2dca1d66dcc8fa7c8d8377a76cea5cf21df30a9e47680",
+  "counts": {
+    "roots": 1,
+    "k1": 19,
+    "walks": 32,
+    "walkStates": 659,
+    "transitions": 627
+  }
+}

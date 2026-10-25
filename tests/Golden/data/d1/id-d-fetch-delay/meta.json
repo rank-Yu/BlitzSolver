@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "id-d-fetch-delay",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-id-d-fetch-delay.json\u0022}",
+  "rulesSha256": "31e9d01767b09ccce8292875bf9399368326e5269c1268df4d3c77e9ec45babf",
+  "counts": {
+    "roots": 1,
+    "k1": 7,
+    "walks": 32,
+    "walkStates": 735,
+    "transitions": 703
+  }
+}

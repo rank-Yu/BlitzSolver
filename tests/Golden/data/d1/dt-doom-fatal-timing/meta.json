@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "dt-doom-fatal-timing",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-dt-doom-fatal-timing.json\u0022}",
+  "rulesSha256": "6c1686e6d73e0ce044a6eb0d4b9969dca10ffb097b78585bc416bd241b0cbc91",
+  "counts": {
+    "roots": 1,
+    "k1": 1,
+    "walks": 32,
+    "walkStates": 64,
+    "transitions": 32
+  }
+}

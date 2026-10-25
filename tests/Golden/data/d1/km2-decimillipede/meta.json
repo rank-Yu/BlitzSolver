@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "km2-decimillipede",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-km2-decimillipede.json\u0022}",
+  "rulesSha256": "f107498caadff70d0143db832498ecaa95d3a0aabf3e67cb122262fde35310c5",
+  "counts": {
+    "roots": 1,
+    "k1": 15,
+    "walks": 32,
+    "walkStates": 1717,
+    "transitions": 1707
+  }
+}

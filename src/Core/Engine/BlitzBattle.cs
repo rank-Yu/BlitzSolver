@@ -256,7 +256,7 @@ public enum BlitzCounter : byte
 /// <summary>
 /// All branch-mutable state of one combat at a stable boundary. Unmanaged and reference-free:
 /// a copy is a deep fork, and the byte image is the state identity. See
-/// <c>docs/flash-search/state-layout.md</c>. Field order avoids implicit padding; the total size
+/// <c>docs/state-layout.md</c>. Field order avoids implicit padding; the total size
 /// is asserted by <c>BlitzSolver.KernelChecks</c>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "kg1-a-autoplay",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-kg1-a-autoplay.json\u0022}",
+  "rulesSha256": "0d531dc15c1a8508882e2a403ac47ff38aa8d3450d554297d328fb7a8a52ddfc",
+  "counts": {
+    "roots": 1,
+    "k1": 11,
+    "walks": 32,
+    "walkStates": 243,
+    "transitions": 211
+  }
+}

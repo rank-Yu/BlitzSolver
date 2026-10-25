@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "ls-a-silent-attacks",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-ls-a-silent-attacks.json\u0022}",
+  "rulesSha256": "1f7fa7ad3e28ee7f0a3fea48ae9a8b2bfe8586b5426980939045d2e984bd8c4c",
+  "counts": {
+    "roots": 1,
+    "k1": 16,
+    "walks": 32,
+    "walkStates": 1920,
+    "transitions": 1920
+  }
+}

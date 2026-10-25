@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "df-d-generation",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-df-d-generation.json\u0022}",
+  "rulesSha256": "38b49ee718e04aca4757c38bb6f37a0ccf4f44da1b2b30533b71ffd9d89973ad",
+  "counts": {
+    "roots": 1,
+    "k1": 19,
+    "walks": 32,
+    "walkStates": 1920,
+    "transitions": 1920
+  }
+}

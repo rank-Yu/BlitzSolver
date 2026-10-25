@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "ts-a-toasty",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-ts-a-toasty.json\u0022}",
+  "rulesSha256": "d158e2ebafd83d66af1ab927efaccb214d463243c5325480d227d7e7fbed83d1",
+  "counts": {
+    "roots": 4,
+    "k1": 49,
+    "walks": 128,
+    "walkStates": 2982,
+    "transitions": 2854
+  }
+}

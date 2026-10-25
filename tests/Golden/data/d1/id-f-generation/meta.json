@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "id-f-generation",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-id-f-generation.json\u0022}",
+  "rulesSha256": "a658133af86f0ee823c645ab87a68eafe9350e66dcdd80ca35abba7f1adbaf6b",
+  "counts": {
+    "roots": 1,
+    "k1": 14,
+    "walks": 32,
+    "walkStates": 465,
+    "transitions": 433
+  }
+}

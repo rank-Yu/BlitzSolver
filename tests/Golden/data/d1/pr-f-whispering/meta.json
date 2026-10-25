@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "pr-f-whispering",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-pr-f-whispering.json\u0022}",
+  "rulesSha256": "8d01af00438ebcbd1bb71c8ad5d3554005d5e2fe409ce0a2b81067948ceacef4",
+  "counts": {
+    "roots": 1,
+    "k1": 1,
+    "walks": 32,
+    "walkStates": 544,
+    "transitions": 512
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "p2-c-powers",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p2-c-powers.json\u0022}",
+  "rulesSha256": "2be5730b5d1feb1bdccffe2b09efe6a9ef06bc3a9a681bec20c872bd9d9cbad9",
+  "counts": {
+    "roots": 1,
+    "k1": 19,
+    "walks": 32,
+    "walkStates": 483,
+    "transitions": 451
+  }
+}

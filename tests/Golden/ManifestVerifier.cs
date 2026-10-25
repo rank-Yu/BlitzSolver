@@ -28,7 +28,7 @@ internal static class ManifestVerifier
         JsonElement root = manifest.RootElement;
         if (root.GetProperty("formatVersion").GetInt32() != BlitzCodec.FormatVersion)
             throw new InvalidDataException("manifest.json 的格式版本不符。");
-        if (root.GetProperty("flashBattleSize").GetInt32() != Unsafe.SizeOf<BlitzBattle>())
+        if (root.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<BlitzBattle>())
             throw new InvalidDataException("manifest.json 的 BlitzBattle 大小不符。");
         if (!string.Equals(root.GetProperty("compression").GetString(), "brotli", StringComparison.Ordinal))
             throw new InvalidDataException("manifest.json 的压缩格式不是 brotli。");
@@ -37,7 +37,8 @@ internal static class ManifestVerifier
         JsonElement provenance = root.GetProperty("provenance");
         if (provenance.GetProperty("d1").GetString() != ManifestProvenance.D1
             || provenance.GetProperty("d2").GetString() != ManifestProvenance.D2
-            || provenance.GetProperty("d1Config").GetString() != ManifestProvenance.D1Config)
+            || provenance.GetProperty("d1Config").GetString() != ManifestProvenance.D1Config
+            || provenance.GetProperty("formatMigration").GetString() != ManifestProvenance.FormatMigration)
             throw new InvalidDataException("manifest.json 的 provenance 不符。");
 
         string normalizedData = Path.GetFullPath(dataDirectory) + Path.DirectorySeparatorChar;

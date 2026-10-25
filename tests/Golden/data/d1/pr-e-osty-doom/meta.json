@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "pr-e-osty-doom",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-pr-e-osty-doom.json\u0022}",
+  "rulesSha256": "ef08771e8387dfc091c367f1d89074e19e433d148195ed2fa5ef991e33665596",
+  "counts": {
+    "roots": 1,
+    "k1": 18,
+    "walks": 32,
+    "walkStates": 588,
+    "transitions": 556
+  }
+}

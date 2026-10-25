@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "r3-a-distilled-chaos",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-r3-a-distilled-chaos.json\u0022}",
+  "rulesSha256": "e5c8e9e3e50df6d84103dfae056a28dcf069948bba481071f0b29f23620b835d",
+  "counts": {
+    "roots": 1,
+    "k1": 10,
+    "walks": 32,
+    "walkStates": 944,
+    "transitions": 912
+  }
+}

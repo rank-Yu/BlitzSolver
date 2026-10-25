@@ -13,7 +13,7 @@ namespace BlitzSolver.Engine;
 /// </summary>
 internal static class BlitzCodec
 {
-    internal const ushort FormatVersion = 1;
+    internal const ushort FormatVersion = 2;
 
     internal static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
@@ -174,7 +174,7 @@ internal static class BlitzCodec
 /// </summary>
 public static class BlitzBattleCodec
 {
-    private const uint Magic = 0x54414246; // "FBAT"
+    internal const uint Magic = 0x4C544142; // "BATL"
 
     /// <summary>Encoded header bytes: magic, version, size.</summary>
     public const int HeaderSize = 4 + 2 + 4;

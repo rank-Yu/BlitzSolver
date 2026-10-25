@@ -1,0 +1,14 @@
+{
+  "formatVersion": 2,
+  "battleSize": 12696,
+  "root": "p1-fuzzy-wurm-weak",
+  "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p1-fuzzy-wurm-weak.json\u0022}",
+  "rulesSha256": "265f10c2e05b96008caa3549ccb6aaa2283af1610e20e54857d7229ffbca31ca",
+  "counts": {
+    "roots": 1,
+    "k1": 7,
+    "walks": 32,
+    "walkStates": 379,
+    "transitions": 347
+  }
+}

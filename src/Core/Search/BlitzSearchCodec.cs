@@ -20,8 +20,8 @@ internal sealed record BlitzSearchCase(BlitzRules Rules, BlitzBattle[] Battles, 
 /// </summary>
 internal static class BlitzSearchCodec
 {
-    private const uint RequestMagic = 0x31535246; // "FRS1"
-    private const uint ResultMagic = 0x31535252;  // "FRR1"
+    internal const uint RequestMagic = 0x51455253; // "SREQ"
+    internal const uint ResultMagic = 0x53455253; // "SRES"
 
     internal static byte[] EncodeRequest(BlitzSearchCase search)
         => BlitzCodec.ToBytes(writer =>
