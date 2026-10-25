@@ -11,8 +11,11 @@ internal readonly record struct RelicCounterTarget(RelicCounterId Id, int Minimu
 
 internal readonly record struct RelicCounterEvaluation(ulong SatisfiedMask, ulong TargetMask, int HpCredit, int Distance)
 {
+    // Ten counters and the half-HP flag fit in four-bit slots; these preserve each
+    // route's exact ending value without allocating a collection per search node.
     public ulong CounterValues { get; init; }
     public int SatisfiedPriority { get; init; }
+    // Actual healing reduces net HP cost, while goal allowances only rank policy rewards.
     public int HealingHpCredit { get; init; }
     public ulong TargetMinimums { get; init; }
     public ulong TargetMaximums { get; init; }

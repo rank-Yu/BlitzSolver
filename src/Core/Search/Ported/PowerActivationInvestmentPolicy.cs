@@ -1,6 +1,10 @@
 // Ported from CombatSolver src/Search/PowerCardValuation/Commitments/PowerActivationInvestmentPolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
 namespace CombatSolver;
 
+/// <summary>
+/// 能力路线尚未兑现时使用的启动投资。这里只折算战斗前两回合的能量机会成本；真实掉血仍按原值记账。
+/// 跑图越靠后，构筑越依赖已经成型的引擎，开局启动的中间惩罚越低。
+/// </summary>
 internal static class PowerActivationInvestmentPolicy
 {
     internal const int ValuePerEnergy = 8;

@@ -16,6 +16,10 @@ internal readonly record struct PowerTurnFrontierState(
     int RemainingEnergy,
     int CardAccess);
 
+/// <summary>
+/// 对一手已经冻结的牌做有界子集动态规划。它比较“能否少出一张防、把省下的能量转成输出”，
+/// 不启动 Simulator，也不枚举抽牌树。
+/// </summary>
 internal static class PowerTurnFrontier
 {
     internal const int MaximumStates = 64;

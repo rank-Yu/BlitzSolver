@@ -17,6 +17,10 @@ internal readonly record struct PowerRouteAdmissionResult(
     bool Admitted,
     int Potential);
 
+/// <summary>
+/// 通用能力路线准入判定。所有角色共用同一套顺序；逐卡差异只由 <see cref="PowerRouteAdmissionPolicy" />
+/// 表达。固定前缀后验与终局比较都不读取这里的结论。
+/// </summary>
 internal static class PowerRouteAdmission
 {
     internal static PowerRouteAdmissionResult Evaluate(

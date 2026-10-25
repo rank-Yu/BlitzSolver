@@ -5,6 +5,9 @@ internal static partial class StrategicHpRecoveryBound
 {
     internal static int RegenerationHealingUpperBound(long regen, int postCombatHeal)
     {
+        // Stacking all remaining doses before the first tick is an upper bound on every
+        // later ordering. Regen's native callback heals the amount, then decrements it.
+        // Saturate before multiplication; arbitrary large amounts remain conservative.
         if (regen >= 65_536)
             return int.MaxValue;
         long amount = Math.Max(0, regen);

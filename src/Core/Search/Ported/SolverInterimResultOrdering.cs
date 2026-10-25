@@ -13,6 +13,12 @@ internal static class SolverInterimResultOrdering
             && !playerDead
             && projectedPlayerHp > 0;
 
+    /// <summary>
+    /// Compares the result-quality prefix shared by in-session selection, final candidate
+    /// retention, and cross-session audits. A negative value means <paramref name="candidate"/>
+    /// is better. Callers pass strategic HP loss after earned growth credit; realized growth
+    /// breaks ties before combat duration, including when every growth budget is zero.
+    /// </summary>
     public static int ComparePrimaryQuality(
         bool candidateCompleteVictory,
         int candidateStrategicHpDeficit,

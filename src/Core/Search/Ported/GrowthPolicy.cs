@@ -8,18 +8,33 @@ internal enum GrowthSource
 }
 
 /// <summary>
-/// 成长向量里第三方来源那一半，按 <c>GrowthSourceMirrors</c> 登记的 id 存。
+/// 成长向量里第三方来源那一半，按 <see cref="GrowthSourceMirrors"/> 登记的 id 存。
 /// </summary>
+/// <remarks>
+/// <para>
+/// 原版十个来源是 <see cref="GrowthValues"/> 上的十个 int 字段，走热路径；第三方来源数量不定，
+/// 只能另开一处。这里用一个「按 id 序数升序、不存 0 值」的数组：为空时是 <c>null</c>，
+/// 于是没有任何 mod 登记时，第三方部分不额外分配或追加非零条目。
+/// </para>
+/// <para>
+/// 键用 id 而不是登记序号，是为了让<b>没登记的 id 也能原样留着</b>。额度存在设置文件里，
+/// 玩家可能临时停用某个 mod；如果按序号存，停用期间写回设置就会把那份额度冲掉，重新启用后
+/// 玩家得再填一遍。按 id 存的话，读进来认不出的条目照样带着走、照样写回去，只是这一局不生效。
+/// </para>
+/// </remarks>
 internal readonly struct GrowthExtras : IEquatable<GrowthExtras>
 {
+    /// <summary>额度上限，与原版十个字段同一口径。</summary>
     private const int MaximumValue = 1000;
 
     private readonly KeyValuePair<string, int>[]? _entries;
 
     private GrowthExtras(KeyValuePair<string, int>[]? entries) => _entries = entries;
 
+    /// <summary>一条都没有。空表时下游可以整段跳过。</summary>
     public bool IsEmpty => _entries is null;
 
+    /// <summary>按 id 序数升序列出所有非 0 条目。</summary>
     public ReadOnlySpan<KeyValuePair<string, int>> Entries => _entries;
 
     public int Total
@@ -76,6 +91,7 @@ internal readonly struct GrowthExtras : IEquatable<GrowthExtras>
         return new GrowthExtras(grown);
     }
 
+    /// <summary>把这份额度乘到 <paramref name="rewards"/> 那份计数上。</summary>
     public int Credit(GrowthExtras rewards)
     {
         if (_entries is null || rewards._entries is null)
@@ -257,6 +273,7 @@ internal readonly record struct GrowthValues(
         _extras.ValidateBudgets();
     }
 
+    /// <summary>把内置及第三方来源的计数写进状态指纹。</summary>
     public void AppendFingerprint(ref StateFingerprintBuilder fingerprint)
     {
         fingerprint.Add(HandOfGreed);

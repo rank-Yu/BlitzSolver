@@ -1,6 +1,10 @@
 // Ported from CombatSolver src/Search/Probes/PrimaryIncumbentPolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
 namespace CombatSolver;
 
+/// <summary>
+/// The existing primary member's incumbent pruning rule, shared by the Beam retention policy and
+/// the Flash retained-seat lane. Pure functions over frozen request values.
+/// </summary>
 internal static class PrimaryIncumbentPolicy
 {
     internal static bool ShouldPruneByPrimaryIncumbent(
@@ -37,6 +41,9 @@ internal static class PrimaryIncumbentPolicy
             return false;
         }
 
+        // A complete, hard-policy-compliant victory without explicit potion use is
+        // already eligible under Disabled/Smart. It needs no separate potion audit.
+        // Positive exact layers retain their stricter, audited eligibility proof.
         bool eligiblePotionFreeVictory = minimumPotionUses == 0
             && effectivePotionPolicy is SolverPotionPolicy.Disabled or SolverPotionPolicy.Smart;
         bool eligibleExactPotionVictory = auditedPotionFreeBaseline is { } baseline
