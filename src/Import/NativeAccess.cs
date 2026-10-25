@@ -27,6 +27,10 @@ internal static class NativeAccess
 
     public static Assembly OriginalAssembly => GameAssembly;
 
+    /// <summary>Whether the model's type belongs to the audited game assembly.</summary>
+    public static bool IsOriginal(AbstractModel model)
+        => ReferenceEquals(model.GetType().Assembly, GameAssembly);
+
     /// <summary>Rejects models loaded from any assembly other than the game's <c>sts2</c>.</summary>
     public static void RequireOriginal(AbstractModel model)
     {

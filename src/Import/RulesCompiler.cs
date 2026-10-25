@@ -66,6 +66,21 @@ public static class RulesCompiler
         ModelDb.All.OfType<MonsterModel>().GroupBy(monster => monster.Id.Entry, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal));
 
+    internal static IReadOnlyDictionary<string, CardModel> CanonicalCardModels
+        => CanonicalCards.Value;
+
+    internal static IReadOnlyDictionary<string, PowerModel> CanonicalPowerModels
+        => CanonicalPowers.Value;
+
+    internal static IReadOnlyDictionary<string, RelicModel> CanonicalRelicModels
+        => CanonicalRelics.Value;
+
+    internal static IReadOnlyDictionary<string, PotionModel> CanonicalPotionModels
+        => CanonicalPotions.Value;
+
+    internal static IReadOnlyDictionary<string, MonsterModel> CanonicalMonsterModels
+        => CanonicalMonsters.Value;
+
     private static readonly FieldInfo InitialStateField = typeof(MonsterMoveStateMachine)
         .GetField("_initialState", BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new MissingFieldException(typeof(MonsterMoveStateMachine).FullName, "_initialState");
@@ -472,7 +487,7 @@ public static class RulesCompiler
     /// clone owned by the player, then the native upgrade pair, without reading the root card (which
     /// may carry temporary upgrades or modifiers).
     /// </summary>
-    private static CardModel CreateUpgradedCard(CardModel canonical, int upgrade, Player player)
+    internal static CardModel CreateUpgradedCard(CardModel canonical, int upgrade, Player player)
     {
         CardModel copy = canonical.ToMutable();
         copy.Owner = player;

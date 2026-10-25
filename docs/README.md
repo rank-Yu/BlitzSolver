@@ -45,7 +45,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | [角色机制](kernel-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [药水与遗物](kernel-potions-relics.md) | 额外回合管线、药水与遗物机制 |
 | [搜索](search.md) | `BeamSolver` 的容器复用、保留、评估、剪枝与容量边界 |
-| [原生状态导入](import.md) | `CombatState` → `Battle` 的字段来源、拒绝码与离线对照 |
+| [原生状态导入](import.md) | `CombatState` → `Battle`/`Rules`/评估配置的编译、拒绝码与离线对照 |
 | [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
 | [测试与验证](testing.md) | 构建、K0、D1/D2、manifest、每层证明与未验证项 |
 
@@ -62,7 +62,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 - Core 独立编译，只有 BCL 依赖；构建 0 警告。
 - K0 纯内核合同通过；`Golden` 的 D1 重放与 D2 全量求解通过。
 - 冻结快照 `tests/Golden/data` 由 `manifest.json` 逐文件校验；校验入口见 [测试与验证](testing.md)。
-- 离线宿主 `--rules-compare`：397 个在范围根编译出的 `Rules` 与冻结规则对象全部逐字节相同（397 个根覆盖 376 个冻结对象）；`--import-compare --compiled-rules` 同样 397/397；`--import-negative` 验证 3 类显式拒绝。
+- 离线宿主 `--rules-compare`：397 个在范围根编译出的 `Rules` 与冻结规则对象全部逐字节相同（397 个根覆盖 376 个冻结对象）；`--import-compare --compiled-rules` 同样 397/397；`--config-compare` 的 394 个普通根整份请求与 3 个回合准备根的评分/下界子结构全部相同，特征哈希一致；`--import-negative` 验证 3 类显式拒绝。
 - **未验证**：实机运行、前缀与额外回合准备根、部署、界面与第三方 Mod 内容。
 
 内核语义以 [状态布局](state-layout.md)、[内核语义](kernel-semantics.md)、[角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md) 为准；搜索行为以 [搜索](search.md) 为准；快照与证据以 [冻结快照](golden-data.md) 和 [测试与验证](testing.md) 为准。

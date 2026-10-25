@@ -26,6 +26,8 @@ public static class ImportReason
     public const string RunDeckHook = "run-deck-hook";
     public const string TestContent = "test-content";
     public const string DeprecatedContent = "deprecated-content";
+    public const string UnsupportedPolicy = "unsupported-policy";
+    public const string UnsupportedHealingCertificate = "unsupported-healing-certificate";
 }
 
 /// <summary>

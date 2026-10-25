@@ -85,6 +85,29 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
 逐字节比较；`diff` 打印 `RulesDiff` 的第一处表/项。`--rules-table-check` 校验
 `src/Import/MirrorRiskTables.cs` 与 `ModelDb.All`/Blitz Registry 的 id 集合完全一致。
 
+## 评估配置对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --config-compare
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --config-compare
+```
+
+每个根先用 `RulesCompiler` 编译规则、`BattleImporter` 导入普通根，再编译
+`ScoreRules`/`BoundFeatures.Config`，按 M0 `FlashGoldenConfigDump` 的方式组装
+`BeamOptions(1,1,1,TimeSpan.Zero, maxHp)` + `Scorer`/`Bound`/`InitialActionCount`，与
+`d1/<root>/config.br` 逐字节比较。`diff` 依次比较规则、根、评分表、下界与其余选项并打印
+第一处字段；同时用同一份 `tests/Golden/GoldenHash.cs` 校验 `scoreHash`/`boundHash`。
+
+3 个回合准备 fixture 的 `config.br` 含全部准备根，本批只导入普通根，因此只比较
+`ScoreRules`/`Bound` 子结构；完整请求与额外准备根留给 M2a-5。当前 397 个在范围根
+`config same=397 diff=0 reject=0`。
+
+请求 DTO 新增了会影响评估配置的政策覆盖：`growthBudgets`、`relicCounterRules`、
+`ignoreLongTermRewards`、`actTransitionBossHpStrategy`、`finalBossHpStrategy`、
+`theftPolicyForTest`、`act3BossStrategyForTest`、`baseScoreOnlyForTest`、
+`continuousThreatRankingForTest`、`beamWeightTermForTest`/`beamWeightScaleForTest`。冻结
+fixture 都没有使用它们；未知字段仍显式失败。
+
 负例模式：
 
 ```bash
@@ -110,7 +133,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 - 质量语料：`tests/corpora/quality/<name>/spec.json` 与 `request.json`，
   根名为 `quality-<name>`。
 
-请求 DTO 只覆盖当前 410 个输入与生成场景 spec 实际用到的字段；未知字段、非空
+请求 DTO 覆盖当前 410 个输入、生成场景 spec 与评估政策实际用到的字段；未知字段、非空
 `checkpointArchivePath`/`replayPolicyOverridePath` 以及本批不支持的搜索/部署值会显式失败。
 `flashPrefixActions`/`flashPrefixPlan` 被识别但不执行；额外回合准备根不在本批范围。
 

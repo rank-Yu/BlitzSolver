@@ -2,6 +2,7 @@
 // (MIT, Copyright (c) 2026 Torch1230 and contributors).
 // Only the fields required to build the native root of the 410 frozen inputs are carried over.
 using System.Text.Json;
+using BlitzSolver.Import;
 using System.Text.Json.Serialization;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Rooms;
@@ -74,6 +75,20 @@ internal sealed record OfflineRequest
     // Search/deployment fields present in frozen fixture JSON. They do not affect root construction;
     // ValidateSupported rejects the values this batch does not understand.
     public bool UseNoveltyPortfolioForTest { get; init; }
+    // Policy fields the evaluation-config compiler reads. The frozen corpus uses the fixed M0
+    // defaults and root-derived values; these are the request overrides the harness protocol
+    // carried so a fixture can reproduce a different player setting.
+    public OfflineGrowthBudgets? GrowthBudgets { get; init; }
+    public OfflineRelicCounterRule[] RelicCounterRules { get; init; } = [];
+    public bool? IgnoreLongTermRewards { get; init; }
+    public string? ActTransitionBossHpStrategy { get; init; }
+    public string? FinalBossHpStrategy { get; init; }
+    public string? TheftPolicyForTest { get; init; }
+    public bool? Act3BossStrategyForTest { get; init; }
+    public bool? BaseScoreOnlyForTest { get; init; }
+    public bool? ContinuousThreatRankingForTest { get; init; }
+    public string? BeamWeightTermForTest { get; init; }
+    public double? BeamWeightScaleForTest { get; init; }
     public int? ExpectedUnexpectedReplansAtMost { get; init; }
     public string? HeadlessFastModeForTest { get; init; }
     public string? DeploymentFastModeForTest { get; init; }
@@ -136,4 +151,46 @@ internal sealed class UnattendedOrbInjection
     public string OrbId { get; init; } = string.Empty;
     public int Count { get; init; } = 1;
     public Dictionary<string, decimal> DecimalMembers { get; init; } = new(StringComparer.Ordinal);
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class OfflineGrowthBudgets
+{
+    public int HandOfGreed { get; init; }
+    public int TheHunt { get; init; }
+    public int Feed { get; init; }
+    public int Royalties { get; init; }
+    public int Alchemize { get; init; }
+    public int GeneticAlgorithm { get; init; }
+    public int TheScythe { get; init; }
+    public int Goopy { get; init; }
+    public int ForbiddenGrimoire { get; init; }
+    public int MadScience { get; init; }
+
+    public SearchGrowthBudget ToPolicy()
+    {
+        foreach (int value in new[]
+                 {
+                     HandOfGreed, TheHunt, Feed, Royalties, Alchemize, GeneticAlgorithm,
+                     TheScythe, Goopy, ForbiddenGrimoire, MadScience,
+                 })
+        {
+            if (value is < 0 or > 1000)
+                throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
+                    $"成长预算 {value} 必须在 0..1000");
+        }
+        return new(HandOfGreed, TheHunt, Feed, Royalties, Alchemize, GeneticAlgorithm,
+            TheScythe, Goopy, ForbiddenGrimoire, MadScience);
+    }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class OfflineRelicCounterRule
+{
+    public string Id { get; init; } = string.Empty;
+    public bool Enabled { get; init; } = true;
+    public int Minimum { get; init; }
+    public int Maximum { get; init; }
+    public int HpAllowance { get; init; }
+    public int Priority { get; init; } = 1;
 }

@@ -6,7 +6,7 @@
 `SimulatedCombatState` 影子状态。它是仓库中唯一引用 `sts2.dll`、Godot/Harmony 类型并读取游戏
 模型私有字段的层；`Core` 不引用它，`BlitzSolver.sln` 也不包含它（CI 没有游戏文件）。
 
-本页说明入口、字段来源、规则编译、拒绝规则与离线对照方式。冻结快照格式见
+本页说明入口、字段来源、规则编译、评估配置编译、拒绝规则与离线对照方式。冻结快照格式见
 [冻结快照](golden-data.md)，复跑命令见 [测试与验证](testing.md)。
 
 ## 1. 入口与输入
@@ -119,7 +119,127 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 
 导出钩子提交在 CombatSolver `flash/m0` 的 `91641ff0`（环境变量 `M2A3_RULES_TABLES_DUMP`），读取 `a62f1850` 的原引擎；游戏或 CombatSolver 更新后用它重新导出，再用 `--rules-table-check` 复核。
 
-## 4. 拒绝规则
+## 4. 评估配置编译
+
+每个 D1 根还冻结一份 `d1/<root>/config.br`：CombatSolver 的 `FlashGoldenConfigDump`
+（`66a43838`）写出的 `SREQ` 请求，包含规则、根列表与
+`new BeamOptions(1, 1, 1, TimeSpan.Zero, roots[0].Player.MaxHp)` 再加 `Scorer`、`Bound` 和
+`InitialActionCount`。`src/Import` 现在从原生模型重新编译 `ScoreRules` 与
+`BoundFeatures.Config`，不读 `config.br`。
+
+```csharp
+SearchPolicy policy = SearchPolicyCapture.Capture(combatState, player);
+EvaluationRootFacts facts = EvaluationRootFacts.Default with { InitialActionCount = ... };
+Scorer scorer = EvaluationConfigCompiler.CompileScorer(combatState, player, rules, battle, policy, facts);
+BoundFeatures bound = EvaluationConfigCompiler.CompileBound(combatState, player, battle, policy, facts);
+SearchCase request = EvaluationConfigCompiler.CompileRequest(
+    combatState, player, rules, battle, policy, facts);
+```
+
+`ScoreCompiler` 与 `BoundCompiler` 的语义以 CombatSolver `a62f1850` 的
+`src/Flash/Bridge/FlashScoreBridge.cs`、`FlashBoundBridge.cs` 为准；原引擎的模拟快照访问改成
+原生模型 + 导入后的 `Battle`，不复制 `src/Engine`。
+
+### 4.1 `SearchPolicy`
+
+`SearchPolicy` 是不可变值对象，只包含两个 Bridge 实际读取的政策字段。对照用的值不从
+`config.br` 读取，而是按 M0 离线宿主的固定设置、`SolverSettings` 默认值、
+`SolverController.CaptureSearchPolicy` 的派生规则和请求覆盖重建：
+
+| 字段 | 默认值来源 | 说明 |
+| --- | --- | --- |
+| `GrowthBudgets` | `ModRuntime.ApplyFixedBudgetSettings`：资源设置为空时 `default` | 十项内置成长额度；`IgnoreLongTermRewards` 打开时 `EffectiveGrowthBudgets` 归零 |
+| `RequiredGrowthRewards` | 根派生：`GrowthOpportunityPolicy.Capture` | 手牌/牌堆里的成长来源目标；不只看根快照 |
+| `HasUnboundedGrowthTargets` | 根派生 | 动态复制/重放来源使目标不可证 |
+| `RelicTargets` | `SolverSettings.RelicStrategyEnabled=true` 且规则为空 | 按拥有遗物、范围与 id 排序过滤 |
+| `Act3BossStrategy` | `SearchPolicySnapshot.IsAct3BossEncounter` | 第三幕 Boss 的三个 encounter id |
+| `ActTransitionBossHpStrategy` | `SolverSettingsData` 默认 `ProgressionFirst` | `ActClearHeal` 是否保留 |
+| `FinalBossHpStrategy` | 同上 | `RunEnding` 是否保留 |
+| `IgnoreLongTermRewards` | 默认 `false` | 同时影响成长额度与目标 |
+| `TheftPolicy` | `TheftEncounterStrategy.IsApplicable` | 盗贼遭遇/怪物时 `PreserveResources`，否则 `null` |
+| `BaseScoreOnly` | harness `ordering=baseline` | 请求覆盖可打开 |
+| `ContinuousThreatRanking` | harness 默认 `false` | 请求覆盖可打开 |
+| `BeamWeightPerturbation` | harness 默认 `null` | 请求覆盖项与 scale 同时给出 |
+| `HasDevelopmentStrategy` / 镜像登记标志 / 第三方成长标志 | 默认全空 | 非空且生效时以 `unsupported-policy` 拒绝 |
+
+分数/下界 Bridge 不读取 `PotionPolicy`、`FixedBudget`、并行度、`IncludeTurnSetup` 等搜索
+执行字段，因此它们不在 `SearchPolicy` 里。`OfflineRequest` 补了会影响政策的请求字段
+（`growthBudgets`、`relicCounterRules`、`ignoreLongTermRewards`、两个 Boss 策略、
+`theftPolicyForTest`、`act3BossStrategyForTest`、`baseScoreOnlyForTest`、
+`continuousThreatRankingForTest`、`beamWeightTermForTest`/`beamWeightScaleForTest`）。
+410 个冻结 fixture 都没有覆盖这些字段，全部使用固定默认值与根派生值；未知字段仍显式失败。
+
+### 4.2 `ScoreRules`
+
+| 字段 | 实现 |
+| --- | --- |
+| `Cards` | 对 Blitz Registry 的每个 card id、每个 `0..MaxUpgradeLevel` 用 canonical 卡克隆并升级；读 `Damage/Block/Cards` 基值、类型、动态类型、变量下标、攻击段数、飞刀来源、动态变量关键字、回合结束效果、Osty/Shiv 标签、`LatentValue`/`LatentTrait` 与 `CalculatedKind` |
+| `Powers` | 每个 Registry power 的 `StrategicKind`、`StrategicRequirements`、`PersistentSetupTraits`、`ITemporaryPower`、原生类型与 Danse Macabre 能量阈值 |
+| `PotionStrategicCost` | canonical 药水 + `PotionValuationRegistry` 的 Token/High/Elevated/Standard 政策；持未融化 Petrified Toad 时 Potion Shaped Rock 为 0 |
+| `GrowthBudgets` / `RequiredGrowthRewards` | 取 `SearchPolicy.Effective*`；第三方额度以 `unsupported-policy` 拒绝 |
+| `RelicCounterRules` | 按政策目标顺序映射 canonical 遗物与 `MeatOnTheBone` 阈值 |
+| `PostCombatRelicHeal` | 原生 `BurningBlood`/`BlackBlood` 的 `Heal` 与 `MeatOnTheBone` 的 `Heal`/`HpThreshold` |
+| `BossHpRelief` | 原生 `Encounter.RoomType`、当前幕、`SecondBossEncounter`，再按两个 Boss 策略裁决 |
+| `ContinuousThreatRanking` / `BaseScoreOnly` / `BeamWeightPerturbation` | 来自 `SearchPolicy` |
+| `InitialPlayerMaxHp` / `IsActEndingBoss` / `InitialEnemyCount` | 导入 `Battle` 的玩家 MaxHp、Boss 减免、敌人数 |
+| 根药水与药水计数 | 导入 `Battle` 的 `RootPotions`/`RootPotionSlotCount`；普通根初始计数为 0 |
+| 33 个命名 id | `ModelDb.Power<T>()`/`Card<T>()`/`Relic<T>()`/`Potion<T>()` 的 native id 经 Registry 解析；未注册为 `ushort.MaxValue` |
+
+四个 rank baseline（`InitialPersistentBuffValue`、`InitialEnemyStrengthSuppression`、
+`InitialEnemyWeakTurns`、`InitialRetainedAttackValue`）先用四项为 0 的 `ScoreRules` 构造 Core
+`Scorer`，在导入根上算 `ScoreFeatures`，再把四个 feature 值填回最终表。这样与原引擎
+`CombatBeamSolver`/`SimulationSnapshot` 的冻结值逐字段一致，不复制原引擎计算。回合准备根按
+`FlashScoreBridge.cs:74-80` 强制四项为 0。
+
+### 4.3 `BoundFeatures.Config`
+
+下界的逐内容分类表冻结在 `src/Import/HealingBoundTables.cs`，来源是 D1 的 384 份 enabled
+`config.br`：384 份的 `ComponentUnsafe*`、`SafeEnchantment`/`SafeAffliction`、
+`KnownBlocking*`、`Regen*`/`Reattach*`/`Swipe*`、药水分类与数值逐字节相同，因此只保存一份，
+生成时逐一比较过。这些数组是 CombatSolver `FlashBoundBridge` 分类器在导出时的输出，本仓库没有
+重新推导分类判定；因此 `--config-compare` 在这一部分只证明表被完整、原样地取出并按根正确组装，
+不是独立的编译证据。覆盖合同验证数组长度等于 `Registry.*Count`。游戏版本或分类规则变化时，
+要在 CombatSolver 侧重新导出（用 `flash/m0` 的 `FLASH_CONFIG_OUT` 钩子生成新的 `config.br` 再提取），
+不能只改本表。
+
+根上的判定按 `FlashBoundBridge`：
+
+- 失效顺序：`growth_targets` → `relic_targets` → `theft_policy` → `growth_rewards` →
+  `root_risk` → `pending_returning_cards` → `remaining_certificate`；失效时所有数组为空、
+  `FutureHealPotential=int.MaxValue`、`Certificate=None`、`RootPotionSlotCount=0`。
+- `HasOnlyPostCombatHealing`：角色/Ironclad 等封闭集合、原生敌人、无药水、遗物仅
+  Burning Blood/Black Blood/Bound Phylactery/Ring of the Snake、玩家 Power 仅
+  Neurosurge/Doom、卡牌仅白名单且无附魔/苦难。
+- `Component` 证书：audited MVID、单人、无 Modifier、卡牌属 109 个 `ComponentInitialCard`
+  类型且附件安全、根监听者分类安全、上界可计算；`Tainted` 等卡牌附件在根监听者枚举里与旧
+  引擎一样被过滤。
+- `KnownNative` 证书：单人、全原生模型与附件、无 Modifier/第三方监听；离线语料全部满足。
+- `FutureHealPotential`/`PostCombatHeal`/`RequireCertifiedHealingProof`/`PruneEqualHp` 按
+  Bridge 的根事实与 `policy.RelicTargets.Count` 设置。`ForceAllPotionsDisabled=false`、
+  `MaximumPotionUses=null`：离线求解器没有 potion-policy override 或上限。
+- 组件证书根上的 RegenPotion 以 `regen_potion_policy` 失效；根上有 SwipePower 以
+  `swipe_power` 失效。
+
+### 4.4 离线对照
+
+`--config-compare` 用编译规则、导入根与编译出的 `Scorer`/`Bound` 重组 `SREQ`，与
+`config.br` 逐字节比较；不一致时依次比较规则、根、`ScoreRules`、`Bound` 与其余选项并打印
+第一处字段。3 个回合准备 fixture 的 `config.br` 含全部准备根，本批只导入普通根，因此只比较
+`ScoreRules` 与 `Bound` 子结构；普通根仍做完整请求比较。
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --root kg2-b-stomp --config-compare
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --all --jobs 8 --config-compare
+```
+
+同时还用编译出的 `ScoreRules`/`Bound` 在导入根上算 D1 的 `GoldenHash.Score`/`GoldenHash.Bound`
+（与 `tests/Golden/GoldenHash.cs` 同一份代码），对照 `golden.br` 的 `scoreHash`/`boundHash`。
+394 个普通根做完整请求 + 哈希；3 个回合准备 fixture 的普通根也按选择向量选到对应
+golden 根做哈希。
+
+## 5. 拒绝规则
 
 所有拒绝抛 `UnsupportedImportException`，`Reason` 是稳定字符串。绝不返回带默认值的半份
 `Battle` 或半份 `Rules`。
@@ -140,9 +260,11 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 | `rules-mismatch` | 原生根与传入的 `Rules` 不一致，或 `RunState` 不是同一实例 |
 | `known-enemy-history` | 已逃离/已死亡敌人破坏了 `KnownEnemies` 顺序 |
 | `run-deck-hook` | 牌组卡实现局外监听 Hook |
+| `unsupported-policy` | 评估配置政策含未移植的第三方登记/DevelopmentStrategy/非法覆盖 |
+| `unsupported-healing-certificate` | 需要尚未移植的 environment 治疗证书特殊分支（保留原因码；当前语料未触发） |
 | `invalid-golden` / `rules-build` | 离线对照的冻结对象损坏，或规则编译内部不变量失败 |
 
-### 4.1 全有或全无
+### 5.1 全有或全无
 
 `PrivateStateLedger` 在导入前枚举旧桥会捕获的根私有状态：
 
@@ -155,13 +277,13 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 丢掉状态。没有捕获条目的怪物私有整数也要么被 `MonsterDef.AiRegisterNames`/惰性名单认领，
 要么拒绝。
 
-### 4.2 第三方内容
+### 5.2 第三方内容
 
 所有读到的 `AbstractModel`（卡、Power、遗物、药水、球、怪物、附魔、苦难）先检查类型程序集
 必须是 `sts2`；否则以 `third-party-content` 拒绝。`RejectRunListenerDeckCards` 对玩家牌组做
 同样的检查，并拒绝带局外监听 Hook 的非惰性牌组卡。
 
-## 5. 离线对照模式
+## 6. 离线对照模式
 
 `tests/OfflineHost` 的 `--import-compare` 为每个根建原生状态、导入，再与
 `d1/<root>/golden.br` 的期望 `BATL` 逐字节比较：
@@ -198,7 +320,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
 ```
 
-### 5.1 回合准备的三个普通根
+### 6.1 回合准备的三个普通根
 
 `qf2-gradient-failure`、`ts-b-toolbox`、`ts-a-toasty` 是回合准备 fixture。它们各自的
 `golden.br` 有 4/3/4 个根：1 个普通根 + 8 个额外准备根（不在本批范围）。普通根是旧桥用
@@ -214,7 +336,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
 这 3 个普通根的普通原生状态是在测试宿主注入初始状态**之前**捕获的；对照模式因此跳过
 `InjectInitialStateAsync`。额外 8 个准备根与 13 个前缀根都留给 M2a-5。
 
-## 6. 当前结果与限制
+## 7. 当前结果与限制
 
 `--all --jobs 8 --rules-compare` 当前：
 
@@ -237,6 +359,15 @@ RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
 import same=397 diff=0 reject=0
 ```
 
+`--all --jobs 8 --config-compare` 当前：
+
+```text
+config same=397 diff=0 reject=0
+```
+
+394 个普通根整份请求逐字节相同；3 个回合准备 fixture 的普通根 `ScoreRules`/`Bound` 子结构
+相同（完整请求留给 M2a-5）。397 个根的 `scoreHash`/`boundHash` 都与 D1 一致。
+
 3 类负例由 `--import-negative` 验证：
 
 ```text
@@ -254,4 +385,10 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
 - 私有字段读取绑定当前游戏版本；字段缺失、类型不符或内部数据为 null 都显式拒绝。
 - 镜像覆盖率表是由 `a62f1850` 一次性导出的数据，不是运行时推断；游戏或 CombatSolver 更新后
   必须重新导出并用 `--rules-table-check` 校验。
+- `CanCertifyRemainingHealingEnvironment` 的 Regent/Silent 一般分支已移植；Defect 与
+  Decimillipede 的特殊分支尚未移植。当前语料没有根触发这些特殊分支（所有非 Component 根的
+  environment 证书都为 false）；M2b 接入语料外根时需要补判定。
+- `Component`/`KnownNativeCertificate`/`HasOnlyPostCombatHealing` 的第三方 run/combat
+  订阅者、BaseLib card modifier、AdaptedOnPlay 按离线宿主的固定“无第三方”口径处理；实机 Mod
+  根需要另行拒绝或补证据。
 - 未接入实机；只在离线宿主上验证。

@@ -119,7 +119,7 @@ internal static class ImportCompare
         return ReadBrotli(Path.Combine(data, "objects", "rules", sha + ".br"));
     }
 
-    private static (Battle Root, int Index) SelectExpectedRoot(GoldenRootRecord golden,
+    internal static (Battle Root, int Index) SelectExpectedRoot(GoldenRootRecord golden,
         IReadOnlyList<string> setupSelections, bool preInjectionSetupRoot)
     {
         if (!preInjectionSetupRoot || setupSelections.Count == 0)
