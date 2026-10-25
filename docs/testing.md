@@ -31,7 +31,7 @@ dotnet run --project tests/Golden -c Release --no-build -- k0
 
 两条命令分别检查：
 
-- `tests/KernelChecks`：`"contracts": "Passed"`。覆盖 `Battle`/`Card`/`Enemy`/`Power`/`RngState` 等布局尺寸、RNG 参考向量、牌堆与容量失败、选择协议、内容注册表与编码合同。
+- `tests/KernelChecks`：`"contracts": "Passed"`。覆盖 `Battle`/`Card`/`Enemy`/`Power`/`RngState` 等布局尺寸、RNG 参考向量、牌堆与容量失败、选择协议、内容注册表与编码合同；另含 `Exec` 字段覆盖合同（反射枚举全部实例字段，见 4.3）。
 - `tests/Golden k0`：`K0 Passed fields=30 battleBytes=12696 formatVersion=2 magics=BATL,RULE,GOLD,SREQ,SRES`。检查 `RulesCodecContract` 的 30 个字段都进入编码、`decode(encode(x))` 字节稳定、`Unsafe.SizeOf<Battle>() == 12696`，`BATL`/`RULE`/`GOLD`/`SREQ`/`SRES` 五个魔数按小端字节解出的 ASCII 与格式标签一致，以及 `BATL` 的旧魔数/version 1 被显式拒绝。
 
 K0 证明：内核的布局、编码与纯函数合同在 BCL 环境下成立。
@@ -84,7 +84,9 @@ D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 当前结果：
 
 ```text
-D2_OK selected=1983 equal=1983 mismatch=0 expanded=15739416
+D2_OK selected=1983 equal=1983 mismatch=0 expanded=15739416 prefixChecks=0 threatChecks=0
+  prefixShared=15484187 prefixUnshared=229786 prefixReuse=10798057
+  prefixChoice=229786 prefixExtraTurn=0 prefixNotInProgress=0
 ```
 
 D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
@@ -101,7 +103,25 @@ D2 不证明：请求集合之外的根、实机运行、界面与部署行为�
 
 完整 `verify` 的最后一行是 `GOLDEN_VERIFY ... mismatched=0`。解码失败或字段不一致输出 `GOLDEN_INVALID <原因>`，非预期异常输出 `GOLDEN_FAILED <类型>: <消息>`，两者都以非零退出。
 
-### 4.3 计时
+### 4.3 搜索等价自检（`Exec` 覆盖合同 + 原地投影）
+
+`tests/KernelChecks` 的 `ExecCoverage` 合同用反射枚举 `Exec` 的全部实例字段（含私有字段），要求每个字段恰好归入一类：进入 `ExecContinuation`、捕获时断言为空/为零、`AdvanceRoundPlayerStart` 入口重置、或单独处理（`B`/`R`/选择游标）。分类表在 `tests/KernelChecks/ExecCoverage.cs` 一处；同时反向校验快照字段集合与 `ExecContinuation` 完全一致。出现未分类、重复归类或快照表不一致时，消息写出字段名。临时给 `Exec` 加字段的本地反向检查会失败（`ReverseCoverageProbe` 未分类）。
+
+`BeamSolver` 默认使用共享的 `EndTurn` 前缀；设置 `BLITZ_VERIFY_SEARCH_EQUIVALENCE=1` 后同时开启两项等价检查：
+
+- 每个复用前缀的选择叶子同时执行完整 `Kernel.Step` 与前缀续跑，先逐字节比较 `Battle`（不一致时用 `BattleDump.Diff` 输出字段差异），并比较 `StepResult`、`ChoiceRequest`（选项、来源、时机与生成卡字节）和 `HistoryRisk`；
+- 每次 `Scorer.ProjectHpAfterThreat` 原地投影前保存 `Battle`，`finally` 恢复后逐字节比较前后镜像；不一致时用 `BattleDump.Diff` 写出字段差异。
+
+不一致时分别抛出 `EndTurn 前缀等价校验失败` 或 `威胁投影原地自检失败`。开关默认关闭，不进入请求格式。D2 输出行的 `prefixChecks` 与 `threatChecks` 分别是两项检查实际比较的次数：
+
+```bash
+BLITZ_VERIFY_SEARCH_EQUIVALENCE=1 \
+  dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data --only d2 --jobs 6
+```
+
+M3a 跟进的实测：全量 D2 1983/1983，`prefixChecks=10,764,918`，`threatChecks=86,463,608`，wall 358.2s（jobs 6）。关闭时全量 `verify`：D1 12.2s、D2 192.9s，1983/1983 相等；正常请求 `6a4d89…` 关闭开关的 3 次中位数 4.993s，与加入检查前的 4.988s 相差 +0.09%，在 1% 以内。
+
+### 4.4 计时
 
 本机 24 逻辑处理器，`--jobs 8`（D2 分片模拟另标 `--jobs 4`）：
 
@@ -127,7 +147,9 @@ D2 的 4 片 CI 模拟（依次运行，`--jobs 4`）：
 
 按权重分配后 4 片的权重和完全相同，但墙钟仍取决于最重的单请求。分片 0 包含权重 283,539 的请求 `40e330b6…`；它单独求解需要 249.2s，已经超过 4 片平均墙钟 102.5s。这是单请求下限，增加分片数不能把这一片的墙钟压到 249.2s 以下。
 
-M1b 的 D2 为 331.3s；v2 迁移后为 283.9s；本轮改为按权重调度后全量 267.2s。全量总展开数不变，差异来自调度与测量波动。
+M1b 的 D2 为 331.3s；v2 迁移后为 283.9s；改为按权重调度后为 267.2s。全量总展开数不变，差异来自调度与测量波动。
+
+M3a（`EndTurn` 前缀共享 + 评分/内核聚合）在同一台机器上以 `--jobs 6` 测得：基线 `main@f4909de` 全量 D2 267.2s，本批最终一次 185.1s（多次运行 179.0–195.6s）；跟进的关闭检查全量 192.9s。慢请求 `40e330b6…` 的中位数从 259.1s 降到 170.2s（283,539 个展开节点，0.914→0.600 ms/节点）。开启 `BLITZ_VERIFY_SEARCH_EQUIVALENCE=1` 的全量 D2 为 1983/1983，`prefixChecks=10,764,918`、`threatChecks=86,463,608`，358.2s。
 
 ## 5. manifest
 

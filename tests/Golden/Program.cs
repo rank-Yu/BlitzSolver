@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using BlitzSolver.Engine;
 using BlitzSolver.Golden;
+using BlitzSolver.Search;
 
 // Pure-core Blitz golden verifier: Engine + Content + Search, with only the BCL as a dependency.
 
@@ -12,6 +13,8 @@ if (args.Length == 0)
 }
 try
 {
+    if (Environment.GetEnvironmentVariable("BLITZ_VERIFY_SEARCH_EQUIVALENCE") == "1")
+        SearchVerificationHooks.VerifySearchEquivalence = true;
     switch (args[0])
     {
         case "k0":
@@ -113,7 +116,11 @@ internal static class VerifyCommand
             d2 = D2Verifier.Run(dataDirectory, jobs, shard, shards);
             watch.Stop();
             Console.WriteLine($"D2_OK selected={d2.Selected} equal={d2.Equal} mismatch={d2.Mismatch} "
-                + $"expanded={d2.Expanded} wall={watch.Elapsed.TotalSeconds:F1}s jobs={jobs}");
+                + $"expanded={d2.Expanded} prefixChecks={d2.PrefixChecks} threatChecks={d2.ThreatChecks} "
+                + $"prefixShared={d2.PrefixShared} prefixUnshared={d2.PrefixUnshared} "
+                + $"prefixReuse={d2.PrefixReuse} prefixChoice={d2.PrefixChoiceUnshared} "
+                + $"prefixExtraTurn={d2.PrefixExtraTurnUnshared} prefixNotInProgress={d2.PrefixNotInProgress} "
+                + $"wall={watch.Elapsed.TotalSeconds:F1}s jobs={jobs}");
             Console.WriteLine($"D2_TIME wall={watch.Elapsed.TotalSeconds:F3}s jobs={jobs} selected={d2.Selected}");
         }
 

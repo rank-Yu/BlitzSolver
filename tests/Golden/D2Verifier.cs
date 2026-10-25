@@ -5,7 +5,9 @@ using BlitzSolver.Search;
 
 namespace BlitzSolver.Golden;
 
-internal sealed record D2Summary(int Selected, int Equal, int Mismatch, long Expanded);
+internal sealed record D2Summary(int Selected, int Equal, int Mismatch, long Expanded, long PrefixChecks,
+    long ThreatChecks, long PrefixShared, long PrefixUnshared, long PrefixReuse, long PrefixChoiceUnshared,
+    long PrefixExtraTurnUnshared, long PrefixNotInProgress);
 
 internal sealed record D2Request(string Hash, string Path, int Weight);
 
@@ -97,6 +99,10 @@ internal static class D2Verifier
 
         int equal = 0, completed = 0;
         long expanded = 0;
+        long prefixChecks = 0;
+        long threatChecks = 0;
+        long prefixShared = 0, prefixUnshared = 0, prefixReuse = 0;
+        long prefixChoiceUnshared = 0, prefixExtraTurnUnshared = 0, prefixNotInProgress = 0;
         void VerifyOne(D2Request request)
         {
             string path = request.Path;
@@ -131,6 +137,14 @@ internal static class D2Verifier
             }
             Interlocked.Increment(ref equal);
             Interlocked.Add(ref expanded, actual.ExpandedNodes);
+            Interlocked.Add(ref prefixChecks, actual.EndTurnPrefixVerified);
+            Interlocked.Add(ref threatChecks, actual.ThreatProjectionVerified);
+            Interlocked.Add(ref prefixShared, actual.EndTurnPrefixShared);
+            Interlocked.Add(ref prefixUnshared, actual.EndTurnPrefixUnshared);
+            Interlocked.Add(ref prefixReuse, actual.EndTurnPrefixReusedLeaves);
+            Interlocked.Add(ref prefixChoiceUnshared, actual.EndTurnPrefixChoiceUnshared);
+            Interlocked.Add(ref prefixExtraTurnUnshared, actual.EndTurnPrefixExtraTurnUnshared);
+            Interlocked.Add(ref prefixNotInProgress, actual.EndTurnPrefixNotInProgress);
             int done = Interlocked.Increment(ref completed);
             if (done % 100 == 0)
                 Console.WriteLine($"D2 progress={done}/{selected.Length}");
@@ -142,7 +156,9 @@ internal static class D2Verifier
             Partitioner.Create(selected, EnumerablePartitionerOptions.NoBuffering),
             new ParallelOptions { MaxDegreeOfParallelism = jobs },
             VerifyOne);
-        return new D2Summary(selected.Length, equal, selected.Length - equal, expanded);
+        return new D2Summary(selected.Length, equal, selected.Length - equal, expanded, prefixChecks,
+            threatChecks, prefixShared, prefixUnshared, prefixReuse, prefixChoiceUnshared,
+            prefixExtraTurnUnshared, prefixNotInProgress);
     }
 
     private static string? FirstDifference(in BeamResult expected, in BeamResult actual)

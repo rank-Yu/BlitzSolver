@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using BlitzSolver.Engine;
+using BlitzSolver.KernelChecks;
 using BlitzSolver.Content.Afflictions;
 using BlitzSolver.Content.Cards.Status;
 using BlitzSolver.Content.Enchantments;
@@ -23,6 +24,8 @@ Check(Unsafe.SizeOf<Orb>() == 8, $"Orb 应为 8 字节，实际 {Unsafe.SizeOf<O
 Check(Unsafe.SizeOf<RngState>() == 40, $"RngState 应为 40 字节，实际 {Unsafe.SizeOf<RngState>()}");
 Check(Unsafe.SizeOf<Battle>() == Battle.ExpectedSize,
     $"Battle 应为 {Battle.ExpectedSize} 字节，实际 {Unsafe.SizeOf<Battle>()}");
+string? execCoverageError = ExecCoverage.Validate();
+Check(execCoverageError == null, $"Exec 字段覆盖合同失败：{execCoverageError}");
 
 CheckRng();
 CheckGrowthRewards();

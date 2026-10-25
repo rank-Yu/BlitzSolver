@@ -75,6 +75,12 @@ public static partial class Kernel
 
     private static ushort PowerIdOrMax(string nativeId) => Registry.TryPower(nativeId, out ushort id) ? id : ushort.MaxValue;
 
+    private static readonly Lazy<ushort> PlatingPowerId = new(() => PowerIdOrMax("PLATING_POWER"));
+    private static readonly Lazy<ushort> AggressionPowerId = new(() => PowerIdOrMax("AGGRESSION_POWER"));
+    private static readonly Lazy<ushort> BlockNextTurnPowerId = new(() => PowerIdOrMax("BLOCK_NEXT_TURN_POWER"));
+    private static readonly Lazy<ushort> DoomPowerId = new(() => PowerIdOrMax("DOOM_POWER"));
+    private static readonly Lazy<ushort> FlameBarrierPowerId = new(() => PowerIdOrMax("FLAME_BARRIER_POWER"));
+
     private enum PowerPhase : byte
     {
         BeforeSideTurnStart,
@@ -357,8 +363,8 @@ public static partial class Kernel
             if (x.NeedsChoice)
                 return;
         }
-        ushort plating = PowerIdOrMax("PLATING_POWER");
-        ushort aggression = PowerIdOrMax("AGGRESSION_POWER");
+        ushort plating = PlatingPowerId.Value;
+        ushort aggression = AggressionPowerId.Value;
         if (plating != ushort.MaxValue)
             PowerListenerPass(ref x, PowerPhase.BeforeSideTurnStart, side, participants, Limits.NoOwner, plating, ushort.MaxValue, ushort.MaxValue);
         if (x.NeedsChoice)
@@ -389,7 +395,7 @@ public static partial class Kernel
             }
         }
         // TriggerAfterBlockCleared: BlockNextTurn first, then a listener-order pass, then relics.
-        ushort blockNextTurn = PowerIdOrMax("BLOCK_NEXT_TURN_POWER");
+        ushort blockNextTurn = BlockNextTurnPowerId.Value;
         if (blockNextTurn != ushort.MaxValue)
         {
             PowerListenerPass(ref x, PowerPhase.AfterBlockCleared, Side.None, default, owner, blockNextTurn, ushort.MaxValue, ushort.MaxValue);
@@ -571,7 +577,7 @@ public static partial class Kernel
     /// </summary>
     private static void TriggerEnemyDoom(ref Exec x, scoped ReadOnlySpan<byte> enemies)
     {
-        ushort doom = PowerIdOrMax("DOOM_POWER");
+        ushort doom = DoomPowerId.Value;
         if (doom == ushort.MaxValue)
             return;
         Span<byte> doomed = stackalloc byte[Limits.Enemies];
@@ -609,7 +615,7 @@ public static partial class Kernel
     {
         Span<byte> creatures = stackalloc byte[Limits.Enemies + 2];
         int count = ListenerCreatureOrder(x.B, creatures);
-        ushort flameBarrier = PowerIdOrMax("FLAME_BARRIER_POWER");
+        ushort flameBarrier = FlameBarrierPowerId.Value;
         for (int index = 0; index < count; index++)
         {
             byte creature = creatures[index];

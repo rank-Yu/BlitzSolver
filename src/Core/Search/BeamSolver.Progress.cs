@@ -282,6 +282,14 @@ internal sealed partial class BeamSolver
             _solveWatch?.Elapsed ?? TimeSpan.Zero)
         {
             CapacityPruned = _capacityPruned,
+            EndTurnPrefixShared = _endTurnPrefixShared,
+            EndTurnPrefixUnshared = _endTurnPrefixUnshared,
+            EndTurnPrefixVerified = _endTurnPrefixVerified,
+            ThreatProjectionVerified = _scorer.ThreatProjectionChecks,
+            EndTurnPrefixReusedLeaves = _endTurnPrefixReusedLeaves,
+            EndTurnPrefixChoiceUnshared = _endTurnPrefixChoiceUnshared,
+            EndTurnPrefixExtraTurnUnshared = _endTurnPrefixExtraTurnUnshared,
+            EndTurnPrefixNotInProgress = _endTurnPrefixNotInProgress,
             CapacityDroppedChildren = _capacityDropped.Count == 0
                 ? BeamResult.NoCapacityDrops
                 : _capacityDropped,

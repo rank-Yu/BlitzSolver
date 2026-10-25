@@ -11,8 +11,22 @@ public static partial class Kernel
     /// </summary>
     public static void AdvanceRound(ref Exec x)
     {
-        if (!IsInProgress(x.B))
+        if (!AdvanceRoundToPlayerStart(ref x, out bool takingExtraTurn))
             return;
+        AdvanceRoundPlayerStart(ref x, takingExtraTurn);
+    }
+
+    /// <summary>
+    /// Runs the player turn end and the enemy turn, stopping immediately before
+    /// <c>AdvanceRoundPlayerStart</c>. Returns false when the round stopped earlier (a choice, an
+    /// ending, or an unsupported boundary); <paramref name="takingExtraTurn"/> is only meaningful
+    /// when true.
+    /// </summary>
+    internal static bool AdvanceRoundToPlayerStart(ref Exec x, out bool takingExtraTurn)
+    {
+        takingExtraTurn = false;
+        if (!IsInProgress(x.B))
+            return false;
 
         x.ChoiceTiming = ChoiceTiming.PlayerTurnEnd;
         // PlayerTurnEndLifecycle.RunPhaseOne.
@@ -20,17 +34,17 @@ public static partial class Kernel
         // EndTurnPowerSupport.TriggerVeryEarly: no supported sources.
         RelicPass(ref x, RelicPhase.PrepareBeforeSideTurnEnd, Side.Player);
         if (x.NeedsChoice)
-            return;
+            return false;
         // SimulateEndPlayerTurnBeforeOrbPassives.
         x.B.Phase = PlayerPhase.AutoPostPlay;
         AfterAutoPostPlayPhaseEnteredHook afterAutoPostPlay = new();
         HookDispatch.Dispatch(ref x, ref afterAutoPostPlay, gatedByEnding: true);
         if (x.NeedsChoice)
-            return;
+            return false;
         x.B.Phase = PlayerPhase.End;
         BeforeSideTurnEnd(ref x, Side.Player, ParticipantMask(Limits.PlayerOwner));
         if (x.NeedsChoice)
-            return;
+            return false;
         CheckWinCondition(ref x.B);
         if (!IsOverOrEnding(x.B))
         {
@@ -38,16 +52,16 @@ public static partial class Kernel
             // pending enemy deaths; a passive that ends the combat skips the turn-end hand effects.
             TriggerBeforeTurnEndOrbs(ref x);
             if (x.NeedsChoice)
-                return;
+                return false;
             // OrbLifecycleSupport.TriggerBeforeTurnEnd compensates the block breaks of the orb pass.
             ApplyBlockBreakCompensations(ref x);
             if (x.NeedsChoice)
-                return;
+                return false;
             if (!IsOverOrEnding(x.B))
             {
                 DoTurnEnd(ref x);
                 if (x.NeedsChoice)
-                    return;
+                    return false;
                 CheckWinCondition(ref x.B);
             }
             CompletePlayerEarlySideTurnEnd(ref x);
@@ -56,31 +70,31 @@ public static partial class Kernel
         }
         ApplyEnemyDeathPowers(ref x);
         if (!IsInProgress(x.B))
-            return;
+            return false;
         FlushPlayerHandAtTurnEnd(ref x);
         int turnEndShuffleEvents = x.B.ShuffleEventCount;
         // PlayerTurnEndLifecycle.RunPhaseTwo.
         PlayerTurnEndPhaseTwo(ref x);
         if (x.NeedsChoice)
-            return;
+            return false;
         x.B.Phase = PlayerPhase.None;
         x.B.ShufflesCrossed += x.B.ShuffleEventCount - turnEndShuffleEvents;
         ApplyEnemyDeathPowers(ref x);
 
         // HookMirrors.ShouldTakeExtraTurn after the player turn-end phases, before the enemy turn.
-        bool takingExtraTurn = ShouldTakeExtraTurnPass(ref x);
+        bool extraTurn = ShouldTakeExtraTurnPass(ref x);
         if (x.NeedsChoice)
-            return;
-        if (takingExtraTurn)
+            return false;
+        if (extraTurn)
         {
             // An extra turn advances the player's turn number, so damage from the just-finished turn
             // becomes Emotion Chip's "previous turn" window (recorded only when that relic is present).
             AfterRelicRoundPass(ref x);
             if (x.NeedsChoice)
-                return;
+                return false;
             AfterTakingExtraTurnPass(ref x);
             if (x.NeedsChoice)
-                return;
+                return false;
         }
         else
         {
@@ -101,8 +115,9 @@ public static partial class Kernel
             x.B.Enemies[index].Flags &= ~(EnemyFlags.PerformedMoveThisRound | EnemyFlags.ForcedMustPerformAfterMove);
         }
         if (x.NeedsChoice || !IsInProgress(x.B))
-            return;
-        AdvanceRoundPlayerStart(ref x, takingExtraTurn);
+            return false;
+        takingExtraTurn = extraTurn;
+        return true;
     }
 
     /// <summary>Mirrors the enemy-turn block of <c>CombatBeamSolver.AdvanceRound</c>.</summary>
@@ -125,8 +140,10 @@ public static partial class Kernel
             if (Registry.Card(card.Id).TracksFetchPlay)
                 card.Private &= ~FetchPlayedBit;
         }
+        ushort enemyOwners = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
-            SnapshotPowerAmountsAtTurnStart(ref x.B, EnemyOwner(x.B.Roster[position]));
+            enemyOwners |= ParticipantMask(EnemyOwner(x.B.Roster[position]));
+        SnapshotPowerAmountsAtTurnStart(ref x.B, enemyOwners);
         // Each phase reads the live enemy list, as the existing engine passes simulatedCombat.Enemies.
         Span<byte> participants = stackalloc byte[Limits.Enemies];
         BeforeSideTurnStart(ref x, Side.Enemy, participants[..RosterOwners(x.B, participants)]);
@@ -333,17 +350,53 @@ public static partial class Kernel
         for (int position = 0; position < battle.RosterCount; position++)
             creatures[count++] = EnemyOwner(battle.Roster[position]);
 
-        Span<ushort> ticking = stackalloc ushort[Limits.Powers];
+        // One pass buckets every ticking power by its creature in power-array order, then ticks the
+        // buckets in the original creature order. A previous creature's tick only removes powers of
+        // that creature, so the surviving (owner, id) sequence seen by every later bucket is exactly
+        // the sequence the per-creature rescans would produce.
+        Span<int> bucketOfOwner = stackalloc int[16];
+        bucketOfOwner.Fill(-1);
+        for (int index = 0; index < count; index++)
+            bucketOfOwner[creatures[index]] = index;
+        Span<int> counts = stackalloc int[count];
+        counts.Clear();
+        Span<int> offsets = stackalloc int[count + 1];
+        int total = 0;
+        for (int power = 0; power < battle.PowerCount; power++)
+        {
+            ref readonly Power row = ref battle.Powers[power];
+            if (row.Owner >= bucketOfOwner.Length)
+                continue;
+            int bucket = bucketOfOwner[row.Owner];
+            if (bucket < 0 || !Registry.Power(row.Id).TicksAtEnemySideEnd)
+                continue;
+            counts[bucket]++;
+            total++;
+        }
+        int running = 0;
+        for (int index = 0; index < count; index++)
+        {
+            offsets[index] = running;
+            running += counts[index];
+        }
+        offsets[count] = running;
+        Span<ushort> ticking = stackalloc ushort[total];
+        Span<int> cursor = stackalloc int[count];
+        offsets[..count].CopyTo(cursor);
+        for (int power = 0; power < battle.PowerCount; power++)
+        {
+            ref readonly Power row = ref battle.Powers[power];
+            if (row.Owner >= bucketOfOwner.Length)
+                continue;
+            int bucket = bucketOfOwner[row.Owner];
+            if (bucket < 0 || !Registry.Power(row.Id).TicksAtEnemySideEnd)
+                continue;
+            ticking[cursor[bucket]++] = row.Id;
+        }
         for (int index = 0; index < count; index++)
         {
             byte owner = creatures[index];
-            int tickingCount = 0;
-            for (int power = 0; power < battle.PowerCount; power++)
-            {
-                if (battle.Powers[power].Owner == owner && Registry.Power(battle.Powers[power].Id).TicksAtEnemySideEnd)
-                    ticking[tickingCount++] = battle.Powers[power].Id;
-            }
-            for (int tick = 0; tick < tickingCount; tick++)
+            for (int tick = offsets[index]; tick < offsets[index + 1]; tick++)
                 TickDuration(ref battle, owner, ticking[tick]);
         }
     }
@@ -513,14 +566,15 @@ public static partial class Kernel
     /// amount, which lags a mirrored decrement by one action boundary; Blitz has no such lag, so the
     /// remaining powers keep this inert field at zero instead of reproducing the stale model value.
     /// </summary>
-    private static void SnapshotPowerAmountsAtTurnStart(ref Battle battle, byte owner)
+    private static void SnapshotPowerAmountsAtTurnStart(ref Battle battle, ushort owners)
     {
         for (int index = 0; index < battle.PowerCount; index++)
         {
-            if (battle.Powers[index].Owner != owner)
+            ref Power power = ref battle.Powers[index];
+            if (power.Owner >= 16 || (owners & ParticipantMask(power.Owner)) == 0)
                 continue;
-            battle.Powers[index].AmountOnTurnStart = Registry.Power(battle.Powers[index].Id).UsesAmountOnTurnStart
-                ? battle.Powers[index].Amount
+            power.AmountOnTurnStart = Registry.Power(power.Id).UsesAmountOnTurnStart
+                ? power.Amount
                 : 0;
         }
     }
@@ -547,7 +601,7 @@ public static partial class Kernel
         else
             ClearLostHpThisTurn(ref x.B);
         BeginPlayerSideTurn(ref x.B);
-        SnapshotPowerAmountsAtTurnStart(ref x.B, Limits.PlayerOwner);
+        SnapshotPowerAmountsAtTurnStart(ref x.B, ParticipantMask(Limits.PlayerOwner));
         ReadOnlySpan<byte> player = [Limits.PlayerOwner];
         BeforeSideTurnStart(ref x, Side.Player, player);
         if (x.NeedsChoice)

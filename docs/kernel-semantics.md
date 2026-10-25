@@ -15,6 +15,7 @@
 - 动作执行到稳定边界才返回，返回值是 `Completed`、`NeedsChoice`（附选项规格）或 `Terminal`。
 - 执行中途不允许分配托管对象；内容代码只读写 `Battle` 和栈上值。
 - 未知内容 Id、未实现的 Hook 组合抛 `UnsupportedException`；容量溢出抛 `CapacityException`。两者都使本次 Blitz 求解整体作废。
+- `EndTurn` 动作可拆成“玩家回合结束 + 敌方回合”和“玩家回合开始”两段。`Kernel.StepEndTurnSharingPrefix` 在完整执行一次 `EndTurn` 时顺带返回停在 `AdvanceRoundPlayerStart` 之前的 `EndTurnPrefix`；`Kernel.StepEndTurnFromPrefix` 从该不可变快照继续执行后半段。前缀包含当时的 `Battle` 和后半段可能读取的全部 `Exec` 瞬态（力量变化队列、伤害/击杀/溢出暂存、出牌身份与来源序号、手牌/生成选项、Monologue、Vambrace、Lamp 等）；选择游标、效果深度与嵌套 Sly 标记范围在该点必须为空，捕获时逐项断言。额外回合或前半段已请求选择时明确返回不可共享（`EndTurnPrefixStatus`），调用方仍走完整的 `Step`，不静默近似；前半段已在玩家回合开始前结束时仍会捕获快照，续跑跳过玩家开始半段、只执行 action 收尾（与完整 `Step` 相同）。`tests/KernelChecks` 的 `ExecCoverage` 合同用反射把 `Exec` 的每个实例字段归入“快照 / 捕获断言为空 / 入口重置 / 单独处理”四类之一，并校验快照字段集合与 `ExecContinuation` 完全一致；新增字段未归类会直接失败。
 
 ## 2. 内容定义
 
@@ -185,6 +186,8 @@ Power 施加（`Q/SimulatedCombatState.cs:648-711`）：数量为 0 或目标不
 - 固定类型序列（例如 `TriggerOwnerAfterSideTurnStart` 的 BiasedCognition → … → Clarity、`TriggerBaseSideTurnStart` 的 Blur → DrawCardsNextTurn → Plating → Slow）：内核保存从现有代码抄录的原版 Id 列表，只调用已登记且在场、层数为正的类型。
 
 持有者范围与现有遍历一致：`AfterEnergyReset` 与 `AfterPlayerTurnStart` 只看玩家生物，`BeforeHandDraw` 包含 Osty（`power.Owner.Player == player`）。敌方回合的每个阶段都重新读取当前敌人名单，对应现有代码直接传入 `simulatedCombat.Enemies`。`ShouldClearBlock` 是原版 Hook，战斗结束中不枚举监听者；第一个拒绝清除的监听者通过 `BlockAfterPreventingClear` 结算保留量。
+
+`EndTurn` 的前缀共享只复用“玩家回合结束 + 敌方回合”这段计算结果，不改变转移序列：第一个选择叶子执行一次完整 `EndTurn` 并捕获快照，后续叶子各执行一次 `StepEndTurnFromPrefix`，仍逐一经过原来的池、去重与计数路径。每方回合开始的 `AmountOnTurnStart` 快照按所有者集合一次扫描（只写各 Power 自己的字段，与逐所有者调用结果相同）；敌方回合末的持续时间衰减先把各生物的可衰减 Power 按“生物顺序 + Power 表内顺序”分桶，再按原顺序逐项衰减，前一个生物只移除自己的 Power，因此后续生物的 `(owner, id)` 序列与逐生物重扫一致。
 
 ## 8. 抽牌与洗牌
 

@@ -9,6 +9,23 @@ namespace BlitzSolver.Engine;
 /// </summary>
 public static partial class Kernel
 {
+    private static readonly Lazy<ushort> HexPowerId = new(() => PowerIdOrMax("HEX_POWER"));
+    private static readonly Lazy<ushort> TangledPowerId = new(() => PowerIdOrMax("TANGLED_POWER"));
+    private static readonly Lazy<ushort> RingingPowerId = new(() => PowerIdOrMax("RINGING_POWER"));
+    private static readonly Lazy<ushort> HexedAfflictionId = new(() => AfflictionIdOrMax("HEXED"));
+    private static readonly Lazy<ushort> EntangledAfflictionId = new(() => AfflictionIdOrMax("ENTANGLED"));
+    private static readonly Lazy<ushort> RingingAfflictionId = new(() => AfflictionIdOrMax("RINGING"));
+    private static readonly Lazy<ushort> VitalSparkPowerId = new(() => PowerIdOrMax("VITAL_SPARK_POWER"));
+    private static readonly Lazy<ushort> GalvanicPowerId = new(() => PowerIdOrMax("GALVANIC_POWER"));
+    private static readonly Lazy<ushort> SmoggyPowerId = new(() => PowerIdOrMax("SMOGGY_POWER"));
+    private static readonly Lazy<ushort> TaintedAfflictionId = new(() => AfflictionIdOrMax("TAINTED"));
+    private static readonly Lazy<ushort> GalvanizedAfflictionId = new(() => AfflictionIdOrMax("GALVANIZED"));
+    private static readonly Lazy<ushort> SmogAfflictionId = new(() => AfflictionIdOrMax("SMOG"));
+    private static readonly Lazy<ushort> SwordSagePowerId = new(
+        () => Registry.TryPower("SWORD_SAGE_POWER", out ushort id) ? id : ushort.MaxValue);
+    private static readonly Lazy<ushort> SovereignBladeCardId = new(
+        () => Registry.TryCard(SovereignBladeId, out ushort id) ? id : ushort.MaxValue);
+
     /// <summary>Internal affliction id of the card, or <see cref="ushort.MaxValue"/> when it has none.</summary>
     public static ushort AfflictionId(in Card card)
         => card.AfflictionId == 0 ? ushort.MaxValue : (ushort)(card.AfflictionId - 1);
@@ -76,15 +93,15 @@ public static partial class Kernel
     /// </summary>
     public static void NormalizeCardAfflictions(ref Exec x)
     {
-        ushort hex = PowerIdOrMax("HEX_POWER");
-        ushort tangled = PowerIdOrMax("TANGLED_POWER");
-        ushort ringing = PowerIdOrMax("RINGING_POWER");
+        ushort hex = HexPowerId.Value;
+        ushort tangled = TangledPowerId.Value;
+        ushort ringing = RingingPowerId.Value;
         int hexAmount = hex == ushort.MaxValue ? 0 : GetAmount(x.B, Limits.PlayerOwner, hex);
         int tangledAmount = tangled == ushort.MaxValue ? 0 : GetAmount(x.B, Limits.PlayerOwner, tangled);
         int ringingAmount = ringing == ushort.MaxValue ? 0 : GetAmount(x.B, Limits.PlayerOwner, ringing);
-        ushort hexed = AfflictionIdOrMax("HEXED");
-        ushort entangled = AfflictionIdOrMax("ENTANGLED");
-        ushort ringingAffliction = AfflictionIdOrMax("RINGING");
+        ushort hexed = HexedAfflictionId.Value;
+        ushort entangled = EntangledAfflictionId.Value;
+        ushort ringingAffliction = RingingAfflictionId.Value;
 
         for (int position = 0; position < x.B.CardCount; position++)
         {
@@ -124,9 +141,9 @@ public static partial class Kernel
     {
         if (!x.R.HasIdentityContent)
             return;
-        if (!Registry.TryPower("SWORD_SAGE_POWER", out ushort swordSage))
-            return;
-        if (!Registry.TryCard(Kernel.SovereignBladeId, out ushort blade))
+        ushort swordSage = SwordSagePowerId.Value;
+        ushort blade = SovereignBladeCardId.Value;
+        if (swordSage == ushort.MaxValue || blade == ushort.MaxValue)
             return;
         int desired = GetAmount(x.B, Limits.PlayerOwner, swordSage);
         for (int position = 0; position < x.B.CardCount; position++)
@@ -166,12 +183,12 @@ public static partial class Kernel
     /// </summary>
     private static void NormalizePowerAfflictions(ref Exec x)
     {
-        ushort vitalSpark = PowerIdOrMax("VITAL_SPARK_POWER");
-        ushort galvanic = PowerIdOrMax("GALVANIC_POWER");
-        ushort smoggy = PowerIdOrMax("SMOGGY_POWER");
-        ushort tainted = AfflictionIdOrMax("TAINTED");
-        ushort galvanized = AfflictionIdOrMax("GALVANIZED");
-        ushort smog = AfflictionIdOrMax("SMOG");
+        ushort vitalSpark = VitalSparkPowerId.Value;
+        ushort galvanic = GalvanicPowerId.Value;
+        ushort smoggy = SmoggyPowerId.Value;
+        ushort tainted = TaintedAfflictionId.Value;
+        ushort galvanized = GalvanizedAfflictionId.Value;
+        ushort smog = SmogAfflictionId.Value;
         int vitalSparkAmount = 0;
         for (int index = 0; index < x.B.PowerCount; index++)
         {

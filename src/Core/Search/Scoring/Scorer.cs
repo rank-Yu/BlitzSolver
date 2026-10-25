@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using BlitzSolver.Engine;
 using BlitzSolver.Search;
 using BlitzSolver.Search.Policy;
@@ -23,6 +24,16 @@ internal sealed class Scorer
     private readonly ScoreRules _score;
 
     public Scorer(ScoreRules score) => _score = score;
+
+    /// <summary>
+    /// Default-off test hook, set by <see cref="BeamSolver.Solve"/> from
+    /// <see cref="SearchVerificationHooks.VerifySearchEquivalence"/>. Every projection then compares
+    /// the battle before and after the in-place mutation.
+    /// </summary>
+    internal bool VerifyThreatProjection { get; set; }
+
+    /// <summary>Number of in-place threat projections checked by the default-off test hook.</summary>
+    internal int ThreatProjectionChecks { get; private set; }
 
     /// <summary>Complete frozen score table, for the deterministic golden request codec.</summary>
     internal ScoreRules RulesForCodec => _score;
@@ -107,20 +118,43 @@ internal sealed class Scorer
         decimal baseVar = Var(battle, card, stats, score.CalculationBaseVar);
         decimal extraVar = Var(battle, card, stats, score.CalculationExtraVar);
         decimal damage = 0m;
-        for (int position = 0; position < battle.RosterCount; position++)
+        // Only these calculated kinds read the target. Every other multiplier is a state-wide
+        // value: compute it once and apply the same candidate while any hittable enemy exists.
+        // The original loop's Math.Max over identical candidates is exactly that candidate clamped
+        // at zero (its initial damage value).
+        bool targetDependent = score.Calculated is CalculatedKind.TargetVulnerable
+            or CalculatedKind.TargetDebuffPowerCount or CalculatedKind.DoomOverThreshold
+            or CalculatedKind.TargetDoom;
+        if (targetDependent)
         {
-            byte owner = Kernel.EnemyOwner(battle.Roster[position]);
-            if (!Kernel.IsHittable(battle, owner))
-                continue;
+            decimal doomThreshold = score.Calculated == CalculatedKind.DoomOverThreshold
+                ? Var(battle, card, stats, score.DoomThresholdVar)
+                : 0m;
+            for (int position = 0; position < battle.RosterCount; position++)
+            {
+                byte owner = Kernel.EnemyOwner(battle.Roster[position]);
+                if (!Kernel.IsHittable(battle, owner))
+                    continue;
+                decimal multiplier = score.Calculated switch
+                {
+                    CalculatedKind.TargetVulnerable => GetAmount(battle, _score.VulnerablePowerId, owner),
+                    CalculatedKind.TargetDebuffPowerCount => CountTargetDebuffPowers(battle, owner),
+                    CalculatedKind.DoomOverThreshold => Math.Floor(
+                        GetAmount(battle, _score.DoomPowerId, owner) / doomThreshold),
+                    _ => GetAmount(battle, _score.DoomPowerId, owner),
+                };
+                damage = Math.Max(damage, baseVar + extraVar * multiplier);
+            }
+        }
+        else
+        {
             decimal multiplier = score.Calculated switch
             {
                 CalculatedKind.PlayerBlock => battle.Player.Block,
                 CalculatedKind.StrikeCardCount => CountCardsWithTag(battle, CardTag.Strike),
                 CalculatedKind.ExhaustPileCount => battle.ExhaustCount,
                 CalculatedKind.PlayerStrength => Math.Max(0, GetAmount(battle, _score.StrengthPowerId, Limits.PlayerOwner)),
-                CalculatedKind.TargetVulnerable => GetAmount(battle, _score.VulnerablePowerId, owner),
                 CalculatedKind.DrawPileCount => battle.DrawCount,
-                CalculatedKind.TargetDebuffPowerCount => CountTargetDebuffPowers(battle, owner),
                 CalculatedKind.FinishedCardPlays => battle.Counter(Counter.FinishedCardPlays),
                 CalculatedKind.CardsDiscardedThisTurn => battle.Counter(Counter.CardsDiscardedThisTurn),
                 CalculatedKind.NegativeHandCount => -battle.HandCount,
@@ -135,15 +169,19 @@ internal sealed class Scorer
                     - ((stats.Tags & CardTag.OstyAttack) != 0 ? 1 : 0),
                 CalculatedKind.ExhaustSoulCount => CountExhaustSoulCards(battle),
                 CalculatedKind.EtherealPlays => battle.Counter(Counter.EtherealPlays),
-                CalculatedKind.DoomOverThreshold => Math.Floor(
-                    GetAmount(battle, _score.DoomPowerId, owner) / Var(battle, card, stats, score.DoomThresholdVar)),
-                CalculatedKind.TargetDoom => GetAmount(battle, _score.DoomPowerId, owner),
                 CalculatedKind.NonHandDraws => battle.Counter(Counter.NonHandDrawsThisTurn),
                 CalculatedKind.GeneratedCardCount => battle.Counter(Counter.CardsGeneratedThisCombat),
                 _ => 0,
             };
             decimal candidate = baseVar + extraVar * multiplier;
-            damage = Math.Max(damage, candidate);
+            for (int position = 0; position < battle.RosterCount; position++)
+            {
+                byte owner = Kernel.EnemyOwner(battle.Roster[position]);
+                if (!Kernel.IsHittable(battle, owner))
+                    continue;
+                damage = Math.Max(0m, candidate);
+                break;
+            }
         }
         return value + (double)damage - score.BaseDamage;
     }
@@ -422,8 +460,6 @@ internal sealed class Scorer
                 aliveEnemyMask |= 1UL << index;
             }
         }
-
-
         bool dead = battle.Player.IsDead || battle.Outcome == Outcome.Defeat;
         bool won = !dead && battle.Outcome == Outcome.Victory;
         // The existing snapshot takes ThreatProjection(player.CurrentHp, 0, 0) whenever `won` is false
@@ -447,7 +483,6 @@ internal sealed class Scorer
             projectedDeathSaveUseCount = threat.DeathSaveUseCount;
             blockConsumed = threat.BlockConsumed;
         }
-
         int cumulativePlayerHpLost = battle.Counter(Counter.CumulativeHpLost);
         int recoveredPlayerHp = battle.Counter(Counter.RecoveredHp);
         int deathSaveHpRestored = battle.Counter(Counter.DeathSaveRelicHpRestored)
@@ -504,9 +539,17 @@ internal sealed class Scorer
         if (won)
             score += ScoreWeights.VictoryBonus;
         score += enemyHp * ScoreWeights.EnemyHp;
-
         int liveDeckClutter = 0;
         int liveCardCount = battle.HandCount + battle.DrawCount + battle.DiscardCount;
+        int retainedAttackValue = 0;
+        bool hasBlockDamagePayoff = false;
+        Span<SetupTraits> latentTraits = stackalloc SetupTraits[liveCardCount];
+        Span<int> latentValues = stackalloc int[liveCardCount];
+        int latentCount = 0;
+        SetupTraits latentSetupTraits = SetupTraits.None;
+        // One pass over the live piles feeds the clutter count, the retained attack value, the
+        // Body Slam payoff flag and the latent setup values. The accumulators see the same pile and
+        // card order as the separate loops they replace, so every sum and count is unchanged.
         for (int pile = 0; pile < 3; pile++)
         {
             Pile segment = pile switch
@@ -522,11 +565,37 @@ internal sealed class Scorer
                 ref readonly Card card = ref battle.Cards[start + offset];
                 CardStats stats = Rules.Card(card.Id, card.Upgrade);
                 CardScore cardScore = _score.Card(card.Id, card.Upgrade);
-                if ((ResolveCardType(battle, card, stats) is CardType.Status or CardType.Curse)
+                CardType cardType = ResolveCardType(battle, card, stats);
+                if ((cardType is CardType.Status or CardType.Curse)
                     && !LeavesHandAtTurnEnd(battle, segment, card, cardScore))
                 {
                     liveDeckClutter = checked(liveDeckClutter + 1);
                 }
+                if (cardType == CardType.Attack)
+                {
+                    retainedAttackValue += Math.Max(
+                        1,
+                        (int)Math.Round(BranchCardValue(battle, card, stats, cardScore)));
+                }
+                if (card.Id == _score.BodySlamCardId)
+                    hasBlockDamagePayoff = true;
+                SetupTraits trait = cardScore.LatentTrait;
+                int latentValue = cardScore.LatentValue;
+                int rider = cardScore.DynamicCardType ? Registry.Card(card.Id).PrivateRider(card) : -1;
+                if (cardScore.DynamicCardType && rider >= 0 && cardType == CardType.Power)
+                {
+                    // the existing search's StateEvaluation.LatentCardSetupValue's MadScience cases.
+                    trait = rider == BlitzSolver.Content.Cards.Event.MadScience.RiderCurious
+                        ? SetupTraits.Curious
+                        : SetupTraits.RecurringScaling;
+                    latentValue = rider == BlitzSolver.Content.Cards.Event.MadScience.RiderCurious
+                        ? 10
+                        : 5;
+                }
+                latentTraits[latentCount] = trait;
+                latentValues[latentCount] = latentValue;
+                latentCount++;
+                latentSetupTraits |= trait;
             }
         }
         score += liveDeckClutter * ScoreWeights.LiveDeckClutterPenalty;
@@ -542,31 +611,6 @@ internal sealed class Scorer
         }
         if (_score.TheftPolicy == TheftPolicy.PreserveResources)
             score += outstandingStolenResource * ScoreWeights.OutstandingStolenResourcePenalty;
-
-        int retainedAttackValue = 0;
-        for (int pile = 0; pile < 3; pile++)
-        {
-            Pile segment = pile switch
-            {
-                0 => Pile.Discard,
-                1 => Pile.Draw,
-                _ => Pile.Hand,
-            };
-            int start = Piles.Start(battle, segment);
-            int count = Piles.Count(battle, segment);
-            for (int offset = 0; offset < count; offset++)
-            {
-                ref readonly Card card = ref battle.Cards[start + offset];
-                CardStats stats = Rules.Card(card.Id, card.Upgrade);
-                if (ResolveCardType(battle, card, stats) != CardType.Attack)
-                    continue;
-                CardScore cardScore = _score.Card(card.Id, card.Upgrade);
-                retainedAttackValue += Math.Max(
-                    1,
-                    (int)Math.Round(BranchCardValue(battle, card, stats, cardScore)));
-            }
-        }
-
         ThreatFocus focus = BuildThreatFocus(battle);
 
         // Strategic effects over the powers that contribute (player-side buffs, positive amount, not
@@ -609,7 +653,6 @@ internal sealed class Scorer
                     demesneAmount += Math.Max(0, power.Amount);
             }
         }
-
         StrategicEffectContext? strategicContext = null;
         int refundSpend = 0, refundCapacity = 0, refundDraws = 0;
         bool refundCaptured = false;
@@ -696,43 +739,12 @@ internal sealed class Scorer
         }
 
         int latentSetupValue = 0;
-        SetupTraits latentSetupTraits = SetupTraits.None;
-        for (int pile = 0; pile < 3; pile++)
+        for (int index = 0; index < latentCount; index++)
         {
-            Pile segment = pile switch
-            {
-                0 => Pile.Discard,
-                1 => Pile.Draw,
-                _ => Pile.Hand,
-            };
-            int start = Piles.Start(battle, segment);
-            int count = Piles.Count(battle, segment);
-            for (int offset = 0; offset < count; offset++)
-            {
-                ref readonly Card card = ref battle.Cards[start + offset];
-                CardScore cardScore = _score.Card(card.Id, card.Upgrade);
-                SetupTraits trait = cardScore.LatentTrait;
-                int latentValue = cardScore.LatentValue;
-                int rider = cardScore.DynamicCardType ? Registry.Card(card.Id).PrivateRider(card) : -1;
-                if (cardScore.DynamicCardType
-                    && rider >= 0
-                    && ResolveCardType(battle, card, stats: Rules.Card(card.Id, card.Upgrade))
-                        == CardType.Power)
-                {
-                    // the existing search's StateEvaluation.LatentCardSetupValue's MadScience cases.
-                    trait = rider == BlitzSolver.Content.Cards.Event.MadScience.RiderCurious
-                        ? SetupTraits.Curious
-                        : SetupTraits.RecurringScaling;
-                    latentValue = rider == BlitzSolver.Content.Cards.Event.MadScience.RiderCurious
-                        ? 10
-                        : 5;
-                }
-                latentSetupTraits |= trait;
-                if (trait == SetupTraits.None || !persistentSetupTraits.HasFlag(trait))
-                    latentSetupValue += latentValue;
-            }
+            SetupTraits trait = latentTraits[index];
+            if (trait == SetupTraits.None || !persistentSetupTraits.HasFlag(trait))
+                latentSetupValue += latentValues[index];
         }
-
         int replayPotentialValue = ReplayPotentialValue(battle);
         // the existing search's StateEvaluation.CalculateReachableHandPotential reads the same playable
         // hand costs/values and feeds them to ReachableHandValue.Calculate.
@@ -740,8 +752,10 @@ internal sealed class Scorer
         int zeroCostPlayableCount = 0;
         int playableAttackCount = 0;
         if (includeRetentionOnly)
+        {
             (reachableHandValue, zeroCostPlayableCount, playableAttackCount) =
                 ReachableHandPotential(battle);
+        }
         int strategicRetentionValue = strategicEffects.RetentionValue;
 
         int retainedHandValue = 0;
@@ -794,26 +808,6 @@ internal sealed class Scorer
         persistentBuffValue += CountLiveSoulCards(battle);
         int reactiveDamageValue = Math.Max(0, GetAmount(battle, _score.SleightOfFleshPowerId, Limits.PlayerOwner));
 
-        bool hasBlockDamagePayoff = false;
-        for (int pile = 0; pile < 3 && !hasBlockDamagePayoff; pile++)
-        {
-            Pile segment = pile switch
-            {
-                0 => Pile.Discard,
-                1 => Pile.Draw,
-                _ => Pile.Hand,
-            };
-            int start = Piles.Start(battle, segment);
-            int count = Piles.Count(battle, segment);
-            for (int offset = 0; offset < count; offset++)
-            {
-                if (battle.Cards[start + offset].Id == _score.BodySlamCardId)
-                {
-                    hasBlockDamagePayoff = true;
-                    break;
-                }
-            }
-        }
         int offensiveProgressValue = offensivePersistentBuffValue
             + delayedDamageValue
             + reactiveDamageValue
@@ -914,7 +908,6 @@ internal sealed class Scorer
         potionStrategicCost = checked(potionStrategicCost + _score.InitialPotionStrategicCost);
         explicitPotionStrategicCost = checked(
             explicitPotionStrategicCost + _score.InitialExplicitPotionStrategicCost);
-
         int defensiveBlockValue = MeasureDefensiveBlockReserve(battle, blockConsumed);
 
         // Retention-only projections (the existing search's StateEvaluation): the projected shuffle
@@ -1044,8 +1037,8 @@ internal sealed class Scorer
 
     internal RetentionValues CaptureRetentionValues(in Battle battle)
     {
-        (int value, ulong projectedFirst, ulong projectedSecond) = CaptureProjectedShuffleOrder(battle);
-        (ulong unorderedFirst, ulong unorderedSecond) = CaptureUnorderedPileKey(battle);
+        (int value, ulong projectedFirst, ulong projectedSecond,
+            ulong unorderedFirst, ulong unorderedSecond) = CaptureShuffleAndUnorderedKeys(battle);
         (ulong combatFirst, ulong combatSecond) = CaptureEnemyCombatDistribution(battle);
         (ulong controlFirst, ulong controlSecond) = CaptureEnemyControlDistribution(battle);
         bool artOfWar = false;
@@ -1115,17 +1108,49 @@ internal sealed class Scorer
     /// end on a copy of the shuffle RNG), then the value sum and a card-state key. The existing key
     /// hashes the existing engine's per-card fingerprint; Blitz hashes the card byte image instead.
     /// </summary>
-    private (int Value, ulong KeyFirst, ulong KeySecond) CaptureProjectedShuffleOrder(in Battle battle)
+    private (int Value, ulong ProjectedFirst, ulong ProjectedSecond,
+        ulong UnorderedFirst, ulong UnorderedSecond) CaptureShuffleAndUnorderedKeys(in Battle battle)
     {
         int total = battle.DiscardCount + battle.DrawCount + battle.HandCount;
         Span<Card> cards = stackalloc Card[Limits.Cards];
         cards = cards[..total];
+        Span<ulong> hashes = stackalloc ulong[Limits.Cards];
+        hashes = hashes[..total];
+        Span<int> origins = stackalloc int[Limits.Cards];
+        origins = origins[..total];
+        Span<ulong> shuffledHashes = stackalloc ulong[Limits.Cards];
+        shuffledHashes = shuffledHashes[..total];
         int discardCount = battle.DiscardCount;
         int drawCount = battle.DrawCount;
-        Piles.ReadCards(battle, Pile.Discard).CopyTo(cards);
-        Piles.ReadCards(battle, Pile.Draw).CopyTo(cards[discardCount..]);
-        Piles.ReadCards(battle, Pile.Hand).CopyTo(cards[(discardCount + drawCount)..]);
-        CardSort.Sort(cards, Rules);
+        int handCount = battle.HandCount;
+        int position = 0;
+        CopyPileAndHash(battle, Pile.Discard, cards, hashes, ref position,
+            out ulong discardFirst, out ulong discardSecond);
+        CopyPileAndHash(battle, Pile.Draw, cards, hashes, ref position,
+            out ulong drawFirst, out ulong drawSecond);
+        CopyPileAndHash(battle, Pile.Hand, cards, hashes, ref position,
+            out ulong handFirst, out ulong handSecond);
+        // The unordered key also covers the exhaust pile, which the projected shuffle does not use.
+        ulong exhaustFirst = 0, exhaustSecond = 0;
+        ReadOnlySpan<Card> exhaust = Piles.ReadCards(battle, Pile.Exhaust);
+        for (int index = 0; index < exhaust.Length; index++)
+        {
+            ulong hash = Fingerprint.HashCard(exhaust[index]);
+            exhaustFirst += StateFingerprintBuilder.MixFirst(hash);
+            exhaustSecond += StateFingerprintBuilder.MixSecond(hash);
+        }
+        StateFingerprintBuilder unordered = new();
+        AppendUnorderedPile(ref unordered, 'H', handCount, handFirst, handSecond);
+        AppendUnorderedPile(ref unordered, 'D', drawCount, drawFirst, drawSecond);
+        AppendUnorderedPile(ref unordered, 'C', discardCount, discardFirst, discardSecond);
+        AppendUnorderedPile(ref unordered, 'X', exhaust.Length, exhaustFirst, exhaustSecond);
+        StateFingerprint unorderedFinish = unordered.Finish();
+
+        for (int index = 0; index < total; index++)
+            origins[index] = index;
+        CardSort.SortWithOrigins(cards, origins, Rules);
+        for (int index = 0; index < total; index++)
+            shuffledHashes[index] = hashes[origins[index]];
         RngState shuffle = battle.RngStream(RngStream.Shuffle);
         int shuffleCounter = shuffle.Counter;
         for (int n = total; n > 1;)
@@ -1133,6 +1158,7 @@ internal sealed class Scorer
             n--;
             int k = shuffle.NextInt(n + 1);
             (cards[k], cards[n]) = (cards[n], cards[k]);
+            (shuffledHashes[k], shuffledHashes[n]) = (shuffledHashes[n], shuffledHashes[k]);
         }
         StateFingerprintBuilder key = new();
         key.Add(shuffleCounter);
@@ -1148,44 +1174,41 @@ internal sealed class Scorer
             // values the score table's CardValue applies.
             double cardValue = CardValue(battle, card, stats, cardScore);
             value += (int)Math.Round(cardValue * (total - index));
-            ulong hash = Fingerprint.HashCard(card);
+            ulong hash = shuffledHashes[index];
             key.Add(StateFingerprintBuilder.MixFirst(hash));
             key.Add(StateFingerprintBuilder.MixSecond(hash));
         }
         StateFingerprint finish = key.Finish();
-        return (value, finish.First, finish.Second);
+        return (value, finish.First, finish.Second, unorderedFinish.First, unorderedFinish.Second);
     }
 
     /// <summary>
-    /// <c>SearchEvaluator.BuildUnorderedPileKey</c>: per pile (hand, draw, discard, exhaust, in that
-    /// order) the order-invariant sum of the mixed per-card hashes, followed by the pile marker, count
-    /// and both sums. The existing engine hashes its own card fingerprint; the equivalence class is
-    /// the same card-state multiset.
+    /// Copies one live pile into the shuffle buffer and records each card's fingerprint once. The same
+    /// hash feeds the projected shuffle key (after the sort/Fisher-Yates reorders it with the card) and
+    /// the order-invariant unordered-pile sums, so no card is hashed twice.
     /// </summary>
-    private (ulong First, ulong Second) CaptureUnorderedPileKey(in Battle battle)
+    private static void CopyPileAndHash(in Battle battle, Pile pile, Span<Card> cards,
+        Span<ulong> hashes, ref int position, out ulong first, out ulong second)
     {
-        StateFingerprintBuilder unordered = new();
-        AppendUnorderedPile(ref unordered, battle, Pile.Hand, 'H');
-        AppendUnorderedPile(ref unordered, battle, Pile.Draw, 'D');
-        AppendUnorderedPile(ref unordered, battle, Pile.Discard, 'C');
-        AppendUnorderedPile(ref unordered, battle, Pile.Exhaust, 'X');
-        StateFingerprint finish = unordered.Finish();
-        return (finish.First, finish.Second);
-    }
-
-    private static void AppendUnorderedPile(ref StateFingerprintBuilder unordered, in Battle battle,
-        Pile pile, char marker)
-    {
-        ReadOnlySpan<Card> cards = Piles.ReadCards(battle, pile);
-        ulong first = 0, second = 0;
-        for (int index = 0; index < cards.Length; index++)
+        ReadOnlySpan<Card> source = Piles.ReadCards(battle, pile);
+        source.CopyTo(cards[position..]);
+        first = 0;
+        second = 0;
+        for (int index = 0; index < source.Length; index++)
         {
-            ulong hash = Fingerprint.HashCard(cards[index]);
+            ulong hash = Fingerprint.HashCard(source[index]);
+            hashes[position + index] = hash;
             first += StateFingerprintBuilder.MixFirst(hash);
             second += StateFingerprintBuilder.MixSecond(hash);
         }
+        position += source.Length;
+    }
+
+    private static void AppendUnorderedPile(ref StateFingerprintBuilder unordered, char marker,
+        int count, ulong first, ulong second)
+    {
         unordered.Add(marker);
-        unordered.Add(cards.Length);
+        unordered.Add(count);
         unordered.Add(first);
         unordered.Add(second);
     }
@@ -1287,14 +1310,76 @@ internal sealed class Scorer
 
     private ThreatProjection ProjectHpAfterThreat(in Battle battle)
     {
+        if (!VerifyThreatProjection)
+            return ProjectHpAfterThreatBody(in battle);
+        Battle before = battle;
+        ThreatProjection projection = ProjectHpAfterThreatBody(in battle);
+        CheckThreatProjection(in before, in Unsafe.AsRef(in battle));
+        return projection;
+    }
+
+    private ThreatProjection ProjectHpAfterThreatBody(in Battle battle)
+    {
         // the existing search's ProjectHpAfterThreat walks the run-listener table, which still contains the
         // player's relics and cards after the player dies; Blitz's PlayerHooksActive flag only gates the
         // combat dispatch. The projection must include those modifiers (Tungsten Rod's per-hit reduction
-        // is the visible case) even on a dead snapshot, and it consumes Buffer stacks, so it runs on a
-        // local copy: the evaluated state stays read-only through the `in` parameter.
-        Battle probe = battle;
-        probe.Flags |= BattleFlags.PlayerHooksActive;
-        return ProjectHpAfterThreatCore(ref probe);
+        // is the visible case) even on a dead snapshot.
+        //
+        // The only write performed by the projected listeners is BufferPower's
+        // AfterModifyingHpLostAfterOsty, which sets that power's amount (and may remove the row). Every
+        // other ModifyDamage / ModifyHpLost / ModifyUnblockedDamageTarget implementation is a pure
+        // query. Run the projection in place and restore the flags and, only when a Buffer power is
+        // present, the power array and count. This avoids a 12 KiB Battle copy per scored state.
+        ref Battle probe = ref Unsafe.AsRef(in battle);
+        BattleFlags savedFlags = probe.Flags;
+        bool mayConsumeBuffer = _score.BufferPowerId != ushort.MaxValue;
+        if (mayConsumeBuffer)
+        {
+            mayConsumeBuffer = false;
+            for (int index = 0; index < probe.PowerCount; index++)
+            {
+                if (probe.Powers[index].Id == _score.BufferPowerId)
+                {
+                    mayConsumeBuffer = true;
+                    break;
+                }
+            }
+        }
+        int savedPowerCount = mayConsumeBuffer ? probe.PowerCount : 0;
+        PowerArray savedPowers = mayConsumeBuffer ? probe.Powers : default;
+        probe.Flags = savedFlags | BattleFlags.PlayerHooksActive;
+        try
+        {
+            return ProjectHpAfterThreatCore(ref probe);
+        }
+        finally
+        {
+            probe.Flags = savedFlags;
+            if (mayConsumeBuffer)
+            {
+                probe.PowerCount = (byte)savedPowerCount;
+                probe.Powers = savedPowers;
+            }
+        }
+    }
+
+    private void CheckThreatProjection(in Battle before, in Battle after)
+    {
+        ThreatProjectionChecks++;
+        if (BattleBytesEqual(before, after))
+            return;
+        List<string> differences = BattleDump.Diff(before, after, "before", "after");
+        throw new InvalidOperationException(
+            "威胁投影原地自检失败：" + string.Join(" | ", differences));
+    }
+
+    private static bool BattleBytesEqual(in Battle left, in Battle right)
+    {
+        ReadOnlySpan<byte> leftBytes = MemoryMarshal.AsBytes(
+            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in left), 1));
+        ReadOnlySpan<byte> rightBytes = MemoryMarshal.AsBytes(
+            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in right), 1));
+        return leftBytes.SequenceEqual(rightBytes);
     }
 
     private ThreatProjection ProjectHpAfterThreatCore(ref Battle probe)

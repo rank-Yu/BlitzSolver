@@ -395,6 +395,42 @@ internal sealed record BeamResult(
     public TimeSpan MaxObservedGcPause { get; init; }
 
     /// <summary>
+    /// End-turn actions that reused a prepared player-turn-start prefix. Diagnostics only; not part
+    /// of the result encoding or the D2 field comparison.
+    /// </summary>
+    public int EndTurnPrefixShared { get; init; }
+
+    /// <summary>
+    /// End-turn actions whose prefix was not shareable (a choice or ending in the first half, or an
+    /// extra turn); those actions ran the ordinary complete step. Diagnostics only.
+    /// </summary>
+    public int EndTurnPrefixUnshared { get; init; }
+
+    /// <summary>
+    /// Selection leaves checked against the complete-step path by the default-off equivalence hook.
+    /// Diagnostics only.
+    /// </summary>
+    public int EndTurnPrefixVerified { get; init; }
+
+    /// <summary>
+    /// In-place threat projections whose before/after battle bytes were compared by the default-off
+    /// equivalence hook. Diagnostics only.
+    /// </summary>
+    public int ThreatProjectionVerified { get; init; }
+
+    /// <summary>Selection leaves that continued a prepared prefix (at least one per shared parent).</summary>
+    public int EndTurnPrefixReusedLeaves { get; init; }
+
+    /// <summary>Unshared prefixes whose first half requested a choice before the player turn start.</summary>
+    public int EndTurnPrefixChoiceUnshared { get; init; }
+
+    /// <summary>Unshared prefixes for an extra turn.</summary>
+    public int EndTurnPrefixExtraTurnUnshared { get; init; }
+
+    /// <summary>Unshared prefixes because the parent was already over.</summary>
+    public int EndTurnPrefixNotInProgress { get; init; }
+
+    /// <summary>
     /// Set when the search stopped at a takeover checkpoint instead of running to its own stop
     /// condition. <see cref="BestRoute"/> then identifies the adopted current-turn route (or is empty
     /// for <see cref="TakeoverAction.AdoptRoute"/>, where the bridge materializes the requested
@@ -539,6 +575,25 @@ internal sealed partial class BeamSolver
     private int _endedCompactionTarget;
     private readonly Dictionary<string, int> _capacityDropped = new(StringComparer.Ordinal);
 
+    // Shared end-turn prefix. A prefix is keyed by the expansion generation (one per expanded parent,
+    // also advanced when a fetched-power successor batch starts) and by the parent route node, so a
+    // recursive selection expansion of the same parent reuses it while any other parent cannot.
+    private int _expandGeneration;
+    private int _endTurnPrefixAttemptGeneration = -1;
+    private int _endTurnPrefixAttemptNode = -1;
+    private int _endTurnPrefixGeneration = -1;
+    private int _endTurnPrefixNode = -1;
+    private bool _endTurnPrefixValid;
+    private int _endTurnPrefixShared;
+    private int _endTurnPrefixUnshared;
+    private int _endTurnPrefixVerified;
+    private int _endTurnPrefixReusedLeaves;
+    private int _endTurnPrefixChoiceUnshared;
+    private int _endTurnPrefixExtraTurnUnshared;
+    private int _endTurnPrefixNotInProgress;
+    private bool _verifySearchEquivalence;
+    private EndTurnPrefix _endTurnPrefix;
+
     /// <summary>Offline route trace (null in production) and the pool phase it reports.</summary>
     private readonly BeamTrace? _trace;
     private string _tracePhase = "next";
@@ -623,6 +678,8 @@ internal sealed partial class BeamSolver
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
         _singleRoot = roots.Count == 1;
+        _verifySearchEquivalence = SearchVerificationHooks.VerifySearchEquivalence;
+        _scorer.VerifyThreatProjection = _verifySearchEquivalence;
         Stopwatch watch = Stopwatch.StartNew();
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
@@ -795,6 +852,7 @@ internal sealed partial class BeamSolver
                 {
                     SearchCheckpoint();
                     _expanded++;
+                    _expandGeneration++;
                     ref Battle parent = ref current.State(index);
                     int parentNode = current.Node(index);
                     int count = Kernel.LegalActions(parent, _rules, _actions);
@@ -883,6 +941,14 @@ internal sealed partial class BeamSolver
                 _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
             {
                 CapacityPruned = _capacityPruned,
+                EndTurnPrefixShared = _endTurnPrefixShared,
+                EndTurnPrefixUnshared = _endTurnPrefixUnshared,
+                EndTurnPrefixVerified = _endTurnPrefixVerified,
+                ThreatProjectionVerified = _scorer.ThreatProjectionChecks,
+                EndTurnPrefixReusedLeaves = _endTurnPrefixReusedLeaves,
+                EndTurnPrefixChoiceUnshared = _endTurnPrefixChoiceUnshared,
+                EndTurnPrefixExtraTurnUnshared = _endTurnPrefixExtraTurnUnshared,
+                EndTurnPrefixNotInProgress = _endTurnPrefixNotInProgress,
                 CapacityDroppedChildren = _capacityDropped.Count == 0
                     ? BeamResult.NoCapacityDrops
                     : _capacityDropped,
@@ -922,6 +988,14 @@ internal sealed partial class BeamSolver
             _expanded, _transitions, _duplicates, turns, _pruned, watch.Elapsed)
         {
             CapacityPruned = _capacityPruned,
+            EndTurnPrefixShared = _endTurnPrefixShared,
+            EndTurnPrefixUnshared = _endTurnPrefixUnshared,
+            EndTurnPrefixVerified = _endTurnPrefixVerified,
+            ThreatProjectionVerified = _scorer.ThreatProjectionChecks,
+            EndTurnPrefixReusedLeaves = _endTurnPrefixReusedLeaves,
+            EndTurnPrefixChoiceUnshared = _endTurnPrefixChoiceUnshared,
+            EndTurnPrefixExtraTurnUnshared = _endTurnPrefixExtraTurnUnshared,
+            EndTurnPrefixNotInProgress = _endTurnPrefixNotInProgress,
             CapacityDroppedChildren = _capacityDropped.Count == 0
                 ? BeamResult.NoCapacityDrops
                 : _capacityDropped,
@@ -1377,7 +1451,25 @@ internal sealed partial class BeamSolver
             _transitions++;
             StepResult stepResult;
             ChoiceRequest request;
-            stepResult = Kernel.Step(ref child, action, _rules, out request, out bool historyRisk);
+            bool historyRisk;
+            if (action.Kind == PlayerActionKind.EndTurn && CanReuseEndTurnPrefix(parentNode))
+            {
+                _endTurnPrefixReusedLeaves++;
+                stepResult = Kernel.StepEndTurnFromPrefix(ref child, action, _rules, in _endTurnPrefix,
+                    out request, out historyRisk);
+                if (_verifySearchEquivalence)
+                    VerifyPreparedEndTurn(ref parent, action, ref child, stepResult, in request, historyRisk);
+            }
+            else if (action.Kind == PlayerActionKind.EndTurn && IsFirstEndTurnLeaf(parentNode))
+            {
+                stepResult = Kernel.StepEndTurnSharingPrefix(ref child, action, _rules, out request,
+                    out historyRisk, out EndTurnPrefix prefix, out EndTurnPrefixStatus prefixStatus);
+                StoreEndTurnPrefix(in prefix, prefixStatus, parentNode);
+            }
+            else
+            {
+                stepResult = Kernel.Step(ref child, action, _rules, out request, out historyRisk);
+            }
             if (stepResult == StepResult.NeedsChoice)
             {
                 // Every executed selection is exact; the cap only bounds how many are explored.
@@ -1540,6 +1632,136 @@ internal sealed partial class BeamSolver
         {
             RecordCapacityDrop(ex);
         }
+    }
+
+    /// <summary>
+    /// True when this is the first end-turn leaf of the current parent. The first leaf executes the
+    /// complete step and captures the prefix as a by-product; recursive selection leaves reuse it.
+    /// </summary>
+    private bool IsFirstEndTurnLeaf(int parentNode)
+    {
+        if (_endTurnPrefixAttemptGeneration == _expandGeneration
+            && _endTurnPrefixAttemptNode == parentNode)
+            return false;
+        _endTurnPrefixAttemptGeneration = _expandGeneration;
+        _endTurnPrefixAttemptNode = parentNode;
+        return true;
+    }
+
+    private bool CanReuseEndTurnPrefix(int parentNode)
+        => _endTurnPrefixValid
+            && _endTurnPrefixGeneration == _expandGeneration
+            && _endTurnPrefixNode == parentNode;
+
+    private void StoreEndTurnPrefix(in EndTurnPrefix prefix, EndTurnPrefixStatus status, int parentNode)
+    {
+        if (prefix.IsPrepared)
+        {
+            _endTurnPrefix = prefix;
+            _endTurnPrefixValid = true;
+            _endTurnPrefixGeneration = _expandGeneration;
+            _endTurnPrefixNode = parentNode;
+            _endTurnPrefixShared++;
+            return;
+        }
+        _endTurnPrefixValid = false;
+        _endTurnPrefixUnshared++;
+        switch (status)
+        {
+            case EndTurnPrefixStatus.ChoiceBeforePlayerStart:
+                _endTurnPrefixChoiceUnshared++;
+                break;
+            case EndTurnPrefixStatus.ExtraTurn:
+                _endTurnPrefixExtraTurnUnshared++;
+                break;
+            case EndTurnPrefixStatus.NotInProgress:
+                _endTurnPrefixNotInProgress++;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Default-off differential check: runs the complete step from the parent and compares every
+    /// observable result of the prefix continuation against it. Only enabled by
+    /// <see cref="SearchVerificationHooks.VerifySearchEquivalence"/>.
+    /// </summary>
+    private void VerifyPreparedEndTurn(ref Battle parent, in PlayerAction action, ref Battle actual,
+        StepResult actualResult, in ChoiceRequest actualRequest, bool actualHistoryRisk)
+    {
+        Battle expected = parent;
+        StepResult expectedResult = Kernel.Step(ref expected, action, _rules, out ChoiceRequest expectedRequest,
+            out bool expectedHistoryRisk);
+        if (expectedResult == actualResult && expectedHistoryRisk == actualHistoryRisk
+            && BattleBytesEqual(expected, actual) && RequestEquals(expectedRequest, actualRequest))
+        {
+            _endTurnPrefixVerified++;
+            return;
+        }
+        string? requestDifference = RequestDifference(expectedRequest, actualRequest);
+        List<string> battleDifference = BattleBytesEqual(expected, actual)
+            ? []
+            : BattleDump.Diff(expected, actual, "complete", "prefix");
+        throw new InvalidOperationException(
+            $"EndTurn 前缀等价校验失败：kind={action.Kind} hand={action.HandIndex} "
+            + $"target={action.Target} choices={action.ChoiceCount} "
+            + $"result complete={expectedResult} prefix={actualResult}；"
+            + $"historyRisk complete={expectedHistoryRisk} prefix={actualHistoryRisk}；"
+            + $"request={(requestDifference ?? "same")}；battle="
+            + (battleDifference.Count == 0 ? "same" : string.Join(" | ", battleDifference)));
+    }
+
+    private static bool BattleBytesEqual(in Battle expected, in Battle actual)
+    {
+        ReadOnlySpan<byte> left = MemoryMarshal.AsBytes(
+            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in expected), 1));
+        ReadOnlySpan<byte> right = MemoryMarshal.AsBytes(
+            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in actual), 1));
+        return left.SequenceEqual(right);
+    }
+
+    private static bool RequestEquals(in ChoiceRequest expected, in ChoiceRequest actual)
+        => RequestDifference(expected, actual) is null;
+
+    private static string? RequestDifference(in ChoiceRequest expected, in ChoiceRequest actual)
+    {
+        if (expected.Kind != actual.Kind)
+            return $"Kind {expected.Kind}/{actual.Kind}";
+        if (expected.Effect != actual.Effect)
+            return $"Effect {expected.Effect}/{actual.Effect}";
+        if (expected.Timing != actual.Timing)
+            return $"Timing {expected.Timing}/{actual.Timing}";
+        if (expected.Source != actual.Source)
+            return $"Source {expected.Source}/{actual.Source}";
+        if (expected.SourceIsNone != actual.SourceIsNone)
+            return $"SourceIsNone {expected.SourceIsNone}/{actual.SourceIsNone}";
+        if (expected.OptionsAreGenerated != actual.OptionsAreGenerated)
+            return $"OptionsAreGenerated {expected.OptionsAreGenerated}/{actual.OptionsAreGenerated}";
+        if (expected.OptionCount != actual.OptionCount || expected.MinCount != actual.MinCount
+            || expected.MaxCount != actual.MaxCount)
+            return $"counts {expected.OptionCount}/{actual.OptionCount} {expected.MinCount}/{actual.MinCount} "
+                + $"{expected.MaxCount}/{actual.MaxCount}";
+        for (int index = 0; index < expected.OptionCount; index++)
+        {
+            if (expected.OptionsAreGenerated)
+            {
+                if (!CardBytesEqual(expected.GeneratedOptions[index], actual.GeneratedOptions[index]))
+                    return $"GeneratedOptions[{index}]";
+            }
+            else if (expected.Options[index] != actual.Options[index])
+            {
+                return $"Options[{index}] {expected.Options[index]}/{actual.Options[index]}";
+            }
+        }
+        return null;
+    }
+
+    private static bool CardBytesEqual(in Card left, in Card right)
+    {
+        ReadOnlySpan<byte> leftBytes = MemoryMarshal.AsBytes(
+            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in left), 1));
+        ReadOnlySpan<byte> rightBytes = MemoryMarshal.AsBytes(
+            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in right), 1));
+        return leftBytes.SequenceEqual(rightBytes);
     }
 
     /// <summary>
@@ -1767,6 +1989,7 @@ internal sealed partial class BeamSolver
         int parentStrategicResourcePotential)
     {
         _expanded++;
+        _expandGeneration++;
         Battle state = commitment;
         // The intermediate selection state is the parent of every successor. Its retention facts are
         // computed once; the retained state itself is never committed.
@@ -3365,6 +3588,7 @@ internal sealed partial class BeamSolver
         private readonly Dictionary<ParetoCohortKey, List<int>> _paretoCohorts = new();
         private readonly List<int> _pareto = new(3);
         private readonly List<int> _standPatGroup = new();
+        private readonly Dictionary<int, List<int>> _standPatGroups = new();
         private readonly record struct StandPatEvaluation(
             bool AllEnemiesDead, int DelayedDamage, int ProjectedPlayerHp, int ResourceValue,
             bool Available);
@@ -4401,6 +4625,8 @@ internal sealed partial class BeamSolver
         {
             _lineageLeaders.Clear();
             _potionLeaders.Clear();
+            foreach (List<int> group in _standPatGroups.Values)
+                group.Clear();
             _traitLeaders.Clear();
             _traitOrder.Clear();
             _focusLeaders.Clear();
@@ -4422,6 +4648,15 @@ internal sealed partial class BeamSolver
                 {
                     potion = new PotionLeaders { Leader = source };
                     _potionLeaders.Add(potionCount, potion);
+                }
+                if (wideLanes)
+                {
+                    if (!_standPatGroups.TryGetValue(potionCount, out List<int>? standPat))
+                    {
+                        standPat = [];
+                        _standPatGroups.Add(potionCount, standPat);
+                    }
+                    standPat.Add(source);
                 }
                 if (potion.Defensive < 0 || IsBetterDefensive(facts, _facts[potion.Defensive]))
                     potion.Defensive = source;
@@ -4664,20 +4899,16 @@ internal sealed partial class BeamSolver
                 for (int potionIndex = 0; potionIndex < _potionCountOrder.Count; potionIndex++)
                 {
                     int potionCount = _potionCountOrder[potionIndex];
-                    _standPatGroup.Clear();
-                    for (int position = 0; position < Count; position++)
+                    if (!_standPatGroups.TryGetValue(potionCount, out List<int>? standPat)
+                        || standPat.Count == 0)
                     {
-                        int slot = _rankOrder[position];
-                        if (_facts[slot].PotionCount == potionCount)
-                            _standPatGroup.Add(slot);
-                    }
-                    if (_standPatGroup.Count == 0)
                         continue;
-                    AddRequired(required, FindBestDamagingContinuation(_standPatGroup), width);
-                    AddRequired(required, FindBestFreshResourceStandPat(_standPatGroup), width);
-                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Scaling), width);
-                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Resource), width);
-                    AddRequired(required, FindBestStandPat(_standPatGroup, SearchRouteTraits.Control), width);
+                    }
+                    AddRequired(required, FindBestDamagingContinuation(standPat), width);
+                    AddRequired(required, FindBestFreshResourceStandPat(standPat), width);
+                    AddRequired(required, FindBestStandPat(standPat, SearchRouteTraits.Scaling), width);
+                    AddRequired(required, FindBestStandPat(standPat, SearchRouteTraits.Resource), width);
+                    AddRequired(required, FindBestStandPat(standPat, SearchRouteTraits.Control), width);
                 }
             }
 

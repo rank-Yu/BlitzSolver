@@ -40,6 +40,16 @@ public static partial class Kernel
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action.Kind, null);
         }
+        return FinishStep(ref x, action, out request, out historyRisk);
+    }
+
+    /// <summary>
+    /// SettleReplayActionBoundary and the step result. Shared by the ordinary action dispatch and the
+    /// prepared-end-turn continuation, so both paths perform the identical post-boundary work.
+    /// </summary>
+    private static StepResult FinishStep(ref Exec x, in PlayerAction action, out ChoiceRequest request,
+        out bool historyRisk)
+    {
         // SettleReplayActionBoundary: resolve the queued changes and renormalize card afflictions.
         // The existing engine skips SettleReplayActionBoundary for every non-None boundary, including
         // EventDefeat (CombatBeamSolver.Expansion.Replay.cs:432). Only the Blitz-internal transient
@@ -50,16 +60,16 @@ public static partial class Kernel
             if (!x.NeedsChoice)
                 NormalizeCardAfflictions(ref x);
         }
-        if (!x.NeedsChoice && rules.HasDecimalCardVars)
-            DecimalVars.Canonicalize(ref battle);
+        if (!x.NeedsChoice && x.R.HasDecimalCardVars)
+            DecimalVars.Canonicalize(ref x.B);
         if (!x.NeedsChoice)
-            ClearPendingPowerAmountStates(ref battle);
-        if (!x.NeedsChoice && rules.PenNibRelicIndex >= 0
-            && rules.PenNibRelicIndex < battle.RelicCount)
+            ClearPendingPowerAmountStates(ref x.B);
+        if (!x.NeedsChoice && x.R.PenNibRelicIndex >= 0
+            && x.R.PenNibRelicIndex < x.B.RelicCount)
         {
             // Projection/normalization: a play cut short before AfterCardPlayed (player death) leaves
             // the doubled-attack latch; no later settlement can read it and the importer projects 0.
-            battle.Relics[rules.PenNibRelicIndex].Aux = 0;
+            x.B.Relics[x.R.PenNibRelicIndex].Aux = 0;
         }
         historyRisk = x.HistoryRisk;
         if (x.NeedsChoice)

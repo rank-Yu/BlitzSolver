@@ -346,6 +346,100 @@ public ref struct Exec
         TakingExtraTurn = false;
     }
 
+    /// <summary>
+    /// Captures the execution context at the player-turn-start boundary of an end-turn action.
+    /// Every value field whose lifetime is not confined to a single effect is copied; the fields
+    /// that are structurally empty at this boundary are asserted by
+    /// <see cref="AssertPlayerStartBoundary"/>.
+    /// </summary>
+    internal ExecContinuation CaptureContinuation()
+    {
+        AssertPlayerStartBoundary();
+        return new ExecContinuation(
+            HistoryRisk, AttackUnblockedHits, CardDamageTotal, CardKilledTarget,
+            LastDamageKills, LastDamageTotal, LastDamageOverkill, Card, Stats, Target, XValue,
+            StarValue, PlayIndex, PlayPosition, DrawnCardPosition, IntrinsicDrawHandled,
+            GeneratedOptions, GeneratedOptionCount, PendingPowerChanges, PendingPowerChangeCount,
+            CardPlayPairs, CardPlayPairCount, MonologuePending, MonologuePendingCount,
+            CurrentMonologueBase, MonologuesResolved, CardPowerSourceActive, CardPowerSourceSerial,
+            CardPowerSourceSerialCounter, LampTriggerSerial, LampInternalTypeCount,
+            LampInternalTypes, VambraceTriggerActive, VambraceTriggerPosition,
+            VambraceTriggerSerial, LastCardPowerSourceSerial, PlayIdentity, LastPlayIdentity,
+            PlayIdentityCounter, MusicBoxPlayIdentity, CurrentPlayIsAutoPlay,
+            CurrentPlayIsHistoryCourseDupe, CurrentPlayEnergyValue);
+    }
+
+    /// <summary>Restores a prefix snapshot into a freshly constructed action execution context.</summary>
+    internal void RestoreContinuation(in ExecContinuation continuation)
+    {
+        HistoryRisk = continuation.HistoryRisk;
+        AttackUnblockedHits = continuation.AttackUnblockedHits;
+        CardDamageTotal = continuation.CardDamageTotal;
+        CardKilledTarget = continuation.CardKilledTarget;
+        LastDamageKills = continuation.LastDamageKills;
+        LastDamageTotal = continuation.LastDamageTotal;
+        LastDamageOverkill = continuation.LastDamageOverkill;
+        Card = continuation.Card;
+        Stats = continuation.Stats;
+        Target = continuation.Target;
+        XValue = continuation.XValue;
+        StarValue = continuation.StarValue;
+        PlayIndex = continuation.PlayIndex;
+        PlayPosition = continuation.PlayPosition;
+        DrawnCardPosition = continuation.DrawnCardPosition;
+        IntrinsicDrawHandled = continuation.IntrinsicDrawHandled;
+        GeneratedOptions = continuation.GeneratedOptions;
+        GeneratedOptionCount = continuation.GeneratedOptionCount;
+        PendingPowerChanges = continuation.PendingPowerChanges;
+        PendingPowerChangeCount = continuation.PendingPowerChangeCount;
+        CardPlayPairs = continuation.CardPlayPairs;
+        CardPlayPairCount = continuation.CardPlayPairCount;
+        MonologuePending = continuation.MonologuePending;
+        MonologuePendingCount = continuation.MonologuePendingCount;
+        CurrentMonologueBase = continuation.CurrentMonologueBase;
+        MonologuesResolved = continuation.MonologuesResolved;
+        CardPowerSourceActive = continuation.CardPowerSourceActive;
+        CardPowerSourceSerial = continuation.CardPowerSourceSerial;
+        CardPowerSourceSerialCounter = continuation.CardPowerSourceSerialCounter;
+        LampTriggerSerial = continuation.LampTriggerSerial;
+        LampInternalTypeCount = continuation.LampInternalTypeCount;
+        LampInternalTypes = continuation.LampInternalTypes;
+        VambraceTriggerActive = continuation.VambraceTriggerActive;
+        VambraceTriggerPosition = continuation.VambraceTriggerPosition;
+        VambraceTriggerSerial = continuation.VambraceTriggerSerial;
+        LastCardPowerSourceSerial = continuation.LastCardPowerSourceSerial;
+        PlayIdentity = continuation.PlayIdentity;
+        LastPlayIdentity = continuation.LastPlayIdentity;
+        PlayIdentityCounter = continuation.PlayIdentityCounter;
+        MusicBoxPlayIdentity = continuation.MusicBoxPlayIdentity;
+        CurrentPlayIsAutoPlay = continuation.CurrentPlayIsAutoPlay;
+        CurrentPlayIsHistoryCourseDupe = continuation.CurrentPlayIsHistoryCourseDupe;
+        CurrentPlayEnergyValue = continuation.CurrentPlayEnergyValue;
+    }
+
+    /// <summary>
+    /// Asserts the execution-context invariants of the split point immediately before
+    /// <c>AdvanceRoundPlayerStart</c>. A failure means the first half stopped inside an effect (or
+    /// consumed a choice), so the prefix is not a valid continuation point.
+    /// </summary>
+    private void AssertPlayerStartBoundary()
+    {
+        if (NeedsChoice)
+            throw new InvalidOperationException("EndTurn 前缀停在未决选择处。");
+        if (Request.OptionCount != 0 || Request.MinCount != 0 || Request.MaxCount != 0)
+            throw new InvalidOperationException("EndTurn 前缀带有未消费的选择请求。");
+        if (_choicesTaken != 0)
+            throw new InvalidOperationException("EndTurn 前缀已经消费了选择。");
+        if (EffectDepth != 0)
+            throw new InvalidOperationException($"EndTurn 前缀的 EffectDepth={EffectDepth} 非零。");
+        if (TransientMarkBase != 0)
+            throw new InvalidOperationException($"EndTurn 前缀的 TransientMarkBase={TransientMarkBase} 非零。");
+        if (SideTurnStartedEarly)
+            throw new InvalidOperationException("EndTurn 前缀已经提前开始玩家侧回合。");
+        if (TakingExtraTurn)
+            throw new InvalidOperationException("EndTurn 前缀处于额外回合。");
+    }
+
     /// <summary>Set when an effect asked for a choice the action did not carry; callers unwind immediately.</summary>
     public bool NeedsChoice;
 
