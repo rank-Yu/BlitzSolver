@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using BlitzSolver.Engine;
 
-namespace BlitzGolden;
+namespace BlitzSolver.Golden;
 
 internal sealed record ManifestSummary(
     int DataFiles,
@@ -26,10 +26,10 @@ internal static class ManifestVerifier
             throw new InvalidDataException($"缺少 manifest.json：{manifestPath}");
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
         JsonElement root = manifest.RootElement;
-        if (root.GetProperty("formatVersion").GetInt32() != BlitzCodec.FormatVersion)
+        if (root.GetProperty("formatVersion").GetInt32() != Codec.FormatVersion)
             throw new InvalidDataException("manifest.json 的格式版本不符。");
-        if (root.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<BlitzBattle>())
-            throw new InvalidDataException("manifest.json 的 BlitzBattle 大小不符。");
+        if (root.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<Battle>())
+            throw new InvalidDataException("manifest.json 的 Battle 大小不符。");
         if (!string.Equals(root.GetProperty("compression").GetString(), "brotli", StringComparison.Ordinal))
             throw new InvalidDataException("manifest.json 的压缩格式不是 brotli。");
         if (root.TryGetProperty("sourceCommit", out _))
@@ -82,8 +82,8 @@ internal static class ManifestVerifier
                 throw new InvalidDataException($"D1 根 {Path.GetFileName(directory)} 缺少 meta.json。");
             using JsonDocument meta = JsonDocument.Parse(File.ReadAllText(metaPath));
             JsonElement metaRoot = meta.RootElement;
-            if (metaRoot.GetProperty("formatVersion").GetInt32() != BlitzCodec.FormatVersion
-                || metaRoot.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<BlitzBattle>())
+            if (metaRoot.GetProperty("formatVersion").GetInt32() != Codec.FormatVersion
+                || metaRoot.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<Battle>())
                 throw new InvalidDataException($"D1 根 {Path.GetFileName(directory)} 的格式版本或战斗大小不符。");
             JsonElement counts = metaRoot.GetProperty("counts");
             d1Files++;
@@ -127,7 +127,7 @@ internal static class ManifestVerifier
         {
             using JsonDocument report = JsonDocument.Parse(File.ReadAllText(reportPath));
             JsonElement reportRoot = report.RootElement;
-            if (reportRoot.GetProperty("formatVersion").GetInt32() != BlitzCodec.FormatVersion)
+            if (reportRoot.GetProperty("formatVersion").GetInt32() != Codec.FormatVersion)
                 throw new InvalidDataException($"{Path.GetFileName(reportPath)} 的格式版本不符。");
             int reportCaptured = reportRoot.GetProperty("requestsCaptured").GetInt32();
             int reportUnique = reportRoot.GetProperty("requestsUnique").GetInt32();

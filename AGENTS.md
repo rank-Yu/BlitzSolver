@@ -8,25 +8,25 @@ BlitzSolver（极速战斗求解器）是《杀戮尖塔 2》的单人整场战�
 
 | 目录 | 命名空间 | 职责 |
 | --- | --- | --- |
-| `src/Core/Engine` | `BlitzSolver.Engine` | 结构体状态 `BlitzBattle`、回合与出牌管线、结算与规则表 `BlitzRules` |
+| `src/Core/Engine` | `BlitzSolver.Engine` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
 | `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
-| `src/Core/Search` | `BlitzSolver.Search`（含 `.Scoring`） | `BlitzBeamSolver` 与状态评估；`Ported/` 是移植自 CombatSolver 的依赖 |
+| `src/Core/Search` | `BlitzSolver.Search`（含 `.Scoring`） | `BeamSolver` 与状态评估；`Ported/` 是移植自 CombatSolver 的依赖 |
 | `tests/KernelChecks` | | 内核合同（K0） |
 | `tests/Golden` | | 冻结快照校验器与数据 |
 
-依赖方向：`Content → Engine`、`Search → Engine`。`Engine` 不引用 `Content` 或 `Search`，`Search` 也不引用 `Content`；内容通过 `BlitzRegistry` 挂到引擎上。
+依赖方向：`Content → Engine`、`Search → Engine`。`Engine` 不引用 `Content` 或 `Search`，`Search` 也不引用 `Content`；内容通过 `Registry` 挂到引擎上。
 
 ## 2. 硬约束
 
 - `src/Core` 只依赖 BCL：不引用游戏程序集、Godot、HarmonyLib 或任何 NuGet 包。
 - 正确性优先于搜索质量与性能；不要用扩大宽度、节点或时间预算掩盖模拟偏差。
-- 未知语义显式失败：未知内容抛 `BlitzUnsupportedException`，容量不足抛 `BlitzCapacityException`。不截断、不跳过、不返回默认值，不写 `catch (Exception)`；只捕获这两种异常、校验失败与取消。
-- 搜索展开中单个子状态的 `BlitzCapacityException` 只丢弃该分支并计数；根导入或根评分失败让整次求解作废，不交出半成品路线。
-- 热路径不分配托管对象；内容定义没有字段状态，可变值只存在 `BlitzBattle`。
-- 原版数值从 `BlitzRules` 读取，不硬编码。
-- 修改 `BlitzBattle` 字段时同步 `docs/state-layout.md` 与布局尺寸断言。`BlitzHookMask` 的 64 位已用满，新 Hook 加在 `BlitzHookMaskExt`，不复用、不重排已有位。
-- 搜索不读取全局可变设置，外部能力通过 `BlitzBeamOptions` 等请求参数注入。
-- 不在每个节点的热路径上新增按根恒定的扫描；只在根含相关内容时才走的路径，用 `BlitzRules` 的根级布尔跳过。
+- 未知语义显式失败：未知内容抛 `UnsupportedException`，容量不足抛 `CapacityException`。不截断、不跳过、不返回默认值，不写 `catch (Exception)`；只捕获这两种异常、校验失败与取消。
+- 搜索展开中单个子状态的 `CapacityException` 只丢弃该分支并计数；根导入或根评分失败让整次求解作废，不交出半成品路线。
+- 热路径不分配托管对象；内容定义没有字段状态，可变值只存在 `Battle`。
+- 原版数值从 `Rules` 读取，不硬编码。
+- 修改 `Battle` 字段时同步 `docs/state-layout.md` 与布局尺寸断言。`HookMask` 的 64 位已用满，新 Hook 加在 `HookMaskExt`，不复用、不重排已有位。
+- 搜索不读取全局可变设置，外部能力通过 `BeamOptions` 等请求参数注入。
+- 不在每个节点的热路径上新增按根恒定的扫描；只在根含相关内容时才走的路径，用 `Rules` 的根级布尔跳过。
 
 ## 3. 冻结快照是回归基准
 

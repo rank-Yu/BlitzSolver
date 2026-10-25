@@ -31,8 +31,8 @@ dotnet run --project tests/Golden -c Release --no-build -- k0
 
 两条命令分别检查：
 
-- `tests/KernelChecks`：`"contracts": "Passed"`。覆盖 `BlitzBattle`/`BlitzCard`/`BlitzEnemy`/`BlitzPower`/`BlitzRngState` 等布局尺寸、RNG 参考向量、牌堆与容量失败、选择协议、内容注册表与编码合同。
-- `tests/Golden k0`：`K0 Passed fields=30 battleBytes=12696 formatVersion=2 magics=BATL,RULE,GOLD,SREQ,SRES`。检查 `BlitzRulesCodecContract` 的 30 个字段都进入编码、`decode(encode(x))` 字节稳定、`Unsafe.SizeOf<BlitzBattle>() == 12696`，`BATL`/`RULE`/`GOLD`/`SREQ`/`SRES` 五个魔数按小端字节解出的 ASCII 与格式标签一致，以及 `BATL` 的旧魔数/version 1 被显式拒绝。
+- `tests/KernelChecks`：`"contracts": "Passed"`。覆盖 `Battle`/`Card`/`Enemy`/`Power`/`RngState` 等布局尺寸、RNG 参考向量、牌堆与容量失败、选择协议、内容注册表与编码合同。
+- `tests/Golden k0`：`K0 Passed fields=30 battleBytes=12696 formatVersion=2 magics=BATL,RULE,GOLD,SREQ,SRES`。检查 `RulesCodecContract` 的 30 个字段都进入编码、`decode(encode(x))` 字节稳定、`Unsafe.SizeOf<Battle>() == 12696`，`BATL`/`RULE`/`GOLD`/`SREQ`/`SRES` 五个魔数按小端字节解出的 ASCII 与格式标签一致，以及 `BATL` 的旧魔数/version 1 被显式拒绝。
 
 K0 证明：内核的布局、编码与纯函数合同在 BCL 环境下成立。
 K0 不证明：D1/D2 的搜索语义、冻结输入的求值路径、实机状态。
@@ -85,7 +85,7 @@ D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
 1. 解码 `SREQ` 请求（规则、战斗、搜索选项）；
 2. 把软时间预算改为 `TimeSpan.MaxValue`，清空 pacer、进度、接管与 trace；
-3. 运行 `BlitzBeamSolver.Solve`；
+3. 运行 `BeamSolver.Solve`；
 4. 与 `d2/expected/*.result.br` 逐字段比较路线、TopRoutes、分数 double 位、展开/转移/去重、容量丢弃、终态压缩、药水审计、侦察层、BestRootIndex、PotionPolicySatisfied 与 Takeover。
 
 D2 证明：冻结的 1,983 个请求在去软时间预算后可复现完整搜索结果。
@@ -145,7 +145,7 @@ manifest 不证明：语义正确性；它只保护冻结快照不被静默改�
 ## 7. 未验证项
 
 - **实机运行**：尚未在游戏内启动 BlitzSolver。
-- **实机状态导入**：尚未从游戏运行时把 `CombatState`/`RunState` 投影成 `BlitzBattle`。
+- **实机状态导入**：尚未从游戏运行时把 `CombatState`/`RunState` 投影成 `Battle`。
 - **部署**：尚未把搜索结果翻译回游戏动作并执行。
 - **界面**：没有设置页、进度、路线预览或失败提示。
 - **第三方 Mod**：没有实机 Mod 根；当前只验证 BCL 内的固定内容与冻结请求。

@@ -5,16 +5,16 @@ namespace BlitzSolver.Content.Powers;
 /// <summary>
 /// Native <c>ThieveryPower</c> (GremlinMerc, one instanced stack of 20 applied in
 /// <c>AfterAddedToRoom</c>, targeting the player). Its counter is the steal cap per GIMME-family move;
-/// <see cref="BlitzPower.Aux0"/> is the native <c>DynamicVars.Gold</c> ledger accumulated by
+/// <see cref="Power.Aux0"/> is the native <c>DynamicVars.Gold</c> ledger accumulated by
 /// <c>SimulatedCombatState.RecordThievery</c>. On death, <c>SurprisePower</c> transfers Aux0 into a
 /// <c>HeistPower</c> on the replacement fat gremlin.
 /// </summary>
-[BlitzContent("THIEVERY_POWER")]
-public sealed class ThieveryPower : BlitzPowerDef
+[ContentId("THIEVERY_POWER")]
+public sealed class ThieveryPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     // Native PowerInstanceType.Instanced: every application is its own row.
     public override bool IsInstanced => true;
@@ -26,28 +26,28 @@ public sealed class ThieveryPower : BlitzPowerDef
 /// (<c>SimulatedCombatState.RecoverStolenResources</c>). <c>BeforeDeath</c> only adds a run reward and
 /// records the map history, neither of which is prediction state.
 /// </summary>
-[BlitzContent("HEIST_POWER")]
-public sealed class HeistPower : BlitzPowerDef
+[ContentId("HEIST_POWER")]
+public sealed class HeistPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool IsInstanced => true;
 }
 
 /// <summary>
 /// Native <c>SwipePower</c>: one instanced row per card stolen by THIEVERY. The complete stolen-card
-/// value lives in <see cref="BlitzBattle.DetachedCards"/> and <see cref="BlitzPower.Aux0"/> is its
+/// value lives in <see cref="Battle.DetachedCards"/> and <see cref="Power.Aux0"/> is its
 /// slot + 1; removing the power clears the slot. Killing the owner recovers the card through
 /// <c>RecoverStolenResources</c>; escaping removes the power without returning it.
 /// </summary>
-[BlitzContent("SWIPE_POWER")]
-public sealed class SwipePower : BlitzPowerDef
+[ContentId("SWIPE_POWER")]
+public sealed class SwipePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
+    public override PowerStackType StackType => PowerStackType.Single;
 
     public override bool IsInstanced => true;
 
@@ -60,33 +60,33 @@ public sealed class SwipePower : BlitzPowerDef
 /// transferred into Heist rows) and a sneaky gremlin. The native order is preserved:
 /// <c>CreateCreature(fat)</c> (CombatId and Niche HP draw first) → add sneaky → add fat.
 /// </summary>
-[BlitzContent("SURPRISE_POWER")]
-public sealed class SurprisePower : BlitzPowerDef
+[ContentId("SURPRISE_POWER")]
+public sealed class SurprisePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
+    public override PowerStackType StackType => PowerStackType.Single;
 
     public override bool PreventsCombatEnding => true;
 
     public override bool SpawnsPrimaryEnemyOnDeath => true;
 
-    public override void DeathTrigger(ref BlitzExec x, BlitzListener self, byte dead)
+    public override void DeathTrigger(ref Exec x, Listener self, byte dead)
     {
         if (self.Owner != dead)
             return;
         // DeathPowerSupport.Trigger: MonsterSpawnSupport.Create<FatGremlin>(..., "fat") first.
-        int fatRulesId = x.R.SpawnRulesId(BlitzRegistry.MonsterId<Monsters.Act1.FatGremlin>());
-        BlitzEnemy fat = default;
-        BlitzKernel.CreateMonster(ref x, fatRulesId, BlitzKernel.SlotIndex(x.R, "fat"), int.MinValue, ref fat);
+        int fatRulesId = x.R.SpawnRulesId(Registry.MonsterId<Monsters.Act1.FatGremlin>());
+        Enemy fat = default;
+        Kernel.CreateMonster(ref x, fatRulesId, Kernel.SlotIndex(x.R, "fat"), int.MinValue, ref fat);
         // Stolen gold is read from the still-present Thievery rows before they are cleaned up.
-        Span<int> gold = stackalloc int[BlitzLimits.Powers];
-        Span<byte> targets = stackalloc byte[BlitzLimits.Powers];
+        Span<int> gold = stackalloc int[Limits.Powers];
+        Span<byte> targets = stackalloc byte[Limits.Powers];
         int transfers = 0;
-        ushort thievery = BlitzRegistry.PowerId<ThieveryPower>();
+        ushort thievery = Registry.PowerId<ThieveryPower>();
         for (int index = 0; index < x.B.PowerCount; index++)
         {
-            ref readonly BlitzPower power = ref x.B.Powers[index];
+            ref readonly Power power = ref x.B.Powers[index];
             if (power.Id != thievery || power.Owner != dead || power.Amount <= 0)
                 continue;
             gold[transfers] = power.Aux0;
@@ -96,19 +96,19 @@ public sealed class SurprisePower : BlitzPowerDef
         // MonsterSpawnSupport.Spawn<SneakyGremlin>(simulator, combat, dead, "sneaky"): the sneaky
         // gremlin is added before the fat one, so its CombatId follows the fat create and its HP draw
         // excludes only the creatures already in the roster.
-        int sneakyRulesId = x.R.SpawnRulesId(BlitzRegistry.MonsterId<Monsters.Act1.SneakyGremlin>());
-        BlitzKernel.SpawnMonster(ref x, dead, sneakyRulesId, BlitzKernel.SlotIndex(x.R, "sneaky"), minion: false);
+        int sneakyRulesId = x.R.SpawnRulesId(Registry.MonsterId<Monsters.Act1.SneakyGremlin>());
+        Kernel.SpawnMonster(ref x, dead, sneakyRulesId, Kernel.SlotIndex(x.R, "sneaky"), minion: false);
         if (x.NeedsChoice)
             return;
-        byte fatOwner = BlitzKernel.AddCreatedMonster(ref x, dead, ref fat, minion: false);
+        byte fatOwner = Kernel.AddCreatedMonster(ref x, dead, ref fat, minion: false);
         if (x.NeedsChoice)
             return;
-        ushort heist = BlitzRegistry.PowerId<HeistPower>();
+        ushort heist = Registry.PowerId<HeistPower>();
         for (int index = 0; index < transfers; index++)
         {
             if (gold[index] == 0)
                 continue;
-            BlitzKernel.ApplyPowerTargeted(ref x, fatOwner, targets[index], heist, gold[index], dead);
+            Kernel.ApplyPowerTargeted(ref x, fatOwner, targets[index], heist, gold[index], dead);
             if (x.NeedsChoice)
                 return;
         }
@@ -122,12 +122,12 @@ public sealed class SurprisePower : BlitzPowerDef
 /// <c>CorePowerSupport.ApplyEnemyDeathPowers</c>), and the power survives the owner's death cleanup
 /// (<c>ShouldPowerBeRemovedAfterOwnerDeath</c>).
 /// </summary>
-[BlitzContent("STEAM_ERUPTION_POWER")]
-public sealed class SteamEruptionPower : BlitzPowerDef
+[ContentId("STEAM_ERUPTION_POWER")]
+public sealed class SteamEruptionPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool PreventsRemovalAfterDeath => true;
 
@@ -141,20 +141,20 @@ public sealed class SteamEruptionPower : BlitzPowerDef
 /// visual countdown. At the end of the enemy side it decrements while above 1
 /// (<c>EndTurnPowerSupport.TriggerRegular</c> case).
 /// </summary>
-[BlitzContent("ESCAPE_ARTIST_POWER")]
-public sealed class EscapeArtistPower : BlitzPowerDef
+[ContentId("ESCAPE_ARTIST_POWER")]
+public sealed class EscapeArtistPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
-        if (side != BlitzSide.Enemy || !participates)
+        if (side != Side.Enemy || !participates)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 1)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            Kernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
 
@@ -164,12 +164,12 @@ public sealed class EscapeArtistPower : BlitzPowerDef
 /// the last stack stuns the owner with the next state of its most recently logged move
 /// (<c>AfterDamageReceivedMirrors.HandleFlutterPower</c>).
 /// </summary>
-[BlitzContent("FLUTTER_POWER")]
-public sealed class FlutterPower : BlitzPowerDef
+[ContentId("FLUTTER_POWER")]
+public sealed class FlutterPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override IReadOnlyList<string> VarNames => ["DamageDecrease"];
 
@@ -181,15 +181,15 @@ public sealed class FlutterPower : BlitzPowerDef
 
     public override bool PowerRemainsAfterOwnerLeavesRoster => true;
 
-    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self,
-        in BlitzDamageContext damage, decimal amount)
+    public override decimal ModifyDamageMultiplicative(ref Exec x, Listener self,
+        in DamageContext damage, decimal amount)
     {
         if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack())
             return 1m;
         return x.R.PowerVar(Id, 0) / 100m;
     }
 
-    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result,
+    public override void AfterDamageReceived(ref Exec x, Listener self, in DamageResult result,
         byte dealer)
     {
         if (result.Receiver != self.Owner || result.UnblockedDamage == 0 || !result.Props.IsPoweredAttack())
@@ -199,10 +199,10 @@ public sealed class FlutterPower : BlitzPowerDef
             return;
         if (amount > 1)
         {
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            Kernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
             return;
         }
-        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
-        BlitzKernel.ForceStunnedAfterLastMove(ref x, self.Owner);
+        Kernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+        Kernel.ForceStunnedAfterLastMove(ref x, self.Owner);
     }
 }

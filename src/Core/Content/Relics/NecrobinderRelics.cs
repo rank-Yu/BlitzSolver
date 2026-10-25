@@ -10,10 +10,10 @@ namespace BlitzSolver.Content.Relics;
 /// no mirror for it and the Blitz root never observes turn 1 side start; the definition is empty and
 /// the evaluation reads the cards from the root.
 /// </summary>
-[BlitzContent("BIG_HAT")]
-public sealed class BigHat : BlitzRelicDef
+[ContentId("BIG_HAT")]
+public sealed class BigHat : RelicDef
 {
     // Turn-start generation samples the character pool; the turn-setup root is captured before
     // this hook fires, so the rules table must carry the generated card stats.
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAll];
 }

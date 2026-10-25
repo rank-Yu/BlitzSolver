@@ -3,77 +3,77 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Silent;
 
-[BlitzContent("ACROBATICS")]
-public sealed class Acrobatics : BlitzCardDef
+[ContentId("ACROBATICS")]
+public sealed class Acrobatics : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.Draw(ref x, BlitzCardEffects.Var(x, 0), fromHandDraw: false);
+    public override void OnPlay(ref Exec x)
+        => Kernel.Draw(ref x, CardEffects.Var(x, 0), fromHandDraw: false);
 
-    public override void OwnChoice(ref BlitzExec x)
+    public override void OwnChoice(ref Exec x)
     {
         // GetSpec: Acrobatics → Discard, Hand, 1, every hand card.
         Span<int> options = stackalloc int[x.B.HandCount];
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
         Span<int> selected = stackalloc int[1];
-        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Discard, BlitzPile.Hand, options, 1, selected,
+        if (!Kernel.ChooseCards(ref x, ChoiceEffect.Discard, Pile.Hand, options, 1, selected,
                 out int chosen))
         {
             return;
         }
-        BlitzKernel.DiscardAndDraw(ref x, BlitzPile.Hand, selected[..chosen], 0);
+        Kernel.DiscardAndDraw(ref x, Pile.Hand, selected[..chosen], 0);
     }
 }
 
-[BlitzContent("CALCULATED_GAMBLE")]
-public sealed class CalculatedGamble : BlitzCardDef
+[ContentId("CALCULATED_GAMBLE")]
+public sealed class CalculatedGamble : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         // CardDrawCardMirrors.CalculatedGambleOnPlay: DiscardAndDraw(hand, hand.Length), where the
         // draw count is the hand size captured before the discard.
         int hand = x.B.HandCount;
-        BlitzKernel.DiscardAllInHand(ref x, hand);
+        Kernel.DiscardAllInHand(ref x, hand);
     }
 }
 
-[BlitzContent("REFLEX")]
-public sealed class Reflex : BlitzCardDef
+[ContentId("REFLEX")]
+public sealed class Reflex : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.Draw(ref x, BlitzCardEffects.Var(x, 0), fromHandDraw: false);
+    public override void OnPlay(ref Exec x)
+        => Kernel.Draw(ref x, CardEffects.Var(x, 0), fromHandDraw: false);
 }
 
-[BlitzContent("TACTICIAN")]
-public sealed class Tactician : BlitzCardDef
+[ContentId("TACTICIAN")]
+public sealed class Tactician : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.GainEnergy(ref x, BlitzCardEffects.Var(x, 0));
+    public override void OnPlay(ref Exec x)
+        => Kernel.GainEnergy(ref x, CardEffects.Var(x, 0));
 }
 
-[BlitzContent("HIDDEN_DAGGERS")]
+[ContentId("HIDDEN_DAGGERS")]
 public sealed class HiddenDaggers : ShivGeneratingCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards", "Shivs"];
 
     // CardOnPlaySupport has no OnPlay for HiddenDaggers: everything is the choice and its
     // ApplyPostChoiceEffects.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 
-    public override void OwnChoice(ref BlitzExec x)
+    public override void OwnChoice(ref Exec x)
     {
         // GetSpec: Discard, Hand, Cards, every hand card; BuildRequiredEmptyChoice asks an empty
         // Discard choice when the hand is empty. ApplyPostChoiceEffects then adds Shivs Shivs,
         // upgraded when this card is upgraded.
-        int cards = (int)BlitzCardEffects.Var(x, 0);
+        int cards = (int)CardEffects.Var(x, 0);
         Span<int> options = stackalloc int[x.B.HandCount];
         for (int index = 0; index < options.Length; index++)
             options[index] = index;
@@ -87,32 +87,32 @@ public sealed class HiddenDaggers : ShivGeneratingCardDef
             {
                 chosen = 0;
             }
-            else if (!BlitzKernel.ChooseCardsInRange(ref x, BlitzChoiceEffect.Discard, BlitzPile.Hand, options, 0, 0,
+            else if (!Kernel.ChooseCardsInRange(ref x, ChoiceEffect.Discard, Pile.Hand, options, 0, 0,
                          selected, out chosen))
             {
                 return;
             }
         }
-        else if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Discard, BlitzPile.Hand, options, cards,
+        else if (!Kernel.ChooseCards(ref x, ChoiceEffect.Discard, Pile.Hand, options, cards,
                      selected, out chosen))
         {
             return;
         }
-        BlitzKernel.DiscardAndDraw(ref x, BlitzPile.Hand, selected[..chosen], 0);
+        Kernel.DiscardAndDraw(ref x, Pile.Hand, selected[..chosen], 0);
         if (x.NeedsChoice)
             return;
-        SilentContent.GenerateShivs(ref x, (int)BlitzCardEffects.Var(x, 1), upgraded: x.Card.Upgrade != 0);
+        SilentContent.GenerateShivs(ref x, (int)CardEffects.Var(x, 1), upgraded: x.Card.Upgrade != 0);
     }
 }
 
-[BlitzContent("HAND_TRICK")]
-public sealed class HandTrick : BlitzCardDef
+[ContentId("HAND_TRICK")]
+public sealed class HandTrick : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralBlock(ref x, 0);
 
-    public override void OwnChoice(ref BlitzExec x)
+    public override void OwnChoice(ref Exec x)
     {
         // GetSpec: ApplySly, Hand, 1, hand Skills that are not already Sly this turn. With no
         // option, CardChoiceSupport.Spec returns null and nothing is asked.
@@ -120,197 +120,197 @@ public sealed class HandTrick : BlitzCardDef
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            ref readonly BlitzCard card = ref x.B.Cards[index];
-            if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Skill || BlitzKernel.IsSlyThisTurn(x.B, card))
+            ref readonly Card card = ref x.B.Cards[index];
+            if (Kernel.ResolveCardType(x.B, x.R, card) != CardType.Skill || Kernel.IsSlyThisTurn(x.B, card))
                 continue;
             options[count++] = index;
         }
         if (count == 0)
             return;
         Span<int> selected = stackalloc int[1];
-        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.ApplySly, BlitzPile.Hand, options[..count], 1,
+        if (!Kernel.ChooseCards(ref x, ChoiceEffect.ApplySly, Pile.Hand, options[..count], 1,
                 selected, out int chosen))
         {
             return;
         }
         for (int index = 0; index < chosen; index++)
         {
-            x.B.Cards[selected[index]].Flags |= BlitzCardFlags.SlyThisTurn;
+            x.B.Cards[selected[index]].Flags |= CardFlags.SlyThisTurn;
         }
     }
 }
 
-[BlitzContent("ESCAPE_PLAN")]
-public sealed class EscapePlan : BlitzCardDef
+[ContentId("ESCAPE_PLAN")]
+public sealed class EscapePlan : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
     // CardDrawCardMirrors.EscapePlanOnPlay: draw one card; gain block only when the single drawn card
     // is a Skill.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        if (!BlitzKernel.TryDrawOne(ref x, fromHandDraw: false, out BlitzCard card))
+        if (!Kernel.TryDrawOne(ref x, fromHandDraw: false, out Card card))
             return;
-        if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Skill)
+        if (Kernel.ResolveCardType(x.B, x.R, card) != CardType.Skill)
             return;
-        BlitzCardEffects.GeneralBlock(ref x, 0);
+        CardEffects.GeneralBlock(ref x, 0);
     }
 }
 
-[BlitzContent("EXPERTISE")]
-public sealed class Expertise : BlitzCardDef
+[ContentId("EXPERTISE")]
+public sealed class Expertise : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     // CardDrawCardMirrors.ExpertiseOnPlay: draw Cards, then give every drawn card single-turn Retain.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        int count = (int)BlitzCardEffects.Var(x, 0);
+        int count = (int)CardEffects.Var(x, 0);
         for (int index = 0; index < count; index++)
         {
             int before = x.B.HandCount;
-            if (!BlitzKernel.TryDrawOne(ref x, fromHandDraw: false, out BlitzCard card))
+            if (!Kernel.TryDrawOne(ref x, fromHandDraw: false, out Card card))
                 return;
             if (x.B.HandCount != before + 1)
                 continue;
-            ref BlitzCard drawn = ref x.B.Cards[x.B.HandCount - 1];
-            if (BlitzFingerprint.Equal(drawn, card))
+            ref Card drawn = ref x.B.Cards[x.B.HandCount - 1];
+            if (Fingerprint.Equal(drawn, card))
             {
-                drawn.Flags |= BlitzCardFlags.RetainThisTurn;
+                drawn.Flags |= CardFlags.RetainThisTurn;
             }
         }
     }
 }
 
-[BlitzContent("BUBBLE_BUBBLE")]
-public sealed class BubbleBubble : BlitzCardDef
+[ContentId("BUBBLE_BUBBLE")]
+public sealed class BubbleBubble : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["PoisonPower"];
 
     // CardOnPlaySupport.BubbleBubble: only when the target already has Poison.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
+        if (x.Target == Limits.NoOwner)
             return;
-        if (BlitzKernel.GetAmount(x.B, x.Target, BlitzRegistry.PowerId<Powers.PoisonPower>()) <= 0)
+        if (Kernel.GetAmount(x.B, x.Target, Registry.PowerId<Powers.PoisonPower>()) <= 0)
             return;
-        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.PoisonPower>(), 0);
+        CardEffects.ApplyToTarget(ref x, Registry.PowerId<Powers.PoisonPower>(), 0);
     }
 }
 
-[BlitzContent("BOUNCING_FLASK")]
-public sealed class BouncingFlask : BlitzCardDef
+[ContentId("BOUNCING_FLASK")]
+public sealed class BouncingFlask : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["PoisonPower", "Repeat"];
 
     // CardOnPlaySupport.Batch042.ApplyBouncingFlask: Repeat times, a random living hittable enemy
     // (CombatTargets NextItem), applying Poison; an empty candidate list stops without consuming RNG.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        int repeats = (int)BlitzCardEffects.Var(x, 1);
-        ushort poison = BlitzRegistry.PowerId<Powers.PoisonPower>();
-        int amount = (int)BlitzCardEffects.Var(x, 0);
-        Span<byte> candidates = stackalloc byte[BlitzLimits.Enemies];
+        int repeats = (int)CardEffects.Var(x, 1);
+        ushort poison = Registry.PowerId<Powers.PoisonPower>();
+        int amount = (int)CardEffects.Var(x, 0);
+        Span<byte> candidates = stackalloc byte[Limits.Enemies];
         for (int repeat = 0; repeat < repeats; repeat++)
         {
             int count = 0;
             for (int position = 0; position < x.B.RosterCount; position++)
             {
-                byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-                if (BlitzKernel.IsHittable(x.B, owner))
+                byte owner = Kernel.EnemyOwner(x.B.Roster[position]);
+                if (Kernel.IsHittable(x.B, owner))
                     candidates[count++] = owner;
             }
             if (count == 0)
                 break;
-            byte target = candidates[x.B.RngStream(BlitzRngStream.CombatTargets).NextInt(0, count)];
-            BlitzKernel.ApplyPower(ref x, target, poison, amount, BlitzLimits.PlayerOwner);
+            byte target = candidates[x.B.RngStream(RngStream.CombatTargets).NextInt(0, count)];
+            Kernel.ApplyPower(ref x, target, poison, amount, Limits.PlayerOwner);
             if (x.NeedsChoice)
                 return;
         }
     }
 }
 
-[BlitzContent("HAZE")]
-public sealed class Haze : BlitzCardDef
+[ContentId("HAZE")]
+public sealed class Haze : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["PoisonPower", "WeakPower"];
 
     // CardOnPlaySupport.Haze: Poison to every hittable enemy, then Weak to every hittable enemy. The
     // existing case applies both passes without resolving the power amount changes in between.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        ushort poison = BlitzRegistry.PowerId<Powers.PoisonPower>();
-        ushort weak = BlitzRegistry.PowerId<Powers.WeakPower>();
-        int poisonAmount = (int)BlitzCardEffects.Var(x, 0);
+        ushort poison = Registry.PowerId<Powers.PoisonPower>();
+        ushort weak = Registry.PowerId<Powers.WeakPower>();
+        int poisonAmount = (int)CardEffects.Var(x, 0);
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (!BlitzKernel.IsHittable(x.B, owner))
+            byte owner = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (!Kernel.IsHittable(x.B, owner))
                 continue;
-            BlitzKernel.ApplyPower(ref x, owner, poison, poisonAmount, BlitzLimits.PlayerOwner);
+            Kernel.ApplyPower(ref x, owner, poison, poisonAmount, Limits.PlayerOwner);
             if (x.NeedsChoice)
                 return;
         }
-        int weakAmount = (int)BlitzCardEffects.Var(x, 1);
+        int weakAmount = (int)CardEffects.Var(x, 1);
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (!BlitzKernel.IsHittable(x.B, owner))
+            byte owner = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (!Kernel.IsHittable(x.B, owner))
                 continue;
-            BlitzKernel.ApplyPower(ref x, owner, weak, weakAmount, BlitzLimits.PlayerOwner);
+            Kernel.ApplyPower(ref x, owner, weak, weakAmount, Limits.PlayerOwner);
             if (x.NeedsChoice)
                 return;
         }
     }
 }
 
-[BlitzContent("EXPOSE")]
-public sealed class Expose : BlitzCardDef
+[ContentId("EXPOSE")]
+public sealed class Expose : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Power"];
 
     // CardOnPlaySupport.Expose: lose all block as Move block damage, clear Artifact, then Vulnerable.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
+        if (x.Target == Limits.NoOwner)
             return;
-        ref BlitzCreature target = ref x.B.Creature(x.Target);
+        ref Creature target = ref x.B.Creature(x.Target);
         if (target.Block > 0)
-            BlitzKernel.DamageBlock(ref target, target.Block, BlitzValueProps.Move);
-        if (BlitzKernel.GetAmount(x.B, x.Target, BlitzRegistry.PowerId<Powers.ArtifactPower>()) > 0)
-            BlitzKernel.SetPowerAmount(ref x.B, x.Target, BlitzRegistry.PowerId<Powers.ArtifactPower>(), 0);
-        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 0);
+            Kernel.DamageBlock(ref target, target.Block, ValueProps.Move);
+        if (Kernel.GetAmount(x.B, x.Target, Registry.PowerId<Powers.ArtifactPower>()) > 0)
+            Kernel.SetPowerAmount(ref x.B, x.Target, Registry.PowerId<Powers.ArtifactPower>(), 0);
+        CardEffects.ApplyToTarget(ref x, Registry.PowerId<Powers.VulnerablePower>(), 0);
     }
 }
 
-[BlitzContent("FLECHETTES")]
-public sealed class Flechettes : BlitzCardDef
+[ContentId("FLECHETTES")]
+public sealed class Flechettes : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "CalculationBase", "CalculationExtra"];
 
     // CalculatedVarSpecRegistry.Flechettes: CalculatedHits counts Skill cards in hand.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         int skills = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            ref readonly BlitzCard card = ref x.B.Cards[index];
-            if (BlitzKernel.CardType(x.B, x.R, card) == BlitzCardType.Skill)
+            ref readonly Card card = ref x.B.Cards[index];
+            if (Kernel.ResolveCardType(x.B, x.R, card) == CardType.Skill)
                 skills++;
         }
-        int hits = (int)(BlitzCardEffects.Var(x, 1) + BlitzCardEffects.Var(x, 2) * skills);
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hits);
+        int hits = (int)(CardEffects.Var(x, 1) + CardEffects.Var(x, 2) * skills);
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), hits);
     }
 }
 
-[BlitzContent("UP_MY_SLEEVE")]
+[ContentId("UP_MY_SLEEVE")]
 public sealed class UpMySleeve : ShivGeneratingCardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        SilentContent.GenerateShivs(ref x, (int)BlitzCardEffects.Var(x, 0), upgraded: false);
+        SilentContent.GenerateShivs(ref x, (int)CardEffects.Var(x, 0), upgraded: false);
         if (x.NeedsChoice)
             return;
         // UpMySleeve.cs: playedCard.EnergyCost.AddThisCombat(-1). The played card is the last entry of
@@ -318,47 +318,47 @@ public sealed class UpMySleeve : ShivGeneratingCardDef
         int position = x.B.PlayCount - 1;
         if (position < 0)
             throw new InvalidOperationException("袖中藏刃没有正在打出的卡。");
-        BlitzKernel.AddEnergyCostModifier(ref BlitzPiles.At(ref x.B, BlitzPile.Play, position), -1,
-            BlitzCostType.Relative, BlitzCostExpiration.EndOfCombat, reduceOnly: false);
+        Kernel.AddEnergyCostModifier(ref Piles.At(ref x.B, Pile.Play, position), -1,
+            CostType.Relative, CostExpiration.EndOfCombat, reduceOnly: false);
     }
 }
 
-[BlitzContent("LEG_SWEEP")]
-public sealed class LegSweep : BlitzCardDef
+[ContentId("LEG_SWEEP")]
+public sealed class LegSweep : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block", "WeakPower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralBlock(ref x, 0);
+        CardEffects.GeneralBlock(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.WeakPower>(), 1);
+        CardEffects.ApplyToTarget(ref x, Registry.PowerId<Powers.WeakPower>(), 1);
     }
 }
 
-[BlitzContent("BLUR")]
-public sealed class Blur : BlitzCardDef
+[ContentId("BLUR")]
+public sealed class Blur : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block", "Blur"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralBlock(ref x, 0);
+        CardEffects.GeneralBlock(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.BlurPower>(), 1);
+        CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.BlurPower>(), 1);
     }
 }
 
-[BlitzContent("SIDESTEP")]
-public sealed class Sidestep : BlitzCardDef
+[ContentId("SIDESTEP")]
+public sealed class Sidestep : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
     // CorePowerSupport.ApplyCardPowers.Sidestep: AddEnergyNextTurn (EnergyNextTurnPower amount).
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.EnergyNextTurnPower>(), 0);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.EnergyNextTurnPower>(), 0);
 }
 
 /// <summary>
@@ -366,21 +366,21 @@ public sealed class Sidestep : BlitzCardDef
 /// enemy (<c>CalculatedVarSpecRegistry</c>'s Mirage multiplier). The card gains that block as a Move
 /// card block; upgraded Mirage drops Exhaust, which is part of the rule-table keyword set.
 /// </summary>
-[BlitzContent("MIRAGE")]
-public sealed class Mirage : BlitzCardDef
+[ContentId("MIRAGE")]
+public sealed class Mirage : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "CalculationExtra"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         int poison = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
+            byte owner = Kernel.EnemyOwner(x.B.Roster[position]);
             if (x.B.Creature(owner).IsAlive)
-                poison += BlitzKernel.GetAmount(x.B, owner, BlitzRegistry.PowerId<PoisonPower>());
+                poison += Kernel.GetAmount(x.B, owner, Registry.PowerId<PoisonPower>());
         }
-        decimal block = BlitzCardEffects.Var(x, 0) + BlitzCardEffects.Var(x, 1) * poison;
-        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, block, BlitzValueProps.Move, fromCard: true);
+        decimal block = CardEffects.Var(x, 0) + CardEffects.Var(x, 1) * poison;
+        Kernel.GainBlock(ref x, Limits.PlayerOwner, block, ValueProps.Move, fromCard: true);
     }
 }

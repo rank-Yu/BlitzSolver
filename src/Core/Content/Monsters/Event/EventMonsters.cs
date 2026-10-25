@@ -7,19 +7,19 @@ namespace BlitzSolver.Content.Monsters.Event;
 /// Frail 1 to the player as a monster debuff, ENRAGE_MOVE applies Strength 2 to itself
 /// (<c>MonsterMoveEffects</c> "FakeMerchantMonster").
 /// </summary>
-[BlitzContent("FAKE_MERCHANT_MONSTER")]
-public sealed class FakeMerchantMonster : BlitzMonsterDef
+[ContentId("FAKE_MERCHANT_MONSTER")]
+public sealed class FakeMerchantMonster : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "ENRAGE_MOVE":
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 2, owner);
                 break;
             case "THROW_RELIC_MOVE":
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.FrailPower>(), 1, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.FrailPower>(), 1, owner);
                 break;
         }
     }
@@ -30,13 +30,13 @@ public sealed class FakeMerchantMonster : BlitzMonsterDef
 /// Strength 3 and FLAIL_MOVE/RAM_MOVE are plain attacks (<c>MonsterMoveEffects</c>
 /// "MysteriousKnight"/"FlailKnight"). Its starting Strength 6 and Plating 6 come from the root.
 /// </summary>
-[BlitzContent("MYSTERIOUS_KNIGHT")]
-public sealed class MysteriousKnight : BlitzMonsterDef
+[ContentId("MYSTERIOUS_KNIGHT")]
+public sealed class MysteriousKnight : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "WAR_CHANT")
-            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
+        if (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "WAR_CHANT")
+            Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 3, owner);
     }
 }
 
@@ -46,8 +46,8 @@ public sealed class MysteriousKnight : BlitzMonsterDef
 /// room is ended by the event script before the player acts). The definition keeps a synthesized
 /// root simulatable without inventing an effect.
 /// </summary>
-[BlitzContent("ARCHITECT")]
-public sealed class Architect : BlitzMonsterDef
+[ContentId("ARCHITECT")]
+public sealed class Architect : MonsterDef
 {
 }
 
@@ -58,17 +58,17 @@ public sealed class Architect : BlitzMonsterDef
 /// rejects the timeout boundary (the native escape / encounter RanOutOfTime flag has no Blitz
 /// outcome).
 /// </summary>
-[BlitzContent("BATTLE_FRIEND_V1")]
-public sealed class BattleFriendV1 : BlitzMonsterDef
+[ContentId("BATTLE_FRIEND_V1")]
+public sealed class BattleFriendV1 : MonsterDef
 {
 }
 
-[BlitzContent("BATTLE_FRIEND_V2")]
-public sealed class BattleFriendV2 : BlitzMonsterDef
+[ContentId("BATTLE_FRIEND_V2")]
+public sealed class BattleFriendV2 : MonsterDef
 {
 }
 
-[BlitzContent("BATTLE_FRIEND_V3")]
-public sealed class BattleFriendV3 : BlitzMonsterDef
+[ContentId("BATTLE_FRIEND_V3")]
+public sealed class BattleFriendV3 : MonsterDef
 {
 }

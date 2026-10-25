@@ -7,11 +7,11 @@ namespace BlitzSolver.Content.Cards.Status;
 /// <c>Cards</c> draw recipe (<c>CardDrawCardMirrors</c> / general draw), so Blitz draws after the
 /// normal mirrored/compensated split with no other effects.
 /// </summary>
-[BlitzContent("SLIMED")]
-public sealed class Slimed : BlitzCardDef
+[ContentId("SLIMED")]
+public sealed class Slimed : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.Draw(ref x, BlitzCardEffects.Var(x, 0), fromHandDraw: false);
+    public override void OnPlay(ref Exec x)
+        => Kernel.Draw(ref x, CardEffects.Var(x, 0), fromHandDraw: false);
 }

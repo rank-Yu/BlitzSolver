@@ -10,10 +10,10 @@ PowerShell 先设置 `$env:DOTNET_TieredCompilation = '0'`，再运行相同 dot
 
 检查项：
 
-- `BlitzBattle`、`BlitzCard`、`BlitzEnemy`、`BlitzPower`、`BlitzRngState` 的字节尺寸，防止字段改动引入隐式填充。
+- `Battle`、`Card`、`Enemy`、`Power`、`RngState` 的字节尺寸，防止字段改动引入隐式填充。
 - RNG：对照原版 `MegaRandom`/`Rng` 的参考副本，逐次比较 `NextInt`、`NextFloat`、`NextInt(min, max)` 与计数器。
-- 洗牌排序：`BlitzCardSort` 与 `List<T>.Sort()` 在相同比较键下产生同一置换（含相等键的元素）。
-- 容量溢出抛 `BlitzCapacityException`；牌堆段的抽顶、移除与复制语义。
+- 洗牌排序：`CardSort` 与 `List<T>.Sort()` 在相同比较键下产生同一置换（含相等键的元素）。
+- 容量溢出抛 `CapacityException`；牌堆段的抽顶、移除与复制语义。
 
 输出 JSON 中的 `benchmark` 是纵切内容上的 Beam 形工作负载耗时（复制、执行、哈希分别计时）和测量循环的托管分配量，只作为内核性能的回归参考，不代表完整搜索耗时。
 

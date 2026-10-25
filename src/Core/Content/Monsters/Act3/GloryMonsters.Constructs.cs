@@ -8,18 +8,18 @@ namespace BlitzSolver.Content.Monsters.Act3;
 /// <c>BranchMonsterAi.ResolveConditional</c>). Its starting RampartPower 25 is a root power; the
 /// existing engine has no Rampart mirror.
 /// </summary>
-[BlitzContent("LIVING_SHIELD")]
-public sealed class LivingShield : BlitzMonsterDef
+[ContentId("LIVING_SHIELD")]
+public sealed class LivingShield : MonsterDef
 {
-    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "SHIELD_SLAM_BRANCH")
             return -1;
         bool hasAliveAlly = false;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte other = BlitzKernel.EnemyOwner(x.B.Roster[position]);
+            byte other = Kernel.EnemyOwner(x.B.Roster[position]);
             if (other != owner && x.B.Creature(other).IsAlive)
             {
                 hasAliveAlly = true;
@@ -29,10 +29,10 @@ public sealed class LivingShield : BlitzMonsterDef
         return hasAliveAlly ? rules.NodeIndex("SHIELD_SLAM_MOVE") : rules.NodeIndex("SMASH_MOVE");
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "SMASH_MOVE")
-            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 3, owner);
+        if (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "SMASH_MOVE")
+            Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 3, owner);
     }
 }
 
@@ -41,13 +41,13 @@ public sealed class LivingShield : BlitzMonsterDef
 /// attacks (<c>MonsterMoveEffects</c> "TurretOperator"). Rampart, applied by the Living Shield, is a
 /// root power on that ally.
 /// </summary>
-[BlitzContent("TURRET_OPERATOR")]
-public sealed class TurretOperator : BlitzMonsterDef
+[ContentId("TURRET_OPERATOR")]
+public sealed class TurretOperator : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "RELOAD_MOVE")
-            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 1, owner);
+        if (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "RELOAD_MOVE")
+            Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 1, owner);
     }
 }
 
@@ -55,8 +55,8 @@ public sealed class TurretOperator : BlitzMonsterDef
 /// TorchHeadAmalgam: all five moves are plain attacks; its starting MinionPower 1 is a root power.
 /// Its death drives the Queen's <c>_hasAmalgamDied</c> branch (<see cref="Queen"/>).
 /// </summary>
-[BlitzContent("TORCH_HEAD_AMALGAM")]
-public sealed class TorchHeadAmalgam : BlitzMonsterDef;
+[ContentId("TORCH_HEAD_AMALGAM")]
+public sealed class TorchHeadAmalgam : MonsterDef;
 
 /// <summary>
 /// Aeonglass: EBB_MOVE gains <c>EbbBlock</c>; INCREASING_INTENSITY_MOVE fake-upgrades every Wither
@@ -66,8 +66,8 @@ public sealed class TorchHeadAmalgam : BlitzMonsterDef;
 /// projected through the AI registers; after every monster move the kernel normalizes every Wither
 /// to the summed upgrade level (<c>SimulatedCombatState.NormalizeAeonglassWithers</c>).
 /// </summary>
-[BlitzContent("AEONGLASS")]
-public sealed class Aeonglass : BlitzMonsterDef
+[ContentId("AEONGLASS")]
+public sealed class Aeonglass : MonsterDef
 {
     private const int EbbBlockStat = 0;
     private const int WitherAmountStat = 1;
@@ -83,55 +83,55 @@ public sealed class Aeonglass : BlitzMonsterDef
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("WITHER", 0)];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "EBB_MOVE":
-                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[EbbBlockStat],
-                    BlitzValueProps.Move, fromCard: false);
+                Kernel.GainBlock(ref x, owner, rules.StaticInts[EbbBlockStat],
+                    ValueProps.Move, fromCard: false);
                 break;
             case "INCREASING_INTENSITY_MOVE":
                 FakeUpgradeWithers(ref x);
-                ref BlitzEnemy enemy = ref x.B.Enemy(owner);
+                ref Enemy enemy = ref x.B.Enemy(owner);
                 enemy.Ai[WitherUpgradeCountRegister]++;
                 for (int index = 0; index < rules.StaticInts[WitherAmountStat]; index++)
                 {
-                    BlitzKernel.AddGeneratedCard(ref x,
-                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Wither>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
+                    Kernel.AddGeneratedCard(ref x,
+                        Kernel.CreateCard(x.R, Registry.CardId<Cards.Status.Wither>()), Pile.Discard, creator: Limits.NoOwner);
                 }
                 int strength = rules.StaticInts[IncreasingIntensityBaseStrengthStat]
                     + x.B.Enemy(owner).Ai[AdditionalStrengthRegister];
                 x.B.Enemy(owner).Ai[AdditionalStrengthRegister]++;
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), strength, owner);
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), strength, owner);
                 break;
         }
     }
 
-    public override void AfterCardGeneratedForCombat(ref BlitzExec x, BlitzListener self, int position, byte creator)
+    public override void AfterCardGeneratedForCombat(ref Exec x, Listener self, int position, byte creator)
     {
-        if (x.B.Cards[position].Id != BlitzRegistry.CardId<Cards.Status.Wither>())
+        if (x.B.Cards[position].Id != Registry.CardId<Cards.Status.Wither>())
             return;
         int upgrades = x.B.Enemy(self.Owner).Ai[WitherUpgradeCountRegister];
         int damage = x.B.Cards[position].Var0 + upgrades * WitherUpgradeDamage;
         if (damage > short.MaxValue)
-            throw new BlitzUnsupportedException("Wither 的伪升级层数超出短整型表示。");
+            throw new UnsupportedException("Wither 的伪升级层数超出短整型表示。");
         x.B.Cards[position].Var0 = (short)damage;
     }
 
-    private static void FakeUpgradeWithers(ref BlitzExec x)
+    private static void FakeUpgradeWithers(ref Exec x)
     {
-        if (!BlitzRegistry.TryCard("WITHER", out ushort wither))
+        if (!Registry.TryCard("WITHER", out ushort wither))
             return;
         for (int position = 0; position < x.B.CardCount; position++)
         {
-            ref BlitzCard card = ref x.B.Cards[position];
+            ref Card card = ref x.B.Cards[position];
             if (card.Id != wither)
                 continue;
             int upgraded = card.Var0 + WitherUpgradeDamage;
             card.Var0 = upgraded > short.MaxValue
-                ? throw new BlitzUnsupportedException("Wither 的伪升级层数超出短整型表示。")
+                ? throw new UnsupportedException("Wither 的伪升级层数超出短整型表示。")
                 : (short)upgraded;
         }
     }
@@ -144,8 +144,8 @@ public sealed class Aeonglass : BlitzMonsterDef
 /// <c>BranchMonsterAi.ResolveConditional</c>). <c>fabricator_last_spawn</c> stores the last bot kind
 /// and excludes it from the next <c>Rng.MonsterAi.NextItem</c> pick.
 /// </summary>
-[BlitzContent("FABRICATOR")]
-public sealed class Fabricator : BlitzMonsterDef
+[ContentId("FABRICATOR")]
+public sealed class Fabricator : MonsterDef
 {
     private const int LastSpawnRegister = 0;
     private const int BotKindGuardbot = 1;
@@ -158,23 +158,23 @@ public sealed class Fabricator : BlitzMonsterDef
     public override IReadOnlyList<string> SpawnedMonsterIds =>
         ["GUARDBOT", "NOISEBOT", "ZAPBOT", "STABBOT"];
 
-    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "fabricateBranch")
             return -1;
         int alive = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            if (x.B.Creature(BlitzKernel.EnemyOwner(x.B.Roster[position])).IsAlive)
+            if (x.B.Creature(Kernel.EnemyOwner(x.B.Roster[position])).IsAlive)
                 alive++;
         }
         return alive < 4 ? rules.NodeIndex("RAND") : rules.NodeIndex("DISINTEGRATE_MOVE");
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        switch (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
+        switch (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId)
         {
             case "FABRICATE_MOVE":
                 SpawnBot(ref x, owner, defensive: true);
@@ -187,7 +187,7 @@ public sealed class Fabricator : BlitzMonsterDef
         }
     }
 
-    private static void SpawnBot(ref BlitzExec x, byte owner, bool defensive)
+    private static void SpawnBot(ref Exec x, byte owner, bool defensive)
     {
         int previous = x.B.Enemy(owner).Ai[LastSpawnRegister];
         Span<int> candidates = stackalloc int[defensive ? 2 : 2];
@@ -198,7 +198,7 @@ public sealed class Fabricator : BlitzMonsterDef
             candidates[count++] = first;
         if (second != previous)
             candidates[count++] = second;
-        int selected = candidates[x.B.RngStream(BlitzRngStream.MonsterAi).NextInt(0, count)];
+        int selected = candidates[x.B.RngStream(RngStream.MonsterAi).NextInt(0, count)];
         x.B.Enemy(owner).Ai[LastSpawnRegister] = selected;
         string nativeId = selected switch
         {
@@ -206,52 +206,52 @@ public sealed class Fabricator : BlitzMonsterDef
             BotKindNoisebot => "NOISEBOT",
             BotKindZapbot => "ZAPBOT",
             BotKindStabbot => "STABBOT",
-            _ => throw new BlitzUnsupportedException($"未知的组装师召唤编号 {selected}。"),
+            _ => throw new UnsupportedException($"未知的组装师召唤编号 {selected}。"),
         };
-        if (!BlitzRegistry.TryMonster(nativeId, out ushort monsterId)
+        if (!Registry.TryMonster(nativeId, out ushort monsterId)
             || !x.R.TrySpawnRulesId(monsterId, out int rulesId))
         {
-            throw new BlitzUnsupportedException($"组装师召唤 {nativeId} 没有生成规则条目。");
+            throw new UnsupportedException($"组装师召唤 {nativeId} 没有生成规则条目。");
         }
-        string? slot = BlitzKernel.NextFreeSlot(x.B, x.R);
-        int slotIndex = string.IsNullOrEmpty(slot) ? BlitzKernel.NoSlot : BlitzKernel.SlotIndex(x.R, slot);
-        BlitzKernel.SpawnMonster(ref x, owner, rulesId, slotIndex, minion: true);
+        string? slot = Kernel.NextFreeSlot(x.B, x.R);
+        int slotIndex = string.IsNullOrEmpty(slot) ? Kernel.NoSlot : Kernel.SlotIndex(x.R, slot);
+        Kernel.SpawnMonster(ref x, owner, rulesId, slotIndex, minion: true);
     }
 }
 
 /// <summary>Guardbot: GUARD_MOVE grants 15 Unpowered Block to every Fabricator.</summary>
-[BlitzContent("GUARDBOT")]
-public sealed class Guardbot : BlitzMonsterDef
+[ContentId("GUARDBOT")]
+public sealed class Guardbot : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "GUARD_MOVE")
+        if (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "GUARD_MOVE")
             return;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte other = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (x.B.Enemy(other).MonsterId == BlitzRegistry.MonsterId<Fabricator>())
-                BlitzKernel.GainBlock(ref x, other, 15, BlitzValueProps.Unpowered, fromCard: false);
+            byte other = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (x.B.Enemy(other).MonsterId == Registry.MonsterId<Fabricator>())
+                Kernel.GainBlock(ref x, other, 15, ValueProps.Unpowered, fromCard: false);
         }
     }
 }
 
 /// <summary>Noisebot: NOISE_MOVE adds one Dazed to the discard pile and one at a random draw-pile position.</summary>
-[BlitzContent("NOISEBOT")]
-public sealed class Noisebot : BlitzMonsterDef
+[ContentId("NOISEBOT")]
+public sealed class Noisebot : MonsterDef
 {
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("DAZED", 0)];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "NOISE_MOVE")
+        if (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId != "NOISE_MOVE")
             return;
-        ushort dazed = BlitzRegistry.CardId<Cards.Status.Dazed>();
-        BlitzKernel.AddGeneratedCard(ref x, BlitzKernel.CreateCard(x.R, dazed), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
+        ushort dazed = Registry.CardId<Cards.Status.Dazed>();
+        Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, dazed), Pile.Discard, creator: Limits.NoOwner);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.AddGeneratedCard(ref x, BlitzKernel.CreateCard(x.R, dazed), BlitzPile.Draw,
-            BlitzPilePosition.Random, creator: BlitzLimits.NoOwner);
+        Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, dazed), Pile.Draw,
+            PilePosition.Random, creator: Limits.NoOwner);
     }
 }
 
@@ -259,22 +259,22 @@ public sealed class Noisebot : BlitzMonsterDef
 /// Zapbot: ZAP is a plain attack. Its entrance HighVoltagePower 2 is applied by
 /// <see cref="ApplyEntrancePowers"/> (<c>MonsterSpawnSupport.ApplyNativeEntrancePowers</c>).
 /// </summary>
-[BlitzContent("ZAPBOT")]
-public sealed class Zapbot : BlitzMonsterDef
+[ContentId("ZAPBOT")]
+public sealed class Zapbot : MonsterDef
 {
-    public override void ApplyEntrancePowers(ref BlitzExec x, byte owner)
-        => BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.HighVoltagePower>(), 2, owner);
+    public override void ApplyEntrancePowers(ref Exec x, byte owner)
+        => Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.HighVoltagePower>(), 2, owner);
 }
 
 /// <summary>Stabbot: STAB_MOVE applies Frail 1 to the player (<c>MonsterMoveEffects</c> "Stabbot").</summary>
-[BlitzContent("STABBOT")]
-public sealed class Stabbot : BlitzMonsterDef
+[ContentId("STABBOT")]
+public sealed class Stabbot : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        if (BlitzKernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STAB_MOVE")
-            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                BlitzRegistry.PowerId<Powers.FrailPower>(), 1, owner);
+        if (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "STAB_MOVE")
+            Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                Registry.PowerId<Powers.FrailPower>(), 1, owner);
     }
 }
 
@@ -286,8 +286,8 @@ public sealed class Stabbot : BlitzMonsterDef
 /// spawn rule is compiled with StockAmount 1 so it starts from BOOT_UP_MOVE and the +10 HP range, and
 /// the entrance adds the remaining +10 when the replacement has no stock left.
 /// </summary>
-[BlitzContent("AXEBOT")]
-public sealed class Axebot : BlitzMonsterDef
+[ContentId("AXEBOT")]
+public sealed class Axebot : MonsterDef
 {
     private const int BootUpBlockStat = 0;
     private const int BootUpStrengthStat = 1;
@@ -299,62 +299,62 @@ public sealed class Axebot : BlitzMonsterDef
 
     public override int SpawnStockAmount => 1;
 
-    public override void ApplyEntrancePowers(ref BlitzExec x, byte owner, byte source)
+    public override void ApplyEntrancePowers(ref Exec x, byte owner, byte source)
     {
-        if (!BlitzRegistry.TryPower("STOCK_POWER", out ushort stock))
+        if (!Registry.TryPower("STOCK_POWER", out ushort stock))
             return;
-        int newStock = BlitzKernel.GetAmount(x.B, source, stock) - 1;
+        int newStock = Kernel.GetAmount(x.B, source, stock) - 1;
         if (newStock < 0)
             newStock = 0;
         // The HP roll already used the replacement's RespawnCount (see AfterDeath); the entrance only
         // applies the remaining StockPower (native ApplyNativeEntrancePowers).
         if (newStock > 0)
-            BlitzKernel.ApplyPower(ref x, owner, stock, newStock, BlitzLimits.NoOwner);
+            Kernel.ApplyPower(ref x, owner, stock, newStock, Limits.NoOwner);
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "BOOT_UP_MOVE":
-                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[BootUpBlockStat],
-                    BlitzValueProps.Move, fromCard: false);
-                int stock = BlitzRegistry.TryPower("STOCK_POWER", out ushort stockId)
-                    ? BlitzKernel.GetAmount(x.B, owner, stockId)
+                Kernel.GainBlock(ref x, owner, rules.StaticInts[BootUpBlockStat],
+                    ValueProps.Move, fromCard: false);
+                int stock = Registry.TryPower("STOCK_POWER", out ushort stockId)
+                    ? Kernel.GetAmount(x.B, owner, stockId)
                     : 0;
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[BootUpStrengthStat] * (2 - stock), owner);
                 break;
             case "HAMMER_UPPERCUT_MOVE":
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.WeakPower>(), 2, owner);
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.FrailPower>(), 2, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.WeakPower>(), 2, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.FrailPower>(), 2, owner);
                 break;
         }
     }
 
-    public override void AfterDeath(ref BlitzExec x, BlitzListener self, byte creature, bool wasRemovalPrevented)
+    public override void AfterDeath(ref Exec x, Listener self, byte creature, bool wasRemovalPrevented)
     {
         if (wasRemovalPrevented || creature != self.Owner
-            || !BlitzRegistry.TryPower("STOCK_POWER", out ushort stock)
-            || BlitzKernel.GetAmount(x.B, self.Owner, stock) <= 0)
+            || !Registry.TryPower("STOCK_POWER", out ushort stock)
+            || Kernel.GetAmount(x.B, self.Owner, stock) <= 0)
         {
             return;
         }
-        if (!BlitzRegistry.TryMonster("AXEBOT", out ushort monsterId)
+        if (!Registry.TryMonster("AXEBOT", out ushort monsterId)
             || !x.R.TrySpawnRulesId(monsterId, out int rulesId))
         {
-            throw new BlitzUnsupportedException("Axebot 补货没有生成规则条目。");
+            throw new UnsupportedException("Axebot 补货没有生成规则条目。");
         }
-        int newStock = BlitzKernel.GetAmount(x.B, self.Owner, stock) - 1;
+        int newStock = Kernel.GetAmount(x.B, self.Owner, stock) - 1;
         if (newStock < 0)
             newStock = 0;
         // The compiled rule is the StockAmount-1 variant (RespawnCount 1, +10 HP range); missing
         // further stock shifts the whole range by another RespawnMaxHpBonus (native RespawnCount =
         // 2 - StockAmount feeds MinInitialHp/MaxInitialHp before CreatePredictedMonster rolls).
-        BlitzKernel.SpawnMonster(ref x, self.Owner, rulesId, x.B.Enemy(self.Owner).Slot, minion: false,
+        Kernel.SpawnMonster(ref x, self.Owner, rulesId, x.B.Enemy(self.Owner).Slot, minion: false,
             hpRangeShift: (1 - newStock) * StockPerRespawnHp);
     }
 }
@@ -368,8 +368,8 @@ public sealed class Axebot : BlitzMonsterDef
 /// BASH applies Vulnerable 1 and BURNING GROWL adds Burn plus Strength (<c>MonsterMoveEffects</c>,
 /// <c>BranchMonsterAi.CurrentMove</c>).
 /// </summary>
-[BlitzContent("TEST_SUBJECT")]
-public sealed class TestSubject : BlitzMonsterDef
+[ContentId("TEST_SUBJECT")]
+public sealed class TestSubject : MonsterDef
 {
     internal const string MultiClawMoveId = "MULTI_CLAW_MOVE";
 
@@ -392,9 +392,9 @@ public sealed class TestSubject : BlitzMonsterDef
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("BURN", 0)];
 
-    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "REVIVE_BRANCH")
             return -1;
         return x.B.Enemy(owner).Ai[RespawnsRegister] < 2
@@ -402,7 +402,7 @@ public sealed class TestSubject : BlitzMonsterDef
             : rules.NodeIndex("PHASE3_LACERATE_MOVE");
     }
 
-    public override int ModifyAttackRepeats(in BlitzBattle battle, BlitzRules rules, byte owner, int moveNode,
+    public override int ModifyAttackRepeats(in Battle battle, Rules rules, byte owner, int moveNode,
         int attackIndex, int repeats)
     {
         if (rules.MonsterRule(battle.Enemy(owner).Rules).Nodes[moveNode].NativeId != "MULTI_CLAW_MOVE")
@@ -410,14 +410,14 @@ public sealed class TestSubject : BlitzMonsterDef
         return repeats + battle.Enemy(owner).Ai[ExtraMultiClawRegister];
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "SKULL_BASH_MOVE":
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.VulnerablePower>(), 1, owner);
                 break;
             case "MULTI_CLAW_MOVE":
                 x.B.Enemy(owner).Ai[ExtraMultiClawRegister]++;
@@ -425,38 +425,38 @@ public sealed class TestSubject : BlitzMonsterDef
             case "BURNING_GROWL_MOVE":
                 for (int index = 0; index < rules.StaticInts[BurningGrowlBurnStat]; index++)
                 {
-                    BlitzKernel.AddGeneratedCard(ref x,
-                        BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Burn>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
+                    Kernel.AddGeneratedCard(ref x,
+                        Kernel.CreateCard(x.R, Registry.CardId<Cards.Status.Burn>()), Pile.Discard, creator: Limits.NoOwner);
                 }
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[BurningGrowlStrengthStat], owner);
                 break;
         }
     }
 
-    public override void ResolveReviveMove(ref BlitzExec x, byte owner, int moveNode)
+    public override void ResolveReviveMove(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "RESPAWN_MOVE")
             return;
         int respawns = x.B.Enemy(owner).Ai[RespawnsRegister] + 1;
         if (respawns is < 1 or > 2)
-            throw new BlitzUnsupportedException($"测试体出现未知复活阶段 {respawns}。");
+            throw new UnsupportedException($"测试体出现未知复活阶段 {respawns}。");
         x.B.Enemy(owner).Ai[RespawnsRegister] = respawns;
         int hp = x.B.Enemy(owner).Ai[respawns == 1 ? SecondFormHpRegister : ThirdFormHpRegister];
-        ref BlitzCreature creature = ref x.B.Creature(owner);
+        ref Creature creature = ref x.B.Creature(owner);
         creature.MaxHp = hp;
         creature.CurrentHp = hp;
-        x.B.Enemy(owner).DeathPhase = BlitzDeathPhase.None;
+        x.B.Enemy(owner).DeathPhase = DeathPhase.None;
         if (respawns == 1)
         {
-            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.PainfulStabsPower>(), 1, owner);
+            Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.PainfulStabsPower>(), 1, owner);
         }
         else
         {
-            BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.NemesisPower>(), 1, owner);
-            BlitzKernel.SetPowerAmount(ref x.B, owner, BlitzRegistry.PowerId<Powers.AdaptablePower>(), 0);
-            BlitzKernel.SetPowerAmount(ref x.B, owner, BlitzRegistry.PowerId<Powers.PainfulStabsPower>(), 0);
+            Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.NemesisPower>(), 1, owner);
+            Kernel.SetPowerAmount(ref x.B, owner, Registry.PowerId<Powers.AdaptablePower>(), 0);
+            Kernel.SetPowerAmount(ref x.B, owner, Registry.PowerId<Powers.PainfulStabsPower>(), 0);
         }
     }
 }

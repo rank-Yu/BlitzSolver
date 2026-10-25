@@ -2,7 +2,7 @@
 
 《杀戮尖塔 2》单人整场战斗路线搜索 Mod，开发中。
 
-整场战斗状态是一个 12,696 字节的定长结构体 `BlitzBattle`，不含对象引用，分支只需整块复制内存。搜索在它上面做 Beam，热路径零托管分配。
+整场战斗状态是一个 12,696 字节的定长结构体 `Battle`，不含对象引用，分支只需整块复制内存。搜索在它上面做 Beam，热路径零托管分配。
 
 ## 当前状态
 
@@ -16,7 +16,7 @@
 | --- | --- |
 | `src/Core/Engine` | 状态布局、回合与出牌管线、结算、规则表 |
 | `src/Core/Content` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
-| `src/Core/Search` | `BlitzBeamSolver` 与状态评估；`Ported/` 是移植自 CombatSolver 的依赖 |
+| `src/Core/Search` | `BeamSolver` 与状态评估；`Ported/` 是移植自 CombatSolver 的依赖 |
 | `tests/KernelChecks` | 内核合同（K0） |
 | `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data` |
 | `tests/corpora/quality` | 120 根质量语料（五个角色 × 三幕） |

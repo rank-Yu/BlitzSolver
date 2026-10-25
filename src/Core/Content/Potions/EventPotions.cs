@@ -2,26 +2,26 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Potions;
 
-[BlitzContent("FOUL_POTION")]
-public sealed class FoulPotion : BlitzPotionDef
+[ContentId("FOUL_POTION")]
+public sealed class FoulPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // FoulPotion in combat: Damage every non-pet living creature (the player and the hittable
     // enemies) for Damage with Damage.Props, dealt by the owner.
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        Span<byte> targets = stackalloc byte[BlitzLimits.Enemies + 1];
+        Span<byte> targets = stackalloc byte[Limits.Enemies + 1];
         int count = 0;
-        targets[count++] = BlitzLimits.PlayerOwner;
+        targets[count++] = Limits.PlayerOwner;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (BlitzKernel.IsHittable(x.B, owner))
+            byte owner = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (Kernel.IsHittable(x.B, owner))
                 targets[count++] = owner;
         }
-        BlitzKernel.Damage(ref x, targets[..count], BlitzKernel.PotionVar(x, this, 0),
-            BlitzKernel.PotionVarProps(x, this, 0), BlitzLimits.PlayerOwner, hasCardSource: false, default);
+        Kernel.Damage(ref x, targets[..count], Kernel.PotionVar(x, this, 0),
+            Kernel.PotionVarProps(x, this, 0), Limits.PlayerOwner, hasCardSource: false, default);
     }
 }
 
@@ -29,37 +29,37 @@ public sealed class FoulPotion : BlitzPotionDef
 /// <c>Ambergris</c>: heal <c>MaxHp * HealPercent / 100</c>, then apply 1 <c>AmbergrisPower</c>
 /// (<c>PotionOnUseSupport.Use</c> case Ambergris; the power grants the extra turn).
 /// </summary>
-[BlitzContent("AMBERGRIS")]
-public sealed class AmbergrisPotion : BlitzPotionDef
+[ContentId("AMBERGRIS")]
+public sealed class AmbergrisPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["HealPercent"];
 
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        decimal percent = BlitzKernel.PotionVar(x, this, 0);
-        BlitzKernel.Heal(ref x, BlitzLimits.PlayerOwner, x.B.Creature(BlitzLimits.PlayerOwner).MaxHp * percent / 100m);
+        decimal percent = Kernel.PotionVar(x, this, 0);
+        Kernel.Heal(ref x, Limits.PlayerOwner, x.B.Creature(Limits.PlayerOwner).MaxHp * percent / 100m);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.AmbergrisPower>(), 1, BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.AmbergrisPower>(), 1, Limits.PlayerOwner);
     }
 }
 
-[BlitzContent("GLOWWATER_POTION")]
-public sealed class GlowwaterPotion : BlitzPotionDef
+[ContentId("GLOWWATER_POTION")]
+public sealed class GlowwaterPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     // GlowwaterPotion: ExhaustHand(player), then Draw(player, Cards).
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
         int count = x.B.HandCount;
         for (int index = 0; index < count && x.B.HandCount > 0; index++)
         {
-            BlitzKernel.Exhaust(ref x, BlitzPile.Hand, 0);
+            Kernel.Exhaust(ref x, Pile.Hand, 0);
             if (x.NeedsChoice)
                 return;
         }
-        BlitzKernel.Draw(ref x, (int)BlitzKernel.PotionVar(x, this, 0), fromHandDraw: false);
+        Kernel.Draw(ref x, (int)Kernel.PotionVar(x, this, 0), fromHandDraw: false);
     }
 }

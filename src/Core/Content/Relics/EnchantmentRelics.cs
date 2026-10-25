@@ -7,12 +7,12 @@ namespace BlitzSolver.Content.Relics;
 /// <c>Damage</c> (9). Mirrors <c>MysticLighter.ModifyDamageAdditive</c>, which the existing engine
 /// runs as a verified native relic hook (<c>PredictionCoverage.IsVerifiedNativeRelicHook</c>).
 /// </summary>
-[BlitzContent("MYSTIC_LIGHTER")]
-public sealed class MysticLighter : BlitzRelicDef
+[ContentId("MYSTIC_LIGHTER")]
+public sealed class MysticLighter : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override decimal ModifyDamageAdditive(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage,
+    public override decimal ModifyDamageAdditive(ref Exec x, Listener self, in DamageContext damage,
         decimal amount)
     {
         if (!damage.Props.IsPoweredAttack() || !damage.HasCardSource || damage.CardSource.EnchantmentId == 0)

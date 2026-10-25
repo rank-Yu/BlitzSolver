@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using BlitzSolver.Engine;
 
-namespace BlitzGolden;
+namespace BlitzSolver.Golden;
 
 internal static class GoldenFiles
 {
@@ -14,7 +14,7 @@ internal static class GoldenFiles
         return stream.ToArray();
     }
 
-    public static bool ActionEquals(in BlitzAction left, in BlitzAction right)
+    public static bool ActionEquals(in PlayerAction left, in PlayerAction right)
     {
         if (left.Kind != right.Kind || left.HandIndex != right.HandIndex || left.Target != right.Target
             || left.PotionSlot != right.PotionSlot || left.ChoiceCount != right.ChoiceCount)
@@ -27,7 +27,7 @@ internal static class GoldenFiles
         return true;
     }
 
-    public static string Describe(in BlitzAction action)
+    public static string Describe(in PlayerAction action)
         => $"{action.Kind} hand={action.HandIndex} target={action.Target} potion={action.PotionSlot} "
             + $"choices={action.ChoiceCount}";
 }

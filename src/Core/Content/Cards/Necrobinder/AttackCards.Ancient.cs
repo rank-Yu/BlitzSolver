@@ -6,12 +6,12 @@ namespace BlitzSolver.Content.Cards.Necrobinder;
 /// <c>Protector</c>: Osty attack whose calculated damage is CalculationBase + ExtraDamage × Osty's max HP
 /// (<c>CalculatedVarSpecRegistry.Protector</c>).
 /// </summary>
-[BlitzContent("PROTECTOR")]
-public sealed class Protector : BlitzCardDef
+[ContentId("PROTECTOR")]
+public sealed class Protector : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         if (!NecrobinderContent.HasOsty(x.B))
             return;

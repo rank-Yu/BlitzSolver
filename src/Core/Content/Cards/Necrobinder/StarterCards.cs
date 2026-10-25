@@ -2,28 +2,28 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Necrobinder;
 
-[BlitzContent("STRIKE_NECROBINDER")]
-public sealed class StrikeNecrobinder : BlitzCardDef
+[ContentId("STRIKE_NECROBINDER")]
+public sealed class StrikeNecrobinder : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 }
 
-[BlitzContent("DEFEND_NECROBINDER")]
-public sealed class DefendNecrobinder : BlitzCardDef
+[ContentId("DEFEND_NECROBINDER")]
+public sealed class DefendNecrobinder : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralBlock(ref x, 0);
 }
 
-[BlitzContent("BODYGUARD")]
-public sealed class Bodyguard : BlitzCardDef
+[ContentId("BODYGUARD")]
+public sealed class Bodyguard : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Summon"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzKernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
+    public override void OnPlay(ref Exec x) => Kernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
 }
 
 /// <summary>
@@ -32,12 +32,12 @@ public sealed class Bodyguard : BlitzCardDef
 /// The rule table stores CalculationBase and ExtraDamage, so the card computes the native
 /// <c>CalculatedVar.Calculate</c> formula itself.
 /// </summary>
-[BlitzContent("UNLEASH")]
-public sealed class Unleash : BlitzCardDef
+[ContentId("UNLEASH")]
+public sealed class Unleash : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         if (!NecrobinderContent.HasOsty(x.B))
             return;

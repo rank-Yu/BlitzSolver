@@ -3,21 +3,21 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Necrobinder;
 
-[BlitzContent("SENTRY_MODE")]
-public sealed class SentryMode : BlitzCardDef
+[ContentId("SENTRY_MODE")]
+public sealed class SentryMode : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["SentryModePower"];
 
     public override IReadOnlyList<string> AppliedPowers => ["SENTRY_MODE_POWER"];
 
     // CardPowerOnPlaySupport.SToZ: combat.Apply<SentryModePower>(owner, power var, owner).
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<SentryModePower>(), (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<SentryModePower>(), (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("CALL_OF_THE_VOID")]
-public sealed class CallOfTheVoid : BlitzCardDef
+[ContentId("CALL_OF_THE_VOID")]
+public sealed class CallOfTheVoid : CardDef
 {
     public override bool MayGenerateIdentityContent => true;
 
@@ -26,37 +26,37 @@ public sealed class CallOfTheVoid : BlitzCardDef
     public override IReadOnlyList<string> AppliedPowers => ["CALL_OF_THE_VOID_POWER"];
 
     // CardPowerOnPlaySupport: combat.Apply<CallOfTheVoidPower>(owner, card.DynamicVars.Cards.IntValue, owner).
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<CallOfTheVoidPower>(), (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<CallOfTheVoidPower>(), (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("REAPER_FORM")]
-public sealed class ReaperForm : BlitzCardDef
+[ContentId("REAPER_FORM")]
+public sealed class ReaperForm : CardDef
 {
     public override IReadOnlyList<string> AppliedPowers => ["REAPER_FORM_POWER"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<ReaperFormPower>(), 1, BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<ReaperFormPower>(), 1, Limits.PlayerOwner);
 }
 
 /// <summary>
 /// <c>NecroMastery</c>: summon Osty, then apply one NecroMasteryPower
 /// (<c>CardOnPlaySupport.Batch043</c>'s NecroMastery case).
 /// </summary>
-[BlitzContent("NECRO_MASTERY")]
-public sealed class NecroMastery : BlitzCardDef
+[ContentId("NECRO_MASTERY")]
+public sealed class NecroMastery : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Summon"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzKernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
+        Kernel.SummonOsty(ref x, (int)NecrobinderContent.Var(ref x, 0));
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.NecroMasteryPower>(), 1,
-            BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.NecroMasteryPower>(), 1,
+            Limits.PlayerOwner);
     }
 }
 
@@ -64,50 +64,50 @@ public sealed class NecroMastery : BlitzCardDef
 /// <c>Neurosurge</c>: gain energy, draw cards, then apply NeurosurgePower
 /// (<c>CardDrawCardMirrors.NeurosurgeOnPlay</c>).
 /// </summary>
-[BlitzContent("NEUROSURGE")]
-public sealed class Neurosurge : BlitzCardDef
+[ContentId("NEUROSURGE")]
+public sealed class Neurosurge : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["NeurosurgePower", "Energy", "Cards"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzKernel.GainEnergy(ref x, NecrobinderContent.Var(ref x, 1));
+        Kernel.GainEnergy(ref x, NecrobinderContent.Var(ref x, 1));
         if (x.NeedsChoice)
             return;
-        BlitzKernel.Draw(ref x, (int)NecrobinderContent.Var(ref x, 2), fromHandDraw: false);
+        Kernel.Draw(ref x, (int)NecrobinderContent.Var(ref x, 2), fromHandDraw: false);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.NeurosurgePower>(),
-            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.NeurosurgePower>(),
+            (int)NecrobinderContent.Var(ref x, 0), Limits.PlayerOwner);
     }
 }
 
-[BlitzContent("SPIRIT_OF_ASH")]
-public sealed class SpiritOfAsh : BlitzCardDef
+[ContentId("SPIRIT_OF_ASH")]
+public sealed class SpiritOfAsh : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["BlockOnExhaust"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.SpiritOfAshPower>(),
-            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.SpiritOfAshPower>(),
+            (int)NecrobinderContent.Var(ref x, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("DEVOUR_LIFE")]
-public sealed class DevourLife : BlitzCardDef
+[ContentId("DEVOUR_LIFE")]
+public sealed class DevourLife : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["DevourLifePower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.DevourLifePower>(),
-            (int)NecrobinderContent.Var(ref x, 0), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.DevourLifePower>(),
+            (int)NecrobinderContent.Var(ref x, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("DEMESNE")]
-public sealed class Demesne : BlitzCardDef
+[ContentId("DEMESNE")]
+public sealed class Demesne : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy", "Cards"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.DemesnePower>(),
-            (int)NecrobinderContent.Var(ref x, 1), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.DemesnePower>(),
+            (int)NecrobinderContent.Var(ref x, 1), Limits.PlayerOwner);
 }

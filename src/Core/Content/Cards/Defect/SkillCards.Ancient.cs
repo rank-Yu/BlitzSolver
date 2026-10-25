@@ -2,14 +2,14 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Defect;
 
-[BlitzContent("QUADCAST")]
-public sealed class Quadcast : BlitzCardDef
+[ContentId("QUADCAST")]
+public sealed class Quadcast : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Repeat"];
 
     // OrbCardMirrors.QuadcastOnPlay: OrbEvokeNext with Repeat hits; only the last one dequeues.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzKernel.EvokeNext(ref x, (int)BlitzCardEffects.Var(x, 0));
+        Kernel.EvokeNext(ref x, (int)CardEffects.Var(x, 0));
     }
 }

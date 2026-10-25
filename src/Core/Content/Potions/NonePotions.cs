@@ -7,12 +7,12 @@ namespace BlitzSolver.Content.Potions;
 /// not offer an explicit use (<c>PotionOnUseSupport.CanSearch</c> is false), so the definition only
 /// lets a root holding it pass admission.
 /// </summary>
-[BlitzContent("DEPRECATED_POTION")]
-public sealed class DeprecatedPotion : BlitzPotionDef
+[ContentId("DEPRECATED_POTION")]
+public sealed class DeprecatedPotion : PotionDef
 {
     public override bool Searchable => false;
 
     // The existing search provides no explicit use for this potion.
-    public override void OnUse(ref BlitzExec x)
-        => throw new BlitzUnsupportedException("现有搜索不提供 DEPRECATED_POTION 的显式使用。");
+    public override void OnUse(ref Exec x)
+        => throw new UnsupportedException("现有搜索不提供 DEPRECATED_POTION 的显式使用。");
 }

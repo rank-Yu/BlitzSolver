@@ -3,154 +3,154 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Silent;
 
-[BlitzContent("SKEWER")]
-public sealed class Skewer : BlitzCardDef
+[ContentId("SKEWER")]
+public sealed class Skewer : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // GeneralCardMirrors.GeneralAttackOnPlay: an X-cost attack uses ResolveEnergyXValue as its hit
     // count (resolved once).
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        int hits = BlitzKernel.ResolveEnergyXValue(ref x);
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hits);
+        int hits = Kernel.ResolveEnergyXValue(ref x);
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), hits);
     }
 }
 
-[BlitzContent("DASH")]
-public sealed class Dash : BlitzCardDef
+[ContentId("DASH")]
+public sealed class Dash : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Block"];
 
     // Dash.cs: GainBlock before the attack; the inferred recipe keeps that order.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralBlock(ref x, 1);
+        CardEffects.GeneralBlock(ref x, 1);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
     }
 }
 
-[BlitzContent("POUNCE")]
-public sealed class Pounce : BlitzCardDef
+[ContentId("POUNCE")]
+public sealed class Pounce : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardEffectSpecRegistry.Pounce: attack, then FreeSkillPower 1.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.FreeSkillPower>(), 1, BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.FreeSkillPower>(), 1, Limits.PlayerOwner);
     }
 }
 
-[BlitzContent("MEMENTO_MORI")]
-public sealed class MementoMori : BlitzCardDef
+[ContentId("MEMENTO_MORI")]
+public sealed class MementoMori : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
     // CalculatedVarSpecRegistry.MementoMori: CalculationBase + ExtraDamage * cards discarded this turn.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        decimal damage = BlitzCardEffects.Var(x, 0)
-            + BlitzCardEffects.Var(x, 1) * x.B.Counter(BlitzCounter.CardsDiscardedThisTurn);
-        BlitzCardEffects.Attack(ref x, damage);
+        decimal damage = CardEffects.Var(x, 0)
+            + CardEffects.Var(x, 1) * x.B.Counter(Counter.CardsDiscardedThisTurn);
+        CardEffects.Attack(ref x, damage);
     }
 }
 
-[BlitzContent("PRECISE_CUT")]
-public sealed class PreciseCut : BlitzCardDef
+[ContentId("PRECISE_CUT")]
+public sealed class PreciseCut : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
     // CalculatedVarSpecRegistry.PreciseCut: the played card is in the play pile, so the multiplier is
     // -hand count.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        decimal damage = BlitzCardEffects.Var(x, 0) - BlitzCardEffects.Var(x, 1) * x.B.HandCount;
-        BlitzCardEffects.Attack(ref x, damage);
+        decimal damage = CardEffects.Var(x, 0) - CardEffects.Var(x, 1) * x.B.HandCount;
+        CardEffects.Attack(ref x, damage);
     }
 }
 
-[BlitzContent("FINISHER")]
-public sealed class Finisher : BlitzCardDef
+[ContentId("FINISHER")]
+public sealed class Finisher : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "CalculationBase", "CalculationExtra"];
 
     // CalculatedVarSpecRegistry.Finisher: CalculatedHits = CalculationBase + CalculationExtra *
     // attacks played this turn (GetAttacksPlayedThisTurn), the hit count of the Damage attack.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        int hits = (int)(BlitzCardEffects.Var(x, 1)
-            + BlitzCardEffects.Var(x, 2) * x.B.Counter(BlitzCounter.AttacksPlayedThisTurn));
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hits);
+        int hits = (int)(CardEffects.Var(x, 1)
+            + CardEffects.Var(x, 2) * x.B.Counter(Counter.AttacksPlayedThisTurn));
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), hits);
     }
 }
 
-[BlitzContent("BACKSTAB")]
-public sealed class Backstab : BlitzCardDef
+[ContentId("BACKSTAB")]
+public sealed class Backstab : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 }
 
-[BlitzContent("STRANGLE")]
-public sealed class Strangle : BlitzCardDef
+[ContentId("STRANGLE")]
+public sealed class Strangle : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "StranglePower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
+        Kernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.StranglePower>(), 1);
+        CardEffects.ApplyToTarget(ref x, Registry.PowerId<Powers.StranglePower>(), 1);
     }
 }
 
-[BlitzContent("PINPOINT")]
-public sealed class Pinpoint : BlitzCardDef
+[ContentId("PINPOINT")]
+public sealed class Pinpoint : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 
     // Pinpoint.cs: entering combat reduces its cost by the Skills already finished this turn.
-    public override void AfterEnteredCombat(ref BlitzExec x, BlitzPile pile, int index)
+    public override void AfterEnteredCombat(ref Exec x, Pile pile, int index)
     {
-        int amount = x.B.Counter(BlitzCounter.SkillCardsPlayedThisTurn);
+        int amount = x.B.Counter(Counter.SkillCardsPlayedThisTurn);
         if (amount <= 0)
             return;
-        ref BlitzCard card = ref BlitzPiles.At(ref x.B, pile, index);
+        ref Card card = ref Piles.At(ref x.B, pile, index);
         if (card.Id != Id)
             return;
-        BlitzKernel.AddEnergyCostModifier(ref card, -amount, BlitzCostType.Relative,
-            BlitzCostExpiration.EndOfTurn, reduceOnly: false);
+        Kernel.AddEnergyCostModifier(ref card, -amount, CostType.Relative,
+            CostExpiration.EndOfTurn, reduceOnly: false);
     }
 
     // Pinpoint.cs.AfterCardPlayed: each Skill its owner plays reduces its cost by 1 this turn, while
     // it sits in any combat pile.
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner)
+        if (self.Owner != Limits.PlayerOwner)
             return;
-        if (BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Skill)
+        if (Kernel.ResolveCardType(x.B, x.R, play.Card) != CardType.Skill)
             return;
-        ref BlitzCard card = ref x.B.Cards[self.Index];
+        ref Card card = ref x.B.Cards[self.Index];
         if (card.Id != Id)
             return;
-        BlitzKernel.AddEnergyCostModifier(ref card, -1, BlitzCostType.Relative,
-            BlitzCostExpiration.EndOfTurn, reduceOnly: false);
+        Kernel.AddEnergyCostModifier(ref card, -1, CostType.Relative,
+            CostExpiration.EndOfTurn, reduceOnly: false);
     }
 }
 
@@ -158,11 +158,11 @@ public sealed class Pinpoint : BlitzCardDef
 /// <c>EchoingSlash</c>: one attack context hits all enemies, and every target killed adds one more
 /// wave. Existing engine: <c>CardOnPlaySupport.Batch042.ApplyEchoingSlash</c>.
 /// </summary>
-[BlitzContent("ECHOING_SLASH")]
-public sealed class EchoingSlash : BlitzCardDef
+[ContentId("ECHOING_SLASH")]
+public sealed class EchoingSlash : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.CardAttackRepeating(ref x, 0, initialWaves: 1);
+    public override void OnPlay(ref Exec x)
+        => Kernel.CardAttackRepeating(ref x, 0, initialWaves: 1);
 }

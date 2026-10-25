@@ -8,21 +8,21 @@ namespace BlitzSolver.Content.Powers;
 /// <c>CombatPredictionSimulator.TryDamageTarget</c>). The pet is created with one layer and keeps the
 /// power through death (<c>ShouldPowerBeRemovedAfterOwnerDeath</c> false).
 /// </summary>
-[BlitzContent("DIE_FOR_YOU_POWER")]
-public sealed class DieForYouPower : BlitzPowerDef
+[ContentId("DIE_FOR_YOU_POWER")]
+public sealed class DieForYouPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
+    public override PowerStackType StackType => PowerStackType.Single;
 
     public override bool ShouldPowerBeRemovedAfterOwnerDeath => false;
 
-    public override byte ModifyUnblockedDamageTarget(ref BlitzExec x, BlitzListener self, byte target,
-        decimal amount, BlitzValueProps props, byte dealer)
+    public override byte ModifyUnblockedDamageTarget(ref Exec x, Listener self, byte target,
+        decimal amount, ValueProps props, byte dealer)
     {
-        if (target != BlitzLimits.PlayerOwner || x.B.Osty.IsDead || !props.IsPoweredAttack())
+        if (target != Limits.PlayerOwner || x.B.Osty.IsDead || !props.IsPoweredAttack())
             return target;
-        return BlitzLimits.OstyOwner;
+        return Limits.OstyOwner;
     }
 }
 
@@ -32,30 +32,30 @@ public sealed class DieForYouPower : BlitzPowerDef
 /// <c>EndTurnPowerSupport.TriggerEnemyDoom</c>); the player-side turn end kills its own owner through
 /// the per-listener <c>TriggerRegular</c> case. Doom is applied by cards and counted by the evaluation.
 /// </summary>
-[BlitzContent("DOOM_POWER")]
-public sealed class DoomPower : BlitzPowerDef
+[ContentId("DOOM_POWER")]
+public sealed class DoomPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void BeforeSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
+    public override void BeforeSideTurnEnd(ref Exec x, Listener self, Side side, ushort participants)
     {
         // BeforeSideTurnEndMirrors.HandleDoomPower: enemy side only, the owner must participate and be
         // alive, and only the first doomed owner in creature order starts the shared kill.
-        if (BlitzKernel.IsOverOrEnding(x.B) || side == BlitzSide.Player
-            || !BlitzKernel.Participates(participants, self.Owner)
+        if (Kernel.IsOverOrEnding(x.B) || side == Side.Player
+            || !Kernel.Participates(participants, self.Owner)
             || x.B.Creature(self.Owner).IsDead)
         {
             return;
         }
         bool ownerDoomed = false;
         bool ownerIsFirst = false;
-        Span<byte> doomed = stackalloc byte[BlitzLimits.Enemies + 2];
+        Span<byte> doomed = stackalloc byte[Limits.Enemies + 2];
         int doomedCount = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
+            byte owner = Kernel.EnemyOwner(x.B.Roster[position]);
             int doom = DoomFor(x.B, owner);
             bool isDoomed = x.B.Creature(owner).IsAlive && doom > 0 && x.B.Creature(owner).CurrentHp <= doom;
             if (isDoomed)
@@ -69,28 +69,28 @@ public sealed class DoomPower : BlitzPowerDef
         }
         if (!ownerDoomed || !ownerIsFirst)
             return;
-        BlitzKernel.DoomKill(ref x, doomed[..doomedCount]);
+        Kernel.DoomKill(ref x, doomed[..doomedCount]);
     }
 
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
-        if (side == BlitzSide.Enemy || !participates)
+        if (side == Side.Enemy || !participates)
             return;
-        ref readonly BlitzPower power = ref x.B.Powers[self.Index];
-        ref readonly BlitzCreature creature = ref x.B.Creature(self.Owner);
+        ref readonly Power power = ref x.B.Powers[self.Index];
+        ref readonly Creature creature = ref x.B.Creature(self.Owner);
         if (power.Amount <= 0 || creature.IsDead || creature.CurrentHp > power.Amount)
             return;
         Span<byte> one = stackalloc byte[1];
         one[0] = self.Owner;
-        BlitzKernel.Kill(ref x, one, force: false);
+        Kernel.Kill(ref x, one, force: false);
     }
 
     /// <summary>The total positive Doom on one creature (the existing engine sums listener amounts).</summary>
-    internal static int DoomFor(in BlitzBattle battle, byte owner)
+    internal static int DoomFor(in Battle battle, byte owner)
     {
-        if (!BlitzRegistry.TryPower("DOOM_POWER", out ushort id))
+        if (!Registry.TryPower("DOOM_POWER", out ushort id))
             return 0;
-        return BlitzKernel.GetAmount(battle, owner, id);
+        return Kernel.GetAmount(battle, owner, id);
     }
 }
 
@@ -98,20 +98,20 @@ public sealed class DoomPower : BlitzPowerDef
 /// <c>NecroMasteryPower</c>: HP lost by the pet deals that much times the layer count to every hittable
 /// enemy (<c>AfterCurrentHpChangedMirrors.HandleNecroMasteryPower</c>).
 /// </summary>
-[BlitzContent("NECRO_MASTERY_POWER")]
-public sealed class NecroMasteryPower : BlitzPowerDef
+[ContentId("NECRO_MASTERY_POWER")]
+public sealed class NecroMasteryPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterCurrentHpChanged(ref BlitzExec x, BlitzListener self, byte creature, decimal delta)
+    public override void AfterCurrentHpChanged(ref Exec x, Listener self, byte creature, decimal delta)
     {
-        if (delta >= 0m || creature != BlitzLimits.OstyOwner || self.Owner != BlitzLimits.PlayerOwner)
+        if (delta >= 0m || creature != Limits.OstyOwner || self.Owner != Limits.PlayerOwner)
             return;
         decimal amount = -delta * x.B.Powers[self.Index].Amount;
-        BlitzCardEffects.DamageAllEnemies(ref x, amount,
-            BlitzValueProps.Unblockable | BlitzValueProps.Unpowered, self.Owner);
+        CardEffects.DamageAllEnemies(ref x, amount,
+            ValueProps.Unblockable | ValueProps.Unpowered, self.Owner);
     }
 }
 
@@ -119,17 +119,17 @@ public sealed class NecroMasteryPower : BlitzPowerDef
 /// <c>CalcifyPower</c>: adds its amount to a powered attack made by the owner's Osty
 /// (<c>ModifyDamageMirrors</c> invokes <c>CalcifyPower.ModifyDamageAdditive</c>).
 /// </summary>
-[BlitzContent("CALCIFY_POWER")]
-public sealed class CalcifyPower : BlitzPowerDef
+[ContentId("CALCIFY_POWER")]
+public sealed class CalcifyPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal ModifyDamageAdditive(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage,
+    public override decimal ModifyDamageAdditive(ref Exec x, Listener self, in DamageContext damage,
         decimal amount)
     {
-        if (damage.Dealer != BlitzLimits.OstyOwner || self.Owner != BlitzLimits.PlayerOwner
+        if (damage.Dealer != Limits.OstyOwner || self.Owner != Limits.PlayerOwner
             || !damage.Props.IsPoweredAttack())
         {
             return 0m;
@@ -143,35 +143,35 @@ public sealed class CalcifyPower : BlitzPowerDef
 /// opponent (<c>TurnStartPowerSupport.TriggerAfterSideTurnStart</c>, the COUNTDOWN case; the kernel's
 /// fixed <c>GlobalAfterSideTurnStart</c> sequence calls it in listener order).
 /// </summary>
-[BlitzContent("COUNTDOWN_POWER")]
-public sealed class CountdownPower : BlitzPowerDef
+[ContentId("COUNTDOWN_POWER")]
+public sealed class CountdownPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void GlobalAfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void GlobalAfterSideTurnStart(ref Exec x, Listener self, Side side, bool participates)
     {
-        if (!participates || self.Owner != BlitzLimits.PlayerOwner || x.B.Powers[self.Index].Amount <= 0)
+        if (!participates || self.Owner != Limits.PlayerOwner || x.B.Powers[self.Index].Amount <= 0)
             return;
-        Span<byte> candidates = stackalloc byte[BlitzLimits.Enemies];
+        Span<byte> candidates = stackalloc byte[Limits.Enemies];
         int count = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte enemy = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (BlitzKernel.IsHittable(x.B, enemy))
+            byte enemy = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (Kernel.IsHittable(x.B, enemy))
                 candidates[count++] = enemy;
         }
         if (count == 0)
             return;
-        byte target = candidates[x.B.RngStream(BlitzRngStream.CombatTargets).NextInt(0, count)];
-        BlitzKernel.ApplyPower(ref x, target, DoomId(), x.B.Powers[self.Index].Amount, self.Owner);
+        byte target = candidates[x.B.RngStream(RngStream.CombatTargets).NextInt(0, count)];
+        Kernel.ApplyPower(ref x, target, DoomId(), x.B.Powers[self.Index].Amount, self.Owner);
     }
 
     internal static ushort DoomId()
-        => BlitzRegistry.TryPower("DOOM_POWER", out ushort id)
+        => Registry.TryPower("DOOM_POWER", out ushort id)
             ? id
-            : throw new BlitzUnsupportedException("倒计时需要 DoomPower 的 Blitz 定义。");
+            : throw new UnsupportedException("倒计时需要 DoomPower 的 Blitz 定义。");
 }
 
 /// <summary>
@@ -179,19 +179,19 @@ public sealed class CountdownPower : BlitzPowerDef
 /// (<c>PersistentPowerSupport.TriggerOwnerAfterSideTurnStart</c>, the NEUROSURGE case; the kernel's
 /// fixed owner sequence calls it).
 /// </summary>
-[BlitzContent("NEUROSURGE_POWER")]
-public sealed class NeurosurgePower : BlitzPowerDef
+[ContentId("NEUROSURGE_POWER")]
+public sealed class NeurosurgePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void OwnerAfterSideTurnStart(ref BlitzExec x, BlitzListener self)
+    public override void OwnerAfterSideTurnStart(ref Exec x, Listener self)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount <= 0)
             return;
-        BlitzKernel.ApplyPower(ref x, self.Owner, CountdownPower.DoomId(), amount, self.Owner);
+        Kernel.ApplyPower(ref x, self.Owner, CountdownPower.DoomId(), amount, self.Owner);
     }
 }
 
@@ -199,35 +199,35 @@ public sealed class NeurosurgePower : BlitzPowerDef
 /// <c>HauntPower</c>: after its owner plays a Soul, deal its amount to a random hittable enemy as
 /// unblockable unpowered damage with no dealer (<c>AfterCardPlayedMirrors.HandleHauntPower</c>).
 /// </summary>
-[BlitzContent("HAUNT_POWER")]
-public sealed class HauntPower : BlitzPowerDef
+[ContentId("HAUNT_POWER")]
+public sealed class HauntPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || !BlitzRegistry.TryCard("SOUL", out ushort soul) || play.Card.Id != soul)
+        if (self.Owner != Limits.PlayerOwner
+            || !Registry.TryCard("SOUL", out ushort soul) || play.Card.Id != soul)
         {
             return;
         }
-        Span<byte> targets = stackalloc byte[BlitzLimits.Enemies];
+        Span<byte> targets = stackalloc byte[Limits.Enemies];
         int count = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte enemy = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (BlitzKernel.IsHittable(x.B, enemy))
+            byte enemy = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (Kernel.IsHittable(x.B, enemy))
                 targets[count++] = enemy;
         }
         if (count == 0)
             return;
-        byte target = targets[x.B.RngStream(BlitzRngStream.CombatTargets).NextInt(0, count)];
+        byte target = targets[x.B.RngStream(RngStream.CombatTargets).NextInt(0, count)];
         Span<byte> one = stackalloc byte[1];
         one[0] = target;
-        BlitzKernel.Damage(ref x, one, x.B.Powers[self.Index].Amount,
-            BlitzValueProps.Unblockable | BlitzValueProps.Unpowered, BlitzLimits.NoOwner,
+        Kernel.Damage(ref x, one, x.B.Powers[self.Index].Amount,
+            ValueProps.Unblockable | ValueProps.Unpowered, Limits.NoOwner,
             hasCardSource: false, default);
     }
 }
@@ -237,22 +237,22 @@ public sealed class HauntPower : BlitzPowerDef
 /// (<c>ModifyDamageMirrors.HandleLethalityPower</c>). The attack's play index must be zero and the
 /// card's owner must be the power owner.
 /// </summary>
-[BlitzContent("LETHALITY_POWER")]
-public sealed class LethalityPower : BlitzPowerDef
+[ContentId("LETHALITY_POWER")]
+public sealed class LethalityPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage,
+    public override decimal ModifyDamageMultiplicative(ref Exec x, Listener self, in DamageContext damage,
         decimal amount)
     {
-        if (!damage.Props.IsPoweredAttack() || !damage.HasCardSource || self.Owner != BlitzLimits.PlayerOwner)
+        if (!damage.Props.IsPoweredAttack() || !damage.HasCardSource || self.Owner != Limits.PlayerOwner)
             return 1m;
         bool inPlay = x.EffectDepth > 0;
         if (inPlay && x.PlayIndex > 0)
             return 1m;
-        int started = x.B.Counter(BlitzCounter.AttackPlayStartsThisTurn);
+        int started = x.B.Counter(Counter.AttackPlayStartsThisTurn);
         return started <= (inPlay ? 1 : 0)
             ? 1m + (decimal)x.B.Powers[self.Index].Amount / 100m
             : 1m;
@@ -263,20 +263,20 @@ public sealed class LethalityPower : BlitzPowerDef
 /// <c>ShroudPower</c>: gain block equal to its amount whenever its owner applies Doom
 /// (<c>PowerLifecycleSupport.ResolvePowerAmountChanges</c>, the Shroud case).
 /// </summary>
-[BlitzContent("SHROUD_POWER")]
-public sealed class ShroudPower : BlitzPowerDef
+[ContentId("SHROUD_POWER")]
+public sealed class ShroudPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterPowerAmountChanged(ref BlitzExec x, BlitzListener self, ushort powerId, int delta,
+    public override void AfterPowerAmountChanged(ref Exec x, Listener self, ushort powerId, int delta,
         byte applier, byte target)
     {
         if (applier != self.Owner || powerId != CountdownPower.DoomId())
             return;
-        BlitzKernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
-            BlitzValueProps.Unpowered, fromCard: false);
+        Kernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
+            ValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -285,27 +285,27 @@ public sealed class ShroudPower : BlitzPowerDef
 /// (<c>AfterDamageGivenMirrors.HandleSicEmPower</c>); removed at its owner's side turn end
 /// (<c>EndTurnPowerSupport.TriggerBatch048</c>).
 /// </summary>
-[BlitzContent("SIC_EM_POWER")]
-public sealed class SicEmPower : BlitzPowerDef
+[ContentId("SIC_EM_POWER")]
+public sealed class SicEmPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterDamageGiven(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
+    public override void AfterDamageGiven(ref Exec x, Listener self, in DamageResult result, byte dealer)
     {
-        if (dealer == BlitzLimits.OstyOwner && result.Receiver == self.Owner
-            && self.Owner != BlitzLimits.PlayerOwner
+        if (dealer == Limits.OstyOwner && result.Receiver == self.Owner
+            && self.Owner != Limits.PlayerOwner
             && x.B.Powers[self.Index].Amount > 0)
         {
-            BlitzKernel.SummonOsty(ref x, x.B.Powers[self.Index].Amount);
+            Kernel.SummonOsty(ref x, x.B.Powers[self.Index].Amount);
         }
     }
 
-    public override void EndTurnBatch048(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnBatch048(ref Exec x, Listener self, Side side, bool participates)
     {
         if (participates)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, 0);
+            Kernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, 0);
     }
 }
 
@@ -314,33 +314,33 @@ public sealed class SicEmPower : BlitzPowerDef
 /// existing engine's <c>CardPlayPairPredictionState</c>) and applies that amount as Doom after the play;
 /// removed at the player's side turn end (<c>EndTurnPowerSupport.TriggerBatch048</c>).
 /// </summary>
-[BlitzContent("OBLIVION_POWER")]
-public sealed class OblivionPower : BlitzPowerDef
+[ContentId("OBLIVION_POWER")]
+public sealed class OblivionPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref readonly BlitzPower power = ref x.B.Powers[self.Index];
-        if (power.Applier != BlitzLimits.PlayerOwner)
+        ref readonly Power power = ref x.B.Powers[self.Index];
+        if (power.Applier != Limits.PlayerOwner)
             return;
-        x.PushCardPlayPair(BlitzCardPlayPairKind.OblivionDoom, self.Owner, power.Id, power.Amount);
+        x.PushCardPlayPair(CardPlayPairKind.OblivionDoom, self.Owner, power.Id, power.Amount);
     }
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref readonly BlitzPower power = ref x.B.Powers[self.Index];
-        if (!x.TryTakeCardPlayPair(BlitzCardPlayPairKind.OblivionDoom, self.Owner, power.Id, out int amount))
+        ref readonly Power power = ref x.B.Powers[self.Index];
+        if (!x.TryTakeCardPlayPair(CardPlayPairKind.OblivionDoom, self.Owner, power.Id, out int amount))
             return;
-        BlitzKernel.ApplyPower(ref x, self.Owner, CountdownPower.DoomId(), amount, power.Applier);
+        Kernel.ApplyPower(ref x, self.Owner, CountdownPower.DoomId(), amount, power.Applier);
     }
 
-    public override void EndTurnBatch048(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnBatch048(ref Exec x, Listener self, Side side, bool participates)
     {
-        if (side == BlitzSide.Player)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, 0);
+        if (side == Side.Player)
+            Kernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, 0);
     }
 }
 
@@ -349,33 +349,33 @@ public sealed class OblivionPower : BlitzPowerDef
 /// decrement the power when played (<c>ModifyEnergyCostInCombatMirrors</c>,
 /// <c>BeforeCardPlayedMirrors.HandleVeilpiercerPower</c>).
 /// </summary>
-[BlitzContent("VEILPIERCER_POWER")]
-public sealed class VeilpiercerPower : BlitzPowerDef
+[ContentId("VEILPIERCER_POWER")]
+public sealed class VeilpiercerPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal TryModifyEnergyCostInCombatLate(in BlitzBattle battle, BlitzRules rules,
-        BlitzListener self, in BlitzCard card, BlitzPile pile, decimal amount)
+    public override decimal TryModifyEnergyCostInCombatLate(in Battle battle, Rules rules,
+        Listener self, in Card card, Pile pile, decimal amount)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner || !card.HasKeyword(BlitzKeywords.Ethereal)
-            || pile is not (BlitzPile.Hand or BlitzPile.Play))
+        if (self.Owner != Limits.PlayerOwner || !card.HasKeyword(Keywords.Ethereal)
+            || pile is not (Pile.Hand or Pile.Play))
         {
             return amount;
         }
         return 0m;
     }
 
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref readonly BlitzPower power = ref x.B.Powers[self.Index];
-        if (self.Owner != BlitzLimits.PlayerOwner || power.Amount <= 0
-            || !play.Card.HasKeyword(BlitzKeywords.Ethereal))
+        ref readonly Power power = ref x.B.Powers[self.Index];
+        if (self.Owner != Limits.PlayerOwner || power.Amount <= 0
+            || !play.Card.HasKeyword(Keywords.Ethereal))
         {
             return;
         }
-        BlitzKernel.SetPowerAmount(ref x.B, self.Owner, power.Id, power.Amount - 1);
+        Kernel.SetPowerAmount(ref x.B, self.Owner, power.Id, power.Amount - 1);
     }
 }
 
@@ -384,17 +384,17 @@ public sealed class VeilpiercerPower : BlitzPowerDef
 /// (<c>ModifyDamageMirrors</c> folds this into the Vulnerable and Weak multipliers); decrements at its
 /// owner's side turn end (<c>EndTurnPowerSupport.TriggerBatch048</c>).
 /// </summary>
-[BlitzContent("DEBILITATE_POWER")]
-public sealed class DebilitatePower : BlitzPowerDef
+[ContentId("DEBILITATE_POWER")]
+public sealed class DebilitatePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void EndTurnBatch048(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnBatch048(ref Exec x, Listener self, Side side, bool participates)
     {
         if (participates)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id,
+            Kernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id,
                 x.B.Powers[self.Index].Amount - 1);
     }
 }
@@ -403,18 +403,18 @@ public sealed class DebilitatePower : BlitzPowerDef
 /// <c>HangPower</c>: the next Hang card played against its owner deals damage times this amount
 /// (<c>HangPower.ModifyDamageMultiplicative</c> through <c>ModifyDamageMirrors</c>).
 /// </summary>
-[BlitzContent("HANG_POWER")]
-public sealed class HangPower : BlitzPowerDef
+[ContentId("HANG_POWER")]
+public sealed class HangPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage,
+    public override decimal ModifyDamageMultiplicative(ref Exec x, Listener self, in DamageContext damage,
         decimal amount)
     {
         if (damage.Target != self.Owner || !damage.HasCardSource
-            || !BlitzRegistry.TryCard("HANG", out ushort hang) || damage.CardSource.Id != hang)
+            || !Registry.TryCard("HANG", out ushort hang) || damage.CardSource.Id != hang)
         {
             return 1m;
         }
@@ -426,52 +426,52 @@ public sealed class HangPower : BlitzPowerDef
 /// <c>BorrowedTimePower</c>: every card costs its amount more until its owner's side turn end
 /// (<c>BorrowedTimePower.TryModifyEnergyCostInCombat</c>; the kernel's transient removal pass clears it).
 /// </summary>
-[BlitzContent("BORROWED_TIME_POWER")]
-public sealed class BorrowedTimePower : BlitzPowerDef
+[ContentId("BORROWED_TIME_POWER")]
+public sealed class BorrowedTimePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal TryModifyEnergyCostInCombat(in BlitzBattle battle, BlitzRules rules,
-        BlitzListener self, in BlitzCard card, BlitzPile pile, decimal amount)
-        => self.Owner == BlitzLimits.PlayerOwner ? amount + battle.Powers[self.Index].Amount : amount;
+    public override decimal TryModifyEnergyCostInCombat(in Battle battle, Rules rules,
+        Listener self, in Card card, Pile pile, decimal amount)
+        => self.Owner == Limits.PlayerOwner ? amount + battle.Powers[self.Index].Amount : amount;
 }
 
 /// <summary>
 /// <c>FriendshipPower</c>: each layer adds one maximum energy (<c>FriendshipPower.ModifyMaxEnergy</c>
 /// through <c>PersistentPowerSupport.GetModifiedMaxEnergy</c>).
 /// </summary>
-[BlitzContent("FRIENDSHIP_POWER")]
-public sealed class FriendshipPower : BlitzPowerDef
+[ContentId("FRIENDSHIP_POWER")]
+public sealed class FriendshipPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
-        => self.Owner == BlitzLimits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
+        => self.Owner == Limits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
 }
 
 /// <summary>
 /// <c>EnfeeblingTouchPower</c> (a negative <c>TemporaryStrengthPower</c>): application changes Strength
 /// by -amount and its owner's side turn end retires it, restoring Strength.
 /// </summary>
-[BlitzContent("ENFEEBLING_TOUCH_POWER")]
-public sealed class EnfeeblingTouchPower : BlitzPowerDef
+[ContentId("ENFEEBLING_TOUCH_POWER")]
+public sealed class EnfeeblingTouchPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
     public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool IsTemporaryPower => true;
 
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
         if (participates)
-            BlitzKernel.RetireTemporaryStrength(ref x, self);
+            Kernel.RetireTemporaryStrength(ref x, self);
     }
 }
 
@@ -479,23 +479,23 @@ public sealed class EnfeeblingTouchPower : BlitzPowerDef
 /// <c>SummonNextTurnPower</c>: at the player's turn start, summon that much HP for Osty and consume the
 /// power (<c>TurnStartPowerSupport</c>'s SUMMON_NEXT_TURN case).
 /// </summary>
-[BlitzContent("SUMMON_NEXT_TURN_POWER")]
-public sealed class SummonNextTurnPower : BlitzPowerDef
+[ContentId("SUMMON_NEXT_TURN_POWER")]
+public sealed class SummonNextTurnPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool UsesAmountOnTurnStart => true;
 
-    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount <= 0)
             return;
-        BlitzKernel.SummonOsty(ref x, amount);
+        Kernel.SummonOsty(ref x, amount);
         if (!x.NeedsChoice)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, 0);
+            Kernel.SetPowerAmount(ref x.B, self.Owner, x.B.Powers[self.Index].Id, 0);
     }
 }
 
@@ -503,25 +503,25 @@ public sealed class SummonNextTurnPower : BlitzPowerDef
 /// <c>SleightOfFleshPower</c>: when its owner applies a non-temporary debuff to an enemy, deal its amount
 /// to that enemy as unpowered damage (<c>PowerLifecycleSupport.ResolvePowerAmountChanges</c>).
 /// </summary>
-[BlitzContent("SLEIGHT_OF_FLESH_POWER")]
-public sealed class SleightOfFleshPower : BlitzPowerDef
+[ContentId("SLEIGHT_OF_FLESH_POWER")]
+public sealed class SleightOfFleshPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterPowerAmountChanged(ref BlitzExec x, BlitzListener self, ushort powerId, int delta,
+    public override void AfterPowerAmountChanged(ref Exec x, Listener self, ushort powerId, int delta,
         byte applier, byte target)
     {
-        if (delta == 0 || applier != self.Owner || !BlitzKernel.IsEnemyOwner(target)
-            || BlitzRegistry.Power(powerId).TypeForAmount(delta) != BlitzPowerType.Debuff
-            || BlitzRegistry.Power(powerId).IsTemporaryPower)
+        if (delta == 0 || applier != self.Owner || !Kernel.IsEnemyOwner(target)
+            || Registry.Power(powerId).TypeForAmount(delta) != PowerType.Debuff
+            || Registry.Power(powerId).IsTemporaryPower)
         {
             return;
         }
         Span<byte> one = stackalloc byte[1];
         one[0] = target;
-        BlitzKernel.Damage(ref x, one, x.B.Powers[self.Index].Amount, BlitzValueProps.Unpowered, self.Owner,
+        Kernel.Damage(ref x, one, x.B.Powers[self.Index].Amount, ValueProps.Unpowered, self.Owner,
             hasCardSource: false, default);
     }
 }
@@ -530,21 +530,21 @@ public sealed class SleightOfFleshPower : BlitzPowerDef
 /// <c>SpiritOfAshPower</c>: gain its amount as unpowered block before its owner plays an Ethereal card
 /// (<c>BeforeCardPlayedMirrors.HandleSpiritOfAshPower</c>).
 /// </summary>
-[BlitzContent("SPIRIT_OF_ASH_POWER")]
-public sealed class SpiritOfAshPower : BlitzPowerDef
+[ContentId("SPIRIT_OF_ASH_POWER")]
+public sealed class SpiritOfAshPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || !BlitzKernel.HasKeyword(x.B, play.Card, BlitzKeywords.Ethereal))
+        if (self.Owner != Limits.PlayerOwner
+            || !Kernel.HasKeyword(x.B, play.Card, Keywords.Ethereal))
         {
             return;
         }
-        BlitzKernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount, BlitzValueProps.Unpowered,
+        Kernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount, ValueProps.Unpowered,
             fromCard: false);
     }
 }
@@ -553,21 +553,21 @@ public sealed class SpiritOfAshPower : BlitzPowerDef
 /// <c>DevourLifePower</c>: after its owner plays a Soul, summon its amount of Osty HP
 /// (<c>AfterCardPlayedMirrors.HandleDevourLifePower</c>).
 /// </summary>
-[BlitzContent("DEVOUR_LIFE_POWER")]
-public sealed class DevourLifePower : BlitzPowerDef
+[ContentId("DEVOUR_LIFE_POWER")]
+public sealed class DevourLifePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || !BlitzRegistry.TryCard("SOUL", out ushort soul) || play.Card.Id != soul)
+        if (self.Owner != Limits.PlayerOwner
+            || !Registry.TryCard("SOUL", out ushort soul) || play.Card.Id != soul)
         {
             return;
         }
-        BlitzKernel.SummonOsty(ref x, x.B.Powers[self.Index].Amount);
+        Kernel.SummonOsty(ref x, x.B.Powers[self.Index].Amount);
     }
 }
 
@@ -575,16 +575,16 @@ public sealed class DevourLifePower : BlitzPowerDef
 /// <c>DemesnePower</c>: its amount adds both hand draw and maximum energy
 /// (<c>PersistentPowerSupport.GetModifiedHandDraw</c>/<c>GetModifiedMaxEnergy</c> invoke the native methods).
 /// </summary>
-[BlitzContent("DEMESNE_POWER")]
-public sealed class DemesnePower : BlitzPowerDef
+[ContentId("DEMESNE_POWER")]
+public sealed class DemesnePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
-        => self.Owner == BlitzLimits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
+    public override decimal ModifyHandDraw(ref Exec x, Listener self, decimal amount)
+        => self.Owner == Limits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
-        => self.Owner == BlitzLimits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
+        => self.Owner == Limits.PlayerOwner ? amount + x.B.Powers[self.Index].Amount : amount;
 }

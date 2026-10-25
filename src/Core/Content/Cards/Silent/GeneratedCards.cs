@@ -7,14 +7,14 @@ namespace BlitzSolver.Content.Cards.Silent;
 /// owner holds FanOfKnivesPower and AnyEnemy otherwise (Shiv.cs), so the rule-table target is
 /// overridden dynamically.
 /// </summary>
-[BlitzContent("SHIV")]
-public sealed class Shiv : BlitzCardDef
+[ContentId("SHIV")]
+public sealed class Shiv : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override BlitzTargetType TargetType(in BlitzBattle battle, BlitzRules rules, in BlitzCard card)
-        => SilentContent.HasFanOfKnives(battle) ? BlitzTargetType.AllEnemies
+    public override TargetType ResolveTargetType(in Battle battle, Rules rules, in Card card)
+        => SilentContent.HasFanOfKnives(battle) ? TargetType.AllEnemies
             : rules.Card(card.Id, card.Upgrade).Target;
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 }

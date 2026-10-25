@@ -3,16 +3,16 @@ using BlitzSolver.Engine;
 namespace BlitzSolver.Content.Powers;
 
 /// <summary>Native <c>StrengthPower</c>: additive damage for its owner's powered attacks.</summary>
-[BlitzContent("STRENGTH_POWER")]
-public sealed class StrengthPower : BlitzPowerDef
+[ContentId("STRENGTH_POWER")]
+public sealed class StrengthPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool AllowNegative => true;
 
-    public override decimal ModifyDamageAdditive(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage, decimal amount)
+    public override decimal ModifyDamageAdditive(ref Exec x, Listener self, in DamageContext damage, decimal amount)
     {
         if (self.Owner != damage.Dealer || !damage.Props.IsPoweredAttack())
             return 0m;
@@ -26,12 +26,12 @@ public sealed class StrengthPower : BlitzPowerDef
 /// percentage (<c>ModifyDamageMirrors.HandleVulnerablePower</c>). Debilitate is rejected at admission
 /// until supported. Ticks at the end of the enemy side (<c>TickDurations</c>).
 /// </summary>
-[BlitzContent("VULNERABLE_POWER")]
-public sealed class VulnerablePower : BlitzPowerDef
+[ContentId("VULNERABLE_POWER")]
+public sealed class VulnerablePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool UsesNativeDurationSkip => true;
 
@@ -39,24 +39,24 @@ public sealed class VulnerablePower : BlitzPowerDef
 
     public override IReadOnlyList<string> VarNames => ["DamageIncrease"];
 
-    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage, decimal amount)
+    public override decimal ModifyDamageMultiplicative(ref Exec x, Listener self, in DamageContext damage, decimal amount)
     {
         if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack())
             return 1m;
         decimal multiplier = x.R.PowerVar(Id, 0);
         // ModifyDamageMirrors.HandleVulnerablePower calls PaperPhrog.ModifyVulnerableMultiplier when the
         // attacker's player owns the relic: it adds 0.25 unless the relic owner is the target.
-        if (damage.Dealer == BlitzLimits.PlayerOwner && damage.Target != BlitzLimits.PlayerOwner
+        if (damage.Dealer == Limits.PlayerOwner && damage.Target != Limits.PlayerOwner
             && OwnsPaperPhrog(x.B))
             multiplier += 0.25m;
         // ModifyDamageMirrors.HandleVulnerablePower adds CrueltyPower.Amount / 100m; the native
         // CrueltyPower.ModifyVulnerableMultiplier uses the same percentage divisor.
-        if (damage.Dealer != BlitzLimits.NoOwner)
-            multiplier += (decimal)BlitzKernel.GetAmount(x.B, damage.Dealer, BlitzRegistry.PowerId<CrueltyPower>()) / 100m;
+        if (damage.Dealer != Limits.NoOwner)
+            multiplier += (decimal)Kernel.GetAmount(x.B, damage.Dealer, Registry.PowerId<CrueltyPower>()) / 100m;
         // ModifyDamageMirrors.HandleVulnerablePower applies DebilitatePower on the vulnerable target:
         // multiplier += multiplier - 1.
-        if (BlitzRegistry.TryPower("DEBILITATE_POWER", out ushort debilitate)
-            && BlitzKernel.GetAmount(x.B, self.Owner, debilitate) > 0)
+        if (Registry.TryPower("DEBILITATE_POWER", out ushort debilitate)
+            && Kernel.GetAmount(x.B, self.Owner, debilitate) > 0)
         {
             multiplier += multiplier - 1m;
         }
@@ -64,13 +64,13 @@ public sealed class VulnerablePower : BlitzPowerDef
     }
 
     /// <summary><c>Player.GetRelic&lt;PaperPhrog&gt;()</c> for the single player.</summary>
-    private static bool OwnsPaperPhrog(in BlitzBattle battle)
+    private static bool OwnsPaperPhrog(in Battle battle)
     {
-        if (!BlitzRegistry.TryRelic("PAPER_PHROG", out ushort id))
+        if (!Registry.TryRelic("PAPER_PHROG", out ushort id))
             return false;
         for (int index = 0; index < battle.RelicCount; index++)
         {
-            ref readonly BlitzRelic relic = ref battle.Relics[index];
+            ref readonly Relic relic = ref battle.Relics[index];
             if (relic.Id == id)
                 return true;
         }
@@ -83,12 +83,12 @@ public sealed class VulnerablePower : BlitzPowerDef
 /// Paper Krane and Debilitate are rejected at admission until supported. Ticks at the end of the
 /// enemy side (<c>TickDurations</c>) and skips the first player-side duration tick.
 /// </summary>
-[BlitzContent("WEAK_POWER")]
-public sealed class WeakPower : BlitzPowerDef
+[ContentId("WEAK_POWER")]
+public sealed class WeakPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool UsesNativeDurationSkip => true;
 
@@ -96,20 +96,20 @@ public sealed class WeakPower : BlitzPowerDef
 
     public override IReadOnlyList<string> VarNames => ["DamageDecrease"];
 
-    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage, decimal amount)
+    public override decimal ModifyDamageMultiplicative(ref Exec x, Listener self, in DamageContext damage, decimal amount)
     {
         if (damage.Dealer != self.Owner || !damage.Props.IsPoweredAttack())
             return 1m;
         decimal multiplier = x.R.PowerVar(Id, 0);
         // ModifyDamageMirrors.HandleWeakPower asks the target player's PaperKrane relic for the
         // weak multiplier (subtract 0.15) before folding in DebilitatePower.
-        if (damage.Target == BlitzLimits.PlayerOwner
-            && BlitzRegistry.TryRelic("PAPER_KRANE", out ushort paperKrane))
+        if (damage.Target == Limits.PlayerOwner
+            && Registry.TryRelic("PAPER_KRANE", out ushort paperKrane))
         {
             for (int index = 0; index < x.B.RelicCount; index++)
             {
-                ref readonly BlitzRelic relic = ref x.B.Relics[index];
-                if (relic.Id == paperKrane && (relic.Flags & BlitzRelicFlags.Melted) == 0)
+                ref readonly Relic relic = ref x.B.Relics[index];
+                if (relic.Id == paperKrane && (relic.Flags & RelicFlags.Melted) == 0)
                 {
                     multiplier -= 0.15m;
                     break;
@@ -118,8 +118,8 @@ public sealed class WeakPower : BlitzPowerDef
         }
         // ModifyDamageMirrors.HandleWeakPower folds in DebilitatePower on the attacking owner:
         // multiplier -= 1 - multiplier.
-        if (BlitzRegistry.TryPower("DEBILITATE_POWER", out ushort debilitate)
-            && BlitzKernel.GetAmount(x.B, self.Owner, debilitate) > 0)
+        if (Registry.TryPower("DEBILITATE_POWER", out ushort debilitate)
+            && Kernel.GetAmount(x.B, self.Owner, debilitate) > 0)
         {
             multiplier -= 1m - multiplier;
         }
@@ -131,21 +131,21 @@ public sealed class WeakPower : BlitzPowerDef
 /// Native <c>FrailPower</c>: multiplies powered card or monster-move block gained by its owner.
 /// Ticks at the end of the enemy side (<c>TickDurations</c>) and skips the first player-side tick.
 /// </summary>
-[BlitzContent("FRAIL_POWER")]
-public sealed class FrailPower : BlitzPowerDef
+[ContentId("FRAIL_POWER")]
+public sealed class FrailPower : PowerDef
 {
     // FrailPower.ModifyBlockMultiplicative returns this literal; the power declares no dynamic var.
     private const decimal BlockMultiplier = 0.75m;
 
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool UsesNativeDurationSkip => true;
 
     public override bool TicksAtEnemySideEnd => true;
 
-    public override decimal ModifyBlockMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzBlockContext block, decimal amount)
+    public override decimal ModifyBlockMultiplicative(ref Exec x, Listener self, in BlockContext block, decimal amount)
     {
         if (block.Target != self.Owner || !block.Props.IsPoweredAttack())
             return 1m;
@@ -156,25 +156,25 @@ public sealed class FrailPower : BlitzPowerDef
 /// <summary>
 /// Native <c>DexterityPower</c>: adds its amount to powered block gained by its owner. Positive
 /// amounts are buffs; negative amounts are allowed and treated as debuffs by
-/// <see cref="BlitzPowerDef.TypeForAmount"/>.
+/// <see cref="PowerDef.TypeForAmount"/>.
 /// </summary>
-[BlitzContent("DEXTERITY_POWER")]
-public sealed class DexterityPower : BlitzPowerDef
+[ContentId("DEXTERITY_POWER")]
+public sealed class DexterityPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool AllowNegative => true;
 
-    public override decimal ModifyBlockAdditive(ref BlitzExec x, BlitzListener self, in BlitzBlockContext block, decimal amount)
+    public override decimal ModifyBlockAdditive(ref Exec x, Listener self, in BlockContext block, decimal amount)
     {
         // Card sources are player-owned; monster-move block has no card source and must target its
         // owner directly. Both branches and the powered-block filter match
         // DexterityPower.ModifyBlockAdditive.
         if (block.HasCardSource)
         {
-            if (self.Owner != BlitzLimits.PlayerOwner)
+            if (self.Owner != Limits.PlayerOwner)
                 return 0m;
         }
         else if (self.Owner != block.Target)
@@ -192,22 +192,22 @@ public sealed class DexterityPower : BlitzPowerDef
 /// is multiplied by <c>DamageDecrease</c>. Ticks at the end of the enemy side
 /// (<c>ColossusPower.AfterSideTurnEnd</c>).
 /// </summary>
-[BlitzContent("COLOSSUS_POWER")]
-public sealed class ColossusPower : BlitzPowerDef
+[ContentId("COLOSSUS_POWER")]
+public sealed class ColossusPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool TicksAtEnemySideEnd => true;
 
     public override IReadOnlyList<string> VarNames => ["DamageDecrease"];
 
-    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage, decimal amount)
+    public override decimal ModifyDamageMultiplicative(ref Exec x, Listener self, in DamageContext damage, decimal amount)
     {
-        if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack() || damage.Dealer == BlitzLimits.NoOwner)
+        if (damage.Target != self.Owner || !damage.Props.IsPoweredAttack() || damage.Dealer == Limits.NoOwner)
             return 1m;
-        if (BlitzKernel.GetAmount(x.B, damage.Dealer, BlitzRegistry.PowerId<VulnerablePower>()) <= 0)
+        if (Kernel.GetAmount(x.B, damage.Dealer, Registry.PowerId<VulnerablePower>()) <= 0)
             return 1m;
         return x.R.PowerVar(Id, 0);
     }
@@ -220,19 +220,19 @@ public sealed class ColossusPower : BlitzPowerDef
 /// which is in progress whenever the existing engine predicts, so it is not mirrored. Ticks at the end of the
 /// enemy side (<c>CorePowerSupport.TickDurations</c>); <c>AfterModifyingHpLostAfterOsty</c> only flashes.
 /// </summary>
-[BlitzContent("INTANGIBLE_POWER")]
-public sealed class IntangiblePower : BlitzPowerDef
+[ContentId("INTANGIBLE_POWER")]
+public sealed class IntangiblePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override bool TicksAtEnemySideEnd => true;
 
-    public override decimal ModifyDamageCap(ref BlitzExec x, BlitzListener self, in BlitzDamageContext damage)
+    public override decimal ModifyDamageCap(ref Exec x, Listener self, in DamageContext damage)
         => damage.Target == self.Owner ? 1m : decimal.MaxValue;
 
-    public override decimal ModifyHpLostAfterOsty(ref BlitzExec x, BlitzListener self, in BlitzHpLossContext loss, decimal amount)
+    public override decimal ModifyHpLostAfterOsty(ref Exec x, Listener self, in HpLossContext loss, decimal amount)
         => loss.Target == self.Owner && amount >= 1m ? 1m : amount;
 }
 
@@ -242,20 +242,20 @@ public sealed class IntangiblePower : BlitzPowerDef
 /// it in <c>EndTurnPowerSupport.TriggerRegular</c> when the owner participates in the side turn end;
 /// Blitz's <c>EndTurnRegular</c> is that pass. No private slot.
 /// </summary>
-[BlitzContent("NO_DRAW_POWER")]
-public sealed class NoDrawPower : BlitzPowerDef
+[ContentId("NO_DRAW_POWER")]
+public sealed class NoDrawPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
+    public override PowerStackType StackType => PowerStackType.Single;
 
-    public override bool ShouldDraw(ref BlitzExec x, BlitzListener self, bool fromHandDraw)
-        => fromHandDraw || self.Owner != BlitzLimits.PlayerOwner;
+    public override bool ShouldDraw(ref Exec x, Listener self, bool fromHandDraw)
+        => fromHandDraw || self.Owner != Limits.PlayerOwner;
 
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
         if (participates)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
+            Kernel.SetPowerAmount(ref x.B, self.Owner, Id, 0);
     }
 }
 
@@ -265,17 +265,17 @@ public sealed class NoDrawPower : BlitzPowerDef
 /// (<c>ModifyHpLostMirrors.HandleBufferPower</c> /
 /// <c>AfterModifyingHpLostAfterOstyMirrors.HandleBufferPower</c>). No private slot.
 /// </summary>
-[BlitzContent("BUFFER_POWER")]
-public sealed class BufferPower : BlitzPowerDef
+[ContentId("BUFFER_POWER")]
+public sealed class BufferPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal ModifyHpLostAfterOstyLate(ref BlitzExec x, BlitzListener self, in BlitzHpLossContext loss,
+    public override decimal ModifyHpLostAfterOstyLate(ref Exec x, Listener self, in HpLossContext loss,
         decimal amount)
         => loss.Target == self.Owner ? 0m : amount;
 
-    public override void AfterModifyingHpLostAfterOsty(ref BlitzExec x, BlitzListener self)
-        => BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, Math.Max(0, x.B.Powers[self.Index].Amount - 1));
+    public override void AfterModifyingHpLostAfterOsty(ref Exec x, Listener self)
+        => Kernel.SetPowerAmount(ref x.B, self.Owner, Id, Math.Max(0, x.B.Powers[self.Index].Amount - 1));
 }

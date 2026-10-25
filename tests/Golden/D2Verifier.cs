@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using BlitzSolver.Engine;
 using BlitzSolver.Search;
 
-namespace BlitzGolden;
+namespace BlitzSolver.Golden;
 
 internal sealed record D2Summary(int Selected, int Equal, int Mismatch, long Expanded);
 
@@ -35,8 +35,8 @@ internal static class D2Verifier
             if (requestHash != hash)
                 throw new InvalidDataException($"D2 请求 {hash} 的 SHA-256 是 {requestHash}。");
 
-            BlitzSearchCase search = BlitzSearchCodec.DecodeRequest(requestBytes);
-            BlitzBeamOptions options = search.Options with
+            SearchCase search = SearchCodec.DecodeRequest(requestBytes);
+            BeamOptions options = search.Options with
             {
                 SoftTimeBudget = TimeSpan.MaxValue,
                 Pacer = null,
@@ -44,9 +44,9 @@ internal static class D2Verifier
                 PollTakeover = null,
                 Trace = null,
             };
-            BlitzBeamResult actual = new BlitzBeamSolver(search.Rules, options)
+            BeamResult actual = new BeamSolver(search.Rules, options)
                 .Solve(search.Battles, CancellationToken.None);
-            BlitzBeamResult expected = BlitzSearchCodec.DecodeResult(
+            BeamResult expected = SearchCodec.DecodeResult(
                 GoldenFiles.ReadCompressed(expectedPath));
             string? difference = FirstDifference(expected, actual);
             if (difference != null)
@@ -63,7 +63,7 @@ internal static class D2Verifier
         return new D2Summary(selected.Length, equal, selected.Length - equal, expanded);
     }
 
-    private static string? FirstDifference(in BlitzBeamResult expected, in BlitzBeamResult actual)
+    private static string? FirstDifference(in BeamResult expected, in BeamResult actual)
     {
         string? difference = Difference("BestRoute", expected.BestRoute, actual.BestRoute);
         if (difference != null)
@@ -107,16 +107,16 @@ internal static class D2Verifier
             return $"ScoutLayers count expected={expected.ScoutLayers.Count} actual={actual.ScoutLayers.Count}";
         for (int layer = 0; layer < expected.ScoutLayers.Count; layer++)
         {
-            BlitzScoutLayer expectedLayer = expected.ScoutLayers[layer];
-            BlitzScoutLayer actualLayer = actual.ScoutLayers[layer];
+            ScoutLayer expectedLayer = expected.ScoutLayers[layer];
+            ScoutLayer actualLayer = actual.ScoutLayers[layer];
             if (expectedLayer.Turns != actualLayer.Turns)
                 return $"ScoutLayers[{layer}].Turns expected={expectedLayer.Turns} actual={actualLayer.Turns}";
             if (expectedLayer.Candidates.Count != actualLayer.Candidates.Count)
                 return $"ScoutLayers[{layer}].Candidates count expected={expectedLayer.Candidates.Count} actual={actualLayer.Candidates.Count}";
             for (int candidate = 0; candidate < expectedLayer.Candidates.Count; candidate++)
             {
-                BlitzScoutCandidate expectedCandidate = expectedLayer.Candidates[candidate];
-                BlitzScoutCandidate actualCandidate = actualLayer.Candidates[candidate];
+                ScoutCandidate expectedCandidate = expectedLayer.Candidates[candidate];
+                ScoutCandidate actualCandidate = actualLayer.Candidates[candidate];
                 difference = Difference($"ScoutLayers[{layer}].Candidates[{candidate}].Actions",
                     expectedCandidate.Actions, actualCandidate.Actions);
                 if (difference != null)
@@ -137,7 +137,7 @@ internal static class D2Verifier
         return null;
     }
 
-    private static string? Difference(string label, BlitzAction[] expected, BlitzAction[] actual)
+    private static string? Difference(string label, PlayerAction[] expected, PlayerAction[] actual)
     {
         if (expected.Length != actual.Length)
             return $"{label} count expected={expected.Length} actual={actual.Length}";

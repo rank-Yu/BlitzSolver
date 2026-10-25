@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using BlitzSolver.Engine;
 
-namespace BlitzGolden;
+namespace BlitzSolver.Golden;
 
 internal static class ManifestProvenance
 {
@@ -74,8 +74,8 @@ internal static class ManifestBuilder
             string metaPath = Path.Combine(directory, "meta.json");
             using JsonDocument meta = JsonDocument.Parse(File.ReadAllText(metaPath));
             JsonElement metaRoot = meta.RootElement;
-            if (metaRoot.GetProperty("formatVersion").GetInt32() != BlitzCodec.FormatVersion
-                || metaRoot.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<BlitzBattle>())
+            if (metaRoot.GetProperty("formatVersion").GetInt32() != Codec.FormatVersion
+                || metaRoot.GetProperty("battleSize").GetInt32() != Unsafe.SizeOf<Battle>())
                 throw new InvalidDataException($"D1 根 {rootName} 的格式版本或战斗大小不符。");
             string rulesHash = metaRoot.GetProperty("rulesSha256").GetString()
                 ?? throw new InvalidDataException($"D1 根 {rootName} 缺少 rulesSha256。");
@@ -102,7 +102,7 @@ internal static class ManifestBuilder
         {
             using JsonDocument report = JsonDocument.Parse(File.ReadAllText(reportPath));
             JsonElement reportRoot = report.RootElement;
-            if (reportRoot.GetProperty("formatVersion").GetInt32() != BlitzCodec.FormatVersion)
+            if (reportRoot.GetProperty("formatVersion").GetInt32() != Codec.FormatVersion)
                 throw new InvalidDataException($"{Path.GetFileName(reportPath)} 的格式版本不符。");
             int reportCaptured = reportRoot.GetProperty("requestsCaptured").GetInt32();
             int reportUnique = reportRoot.GetProperty("requestsUnique").GetInt32();
@@ -188,8 +188,8 @@ internal static class ManifestBuilder
         using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions { Indented = true }))
         {
             writer.WriteStartObject();
-            writer.WriteNumber("formatVersion", BlitzCodec.FormatVersion);
-            writer.WriteNumber("battleSize", Unsafe.SizeOf<BlitzBattle>());
+            writer.WriteNumber("formatVersion", Codec.FormatVersion);
+            writer.WriteNumber("battleSize", Unsafe.SizeOf<Battle>());
             writer.WriteStartObject("provenance");
             writer.WriteString("d1", ManifestProvenance.D1);
             writer.WriteString("d2", ManifestProvenance.D2);

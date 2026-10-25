@@ -2,116 +2,116 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Colorless;
 
-[BlitzContent("ETERNAL_ARMOR")]
-public sealed class EternalArmor : BlitzCardDef
+[ContentId("ETERNAL_ARMOR")]
+public sealed class EternalArmor : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["PlatingPower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.PlatingPower>(),
-            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.PlatingPower>(),
+            (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("FASTEN")]
-public sealed class Fasten : BlitzCardDef
+[ContentId("FASTEN")]
+public sealed class Fasten : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["ExtraBlock"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.FastenPower>(),
-            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.FastenPower>(),
+            (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("PREP_TIME")]
-public sealed class PrepTime : BlitzCardDef
+[ContentId("PREP_TIME")]
+public sealed class PrepTime : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["PrepTimePower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.PrepTimePower>(),
-            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.PrepTimePower>(),
+            (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("PROWESS")]
-public sealed class Prowess : BlitzCardDef
+[ContentId("PROWESS")]
+public sealed class Prowess : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower", "DexterityPower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         // CorePowerSupport `case Prowess`: Strength first, then Dexterity, both on the owner.
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
-            (int)BlitzCardEffects.Var(x, 0), BlitzLimits.PlayerOwner);
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.DexterityPower>(),
-            (int)BlitzCardEffects.Var(x, 1), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.StrengthPower>(),
+            (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.DexterityPower>(),
+            (int)CardEffects.Var(x, 1), Limits.PlayerOwner);
     }
 }
 
-[BlitzContent("AUTOMATION")]
-public sealed class Automation : BlitzCardDef
+[ContentId("AUTOMATION")]
+public sealed class Automation : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        ushort id = BlitzRegistry.PowerId<Powers.AutomationPower>();
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, id, (int)BlitzCardEffects.Var(x, 0),
-            BlitzLimits.PlayerOwner);
+        ushort id = Registry.PowerId<Powers.AutomationPower>();
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, id, (int)CardEffects.Var(x, 0),
+            Limits.PlayerOwner);
         if (x.NeedsChoice)
             return;
-        int index = BlitzKernel.FindLastPower(x.B, BlitzLimits.PlayerOwner, id);
+        int index = Kernel.FindLastPower(x.B, Limits.PlayerOwner, id);
         if (index >= 0)
             x.B.Powers[index].Aux0 = 10;
     }
 }
 
-[BlitzContent("PANACHE")]
-public sealed class Panache : BlitzCardDef
+[ContentId("PANACHE")]
+public sealed class Panache : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["PanacheDamage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        ushort id = BlitzRegistry.PowerId<Powers.PanachePower>();
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, id, (int)BlitzCardEffects.Var(x, 0),
-            BlitzLimits.PlayerOwner);
+        ushort id = Registry.PowerId<Powers.PanachePower>();
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, id, (int)CardEffects.Var(x, 0),
+            Limits.PlayerOwner);
         if (x.NeedsChoice)
             return;
-        int index = BlitzKernel.FindLastPower(x.B, BlitzLimits.PlayerOwner, id);
+        int index = Kernel.FindLastPower(x.B, Limits.PlayerOwner, id);
         if (index >= 0)
         {
             // SimulatedCombatState.AddPowerInstance sets _target = owner (unlike Apply<T>).
-            x.B.Powers[index].Target = BlitzLimits.PlayerOwner;
+            x.B.Powers[index].Target = Limits.PlayerOwner;
             x.B.Powers[index].Aux0 = 5;
         }
     }
 }
 
-[BlitzContent("ROLLING_BOULDER")]
-public sealed class RollingBoulder : BlitzCardDef
+[ContentId("ROLLING_BOULDER")]
+public sealed class RollingBoulder : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["RollingBoulderPower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.RollingBoulderPower>(), (int)BlitzCardEffects.Var(x, 0),
-            BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.RollingBoulderPower>(), (int)CardEffects.Var(x, 0),
+            Limits.PlayerOwner);
 }
 
-[BlitzContent("NOSTALGIA")]
-public sealed class Nostalgia : BlitzCardDef
+[ContentId("NOSTALGIA")]
+public sealed class Nostalgia : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.NostalgiaPower>(), 1, BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.NostalgiaPower>(), 1, Limits.PlayerOwner);
 }
 
-[BlitzContent("STRATAGEM")]
-public sealed class Stratagem : BlitzCardDef
+[ContentId("STRATAGEM")]
+public sealed class Stratagem : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.StratagemPower>(), 1, BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.StratagemPower>(), 1, Limits.PlayerOwner);
 }
 
 /// <summary>
@@ -120,23 +120,23 @@ public sealed class Stratagem : BlitzCardDef
 /// Mayhem intentionally does nothing in this content set; the definition exists so the ColorlessPotion
 /// generation pool stays usable, and the kernel matches the authoritative engine.
 /// </summary>
-[BlitzContent("MAYHEM")]
-public sealed class Mayhem : BlitzCardDef
+[ContentId("MAYHEM")]
+public sealed class Mayhem : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.MayhemPower>(), 1, BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.MayhemPower>(), 1, Limits.PlayerOwner);
 }
 
-[BlitzContent("ENTROPY")]
-public sealed class Entropy : BlitzCardDef
+[ContentId("ENTROPY")]
+public sealed class Entropy : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     public override IReadOnlyList<string> AppliedPowers => ["ENTROPY_POWER"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.EntropyPower>(), (int)BlitzCardEffects.Var(x, 0),
-            BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.EntropyPower>(), (int)CardEffects.Var(x, 0),
+            Limits.PlayerOwner);
 }

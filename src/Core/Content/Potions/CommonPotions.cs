@@ -2,249 +2,249 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Potions;
 
-[BlitzContent("FIRE_POTION")]
-public sealed class FirePotion : BlitzPotionDef
+[ContentId("FIRE_POTION")]
+public sealed class FirePotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // FirePotion when target != null: Damage(target, Damage, Damage.Props, owner).
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
+        if (x.Target == Limits.NoOwner)
             return;
         Span<byte> targets = stackalloc byte[1];
         targets[0] = x.Target;
-        BlitzKernel.Damage(ref x, targets, BlitzKernel.PotionVar(x, this, 0), BlitzKernel.PotionVarProps(x, this, 0),
-            BlitzLimits.PlayerOwner, hasCardSource: false, default);
+        Kernel.Damage(ref x, targets, Kernel.PotionVar(x, this, 0), Kernel.PotionVarProps(x, this, 0),
+            Limits.PlayerOwner, hasCardSource: false, default);
     }
 }
 
-[BlitzContent("BLOCK_POTION")]
-public sealed class BlockPotion : BlitzPotionDef
+[ContentId("BLOCK_POTION")]
+public sealed class BlockPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
     // BlockPotion: GainBlock(player, Block, Unpowered).
-    public override void OnUse(ref BlitzExec x)
-        => BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, BlitzKernel.PotionVar(x, this, 0), BlitzValueProps.Unpowered, fromCard: false);
+    public override void OnUse(ref Exec x)
+        => Kernel.GainBlock(ref x, Limits.PlayerOwner, Kernel.PotionVar(x, this, 0), ValueProps.Unpowered, fromCard: false);
 }
 
-[BlitzContent("STRENGTH_POTION")]
-public sealed class StrengthPotion : BlitzPotionDef
+[ContentId("STRENGTH_POTION")]
+public sealed class StrengthPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
     // StrengthPotion: combat.Apply<StrengthPower>(player, Strength, owner).
-    public override void OnUse(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
-            (int)BlitzKernel.PotionVar(x, this, 0), BlitzLimits.PlayerOwner);
+    public override void OnUse(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.StrengthPower>(),
+            (int)Kernel.PotionVar(x, this, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("ENERGY_POTION")]
-public sealed class EnergyPotion : BlitzPotionDef
+[ContentId("ENERGY_POTION")]
+public sealed class EnergyPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
     // EnergyPotion: GainEnergy(player, Energy).
-    public override void OnUse(ref BlitzExec x) => BlitzKernel.GainEnergy(ref x, BlitzKernel.PotionVar(x, this, 0));
+    public override void OnUse(ref Exec x) => Kernel.GainEnergy(ref x, Kernel.PotionVar(x, this, 0));
 }
 
-[BlitzContent("ATTACK_POTION")]
-public sealed class AttackPotion : BlitzPotionDef
+[ContentId("ATTACK_POTION")]
+public sealed class AttackPotion : PotionDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAll];
 
-    public override void OnUse(ref BlitzExec x)
-        => GenerateToHand.Choose(ref x, BlitzCardType.Attack, BlitzCardPools.CharacterAll);
+    public override void OnUse(ref Exec x)
+        => GenerateToHand.Choose(ref x, CardType.Attack, CardPools.CharacterAll);
 }
 
-[BlitzContent("SKILL_POTION")]
-public sealed class SkillPotion : BlitzPotionDef
+[ContentId("SKILL_POTION")]
+public sealed class SkillPotion : PotionDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAll];
 
-    public override void OnUse(ref BlitzExec x)
-        => GenerateToHand.Choose(ref x, BlitzCardType.Skill, BlitzCardPools.CharacterAll);
+    public override void OnUse(ref Exec x)
+        => GenerateToHand.Choose(ref x, CardType.Skill, CardPools.CharacterAll);
 }
 
-[BlitzContent("POWER_POTION")]
-public sealed class PowerPotion : BlitzPotionDef
+[ContentId("POWER_POTION")]
+public sealed class PowerPotion : PotionDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAll];
 
-    public override void OnUse(ref BlitzExec x)
-        => GenerateToHand.Choose(ref x, BlitzCardType.Power, BlitzCardPools.CharacterAll);
+    public override void OnUse(ref Exec x)
+        => GenerateToHand.Choose(ref x, CardType.Power, CardPools.CharacterAll);
 }
 
-[BlitzContent("COLORLESS_POTION")]
-public sealed class ColorlessPotion : BlitzPotionDef
+[ContentId("COLORLESS_POTION")]
+public sealed class ColorlessPotion : PotionDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.ColorlessAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.ColorlessAll];
 
-    public override void OnUse(ref BlitzExec x)
-        => GenerateToHand.Choose(ref x, null, BlitzCardPools.ColorlessAll);
+    public override void OnUse(ref Exec x)
+        => GenerateToHand.Choose(ref x, null, CardPools.ColorlessAll);
 }
 
-[BlitzContent("EXPLOSIVE_AMPOULE")]
-public sealed class ExplosiveAmpoule : BlitzPotionDef
+[ContentId("EXPLOSIVE_AMPOULE")]
+public sealed class ExplosiveAmpoule : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // ExplosiveAmpoule: simulator.Damage(combat.HittableEnemies, Damage, Damage.Props, owner).
-    public override void OnUse(ref BlitzExec x)
-        => BlitzCardEffects.DamageAllEnemies(ref x, BlitzKernel.PotionVar(x, this, 0),
-            BlitzKernel.PotionVarProps(x, this, 0), BlitzLimits.PlayerOwner);
+    public override void OnUse(ref Exec x)
+        => CardEffects.DamageAllEnemies(ref x, Kernel.PotionVar(x, this, 0),
+            Kernel.PotionVarProps(x, this, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("DEXTERITY_POTION")]
-public sealed class DexterityPotion : BlitzPotionDef
+[ContentId("DEXTERITY_POTION")]
+public sealed class DexterityPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 
     // DexterityPotion: combat.Apply<DexterityPower>(player, Dexterity, owner).
-    public override void OnUse(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.DexterityPower>(),
-            (int)BlitzKernel.PotionVar(x, this, 0), BlitzLimits.PlayerOwner);
+    public override void OnUse(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.DexterityPower>(),
+            (int)Kernel.PotionVar(x, this, 0), Limits.PlayerOwner);
 }
 
-[BlitzContent("FLEX_POTION")]
-public sealed class FlexPotion : BlitzPotionDef
+[ContentId("FLEX_POTION")]
+public sealed class FlexPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
     // FlexPotion: combat.ApplyTemporaryStrengthGain<FlexPotionPower>(player, Strength, owner).
-    public override void OnUse(ref BlitzExec x)
-        => BlitzKernel.ApplyTemporaryStrength(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.FlexPotionPower>(), (int)BlitzKernel.PotionVar(x, this, 0),
-            BlitzLimits.PlayerOwner, sign: 1);
+    public override void OnUse(ref Exec x)
+        => Kernel.ApplyTemporaryStrength(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.FlexPotionPower>(), (int)Kernel.PotionVar(x, this, 0),
+            Limits.PlayerOwner, sign: 1);
 }
 
-[BlitzContent("SPEED_POTION")]
-public sealed class SpeedPotion : BlitzPotionDef
+[ContentId("SPEED_POTION")]
+public sealed class SpeedPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 
     // SpeedPotion: combat.ApplyTemporaryDexterity<SpeedPotionPower>(player, Dexterity, owner).
     // SimulatedCombatState.ApplyTemporaryStat applies the Dexterity before the temporary power on a
     // first application, and only the applied delta when the temporary power was already present.
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        int amount = (int)BlitzKernel.PotionVar(x, this, 0);
-        ushort temporary = BlitzRegistry.PowerId<Powers.SpeedPotionPower>();
-        ushort dexterity = BlitzRegistry.PowerId<Powers.DexterityPower>();
-        bool alreadyApplied = BlitzKernel.GetAmount(x.B, BlitzLimits.PlayerOwner, temporary) != 0;
+        int amount = (int)Kernel.PotionVar(x, this, 0);
+        ushort temporary = Registry.PowerId<Powers.SpeedPotionPower>();
+        ushort dexterity = Registry.PowerId<Powers.DexterityPower>();
+        bool alreadyApplied = Kernel.GetAmount(x.B, Limits.PlayerOwner, temporary) != 0;
         if (!alreadyApplied)
-            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, dexterity, amount, BlitzLimits.PlayerOwner);
-        int applied = BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, temporary, amount, BlitzLimits.PlayerOwner);
+            Kernel.ApplyPower(ref x, Limits.PlayerOwner, dexterity, amount, Limits.PlayerOwner);
+        int applied = Kernel.ApplyPower(ref x, Limits.PlayerOwner, temporary, amount, Limits.PlayerOwner);
         if (alreadyApplied && applied != 0)
-            BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, dexterity, applied, BlitzLimits.PlayerOwner);
+            Kernel.ApplyPower(ref x, Limits.PlayerOwner, dexterity, applied, Limits.PlayerOwner);
     }
 }
 
-[BlitzContent("VULNERABLE_POTION")]
-public sealed class VulnerablePotion : BlitzPotionDef
+[ContentId("VULNERABLE_POTION")]
+public sealed class VulnerablePotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["VulnerablePower"];
 
     // VulnerablePotion when target != null: combat.Apply<VulnerablePower>(target, Vulnerable, owner).
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
+        if (x.Target == Limits.NoOwner)
             return;
-        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.VulnerablePower>(),
-            (int)BlitzKernel.PotionVar(x, this, 0), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, x.Target, Registry.PowerId<Powers.VulnerablePower>(),
+            (int)Kernel.PotionVar(x, this, 0), Limits.PlayerOwner);
     }
 }
 
-[BlitzContent("WEAK_POTION")]
-public sealed class WeakPotion : BlitzPotionDef
+[ContentId("WEAK_POTION")]
+public sealed class WeakPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["WeakPower"];
 
     // WeakPotion when target != null: combat.Apply<WeakPower>(target, Weak, owner).
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
+        if (x.Target == Limits.NoOwner)
             return;
-        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.WeakPower>(),
-            (int)BlitzKernel.PotionVar(x, this, 0), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, x.Target, Registry.PowerId<Powers.WeakPower>(),
+            (int)Kernel.PotionVar(x, this, 0), Limits.PlayerOwner);
     }
 }
 
 /// <summary><c>FocusPotion</c>: <c>combat.Apply&lt;FocusPower&gt;(player, FocusPower, owner)</c>.</summary>
-[BlitzContent("FOCUS_POTION")]
-public sealed class FocusPotion : BlitzPotionDef
+[ContentId("FOCUS_POTION")]
+public sealed class FocusPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["FocusPower"];
 
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.FocusPower>(), (int)BlitzKernel.PotionVar(x, this, 0),
-            BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.FocusPower>(), (int)Kernel.PotionVar(x, this, 0),
+            Limits.PlayerOwner);
     }
 }
 
 /// <summary><c>PoisonPotion</c>: applies Poison to the chosen enemy (case PoisonPotion when target != null).</summary>
-[BlitzContent("POISON_POTION")]
-public sealed class PoisonPotion : BlitzPotionDef
+[ContentId("POISON_POTION")]
+public sealed class PoisonPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["PoisonPower"];
 
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
+        if (x.Target == Limits.NoOwner)
             return;
-        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.PoisonPower>(),
-            (int)BlitzKernel.PotionVar(x, this, 0), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, x.Target, Registry.PowerId<Powers.PoisonPower>(),
+            (int)Kernel.PotionVar(x, this, 0), Limits.PlayerOwner);
     }
 }
 
 /// <summary><c>PotionOfDoom</c>: applies Doom to the chosen enemy (case PotionOfDoom when target != null).</summary>
-[BlitzContent("POTION_OF_DOOM")]
-public sealed class PotionOfDoom : BlitzPotionDef
+[ContentId("POTION_OF_DOOM")]
+public sealed class PotionOfDoom : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["DoomPower"];
 
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
+        if (x.Target == Limits.NoOwner)
             return;
-        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.DoomPower>(),
-            (int)BlitzKernel.PotionVar(x, this, 0), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, x.Target, Registry.PowerId<Powers.DoomPower>(),
+            (int)Kernel.PotionVar(x, this, 0), Limits.PlayerOwner);
     }
 }
 
-[BlitzContent("BLOOD_POTION")]
-public sealed class BloodPotion : BlitzPotionDef
+[ContentId("BLOOD_POTION")]
+public sealed class BloodPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["HealPercent"];
 
     // BloodPotion: Heal(player, MaxHp * HealPercent / 100m).
-    public override void OnUse(ref BlitzExec x)
-        => BlitzKernel.Heal(ref x, BlitzLimits.PlayerOwner,
-            x.B.Player.MaxHp * BlitzKernel.PotionVar(x, this, 0) / 100m);
+    public override void OnUse(ref Exec x)
+        => Kernel.Heal(ref x, Limits.PlayerOwner,
+            x.B.Player.MaxHp * Kernel.PotionVar(x, this, 0) / 100m);
 }
 
-[BlitzContent("SWIFT_POTION")]
-public sealed class SwiftPotion : BlitzPotionDef
+[ContentId("SWIFT_POTION")]
+public sealed class SwiftPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
     // SwiftPotion: Draw(player, Cards).
-    public override void OnUse(ref BlitzExec x)
-        => BlitzKernel.Draw(ref x, (int)BlitzKernel.PotionVar(x, this, 0), fromHandDraw: false);
+    public override void OnUse(ref Exec x)
+        => Kernel.Draw(ref x, (int)Kernel.PotionVar(x, this, 0), fromHandDraw: false);
 }
 
-[BlitzContent("STAR_POTION")]
-public sealed class StarPotion : BlitzPotionDef
+[ContentId("STAR_POTION")]
+public sealed class StarPotion : PotionDef
 {
     public override IReadOnlyList<string> VarNames => ["Stars"];
 
     // StarPotion: PlayerCmd.GainStars(Stars variable, target.Player) through
     // CombatPredictionSimulator.GainStars (PotionOnUseSupport.Use case StarPotion).
-    public override void OnUse(ref BlitzExec x)
+    public override void OnUse(ref Exec x)
     {
-        BlitzKernel.GainStars(ref x, (int)BlitzKernel.PotionVar(x, this, 0));
+        Kernel.GainStars(ref x, (int)Kernel.PotionVar(x, this, 0));
     }
 }

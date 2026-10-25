@@ -7,19 +7,19 @@ namespace BlitzSolver.Content.Powers;
 /// when the exhausted card belongs to the power owner
 /// (M/Hooks/Card/AfterCardExhaustedMirrors.HandleFeelNoPainPower).
 /// </summary>
-[BlitzContent("FEEL_NO_PAIN_POWER")]
-public sealed class FeelNoPainPower : BlitzPowerDef
+[ContentId("FEEL_NO_PAIN_POWER")]
+public sealed class FeelNoPainPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterCardExhausted(ref BlitzExec x, BlitzListener self, in BlitzCard card, bool causedByEthereal)
+    public override void AfterCardExhausted(ref Exec x, Listener self, in Card card, bool causedByEthereal)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner)
+        if (self.Owner != Limits.PlayerOwner)
             return;
-        BlitzKernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
-            BlitzValueProps.Unpowered, fromCard: false);
+        Kernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
+            ValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -27,32 +27,32 @@ public sealed class FeelNoPainPower : BlitzPowerDef
 /// Native <c>JuggernautPower</c>: after its owner gains positive block, deal its amount as Unpowered
 /// damage to a random hittable enemy (M/Hooks/Block/AfterBlockGainedMirrors.HandleJuggernautPower).
 /// </summary>
-[BlitzContent("JUGGERNAUT_POWER")]
-public sealed class JuggernautPower : BlitzPowerDef
+[ContentId("JUGGERNAUT_POWER")]
+public sealed class JuggernautPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterBlockGained(ref BlitzExec x, BlitzListener self, byte owner, decimal amount,
-        BlitzValueProps props, bool fromCard)
+    public override void AfterBlockGained(ref Exec x, Listener self, byte owner, decimal amount,
+        ValueProps props, bool fromCard)
     {
         if (owner != self.Owner || amount <= 0m)
             return;
-        Span<byte> targets = stackalloc byte[BlitzLimits.Enemies];
+        Span<byte> targets = stackalloc byte[Limits.Enemies];
         int count = 0;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte candidate = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (BlitzKernel.IsHittable(x.B, candidate))
+            byte candidate = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (Kernel.IsHittable(x.B, candidate))
                 targets[count++] = candidate;
         }
         // Rng.NextItem returns before drawing when the list is empty.
         if (count == 0)
             return;
-        int pick = x.B.RngStream(BlitzRngStream.CombatTargets).NextInt(0, count);
-        BlitzKernel.Damage(ref x, targets[pick..(pick + 1)], x.B.Powers[self.Index].Amount,
-            BlitzValueProps.Unpowered, self.Owner, hasCardSource: false, default);
+        int pick = x.B.RngStream(RngStream.CombatTargets).NextInt(0, count);
+        Kernel.Damage(ref x, targets[pick..(pick + 1)], x.B.Powers[self.Index].Amount,
+            ValueProps.Unpowered, self.Owner, hasCardSource: false, default);
     }
 }
 
@@ -61,12 +61,12 @@ public sealed class JuggernautPower : BlitzPowerDef
 /// <c>ModifyDamageMirrors.HandleVulnerablePower</c>, which the Blitz Vulnerable definition mirrors.
 /// The power itself has no hook of its own.
 /// </summary>
-[BlitzContent("CRUELTY_POWER")]
-public sealed class CrueltyPower : BlitzPowerDef
+[ContentId("CRUELTY_POWER")]
+public sealed class CrueltyPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 }
 
 /// <summary>
@@ -75,20 +75,20 @@ public sealed class CrueltyPower : BlitzPowerDef
 /// (M/Hooks/Damage/AfterDamageReceivedMirrors.HandleFlameBarrierPower). The power itself is removed
 /// by <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c> when the opposing side turn ends.
 /// </summary>
-[BlitzContent("FLAME_BARRIER_POWER")]
-public sealed class FlameBarrierPower : BlitzPowerDef
+[ContentId("FLAME_BARRIER_POWER")]
+public sealed class FlameBarrierPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref Exec x, Listener self, in DamageResult result, byte dealer)
     {
-        if (result.Receiver != self.Owner || dealer == BlitzLimits.NoOwner || !result.Props.IsPoweredAttack())
+        if (result.Receiver != self.Owner || dealer == Limits.NoOwner || !result.Props.IsPoweredAttack())
             return;
         Span<byte> targets = stackalloc byte[1];
         targets[0] = dealer;
-        BlitzKernel.Damage(ref x, targets, x.B.Powers[self.Index].Amount, BlitzValueProps.Unpowered,
+        Kernel.Damage(ref x, targets, x.B.Powers[self.Index].Amount, ValueProps.Unpowered,
             self.Owner, hasCardSource: false, default);
     }
 }
@@ -97,16 +97,16 @@ public sealed class FlameBarrierPower : BlitzPowerDef
 /// Native <c>PyrePower</c>: <c>ModifyMaxEnergy</c> adds its amount to the owner's maximum energy
 /// (src/Prediction/PersistentPowerSupport.cs).
 /// </summary>
-[BlitzContent("PYRE_POWER")]
-public sealed class PyrePower : BlitzPowerDef
+[ContentId("PYRE_POWER")]
+public sealed class PyrePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner)
+        if (self.Owner != Limits.PlayerOwner)
             return amount;
         return amount + x.B.Powers[self.Index].Amount;
     }
@@ -116,15 +116,15 @@ public sealed class PyrePower : BlitzPowerDef
 /// Native <c>DemonFormPower</c>: <c>AfterSideTurnStart</c> applies Strength equal to its amount to
 /// its owner (src/Prediction/PersistentPowerSupport.cs, TriggerOwnerAfterSideTurnStart).
 /// </summary>
-[BlitzContent("DEMON_FORM_POWER")]
-public sealed class DemonFormPower : BlitzPowerDef
+[ContentId("DEMON_FORM_POWER")]
+public sealed class DemonFormPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void OwnerAfterSideTurnStart(ref BlitzExec x, BlitzListener self)
-        => BlitzKernel.ApplyPower(ref x, self.Owner, BlitzRegistry.PowerId<StrengthPower>(),
+    public override void OwnerAfterSideTurnStart(ref Exec x, Listener self)
+        => Kernel.ApplyPower(ref x, self.Owner, Registry.PowerId<StrengthPower>(),
             x.B.Powers[self.Index].Amount, self.Owner);
 }
 
@@ -132,14 +132,14 @@ public sealed class DemonFormPower : BlitzPowerDef
 /// Native <c>BarricadePower</c>: <c>ShouldClearBlock</c> keeps its owner's block at side start
 /// (src/Search/SimulatedCombatState.cs, game 0.111.0 Hook.ShouldClearBlock).
 /// </summary>
-[BlitzContent("BARRICADE_POWER")]
-public sealed class BarricadePower : BlitzPowerDef
+[ContentId("BARRICADE_POWER")]
+public sealed class BarricadePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
+    public override PowerStackType StackType => PowerStackType.Single;
 
-    public override bool ShouldClearBlock(ref BlitzExec x, BlitzListener self, byte owner)
+    public override bool ShouldClearBlock(ref Exec x, Listener self, byte owner)
         => owner != self.Owner;
 }
 
@@ -148,20 +148,20 @@ public sealed class BarricadePower : BlitzPowerDef
 /// side turn end it is removed and its amount of Strength is restored
 /// (src/Search/SimulatedCombatState.cs, RetireTemporaryStat, and EndTurnPowerSupport.TriggerRegular).
 /// </summary>
-[BlitzContent("MANGLE_POWER")]
-public sealed class ManglePower : BlitzPowerDef
+[ContentId("MANGLE_POWER")]
+public sealed class ManglePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Debuff;
+    public override PowerType Type => PowerType.Debuff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
     public override bool IsTemporaryPower => true;
     // EndTurnPowerSupport.TriggerRegular: case TemporaryStrengthPower when the owner participates.
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
         if (participates)
-            BlitzKernel.RetireTemporaryStrength(ref x, self);
+            Kernel.RetireTemporaryStrength(ref x, self);
     }
 }
 
@@ -170,20 +170,20 @@ public sealed class ManglePower : BlitzPowerDef
 /// end it is removed and its amount of Strength is taken back
 /// (src/Search/SimulatedCombatState.cs, RetireTemporaryStat, and EndTurnPowerSupport.TriggerRegular).
 /// </summary>
-[BlitzContent("SETUP_STRIKE_POWER")]
-public sealed class SetupStrikePower : BlitzPowerDef
+[ContentId("SETUP_STRIKE_POWER")]
+public sealed class SetupStrikePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     public override string? InternallyAppliedPowerId => "STRENGTH_POWER";
     public override bool IsTemporaryPower => true;
     // EndTurnPowerSupport.TriggerRegular: case TemporaryStrengthPower when the owner participates.
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
         if (participates)
-            BlitzKernel.RetireTemporaryStrength(ref x, self);
+            Kernel.RetireTemporaryStrength(ref x, self);
     }
 }
 
@@ -192,19 +192,19 @@ public sealed class SetupStrikePower : BlitzPowerDef
 /// Attack card (<c>AfterCardPlayedMirrors.HandleRagePower</c>). Its removal at the player side turn
 /// end is already part of <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c>.
 /// </summary>
-[BlitzContent("RAGE_POWER")]
-public sealed class RagePower : BlitzPowerDef
+[ContentId("RAGE_POWER")]
+public sealed class RagePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Attack)
+        if (Kernel.ResolveCardType(x.B, x.R, play.Card) != CardType.Attack)
             return;
-        BlitzKernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
-            BlitzValueProps.Unpowered, fromCard: false);
+        Kernel.GainBlock(ref x, self.Owner, x.B.Powers[self.Index].Amount,
+            ValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -216,29 +216,29 @@ public sealed class RagePower : BlitzPowerDef
 /// <c>SimulatedCombatState.InitializeJugglingAfterApplied</c> for the value at application).
 /// Aux0 = attacks played this turn.
 /// </summary>
-[BlitzContent("JUGGLING_POWER")]
-public sealed class JugglingPower : BlitzPowerDef
+[ContentId("JUGGLING_POWER")]
+public sealed class JugglingPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Attack)
+        if (Kernel.ResolveCardType(x.B, x.R, play.Card) != CardType.Attack)
             return;
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         power.Aux0++;
         if (power.Aux0 != 3)
             return;
         for (int index = 0; index < power.Amount; index++)
         {
-            if (!BlitzKernel.AddGeneratedCard(ref x, BlitzKernel.CloneCard(play.Card), BlitzPile.Hand))
+            if (!Kernel.AddGeneratedCard(ref x, Kernel.CloneCard(play.Card), Pile.Hand))
                 return;
         }
     }
 
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
         if (participates)
             x.B.Powers[self.Index].Aux0 = 0;
@@ -251,31 +251,31 @@ public sealed class JugglingPower : BlitzPowerDef
 /// (<c>AfterCardExhaustedMirrors.HandleDarkEmbracePower</c>,
 /// <c>EndTurnPowerSupport.TriggerRegular</c>). Aux0 = deferred Ethereal exhausts.
 /// </summary>
-[BlitzContent("DARK_EMBRACE_POWER")]
-public sealed class DarkEmbracePower : BlitzPowerDef
+[ContentId("DARK_EMBRACE_POWER")]
+public sealed class DarkEmbracePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterCardExhausted(ref BlitzExec x, BlitzListener self, in BlitzCard card, bool causedByEthereal)
+    public override void AfterCardExhausted(ref Exec x, Listener self, in Card card, bool causedByEthereal)
     {
         if (causedByEthereal)
         {
             x.B.Powers[self.Index].Aux0++;
             return;
         }
-        BlitzKernel.Draw(ref x, x.B.Powers[self.Index].Amount, fromHandDraw: false);
+        Kernel.Draw(ref x, x.B.Powers[self.Index].Amount, fromHandDraw: false);
     }
 
-    public override void EndTurnRegular(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnRegular(ref Exec x, Listener self, Side side, bool participates)
     {
         if (!participates)
             return;
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         int draws = power.Amount * power.Aux0;
         if (draws > 0)
-            BlitzKernel.Draw(ref x, draws, fromHandDraw: false);
+            Kernel.Draw(ref x, draws, fromHandDraw: false);
         power.Aux0 = 0;
     }
 }
@@ -286,25 +286,25 @@ public sealed class DarkEmbracePower : BlitzPowerDef
 /// (<c>TurnStartPowerSupport.ContinueAfterPlayerTurnStart</c>). The SelfDamage dynamic variable is
 /// private state; the bridge projects it into Aux0 and the card increments it on application.
 /// </summary>
-[BlitzContent("CRIMSON_MANTLE_POWER")]
-public sealed class CrimsonMantlePower : BlitzPowerDef
+[ContentId("CRIMSON_MANTLE_POWER")]
+public sealed class CrimsonMantlePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
     {
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         if (power.Aux0 > 0)
         {
             Span<byte> target = stackalloc byte[1];
             target[0] = self.Owner;
-            BlitzKernel.Damage(ref x, target, power.Aux0,
-                BlitzValueProps.Unblockable | BlitzValueProps.Unpowered, self.Owner,
+            Kernel.Damage(ref x, target, power.Aux0,
+                ValueProps.Unblockable | ValueProps.Unpowered, self.Owner,
                 hasCardSource: false, default);
         }
-        BlitzKernel.GainBlock(ref x, self.Owner, power.Amount, BlitzValueProps.Unpowered, fromCard: false);
+        Kernel.GainBlock(ref x, self.Owner, power.Amount, ValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -314,30 +314,30 @@ public sealed class CrimsonMantlePower : BlitzPowerDef
 /// Unpowered damage to every hittable enemy (<c>TurnStartPowerSupport.ContinueAfterPlayerTurnStart</c>,
 /// <c>AfterDamageReceivedMirrors.HandleInfernoPower</c>). Aux0 = the private SelfDamage variable.
 /// </summary>
-[BlitzContent("INFERNO_POWER")]
-public sealed class InfernoPower : BlitzPowerDef
+[ContentId("INFERNO_POWER")]
+public sealed class InfernoPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
     {
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         if (power.Aux0 <= 0)
             return;
         Span<byte> target = stackalloc byte[1];
         target[0] = self.Owner;
-        BlitzKernel.Damage(ref x, target, power.Aux0,
-            BlitzValueProps.Unblockable | BlitzValueProps.Unpowered, self.Owner,
+        Kernel.Damage(ref x, target, power.Aux0,
+            ValueProps.Unblockable | ValueProps.Unpowered, self.Owner,
             hasCardSource: false, default);
     }
 
-    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref Exec x, Listener self, in DamageResult result, byte dealer)
     {
-        if (result.Receiver != self.Owner || result.UnblockedDamage <= 0 || x.B.Side != BlitzSide.Player)
+        if (result.Receiver != self.Owner || result.UnblockedDamage <= 0 || x.B.Side != Side.Player)
             return;
-        BlitzCardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, BlitzValueProps.Unpowered,
+        CardEffects.DamageAllEnemies(ref x, x.B.Powers[self.Index].Amount, ValueProps.Unpowered,
             self.Owner);
     }
 }
@@ -350,32 +350,32 @@ public sealed class InfernoPower : BlitzPowerDef
 /// before every other power). The card does not keep private state: the selection is re-derived
 /// from the discard pile, exactly as the existing engine does.
 /// </summary>
-[BlitzContent("AGGRESSION_POWER")]
-public sealed class AggressionPower : BlitzPowerDef
+[ContentId("AGGRESSION_POWER")]
+public sealed class AggressionPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, bool participates)
+    public override void BeforeSideTurnStart(ref Exec x, Listener self, bool participates)
     {
-        if (!participates || self.Owner != BlitzLimits.PlayerOwner)
+        if (!participates || self.Owner != Limits.PlayerOwner)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         if (amount <= 0)
             return;
         int discardCount = x.B.DiscardCount;
-        int discardStart = BlitzPiles.Start(x.B, BlitzPile.Discard);
+        int discardStart = Piles.Start(x.B, Pile.Discard);
         Span<byte> order = stackalloc byte[discardCount];
         int candidates = 0;
         for (int index = 0; index < discardCount; index++)
         {
-            BlitzCard card = x.B.Cards[discardStart + index];
-            if (BlitzKernel.CardType(x.B, x.R, card) == BlitzCardType.Attack)
+            Card card = x.B.Cards[discardStart + index];
+            if (Kernel.ResolveCardType(x.B, x.R, card) == CardType.Attack)
                 order[candidates++] = checked((byte)index);
         }
         // ListExtensions.UnstableShuffle: Fisher-Yates from the end over the discard-order list.
-        ref BlitzRngState rng = ref x.B.RngStream(BlitzRngStream.CombatCardSelection);
+        ref RngState rng = ref x.B.RngStream(RngStream.CombatCardSelection);
         for (int n = candidates; n > 1;)
         {
             n--;
@@ -394,14 +394,14 @@ public sealed class AggressionPower : BlitzPowerDef
                 if (removed[earlier])
                     current--;
             }
-            BlitzPile destination = x.B.HandCount < x.B.MaxHandSize ? BlitzPile.Hand : BlitzPile.Discard;
-            if (!BlitzKernel.MoveCard(ref x.B, BlitzPile.Discard, current, destination))
+            Pile destination = x.B.HandCount < x.B.MaxHandSize ? Pile.Hand : Pile.Discard;
+            if (!Kernel.MoveCard(ref x.B, Pile.Discard, current, destination))
                 return;
             // AddToPile inserts at the bottom (Hand, or Discard when the hand is full).
-            int inserted = destination == BlitzPile.Hand ? x.B.HandCount - 1 : x.B.DiscardCount - 1;
-            ref BlitzCard added = ref BlitzPiles.At(ref x.B, destination, inserted);
+            int inserted = destination == Pile.Hand ? x.B.HandCount - 1 : x.B.DiscardCount - 1;
+            ref Card added = ref Piles.At(ref x.B, destination, inserted);
             // CardCmd.Upgrade on an upgradable card; UpgradeCard is a no-op at the maximum level.
-            BlitzKernel.UpgradeCard(x.R, ref added);
+            Kernel.UpgradeCard(x.R, ref added);
             removed[original] = true;
         }
     }
@@ -417,34 +417,34 @@ public sealed class AggressionPower : BlitzPowerDef
 /// Aux0 is reset in <c>AfterCardPlayed</c> and is zero at every action boundary
 /// (<c>CombatPredictionSimulator.CardTailContinuation</c> releases the same per-play count there).
 /// </summary>
-[BlitzContent("UNMOVABLE_POWER")]
-public sealed class UnmovablePower : BlitzPowerDef
+[ContentId("UNMOVABLE_POWER")]
+public sealed class UnmovablePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
     // Aux0 = BlockCardsPlayedThisTurn at the start of the current card play.
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
-        => x.B.Powers[self.Index].Aux0 = x.B.Counter(BlitzCounter.BlockCardsPlayedThisTurn);
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
+        => x.B.Powers[self.Index].Aux0 = x.B.Counter(Counter.BlockCardsPlayedThisTurn);
 
     // The play is complete: the engine releases its per-CardPlay powered-block count at the same tail.
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
         => x.B.Powers[self.Index].Aux0 = 0;
 
-    public override decimal ModifyBlockMultiplicative(ref BlitzExec x, BlitzListener self,
-        in BlitzBlockContext block, decimal amount)
+    public override decimal ModifyBlockMultiplicative(ref Exec x, Listener self,
+        in BlockContext block, decimal amount)
     {
         // The native guard is target.IsMonster; Osty does not exist in an admitted root, so only the
         // power owner's block reaches the doubling branch.
-        if (block.Target != self.Owner || (block.Props & BlitzValueProps.Move) == 0)
+        if (block.Target != self.Owner || (block.Props & ValueProps.Move) == 0)
             return 1m;
         // A card source from another owner cannot occur in single-player combat, and non-card block
         // (relic, power) has no card play, so the engine's CardSource owner guard passes.
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         int earlier = block.HasCardSource
             ? power.Aux0
-            : x.B.Counter(BlitzCounter.BlockCardsPlayedThisTurn);
+            : x.B.Counter(Counter.BlockCardsPlayedThisTurn);
         return earlier < power.Amount ? 2m : 1m;
     }
 }
@@ -457,50 +457,50 @@ public sealed class UnmovablePower : BlitzPowerDef
 /// <c>AfterDamageReceivedMirrors.HandleRupturePower</c>,
 /// <c>AfterCardPlayedMirrors.HandleRupturePower</c>).
 /// Aux0 = Strength accumulated for the current card play, Aux1 = the current play's pending entry.
-/// The card source is read directly from <see cref="BlitzDamageResult.HasCardSource"/> (the existing
+/// The card source is read directly from <see cref="DamageResult.HasCardSource"/> (the existing
 /// engine passes <c>AfterDamageReceivedMirrorContext.Source</c>), so no source marker is staged on
 /// BeforeDamageReceived. The existing engine keeps the pending information in
 /// <c>RupturePredictionState.StrengthByCard</c>, a map keyed by CardModel; only one card play can be
 /// in flight, so the map is empty or has exactly one keyed entry, and the pending Strength is its
 /// only value. The bridge claims an empty entry and rejects a non-empty one
-/// (<see cref="BlitzStateProjections"/>), so every non-terminal imported state has Aux0 = Aux1 = 0.
+/// (<see cref="StateProjections"/>), so every non-terminal imported state has Aux0 = Aux1 = 0.
 /// </summary>
-[BlitzContent("RUPTURE_POWER")]
-public sealed class RupturePower : BlitzPowerDef
+[ContentId("RUPTURE_POWER")]
+public sealed class RupturePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         power.Aux0 = 0;
         power.Aux1 = 1;
     }
 
-    public override void AfterDamageReceived(ref BlitzExec x, BlitzListener self, in BlitzDamageResult result, byte dealer)
+    public override void AfterDamageReceived(ref Exec x, Listener self, in DamageResult result, byte dealer)
     {
-        if (result.Receiver != self.Owner || result.UnblockedDamage <= 0 || x.B.Side != BlitzSide.Player)
+        if (result.Receiver != self.Owner || result.UnblockedDamage <= 0 || x.B.Side != Side.Player)
             return;
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         if (power.Aux1 != 0 && result.HasCardSource)
         {
             power.Aux0 += power.Amount;
             return;
         }
         // The existing engine applies with cardSource: null; Blitz has no card source on powers.
-        BlitzKernel.ApplyPower(ref x, self.Owner, BlitzRegistry.PowerId<StrengthPower>(), power.Amount, self.Owner);
+        Kernel.ApplyPower(ref x, self.Owner, Registry.PowerId<StrengthPower>(), power.Amount, self.Owner);
     }
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         int gained = power.Aux0;
         power.Aux0 = 0;
         power.Aux1 = 0;
         if (gained != 0)
-            BlitzKernel.ApplyPower(ref x, self.Owner, BlitzRegistry.PowerId<StrengthPower>(), gained, self.Owner);
+            Kernel.ApplyPower(ref x, self.Owner, Registry.PowerId<StrengthPower>(), gained, self.Owner);
     }
 }
 
@@ -512,21 +512,21 @@ public sealed class RupturePower : BlitzPowerDef
 /// <c>infiniteAutoPlaysThisTurn</c> (HellraiserPredictionState; without an entry the model's internal
 /// data). <c>EndTurnBatch048</c> resets it when the owner participates (ResetInfiniteAutoPlayData).
 /// </summary>
-[BlitzContent("HELLRAISER_POWER")]
-public sealed class HellraiserPower : BlitzPowerDef
+[ContentId("HELLRAISER_POWER")]
+public sealed class HellraiserPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
+    public override PowerStackType StackType => PowerStackType.Single;
 
-    public override void AfterCardDrawnEarly(ref BlitzExec x, BlitzListener self, int drawnPosition, bool fromHandDraw)
+    public override void AfterCardDrawnEarly(ref Exec x, Listener self, int drawnPosition, bool fromHandDraw)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner || drawnPosition >= x.B.HandCount)
+        if (self.Owner != Limits.PlayerOwner || drawnPosition >= x.B.HandCount)
             return;
-        BlitzCardStats stats = x.R.Card(x.B.Cards[drawnPosition].Id, x.B.Cards[drawnPosition].Upgrade);
-        if ((stats.Tags & BlitzCardTag.Strike) == 0)
+        CardStats stats = x.R.Card(x.B.Cards[drawnPosition].Id, x.B.Cards[drawnPosition].Upgrade);
+        if ((stats.Tags & CardTag.Strike) == 0)
             return;
-        ref BlitzPower power = ref x.B.Powers[self.Index];
+        ref Power power = ref x.B.Powers[self.Index];
         bool autoPlay = true;
         if (AllHittableEnemiesInfinite(ref x))
         {
@@ -539,10 +539,10 @@ public sealed class HellraiserPower : BlitzPowerDef
             power.Aux0 = 0;
         }
         if (autoPlay)
-            BlitzKernel.AutoPlay(ref x, BlitzPile.Hand, drawnPosition);
+            Kernel.AutoPlay(ref x, Pile.Hand, drawnPosition);
     }
 
-    public override void EndTurnBatch048(ref BlitzExec x, BlitzListener self, BlitzSide side, bool participates)
+    public override void EndTurnBatch048(ref Exec x, Listener self, Side side, bool participates)
     {
         // CorePowerSupport/EndTurnPowerSupport resets the turn counter when the owner participates.
         if (participates)
@@ -557,23 +557,23 @@ public sealed class HellraiserPower : BlitzPowerDef
     /// <c>TryTriggerSteamEruptionDeath</c>; Blitz records that as the steam phase or the value-clamp HP
     /// (the Explode phase clears SteamPhase but keeps the rewritten HP until the forced kill).
     /// </summary>
-    private static bool AllHittableEnemiesInfinite(ref BlitzExec x)
+    private static bool AllHittableEnemiesInfinite(ref Exec x)
     {
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte owner = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            ref BlitzEnemy enemy = ref x.B.Enemy(owner);
-            if (enemy.DeathPhase != BlitzDeathPhase.None)
+            byte owner = Kernel.EnemyOwner(x.B.Roster[position]);
+            ref Enemy enemy = ref x.B.Enemy(owner);
+            if (enemy.DeathPhase != DeathPhase.None)
                 continue;
             // A non-empty hittable set needs the one native infinite-display source. An empty set
             // (every enemy reviving, as with the Test Subject's first form) makes All() true.
             if (!x.R.HasInfiniteHpDisplayMonster
-                || BlitzRegistry.Monster(enemy.MonsterId).NativeId != "WATERFALL_GIANT")
+                || Registry.Monster(enemy.MonsterId).NativeId != "WATERFALL_GIANT")
             {
                 return false;
             }
-            if (enemy.SteamPhase == BlitzSteamPhase.None
-                && x.B.Creature(owner).CurrentHp < BlitzLimits.ValueClamp)
+            if (enemy.SteamPhase == SteamPhase.None
+                && x.B.Creature(owner).CurrentHp < Limits.ValueClamp)
             {
                 return false;
             }
@@ -587,16 +587,16 @@ public sealed class HellraiserPower : BlitzPowerDef
 /// hand, each picked with the Shuffle stream
 /// (M/Hooks/TurnEnd/AfterAutoPostPlayPhaseEnteredMirrors.HandleStampedePower).
 /// </summary>
-[BlitzContent("STAMPEDE_POWER")]
-public sealed class StampedePower : BlitzPowerDef
+[ContentId("STAMPEDE_POWER")]
+public sealed class StampedePower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterAutoPostPlayPhaseEntered(ref BlitzExec x, BlitzListener self)
+    public override void AfterAutoPostPlayPhaseEntered(ref Exec x, Listener self)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner)
+        if (self.Owner != Limits.PlayerOwner)
             return;
         int amount = x.B.Powers[self.Index].Amount;
         for (int index = 0; index < amount; index++)
@@ -605,20 +605,20 @@ public sealed class StampedePower : BlitzPowerDef
             int pick = -1;
             for (int hand = 0; hand < x.B.HandCount; hand++)
             {
-                BlitzCard card = x.B.Cards[hand];
-                BlitzCardStats stats = x.R.Card(card.Id, card.Upgrade);
-                if (stats.Type != BlitzCardType.Attack || card.HasKeyword(BlitzKeywords.Unplayable))
+                Card card = x.B.Cards[hand];
+                CardStats stats = x.R.Card(card.Id, card.Upgrade);
+                if (stats.Type != CardType.Attack || card.HasKeyword(Keywords.Unplayable))
                     continue;
                 count++;
             }
             if (count == 0)
                 return;
-            int selected = x.B.RngStream(BlitzRngStream.Shuffle).NextInt(0, count);
+            int selected = x.B.RngStream(RngStream.Shuffle).NextInt(0, count);
             for (int hand = 0; hand < x.B.HandCount; hand++)
             {
-                BlitzCard card = x.B.Cards[hand];
-                BlitzCardStats stats = x.R.Card(card.Id, card.Upgrade);
-                if (stats.Type != BlitzCardType.Attack || card.HasKeyword(BlitzKeywords.Unplayable))
+                Card card = x.B.Cards[hand];
+                CardStats stats = x.R.Card(card.Id, card.Upgrade);
+                if (stats.Type != CardType.Attack || card.HasKeyword(Keywords.Unplayable))
                     continue;
                 if (selected-- == 0)
                 {
@@ -627,8 +627,8 @@ public sealed class StampedePower : BlitzPowerDef
                 }
             }
             if (pick < 0)
-                throw new BlitzUnsupportedException("Stampede 无法在手牌中定位选中的攻击牌。");
-            BlitzKernel.AutoPlay(ref x, BlitzPile.Hand, pick);
+                throw new UnsupportedException("Stampede 无法在手牌中定位选中的攻击牌。");
+            Kernel.AutoPlay(ref x, Pile.Hand, pick);
             if (x.NeedsChoice)
                 return;
         }
@@ -641,43 +641,43 @@ public sealed class StampedePower : BlitzPowerDef
 /// (BeforeCardPlayedMirrors.HandleCalamityPower / AfterCardPlayedMirrors.HandleCalamityPower).
 /// Aux0 is the pending-play marker; it is zero at every action boundary.
 /// </summary>
-[BlitzContent("CALAMITY_POWER")]
-public sealed class CalamityPower : BlitzPowerDef
+[ContentId("CALAMITY_POWER")]
+public sealed class CalamityPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAttacks];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAttacks];
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner)
+        if (self.Owner != Limits.PlayerOwner)
             return;
-        BlitzCardStats stats = x.R.Card(play.Card.Id, play.Card.Upgrade);
-        if (stats.Type != BlitzCardType.Attack)
+        CardStats stats = x.R.Card(play.Card.Id, play.Card.Upgrade);
+        if (stats.Type != CardType.Attack)
             return;
         // Native keys the pending amount by the played CardModel, so a nested auto-play gets its own
         // entry and the outer Attack still fires afterwards. The play-index stack has the same
         // nesting order; a single Aux flag would let the nested After consume the outer play.
-        x.PushCardPlayPair(BlitzCardPlayPairKind.CalamityAttacks, self.Owner,
+        x.PushCardPlayPair(CardPlayPairKind.CalamityAttacks, self.Owner,
             x.B.Powers[self.Index].Id, x.B.Powers[self.Index].Amount);
     }
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (!x.TryTakeCardPlayPair(BlitzCardPlayPairKind.CalamityAttacks, self.Owner,
+        if (!x.TryTakeCardPlayPair(CardPlayPairKind.CalamityAttacks, self.Owner,
                 x.B.Powers[self.Index].Id, out int amount))
         {
             return;
         }
-        if (amount > BlitzLimits.Cards)
-            throw new BlitzCapacityException("Cards", BlitzLimits.Cards);
-        Span<BlitzCard> generated = stackalloc BlitzCard[Math.Max(0, amount)];
-        int count = BlitzKernel.SampleCardPool(ref x.B, x.R, BlitzCardPools.CharacterAttacks,
-            amount, distinct: false, BlitzRngStream.CombatCardGeneration, generated);
+        if (amount > Limits.Cards)
+            throw new CapacityException("Cards", Limits.Cards);
+        Span<Card> generated = stackalloc Card[Math.Max(0, amount)];
+        int count = Kernel.SampleCardPool(ref x.B, x.R, CardPools.CharacterAttacks,
+            amount, distinct: false, RngStream.CombatCardGeneration, generated);
         for (int index = 0; index < count; index++)
-            BlitzKernel.AddGeneratedCard(ref x, generated[index], BlitzPile.Hand);
+            Kernel.AddGeneratedCard(ref x, generated[index], Pile.Hand);
         if (x.NeedsChoice)
             return;
     }
@@ -689,38 +689,38 @@ public sealed class CalamityPower : BlitzPowerDef
 /// (<c>ModifyEnergyCostInCombatMirrors</c>, <c>ModifyCardPlayResultLocationMirrors</c>). The native
 /// <c>AfterModifyingCardPlayResultLocation</c> only flashes; it has no state.
 /// </summary>
-[BlitzContent("CORRUPTION_POWER")]
-public sealed class CorruptionPower : BlitzPowerDef
+[ContentId("CORRUPTION_POWER")]
+public sealed class CorruptionPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Single;
+    public override PowerStackType StackType => PowerStackType.Single;
 
-    public override decimal TryModifyEnergyCostInCombatLate(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
-        in BlitzCard card, BlitzPile pile, decimal amount)
+    public override decimal TryModifyEnergyCostInCombatLate(in Battle battle, Rules rules, Listener self,
+        in Card card, Pile pile, decimal amount)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || BlitzRegistry.Card(card.Id).CardType(battle, rules, card) != BlitzCardType.Skill)
+        if (self.Owner != Limits.PlayerOwner
+            || Registry.Card(card.Id).ResolveCardType(battle, rules, card) != CardType.Skill)
         {
             return amount;
         }
         return 0m;
     }
 
-    public override BlitzPile ModifyCardPlayResultLocation(ref BlitzExec x, BlitzListener self, in BlitzCard card,
-        bool isAutoPlay, int energyValue, BlitzPile location, out BlitzPilePosition position)
+    public override Pile ModifyCardPlayResultLocation(ref Exec x, Listener self, in Card card,
+        bool isAutoPlay, int energyValue, Pile location, out PilePosition position)
     {
-        position = BlitzPilePosition.Bottom;
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Skill)
+        position = PilePosition.Bottom;
+        if (self.Owner != Limits.PlayerOwner
+            || Kernel.ResolveCardType(x.B, x.R, card) != CardType.Skill)
         {
             return location;
         }
-        return BlitzPile.Exhaust;
+        return Pile.Exhaust;
     }
 
-    public override void AfterModifyingCardPlayResultLocation(ref BlitzExec x, BlitzListener self, in BlitzCard card,
-        BlitzPile location)
+    public override void AfterModifyingCardPlayResultLocation(ref Exec x, Listener self, in Card card,
+        Pile location)
     {
     }
 }
@@ -731,35 +731,35 @@ public sealed class CorruptionPower : BlitzPowerDef
 /// (<c>ModifyEnergyCostInCombatMirrors.HandleFreeAttackPower</c>,
 /// <c>BeforeCardPlayedMirrors.HandleFreeAttackPower</c>).
 /// </summary>
-[BlitzContent("FREE_ATTACK_POWER")]
-public sealed class FreeAttackPower : BlitzPowerDef
+[ContentId("FREE_ATTACK_POWER")]
+public sealed class FreeAttackPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override decimal TryModifyEnergyCostInCombatLate(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
-        in BlitzCard card, BlitzPile pile, decimal amount)
+    public override decimal TryModifyEnergyCostInCombatLate(in Battle battle, Rules rules, Listener self,
+        in Card card, Pile pile, decimal amount)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || BlitzRegistry.Card(card.Id).CardType(battle, rules, card) != BlitzCardType.Attack
-            || pile is not (BlitzPile.Hand or BlitzPile.Play))
+        if (self.Owner != Limits.PlayerOwner
+            || Registry.Card(card.Id).ResolveCardType(battle, rules, card) != CardType.Attack
+            || pile is not (Pile.Hand or Pile.Play))
         {
             return amount;
         }
         return 0m;
     }
 
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Attack)
+        if (self.Owner != Limits.PlayerOwner
+            || Kernel.ResolveCardType(x.B, x.R, play.Card) != CardType.Attack)
         {
             return;
         }
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            Kernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
 
@@ -768,29 +768,29 @@ public sealed class FreeAttackPower : BlitzPowerDef
 /// <c>AfterModifyingCardPlayCount</c> decrements the power, and the player turn end removes it
 /// (<c>ModifyCardPlayCountMirrors</c>, <c>CorePowerSupport.TriggerTransientSideTurnEndPowers</c>).
 /// </summary>
-[BlitzContent("ONE_TWO_PUNCH_POWER")]
-public sealed class OneTwoPunchPower : BlitzPowerDef
+[ContentId("ONE_TWO_PUNCH_POWER")]
+public sealed class OneTwoPunchPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override int ModifyCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card, byte target,
+    public override int ModifyCardPlayCount(ref Exec x, Listener self, in Card card, byte target,
         int playCount)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
-            || BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Attack)
+        if (self.Owner != Limits.PlayerOwner
+            || Kernel.ResolveCardType(x.B, x.R, card) != CardType.Attack)
         {
             return playCount;
         }
         return playCount + 1;
     }
 
-    public override void AfterModifyingCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card)
+    public override void AfterModifyingCardPlayCount(ref Exec x, Listener self, in Card card)
     {
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            BlitzKernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
+            Kernel.SetPowerAmount(ref x.B, self.Owner, Id, amount - 1);
     }
 }
 
@@ -799,26 +799,26 @@ public sealed class OneTwoPunchPower : BlitzPowerDef
 /// (<c>PowerLifecycleSupport.ResolvePowerAmountChanges</c>'s Vicious case). The draw happens when the
 /// queued amount change is resolved, not inside the effect that applied Vulnerable.
 /// </summary>
-[BlitzContent("VICIOUS_POWER")]
-public sealed class ViciousPower : BlitzPowerDef
+[ContentId("VICIOUS_POWER")]
+public sealed class ViciousPower : PowerDef
 {
-    public override BlitzPowerType Type => BlitzPowerType.Buff;
+    public override PowerType Type => PowerType.Buff;
 
-    public override BlitzPowerStackType StackType => BlitzPowerStackType.Counter;
+    public override PowerStackType StackType => PowerStackType.Counter;
 
-    public override void AfterPowerAmountChanged(ref BlitzExec x, BlitzListener self, ushort powerId, int delta,
+    public override void AfterPowerAmountChanged(ref Exec x, Listener self, ushort powerId, int delta,
         byte applier, byte target)
     {
-        if (self.Owner != BlitzLimits.PlayerOwner
+        if (self.Owner != Limits.PlayerOwner
             || delta <= 0
             || applier != self.Owner
-            || !BlitzRegistry.TryPower("VULNERABLE_POWER", out ushort vulnerable)
+            || !Registry.TryPower("VULNERABLE_POWER", out ushort vulnerable)
             || powerId != vulnerable)
         {
             return;
         }
         int amount = x.B.Powers[self.Index].Amount;
         if (amount > 0)
-            BlitzKernel.Draw(ref x, amount, fromHandDraw: false);
+            Kernel.Draw(ref x, amount, fromHandDraw: false);
     }
 }

@@ -2,223 +2,223 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Defect;
 
-[BlitzContent("CLAW")]
-public sealed class Claw : BlitzCardDef
+[ContentId("CLAW")]
+public sealed class Claw : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Increase"];
 
     // CardEffectSpecRegistry.Claw: attack, then every Claw in combat gains Increase damage.
     // ExtraDamageFromClawPlays is carried in Private (ProjectPrivate) so DowngradeCard can restore it.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        int increase = (int)BlitzCardEffects.Var(x, 1);
+        int increase = (int)CardEffects.Var(x, 1);
         if (increase == 0)
             return;
-        if (!BlitzRegistry.TryCard("CLAW", out ushort claw))
+        if (!Registry.TryCard("CLAW", out ushort claw))
             return;
         for (int position = 0; position < x.B.CardCount; position++)
         {
-            ref BlitzCard card = ref x.B.Cards[position];
+            ref Card card = ref x.B.Cards[position];
             if (card.Id != claw)
                 continue;
             AddIncrease(ref card, increase);
         }
     }
 
-    public override void ProjectPrivate(ref BlitzCard card) => card.Private = card.Var0;
+    public override void ProjectPrivate(ref Card card) => card.Private = card.Var0;
 
-    public override void AfterDowngraded(ref BlitzBattle battle, int position)
+    public override void AfterDowngraded(ref Battle battle, int position)
     {
         // Claw.AfterDowngraded: DynamicVars.Damage.BaseValue += ExtraDamageFromClawPlays.
         battle.Cards[position].Var0 = battle.Cards[position].Private;
     }
 
-    private static void AddIncrease(ref BlitzCard card, int increase)
+    private static void AddIncrease(ref Card card, int increase)
     {
         if (increase > short.MaxValue - card.Var0 || increase > short.MaxValue - card.Private)
-            throw new BlitzUnsupportedException("利爪的伤害累加超出卡牌私有计数范围。");
+            throw new UnsupportedException("利爪的伤害累加超出卡牌私有计数范围。");
         card.Var0 = (short)(card.Var0 + increase);
         card.Private = (short)(card.Private + increase);
     }
 }
 
-[BlitzContent("FOCUSED_STRIKE")]
-public sealed class FocusedStrike : BlitzCardDef
+[ContentId("FOCUSED_STRIKE")]
+public sealed class FocusedStrike : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "FocusPower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CardEffectSpecRegistry's FocusedStrike → ApplyTemporaryFocus<FocusedStrikePower>.
-        BlitzKernel.ApplyTemporaryFocus(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.FocusedStrikePower>(), (int)BlitzCardEffects.Var(x, 1),
-            BlitzLimits.PlayerOwner, sign: 1);
+        Kernel.ApplyTemporaryFocus(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.FocusedStrikePower>(), (int)CardEffects.Var(x, 1),
+            Limits.PlayerOwner, sign: 1);
     }
 }
 
-[BlitzContent("MOMENTUM_STRIKE")]
-public sealed class MomentumStrike : BlitzCardDef
+[ContentId("MOMENTUM_STRIKE")]
+public sealed class MomentumStrike : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardEffectSpecRegistry: AttackSingle, then playedCard.MutablePreview.EnergyCost.SetThisCombat(0).
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.AddEnergyCostModifier(ref BlitzKernel.CurrentPlayCard(ref x), 0,
-            BlitzCostType.Absolute, BlitzCostExpiration.EndOfCombat, reduceOnly: false);
+        Kernel.AddEnergyCostModifier(ref Kernel.CurrentPlayCard(ref x), 0,
+            CostType.Absolute, CostExpiration.EndOfCombat, reduceOnly: false);
     }
 }
 
-[BlitzContent("BARRAGE")]
-public sealed class Barrage : BlitzCardDef
+[ContentId("BARRAGE")]
+public sealed class Barrage : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // GeneralAttackOnPlay reads CalculatedHits = orb count.
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), x.B.OrbCount);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.Attack(ref x, CardEffects.Var(x, 0), x.B.OrbCount);
 }
 
-[BlitzContent("SWEEPING_BEAM")]
-public sealed class SweepingBeam : BlitzCardDef
+[ContentId("SWEEPING_BEAM")]
+public sealed class SweepingBeam : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
         // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
+        Kernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.Draw(ref x, (int)BlitzCardEffects.Var(x, 1), fromHandDraw: false);
+        Kernel.Draw(ref x, (int)CardEffects.Var(x, 1), fromHandDraw: false);
     }
 }
 
-[BlitzContent("BEAM_CELL")]
-public sealed class BeamCell : BlitzCardDef
+[ContentId("BEAM_CELL")]
+public sealed class BeamCell : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "VulnerablePower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
+        Kernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1);
+        CardEffects.ApplyToTarget(ref x, Registry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
 
-[BlitzContent("COLD_SNAP")]
-public sealed class ColdSnap : BlitzCardDef
+[ContentId("COLD_SNAP")]
+public sealed class ColdSnap : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("FROST_ORB"));
+        Kernel.ChannelOrb(ref x, Kernel.OrbId("FROST_ORB"));
     }
 }
 
-[BlitzContent("BALL_LIGHTNING")]
-public sealed class BallLightning : BlitzCardDef
+[ContentId("BALL_LIGHTNING")]
+public sealed class BallLightning : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("LIGHTNING_ORB"));
+        Kernel.ChannelOrb(ref x, Kernel.OrbId("LIGHTNING_ORB"));
     }
 }
 
-[BlitzContent("GO_FOR_THE_EYES")]
-public sealed class GoForTheEyes : BlitzCardDef
+[ContentId("GO_FOR_THE_EYES")]
+public sealed class GoForTheEyes : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "WeakPower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
+        Kernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
         // CardEffectSpecRegistry.GoForTheEyes: only against an enemy whose current move attacks.
-        if (x.Target != BlitzLimits.NoOwner && BlitzKernel.EnemyIntendsToAttack(x.B, x.R, x.Target))
-            BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.WeakPower>(), 1);
+        if (x.Target != Limits.NoOwner && Kernel.EnemyIntendsToAttack(x.B, x.R, x.Target))
+            CardEffects.ApplyToTarget(ref x, Registry.PowerId<Powers.WeakPower>(), 1);
     }
 }
 
-[BlitzContent("COMPILE_DRIVER")]
-public sealed class CompileDriver : BlitzCardDef
+[ContentId("COMPILE_DRIVER")]
+public sealed class CompileDriver : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardDrawCardMirrors.CompileDriverOnPlay: attack, then draw one per distinct orb id.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers settles newly dead enemies after the mirror attack and
         // before the card-specific draw compensation; HittableEnemies/Hellraiser read that phase.
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
+        Kernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.Draw(ref x, BlitzKernel.DistinctOrbCount(x.B), fromHandDraw: false);
+        Kernel.Draw(ref x, Kernel.DistinctOrbCount(x.B), fromHandDraw: false);
     }
 }
 
-[BlitzContent("UPROAR")]
-public sealed class Uproar : BlitzCardDef
+[ContentId("UPROAR")]
+public sealed class Uproar : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         // CardSelectionCardMirrors.UproarOnPlay: two hits, then auto-play the first attack of a stable
         // shuffle of the draw pile (playable attacks first, then every attack).
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), 2);
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), 2);
         if (x.NeedsChoice)
             return;
         int drawCount = x.B.DrawCount;
         if (drawCount == 0)
             return;
-        Span<BlitzCard> buffer = stackalloc BlitzCard[drawCount];
+        Span<Card> buffer = stackalloc Card[drawCount];
         Span<int> origins = stackalloc int[drawCount];
         int eligible = 0;
         for (int index = 0; index < drawCount; index++)
         {
-            BlitzCard card = x.B.Cards[x.B.HandCount + index];
-            if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Attack)
+            Card card = x.B.Cards[x.B.HandCount + index];
+            if (Kernel.ResolveCardType(x.B, x.R, card) != CardType.Attack)
                 continue;
-            if ((card.Keywords & BlitzKeywords.Unplayable) != 0)
+            if ((card.Keywords & Keywords.Unplayable) != 0)
                 continue;
             buffer[eligible] = card;
             origins[eligible] = index;
@@ -229,8 +229,8 @@ public sealed class Uproar : BlitzCardDef
         {
             for (int index = 0; index < drawCount; index++)
             {
-                BlitzCard card = x.B.Cards[x.B.HandCount + index];
-                if (BlitzKernel.CardType(x.B, x.R, card) != BlitzCardType.Attack)
+                Card card = x.B.Cards[x.B.HandCount + index];
+                if (Kernel.ResolveCardType(x.B, x.R, card) != CardType.Attack)
                     continue;
                 buffer[count] = card;
                 origins[count] = index;
@@ -239,8 +239,8 @@ public sealed class Uproar : BlitzCardDef
         }
         if (count == 0)
             return;
-        BlitzCardSort.SortWithOrigins(buffer[..count], origins[..count], x.R);
-        ref BlitzRngState rng = ref x.B.RngStream(BlitzRngStream.Shuffle);
+        CardSort.SortWithOrigins(buffer[..count], origins[..count], x.R);
+        ref RngState rng = ref x.B.RngStream(RngStream.Shuffle);
         for (int n = count; n > 1;)
         {
             n--;
@@ -250,28 +250,28 @@ public sealed class Uproar : BlitzCardDef
         }
         int position = origins[0];
         if (position >= x.B.DrawCount
-            || !BlitzFingerprint.Equal(BlitzPiles.At(ref x.B, BlitzPile.Draw, position), buffer[0]))
+            || !Fingerprint.Equal(Piles.At(ref x.B, Pile.Draw, position), buffer[0]))
         {
-            throw new BlitzUnsupportedException("Uproar 选中的抽牌在结算前离开了抽牌堆。");
+            throw new UnsupportedException("Uproar 选中的抽牌在结算前离开了抽牌堆。");
         }
-        BlitzKernel.AutoPlay(ref x, BlitzPile.Draw, position);
+        Kernel.AutoPlay(ref x, Pile.Draw, position);
     }
 }
 
-[BlitzContent("GUNK_UP")]
-public sealed class GunkUp : BlitzCardDef
+[ContentId("GUNK_UP")]
+public sealed class GunkUp : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SLIMED", 0)];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), (int)BlitzCardEffects.Var(x, 1));
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), (int)CardEffects.Var(x, 1));
         if (x.NeedsChoice)
             return;
-        if (!BlitzRegistry.TryCard("SLIMED", out ushort id))
-            throw new BlitzUnsupportedException("黏液需要 SLIMED 的 Blitz 定义。");
-        BlitzKernel.AddGeneratedCard(ref x, BlitzKernel.CreateCard(x.R, id), BlitzPile.Discard);
+        if (!Registry.TryCard("SLIMED", out ushort id))
+            throw new UnsupportedException("黏液需要 SLIMED 的 Blitz 定义。");
+        Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, id), Pile.Discard);
     }
 }

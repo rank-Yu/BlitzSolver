@@ -9,37 +9,37 @@ namespace BlitzSolver.Content.Monsters.Act2;
 /// forces the synthetic STUNNED with HEADBUTT_MOVE as its follow-up
 /// (<c>MonsterMoveSemantics.ApplyForecastMove</c>).
 /// </summary>
-[BlitzContent("BOWLBUG_ROCK")]
-public sealed class BowlbugRock : BlitzMonsterDef
+[ContentId("BOWLBUG_ROCK")]
+public sealed class BowlbugRock : MonsterDef
 {
-    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "POST_HEADBUTT")
             return -1;
         return rules.NodeIndex("HEADBUTT_MOVE");
     }
 
-    public override int ImbalancedStunFollowUp(in BlitzMonsterRules rules) => rules.NodeIndex("HEADBUTT_MOVE");
+    public override int ImbalancedStunFollowUp(in MonsterRules rules) => rules.NodeIndex("HEADBUTT_MOVE");
 }
 
 /// <summary>
 /// BowlbugEgg: "BITE_MOVE" is an attack followed by <c>ProtectBlock</c> unpowered-block-value block
 /// (<c>MonsterMoveEffects</c> "BowlbugEgg", "BITE_MOVE").
 /// </summary>
-[BlitzContent("BOWLBUG_EGG")]
-public sealed class BowlbugEgg : BlitzMonsterDef
+[ContentId("BOWLBUG_EGG")]
+public sealed class BowlbugEgg : MonsterDef
 {
     private const int ProtectBlock = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["ProtectBlock"];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "BITE_MOVE")
         {
-            BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[ProtectBlock], BlitzValueProps.Move, fromCard: false);
+            Kernel.GainBlock(ref x, owner, rules.StaticInts[ProtectBlock], ValueProps.Move, fromCard: false);
         }
     }
 }
@@ -48,16 +48,16 @@ public sealed class BowlbugEgg : BlitzMonsterDef
 /// BowlbugSilk: "TOXIC_SPIT_MOVE" applies Weak 1 to the player; "THRASH_MOVE" is a two-hit attack
 /// (<c>MonsterMoveEffects</c> "BowlbugSilk", "TOXIC_SPIT_MOVE").
 /// </summary>
-[BlitzContent("BOWLBUG_SILK")]
-public sealed class BowlbugSilk : BlitzMonsterDef
+[ContentId("BOWLBUG_SILK")]
+public sealed class BowlbugSilk : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "TOXIC_SPIT_MOVE")
         {
-            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                BlitzRegistry.PowerId<Powers.WeakPower>(), 1, owner);
+            Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                Registry.PowerId<Powers.WeakPower>(), 1, owner);
         }
     }
 }
@@ -66,19 +66,19 @@ public sealed class BowlbugSilk : BlitzMonsterDef
 /// BowlbugNectar: "BUFF_MOVE" applies <c>BuffStrengthGain</c> Strength to itself; THRASH_MOVE and
 /// THRASH2_MOVE are plain attacks (<c>MonsterMoveEffects</c> "BowlbugNectar", "BUFF_MOVE").
 /// </summary>
-[BlitzContent("BOWLBUG_NECTAR")]
-public sealed class BowlbugNectar : BlitzMonsterDef
+[ContentId("BOWLBUG_NECTAR")]
+public sealed class BowlbugNectar : MonsterDef
 {
     private const int BuffStrengthGain = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["BuffStrengthGain"];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "BUFF_MOVE")
             return;
-        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+        Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(),
             rules.StaticInts[BuffStrengthGain], owner);
     }
 }
@@ -90,31 +90,31 @@ public sealed class BowlbugNectar : BlitzMonsterDef
 /// LagavulinMatriarch's STUNNED case. <c>_isAwake</c> is only read by the fingerprint/continuation
 /// text).
 /// </summary>
-[BlitzContent("SLUMBERING_BEETLE")]
-public sealed class SlumberingBeetle : BlitzMonsterDef
+[ContentId("SLUMBERING_BEETLE")]
+public sealed class SlumberingBeetle : MonsterDef
 {
     public override IReadOnlyList<string> InertMonsterIntNames => ["_isAwake"];
 
-    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "SNORE_NEXT")
             return -1;
-        return BlitzKernel.GetAmount(x.B, owner, BlitzRegistry.PowerId<Powers.SlumberPower>()) > 0
+        return Kernel.GetAmount(x.B, owner, Registry.PowerId<Powers.SlumberPower>()) > 0
             ? rules.NodeIndex("SNORE_MOVE")
             : rules.NodeIndex("ROLL_OUT_MOVE");
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "ROLL_OUT_MOVE":
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 2, owner);
                 break;
             case "STUNNED":
-                BlitzKernel.SetPowerAmount(ref x.B, owner, BlitzRegistry.PowerId<Powers.PlatingPower>(), 0);
+                Kernel.SetPowerAmount(ref x.B, owner, Registry.PowerId<Powers.PlatingPower>(), 0);
                 break;
         }
     }
@@ -127,21 +127,21 @@ public sealed class SlumberingBeetle : BlitzMonsterDef
 /// still act, heal the ReattachPower amount and clear the reviving phase. The three concrete ids
 /// differ only in visuals.
 /// </summary>
-public abstract class DecimillipedeSegmentDef : BlitzMonsterDef
+public abstract class DecimillipedeSegmentDef : MonsterDef
 {
-    public override void ResolveReviveMove(ref BlitzExec x, byte owner, int moveNode)
+    public override void ResolveReviveMove(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "REATTACH_MOVE")
             return;
-        ushort reattach = BlitzRegistry.PowerId<Powers.ReattachPower>();
+        ushort reattach = Registry.PowerId<Powers.ReattachPower>();
         bool allOthersDead = true;
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte other = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (other == owner || BlitzKernel.GetAmount(x.B, other, reattach) <= 0)
+            byte other = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (other == owner || Kernel.GetAmount(x.B, other, reattach) <= 0)
                 continue;
-            if (BlitzKernel.CanPerformMonsterMove(x.B.Enemy(other)))
+            if (Kernel.CanPerformMonsterMove(x.B.Enemy(other)))
             {
                 allOthersDead = false;
                 break;
@@ -151,39 +151,39 @@ public abstract class DecimillipedeSegmentDef : BlitzMonsterDef
         {
             return;
         }
-        BlitzKernel.Heal(ref x, owner, BlitzKernel.GetAmount(x.B, owner, reattach));
+        Kernel.Heal(ref x, owner, Kernel.GetAmount(x.B, owner, reattach));
         if (x.NeedsChoice)
             return;
-        x.B.Enemy(owner).DeathPhase = BlitzDeathPhase.None;
+        x.B.Enemy(owner).DeathPhase = DeathPhase.None;
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "BULK_MOVE":
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 2, owner);
                 break;
             case "CONSTRICT_MOVE":
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.WeakPower>(), 1, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.WeakPower>(), 1, owner);
                 break;
         }
     }
 }
 
-[BlitzContent("DECIMILLIPEDE_SEGMENT_FRONT")]
+[ContentId("DECIMILLIPEDE_SEGMENT_FRONT")]
 public sealed class DecimillipedeSegmentFront : DecimillipedeSegmentDef
 {
 }
 
-[BlitzContent("DECIMILLIPEDE_SEGMENT_MIDDLE")]
+[ContentId("DECIMILLIPEDE_SEGMENT_MIDDLE")]
 public sealed class DecimillipedeSegmentMiddle : DecimillipedeSegmentDef
 {
 }
 
-[BlitzContent("DECIMILLIPEDE_SEGMENT_BACK")]
+[ContentId("DECIMILLIPEDE_SEGMENT_BACK")]
 public sealed class DecimillipedeSegmentBack : DecimillipedeSegmentDef
 {
 }
@@ -193,22 +193,22 @@ public sealed class DecimillipedeSegmentBack : DecimillipedeSegmentDef
 /// (<c>MonsterMoveEffects</c> "PhrogParasite", "INFECT_MOVE"); LASH_MOVE is a four-hit attack. Its
 /// starting InfestedPower spawns the Wrigglers on death.
 /// </summary>
-[BlitzContent("PHROG_PARASITE")]
-public sealed class PhrogParasite : BlitzMonsterDef
+[ContentId("PHROG_PARASITE")]
+public sealed class PhrogParasite : MonsterDef
 {
     public override IReadOnlyList<string> SpawnedMonsterIds => ["WRIGGLER"];
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("INFECTION", 0)];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "INFECT_MOVE")
             return;
         for (int index = 0; index < 3; index++)
         {
-            BlitzKernel.AddGeneratedCard(ref x,
-                BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Infection>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
+            Kernel.AddGeneratedCard(ref x,
+                Kernel.CreateCard(x.R, Registry.CardId<Cards.Status.Infection>()), Pile.Discard, creator: Limits.NoOwner);
         }
     }
 }
@@ -221,8 +221,8 @@ public sealed class PhrogParasite : BlitzMonsterDef
 /// are reproduced here). "WRIGGLE_MOVE" adds one Infection to the discard pile and applies Strength 2
 /// (<c>MonsterMoveEffects</c> "Wriggler", "WRIGGLE_MOVE").
 /// </summary>
-[BlitzContent("WRIGGLER")]
-public sealed class Wriggler : BlitzMonsterDef
+[ContentId("WRIGGLER")]
+public sealed class Wriggler : MonsterDef
 {
     public override string? SpawnSlotName => "wriggler1";
 
@@ -230,31 +230,31 @@ public sealed class Wriggler : BlitzMonsterDef
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("INFECTION", 0)];
 
-    public override int ResolveConditional(ref BlitzExec x, byte owner, int branchNode)
+    public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[branchNode].NativeId != "INIT_MOVE")
             return -1;
         byte slot = x.B.Enemy(owner).Slot;
-        if (slot == BlitzKernel.NoSlot)
-            throw new BlitzUnsupportedException("Wriggler 的 INIT_MOVE 没有遭遇槽位。");
+        if (slot == Kernel.NoSlot)
+            throw new UnsupportedException("Wriggler 的 INIT_MOVE 没有遭遇槽位。");
         string name = x.R.EncounterSlots[slot];
         return name switch
         {
             "wriggler1" or "wriggler3" => rules.NodeIndex("NASTY_BITE_MOVE"),
             "wriggler2" or "wriggler4" => rules.NodeIndex("WRIGGLE_MOVE"),
-            _ => throw new BlitzUnsupportedException($"Wriggler 的 INIT_MOVE 没有槽位 {name} 的分支。"),
+            _ => throw new UnsupportedException($"Wriggler 的 INIT_MOVE 没有槽位 {name} 的分支。"),
         };
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "WRIGGLE_MOVE")
             return;
-        BlitzKernel.AddGeneratedCard(ref x,
-            BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Infection>()), BlitzPile.Discard, creator: BlitzLimits.NoOwner);
-        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(), 2, owner);
+        Kernel.AddGeneratedCard(ref x,
+            Kernel.CreateCard(x.R, Registry.CardId<Cards.Status.Infection>()), Pile.Discard, creator: Limits.NoOwner);
+        Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 2, owner);
     }
 }
 
@@ -262,16 +262,16 @@ public sealed class Wriggler : BlitzMonsterDef
 /// HunterKiller: "TENDERIZING_GOOP_MOVE" applies TenderPower 1 to the player; BITE_MOVE and
 /// PUNCTURE_MOVE are attacks (<c>MonsterMoveEffects</c> "HunterKiller", "TENDERIZING_GOOP_MOVE").
 /// </summary>
-[BlitzContent("HUNTER_KILLER")]
-public sealed class HunterKiller : BlitzMonsterDef
+[ContentId("HUNTER_KILLER")]
+public sealed class HunterKiller : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "TENDERIZING_GOOP_MOVE")
         {
-            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                BlitzRegistry.PowerId<Powers.TenderPower>(), 1, owner);
+            Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                Registry.PowerId<Powers.TenderPower>(), 1, owner);
         }
     }
 }
@@ -283,26 +283,26 @@ public sealed class HunterKiller : BlitzMonsterDef
 /// <c>_curled</c> animation flag is never written by the existing engine and no resolution path reads
 /// it.
 /// </summary>
-[BlitzContent("LOUSE_PROGENITOR")]
-public sealed class LouseProgenitor : BlitzMonsterDef
+[ContentId("LOUSE_PROGENITOR")]
+public sealed class LouseProgenitor : MonsterDef
 {
     private const int CurlBlock = 0;
     private const int GrowStrength = 1;
 
     public override IReadOnlyList<string> StaticIntNames => ["CurlBlock", "GrowStrength"];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "WEB_CANNON_MOVE":
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.FrailPower>(), 2, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.FrailPower>(), 2, owner);
                 break;
             case "CURL_AND_GROW_MOVE":
-                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[CurlBlock], BlitzValueProps.Move, fromCard: false);
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+                Kernel.GainBlock(ref x, owner, rules.StaticInts[CurlBlock], ValueProps.Move, fromCard: false);
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[GrowStrength], owner);
                 break;
         }
@@ -314,32 +314,32 @@ public sealed class LouseProgenitor : BlitzMonsterDef
 /// applies <c>AdaptStrengthGain</c> Strength; "GUARDED_STRIKE_MOVE" gains 18 Unpowered block-value
 /// block (<c>MonsterMoveEffects</c> "Crusher"). BackAttackLeft/CrabRage start on the root creature.
 /// </summary>
-[BlitzContent("CRUSHER")]
-public sealed class Crusher : BlitzMonsterDef
+[ContentId("CRUSHER")]
+public sealed class Crusher : MonsterDef
 {
     private const int AdaptStrengthGain = 0;
     private const int GuardedStrikeBlock = 18;
 
     public override IReadOnlyList<string> StaticIntNames => ["AdaptStrengthGain"];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "BUG_STING_MOVE":
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.WeakPower>(), 2, owner);
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<Powers.FrailPower>(), 2, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.WeakPower>(), 2, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<Powers.FrailPower>(), 2, owner);
                 break;
             case "ADAPT_MOVE":
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(),
                     rules.StaticInts[AdaptStrengthGain], owner);
                 break;
             case "GUARDED_STRIKE_MOVE":
                 // MonsterMoveEffects hard-codes 18 (ValueProp.Move).
-                BlitzKernel.GainBlock(ref x, owner, GuardedStrikeBlock, BlitzValueProps.Move, fromCard: false);
+                Kernel.GainBlock(ref x, owner, GuardedStrikeBlock, ValueProps.Move, fromCard: false);
                 break;
         }
     }
@@ -350,19 +350,19 @@ public sealed class Crusher : BlitzMonsterDef
 /// (<c>MonsterMoveEffects</c> "Rocket"); the other moves are attacks. Surrounded/BackAttackRight/
 /// CrabRage start on the root creature and its opponent.
 /// </summary>
-[BlitzContent("ROCKET")]
-public sealed class Rocket : BlitzMonsterDef
+[ContentId("ROCKET")]
+public sealed class Rocket : MonsterDef
 {
     private const int ChargeUpStrengthGain = 0;
 
     public override IReadOnlyList<string> StaticIntNames => ["ChargeUpStrengthGain"];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "CHARGE_UP_MOVE")
             return;
-        BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
+        Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(),
             rules.StaticInts[ChargeUpStrengthGain], owner);
     }
 }

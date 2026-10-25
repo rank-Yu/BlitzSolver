@@ -11,26 +11,26 @@ namespace BlitzSolver.Content.Potions;
 /// </summary>
 internal static class GenerateToHand
 {
-    public static void Choose(ref BlitzExec x, BlitzCardType? type, string poolKey)
+    public static void Choose(ref Exec x, CardType? type, string poolKey)
     {
-        Span<BlitzCard> options = stackalloc BlitzCard[3];
+        Span<Card> options = stackalloc Card[3];
         int count;
         if (type is { } cardType)
-            count = BlitzCardEffects.SampleCharacterCardsOfType(ref x.B, x.R, cardType, 3, options);
+            count = CardEffects.SampleCharacterCardsOfType(ref x.B, x.R, cardType, 3, options);
         else
-            count = BlitzKernel.SampleCardPool(ref x.B, x.R, poolKey, 3, distinct: true,
-                BlitzRngStream.CombatCardGeneration, options);
+            count = Kernel.SampleCardPool(ref x.B, x.R, poolKey, 3, distinct: true,
+                RngStream.CombatCardGeneration, options);
         Span<int> selected = stackalloc int[1];
-        if (!BlitzKernel.ChooseGeneratedCardsInRange(ref x, BlitzChoiceEffect.GenerateToHand, options[..count],
+        if (!Kernel.ChooseGeneratedCardsInRange(ref x, ChoiceEffect.GenerateToHand, options[..count],
                 0, 1, selected, out int selectedCount))
             return;
         for (int index = 0; index < selectedCount; index++)
         {
             // PotionChoiceSupport.Apply uses PredictedCard.Clone (not CreateClone): the value is copied
             // without setting IsClone.
-            BlitzCard card = options[selected[index]];
-            BlitzKernel.MakeFreeThisTurn(x.R, ref card);
-            BlitzKernel.AddGeneratedCard(ref x, card, BlitzPile.Hand);
+            Card card = options[selected[index]];
+            Kernel.MakeFreeThisTurn(x.R, ref card);
+            Kernel.AddGeneratedCard(ref x, card, Pile.Hand);
             if (x.NeedsChoice)
                 return;
         }

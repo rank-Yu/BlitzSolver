@@ -2,38 +2,38 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Defect;
 
-[BlitzContent("STRIKE_DEFECT")]
-public sealed class StrikeDefect : BlitzCardDef
+[ContentId("STRIKE_DEFECT")]
+public sealed class StrikeDefect : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 }
 
-[BlitzContent("DEFEND_DEFECT")]
-public sealed class DefendDefect : BlitzCardDef
+[ContentId("DEFEND_DEFECT")]
+public sealed class DefendDefect : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralBlock(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralBlock(ref x, 0);
 }
 
-[BlitzContent("ZAP")]
-public sealed class Zap : BlitzCardDef
+[ContentId("ZAP")]
+public sealed class Zap : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ChannelOrb(ref x, BlitzKernel.OrbId("LIGHTNING_ORB"));
+    public override void OnPlay(ref Exec x)
+        => Kernel.ChannelOrb(ref x, Kernel.OrbId("LIGHTNING_ORB"));
 }
 
-[BlitzContent("DUALCAST")]
-public sealed class Dualcast : BlitzCardDef
+[ContentId("DUALCAST")]
+public sealed class Dualcast : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         // Vanilla: if the queue is non-empty, EvokeNext(dequeue: false) then EvokeNext(). That is the
         // same two evokes with only the last dequeueing.
         if (x.B.OrbCount == 0)
             return;
-        BlitzKernel.EvokeNext(ref x, repeat: 2);
+        Kernel.EvokeNext(ref x, repeat: 2);
     }
 }

@@ -2,110 +2,110 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Defect;
 
-[BlitzContent("HAILSTORM")]
-public sealed class Hailstorm : BlitzCardDef
+[ContentId("HAILSTORM")]
+public sealed class Hailstorm : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["HailstormPower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.HailstormPower>(), 0);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.HailstormPower>(), 0);
 }
 
-[BlitzContent("LOOP")]
-public sealed class Loop : BlitzCardDef
+[ContentId("LOOP")]
+public sealed class Loop : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Loop"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.LoopPower>(), 0);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.LoopPower>(), 0);
 }
 
-[BlitzContent("STORM")]
-public sealed class Storm : BlitzCardDef
+[ContentId("STORM")]
+public sealed class Storm : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["StormPower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.StormPower>(), 0);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.StormPower>(), 0);
 }
 
-[BlitzContent("ITERATION")]
-public sealed class Iteration : BlitzCardDef
+[ContentId("ITERATION")]
+public sealed class Iteration : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["IterationPower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.IterationPower>(), 0);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.IterationPower>(), 0);
 }
 
-[BlitzContent("FERAL")]
-public sealed class Feral : BlitzCardDef
+[ContentId("FERAL")]
+public sealed class Feral : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["FeralPower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        int amount = (int)BlitzCardEffects.Var(x, 0);
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.FeralPower>(), amount,
-            BlitzLimits.PlayerOwner);
+        int amount = (int)CardEffects.Var(x, 0);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.FeralPower>(), amount,
+            Limits.PlayerOwner);
         if (x.NeedsChoice)
             return;
         // SimulatedCombatState.InitializeFeralAfterApplied: the new instance starts from the
         // zero-cost attacks already played this turn.
-        int index = BlitzKernel.FindPower(x.B, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.FeralPower>());
+        int index = Kernel.FindPower(x.B, Limits.PlayerOwner, Registry.PowerId<Powers.FeralPower>());
         if (index < 0)
             return;
-        x.B.Powers[index].Aux0 = x.B.Counter(BlitzCounter.ZeroCostAttackStartsThisTurn);
+        x.B.Powers[index].Aux0 = x.B.Counter(Counter.ZeroCostAttackStartsThisTurn);
     }
 }
 
-[BlitzContent("THUNDER")]
-public sealed class Thunder : BlitzCardDef
+[ContentId("THUNDER")]
+public sealed class Thunder : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["ThunderPower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.ThunderPower>(), 0);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.ThunderPower>(), 0);
 }
 
-[BlitzContent("SMOKESTACK")]
-public sealed class Smokestack : BlitzCardDef
+[ContentId("SMOKESTACK")]
+public sealed class Smokestack : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["SmokestackPower"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.SmokestackPower>(), 0);
+    public override void OnPlay(ref Exec x)
+        => CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.SmokestackPower>(), 0);
 }
 
-[BlitzContent("SUBROUTINE")]
-public sealed class Subroutine : BlitzCardDef
+[ContentId("SUBROUTINE")]
+public sealed class Subroutine : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.SubroutinePower>(), 1, BlitzLimits.PlayerOwner);
+    public override void OnPlay(ref Exec x)
+        => Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.SubroutinePower>(), 1, Limits.PlayerOwner);
 }
 
-[BlitzContent("BULK_UP")]
-public sealed class BulkUp : BlitzCardDef
+[ContentId("BULK_UP")]
+public sealed class BulkUp : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["OrbSlots", "StrengthPower", "DexterityPower"];
 
     // CorePowerSupport.BulkUp: remove slots, then Strength and Dexterity.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzKernel.RemoveOrbSlots(ref x.B, (int)BlitzCardEffects.Var(x, 0));
-        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.StrengthPower>(), 1);
+        Kernel.RemoveOrbSlots(ref x.B, (int)CardEffects.Var(x, 0));
+        CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.StrengthPower>(), 1);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.DexterityPower>(), 2);
+        CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.DexterityPower>(), 2);
     }
 }
 
-[BlitzContent("CAPACITOR")]
-public sealed class Capacitor : BlitzCardDef
+[ContentId("CAPACITOR")]
+public sealed class Capacitor : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Repeat"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzKernel.AddOrbSlots(ref x.B, (int)BlitzCardEffects.Var(x, 0));
+    public override void OnPlay(ref Exec x)
+        => Kernel.AddOrbSlots(ref x.B, (int)CardEffects.Var(x, 0));
 }

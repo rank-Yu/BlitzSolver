@@ -8,10 +8,10 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 
 仍然成立的部分：
 
-- **定长结构体**：`BlitzBattle` 是 `unmanaged` 结构体，没有对象引用；容量是编译期常量，溢出显式失败，不截断、不逐出。
-- **整块复制分叉**：复制一份 `BlitzBattle` 就是分叉；没有写时复制、引用计数或分层状态。
+- **定长结构体**：`Battle` 是 `unmanaged` 结构体，没有对象引用；容量是编译期常量，溢出显式失败，不截断、不逐出。
+- **整块复制分叉**：复制一份 `Battle` 就是分叉；没有写时复制、引用计数或分层状态。
 - **热路径零托管分配**：动作执行、状态复制与指纹计算不分配托管对象；搜索容器按块预分配，块只追加。
-- **显式失败**：不支持的语义抛 `BlitzUnsupportedException`，容量不足抛 `BlitzCapacityException`，不会静默近似或返回默认值。
+- **显式失败**：不支持的语义抛 `UnsupportedException`，容量不足抛 `CapacityException`，不会静默近似或返回默认值。
 - **确定性**：同一局面只有一种字节表示；同一次搜索在同一请求上产生同一路线与同一结果字节。
 
 不再属于当前仓库的目标：
@@ -25,7 +25,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | --- | --- |
 | `src/Core/Engine/` | `BlitzSolver.Engine`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
 | `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
-| `src/Core/Search/` | `BlitzSolver.Search`：`BlitzBeamSolver`、搜索容器、评分与下界 |
+| `src/Core/Search/` | `BlitzSolver.Search`：`BeamSolver`、搜索容器、评分与下界 |
 | `src/Core/Search/Scoring/` | `BlitzSolver.Search.Scoring`：状态评估 |
 | `src/Core/Search/Ported/` | `BlitzSolver.Search`：从 CombatSolver `a62f1850` 移植的纯值依赖 |
 | `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`） |
@@ -38,11 +38,11 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 
 | 文档 | 内容 |
 | --- | --- |
-| [状态布局](state-layout.md) | `BlitzBattle` 字段、容量、规范化与指纹 |
+| [状态布局](state-layout.md) | `Battle` 字段、容量、规范化与指纹 |
 | [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
 | [角色机制](kernel-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [药水与遗物](kernel-potions-relics.md) | 额外回合管线、药水与遗物机制 |
-| [搜索](search.md) | `BlitzBeamSolver` 的容器复用、保留、评估、剪枝与容量边界 |
+| [搜索](search.md) | `BeamSolver` 的容器复用、保留、评估、剪枝与容量边界 |
 | [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
 | [测试与验证](testing.md) | 构建、K0、D1/D2、manifest、每层证明与未验证项 |
 

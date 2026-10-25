@@ -6,47 +6,47 @@ namespace BlitzSolver.Content.Cards.Status;
 /// Native <c>Beckon</c>: cost 1, playable with no OnPlay effect; at the player's turn end it loses
 /// 6 HP (Unblockable|Unpowered|Move) with the card as source.
 /// </summary>
-[BlitzContent("BECKON")]
-public sealed class Beckon : BlitzCardDef
+[ContentId("BECKON")]
+public sealed class Beckon : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["HpLoss"];
 
     public override bool HasTurnEndInHandEffect => true;
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 
-    public override void OnTurnEndInHand(ref BlitzExec x)
-        => BlitzCardEffects.DamageOwnerFromCard(ref x, BlitzCardEffects.Var(x, 0),
-            BlitzValueProps.Unblockable | BlitzValueProps.Unpowered | BlitzValueProps.Move);
+    public override void OnTurnEndInHand(ref Exec x)
+        => CardEffects.DamageOwnerFromCard(ref x, CardEffects.Var(x, 0),
+            ValueProps.Unblockable | ValueProps.Unpowered | ValueProps.Move);
 }
 
 /// <summary>
 /// Native <c>Burn</c>: cost -1, Unplayable; at the player's turn end it takes 2 unpowered,
 /// blockable damage with the card as source.
 /// </summary>
-[BlitzContent("BURN")]
-public sealed class Burn : BlitzCardDef
+[ContentId("BURN")]
+public sealed class Burn : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override bool HasTurnEndInHandEffect => true;
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 
-    public override void OnTurnEndInHand(ref BlitzExec x)
-        => BlitzCardEffects.DamageOwnerFromCard(ref x, BlitzCardEffects.Var(x, 0),
-            BlitzValueProps.Unpowered | BlitzValueProps.Move);
+    public override void OnTurnEndInHand(ref Exec x)
+        => CardEffects.DamageOwnerFromCard(ref x, CardEffects.Var(x, 0),
+            ValueProps.Unpowered | ValueProps.Move);
 }
 
 /// <summary>Native <c>Debris</c>: cost 1, Exhaust; its OnPlay is an explicit no-op.</summary>
-[BlitzContent("DEBRIS")]
-public sealed class Debris : BlitzCardDef
+[ContentId("DEBRIS")]
+public sealed class Debris : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 }
@@ -55,27 +55,27 @@ public sealed class Debris : BlitzCardDef
 /// Native <c>Infection</c>: cost -1, Unplayable; at the player's turn end it takes 3 unpowered,
 /// blockable damage with the card as source.
 /// </summary>
-[BlitzContent("INFECTION")]
-public sealed class Infection : BlitzCardDef
+[ContentId("INFECTION")]
+public sealed class Infection : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override bool HasTurnEndInHandEffect => true;
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 
-    public override void OnTurnEndInHand(ref BlitzExec x)
-        => BlitzCardEffects.DamageOwnerFromCard(ref x, BlitzCardEffects.Var(x, 0),
-            BlitzValueProps.Unpowered | BlitzValueProps.Move);
+    public override void OnTurnEndInHand(ref Exec x)
+        => CardEffects.DamageOwnerFromCard(ref x, CardEffects.Var(x, 0),
+            ValueProps.Unpowered | ValueProps.Move);
 }
 
 /// <summary>Native <c>Soot</c>: cost -1, Unplayable; no combat hook is overridden.</summary>
-[BlitzContent("SOOT")]
-public sealed class Soot : BlitzCardDef
+[ContentId("SOOT")]
+public sealed class Soot : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 }
@@ -84,20 +84,20 @@ public sealed class Soot : BlitzCardDef
 /// Native <c>Toxic</c>: cost 1, Exhaust; playable but its OnPlay has no effect. At the player's
 /// turn end it takes 5 unpowered, blockable damage with the card as source.
 /// </summary>
-[BlitzContent("TOXIC")]
-public sealed class Toxic : BlitzCardDef
+[ContentId("TOXIC")]
+public sealed class Toxic : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override bool HasTurnEndInHandEffect => true;
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 
-    public override void OnTurnEndInHand(ref BlitzExec x)
-        => BlitzCardEffects.DamageOwnerFromCard(ref x, BlitzCardEffects.Var(x, 0),
-            BlitzValueProps.Unpowered | BlitzValueProps.Move);
+    public override void OnTurnEndInHand(ref Exec x)
+        => CardEffects.DamageOwnerFromCard(ref x, CardEffects.Var(x, 0),
+            ValueProps.Unpowered | ValueProps.Move);
 }
 
 /// <summary>
@@ -105,27 +105,27 @@ public sealed class Toxic : BlitzCardDef
 /// blockable damage with the card as source. Aeonglass upgrades the Damage variable through a
 /// private counter that admission rejects, so the rule table value is the whole supported state.
 /// </summary>
-[BlitzContent("WITHER")]
-public sealed class Wither : BlitzCardDef
+[ContentId("WITHER")]
+public sealed class Wither : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     public override bool HasTurnEndInHandEffect => true;
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 
-    public override void OnTurnEndInHand(ref BlitzExec x)
-        => BlitzCardEffects.DamageOwnerFromCard(ref x, BlitzCardEffects.Var(x, 0),
-            BlitzValueProps.Unpowered | BlitzValueProps.Move);
+    public override void OnTurnEndInHand(ref Exec x)
+        => CardEffects.DamageOwnerFromCard(ref x, CardEffects.Var(x, 0),
+            ValueProps.Unpowered | ValueProps.Move);
 }
 
 /// <summary>Native <c>Wound</c>: cost -1, Unplayable; no combat hook is overridden.</summary>
-[BlitzContent("WOUND")]
-public sealed class Wound : BlitzCardDef
+[ContentId("WOUND")]
+public sealed class Wound : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 }
@@ -133,24 +133,24 @@ public sealed class Wound : BlitzCardDef
 /// <summary>
 /// Native <c>Void</c>: cost -1, Unplayable, Ethereal; when drawn it loses its Energy
 /// (<c>AfterCardDrawnMirrors.HandleVoid</c>, claimed once with
-/// <c>BlitzKernel.TakeIntrinsicDraw</c>). The Energy variable comes from the card drawn at
+/// <c>Kernel.TakeIntrinsicDraw</c>). The Energy variable comes from the card drawn at
 /// <paramref name="drawnPosition"/>; the definition touches no other card state.
 /// </summary>
-[BlitzContent("VOID")]
-public sealed class Void : BlitzCardDef
+[ContentId("VOID")]
+public sealed class Void : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
     }
 
-    public override void AfterCardDrawn(ref BlitzExec x, BlitzListener self, int drawnPosition, bool fromHandDraw)
+    public override void AfterCardDrawn(ref Exec x, Listener self, int drawnPosition, bool fromHandDraw)
     {
-        if (!BlitzKernel.TakeIntrinsicDraw(ref x, self, drawnPosition))
+        if (!Kernel.TakeIntrinsicDraw(ref x, self, drawnPosition))
             return;
-        ref readonly BlitzCard drawn = ref x.B.Cards[drawnPosition];
-        BlitzKernel.LoseEnergy(ref x, x.R.Card(drawn.Id, drawn.Upgrade).Vars[0]);
+        ref readonly Card drawn = ref x.B.Cards[drawnPosition];
+        Kernel.LoseEnergy(ref x, x.R.Card(drawn.Id, drawn.Upgrade).Vars[0]);
     }
 }
 
@@ -161,16 +161,16 @@ public sealed class Void : BlitzCardDef
 /// damage/effect hooks are otherwise out of scope). The played card is the last entry of the play
 /// pile while OnPlay runs, matching UpMySleeve's handling.
 /// </summary>
-[BlitzContent("FRANTIC_ESCAPE")]
-public sealed class FranticEscape : BlitzCardDef
+[ContentId("FRANTIC_ESCAPE")]
+public sealed class FranticEscape : CardDef
 {
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzKernel.IncrementSandpitTargeting(ref x, BlitzLimits.PlayerOwner);
+        Kernel.IncrementSandpitTargeting(ref x, Limits.PlayerOwner);
         int position = x.B.PlayCount - 1;
         if (position < 0)
             throw new InvalidOperationException("夺路而逃没有正在打出的卡。");
-        BlitzKernel.AddEnergyCostModifier(ref BlitzPiles.At(ref x.B, BlitzPile.Play, position), 1,
-            BlitzCostType.Relative, BlitzCostExpiration.EndOfCombat, reduceOnly: false);
+        Kernel.AddEnergyCostModifier(ref Piles.At(ref x.B, Pile.Play, position), 1,
+            CostType.Relative, CostExpiration.EndOfCombat, reduceOnly: false);
     }
 }

@@ -3,49 +3,49 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Silent;
 
-[BlitzContent("MURDER")]
-public sealed class Murder : BlitzCardDef
+[ContentId("MURDER")]
+public sealed class Murder : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["CalculationBase", "ExtraDamage"];
 
     // CalculatedVarSpecRegistry.Murder: CalculationBase + ExtraDamage * cards drawn this combat.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        decimal damage = BlitzCardEffects.Var(x, 0)
-            + BlitzCardEffects.Var(x, 1) * x.B.Counter(BlitzCounter.CardsDrawn);
-        BlitzCardEffects.Attack(ref x, damage);
+        decimal damage = CardEffects.Var(x, 0)
+            + CardEffects.Var(x, 1) * x.B.Counter(Counter.CardsDrawn);
+        CardEffects.Attack(ref x, damage);
     }
 }
 
-[BlitzContent("ASSASSINATE")]
-public sealed class Assassinate : BlitzCardDef
+[ContentId("ASSASSINATE")]
+public sealed class Assassinate : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "VulnerablePower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CorePowerSupport.ApplyCardPowers runs ApplyEnemyDeathPowers after the mirror attack
         // and before the card-specific compensation, so the debuff sees the post-death target.
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
+        Kernel.ApplyEnemyDeathPowers(ref x);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.ApplyToTarget(ref x, BlitzRegistry.PowerId<Powers.VulnerablePower>(), 1);
+        CardEffects.ApplyToTarget(ref x, Registry.PowerId<Powers.VulnerablePower>(), 1);
     }
 }
 
-[BlitzContent("GRAND_FINALE")]
-public sealed class GrandFinale : BlitzCardDef
+[ContentId("GRAND_FINALE")]
+public sealed class GrandFinale : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // GrandFinale.cs.IsPlayable: only when the draw pile is empty (CardIsPlayableMirrors).
-    public override bool IsPlayable(in BlitzBattle battle, BlitzRules rules, in BlitzCard card)
+    public override bool IsPlayable(in Battle battle, Rules rules, in Card card)
         => battle.DrawCount == 0;
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 }
 
 /// <summary>
@@ -55,8 +55,8 @@ public sealed class GrandFinale : BlitzCardDef
 /// engine likewise only records the power and the long-term resource. Existing engine:
 /// <c>CorePowerSupport</c>'s TheHunt case.
 /// </summary>
-[BlitzContent("THE_HUNT")]
-public sealed class TheHunt : BlitzCardDef
+[ContentId("THE_HUNT")]
+public sealed class TheHunt : CardDef
 {
     private const int LongTermResourceValue = 30;
 
@@ -64,22 +64,22 @@ public sealed class TheHunt : BlitzCardDef
 
     public override IReadOnlyList<string> AppliedPowers => ["THE_HUNT_POWER"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         byte target = x.Target;
-        bool fatal = target != BlitzLimits.NoOwner && BlitzKernel.TargetDeathTriggersFatal(x.B, target);
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        bool fatal = target != Limits.NoOwner && Kernel.TargetDeathTriggersFatal(x.B, target);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
-        if (x.NeedsChoice || target == BlitzLimits.NoOwner || x.B.Creature(target).IsAlive || !fatal)
+        Kernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice || target == Limits.NoOwner || x.B.Creature(target).IsAlive || !fatal)
             return;
         // CorePowerSupport: Apply<TheHuntPower>(owner, 1, owner) then RecordLongTermResource(30).
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<TheHuntPower>(), 1,
-            BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<TheHuntPower>(), 1,
+            Limits.PlayerOwner);
         if (x.NeedsChoice)
             return;
-        x.B.AddCounter(BlitzCounter.LongTermResourceValue, LongTermResourceValue);
-        BlitzGrowthRewards.Add(ref x.B, BlitzGrowthSource.TheHunt);
+        x.B.AddCounter(Counter.LongTermResourceValue, LongTermResourceValue);
+        GrowthRewards.Add(ref x.B, GrowthRewardSource.TheHunt);
     }
 }

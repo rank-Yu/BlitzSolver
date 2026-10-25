@@ -8,27 +8,27 @@ namespace BlitzSolver.Content.Cards.Regent;
 /// multiplier is the player's powered attack hits on the target this turn; the attack's own hits
 /// cancel out, so the forge is CalculationBase + CalculationExtra × hits before this attack.
 /// </summary>
-[BlitzContent("BEAT_INTO_SHAPE")]
-public sealed class BeatIntoShape : BlitzCardDef
+[ContentId("BEAT_INTO_SHAPE")]
+public sealed class BeatIntoShape : CardDef
 {
     public override bool MayGenerateIdentityContent => true;
 
     public override IReadOnlyList<string> VarNames => ["Damage", "CalculationBase", "CalculationExtra"];
 
-    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [(BlitzKernel.SovereignBladeId, 0)];
+    public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [(Kernel.SovereignBladeId, 0)];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        if (x.Target == BlitzLimits.NoOwner)
-            throw new BlitzUnsupportedException("BeatIntoShape 缺少目标，无法读取按目标命中数。");
-        int hits = BlitzKernel.PoweredAttackHitsByPlayer(x.B, x.Target);
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        if (x.Target == Limits.NoOwner)
+            throw new UnsupportedException("BeatIntoShape 缺少目标，无法读取按目标命中数。");
+        int hits = Kernel.PoweredAttackHitsByPlayer(x.B, x.Target);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        decimal forge = BlitzCardEffects.Var(x, 1) + BlitzCardEffects.Var(x, 2) * hits;
+        decimal forge = CardEffects.Var(x, 1) + CardEffects.Var(x, 2) * hits;
         if (forge < int.MinValue || forge > int.MaxValue || forge != decimal.Truncate(forge))
-            throw new BlitzUnsupportedException($"BeatIntoShape 的锻造量 {forge} 无法用整数表示。");
-        BlitzKernel.Forge(ref x, (int)forge);
+            throw new UnsupportedException($"BeatIntoShape 的锻造量 {forge} 无法用整数表示。");
+        Kernel.Forge(ref x, (int)forge);
     }
 }
 
@@ -38,18 +38,18 @@ public sealed class BeatIntoShape : BlitzCardDef
 /// (<c>AfterCardPlayedMirrors.HandleMakeItSo</c>; vanilla records CardPlayFinished before the late
 /// pass, so the current Skill is included).
 /// </summary>
-[BlitzContent("MAKE_IT_SO")]
-public sealed class MakeItSo : BlitzCardDef
+[ContentId("MAKE_IT_SO")]
+public sealed class MakeItSo : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Cards"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 
-    public override void AfterCardPlayedLate(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayedLate(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (self.Kind != BlitzListenerKind.Card)
+        if (self.Kind != ListenerKind.Card)
             return;
-        if (BlitzKernel.CardType(x.B, x.R, play.Card) != BlitzCardType.Skill)
+        if (Kernel.ResolveCardType(x.B, x.R, play.Card) != CardType.Skill)
             return;
         int position = self.Index;
         if (position >= x.B.CardCount)
@@ -59,12 +59,12 @@ public sealed class MakeItSo : BlitzCardDef
             return;
         int cards = (int)x.R.Card(x.B.Cards[position].Id, x.B.Cards[position].Upgrade).Vars[1];
         if (cards <= 0)
-            throw new BlitzUnsupportedException("MakeItSo 的 Cards 变量不为正。");
-        int finished = x.B.Counter(BlitzCounter.SkillCardsPlayedThisTurn) + 1;
+            throw new UnsupportedException("MakeItSo 的 Cards 变量不为正。");
+        int finished = x.B.Counter(Counter.SkillCardsPlayedThisTurn) + 1;
         if (finished % cards != 0)
             return;
-        BlitzPile pile = BlitzPiles.PileOf(x.B, position, out int index);
-        BlitzKernel.MoveCard(ref x.B, pile, index, BlitzPile.Hand);
+        Pile pile = Piles.PileOf(x.B, position, out int index);
+        Kernel.MoveCard(ref x.B, pile, index, Pile.Hand);
     }
 }
 
@@ -72,8 +72,8 @@ public sealed class MakeItSo : BlitzCardDef
 /// <c>CrashLanding</c> (Rare, attack every enemy): CardEffectSpecRegistry then adds one Debris to the
 /// hand for each empty hand slot (<c>GetMaxHandSize - Hand.Count</c>).
 /// </summary>
-[BlitzContent("CRASH_LANDING")]
-public sealed class CrashLanding : BlitzCardDef
+[ContentId("CRASH_LANDING")]
+public sealed class CrashLanding : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
@@ -81,19 +81,19 @@ public sealed class CrashLanding : BlitzCardDef
 
     private const string DebrisId = "DEBRIS";
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         int count = x.B.MaxHandSize - x.B.HandCount;
         if (count <= 0)
             return;
-        if (!BlitzRegistry.TryCard(DebrisId, out ushort debris))
-            throw new BlitzUnsupportedException("坠毁需要 DEBRIS 的 Blitz 定义。");
+        if (!Registry.TryCard(DebrisId, out ushort debris))
+            throw new UnsupportedException("坠毁需要 DEBRIS 的 Blitz 定义。");
         for (int index = 0; index < count; index++)
         {
-            if (!BlitzKernel.AddGeneratedCard(ref x, BlitzKernel.CreateCard(x.R, debris), BlitzPile.Hand))
+            if (!Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, debris), Pile.Hand))
                 return;
             if (x.NeedsChoice)
                 return;
@@ -102,13 +102,13 @@ public sealed class CrashLanding : BlitzCardDef
 }
 
 /// <summary><c>SevenStars</c> (7 star cost): every enemy takes the Repeat variable's number of hits.</summary>
-[BlitzContent("SEVEN_STARS")]
-public sealed class SevenStars : BlitzCardDef
+[ContentId("SEVEN_STARS")]
+public sealed class SevenStars : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
-    public override void OnPlay(ref BlitzExec x)
-        => BlitzCardEffects.GeneralAttack(ref x, 0, hitCount: (int)BlitzCardEffects.Var(x, 1));
+    public override void OnPlay(ref Exec x)
+        => CardEffects.GeneralAttack(ref x, 0, hitCount: (int)CardEffects.Var(x, 1));
 }
 
 /// <summary>
@@ -116,39 +116,39 @@ public sealed class SevenStars : BlitzCardDef
 /// clones of it to hand (<c>CardChoiceResolution.DuplicateSelectedCard</c>: <c>CreateClone</c> per
 /// copy, bottom of the hand, fixed result kind).
 /// </summary>
-[BlitzContent("HEIRLOOM_HAMMER")]
-public sealed class HeirloomHammer : BlitzCardDef
+[ContentId("HEIRLOOM_HAMMER")]
+public sealed class HeirloomHammer : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 
-    public override void OwnChoice(ref BlitzExec x)
+    public override void OwnChoice(ref Exec x)
     {
         Span<int> options = stackalloc int[x.B.HandCount];
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
-            ref readonly BlitzCard card = ref x.B.Cards[index];
+            ref readonly Card card = ref x.B.Cards[index];
             if (x.R.Card(card.Id, card.Upgrade).IsColorless)
                 options[count++] = index;
         }
         if (count == 0)
             return;
         Span<int> selected = stackalloc int[1];
-        if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Duplicate, BlitzPile.Hand, options[..count], 1,
+        if (!Kernel.ChooseCards(ref x, ChoiceEffect.Duplicate, Pile.Hand, options[..count], 1,
                 selected, out int chosen))
         {
             return;
         }
         if (chosen == 0)
             return;
-        BlitzCard original = BlitzPiles.At(ref x.B, BlitzPile.Hand, selected[0]);
-        int copies = (int)BlitzCardEffects.Var(x, 1);
+        Card original = Piles.At(ref x.B, Pile.Hand, selected[0]);
+        int copies = (int)CardEffects.Var(x, 1);
         for (int index = 0; index < copies; index++)
         {
-            BlitzCard clone = BlitzKernel.CloneCard(original);
-            if (!BlitzKernel.AddGeneratedCard(ref x, clone, BlitzPile.Hand))
+            Card clone = Kernel.CloneCard(original);
+            if (!Kernel.AddGeneratedCard(ref x, clone, Pile.Hand))
                 return;
             if (x.NeedsChoice)
                 return;
@@ -160,23 +160,23 @@ public sealed class HeirloomHammer : BlitzCardDef
 /// <c>Comet</c> (5 star cost): attack, then CorePowerSupport applies Weak and Vulnerable after the
 /// deferred enemy deaths.
 /// </summary>
-[BlitzContent("COMET")]
-public sealed class Comet : BlitzCardDef
+[ContentId("COMET")]
+public sealed class Comet : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "VulnerablePower", "WeakPower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ApplyEnemyDeathPowers(ref x);
-        if (x.NeedsChoice || x.Target == BlitzLimits.NoOwner)
+        Kernel.ApplyEnemyDeathPowers(ref x);
+        if (x.NeedsChoice || x.Target == Limits.NoOwner)
             return;
-        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.WeakPower>(),
-            (int)BlitzCardEffects.Var(x, 2), BlitzLimits.PlayerOwner);
-        BlitzKernel.ApplyPower(ref x, x.Target, BlitzRegistry.PowerId<Powers.VulnerablePower>(),
-            (int)BlitzCardEffects.Var(x, 1), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, x.Target, Registry.PowerId<Powers.WeakPower>(),
+            (int)CardEffects.Var(x, 2), Limits.PlayerOwner);
+        Kernel.ApplyPower(ref x, x.Target, Registry.PowerId<Powers.VulnerablePower>(),
+            (int)CardEffects.Var(x, 1), Limits.PlayerOwner);
     }
 }
 
@@ -184,24 +184,24 @@ public sealed class Comet : BlitzCardDef
 /// <c>DyingStar</c> (3 star cost, Ethereal): attack every enemy, then CardEffectSpecRegistry applies
 /// DyingStarPower (a temporary Strength loss) to every hittable enemy in roster order.
 /// </summary>
-[BlitzContent("DYING_STAR")]
-public sealed class DyingStar : BlitzCardDef
+[ContentId("DYING_STAR")]
+public sealed class DyingStar : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "StrengthLoss"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        ushort power = BlitzRegistry.PowerId<Powers.DyingStarPower>();
-        int amount = (int)BlitzCardEffects.Var(x, 1);
+        ushort power = Registry.PowerId<Powers.DyingStarPower>();
+        int amount = (int)CardEffects.Var(x, 1);
         for (int position = 0; position < x.B.RosterCount; position++)
         {
-            byte enemy = BlitzKernel.EnemyOwner(x.B.Roster[position]);
-            if (!BlitzKernel.IsHittable(x.B, enemy))
+            byte enemy = Kernel.EnemyOwner(x.B.Roster[position]);
+            if (!Kernel.IsHittable(x.B, enemy))
                 continue;
-            BlitzKernel.ApplyTemporaryStrength(ref x, enemy, power, amount, BlitzLimits.PlayerOwner, -1);
+            Kernel.ApplyTemporaryStrength(ref x, enemy, power, amount, Limits.PlayerOwner, -1);
             if (x.NeedsChoice)
                 return;
         }
@@ -209,28 +209,28 @@ public sealed class DyingStar : BlitzCardDef
 }
 
 /// <summary><c>Bombardment</c>: the inferred recipe is a plain single-target attack.</summary>
-[BlitzContent("BOMBARDMENT")]
-public sealed class Bombardment : BlitzCardDef
+[ContentId("BOMBARDMENT")]
+public sealed class Bombardment : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzCardEffects.GeneralAttack(ref x, 0);
+    public override void OnPlay(ref Exec x) => CardEffects.GeneralAttack(ref x, 0);
 }
 
 /// <summary>
 /// <c>HeavenlyDrill</c> (X energy cost): BespokeCardMirrors resolves the energy X value and doubles it
 /// when it reaches the canonical Energy variable, then attacks once per hit.
 /// </summary>
-[BlitzContent("HEAVENLY_DRILL")]
-public sealed class HeavenlyDrill : BlitzCardDef
+[ContentId("HEAVENLY_DRILL")]
+public sealed class HeavenlyDrill : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Energy"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        int hits = BlitzKernel.ResolveEnergyXValue(ref x);
-        if (hits >= (int)BlitzCardEffects.Var(x, 1))
+        int hits = Kernel.ResolveEnergyXValue(ref x);
+        if (hits >= (int)CardEffects.Var(x, 1))
             hits *= 2;
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hits);
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), hits);
     }
 }

@@ -7,10 +7,10 @@ namespace BlitzSolver.Content.Cards.Colorless;
 /// (<c>CardOnPlaySupport</c>'s ForgottenRitual / Fuel / Luminesce case calls
 /// <c>simulator.GainEnergy(card.Owner, card.DynamicVars.Energy.IntValue)</c>).
 /// </summary>
-[BlitzContent("LUMINESCE")]
-public sealed class Luminesce : BlitzCardDef
+[ContentId("LUMINESCE")]
+public sealed class Luminesce : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void OnPlay(ref BlitzExec x) => BlitzKernel.GainEnergy(ref x, BlitzCardEffects.Var(x, 0));
+    public override void OnPlay(ref Exec x) => Kernel.GainEnergy(ref x, CardEffects.Var(x, 0));
 }

@@ -2,146 +2,146 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Defect;
 
-[BlitzContent("ICE_LANCE")]
-public sealed class IceLance : BlitzCardDef
+[ContentId("ICE_LANCE")]
+public sealed class IceLance : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "Repeat"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("FROST_ORB"), (int)BlitzCardEffects.Var(x, 1));
+        Kernel.ChannelOrbs(ref x, Kernel.OrbId("FROST_ORB"), (int)CardEffects.Var(x, 1));
     }
 }
 
-[BlitzContent("SHATTER")]
-public sealed class Shatter : BlitzCardDef
+[ContentId("SHATTER")]
+public sealed class Shatter : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         int orbs = x.B.OrbCount;
         for (int index = 0; index < orbs; index++)
         {
-            BlitzKernel.EvokeNext(ref x, repeat: 2);
+            Kernel.EvokeNext(ref x, repeat: 2);
             if (x.NeedsChoice)
                 return;
         }
     }
 }
 
-[BlitzContent("HYPERBEAM")]
-public sealed class Hyperbeam : BlitzCardDef
+[ContentId("HYPERBEAM")]
+public sealed class Hyperbeam : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "FocusPower"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         // CardEffectSpecRegistry's Hyperbeam → ApplyTemporaryFocusLoss<HyperbeamFocusDownPower>.
-        BlitzKernel.ApplyTemporaryFocus(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.HyperbeamFocusDownPower>(), (int)BlitzCardEffects.Var(x, 1),
-            BlitzLimits.PlayerOwner, sign: -1);
+        Kernel.ApplyTemporaryFocus(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.HyperbeamFocusDownPower>(), (int)CardEffects.Var(x, 1),
+            Limits.PlayerOwner, sign: -1);
     }
 }
 
-[BlitzContent("METEOR_STRIKE")]
-public sealed class MeteorStrike : BlitzCardDef
+[ContentId("METEOR_STRIKE")]
+public sealed class MeteorStrike : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // OrbCardMirrors.MeteorStrikeOnPlay: AttackSingle, then channel three Plasma orbs.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("PLASMA_ORB"), 3);
+        Kernel.ChannelOrbs(ref x, Kernel.OrbId("PLASMA_ORB"), 3);
     }
 }
 
-[BlitzContent("HELIX_DRILL")]
-public sealed class HelixDrill : BlitzCardDef
+[ContentId("HELIX_DRILL")]
+public sealed class HelixDrill : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CalculatedVarSpecRegistry.HelixDrill: energy spent this turn minus this card's current cost.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        int hits = Math.Max(0, x.B.Counter(BlitzCounter.EnergySpentThisTurn)
-            - BlitzKernel.EnergyCostWithModifiers(x.B, x.R, x.Card, BlitzPile.Play));
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hits);
+        int hits = Math.Max(0, x.B.Counter(Counter.EnergySpentThisTurn)
+            - Kernel.EnergyCostWithModifiers(x.B, x.R, x.Card, Pile.Play));
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), hits);
     }
 }
 
-[BlitzContent("FLAK_CANNON")]
-public sealed class FlakCannon : BlitzCardDef
+[ContentId("FLAK_CANNON")]
+public sealed class FlakCannon : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
         // RandomTargetAttackCardMirrors.FlakCannonOnPlay: exhaust every Status card (outside the
         // exhaust pile), then a random-target attack with one hit per status.
-        int hits = BlitzCardEffects.CountStatusCards(x.B, x.R);
-        BlitzCardEffects.ExhaustAllStatusCards(ref x);
+        int hits = CardEffects.CountStatusCards(x.B, x.R);
+        CardEffects.ExhaustAllStatusCards(ref x);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.Attack(ref x, BlitzCardEffects.Var(x, 0), hits);
+        CardEffects.Attack(ref x, CardEffects.Var(x, 0), hits);
     }
 }
 
-[BlitzContent("ADAPTIVE_STRIKE")]
-public sealed class AdaptiveStrike : BlitzCardDef
+[ContentId("ADAPTIVE_STRIKE")]
+public sealed class AdaptiveStrike : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardEffectSpecRegistry.AdaptiveStrike: attack, then a clone with cost 0 this combat to discard.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        BlitzCard clone = BlitzKernel.CloneCard(x.Card);
-        BlitzKernel.AddEnergyCostModifier(ref clone, 0, BlitzCostType.Absolute, BlitzCostExpiration.EndOfCombat,
+        Card clone = Kernel.CloneCard(x.Card);
+        Kernel.AddEnergyCostModifier(ref clone, 0, CostType.Absolute, CostExpiration.EndOfCombat,
             reduceOnly: false);
-        BlitzKernel.AddGeneratedCard(ref x, clone, BlitzPile.Discard);
+        Kernel.AddGeneratedCard(ref x, clone, Pile.Discard);
     }
 }
 
-[BlitzContent("ALL_FOR_ONE")]
-public sealed class AllForOne : BlitzCardDef
+[ContentId("ALL_FOR_ONE")]
+public sealed class AllForOne : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // CardEffectSpecRegistry.AllForOne: attack, then return every zero-cost non-X Attack/Skill/Power
     // from the discard pile to hand in discard order.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.GeneralAttack(ref x, 0);
+        CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
         int count = x.B.DiscardCount;
-        int start = BlitzPiles.Start(x.B, BlitzPile.Discard);
-        Span<BlitzCard> chosen = stackalloc BlitzCard[count];
+        int start = Piles.Start(x.B, Pile.Discard);
+        Span<Card> chosen = stackalloc Card[count];
         int selected = 0;
         for (int offset = 0; offset < count; offset++)
         {
-            BlitzCard card = x.B.Cards[start + offset];
-            BlitzCardStats stats = x.R.Card(card.Id, card.Upgrade);
-            if (stats.Type is not (BlitzCardType.Attack or BlitzCardType.Skill or BlitzCardType.Power))
+            Card card = x.B.Cards[start + offset];
+            CardStats stats = x.R.Card(card.Id, card.Upgrade);
+            if (stats.Type is not (CardType.Attack or CardType.Skill or CardType.Power))
                 continue;
-            if ((card.Flags & BlitzCardFlags.CostsX) != 0)
+            if ((card.Flags & CardFlags.CostsX) != 0)
                 continue;
-            if (BlitzKernel.EnergyCostWithModifiers(x.B, x.R, card, BlitzPile.Discard) != 0)
+            if (Kernel.EnergyCostWithModifiers(x.B, x.R, card, Pile.Discard) != 0)
                 continue;
             chosen[selected++] = card;
         }
@@ -149,18 +149,18 @@ public sealed class AllForOne : BlitzCardDef
         {
             int position = FindDiscard(x.B, chosen[item]);
             if (position < 0)
-                throw new BlitzUnsupportedException("AllForOne 选中的弃牌在结算前离开了弃牌堆。");
-            if (!BlitzKernel.MoveCard(ref x.B, BlitzPile.Discard, position, BlitzPile.Hand))
+                throw new UnsupportedException("AllForOne 选中的弃牌在结算前离开了弃牌堆。");
+            if (!Kernel.MoveCard(ref x.B, Pile.Discard, position, Pile.Hand))
                 return;
         }
     }
 
-    private static int FindDiscard(in BlitzBattle battle, in BlitzCard card)
+    private static int FindDiscard(in Battle battle, in Card card)
     {
-        ReadOnlySpan<BlitzCard> discard = BlitzPiles.ReadCards(battle, BlitzPile.Discard);
+        ReadOnlySpan<Card> discard = Piles.ReadCards(battle, Pile.Discard);
         for (int index = 0; index < discard.Length; index++)
         {
-            if (BlitzFingerprint.Equal(discard[index], card))
+            if (Fingerprint.Equal(discard[index], card))
                 return index;
         }
         return -1;

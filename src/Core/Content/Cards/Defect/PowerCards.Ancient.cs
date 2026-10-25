@@ -2,17 +2,17 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Cards.Defect;
 
-[BlitzContent("BIASED_COGNITION")]
-public sealed class BiasedCognition : BlitzCardDef
+[ContentId("BIASED_COGNITION")]
+public sealed class BiasedCognition : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["FocusPower", "BiasedCognitionPower"];
 
     // CorePowerSupport.BiasedCognition: Focus first, then the per-turn Focus loss power.
-    public override void OnPlay(ref BlitzExec x)
+    public override void OnPlay(ref Exec x)
     {
-        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.FocusPower>(), 0);
+        CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.FocusPower>(), 0);
         if (x.NeedsChoice)
             return;
-        BlitzCardEffects.ApplyToOwner(ref x, BlitzRegistry.PowerId<Powers.BiasedCognitionPower>(), 1);
+        CardEffects.ApplyToOwner(ref x, Registry.PowerId<Powers.BiasedCognitionPower>(), 1);
     }
 }

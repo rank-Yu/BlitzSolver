@@ -9,19 +9,19 @@ namespace BlitzSolver.Content.Relics;
 /// cycle; the bridge projects <c>CounterPredictionState.Value</c>, falling back to
 /// <c>IronClub.CardsPlayed</c>.
 /// </summary>
-[BlitzContent("IRON_CLUB")]
-public sealed class IronClub : BlitzRelicDef
+[ContentId("IRON_CLUB")]
+public sealed class IronClub : RelicDef
 {
     // IronClub.cs: CardsVar(4).
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         relic.Counter++;
-        if (!BlitzKernel.IsInProgress(x.B) || relic.Counter % (int)x.R.RelicVar(Id, 0) != 0)
+        if (!Kernel.IsInProgress(x.B) || relic.Counter % (int)x.R.RelicVar(Id, 0) != 0)
             return;
-        BlitzKernel.Draw(ref x, 1, fromHandDraw: false);
+        Kernel.Draw(ref x, 1, fromHandDraw: false);
     }
 }
 
@@ -29,18 +29,18 @@ public sealed class IronClub : BlitzRelicDef
 /// <c>Sai</c>: <c>AfterSideTurnStart</c> gains its unpowered block on every player side
 /// (<c>SimulatedCombatState.RelicTurnStart.TriggerRelicsAfterSideTurnStart</c>).
 /// </summary>
-[BlitzContent("SAI")]
-public sealed class Sai : BlitzRelicDef
+[ContentId("SAI")]
+public sealed class Sai : RelicDef
 {
     // Sai.cs: BlockVar(7m, ValueProp.Unpowered).
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side != BlitzSide.Player)
+        if (side != Side.Player)
             return;
-        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.R.RelicVar(Id, 0),
-            BlitzValueProps.Unpowered, fromCard: false);
+        Kernel.GainBlock(ref x, Limits.PlayerOwner, x.R.RelicVar(Id, 0),
+            ValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -51,22 +51,22 @@ public sealed class Sai : BlitzRelicDef
 /// <c>AfterCardPlayedMirrors.HandleVelvetChoker</c>). Counter = cards played this turn, projected from
 /// <c>CounterPredictionState.Value</c> with the live field as fallback.
 /// </summary>
-[BlitzContent("VELVET_CHOKER")]
-public sealed class VelvetChoker : BlitzRelicDef
+[ContentId("VELVET_CHOKER")]
+public sealed class VelvetChoker : RelicDef
 {
     // VelvetChoker.cs: CardsVar(6), EnergyVar(1).
     public override IReadOnlyList<string> VarNames => ["Cards", "Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 1);
 
-    public override bool ShouldPlay(in BlitzBattle battle, BlitzRules rules, BlitzListener self, in BlitzCard card)
+    public override bool ShouldPlay(in Battle battle, Rules rules, Listener self, in Card card)
         => battle.Relics[self.Index].Counter < (int)rules.RelicVar(Id, 0);
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
         => x.B.Relics[self.Index].Counter++;
 
-    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void BeforeSideTurnStart(ref Exec x, Listener self, Side side)
         => x.B.Relics[self.Index].Counter = 0;
 }
 
@@ -75,30 +75,30 @@ public sealed class VelvetChoker : BlitzRelicDef
 /// player side is current (<c>ShouldDrawMirrors.HandleFiddle</c>). The native
 /// <c>AfterPreventingDraw</c> only flashes.
 /// </summary>
-[BlitzContent("FIDDLE")]
-public sealed class Fiddle : BlitzRelicDef
+[ContentId("FIDDLE")]
+public sealed class Fiddle : RelicDef
 {
     // Fiddle.cs: CardsVar(2).
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyHandDraw(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 
-    public override bool ShouldDraw(ref BlitzExec x, BlitzListener self, bool fromHandDraw)
-        => fromHandDraw || x.B.Side != BlitzSide.Player;
+    public override bool ShouldDraw(ref Exec x, Listener self, bool fromHandDraw)
+        => fromHandDraw || x.B.Side != Side.Player;
 }
 
 /// <summary>
 /// <c>PaelsBlood</c>: <c>ModifyHandDraw</c> adds Cards on every player turn
 /// (<c>PersistentPowerSupport</c> native relic contribution).
 /// </summary>
-[BlitzContent("PAELS_BLOOD")]
-public sealed class PaelsBlood : BlitzRelicDef
+[ContentId("PAELS_BLOOD")]
+public sealed class PaelsBlood : RelicDef
 {
     // PaelsBlood.cs: CardsVar(1).
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyHandDraw(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
@@ -106,15 +106,15 @@ public sealed class PaelsBlood : BlitzRelicDef
 /// <c>PaelsFlesh</c>: <c>ModifyMaxEnergy</c> adds Energy from player turn 3
 /// (<c>PersistentPowerSupport.GetModifiedMaxEnergy</c> native relic contribution).
 /// </summary>
-[BlitzContent("PAELS_FLESH")]
-public sealed class PaelsFlesh : BlitzRelicDef
+[ContentId("PAELS_FLESH")]
+public sealed class PaelsFlesh : RelicDef
 {
     // PaelsFlesh.cs: EnergyVar(1); the turn threshold 3 is a code constant.
     private const int EnergyFromTurn = 3;
 
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => x.B.PlayerTurn < EnergyFromTurn ? amount : amount + x.R.RelicVar(Id, 0);
 }
 
@@ -123,24 +123,24 @@ public sealed class PaelsFlesh : BlitzRelicDef
 /// gains Energy while the flag is set (<c>SimulatedCombatState.RelicTurnStart</c>).
 /// Counter = HadLeftoverEnergy (<c>StatefulRelicState.Current</c>).
 /// </summary>
-[BlitzContent("PAELS_TEARS")]
-public sealed class PaelsTears : BlitzRelicDef
+[ContentId("PAELS_TEARS")]
+public sealed class PaelsTears : RelicDef
 {
     // PaelsTears.cs: EnergyVar(2).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override void BeforeSideTurnEnd(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
+    public override void BeforeSideTurnEnd(ref Exec x, Listener self, Side side, ushort participants)
     {
-        if (!BlitzKernel.Participates(participants, self.Owner))
+        if (!Kernel.Participates(participants, self.Owner))
             return;
         x.B.Relics[self.Index].Counter = x.B.Energy > 0 ? 1 : 0;
     }
 
-    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side != BlitzSide.Player || x.B.Relics[self.Index].Counter == 0)
+        if (side != Side.Player || x.B.Relics[self.Index].Counter == 0)
             return;
-        BlitzKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
+        Kernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
     }
 }
 
@@ -148,13 +148,13 @@ public sealed class PaelsTears : BlitzRelicDef
 /// <c>BlessedAntler</c>: <c>ModifyMaxEnergy</c> adds Energy. The native turn-1 Dazed generation runs at
 /// the turn start before the play-phase root and is imported; later turns do not satisfy its condition.
 /// </summary>
-[BlitzContent("BLESSED_ANTLER")]
-public sealed class BlessedAntler : BlitzRelicDef
+[ContentId("BLESSED_ANTLER")]
+public sealed class BlessedAntler : RelicDef
 {
     // BlessedAntler.cs: EnergyVar(1), CardsVar(3).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
@@ -162,26 +162,26 @@ public sealed class BlessedAntler : BlitzRelicDef
 /// <c>BloodSoakedRose</c>: <c>ModifyMaxEnergy</c> adds Energy. The Enthralled curse is added to the deck
 /// when the relic is obtained, outside combat.
 /// </summary>
-[BlitzContent("BLOOD_SOAKED_ROSE")]
-public sealed class BloodSoakedRose : BlitzRelicDef
+[ContentId("BLOOD_SOAKED_ROSE")]
+public sealed class BloodSoakedRose : RelicDef
 {
     // BloodSoakedRose.cs: EnergyVar(1).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
 /// <summary>
 /// <c>Ectoplasm</c>: <c>ModifyMaxEnergy</c> adds Energy; the gold modifier only runs outside combat.
 /// </summary>
-[BlitzContent("ECTOPLASM")]
-public sealed class Ectoplasm : BlitzRelicDef
+[ContentId("ECTOPLASM")]
+public sealed class Ectoplasm : RelicDef
 {
     // Ectoplasm.cs: EnergyVar(1).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
@@ -189,39 +189,39 @@ public sealed class Ectoplasm : BlitzRelicDef
 /// <c>PhilosophersStone</c>: <c>ModifyMaxEnergy</c> adds Energy. The enemy Strength from
 /// <c>AfterRoomEntered</c> is applied before the root and imported.
 /// </summary>
-[BlitzContent("PHILOSOPHERS_STONE")]
-public sealed class PhilosophersStone : BlitzRelicDef
+[ContentId("PHILOSOPHERS_STONE")]
+public sealed class PhilosophersStone : RelicDef
 {
     // PhilosophersStone.cs: PowerVar&lt;StrengthPower&gt;(1m), EnergyVar(1).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
 /// <summary>
 /// <c>PrismaticGem</c>: <c>ModifyMaxEnergy</c> adds Energy; the card-reward pool modifier is out of combat.
 /// </summary>
-[BlitzContent("PRISMATIC_GEM")]
-public sealed class PrismaticGem : BlitzRelicDef
+[ContentId("PRISMATIC_GEM")]
+public sealed class PrismaticGem : RelicDef
 {
     // PrismaticGem.cs: EnergyVar(1).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
 /// <summary>
 /// <c>Sozu</c>: <c>ModifyMaxEnergy</c> adds Energy; the potion-procurement refusal is out of combat.
 /// </summary>
-[BlitzContent("SOZU")]
-public sealed class Sozu : BlitzRelicDef
+[ContentId("SOZU")]
+public sealed class Sozu : RelicDef
 {
     // Sozu.cs: EnergyVar(1).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
@@ -229,13 +229,13 @@ public sealed class Sozu : BlitzRelicDef
 /// <c>PumpkinCandle</c>: <c>ModifyMaxEnergy</c> adds Energy while KindleCount is positive. Counter =
 /// KindleCount, projected from the live model field (the value does not change during combat).
 /// </summary>
-[BlitzContent("PUMPKIN_CANDLE")]
-public sealed class PumpkinCandle : BlitzRelicDef
+[ContentId("PUMPKIN_CANDLE")]
+public sealed class PumpkinCandle : RelicDef
 {
     // PumpkinCandle.cs: EnergyVar(1), DynamicVar("CombatCount", 5m).
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => x.B.Relics[self.Index].Counter > 0 ? amount + x.R.RelicVar(Id, 0) : amount;
 }
 
@@ -243,38 +243,38 @@ public sealed class PumpkinCandle : BlitzRelicDef
 /// <c>RunicPyramid</c>: <c>ShouldFlush</c> declines the owner's hand flush on every turn
 /// (<c>PersistentRelicSupport.ShouldFlush</c>).
 /// </summary>
-[BlitzContent("RUNIC_PYRAMID")]
-public sealed class RunicPyramid : BlitzRelicDef
+[ContentId("RUNIC_PYRAMID")]
+public sealed class RunicPyramid : RelicDef
 {
-    public override bool ShouldFlush(ref BlitzExec x, BlitzListener self) => false;
+    public override bool ShouldFlush(ref Exec x, Listener self) => false;
 }
 
 /// <summary>
 /// <c>VeryHotCocoa</c>: <c>AfterSideTurnStart</c> gains 4 energy only when the player turn number is
 /// &lt;= 1 (<c>TriggerRelicsAfterSideTurnStart</c>). The player turn 1 start is before the root.
 /// </summary>
-[BlitzContent("VERY_HOT_COCOA")]
-public sealed class VeryHotCocoa : BlitzRelicDef;
+[ContentId("VERY_HOT_COCOA")]
+public sealed class VeryHotCocoa : RelicDef;
 
 /// <summary><c>LoomingFruit</c>: <c>AfterObtained</c> max-HP gain only.</summary>
-[BlitzContent("LOOMING_FRUIT")]
-public sealed class LoomingFruit : BlitzRelicDef;
+[ContentId("LOOMING_FRUIT")]
+public sealed class LoomingFruit : RelicDef;
 
 /// <summary>
 /// <c>BiiigHug</c>: after a shuffle by its owner, create one Soot into the draw pile at a random
 /// position (<c>AfterShuffleMirrors.HandleBiiigHug</c>). <c>AfterObtained</c> is a deck-only effect.
 /// </summary>
-[BlitzContent("BIIIG_HUG")]
-public sealed class BiiigHug : BlitzRelicDef
+[ContentId("BIIIG_HUG")]
+public sealed class BiiigHug : RelicDef
 {
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("SOOT", 0)];
 
-    public override void AfterShuffle(ref BlitzExec x, BlitzListener self, byte shuffler)
+    public override void AfterShuffle(ref Exec x, Listener self, byte shuffler)
     {
-        if (shuffler != BlitzLimits.PlayerOwner)
+        if (shuffler != Limits.PlayerOwner)
             return;
-        BlitzCard soot = BlitzKernel.CreateCard(x.R, BlitzRegistry.CardId<Cards.Status.Soot>());
-        BlitzKernel.AddGeneratedCard(ref x, soot, BlitzPile.Draw, BlitzPilePosition.Random);
+        Card soot = Kernel.CreateCard(x.R, Registry.CardId<Cards.Status.Soot>());
+        Kernel.AddGeneratedCard(ref x, soot, Pile.Draw, PilePosition.Random);
     }
 }
 
@@ -283,32 +283,32 @@ public sealed class BiiigHug : BlitzRelicDef
 /// cards, add Retain to each, and add the one chosen from the generated options to hand
 /// (<c>SimulatedCombatState.RelicTurnStart</c> case ChoicesParadox / <c>TurnStartChoiceSupport.ResolveGeneratedToHand</c>).
 /// </summary>
-[BlitzContent("CHOICES_PARADOX")]
-public sealed class ChoicesParadox : BlitzRelicDef
+[ContentId("CHOICES_PARADOX")]
+public sealed class ChoicesParadox : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAll];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAll];
 
-    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
     {
         if (x.B.PlayerTurn > 1)
             return;
         int count = (int)x.R.RelicVar(Id, 0);
         if (count <= 0)
             return;
-        if (count > BlitzLimits.Cards)
-            throw new BlitzCapacityException("GeneratedCards", BlitzLimits.Cards);
-        Span<BlitzCard> options = stackalloc BlitzCard[count];
-        int sampled = BlitzKernel.SampleCardPool(ref x.B, x.R, BlitzCardPools.CharacterAll, count,
-            distinct: true, BlitzRngStream.CombatCardGeneration, options);
+        if (count > Limits.Cards)
+            throw new CapacityException("GeneratedCards", Limits.Cards);
+        Span<Card> options = stackalloc Card[count];
+        int sampled = Kernel.SampleCardPool(ref x.B, x.R, CardPools.CharacterAll, count,
+            distinct: true, RngStream.CombatCardGeneration, options);
         if (sampled == 0)
             return;
         for (int index = 0; index < sampled; index++)
-            options[index].Keywords |= BlitzKeywords.Retain;
-        if (!BlitzKernel.ChooseOption(ref x, BlitzChoiceEffect.GenerateToHand, options[..sampled], out int selected))
+            options[index].Keywords |= Keywords.Retain;
+        if (!Kernel.ChooseOption(ref x, ChoiceEffect.GenerateToHand, options[..sampled], out int selected))
             return;
-        BlitzKernel.AddGeneratedCard(ref x, options[selected], BlitzPile.Hand, BlitzPilePosition.Bottom);
+        Kernel.AddGeneratedCard(ref x, options[selected], Pile.Hand, PilePosition.Bottom);
     }
 }
 
@@ -316,33 +316,33 @@ public sealed class ChoicesParadox : BlitzRelicDef
 /// <c>Crossbow</c>: at every player side turn start, generate one distinct character Attack, make it
 /// free this turn and add it to hand (<c>SimulatedCombatState.RelicTurnStart</c> case Crossbow).
 /// </summary>
-[BlitzContent("CROSSBOW")]
-public sealed class Crossbow : BlitzRelicDef
+[ContentId("CROSSBOW")]
+public sealed class Crossbow : RelicDef
 {
-    public override IReadOnlyList<string> GeneratedCardPools => [BlitzCardPools.CharacterAttacks];
+    public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAttacks];
 
-    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side != BlitzSide.Player)
+        if (side != Side.Player)
             return;
-        Span<BlitzCard> selected = stackalloc BlitzCard[1];
-        int sampled = BlitzKernel.SampleCardPool(ref x.B, x.R, BlitzCardPools.CharacterAttacks, 1,
-            distinct: true, BlitzRngStream.CombatCardGeneration, selected);
+        Span<Card> selected = stackalloc Card[1];
+        int sampled = Kernel.SampleCardPool(ref x.B, x.R, CardPools.CharacterAttacks, 1,
+            distinct: true, RngStream.CombatCardGeneration, selected);
         if (sampled == 0)
             return;
-        BlitzCard card = selected[0];
-        BlitzKernel.MakeFreeThisTurn(x.R, ref card);
-        BlitzKernel.AddGeneratedCard(ref x, card, BlitzPile.Hand, BlitzPilePosition.Bottom);
+        Card card = selected[0];
+        Kernel.MakeFreeThisTurn(x.R, ref card);
+        Kernel.AddGeneratedCard(ref x, card, Pile.Hand, PilePosition.Bottom);
     }
 }
 
 /// <summary>
 /// <c>FurCoat</c>: enemies created at a marked map coordinate start at 1 current HP. The marked
-/// coordinate is out-of-combat data frozen into <see cref="BlitzRules.FurCoatSpawnHpOne"/>
+/// coordinate is out-of-combat data frozen into <see cref="Rules.FurCoatSpawnHpOne"/>
 /// (<c>MonsterSpawnSupport.ApplyCreatureAddedRelics</c>); the relic itself has no combat hook.
 /// </summary>
-[BlitzContent("FUR_COAT")]
-public sealed class FurCoat : BlitzRelicDef
+[ContentId("FUR_COAT")]
+public sealed class FurCoat : RelicDef
 {
 }
 
@@ -351,37 +351,37 @@ public sealed class FurCoat : BlitzRelicDef
 /// (<c>BeforeCardPlayedMirrors.HandleMusicBox</c> + <c>AfterCardPlayedMirrors.HandleMusicBox</c>;
 /// the per-turn latch is <c>MusicBoxPredictionState.WasUsedThisTurn</c>).
 /// </summary>
-[BlitzContent("MUSIC_BOX")]
-public sealed class MusicBox : BlitzRelicDef
+[ContentId("MUSIC_BOX")]
+public sealed class MusicBox : RelicDef
 {
-    public override void BeforeCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         if (relic.Counter != 0 || x.MusicBoxPlayIdentity != 0)
             return;
-        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != BlitzCardType.Attack)
+        if (x.R.Card(play.Card.Id, play.Card.Upgrade).Type != CardType.Attack)
             return;
         x.MusicBoxPlayIdentity = x.PlayIdentity;
     }
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         if (x.MusicBoxPlayIdentity == 0 || x.MusicBoxPlayIdentity != x.LastPlayIdentity)
             return;
         x.MusicBoxPlayIdentity = 0;
-        BlitzCard clone = BlitzKernel.CloneCard(play.Card);
-        clone.Keywords |= BlitzKeywords.Ethereal;
-        if (!BlitzKernel.AddGeneratedCard(ref x, clone, BlitzPile.Hand, BlitzPilePosition.Bottom))
+        Card clone = Kernel.CloneCard(play.Card);
+        clone.Keywords |= Keywords.Ethereal;
+        if (!Kernel.AddGeneratedCard(ref x, clone, Pile.Hand, PilePosition.Bottom))
             return;
         if (x.NeedsChoice)
             return;
         relic.Counter = 1;
     }
 
-    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void BeforeSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side == BlitzSide.Player)
+        if (side == Side.Player)
             x.B.Relics[self.Index].Counter = 0;
     }
 }
@@ -392,54 +392,54 @@ public sealed class MusicBox : BlitzRelicDef
 /// grants the turn and <c>AfterTakingExtraTurn</c> sets the used latch
 /// (<c>SimulatedCombatState.ReactiveRelics.cs</c> + <c>ExtraTurnMirrors</c>).
 /// </summary>
-[BlitzContent("PAELS_EYE")]
-public sealed class PaelsEye : BlitzRelicDef
+[ContentId("PAELS_EYE")]
+public sealed class PaelsEye : RelicDef
 {
-    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
     {
         // TriggerRelicsAfterPlayerTurnStart case PaelsEye: state.Previous = 1.
         x.B.Relics[self.Index].Aux = 1;
     }
 
-    public override void BeforeSideTurnEndEarly(ref BlitzExec x, BlitzListener self, BlitzSide side, ushort participants)
+    public override void BeforeSideTurnEndEarly(ref Exec x, Listener self, Side side, ushort participants)
     {
-        if (side != BlitzSide.Player
-            || !BlitzKernel.Participates(participants, BlitzLimits.PlayerOwner)
+        if (side != Side.Player
+            || !Kernel.Participates(participants, Limits.PlayerOwner)
             || !ShouldTrigger(x.B, x.B.Relics[self.Index]))
             return;
         int handCount = x.B.HandCount;
         Span<int> selected = stackalloc int[handCount];
         for (int index = 0; index < handCount; index++)
             selected[index] = index;
-        BlitzKernel.ExhaustSelected(ref x, BlitzPile.Hand, selected);
+        Kernel.ExhaustSelected(ref x, Pile.Hand, selected);
     }
 
-    public override bool ShouldTakeExtraTurn(ref BlitzExec x, BlitzListener self)
+    public override bool ShouldTakeExtraTurn(ref Exec x, Listener self)
         => ShouldTrigger(x.B, x.B.Relics[self.Index]);
 
-    public override void AfterTakingExtraTurn(ref BlitzExec x, BlitzListener self)
+    public override void AfterTakingExtraTurn(ref Exec x, Listener self)
     {
         x.B.Relics[self.Index].Counter = 1;
     }
 
-    private bool ShouldTrigger(in BlitzBattle battle, in BlitzRelic relic)
+    private bool ShouldTrigger(in Battle battle, in Relic relic)
     {
         if (relic.Counter != 0 || relic.Aux == 0)
             return false;
-        if (battle.Counter(BlitzCounter.ManualCardsPlayedThisTurn) != 0)
+        if (battle.Counter(Counter.ManualCardsPlayedThisTurn) != 0)
             return false;
         if (battle.PlayerTurn == 1 && HasRelic(battle, "WHISPERING_EARRING"))
             return false;
         return true;
     }
 
-    private static bool HasRelic(in BlitzBattle battle, string nativeId)
+    private static bool HasRelic(in Battle battle, string nativeId)
     {
-        if (!BlitzRegistry.TryRelic(nativeId, out ushort id))
+        if (!Registry.TryRelic(nativeId, out ushort id))
             return false;
         for (int index = 0; index < battle.RelicCount; index++)
         {
-            if (battle.Relics[index].Id == id && (battle.Relics[index].Flags & BlitzRelicFlags.Melted) == 0)
+            if (battle.Relics[index].Id == id && (battle.Relics[index].Flags & RelicFlags.Melted) == 0)
                 return true;
         }
         return false;
@@ -452,49 +452,49 @@ public sealed class PaelsEye : BlitzRelicDef
 /// (<c>ModifyBlockMultiplicativeMirrors</c>, <c>AfterModifyingBlockAmountMirrors</c>,
 /// <c>AfterCardPlayedMirrors</c> and <c>RelicPredictionStateSupport.ResetAfterSideTurnStart</c>).
 /// </summary>
-[BlitzContent("PAELS_LEGION")]
-public sealed class PaelsLegion : BlitzRelicDef
+[ContentId("PAELS_LEGION")]
+public sealed class PaelsLegion : RelicDef
 {
     public override bool IsPaelsLegion => true;
 
     public override IReadOnlyList<string> VarNames => ["Turns"];
 
-    public override decimal ModifyBlockMultiplicative(ref BlitzExec x, BlitzListener self, in BlitzBlockContext block,
+    public override decimal ModifyBlockMultiplicative(ref Exec x, Listener self, in BlockContext block,
         decimal amount)
     {
-        if ((block.Props & BlitzValueProps.Move) == 0 || !block.HasCardSource)
+        if ((block.Props & ValueProps.Move) == 0 || !block.HasCardSource)
             return 1m;
         return x.B.Relics[self.Index].Counter > 0 ? 1m : 2m;
     }
 
-    public override void AfterModifyingBlockAmount(ref BlitzExec x, BlitzListener self, decimal modified,
-        in BlitzBlockContext block)
+    public override void AfterModifyingBlockAmount(ref Exec x, Listener self, decimal modified,
+        in BlockContext block)
     {
         if (modified <= 0m)
             return;
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         if (relic.Aux != 0 && relic.Aux != x.PlayIdentity)
             return;
         relic.Aux = x.PlayIdentity;
     }
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         if (relic.Aux == 0 || relic.Aux != x.LastPlayIdentity)
             return;
         relic.Aux = 0;
         relic.Counter = (int)x.R.RelicVar(Id, 0);
-        relic.Flags |= BlitzRelicFlags.UsedThisCombat;
+        relic.Flags |= RelicFlags.UsedThisCombat;
     }
 
-    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
         // RelicPredictionStateSupport.ResetAfterSideTurnStart case PaelsLegion runs before the case
         // switch: cooldown-- and the display latch clears, whatever the current cooldown sign is.
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         relic.Counter--;
-        relic.Flags &= ~BlitzRelicFlags.UsedThisCombat;
+        relic.Flags &= ~RelicFlags.UsedThisCombat;
     }
 }
 
@@ -502,17 +502,17 @@ public sealed class PaelsLegion : BlitzRelicDef
 /// <c>SpikedGauntlets</c>: +Energy maximum energy, and Power cards cost 1 more
 /// (<c>ModifyMaxEnergy</c> and the verified native <c>TryModifyEnergyCostInCombat</c>).
 /// </summary>
-[BlitzContent("SPIKED_GAUNTLETS")]
-public sealed class SpikedGauntlets : BlitzRelicDef
+[ContentId("SPIKED_GAUNTLETS")]
+public sealed class SpikedGauntlets : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 
-    public override decimal TryModifyEnergyCostInCombat(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
-        in BlitzCard card, BlitzPile pile, decimal amount)
-        => rules.Card(card.Id, card.Upgrade).Type == BlitzCardType.Power ? amount + 1m : amount;
+    public override decimal TryModifyEnergyCostInCombat(in Battle battle, Rules rules, Listener self,
+        in Card card, Pile pile, decimal amount)
+        => rules.Card(card.Id, card.Upgrade).Type == CardType.Power ? amount + 1m : amount;
 }
 
 /// <summary>
@@ -520,14 +520,14 @@ public sealed class SpikedGauntlets : BlitzRelicDef
 /// (<c>ModifyCardPlayCountMirrors.HandleThrowingAxe</c> / <c>HandleThrowingAxeAfter</c>; the latch is
 /// <c>ThrowingAxePredictionState.UsedThisCombat</c>, reset out of combat by <c>AfterRoomEntered</c>).
 /// </summary>
-[BlitzContent("THROWING_AXE")]
-public sealed class ThrowingAxe : BlitzRelicDef
+[ContentId("THROWING_AXE")]
+public sealed class ThrowingAxe : RelicDef
 {
-    public override int ModifyCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card, byte target,
+    public override int ModifyCardPlayCount(ref Exec x, Listener self, in Card card, byte target,
         int playCount)
         => x.B.Relics[self.Index].Counter == 0 ? playCount + 1 : playCount;
 
-    public override void AfterModifyingCardPlayCount(ref BlitzExec x, BlitzListener self, in BlitzCard card)
+    public override void AfterModifyingCardPlayCount(ref Exec x, Listener self, in Card card)
     {
         x.B.Relics[self.Index].Counter = 1;
     }
@@ -537,12 +537,12 @@ public sealed class ThrowingAxe : BlitzRelicDef
 /// <c>ToastyMittens</c>: at the player turn start exhaust one card from hand, then apply its Strength
 /// variable (<c>SimulatedCombatState.RelicTurnStart</c> case ToastyMittens).
 /// </summary>
-[BlitzContent("TOASTY_MITTENS")]
-public sealed class ToastyMittens : BlitzRelicDef
+[ContentId("TOASTY_MITTENS")]
+public sealed class ToastyMittens : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
-    public override void AfterPlayerTurnStart(ref BlitzExec x, BlitzListener self)
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
     {
         if (x.B.HandCount > 0)
         {
@@ -550,20 +550,20 @@ public sealed class ToastyMittens : BlitzRelicDef
             for (int index = 0; index < options.Length; index++)
                 options[index] = index;
             Span<int> selected = stackalloc int[1];
-            if (!BlitzKernel.ChooseCards(ref x, BlitzChoiceEffect.Exhaust, BlitzPile.Hand, options, 1, selected,
+            if (!Kernel.ChooseCards(ref x, ChoiceEffect.Exhaust, Pile.Hand, options, 1, selected,
                     out int chosen))
             {
                 return;
             }
-            BlitzKernel.StartPlayerSideTurnIfNeeded(ref x);
+            Kernel.StartPlayerSideTurnIfNeeded(ref x);
             if (x.NeedsChoice)
                 return;
-            BlitzKernel.ExhaustSelected(ref x, BlitzPile.Hand, selected[..chosen]);
+            Kernel.ExhaustSelected(ref x, Pile.Hand, selected[..chosen]);
             if (x.NeedsChoice)
                 return;
         }
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.StrengthPower>(), (int)x.R.RelicVar(Id, 0), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.StrengthPower>(), (int)x.R.RelicVar(Id, 0), Limits.PlayerOwner);
     }
 }
 
@@ -571,19 +571,19 @@ public sealed class ToastyMittens : BlitzRelicDef
 /// <c>SealOfGold</c>: at the player side turn start, if the owner has at least its Gold variable, gain
 /// Energy and lose that gold (<c>SimulatedCombatState.RelicTurnStart</c> case SealOfGold).
 /// </summary>
-[BlitzContent("SEAL_OF_GOLD")]
-public sealed class SealOfGold : BlitzRelicDef
+[ContentId("SEAL_OF_GOLD")]
+public sealed class SealOfGold : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy", "Gold"];
 
-    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side != BlitzSide.Player)
+        if (side != Side.Player)
             return;
         int gold = (int)x.R.RelicVar(Id, 1);
         if (x.B.Gold < gold)
             return;
-        BlitzKernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
+        Kernel.GainEnergy(ref x, x.R.RelicVar(Id, 0));
         if (x.NeedsChoice)
             return;
         x.B.Gold = Math.Max(0, x.B.Gold - gold);
@@ -594,12 +594,12 @@ public sealed class SealOfGold : BlitzRelicDef
 /// <c>SneckoEye</c>: adds its Cards variable to the player's hand draw; ConfusedPower is applied before
 /// combat and is already in the root.
 /// </summary>
-[BlitzContent("SNECKO_EYE")]
-public sealed class SneckoEye : BlitzRelicDef
+[ContentId("SNECKO_EYE")]
+public sealed class SneckoEye : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override decimal ModifyHandDraw(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyHandDraw(ref Exec x, Listener self, decimal amount)
     {
         return amount + x.R.RelicVar(Id, 0);
     }
@@ -610,12 +610,12 @@ public sealed class SneckoEye : BlitzRelicDef
 /// (<c>AfterAutoPrePlayPhaseEnteredLate</c>) runs before the captured root, like Imbued; the relic's
 /// presence is also read by PaelsEye's first-turn gate.
 /// </summary>
-[BlitzContent("WHISPERING_EARRING")]
-public sealed class WhisperingEarring : BlitzRelicDef
+[ContentId("WHISPERING_EARRING")]
+public sealed class WhisperingEarring : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Energy"];
 
-    public override decimal ModifyMaxEnergy(ref BlitzExec x, BlitzListener self, decimal amount)
+    public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
 }
 
@@ -623,8 +623,8 @@ public sealed class WhisperingEarring : BlitzRelicDef
 /// <c>DelicateFrond</c>: fills the open potion slots at <c>BeforeCombatStart</c>; the potions are in
 /// the captured root, so there is no in-combat hook.
 /// </summary>
-[BlitzContent("DELICATE_FROND")]
-public sealed class DelicateFrond : BlitzRelicDef
+[ContentId("DELICATE_FROND")]
+public sealed class DelicateFrond : RelicDef
 {
 }
 
@@ -632,8 +632,8 @@ public sealed class DelicateFrond : BlitzRelicDef
 /// <c>DiamondDiadem</c>: gain 20 Unpowered block and 1 Blur at the first side turn start
 /// (<c>AfterSideTurnStart</c> with <c>TurnNumber &lt;= 1</c>), before the captured root.
 /// </summary>
-[BlitzContent("DIAMOND_DIADEM")]
-public sealed class DiamondDiadem : BlitzRelicDef
+[ContentId("DIAMOND_DIADEM")]
+public sealed class DiamondDiadem : RelicDef
 {
 }
 
@@ -641,145 +641,145 @@ public sealed class DiamondDiadem : BlitzRelicDef
 /// <c>RadiantPearl</c>: adds its Cards Luminesce cards to hand at the first <c>BeforeHandDraw</c>,
 /// before the captured root; the cards are already in the root hand and have their own definition.
 /// </summary>
-[BlitzContent("RADIANT_PEARL")]
-public sealed class RadiantPearl : BlitzRelicDef
+[ContentId("RADIANT_PEARL")]
+public sealed class RadiantPearl : RelicDef
 {
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("LUMINESCE", 0), ("LUMINESCE", 1)];
 }
 
 // --- rewards, shops, rest sites, map and pickup effects --------------------------------
-[BlitzContent("ALCHEMICAL_COFFER")] public sealed class AlchemicalCoffer : BlitzRelicDef; // AfterObtained / TryModifyRewards
+[ContentId("ALCHEMICAL_COFFER")] public sealed class AlchemicalCoffer : RelicDef; // AfterObtained / TryModifyRewards
 
-[BlitzContent("ARCANE_SCROLL")] public sealed class ArcaneScroll : BlitzRelicDef; // AfterObtained
+[ContentId("ARCANE_SCROLL")] public sealed class ArcaneScroll : RelicDef; // AfterObtained
 
-[BlitzContent("ARCHAIC_TOOTH")] public sealed class ArchaicTooth : BlitzRelicDef; // AfterCloned / AfterObtained
+[ContentId("ARCHAIC_TOOTH")] public sealed class ArchaicTooth : RelicDef; // AfterCloned / AfterObtained
 
-[BlitzContent("ASTROLABE")] public sealed class Astrolabe : BlitzRelicDef; // AfterObtained
+[ContentId("ASTROLABE")] public sealed class Astrolabe : RelicDef; // AfterObtained
 
-[BlitzContent("BEAUTIFUL_BRACELET")] public sealed class BeautifulBracelet : BlitzRelicDef; // AfterObtained
+[ContentId("BEAUTIFUL_BRACELET")] public sealed class BeautifulBracelet : RelicDef; // AfterObtained
 
-[BlitzContent("BLACK_STAR")] public sealed class BlackStar : BlitzRelicDef; // TryModifyRewards
+[ContentId("BLACK_STAR")] public sealed class BlackStar : RelicDef; // TryModifyRewards
 
-[BlitzContent("CALLING_BELL")] public sealed class CallingBell : BlitzRelicDef; // AfterObtained
+[ContentId("CALLING_BELL")] public sealed class CallingBell : RelicDef; // AfterObtained
 
-[BlitzContent("CLAWS")] public sealed class Claws : BlitzRelicDef; // AfterObtained
+[ContentId("CLAWS")] public sealed class Claws : RelicDef; // AfterObtained
 
-[BlitzContent("CURSED_PEARL")] public sealed class CursedPearl : BlitzRelicDef; // AfterObtained
+[ContentId("CURSED_PEARL")] public sealed class CursedPearl : RelicDef; // AfterObtained
 
-[BlitzContent("DISTINGUISHED_CAPE")] public sealed class DistinguishedCape : BlitzRelicDef; // AfterObtained
+[ContentId("DISTINGUISHED_CAPE")] public sealed class DistinguishedCape : RelicDef; // AfterObtained
 
-[BlitzContent("DOWSING_ROD")] public sealed class DowsingRod : BlitzRelicDef; // AfterObtained / TryModifyRewards
+[ContentId("DOWSING_ROD")] public sealed class DowsingRod : RelicDef; // AfterObtained / TryModifyRewards
 
-[BlitzContent("DRIFTWOOD")] public sealed class Driftwood : BlitzRelicDef; // TryModifyRewardsLate
+[ContentId("DRIFTWOOD")] public sealed class Driftwood : RelicDef; // TryModifyRewardsLate
 
-[BlitzContent("DUSTY_TOME")] public sealed class DustyTome : BlitzRelicDef; // AfterObtained
+[ContentId("DUSTY_TOME")] public sealed class DustyTome : RelicDef; // AfterObtained
 
-[BlitzContent("ELECTRIC_SHRYMP")] public sealed class ElectricShrymp : BlitzRelicDef; // AfterObtained
+[ContentId("ELECTRIC_SHRYMP")] public sealed class ElectricShrymp : RelicDef; // AfterObtained
 
-[BlitzContent("EMPTY_CAGE")] public sealed class EmptyCage : BlitzRelicDef; // AfterObtained
+[ContentId("EMPTY_CAGE")] public sealed class EmptyCage : RelicDef; // AfterObtained
 
-[BlitzContent("FISHING_ROD")] public sealed class FishingRod : BlitzRelicDef; // AfterCombatEnd
+[ContentId("FISHING_ROD")] public sealed class FishingRod : RelicDef; // AfterCombatEnd
 
-[BlitzContent("GLASS_EYE")] public sealed class GlassEye : BlitzRelicDef; // AfterObtained
+[ContentId("GLASS_EYE")] public sealed class GlassEye : RelicDef; // AfterObtained
 
-[BlitzContent("GLITTER")] public sealed class Glitter : BlitzRelicDef; // TryModifyCardRewardOptionsLate
+[ContentId("GLITTER")] public sealed class Glitter : RelicDef; // TryModifyCardRewardOptionsLate
 
-[BlitzContent("GOLDEN_COMPASS")] public sealed class GoldenCompass : BlitzRelicDef; // AfterObtained / map
+[ContentId("GOLDEN_COMPASS")] public sealed class GoldenCompass : RelicDef; // AfterObtained / map
 
-[BlitzContent("GOLDEN_PEARL")] public sealed class GoldenPearl : BlitzRelicDef; // AfterObtained
+[ContentId("GOLDEN_PEARL")] public sealed class GoldenPearl : RelicDef; // AfterObtained
 
-[BlitzContent("HEFTY_TABLET")] public sealed class HeftyTablet : BlitzRelicDef; // AfterObtained
+[ContentId("HEFTY_TABLET")] public sealed class HeftyTablet : RelicDef; // AfterObtained
 
-[BlitzContent("JEWELRY_BOX")] public sealed class JewelryBox : BlitzRelicDef; // AfterObtained
+[ContentId("JEWELRY_BOX")] public sealed class JewelryBox : RelicDef; // AfterObtained
 
-[BlitzContent("KALEIDOSCOPE")] public sealed class Kaleidoscope : BlitzRelicDef; // AfterObtained / IsAllowedAtNeow
+[ContentId("KALEIDOSCOPE")] public sealed class Kaleidoscope : RelicDef; // AfterObtained / IsAllowedAtNeow
 
-[BlitzContent("LARGE_CAPSULE")] public sealed class LargeCapsule : BlitzRelicDef; // AfterObtained
+[ContentId("LARGE_CAPSULE")] public sealed class LargeCapsule : RelicDef; // AfterObtained
 
-[BlitzContent("LAVA_ROCK")] public sealed class LavaRock : BlitzRelicDef; // TryModifyRewards
+[ContentId("LAVA_ROCK")] public sealed class LavaRock : RelicDef; // TryModifyRewards
 
-[BlitzContent("LEAD_PAPERWEIGHT")] public sealed class LeadPaperweight : BlitzRelicDef; // AfterObtained
+[ContentId("LEAD_PAPERWEIGHT")] public sealed class LeadPaperweight : RelicDef; // AfterObtained
 
-[BlitzContent("LEAFY_POULTICE")] public sealed class LeafyPoultice : BlitzRelicDef; // AfterObtained
+[ContentId("LEAFY_POULTICE")] public sealed class LeafyPoultice : RelicDef; // AfterObtained
 
-[BlitzContent("LORDS_PARASOL")] public sealed class LordsParasol : BlitzRelicDef; // AfterRoomEntered (merchant)
+[ContentId("LORDS_PARASOL")] public sealed class LordsParasol : RelicDef; // AfterRoomEntered (merchant)
 
-[BlitzContent("LOST_COFFER")] public sealed class LostCoffer : BlitzRelicDef; // AfterObtained
+[ContentId("LOST_COFFER")] public sealed class LostCoffer : RelicDef; // AfterObtained
 
-[BlitzContent("MASSIVE_SCROLL")] public sealed class MassiveScroll : BlitzRelicDef; // IsAllowed / AfterObtained
+[ContentId("MASSIVE_SCROLL")] public sealed class MassiveScroll : RelicDef; // IsAllowed / AfterObtained
 
-[BlitzContent("MEAT_CLEAVER")] public sealed class MeatCleaver : BlitzRelicDef; // TryModifyRestSiteOptions
+[ContentId("MEAT_CLEAVER")] public sealed class MeatCleaver : RelicDef; // TryModifyRestSiteOptions
 
-[BlitzContent("NEOWS_BONES")] public sealed class NeowsBones : BlitzRelicDef; // AfterObtained
+[ContentId("NEOWS_BONES")] public sealed class NeowsBones : RelicDef; // AfterObtained
 
-[BlitzContent("NEOWS_SACRIFICE")] public sealed class NeowsSacrifice : BlitzRelicDef; // AfterObtained
+[ContentId("NEOWS_SACRIFICE")] public sealed class NeowsSacrifice : RelicDef; // AfterObtained
 
-[BlitzContent("NEOWS_TALISMAN")] public sealed class NeowsTalisman : BlitzRelicDef; // AfterObtained
+[ContentId("NEOWS_TALISMAN")] public sealed class NeowsTalisman : RelicDef; // AfterObtained
 
-[BlitzContent("NEOWS_TORMENT")] public sealed class NeowsTorment : BlitzRelicDef; // AfterObtained
+[ContentId("NEOWS_TORMENT")] public sealed class NeowsTorment : RelicDef; // AfterObtained
 
-[BlitzContent("NEW_LEAF")] public sealed class NewLeaf : BlitzRelicDef; // AfterObtained
+[ContentId("NEW_LEAF")] public sealed class NewLeaf : RelicDef; // AfterObtained
 
-[BlitzContent("NUTRITIOUS_OYSTER")] public sealed class NutritiousOyster : BlitzRelicDef; // AfterObtained
+[ContentId("NUTRITIOUS_OYSTER")] public sealed class NutritiousOyster : RelicDef; // AfterObtained
 
-[BlitzContent("NUTRITIOUS_SOUP")] public sealed class NutritiousSoup : BlitzRelicDef; // AfterObtained
+[ContentId("NUTRITIOUS_SOUP")] public sealed class NutritiousSoup : RelicDef; // AfterObtained
 
-[BlitzContent("PAELS_CLAW")] public sealed class PaelsClaw : BlitzRelicDef; // AfterObtained (deck enchantment)
+[ContentId("PAELS_CLAW")] public sealed class PaelsClaw : RelicDef; // AfterObtained (deck enchantment)
 
-[BlitzContent("PAELS_GROWTH")] public sealed class PaelsGrowth : BlitzRelicDef; // AfterObtained / rest site
+[ContentId("PAELS_GROWTH")] public sealed class PaelsGrowth : RelicDef; // AfterObtained / rest site
 
-[BlitzContent("PAELS_HORN")] public sealed class PaelsHorn : BlitzRelicDef; // AfterObtained
+[ContentId("PAELS_HORN")] public sealed class PaelsHorn : RelicDef; // AfterObtained
 
-[BlitzContent("PAELS_TOOTH")] public sealed class PaelsTooth : BlitzRelicDef; // rewards / AfterObtained
+[ContentId("PAELS_TOOTH")] public sealed class PaelsTooth : RelicDef; // rewards / AfterObtained
 
-[BlitzContent("PAELS_WING")] public sealed class PaelsWing : BlitzRelicDef; // TryModifyCardRewardAlternatives
+[ContentId("PAELS_WING")] public sealed class PaelsWing : RelicDef; // TryModifyCardRewardAlternatives
 
-[BlitzContent("PANDORAS_BOX")] public sealed class PandorasBox : BlitzRelicDef; // AfterObtained
+[ContentId("PANDORAS_BOX")] public sealed class PandorasBox : RelicDef; // AfterObtained
 
-[BlitzContent("PHIAL_HOLSTER")] public sealed class PhialHolster : BlitzRelicDef; // AfterObtained
+[ContentId("PHIAL_HOLSTER")] public sealed class PhialHolster : RelicDef; // AfterObtained
 
-[BlitzContent("POMANDER")] public sealed class Pomander : BlitzRelicDef; // AfterObtained
+[ContentId("POMANDER")] public sealed class Pomander : RelicDef; // AfterObtained
 
-[BlitzContent("PRECARIOUS_SHEARS")] public sealed class PrecariousShears : BlitzRelicDef; // AfterObtained
+[ContentId("PRECARIOUS_SHEARS")] public sealed class PrecariousShears : RelicDef; // AfterObtained
 
-[BlitzContent("PRECISE_SCISSORS")] public sealed class PreciseScissors : BlitzRelicDef; // AfterObtained
+[ContentId("PRECISE_SCISSORS")] public sealed class PreciseScissors : RelicDef; // AfterObtained
 
-[BlitzContent("PRESERVED_FOG")] public sealed class PreservedFog : BlitzRelicDef; // AfterObtained
+[ContentId("PRESERVED_FOG")] public sealed class PreservedFog : RelicDef; // AfterObtained
 
-[BlitzContent("SAND_CASTLE")] public sealed class SandCastle : BlitzRelicDef; // AfterObtained
+[ContentId("SAND_CASTLE")] public sealed class SandCastle : RelicDef; // AfterObtained
 
-[BlitzContent("SCROLL_BOXES")] public sealed class ScrollBoxes : BlitzRelicDef; // AfterObtained / IsAllowedAtNeow
+[ContentId("SCROLL_BOXES")] public sealed class ScrollBoxes : RelicDef; // AfterObtained / IsAllowedAtNeow
 
-[BlitzContent("SEA_GLASS")] public sealed class SeaGlass : BlitzRelicDef; // AfterObtained
+[ContentId("SEA_GLASS")] public sealed class SeaGlass : RelicDef; // AfterObtained
 
-[BlitzContent("SERE_TALON")] public sealed class SereTalon : BlitzRelicDef; // AfterObtained
+[ContentId("SERE_TALON")] public sealed class SereTalon : RelicDef; // AfterObtained
 
-[BlitzContent("SIGNET_RING")] public sealed class SignetRing : BlitzRelicDef; // AfterObtained
+[ContentId("SIGNET_RING")] public sealed class SignetRing : RelicDef; // AfterObtained
 
-[BlitzContent("SILKEN_TRESS")] public sealed class SilkenTress : BlitzRelicDef; // TryModifyCardRewardOptionsLate
+[ContentId("SILKEN_TRESS")] public sealed class SilkenTress : RelicDef; // TryModifyCardRewardOptionsLate
 
-[BlitzContent("SILVER_CRUCIBLE")] public sealed class SilverCrucible : BlitzRelicDef; // rewards / IsAllowed
+[ContentId("SILVER_CRUCIBLE")] public sealed class SilverCrucible : RelicDef; // rewards / IsAllowed
 
-[BlitzContent("SMALL_CAPSULE")] public sealed class SmallCapsule : BlitzRelicDef; // AfterObtained
+[ContentId("SMALL_CAPSULE")] public sealed class SmallCapsule : RelicDef; // AfterObtained
 
-[BlitzContent("STONE_HUMIDIFIER")] public sealed class StoneHumidifier : BlitzRelicDef; // AfterRestSiteHeal
+[ContentId("STONE_HUMIDIFIER")] public sealed class StoneHumidifier : RelicDef; // AfterRestSiteHeal
 
-[BlitzContent("STORYBOOK")] public sealed class Storybook : BlitzRelicDef; // AfterObtained
+[ContentId("STORYBOOK")] public sealed class Storybook : RelicDef; // AfterObtained
 
-[BlitzContent("TANXS_WHISTLE")] public sealed class TanxsWhistle : BlitzRelicDef; // AfterObtained
+[ContentId("TANXS_WHISTLE")] public sealed class TanxsWhistle : RelicDef; // AfterObtained
 
-[BlitzContent("TOUCH_OF_OROBAS")] public sealed class TouchOfOrobas : BlitzRelicDef; // AfterCloned / AfterObtained
+[ContentId("TOUCH_OF_OROBAS")] public sealed class TouchOfOrobas : RelicDef; // AfterCloned / AfterObtained
 
-[BlitzContent("TOY_BOX")] public sealed class ToyBox : BlitzRelicDef; // AfterObtained / AfterCombatEnd
+[ContentId("TOY_BOX")] public sealed class ToyBox : RelicDef; // AfterObtained / AfterCombatEnd
 
-[BlitzContent("TRI_BOOMERANG")] public sealed class TriBoomerang : BlitzRelicDef; // AfterObtained
+[ContentId("TRI_BOOMERANG")] public sealed class TriBoomerang : RelicDef; // AfterObtained
 
-[BlitzContent("WAR_HAMMER")] public sealed class WarHammer : BlitzRelicDef; // AfterCombatVictory
+[ContentId("WAR_HAMMER")] public sealed class WarHammer : RelicDef; // AfterCombatVictory
 
-[BlitzContent("WINGED_BOOTS")] public sealed class WingedBoots : BlitzRelicDef; // map / IsAllowed
+[ContentId("WINGED_BOOTS")] public sealed class WingedBoots : RelicDef; // map / IsAllowed
 
-[BlitzContent("YUMMY_COOKIE")] public sealed class YummyCookie : BlitzRelicDef; // AfterObtained
+[ContentId("YUMMY_COOKIE")] public sealed class YummyCookie : RelicDef; // AfterObtained
 
-[BlitzContent("BOOMING_CONCH")] public sealed class BoomingConch : BlitzRelicDef; // turn 1 elite draw / energy
+[ContentId("BOOMING_CONCH")] public sealed class BoomingConch : RelicDef; // turn 1 elite draw / energy
 
-[BlitzContent("JEWELED_MASK")] public sealed class JeweledMask : BlitzRelicDef; // turn 1 BeforeHandDraw
+[ContentId("JEWELED_MASK")] public sealed class JeweledMask : RelicDef; // turn 1 BeforeHandDraw

@@ -9,8 +9,8 @@ namespace BlitzSolver.Content.Monsters.Act1;
 /// STUN_MOVE is the native must-perform-once stun state; the Plow removal forces the separate
 /// synthetic STUNNED follow-up to BEAST_CRY_MOVE (see <see cref="PlowPower"/>).
 /// </summary>
-[BlitzContent("CEREMONIAL_BEAST")]
-public sealed class CeremonialBeast : BlitzMonsterDef
+[ContentId("CEREMONIAL_BEAST")]
+public sealed class CeremonialBeast : MonsterDef
 {
     private const int PlowStrength = 0;
     private const int CrushStrength = 1;
@@ -18,26 +18,26 @@ public sealed class CeremonialBeast : BlitzMonsterDef
 
     public override IReadOnlyList<string> StaticIntNames => ["PlowStrength", "CrushStrength", "PlowAmount"];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "STAMP_MOVE":
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<PlowPower>(),
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<PlowPower>(),
                     rules.StaticInts[PlowAmount], owner);
                 break;
             case "PLOW_MOVE":
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<StrengthPower>(),
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<StrengthPower>(),
                     rules.StaticInts[PlowStrength], owner);
                 break;
             case "CRUSH_MOVE":
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<StrengthPower>(),
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<StrengthPower>(),
                     rules.StaticInts[CrushStrength], owner);
                 break;
             case "BEAST_CRY_MOVE":
-                BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                    BlitzRegistry.PowerId<RingingPower>(), 1, owner);
+                Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                    Registry.PowerId<RingingPower>(), 1, owner);
                 break;
         }
     }
@@ -47,16 +47,16 @@ public sealed class CeremonialBeast : BlitzMonsterDef
 /// Vine Shambler (VINE_SHAMBLER_NORMAL): GRASPING_VINES_MOVE applies TangledPower 1 to the player
 /// after its attack; SWIPE_MOVE and CHOMP_MOVE are attacks only.
 /// </summary>
-[BlitzContent("VINE_SHAMBLER")]
-public sealed class VineShambler : BlitzMonsterDef
+[ContentId("VINE_SHAMBLER")]
+public sealed class VineShambler : MonsterDef
 {
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "GRASPING_VINES_MOVE")
         {
-            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                BlitzRegistry.PowerId<TangledPower>(), 1, owner);
+            Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                Registry.PowerId<TangledPower>(), 1, owner);
         }
     }
 }
@@ -66,8 +66,8 @@ public sealed class VineShambler : BlitzMonsterDef
 /// <c>PulsateBlock</c> and applies VitalSparkPower <c>VitalSparkAmount</c> to itself. Its entrance
 /// VitalSpark is already in the root; JAB_MOVE and WHIRLWIND_MOVE are attacks only.
 /// </summary>
-[BlitzContent("INFESTED_PRISM")]
-public sealed class InfestedPrism : BlitzMonsterDef
+[ContentId("INFESTED_PRISM")]
+public sealed class InfestedPrism : MonsterDef
 {
     private const int RadiateBlock = 0;
     private const int PulsateBlock = 1;
@@ -75,17 +75,17 @@ public sealed class InfestedPrism : BlitzMonsterDef
 
     public override IReadOnlyList<string> StaticIntNames => ["RadiateBlock", "PulsateBlock", "VitalSparkAmount"];
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         switch (rules.Nodes[moveNode].NativeId)
         {
             case "RADIATE_MOVE":
-                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[RadiateBlock], BlitzValueProps.Move, fromCard: false);
+                Kernel.GainBlock(ref x, owner, rules.StaticInts[RadiateBlock], ValueProps.Move, fromCard: false);
                 break;
             case "PULSATE_MOVE":
-                BlitzKernel.GainBlock(ref x, owner, rules.StaticInts[PulsateBlock], BlitzValueProps.Move, fromCard: false);
-                BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<VitalSparkPower>(),
+                Kernel.GainBlock(ref x, owner, rules.StaticInts[PulsateBlock], ValueProps.Move, fromCard: false);
+                Kernel.ApplyPower(ref x, owner, Registry.PowerId<VitalSparkPower>(),
                     rules.StaticInts[VitalSparkAmount], owner);
                 break;
         }
@@ -97,8 +97,8 @@ public sealed class InfestedPrism : BlitzMonsterDef
 /// encounter slots before its attack (<c>MonsterMoveEffects.ApplyBeforeAttack</c>); ADVANCED_GAS_MOVE
 /// applies SmoggyPower 1 to the player after its attack.
 /// </summary>
-[BlitzContent("LIVING_FOG")]
-public sealed class LivingFog : BlitzMonsterDef
+[ContentId("LIVING_FOG")]
+public sealed class LivingFog : MonsterDef
 {
     private const int BloatAmount = 0;
 
@@ -106,32 +106,32 @@ public sealed class LivingFog : BlitzMonsterDef
 
     public override IReadOnlyList<string> SpawnedMonsterIds => ["GAS_BOMB"];
 
-    public override void BeforeMove(ref BlitzExec x, byte owner, int moveNode)
+    public override void BeforeMove(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "BLOAT_MOVE")
             return;
         int count = rules.StaticInts[BloatAmount];
-        if (!x.R.TrySpawnRulesId(BlitzRegistry.MonsterId<GasBomb>(), out int spawnRules))
-            throw new BlitzUnsupportedException("Living Fog 的生成闭包缺少 Gas Bomb。");
+        if (!x.R.TrySpawnRulesId(Registry.MonsterId<GasBomb>(), out int spawnRules))
+            throw new UnsupportedException("Living Fog 的生成闭包缺少 Gas Bomb。");
         for (int index = 0; index < count; index++)
         {
-            string? slot = BlitzKernel.NextFreeSlot(x.B, x.R);
+            string? slot = Kernel.NextFreeSlot(x.B, x.R);
             if (string.IsNullOrEmpty(slot))
                 break;
-            BlitzKernel.SpawnMonster(ref x, owner, spawnRules, BlitzKernel.SlotIndex(x.R, slot), minion: false);
+            Kernel.SpawnMonster(ref x, owner, spawnRules, Kernel.SlotIndex(x.R, slot), minion: false);
             if (x.NeedsChoice)
                 return;
         }
     }
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId == "ADVANCED_GAS_MOVE")
         {
-            BlitzKernel.ApplyPowerFromMonster(ref x, BlitzLimits.PlayerOwner,
-                BlitzRegistry.PowerId<SmoggyPower>(), 1, owner);
+            Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
+                Registry.PowerId<SmoggyPower>(), 1, owner);
         }
     }
 }
@@ -140,19 +140,19 @@ public sealed class LivingFog : BlitzMonsterDef
 /// Gas Bomb (summoned by Living Fog): gains MinionPower 1 on entrance and EXPLODE_MOVE attacks then
 /// kills itself. Mirrors MonsterSpawnSupport.ApplyNativeEntrancePowers and the GasBomb EXPLODE case.
 /// </summary>
-[BlitzContent("GAS_BOMB")]
-public sealed class GasBomb : BlitzMonsterDef
+[ContentId("GAS_BOMB")]
+public sealed class GasBomb : MonsterDef
 {
-    public override void ApplyEntrancePowers(ref BlitzExec x, byte owner)
-        => BlitzKernel.ApplyPower(ref x, owner, BlitzRegistry.PowerId<MinionPower>(), 1, owner);
+    public override void ApplyEntrancePowers(ref Exec x, byte owner)
+        => Kernel.ApplyPower(ref x, owner, Registry.PowerId<MinionPower>(), 1, owner);
 
-    public override void ApplyMoveEffects(ref BlitzExec x, byte owner, int moveNode)
+    public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
-        BlitzMonsterRules rules = BlitzKernel.MonsterRules(ref x, owner);
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
         if (rules.Nodes[moveNode].NativeId != "EXPLODE_MOVE")
             return;
         Span<byte> self = stackalloc byte[1];
         self[0] = owner;
-        BlitzKernel.Kill(ref x, self, force: true);
+        Kernel.Kill(ref x, self, force: true);
     }
 }

@@ -4,35 +4,35 @@ namespace BlitzSolver.Content.Relics;
 
 /// <summary>
 /// <c>DivineRight</c> (starter): <c>AfterRoomEntered</c> gains 3 stars, which runs before a combat root
-/// is captured; the imported <see cref="BlitzBattle.Stars"/> already includes it and the relic has no
+/// is captured; the imported <see cref="Battle.Stars"/> already includes it and the relic has no
 /// in-combat hook of its own.
 /// </summary>
-[BlitzContent("DIVINE_RIGHT")]
-public sealed class DivineRight : BlitzRelicDef;
+[ContentId("DIVINE_RIGHT")]
+public sealed class DivineRight : RelicDef;
 
 /// <summary>
 /// <c>GalacticDust</c>: <c>SimulatedCombatState.TriggerRelicsAfterStarsSpent</c> accumulates stars in the
 /// relic's StatefulRelicState (Counter) and gains Block per completed multiple of the Stars variable.
 /// </summary>
-[BlitzContent("GALACTIC_DUST")]
-public sealed class GalacticDust : BlitzRelicDef
+[ContentId("GALACTIC_DUST")]
+public sealed class GalacticDust : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Stars", "Block"];
 
-    public override void AfterStarsSpent(ref BlitzExec x, BlitzListener self, int amount)
+    public override void AfterStarsSpent(ref Exec x, Listener self, int amount)
     {
-        if (amount <= 0 || self.Owner != BlitzLimits.PlayerOwner)
+        if (amount <= 0 || self.Owner != Limits.PlayerOwner)
             return;
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         int threshold = (int)x.R.RelicVar(Id, 0);
         if (threshold <= 0)
-            throw new BlitzUnsupportedException("银河星尘的星能阈值不是正数。");
+            throw new UnsupportedException("银河星尘的星能阈值不是正数。");
         int total = relic.Counter + amount;
         int triggers = total / threshold;
         relic.Counter = total % threshold;
         if (triggers > 0)
-            BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, (decimal)triggers * x.R.RelicVar(Id, 1),
-                BlitzValueProps.Unpowered, fromCard: false);
+            Kernel.GainBlock(ref x, Limits.PlayerOwner, (decimal)triggers * x.R.RelicVar(Id, 1),
+                ValueProps.Unpowered, fromCard: false);
     }
 }
 
@@ -41,26 +41,26 @@ public sealed class GalacticDust : BlitzRelicDef
 /// Current is the used flag), reset at the player's side turn start
 /// (<c>BeforeSideTurnStartMirrors.Vanilla</c>).
 /// </summary>
-[BlitzContent("MINI_REGENT")]
-public sealed class MiniRegent : BlitzRelicDef
+[ContentId("MINI_REGENT")]
+public sealed class MiniRegent : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
-    public override void AfterStarsSpent(ref BlitzExec x, BlitzListener self, int amount)
+    public override void AfterStarsSpent(ref Exec x, Listener self, int amount)
     {
-        if (amount <= 0 || self.Owner != BlitzLimits.PlayerOwner)
+        if (amount <= 0 || self.Owner != Limits.PlayerOwner)
             return;
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         if (relic.Counter != 0)
             return;
         relic.Counter = 1;
-        BlitzKernel.ApplyPower(ref x, BlitzLimits.PlayerOwner, BlitzRegistry.PowerId<Powers.StrengthPower>(),
-            (int)x.R.RelicVar(Id, 0), BlitzLimits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.StrengthPower>(),
+            (int)x.R.RelicVar(Id, 0), Limits.PlayerOwner);
     }
 
-    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void BeforeSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side == BlitzSide.Player)
+        if (side == Side.Player)
             x.B.Relics[self.Index].Counter = 0;
     }
 }
@@ -70,26 +70,26 @@ public sealed class MiniRegent : BlitzRelicDef
 /// Unpowered block (<c>AfterCardGeneratedForCombatMirrors.HandleRegalite</c>; RegalitePredictionState's
 /// UsedThisTurn flag). Reset at the player's side turn start.
 /// </summary>
-[BlitzContent("REGALITE")]
-public sealed class Regalite : BlitzRelicDef
+[ContentId("REGALITE")]
+public sealed class Regalite : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Block"];
 
-    public override void AfterCardGeneratedForCombat(ref BlitzExec x, BlitzListener self, int position, byte creator)
+    public override void AfterCardGeneratedForCombat(ref Exec x, Listener self, int position, byte creator)
     {
-        if (creator != BlitzLimits.PlayerOwner || self.Owner != BlitzLimits.PlayerOwner)
+        if (creator != Limits.PlayerOwner || self.Owner != Limits.PlayerOwner)
             return;
-        ref BlitzRelic relic = ref x.B.Relics[self.Index];
+        ref Relic relic = ref x.B.Relics[self.Index];
         if (relic.Counter != 0)
             return;
         relic.Counter = 1;
-        BlitzKernel.GainBlock(ref x, BlitzLimits.PlayerOwner, x.R.RelicVar(Id, 0),
-            BlitzValueProps.Unpowered, fromCard: false);
+        Kernel.GainBlock(ref x, Limits.PlayerOwner, x.R.RelicVar(Id, 0),
+            ValueProps.Unpowered, fromCard: false);
     }
 
-    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void BeforeSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side == BlitzSide.Player)
+        if (side == Side.Player)
             x.B.Relics[self.Index].Counter = 0;
     }
 }
@@ -98,35 +98,35 @@ public sealed class Regalite : BlitzRelicDef
 /// <c>VitruvianMinion</c>: powered damage and block from a card tagged Minion deal/gain double
 /// (the relic's ModifyDamageMultiplicative / ModifyBlockMultiplicative mirrors).
 /// </summary>
-[BlitzContent("VITRUVIAN_MINION")]
-public sealed class VitruvianMinion : BlitzRelicDef
+[ContentId("VITRUVIAN_MINION")]
+public sealed class VitruvianMinion : RelicDef
 {
-    public override decimal ModifyDamageMultiplicative(ref BlitzExec x, BlitzListener self,
-        in BlitzDamageContext damage, decimal amount)
+    public override decimal ModifyDamageMultiplicative(ref Exec x, Listener self,
+        in DamageContext damage, decimal amount)
         => IsMinionCard(x, damage.HasCardSource, damage.CardSource) ? 2m : 1m;
 
-    public override decimal ModifyBlockMultiplicative(ref BlitzExec x, BlitzListener self,
-        in BlitzBlockContext block, decimal amount)
+    public override decimal ModifyBlockMultiplicative(ref Exec x, Listener self,
+        in BlockContext block, decimal amount)
         => IsMinionCard(x, block.HasCardSource, block.CardSource) ? 2m : 1m;
 
-    private static bool IsMinionCard(in BlitzExec x, bool hasCard, in BlitzCard card)
-        => hasCard && (x.R.Card(card.Id, card.Upgrade).Tags & BlitzCardTag.Minion) != 0;
+    private static bool IsMinionCard(in Exec x, bool hasCard, in Card card)
+        => hasCard && (x.R.Card(card.Id, card.Upgrade).Tags & CardTag.Minion) != 0;
 }
 
 /// <summary>
 /// <c>FencingManual</c>: <c>AfterSideTurnStart</c> forges 10 on turn 1 only. A combat root is captured
 /// after that turn start, so the forge already happened before the root; later turns are no-ops.
 /// </summary>
-[BlitzContent("FENCING_MANUAL")]
-public sealed class FencingManual : BlitzRelicDef;
+[ContentId("FENCING_MANUAL")]
+public sealed class FencingManual : RelicDef;
 
 /// <summary>
 /// <c>OrangeDough</c>: <c>AfterSideTurnStart</c> generates two colorless cards on turn 1 only. A combat
 /// root is captured after that turn start, so the generation already happened before the root; later
 /// turns are no-ops.
 /// </summary>
-[BlitzContent("ORANGE_DOUGH")]
-public sealed class OrangeDough : BlitzRelicDef;
+[ContentId("ORANGE_DOUGH")]
+public sealed class OrangeDough : RelicDef;
 
 /// <summary>
 /// <c>BrilliantScarf</c>: while the owner has played Cards-1 non-auto cards this turn, cards in hand or
@@ -135,35 +135,35 @@ public sealed class OrangeDough : BlitzRelicDef;
 /// player's side turn start (<c>BeforeSideTurnStartMirrors.Vanilla</c>). Counter = the engine's
 /// CounterPredictionState (the live <c>_cardsPlayedThisTurn</c> is its constructor's fallback).
 /// </summary>
-[BlitzContent("BRILLIANT_SCARF")]
-public sealed class BrilliantScarf : BlitzRelicDef
+[ContentId("BRILLIANT_SCARF")]
+public sealed class BrilliantScarf : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
-    public override decimal TryModifyEnergyCostInCombatLate(in BlitzBattle battle, BlitzRules rules,
-        BlitzListener self, in BlitzCard card, BlitzPile pile, decimal amount)
+    public override decimal TryModifyEnergyCostInCombatLate(in Battle battle, Rules rules,
+        Listener self, in Card card, Pile pile, decimal amount)
         => IsFreeTurn(battle, rules, self.Index, pile) ? 0m : amount;
 
-    public override decimal TryModifyStarCost(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
-        in BlitzCard card, BlitzPile pile, decimal amount)
+    public override decimal TryModifyStarCost(in Battle battle, Rules rules, Listener self,
+        in Card card, Pile pile, decimal amount)
         => IsFreeTurn(battle, rules, self.Index, pile) ? 0m : amount;
 
-    public override void AfterCardPlayed(ref BlitzExec x, BlitzListener self, in BlitzCardPlayInfo play)
+    public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
-        if (x.CurrentPlayIsAutoPlay || self.Owner != BlitzLimits.PlayerOwner)
+        if (x.CurrentPlayIsAutoPlay || self.Owner != Limits.PlayerOwner)
             return;
         x.B.Relics[self.Index].Counter++;
     }
 
-    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void BeforeSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side == BlitzSide.Player)
+        if (side == Side.Player)
             x.B.Relics[self.Index].Counter = 0;
     }
 
-    private bool IsFreeTurn(in BlitzBattle battle, BlitzRules rules, int relicIndex, BlitzPile pile)
+    private bool IsFreeTurn(in Battle battle, Rules rules, int relicIndex, Pile pile)
     {
-        if (pile is not (BlitzPile.Hand or BlitzPile.Play))
+        if (pile is not (Pile.Hand or Pile.Play))
             return false;
         int threshold = (int)rules.RelicVar(Id, 0) - 1;
         return battle.Relics[relicIndex].Counter == threshold;

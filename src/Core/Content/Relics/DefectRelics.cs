@@ -2,72 +2,72 @@ using BlitzSolver.Engine;
 
 namespace BlitzSolver.Content.Relics;
 
-[BlitzContent("CRACKED_CORE")]
-public sealed class CrackedCore : BlitzRelicDef
+[ContentId("CRACKED_CORE")]
+public sealed class CrackedCore : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Lightning"];
 
-    public override void BeforeSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void BeforeSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side != BlitzSide.Player || x.B.PlayerTurn > 1)
+        if (side != Side.Player || x.B.PlayerTurn > 1)
             return;
         int count = (int)x.R.RelicVar(x.B.Relics[self.Index].Id, 0);
-        BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("LIGHTNING_ORB"), count);
+        Kernel.ChannelOrbs(ref x, Kernel.OrbId("LIGHTNING_ORB"), count);
     }
 }
 
-[BlitzContent("RUNIC_CAPACITOR")]
-public sealed class RunicCapacitor : BlitzRelicDef
+[ContentId("RUNIC_CAPACITOR")]
+public sealed class RunicCapacitor : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Repeat"];
 
-    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side != BlitzSide.Player || x.B.PlayerTurn > 1)
+        if (side != Side.Player || x.B.PlayerTurn > 1)
             return;
-        BlitzKernel.AddOrbSlots(ref x.B, (int)x.R.RelicVar(x.B.Relics[self.Index].Id, 0));
+        Kernel.AddOrbSlots(ref x.B, (int)x.R.RelicVar(x.B.Relics[self.Index].Id, 0));
     }
 }
 
-[BlitzContent("SYMBIOTIC_VIRUS")]
-public sealed class SymbioticVirus : BlitzRelicDef
+[ContentId("SYMBIOTIC_VIRUS")]
+public sealed class SymbioticVirus : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Dark"];
 
-    public override void AfterSideTurnStart(ref BlitzExec x, BlitzListener self, BlitzSide side)
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
-        if (side != BlitzSide.Player || x.B.PlayerTurn > 1)
+        if (side != Side.Player || x.B.PlayerTurn > 1)
             return;
-        BlitzKernel.ChannelOrbs(ref x, BlitzKernel.OrbId("DARK_ORB"), (int)x.R.RelicVar(x.B.Relics[self.Index].Id, 0));
+        Kernel.ChannelOrbs(ref x, Kernel.OrbId("DARK_ORB"), (int)x.R.RelicVar(x.B.Relics[self.Index].Id, 0));
     }
 }
 
-[BlitzContent("GOLD_PLATED_CABLES")]
-public sealed class GoldPlatedCables : BlitzRelicDef
+[ContentId("GOLD_PLATED_CABLES")]
+public sealed class GoldPlatedCables : RelicDef
 {
-    public override int ModifyOrbPassiveTriggerCounts(in BlitzBattle battle, BlitzRules rules, BlitzListener self,
-        in BlitzOrb orb, int orbIndex, int triggerCount)
+    public override int ModifyOrbPassiveTriggerCounts(in Battle battle, Rules rules, Listener self,
+        in Orb orb, int orbIndex, int triggerCount)
         => orbIndex == 0 ? triggerCount + 1 : triggerCount;
 }
 
-[BlitzContent("POWER_CELL")]
-public sealed class PowerCell : BlitzRelicDef
+[ContentId("POWER_CELL")]
+public sealed class PowerCell : RelicDef
 {
     // The existing engine's BeforeSideTurnStartMirrors.Vanilla registered PowerCell as ignored; the
     // definition exists so a deck containing it can be admitted, and it has no combat effect.
 }
 
-[BlitzContent("REPTILE_TRINKET")]
-public sealed class ReptileTrinket : BlitzRelicDef
+[ContentId("REPTILE_TRINKET")]
+public sealed class ReptileTrinket : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["StrengthPower"];
 
-    public override void AfterPotionUsed(ref BlitzExec x, BlitzListener self, ushort potionId)
+    public override void AfterPotionUsed(ref Exec x, Listener self, ushort potionId)
     {
         if (x.B.Player.IsDead)
             return;
-        BlitzKernel.ApplyTemporaryStrength(ref x, BlitzLimits.PlayerOwner,
-            BlitzRegistry.PowerId<Powers.ReptileTrinketPower>(), (int)x.R.RelicVar(x.B.Relics[self.Index].Id, 0),
-            BlitzLimits.PlayerOwner, sign: 1);
+        Kernel.ApplyTemporaryStrength(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.ReptileTrinketPower>(), (int)x.R.RelicVar(x.B.Relics[self.Index].Id, 0),
+            Limits.PlayerOwner, sign: 1);
     }
 }

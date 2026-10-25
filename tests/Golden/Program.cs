@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using BlitzSolver.Engine;
-using BlitzGolden;
+using BlitzSolver.Golden;
 
 // Pure-core Blitz golden verifier: Engine + Content + Search, with only the BCL as a dependency.
 
@@ -15,10 +15,10 @@ try
     switch (args[0])
     {
         case "k0":
-            BlitzRulesCodecContract.Run();
-            string magics = BlitzFormatContract.Run();
-            Console.WriteLine($"K0 Passed fields={BlitzRules.SchemaFieldCount} "
-                + $"battleBytes={Unsafe.SizeOf<BlitzBattle>()} formatVersion={BlitzCodec.FormatVersion} "
+            RulesCodecContract.Run();
+            string magics = FormatContract.Run();
+            Console.WriteLine($"K0 Passed fields={Rules.SchemaFieldCount} "
+                + $"battleBytes={Unsafe.SizeOf<Battle>()} formatVersion={Codec.FormatVersion} "
                 + $"magics={magics}");
             return 0;
         case "verify":
