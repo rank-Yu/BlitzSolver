@@ -1,6 +1,8 @@
-# Flash 准入与校验
+# CombatSolver Flash 准入与校验（历史参考）
 
-[返回 Flash 入口](README.md)
+它描述的是 CombatSolver 里对接原引擎的 Bridge，供以后重写实机导入时参考。新仓库没有 Bridge、协调器、Off/On 模式与旧引擎回放物化。
+
+[返回文档索引](../README.md)
 
 Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的**差分测试**、部署前的**旧引擎回放核对**。开启模式不做部分提交：无路线按无路线约定返回现有搜索同形结果；`admission-unsupported-content` 与 `admission-unrepresentable-state` 两类准入让**整次协调器搜索**换用常规档位从头重跑；其余准入拒绝、核对不一致和内核边界写稳定失败事件并停止本次搜索/部署（离线与无人测试为失败），不回落现有后端。关闭模式不运行 Flash。
 
@@ -20,9 +22,9 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 | `UnsupportedClosure` | 可达内容闭包中有不受支持的项（见下） |
 | `UnrepresentableState` | 旧模拟器里存在 Flash 无法表示的状态（未建模的 StateStore 条目、非空的未支持侧表等） |
 | `Capacity` | 估计的牌数、Power 数、敌人数超出容量 |
-| `UnsupportedRequest` | 本次 `Solve()` 参数含 Flash 尚未支持的选项（见 [搜索与接入](search.md#3-请求参数)） |
+| `UnsupportedRequest` | 本次 `Solve()` 参数含 Flash 尚未支持的选项（见 [搜索与接入](combatsolver-integration.md#3-请求参数)） |
 
-开启模式下，只有两类准入拒绝会让**整次协调器搜索**改用常规搜索：未定义内容（`admission-unsupported-content`）与不可表示状态（`admission-unrepresentable-state`）。`BeamSolveDispatch` 抛 `FlashFallbackRequiredException`，`CombatSearchCoordinator.Solve` 只捕获这一个异常类型，确认这次 Flash 尝试还没有发布可采用路线、路线采纳种子或路线预览后，写一行 `FLASH_FALLBACK reason=<类别> detail=<第一个不支持的内容或状态> purpose=<用途>`，并用 `FlashMode = Off`、`Profile = RegularProfile` 从头重跑整次搜索；新尝试新建自己的请求时钟与预算账本，使用同一个 `cancellationToken`。不停止部署、不关闭全自动、不导出失败问题包。`RegularProfile` 由 `SolverSettings.ApplyFlashPerformance` 保存，缺少时显式失败。准入只取决于根内容（含生成闭包），实际回落都发生在第一个 Flash 请求、发布任何结果之前；如果发布检查判定已经发布，则按原失败约定写 `FLASH_SEARCH_FAILED` 并抛 `FlashSearchFailedException`，不重跑。Runtime 每场战斗最多提示一次内容名称，并把类别与内容记入问题包；详见 [开启模式的改用常规搜索](search.md#32-开启模式的改用常规搜索无路线与失败处理)。
+开启模式下，只有两类准入拒绝会让**整次协调器搜索**改用常规搜索：未定义内容（`admission-unsupported-content`）与不可表示状态（`admission-unrepresentable-state`）。`BeamSolveDispatch` 抛 `FlashFallbackRequiredException`，`CombatSearchCoordinator.Solve` 只捕获这一个异常类型，确认这次 Flash 尝试还没有发布可采用路线、路线采纳种子或路线预览后，写一行 `FLASH_FALLBACK reason=<类别> detail=<第一个不支持的内容或状态> purpose=<用途>`，并用 `FlashMode = Off`、`Profile = RegularProfile` 从头重跑整次搜索；新尝试新建自己的请求时钟与预算账本，使用同一个 `cancellationToken`。不停止部署、不关闭全自动、不导出失败问题包。`RegularProfile` 由 `SolverSettings.ApplyFlashPerformance` 保存，缺少时显式失败。准入只取决于根内容（含生成闭包），实际回落都发生在第一个 Flash 请求、发布任何结果之前；如果发布检查判定已经发布，则按原失败约定写 `FLASH_SEARCH_FAILED` 并抛 `FlashSearchFailedException`，不重跑。Runtime 每场战斗最多提示一次内容名称，并把类别与内容记入问题包；详见 [开启模式的改用常规搜索](combatsolver-integration.md#32-开启模式的改用常规搜索无路线与失败处理)。
 
 其余准入拒绝仍不是回落点：分发点按类别写一行 `FLASH_SEARCH_FAILED reason=admission-<类别> detail=<拒绝原因>`，抛出 `FlashSearchFailedException` 并停止部署。类别覆盖多人专用（`admission-multiplayer`）、Mock 测试内容（`admission-test-content`）、废弃内容（`admission-deprecated-content`）、未实现请求（`admission-unsupported-request`）、容量估计（`admission-capacity`）与待处理选择（`admission-pending-choice`）。第三方内容没有单独类别：未定义的卡牌、Power、遗物、药水、球、怪物、附魔、苦难与生成闭包按 `UnsupportedCard`/`UnsupportedPower`/`UnsupportedRelic`/`UnsupportedPotion`/`UnsupportedOrb`/`UnsupportedMonster`/`UnsupportedEnchantment`/`UnsupportedAffliction`/`UnsupportedClosure` 拒绝，统一写成 `admission-unsupported-content` 并走改用常规搜索；第三方 gameplay 订阅者或未登记模型留下无法投影的状态时按 `UnrepresentableState` 写成 `admission-unrepresentable-state`，同样改走常规搜索。原先的 `admission-third-party` token 已删除。
 
@@ -200,7 +202,7 @@ Project(Old.Step(s, a)) == Flash.Step(Project(s), a)     （逐字节）
 | K4 评估一致 | K1/K2 中投影一致的每个状态，`FlashScorer` 的评估值必须等于现有引擎同一状态的 `SimulationSnapshot` 对应成员；`Score` 按 double 精确比较。药水计数除 `PotionUseCount`/`PotionStrategicCost`/`AutomaticPotionUseCount`/`ExplicitPotionStrategicCost` 外还逐字段比较 `ExplicitPotionUseCount`。成长额度或遗物计数目标开启时，`GrowthRewards` 的十个来源、`GrowthHpCredit`、`GrowthRewardCount`、`StrategyGoalHpCredit`、`StrategicHpCredit`、`StrategyGoalCount` 与 `RelicCounters` 的 `SatisfiedMask`/`TargetMask`/`CounterValues`/`TargetMinimums`/`TargetMaximums`/`HpCredit`/`Distance`/`SatisfiedPriority`/`HealingHpCredit` 也逐字段比较；`Turn` 始终比较。第三幕首领策略开启时，`Act3BossInteractions`、`FirstAttackDamage`、`EtherealDrawTriggers`、`PagestormBonusDrawCapacity`、`HighEnergyPlays`、`DemesneEnergyGain`、`DemesneDrawGain` 也逐字段比较（参考值由 `SimulationSnapshot` 保存同一状态的战略上下文）。`ContinuousThreatRanking` 或 `ContextualRanking` 开启时，同一状态的 `BeamRankScore` 也按 double 逐位比较（汇总 `rankChecked`/`rankFailed`） | 同一探针；字段表与比较在 `FlashScoreFeatures`、`FlashScoreProjection`。现有引擎停在搜索边界的状态（`BoundaryReason` 非 None）不比较 |
 | K5 下界一致 | K1/K2 中投影一致的每个状态，`FlashBoundFeatures` 的 `FutureHealPotential`、`HasRisk`、`RemainingHealingPotential`、`FutureHealUsed`、`CumulativePlayerHpLost`、`RecoveredPlayerHp`、`PlayerHp`、`PlayerMaxHp`、`DeathSaveHpRestored`、`ExplicitPotionStrategicCost` 与 `StrategicHpLowerBound` 必须等于现有主搜索成员同一状态的取值。下界无法精确移植的根整体禁用剪枝，汇总行写 `bound=disabled(<原因>)` | 同一探针；比较在 `FlashBoundFeatures.Diff`。现有侧只读访问器在 `CombatBeamSolver.Flash.cs`（`PrimaryIncumbentRemainingHealingPotential`、`PrimaryIncumbentFutureHealPotential`、`PrimaryIncumbentHpLowerBound`） |
 
-复跑命令与当前证据见 [测试记录](testing.md)。
+复跑命令与当前证据见 [测试记录](combatsolver-flash-testing.md)。
 
 比较失败时输出第一处差异的字段路径（例如 `Enemies[1].Powers[VULNERABLE].Amount: old=2 flash=3`）、动作序列与种子，便于直接复现。
 
@@ -210,9 +212,9 @@ K4 让 FlashBeam 的排序依据与现有搜索相同：同一状态得到同一
 
 ## 4. 运行时回放核对
 
-Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](search.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
+Flash 选出的路线在采用前由旧引擎从同一根逐步回放（`FlashRouteMaterializer`，见 [搜索与接入](combatsolver-integration.md#2-路线物化)）：每一步旧引擎状态的投影必须与 Flash 状态逐字节一致。
 
-- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（搜索开始后的导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式写 `FLASH_SEARCH_FAILED reason=verify-mismatch detail=<首个差异>`、抛出 `FlashSearchFailedException` 并停止部署。这里的导入拒绝不是[准入的两类改用](search.md#32-开启模式的改用常规搜索无路线与失败处理)。
+- 任何一步投影不一致、选择对不上，或旧引擎到达 Flash 无法表示的状态（搜索开始后的导入拒绝），都抛 `FlashVerificationException`，消息以 `FLASH_VERIFY_MISMATCH step=` 开头并带首个分歧步序。整条 Flash 路线被丢弃：On 模式写 `FLASH_SEARCH_FAILED reason=verify-mismatch detail=<首个差异>`、抛出 `FlashSearchFailedException` 并停止部署。这里的导入拒绝不是[准入的两类改用](combatsolver-integration.md#32-开启模式的改用常规搜索无路线与失败处理)。
 - 离线宿主的 `harness-result.json`/`result.json` 在失败异常带完整核对证据时另写 `flashFailure`：`step`、`action`、完整 `plan`、全部 `differences`、步前状态、旧引擎与 Flash 的步后状态，以及 `directPurpose`/`continuationPurpose`/`prefix`。稳定日志行、320 字符 `detail` 与问题包写法不变。
 - Flash 搜索自身到达内核不建模的状态（`FlashUnsupportedException`）或容量上限（`FlashCapacityException`）时，On 模式写 `reason=kernel-unsupported`/`reason=kernel-capacity` 并停止部署。差分探针把这类情况计入汇总行末的 `unsupported=N` 并在报告中写出首条消息，不当作分歧。Thrash 的小数卡牌变量不再是边界：现有引擎把 `ModifyDamage` 的 `decimal` 结果写进 `DynamicVars.Damage.BaseValue`，Flash 把同一偏移存进 `FlashBattle.DecimalVars`，伤害读取与 `FlashScorer` 都先按 `decimal` 运算、在现有引擎的同一位置转 `double`/整数；四种同时并存的精确值仍不足时抛 `FlashCapacityException`，不截断、不近似。BeatDown 选中卡牌的对象身份用一次动作内的 `FlashCard.TransientMark` 复刻：标记随卡值移动，前一张自动打出把牌移入手牌、抽牌堆或消耗堆后仍从新位置打出，动作结束前清除；选中的卡完全离开战斗牌堆（移出战斗、被转化）时 Flash 没有无牌堆执行表示，仍是显式 `FlashUnsupportedException`。
 - 翻译器按旧引擎当前回放状态把 Flash 动作翻成计划动作：手牌下标超出旧引擎手牌，或旧引擎按动态目标规则（`CombatPredictionSimulator.GetTargetType`，含 Fan of Knives 下的 Shiv、Seeking Edge 下的君王之刃）需要敌方目标而 Flash 动作没有目标时，抛 `FlashChoiceMismatchException`。核对与物化路径把它转成 `FlashVerificationException`（On 模式 `verify-mismatch`）；进度预览只跳过该预览并记录 `FLASH_PREVIEW_MISMATCH`。

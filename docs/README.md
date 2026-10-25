@@ -1,75 +1,64 @@
-# Flash 搜索后端
+# BlitzSolver 文档
 
-Flash 是 CombatSolver 的可选搜索后端。它把整场战斗保存在一块固定大小、不含对象引用的结构体里，分叉只需复制内存，在受支持的战斗上以远低于现有模拟器的开销展开 Beam。
+BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场战斗保存在固定大小、不含对象引用的结构体里，分叉只需复制内存，在受支持的战斗上以较低开销展开 Beam 搜索，并用冻结快照校验搜索与结算结果。
 
-现有模拟引擎（`CombatPredictionSimulator` 及其镜像、`SimulatedCombatState` 与 Prediction 补偿）仍是唯一的语义权威：Flash 的每一步都必须与它逐字节一致，Flash 搜出的路线在部署前由它从同一根完整回放核对。
+本目录是 BlitzSolver 的设计与验证文档。CombatSolver 时期的宿主接入、Bridge 与离线回放等材料收在 [`archive/`](archive/)。
 
-本目录是设计规格。当前源码职责以 [架构地图](../ARCHITECTURE.md) 为准；本目录只保留设计理由与合同。
+## 1. 设计目标
+
+仍然成立的部分：
+
+- **定长结构体**：`BlitzBattle` 是 `unmanaged` 结构体，没有对象引用；容量是编译期常量，溢出显式失败，不截断、不逐出。
+- **整块复制分叉**：复制一份 `BlitzBattle` 就是分叉；没有写时复制、引用计数或分层状态。
+- **热路径零托管分配**：动作执行、状态复制与指纹计算不分配托管对象；搜索容器按块预分配，块只追加。
+- **显式失败**：不支持的语义抛 `BlitzUnsupportedException`，容量不足抛 `BlitzCapacityException`，不会静默近似或返回默认值。
+- **确定性**：同一局面只有一种字节表示；同一次搜索在同一请求上产生同一路线与同一结果字节。
+
+不再属于当前仓库的目标：
+
+- 不再维护 CombatSolver 的宿主接入、Bridge 根导入与旧引擎回放物化；这些只作为历史参考留在 `archive/`。
+- 不再以「与 CombatSolver 原引擎逐步一致」作为运行期承诺。一致性冻结在 `tests/Golden/data`，后续以快照和实机证据为准。
+
+## 2. 代码布局
+
+| 目录 | 内容 |
+| --- | --- |
+| `src/Core/Engine/` | `BlitzSolver.Engine`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
+| `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
+| `src/Core/Search/` | `BlitzSolver.Search`：`BlitzBeamSolver`、搜索容器、评分与下界 |
+| `src/Core/Search/Scoring/` | `BlitzSolver.Search.Scoring`：状态评估 |
+| `src/Core/Search/Ported/` | `BlitzSolver.Search`：从 CombatSolver `a62f1850` 移植的纯值依赖 |
+| `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`） |
+| `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/` |
+| `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
+
+依赖方向：`Content → Engine`、`Search → Engine`。Engine 不引用 Content 或 Search，Search 也不引用 Content（内容通过注册表挂到引擎上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包。
+
+## 3. 文档索引
 
 | 文档 | 内容 |
 | --- | --- |
-| [状态布局](state-layout.md) | `FlashBattle` 字段、容量、规范化与指纹 |
-| [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义方式、选择协议、怪物 AI；出牌期瞬态与回手见状态布局 |
-| [角色机制](kernel-characters.md) | 各角色专属的内核机制：弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
-| [药水与遗物](kernel-potions-relics.md) | 额外回合管线、9 瓶药水与新增遗物机制 |
-| [准入与校验](admission-and-verification.md) | 按场准入、根导入、差分测试、运行时回放核对 |
-| [搜索与接入](search.md) | FlashBeam、路线物化、`BeamSolveDispatch` 与 Off/On 模式 |
-| [测试记录](testing.md) | 复跑入口、当前证据与未验证项 |
+| [状态布局](state-layout.md) | `BlitzBattle` 字段、容量、规范化与指纹 |
+| [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
+| [角色机制](kernel-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
+| [药水与遗物](kernel-potions-relics.md) | 额外回合管线、药水与遗物机制 |
+| [搜索](search.md) | `BlitzBeamSolver` 的容器复用、保留、评估、剪枝与容量边界 |
+| [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
+| [测试与验证](testing.md) | 构建、K0、D1/D2、manifest、每层证明与未验证项 |
 
-## 1. 目标与非目标
+历史材料：
 
-目标：
-
-- 受支持战斗上，一次状态转移（复制、执行、指纹）在微秒量级，搜索热路径零托管分配。
-- 与现有引擎严格等价：同一状态执行同一动作，结果投影成 `FlashBattle` 后字节相同。
-- 可选且失败可见：开启模式先由 Flash 搜索；只有 `admission-unsupported-content` 与 `admission-unrepresentable-state` 两类准入抛 `FlashFallbackRequiredException`，由协调器写一行 `FLASH_FALLBACK` 后用 `FlashMode = Off` 与换档前的 `RegularProfile` 把整次搜索从头重跑；已经发布路线、采纳种子或预览时不重跑，按失败约定处理。只有 Flash 搜索自己判定 `flash-potion-policy-no-route` 时返回现有搜索同形的无路线结果（`PotionPolicyUnsatisfiedException`）；精确层下界不可用只关闭剪枝并继续搜索。物化后两侧对同一药水约束判定不一致（`route-*`/`materialize-potion-policy`）、根级容量溢出、内核边界、核对不一致、开发策略、未实现请求与其它根阶段都停止本次搜索/部署，写一个稳定的 `FLASH_SEARCH_FAILED` 事件并进入现有问题包流程。搜索展开中单个子状态的容量溢出只丢弃该分支，回合结束层的容量上界通过压缩继续。
-
-非目标：
-
-- 不替代现有模拟器，不改变现有搜索政策的默认行为；默认模式为 Off。
-- 不支持第三方 Mod 内容（AGENTS.md 第 1 节）。根中存在第三方 gameplay 订阅者、BaseLib 卡牌修饰或未登记模型时该请求不准入；这些内容在准入阶段按具体对象归入 `admission-unsupported-content`（未定义卡牌/Power/遗物/药水/球/怪物/附魔/苦难或生成闭包）或 `admission-unrepresentable-state`，随后同一次请求改走常规搜索，没有单独的第三方类别。
-- 不比现有引擎"更正确"。发现现有引擎与原版不一致时，先按 `combat-semantic-change` 修正现有引擎并补差分证据，Flash 再跟随。
-
-## 2. 总体结构
-
-```
-主线程                        后台（每次 Solve 调用）
-CombatRootSnapshot ──► BeamSolveDispatch ─┬─ Off：CombatBeamSolver.Solve()
-                                          └─ On：
-                                              FlashAdmission      根内容闭包是否全部受支持
-                                              FlashRootImporter   旧模拟器根 → FlashBattle + FlashRules
-                                              FlashBeamSolver     在 FlashBattle 上搜索，产出候选路线
-                                              FlashRouteMaterializer
-                                                                  旧引擎回放候选 → PlanAction / SolverResult
-                                              On：两类准入 → FLASH_FALLBACK → 整次搜索用 Off + RegularProfile 重跑
-                                              On：其余拒绝 → FLASH_SEARCH_FAILED，无路线 → 同形结果
-```
-
-目录与依赖：
-
-- `src/Flash/`：Flash 模块，依赖方向 `Bridge → Search → Kernel/Content`，目录规则见 `src/Flash/AGENTS.md`。
-  - `Kernel/`（`CombatSolver.Flash.Kernel`）：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power 管线、Hook 派发、选择协议、指纹。只依赖 BCL，不引用 MegaCrit、Godot、HarmonyLib 或 CombatSolver 其他命名空间。
-  - `Content/`（`CombatSolver.Flash.Content.*`）：内容定义，按 `Cards/<角色>`、`Powers`、`Relics`、`Potions`、`Monsters`、`Orbs`、`Enchantments`、`Afflictions` 分目录；只依赖 BCL 与内核。文件名只描述内容：角色卡按 `StarterCards`、`AttackCards.<稀有度>`、`SkillCards.<稀有度>`、`PowerCards.<稀有度>`、`GeneratedCards`，Power/遗物/药水/怪物按来源、稀有度、幕或怪物族分文件，不使用批次代号。
-  - `Search/`（`CombatSolver.Flash.Search`）：`FlashBeamSolver`、搜索容器，`Scoring/` 为状态评估。
-  - `Bridge/`（`CombatSolver.Flash.Bridge`）：准入、规则编译、根导入、动作翻译、路线核对与物化、开启模式失败约定；可以引用 Search、Prediction、Engine 和游戏程序集。
-- `src/Search/Probes/`：协调器与续接来源共享的开局/前缀探针与评估；不引用 `CombatBeamSolver`。
-- `src/Search/BeamSolveDispatch.cs`：协调器调用 `Solve()` 的唯一分派点。
-
-依赖方向固定为 `Flash 内核 ← FlashBeam ← BeamSolveDispatch ← CombatSearchCoordinator`。内核与 FlashBeam 不反向依赖分派点或协调器；这条边界写入两端结构门禁。
-
-## 3. 关键决定
-
-1. **语义权威是现有引擎，不是原版。** 路线由现有引擎回放核对，Flash 与它不一致就无法部署；它与原版的差异属于现有引擎缺陷，在那里修。
-2. **状态是单个 unmanaged 结构体，固定容量。** 溢出抛 `FlashCapacityException`：搜索展开中的子状态溢出只丢弃该分支并计数，回合结束层达到上界时按保留规则压缩；根状态溢出在开启模式下是显式失败（`FLASH_SEARCH_FAILED reason=kernel-capacity`），不回落。不截断、不逐出。
-3. **内容是不可变定义对象，数值来自每根编译的规则表。** 卡牌、Power、怪物的数值在根导入时从原版模型读出写入 `FlashRules`；内容代码不硬编码原版数据里已有的数值。
-4. **选择用"带选择向量重执行"。** 动作携带本次执行需要的全部选择；效果需要选择而动作未提供时返回"需要选择"，搜索枚举选项后从父状态重新执行。内核没有续接帧。
-5. **卡牌在牌堆里按值存放，没有全局引用表。** 相同副本字节相同，去重天然生效；现有引擎按卡牌对象记账的少数值随卡值或小数组移动（[状态布局](state-layout.md) 2.5）；路线按手牌位置记录，物化时在旧引擎的同一位置取牌，生成 `CardStateKey` 与 occurrence。
-6. **怪物 AI 编译自原版行动状态机图。** 行动、随机分支、条件分支按旧引擎 `BranchMonsterAi` 的同一方式解释；旧引擎里的特例逐个登记，不做通用猜测。
-7. **伤害与格挡修正沿用旧引擎的 `decimal` 计算位置和取整时点。** 修正系数如 1.1 无法用二进制浮点精确表示，不用 `double` 近似。
-8. **Flash 只产出候选路线。** `SolverResult` 由旧引擎回放物化，终局取舍复用旧的 `FinalPlanOrdering`，协调器看到的结果与现有后端同形。
+| 文档 | 内容 |
+| --- | --- |
+| [CombatSolver 接入方式](archive/combatsolver-integration.md) | CombatSolver 的接入分派与旧引擎回放物化，仅作历史参考 |
+| [CombatSolver 准入与校验](archive/admission-and-verification.md) | CombatSolver 里对接原引擎的 Bridge 准入与运行时核对 |
+| [CombatSolver 时期测试记录](archive/combatsolver-flash-testing.md) | 旧回归工具、批次数值与实机整场记录 |
 
 ## 4. 当前状态
 
-Flash 已接入主搜索分发（Off/On），默认 Off。开启模式使用 Flash 自己的档位预算：低/中/高/极高档的 Beam 宽度与节点上限分别为 180/240/360/540 与 240,000/480,000/1,000,000/2,000,000，软时间与分支上限等其余字段沿用常规档位；关闭模式不变，自定义档位沿用玩家填写的数值。On 先运行 Flash，两类准入拒绝写 `FLASH_FALLBACK` 后用换档前的常规档位重跑整次搜索；药水策略无路线时返回现有搜索同形的无路线结果，其它容量、内核、核对与准入失败写 `FLASH_SEARCH_FAILED` 并停止部署。模式、失败类别与请求参数见 [搜索与接入](search.md)；当前覆盖、差分证据、质量对照与未验证项见 [测试记录](testing.md)。
+- Core 独立编译，只有 BCL 依赖；构建 0 警告。
+- K0 纯内核合同通过；`Golden` 的 D1 重放与 D2 全量求解通过。
+- 冻结快照 `tests/Golden/data` 由 `manifest.json` 逐文件校验；校验入口见 [测试与验证](testing.md)。
+- **未验证**：实机运行、实机状态导入、部署、界面与第三方 Mod 内容；当前仓库还没有这些接入。
 
-状态布局、容量与尺寸预算见 [状态布局](state-layout.md)；内容定义与结算顺序见 [内核语义](kernel-semantics.md)；角色专属机制与药水/遗物机制分别见 [角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md)；准入与校验合同见 [准入与校验](admission-and-verification.md)。
+内核语义以 [状态布局](state-layout.md)、[内核语义](kernel-semantics.md)、[角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md) 为准；搜索行为以 [搜索](search.md) 为准；快照与证据以 [冻结快照](golden-data.md) 和 [测试与验证](testing.md) 为准。
