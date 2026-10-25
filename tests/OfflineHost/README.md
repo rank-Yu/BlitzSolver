@@ -204,6 +204,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 ## 转储
 
-转储是行式规范文本，格式由 `NativeStateDump.cs` 定义：头部、玩家/Osty/敌人属性、
-原生顺序的牌堆与 Power、遗物可见计数、药水槽、球、9 条 RNG 与 `NextCombatId`。
-它只读原生状态：不执行动作、不推进回合、不跑搜索。
+转储是行式规范文本，格式由 `NativeStateDump.cs` 定义：头部、跑局/幕（进阶、当前幕、
+幕数、本幕首个/第二个 Boss、房间类型、教学发现顺序开关、解锁摘要）、玩家/Osty/敌人属性、
+原生顺序的牌堆与 Power、遗物可见计数、药水槽、球、10 条 RNG（含 `UpFront`）与
+`NextCombatId`。它只读原生状态：不执行动作、不推进回合、不跑搜索。

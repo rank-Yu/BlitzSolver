@@ -21,7 +21,7 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 | `src/Mod/SearchHotkeyNode.cs` | 普通玩家的 `F8` 单次搜索触发器 |
 | `src/Mod/TestSession.cs` | 无头测试循环：请求、建局、捕获、确定性/测量求解、写结果、返回主菜单 |
 | `src/Mod/GodotCombatWaiter.cs` | 主线程建局与 Play 阶段等待 |
-| `src/Mod/Patches/` | 无头隔离、FTUE、回合准备 Start 卡牌捕获 |
+| `src/Mod/Patches/` | 无头隔离、教学发现顺序、FTUE、回合准备 Start 卡牌捕获 |
 | `src/TestHost/` | Mod 与 `tests/OfflineHost` 共用的建局、注入与原生状态转储 |
 | `tools/testing/run-headless.sh` | Linux 隔离实例、请求、启动、轮询与清理 |
 
@@ -199,6 +199,35 @@ $BLITZ_TEST_DIR/
 - 无头隔离补丁：测试中不写战斗胜利进度；无窗口时不创建战斗基础教学界面。两者都在
   `TestSession.Active` 为 false 时直接放行。
 
+### 6.1 建局幕结构与离线对齐（M2b-0b）
+
+实机与离线曾出现 5 个第三幕 A10 Boss 根的 `BossHpRelief` 差异。根因不在导入器，而在
+`RunManager.GenerateRooms` 的教学发现顺序分支：
+
+- 离线宿主 `GameBootstrap` 在初始化时设 `TestMode.IsOn = true`，实机测试模式没有。
+  `RunManager.ShouldApplyTutorialModifications()` 因此离线返回 false、实机返回 true。
+- 实机为 true 时，`RunManager.GenerateRooms` 调用
+  `ActModel.ApplyDiscoveryOrderModifications(UnlockState)`；`Glory.BossDiscoveryOrder` 为
+  `QUEEN_BOSS`、`TEST_SUBJECT_BOSS`、`AEONGLASS_BOSS`，空进度下 `ActModel._rooms.Boss`
+  被覆盖为 `QUEEN_BOSS`。
+- 紧接着 `RunManager.GenerateRooms` 用
+  `AllBossEncounters.Where(e => e.Id != act.BossEncounter.Id)` 选 `SecondBossEncounter`；
+  第一个 Boss 被覆盖后，排除集合随之改变，`Act.SecondBossEncounter` 与离线不同。
+  `ScoreCompiler.ResolveNativeHpRelief` 只是如实读取 `Encounter.RoomType`、
+  `RunState.CurrentActIndex`/`Acts.Count` 与 `Act.SecondBossEncounter`。
+- 存档/解锁状态、`RunState.CreateForNewRun`、`SetUpNewSingleplayer`、RNG 消费顺序与
+  `EnterRoomDebug` 都不是分叉点：修复前的 5 根原生转储显示两侧 `run.unlock.*` 与
+  `rng.UpFront.*` 相同，只有 `run.act.boss`、`run.act.secondBoss` 与
+  `run.tutorial.discoveryOrder` 不同。
+
+修法是不在实机全局打开游戏 `TestMode`（实机会走 NRun/淡入淡出的测试分支并异常退出），
+而是在测试会话中注册 `UnattendedNoDiscoveryOrderPatch`：仅当 `TestSession.Active` 时让
+`RunManager.ShouldApplyTutorialModifications()` 返回 false，使实机与离线走同一条
+`GenerateRooms` 分支，第三幕首个与第二个 Boss 都由 `UpFront` RNG 决定。
+`NativeStateDump` 相应记录 `run.act.index/count/id`、`run.act.boss/secondBoss`、
+`run.room.type/id`、`run.tutorial.discoveryOrder`、`run.unlock.*` 与 `rng.UpFront`，
+让这类幕结构偏差在原生层直接可见。
+
 ## 7. 搜索请求与档位
 
 `SearchRequestCompiler`（`src/Import`）从已经导入的根、`Rules`、`SearchPolicy`、根事实与
@@ -300,6 +329,19 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   比较。
 
 汇总行是 `live roots=N same=... diff=... reject=... native=...`；任何 diff/reject 都非零退出。
+
+M2b-0b 复跑（同一游戏版本、同一 RitsuLib）：
+
+```text
+# 5 个第三幕 A10 Boss 根
+live roots=5 same=5 diff=0 reject=0 native=5
+
+# 20 个固定普通根 + 3 个回合准备 fixture
+live roots=23 same=23 diff=0 reject=0 native=23
+```
+
+`qf2-gradient-failure`、`ts-a-toasty`、`ts-b-toolbox` 的 `SREQ` 仍是 `sreq=subparts`，
+其余 20 根为 `sreq=full`；`BATL`/`RULE`/`native` 全部相同。
 
 ### 9.2 搜索请求/结果对照
 

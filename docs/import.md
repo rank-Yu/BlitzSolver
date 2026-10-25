@@ -200,6 +200,10 @@ SearchCase request = EvaluationConfigCompiler.CompileRequest(
 `FlashScoreBridge.cs:74-80` 强制四项为 0；前缀根按同一 Bridge 的 request-root 语义，用前缀前
 `Battle` 与前缀前规则表计算四项 baseline，而评分表本身仍取回放后的内容。
 
+`BossHpRelief` 的幕结构诊断由 `NativeStateDump` 记录：`run.act.index/count/id`、
+`run.act.boss`、`run.act.secondBoss`、`run.tutorial.discoveryOrder` 与 `run.unlock.*`。
+这些字段只用于核对建局路径，不参与导入判定；`SecondBossEncounter` 缺失时写 `-`。
+
 ### 4.3 `BoundFeatures.Config`
 
 下界的逐内容分类表冻结在 `src/Import/HealingBoundTables.cs`，来源是 D1 的 384 份 enabled
@@ -446,4 +450,4 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
   `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；同样的 20 根在确定性求解后，游戏
   `SREQ` 与离线组装的请求逐字节相同、游戏 `SRES` 与离线重解逐字节相同。3 个回合准备 fixture
   的 `BATL`/`RULE`/`NativeStateDump` 相同，`SREQ.capture` 为评分/下界子部件比较，搜索跳过。
-  前缀根与完整准备阶段多根排序仍只在离线宿主验证。见 [Mod 入口与无头捕获](mod.md)。
+  前缀根与完整准备阶段多根排序仍只在离线宿主验证。实机与离线建局的第三幕幕结构曾有偏差（教学发现顺序），已在测试会话中对齐，5 个受影响根复跑相同。见 [Mod 入口与无头捕获](mod.md)。

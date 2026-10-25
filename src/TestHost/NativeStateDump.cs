@@ -2,6 +2,7 @@
 // CombatSolver/tools/search/OfflineSearchHarness. Reads native CombatState only; never changes it.
 using System.Globalization;
 using System.Text;
+using BlitzSolver.Import;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -10,12 +11,13 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Random;
+using MegaCrit.Sts2.Core.Runs;
 
 namespace BlitzSolver.TestHost;
 
 internal static class NativeStateDump
 {
-    public const int FormatVersion = 1;
+    public const int FormatVersion = 2;
 
     public static string Capture(CombatState state)
     {
@@ -38,6 +40,27 @@ internal static class NativeStateDump
         Raw("combat.encounter", state.Encounter?.Id.Entry ?? "-");
         Line("combat.nextCombatId", $"{NativeAccess.NextCreatureId(state)}");
         Raw("combat.inProgress", CombatManager.Instance.IsInProgress ? "true" : "false");
+        Raw("combat.encounter.type", state.Encounter?.RoomType.ToString() ?? "-");
+
+        RunState runState = state.RunState as RunState
+            ?? throw new InvalidOperationException("原生战斗的 RunState 不是 RunState。");
+        Line("run.ascension", $"{runState.AscensionLevel}");
+        Line("run.act.index", $"{runState.CurrentActIndex}");
+        Line("run.act.count", $"{runState.Acts.Count}");
+        Raw("run.act.id", runState.Act.Id.Entry);
+        Raw("run.act.boss", runState.Act.BossEncounter?.Id.Entry ?? "-");
+        Raw("run.act.secondBoss", runState.Act.SecondBossEncounter?.Id.Entry ?? "-");
+        Raw("run.room.type", runState.CurrentRoom?.RoomType.ToString() ?? "-");
+        Raw("run.room.id", runState.CurrentRoom?.Id is { } roomId
+            ? roomId.ToString(CultureInfo.InvariantCulture)
+            : "-");
+        Raw("run.tutorial.discoveryOrder",
+            RunManager.Instance.ShouldApplyTutorialModifications() ? "true" : "false");
+        Line("run.unlock.epochs", $"{NativeAccess.UnlockedEpochCount(runState.UnlockState)}");
+        Line("run.unlock.encountersSeen", $"{NativeAccess.EncountersSeenCount(runState.UnlockState)}");
+        Line("run.unlock.sharedAncients", $"{runState.UnlockState.SharedAncients.Count()}");
+        Line("run.unlock.characters", $"{runState.UnlockState.Characters.Count()}");
+        Line("run.unlock.runs", $"{runState.UnlockState.NumberOfRuns}");
 
         AppendCreature(text, "player", player.Creature);
         Line("player.energy", $"{combat.Energy}");
@@ -92,6 +115,7 @@ internal static class NativeStateDump
             AppendPowers(text, $"enemy.{index}.power", enemy.Powers);
         }
 
+        AppendRng(text, "UpFront", state.RunState.Rng.UpFront);
         AppendRng(text, "Shuffle", state.RunState.Rng.Shuffle);
         AppendRng(text, "CombatCardGeneration", state.RunState.Rng.CombatCardGeneration);
         AppendRng(text, "CombatPotionGeneration", state.RunState.Rng.CombatPotionGeneration);

@@ -175,6 +175,11 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --all --jobs 8 --out .l
 `--root <name>` 建单个根；`--all` 为每个根起一个子进程；`--compare-only <new> <ref>`
 逐根比较转储并打印第一处差异。当前 410 个输入与参考转储逐字节相同；参考转储由 CombatSolver `flash/m0` 的 `fe428fca` 生成（该提交给 M0 离线宿主加了同一份 `NativeStateDump`）。
 
+M2b-0b 起，`NativeStateDump` 格式版本为 2，额外记录跑局/幕信息：`run.ascension`、
+`run.act.index`/`count`/`id`、`run.act.boss`/`secondBoss`、`run.room.type`/`id`、
+`run.tutorial.discoveryOrder`、`run.unlock.*`，以及 `rng.UpFront` 的 counter/state。
+这些字段用于直接对照两条建局路径的幕结构与解锁状态；`SecondBossEncounter` 缺失时写 `-`。
+
 ### 6.1 导入对照
 
 ```bash
@@ -264,6 +269,23 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 捕获，`sreq=subparts`、`native=same`；共存探针输出 `COEXISTENCE check=passed`。启动脚本、
 协议与限制见 [Mod 入口与无头捕获](mod.md)。
 
+M2b-0b 修复了实机与离线的第三幕幕结构偏差：实机测试模式没有打开游戏 `TestMode`，
+`RunManager.ShouldApplyTutorialModifications()` 返回 true，`RunManager.GenerateRooms` 用
+`ActModel.ApplyDiscoveryOrderModifications` 把第三幕首个 Boss 覆盖为 `QUEEN_BOSS`，随后
+第二个 Boss 的排除集合也随之改变；离线宿主打开 `TestMode`，走 RNG 分支。修法是只对
+`RunManager.ShouldApplyTutorialModifications()` 加测试会话补丁，不全局改游戏 `TestMode`。
+5 个受影响根与 23 根复跑结果：
+
+```text
+# 5 个第三幕 A10 Boss 根
+live roots=5 same=5 diff=0 reject=0 native=5
+# 20 个固定普通根 + 3 个回合准备 fixture
+live roots=23 same=23 diff=0 reject=0 native=23
+```
+
+`BATL`/`RULE`/`SREQ` 与冻结快照相同，`native.txt` 与离线重建相同。根因与证据见
+[Mod 入口与无头捕获](mod.md) 第 5.1 节。
+
 生成实机请求：
 
 ```bash
@@ -334,14 +356,14 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
 | 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 实机部署、任意 Mod、语料外前缀/准备阶段 |
-| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
+| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
 | 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 部署、跨回合续用、界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
 
 这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的，并且能在真实游戏中导入状态、对捕获的根做一次单 Beam 搜索。它们不证明：BlitzSolver 能在真实战斗中部署路线、在界面上显示，或支持任意第三方 Mod。
 
 ## 8. 未验证项
 
-- **实机全量**：M2b-1 只验证了 20 个普通根的确定性搜索与 3 个 PF1 重根的中档测量；397 个普通根的整轮运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
+- **实机全量**：M2b-0 验证了 20 个普通根与 3 个回合准备 fixture，M2b-0b 追加 5 个第三幕 A10 Boss 根与 23 根复跑，M2b-1 验证了 20 个普通根的确定性搜索与 3 个 PF1 重根的中档测量。397 个普通根的整轮运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
 - **部署**：搜索已接入，但尚未把路线接到实机动作、回合对账或自动执行。
 - **界面**：没有设置页、进度、路线预览或失败提示；普通玩家只有 `F8` 单次触发。
 - **前缀根**：实机测试模式显式拒绝前缀动作；继续由离线宿主的 `PrefixReplay` 覆盖。

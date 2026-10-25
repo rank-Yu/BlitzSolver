@@ -390,7 +390,8 @@ internal static class LiveCompare
                 byte[] actualScore = EncodeScoreProbe(actual.Rules,
                     actualOptions.InitialActionCount, actualOptions.Scorer);
                 if (!expectedScore.AsSpan().SequenceEqual(actualScore))
-                    return ("score", "score subpart differs");
+                    return ("score", "score subpart differs: " + ConfigCompare.ScoreRulesDiff(
+                        expectedOptions.Scorer.RulesForCodec, actualOptions.Scorer.RulesForCodec));
             }
             if (expectedOptions.Bound != null && actualOptions.Bound != null)
             {

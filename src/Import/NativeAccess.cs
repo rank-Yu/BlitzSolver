@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.MonsterMoves.MonsterMoveStateMachine;
+using MegaCrit.Sts2.Core.Unlocks;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
@@ -31,6 +32,11 @@ internal static class NativeAccess
     /// <summary>Read-only next-creature id used by the native state dump in TestHost.</summary>
     public static uint NextCreatureId(MegaCrit.Sts2.Core.Combat.CombatState state)
         => state._nextCreatureId;
+
+    /// <summary>Read-only unlock counts used by the native state dump in TestHost.</summary>
+    public static int UnlockedEpochCount(UnlockState state) => state._unlockedEpochIds.Count;
+
+    public static int EncountersSeenCount(UnlockState state) => state._encountersSeen.Count;
 
     /// <summary>Whether the model's type belongs to the audited game assembly.</summary>
     public static bool IsOriginal(AbstractModel model)

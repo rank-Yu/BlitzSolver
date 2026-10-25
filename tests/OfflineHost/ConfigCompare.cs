@@ -1,6 +1,8 @@
 // M2a-4 evaluation-config comparison: compile ScoreRules/Bound from the native root, assemble the
 // same SREQ request the M0 harness wrote, and compare it with d1/<root>/config.br byte for byte.
+using System.Globalization;
 using System.IO.Compression;
+using System.Reflection;
 using System.Text;
 using BlitzSolver.Engine;
 using BlitzSolver.Golden;
@@ -512,7 +514,7 @@ internal static class ConfigCompare
         return $"options bytes differ (initialMaxHp={expected.InitialPlayerMaxHp})";
     }
 
-    private static string ScoreRulesDiff(ScoreRules expected, ScoreRules actual)
+    internal static string ScoreRulesDiff(ScoreRules expected, ScoreRules actual)
     {
         if (expected.Cards.Length != actual.Cards.Length)
             return $"cards.length {expected.Cards.Length}->{actual.Cards.Length}";
@@ -521,7 +523,7 @@ internal static class ConfigCompare
             CardScore?[]? left = expected.Cards[id];
             CardScore?[]? right = actual.Cards[id];
             if (left == null != (right == null))
-                return $"cards[{id}] presence";
+                return $"cards[{id}] {Presence(left)}->{Presence(right)}";
             if (left == null)
                 continue;
             if (left.Length != right!.Length)
@@ -531,9 +533,9 @@ internal static class ConfigCompare
                 CardScore? l = left[upgrade];
                 CardScore? r = right[upgrade];
                 if (l == null != (r == null))
-                    return $"cards[{id}+{upgrade}] presence";
+                    return $"cards[{id}+{upgrade}] {Presence(l)}->{Presence(r)}";
                 if (l != null && !CardScoreEquals(l, r!))
-                    return $"cards[{id}+{upgrade}]";
+                    return $"cards[{id}+{upgrade}] {ValueDiff(l, r!)}";
             }
         }
         if (expected.Powers.Length != actual.Powers.Length)
@@ -543,67 +545,134 @@ internal static class ConfigCompare
             PowerScore? l = expected.Powers[id];
             PowerScore? r = actual.Powers[id];
             if (l == null != (r == null))
-                return $"powers[{id}] presence";
+                return $"powers[{id}] {Presence(l)}->{Presence(r)}";
             if (l != null && !PowerScoreEquals(l, r!))
-                return $"powers[{id}]";
+                return $"powers[{id}] {ValueDiff(l, r!)}";
         }
         if (!expected.PotionStrategicCost.AsSpan().SequenceEqual(actual.PotionStrategicCost))
-            return "potionStrategicCost";
+            return ArrayDiff("potionStrategicCost", expected.PotionStrategicCost, actual.PotionStrategicCost);
         if (!expected.GrowthBudgets.Equals(actual.GrowthBudgets))
-            return "growthBudgets";
+            return $"growthBudgets {Format(expected.GrowthBudgets)}->{Format(actual.GrowthBudgets)}";
         if (!expected.RequiredGrowthRewards.Equals(actual.RequiredGrowthRewards))
-            return "requiredGrowthRewards";
+            return $"requiredGrowthRewards {Format(expected.RequiredGrowthRewards)}->{Format(actual.RequiredGrowthRewards)}";
         if (expected.RelicCounterRules.Length != actual.RelicCounterRules.Length)
-            return "relicCounterRules.length";
+            return $"relicCounterRules.length {expected.RelicCounterRules.Length}->{actual.RelicCounterRules.Length}";
         for (int index = 0; index < expected.RelicCounterRules.Length; index++)
         {
             if (!expected.RelicCounterRules[index].Equals(actual.RelicCounterRules[index]))
-                return $"relicCounterRules[{index}]";
+                return $"relicCounterRules[{index}] {Format(expected.RelicCounterRules[index])}->" +
+                    $"{Format(actual.RelicCounterRules[index])}";
         }
         if (!expected.PostCombatRelicHeal.Equals(actual.PostCombatRelicHeal))
-            return "postCombatRelicHeal";
+            return $"postCombatRelicHeal {Format(expected.PostCombatRelicHeal)}->" +
+                $"{Format(actual.PostCombatRelicHeal)}";
         if (expected.BossHpRelief != actual.BossHpRelief)
-            return "bossHpRelief";
+            return $"bossHpRelief {expected.BossHpRelief}->{actual.BossHpRelief}";
         if (expected.ContinuousThreatRanking != actual.ContinuousThreatRanking)
-            return "continuousThreatRanking";
+            return $"continuousThreatRanking {expected.ContinuousThreatRanking}->{actual.ContinuousThreatRanking}";
         if ((expected.ContextualRanking != null) != (actual.ContextualRanking != null))
-            return "contextualRanking";
+            return $"contextualRanking {Presence(expected.ContextualRanking)}->{Presence(actual.ContextualRanking)}";
         if (expected.InitialPlayerMaxHp != actual.InitialPlayerMaxHp)
-            return "initialPlayerMaxHp";
+            return $"initialPlayerMaxHp {expected.InitialPlayerMaxHp}->{actual.InitialPlayerMaxHp}";
         if (expected.IsActEndingBoss != actual.IsActEndingBoss)
-            return "isActEndingBoss";
+            return $"isActEndingBoss {expected.IsActEndingBoss}->{actual.IsActEndingBoss}";
         if (expected.Act3BossStrategy != actual.Act3BossStrategy)
-            return "act3BossStrategy";
+            return $"act3BossStrategy {expected.Act3BossStrategy}->{actual.Act3BossStrategy}";
         if (expected.BaseScoreOnly != actual.BaseScoreOnly)
-            return "baseScoreOnly";
+            return $"baseScoreOnly {expected.BaseScoreOnly}->{actual.BaseScoreOnly}";
         if (!Equals(expected.BeamWeightPerturbation, actual.BeamWeightPerturbation))
-            return "beamWeightPerturbation";
+            return $"beamWeightPerturbation {Format(expected.BeamWeightPerturbation)}->" +
+                $"{Format(actual.BeamWeightPerturbation)}";
         if (expected.IgnoreLongTermRewards != actual.IgnoreLongTermRewards)
-            return "ignoreLongTermRewards";
+            return $"ignoreLongTermRewards {expected.IgnoreLongTermRewards}->{actual.IgnoreLongTermRewards}";
         if (expected.TheftPolicy != actual.TheftPolicy)
-            return "theftPolicy";
+            return $"theftPolicy {expected.TheftPolicy}->{actual.TheftPolicy}";
         if (expected.InitialEnemyCount != actual.InitialEnemyCount)
-            return "initialEnemyCount";
-        if (expected.InitialPersistentBuffValue != actual.InitialPersistentBuffValue)
-            return "initialPersistentBuffValue";
-        if (expected.InitialEnemyStrengthSuppression != actual.InitialEnemyStrengthSuppression)
-            return "initialEnemyStrengthSuppression";
-        if (expected.InitialEnemyWeakTurns != actual.InitialEnemyWeakTurns)
-            return "initialEnemyWeakTurns";
-        if (expected.InitialRetainedAttackValue != actual.InitialRetainedAttackValue)
-            return "initialRetainedAttackValue";
+            return $"initialEnemyCount {expected.InitialEnemyCount}->{actual.InitialEnemyCount}";
+        if (!expected.InitialPersistentBuffValue.Equals(actual.InitialPersistentBuffValue))
+            return $"initialPersistentBuffValue {Format(expected.InitialPersistentBuffValue)}->" +
+                $"{Format(actual.InitialPersistentBuffValue)}";
+        if (!expected.InitialEnemyStrengthSuppression.Equals(actual.InitialEnemyStrengthSuppression))
+            return $"initialEnemyStrengthSuppression {Format(expected.InitialEnemyStrengthSuppression)}->" +
+                $"{Format(actual.InitialEnemyStrengthSuppression)}";
+        if (!expected.InitialEnemyWeakTurns.Equals(actual.InitialEnemyWeakTurns))
+            return $"initialEnemyWeakTurns {Format(expected.InitialEnemyWeakTurns)}->" +
+                $"{Format(actual.InitialEnemyWeakTurns)}";
+        if (!expected.InitialRetainedAttackValue.Equals(actual.InitialRetainedAttackValue))
+            return $"initialRetainedAttackValue {Format(expected.InitialRetainedAttackValue)}->" +
+                $"{Format(actual.InitialRetainedAttackValue)}";
         if (!expected.RootPotions.AsSpan().SequenceEqual(actual.RootPotions))
-            return "rootPotions";
+            return ArrayDiff("rootPotions", expected.RootPotions, actual.RootPotions);
         if (expected.InitialPotionUseCount != actual.InitialPotionUseCount)
-            return "initialPotionUseCount";
+            return $"initialPotionUseCount {expected.InitialPotionUseCount}->{actual.InitialPotionUseCount}";
         if (expected.InitialPotionStrategicCost != actual.InitialPotionStrategicCost)
-            return "initialPotionStrategicCost";
+            return $"initialPotionStrategicCost {expected.InitialPotionStrategicCost}->" +
+                $"{actual.InitialPotionStrategicCost}";
         if (expected.InitialExplicitPotionStrategicCost != actual.InitialExplicitPotionStrategicCost)
-            return "initialExplicitPotionStrategicCost";
+            return $"initialExplicitPotionStrategicCost {expected.InitialExplicitPotionStrategicCost}->" +
+                $"{actual.InitialExplicitPotionStrategicCost}";
         if (expected.RootPotionSlotCount != actual.RootPotionSlotCount)
-            return "rootPotionSlotCount";
+            return $"rootPotionSlotCount {expected.RootPotionSlotCount}->{actual.RootPotionSlotCount}";
+        return RemainingScoreRulesDiff(expected, actual);
+    }
+
+    private static string RemainingScoreRulesDiff(ScoreRules expected, ScoreRules actual)
+    {
+        foreach (PropertyInfo property in typeof(ScoreRules).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (property.Name is nameof(ScoreRules.Rules) or nameof(ScoreRules.Cards)
+                or nameof(ScoreRules.Powers) or nameof(ScoreRules.PotionStrategicCost)
+                or nameof(ScoreRules.RelicCounterRules) or nameof(ScoreRules.ContextualRanking)
+                or nameof(ScoreRules.RootPotions))
+            {
+                continue;
+            }
+            object? left = property.GetValue(expected);
+            object? right = property.GetValue(actual);
+            if (ScalarEquals(left, right))
+                continue;
+            return $"{property.Name} {Format(left)}->{Format(right)}";
+        }
         return "scoreRules";
     }
+
+    private static string ValueDiff<T>(T expected, T actual)
+    {
+        foreach (PropertyInfo property in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            object? left = property.GetValue(expected);
+            object? right = property.GetValue(actual);
+            if (ScalarEquals(left, right))
+                continue;
+            return $"{property.Name} {Format(left)}->{Format(right)}";
+        }
+        return "values differ";
+    }
+
+    private static bool ScalarEquals(object? left, object? right)
+        => left is double leftDouble && right is double rightDouble
+            ? BitConverter.DoubleToInt64Bits(leftDouble) == BitConverter.DoubleToInt64Bits(rightDouble)
+            : Equals(left, right);
+
+    private static string Presence(object? value) => value == null ? "missing" : "present";
+
+    private static string ArrayDiff<T>(string name, IReadOnlyList<T> expected, IReadOnlyList<T> actual)
+    {
+        int common = Math.Min(expected.Count, actual.Count);
+        for (int index = 0; index < common; index++)
+        {
+            if (!EqualityComparer<T>.Default.Equals(expected[index], actual[index]))
+                return $"{name}[{index}] {Format(expected[index])}->{Format(actual[index])}";
+        }
+        return $"{name}.length {expected.Count}->{actual.Count}";
+    }
+
+    private static string Format(object? value) => value switch
+    {
+        null => "null",
+        IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+        _ => value.ToString() ?? "null",
+    };
 
     private static bool CardScoreEquals(CardScore left, CardScore right)
         => BitConverter.DoubleToInt64Bits(left.BaseDamage) == BitConverter.DoubleToInt64Bits(right.BaseDamage)

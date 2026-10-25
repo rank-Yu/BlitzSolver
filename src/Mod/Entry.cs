@@ -35,6 +35,7 @@ public static class ModEntry
 
         ModPatcher patcher = RitsuLibFramework.CreatePatcher(ModId, "blitzsolver", DisplayName);
         patcher.RegisterPatch<UnattendedTestIsolationPatch>();
+        patcher.RegisterPatch<UnattendedNoDiscoveryOrderPatch>();
         patcher.RegisterPatch<UnattendedHeadlessFtuePatch>();
         patcher.RegisterPatch<TurnSetupRootCapturePatch>();
         RitsuLibFramework.ApplyRequiredPatcher(patcher, DisableMod);
