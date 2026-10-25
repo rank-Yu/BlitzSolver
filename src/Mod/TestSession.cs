@@ -10,6 +10,8 @@ using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Settings;
 
 namespace BlitzSolver;
 
@@ -100,59 +102,113 @@ internal static class TestSession
                 await GodotCombatWaiter.SettleAsync(host);
                 stage = "capture";
                 CapturedSearch? captured = Capture(resultDirectory, root, request, combat);
-                SearchRunResult? search = null;
-                string? searchFailure = null;
-                if (captured != null)
-                {
-                    stage = "search";
-                    search = await SearchSession.RunAsync(
-                        host, root, captured.SearchCase, captured.Deterministic, captured.Tier,
-                        resultDirectory, request.SearchCancelAfterMillisecondsForTest);
-                    bool expectedCancel = request.SearchCancelAfterMillisecondsForTest is not null;
-                    bool searchOk = search.Status == "ok"
-                        || expectedCancel && search.Status == "cancelled" && search.WorkerExited;
-                    if (!searchOk)
-                        searchFailure = $"search {search.Status}: {search.Error}";
-                    else if (search.RouteSummary.Length > 0)
-                        ModLog.Info($"[BlitzSolver] SEARCH_ROUTE root={root} {search.RouteSummary}");
-                }
-                stage = captured == null ? "capture" : "status";
                 SearchPerformanceTier tier = SearchPerformanceProfile.ParseTier(request.SearchTier);
-                WriteJson(Path.Combine(resultDirectory, "status.json"), new StatusEntry(
-                    2, root, "ok", stage, stopwatch.ElapsedMilliseconds, searchFailure,
-                    [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest, 0,
-                    search?.Status ?? (captured == null ? "skipped" : "not_started"),
-                    tier.ToString(), request.DeterministicSearchForTest,
-                    search?.ElapsedMilliseconds ?? 0,
-                    search?.ManagedHeapPeakBytes ?? 0,
-                    search?.WorkingSetPeakBytes ?? 0,
-                    search?.AllocatedBytes ?? 0,
-                    search?.ExpandedNodes ?? 0,
-                    search?.Transitions ?? 0,
-                    search?.TurnsSearched ?? 0,
-                    search?.Victory ?? false,
-                    search?.Score ?? 0,
-                    search?.RouteActionCount ?? 0,
-                    search?.WorkerExited ?? captured == null,
-                    search?.Error));
-                if (searchFailure == null)
+                string? failure = null;
+                if (request.FullCombatForTest)
                 {
-                    ok++;
-                    results.Add(new ResultEntry(root, "ok", stage, stopwatch.ElapsedMilliseconds, null,
-                        [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest,
-                        search?.Status ?? "skipped", search?.ElapsedMilliseconds ?? 0));
-                    ModLog.Info(
-                        $"[BlitzSolver] CAPTURE_OK root={root} ms={stopwatch.ElapsedMilliseconds} "
-                        + $"search={search?.Status ?? "skipped"}");
+                    if (captured == null)
+                        throw new InvalidDataException("整场测试不支持回合准备根。");
+                    stage = "full_combat";
+                    AutoCombatResult auto = await RunFullCombatAsync(
+                        host, root, request, combat, tier,
+                        request.SearchCancelAfterMillisecondsForTest);
+                    WriteJson(Path.Combine(resultDirectory, "full-combat.json"), auto);
+                    bool expectedCancel = request.SearchCancelAfterMillisecondsForTest is not null;
+                    bool ended = auto.Status is "victory" or "defeat"
+                        || expectedCancel && auto.Status == "cancelled";
+                    if (!ended)
+                    {
+                        failure = $"full_combat {auto.Status}: {auto.PauseReason ?? "战斗未结束"}" +
+                            $" turn={auto.Turns} hp={auto.PlayerHp}/{auto.PlayerMaxHp} " +
+                            $"searches={auto.Searches} reused={auto.ReusedTurns} " +
+                            $"deviations={auto.Deviations} failures={auto.DeploymentFailures}";
+                    }
+                    stage = "status";
+                    WriteJson(Path.Combine(resultDirectory, "status.json"), new StatusEntry(
+                        2, root, "ok", stage, stopwatch.ElapsedMilliseconds, failure,
+                        [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest, 0,
+                        auto.Status, tier.ToString(), false,
+                        auto.ElapsedMs, 0, 0, 0, 0, 0, auto.Turns,
+                        auto.Status == "victory", 0, 0, true, null,
+                        auto.Status, auto.Outcome, auto.Turns, auto.PlayerHp, auto.PlayerMaxHp,
+                        auto.Searches, auto.ReusedTurns, auto.Deviations, auto.DeploymentFailures));
+                    if (failure == null)
+                    {
+                        ok++;
+                        results.Add(new ResultEntry(root, "ok", stage, stopwatch.ElapsedMilliseconds, null,
+                            [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest,
+                            auto.Status, auto.ElapsedMs));
+                        ModLog.Info(
+                            $"[BlitzSolver] FULL_COMBAT_OK root={root} status={auto.Status} " +
+                            $"turns={auto.Turns} hp={auto.PlayerHp}/{auto.PlayerMaxHp} " +
+                            $"searches={auto.Searches} reused={auto.ReusedTurns} " +
+                            $"deviations={auto.Deviations} failures={auto.DeploymentFailures}");
+                    }
+                    else
+                    {
+                        failed++;
+                        results.Add(new ResultEntry(root, "failed", stage, stopwatch.ElapsedMilliseconds,
+                            failure, [.. FirstChoiceCardSelector.LastSelections],
+                            request.FlashTurnSetupRootForTest, auto.Status, auto.ElapsedMs));
+                        ModLog.Error($"[BlitzSolver] FULL_COMBAT_FAILED root={root} {failure}");
+                    }
                 }
                 else
                 {
-                    failed++;
-                    results.Add(new ResultEntry(root, "failed", stage, stopwatch.ElapsedMilliseconds,
-                        searchFailure, [.. FirstChoiceCardSelector.LastSelections],
-                        request.FlashTurnSetupRootForTest, search?.Status ?? "failed",
-                        search?.ElapsedMilliseconds ?? 0));
-                    ModLog.Error($"[BlitzSolver] SEARCH_FAILED root={root} stage={stage} {searchFailure}");
+                    SearchRunResult? search = null;
+                    string? searchFailure = null;
+                    if (captured != null)
+                    {
+                        stage = "search";
+                        search = await SearchSession.RunAsync(
+                            host, root, captured.SearchCase, captured.Deterministic, captured.Tier,
+                            resultDirectory, request.SearchCancelAfterMillisecondsForTest);
+                        bool expectedCancel = request.SearchCancelAfterMillisecondsForTest is not null;
+                        bool searchOk = search.Status == "ok"
+                            || expectedCancel && search.Status == "cancelled" && search.WorkerExited;
+                        if (!searchOk)
+                            searchFailure = $"search {search.Status}: {search.Error}";
+                        else if (search.RouteSummary.Length > 0)
+                            ModLog.Info($"[BlitzSolver] SEARCH_ROUTE root={root} {search.RouteSummary}");
+                    }
+                    failure = searchFailure;
+                    stage = captured == null ? "capture" : "status";
+                    WriteJson(Path.Combine(resultDirectory, "status.json"), new StatusEntry(
+                        2, root, "ok", stage, stopwatch.ElapsedMilliseconds, searchFailure,
+                        [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest, 0,
+                        search?.Status ?? (captured == null ? "skipped" : "not_started"),
+                        tier.ToString(), request.DeterministicSearchForTest,
+                        search?.ElapsedMilliseconds ?? 0,
+                        search?.ManagedHeapPeakBytes ?? 0,
+                        search?.WorkingSetPeakBytes ?? 0,
+                        search?.AllocatedBytes ?? 0,
+                        search?.ExpandedNodes ?? 0,
+                        search?.Transitions ?? 0,
+                        search?.TurnsSearched ?? 0,
+                        search?.Victory ?? false,
+                        search?.Score ?? 0,
+                        search?.RouteActionCount ?? 0,
+                        search?.WorkerExited ?? captured == null,
+                        search?.Error));
+                    if (searchFailure == null)
+                    {
+                        ok++;
+                        results.Add(new ResultEntry(root, "ok", stage, stopwatch.ElapsedMilliseconds, null,
+                            [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest,
+                            search?.Status ?? "skipped", search?.ElapsedMilliseconds ?? 0));
+                        ModLog.Info(
+                            $"[BlitzSolver] CAPTURE_OK root={root} ms={stopwatch.ElapsedMilliseconds} "
+                            + $"search={search?.Status ?? "skipped"}");
+                    }
+                    else
+                    {
+                        failed++;
+                        results.Add(new ResultEntry(root, "failed", stage, stopwatch.ElapsedMilliseconds,
+                            searchFailure, [.. FirstChoiceCardSelector.LastSelections],
+                            request.FlashTurnSetupRootForTest, search?.Status ?? "failed",
+                            search?.ElapsedMilliseconds ?? 0));
+                        ModLog.Error($"[BlitzSolver] SEARCH_FAILED root={root} stage={stage} {searchFailure}");
+                    }
                 }
             }
             catch (UnsupportedImportException error)
@@ -225,6 +281,8 @@ internal static class TestSession
             bool breakAfterCleanup = false;
             try
             {
+                if (!await AutoCombatSession.CancelAndWaitAsync(host, "request_cleanup", 10_000))
+                    throw new TimeoutException("全自动取消后仍未退出。");
                 if (!await SearchSession.CancelAndWaitAsync(host, "request_cleanup", 10_000))
                     throw new TimeoutException("搜索取消后仍未退出。");
                 await ResetToMainMenuAsync(host);
@@ -246,6 +304,12 @@ internal static class TestSession
                     "返回主菜单失败，后续请求不再执行", null, false));
                 break;
             }
+        }
+        if (!await AutoCombatSession.CancelAndWaitAsync(host, "test_done", 10_000))
+        {
+            failed++;
+            results.Add(Failure("all-done-auto-cancel", "cleanup", total,
+                "测试结束时全自动仍未退出", null, false));
         }
         if (!await SearchSession.CancelAndWaitAsync(host, "test_done", 10_000))
         {
@@ -311,6 +375,44 @@ internal static class TestSession
             selections ?? [], turnSetupRoot, "failed", 0);
     }
 
+    private static async Task<AutoCombatResult> RunFullCombatAsync(NGame host, string root,
+        OfflineRequest request, CombatState combat, SearchPerformanceTier tier,
+        int? cancelAfterMilliseconds)
+    {
+        FastModeType original = SaveManager.Instance.PrefsSave.FastMode;
+        FastModeType instant = ParseFastMode(request.HeadlessFastModeForTest);
+        try
+        {
+            SaveManager.Instance.PrefsSave.FastMode = instant;
+            ModLog.Info(
+                $"[BlitzSolver] FULL_COMBAT_START root={root} fast_mode={instant} tier={tier}");
+            return await AutoCombatSession.RunAsync(host, combat, request, root, tier,
+                CancellationToken.None, cancelAfterMilliseconds);
+        }
+        finally
+        {
+            SaveManager.Instance.PrefsSave.FastMode = original;
+            ModLog.Info(
+                $"[BlitzSolver] FULL_COMBAT_FAST_MODE_RESTORED root={root} mode={original}");
+        }
+    }
+
+    private static FastModeType ParseFastMode(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)
+            || string.Equals(text, "FollowGame", StringComparison.OrdinalIgnoreCase))
+        {
+            return FastModeType.Instant;
+        }
+        return text.ToLowerInvariant() switch
+        {
+            "instant" => FastModeType.Instant,
+            "fast" => FastModeType.Fast,
+            "normal" => FastModeType.Normal,
+            _ => throw new NotSupportedException($"不支持的快速模式：{text}"),
+        };
+    }
+
     private static void Validate(OfflineRequest request)
     {
         if (request.SchemaVersion != 1)
@@ -323,6 +425,8 @@ internal static class TestSession
         if (request.SearchCancelAfterMillisecondsForTest is <= 0)
             throw new NotSupportedException(
                 $"searchCancelAfterMillisecondsForTest 必须为正：{request.SearchCancelAfterMillisecondsForTest}");
+        if (request.FullCombatForTest && request.FlashTurnSetupRootForTest)
+            throw new NotSupportedException("整场测试不支持回合准备根。");
     }
 
     private static async Task WaitForMainMenuReadyAsync(NGame host)
@@ -402,7 +506,16 @@ internal static class TestSession
         double SearchScore,
         int SearchRouteActions,
         bool SearchWorkerExited,
-        string? SearchError);
+        string? SearchError,
+        string FullCombatStatus = "not_requested",
+        string FullCombatOutcome = "",
+        int FullCombatTurns = 0,
+        int FullCombatPlayerHp = 0,
+        int FullCombatPlayerMaxHp = 0,
+        int FullCombatSearches = 0,
+        int FullCombatReusedTurns = 0,
+        int FullCombatDeviations = 0,
+        int FullCombatDeploymentFailures = 0);
 
     private sealed record ResultEntry(
         string Root,

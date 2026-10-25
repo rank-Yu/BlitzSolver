@@ -77,6 +77,12 @@ public sealed class KinFollower : MonsterDef
 
     public override IReadOnlyList<string> StaticIntNames => ["DanceStrength"];
 
+    // Native KinFollower.AfterAddedToRoom applies MinionPower 1 with itself as applier. Root
+    // followers already carry it in their imported power table; followers summoned during combat
+    // need the entrance application to stay secondary enemies.
+    public override void ApplyEntrancePowers(ref Exec x, byte owner)
+        => Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.MinionPower>(), 1, owner);
+
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
         MonsterRules rules = Kernel.MonsterRules(ref x, owner);

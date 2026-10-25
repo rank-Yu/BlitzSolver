@@ -62,6 +62,10 @@ internal sealed class NativeHistory
         => _cardPlaysStarted.Count(entry => ThisTurn(entry) && entry.CardPlay.IsFirstInSeries
             && ReferenceEquals(entry.CardPlay.Player.Creature, owner));
 
+    public int CardsFinishedThisTurn(Creature owner)
+        => _cardPlaysFinished.Count(entry => ThisTurn(entry)
+            && ReferenceEquals(entry.CardPlay.Player.Creature, owner));
+
     public int ManualCardsPlayedThisTurn(Creature owner)
         => _cardPlaysStarted.Count(entry => ThisTurn(entry) && entry.CardPlay.IsFirstInSeries
             && !entry.CardPlay.IsAutoPlay && ReferenceEquals(entry.CardPlay.Player.Creature, owner));
@@ -92,6 +96,11 @@ internal sealed class NativeHistory
 
     public int SkillCardsPlayedThisTurn(Creature owner)
         => _cardPlaysStarted.Count(entry => ThisTurn(entry)
+            && ReferenceEquals(entry.CardPlay.Player.Creature, owner)
+            && entry.CardPlay.Card.Type == CardType.Skill);
+
+    public int SkillCardsFinishedThisTurn(Creature owner)
+        => _cardPlaysFinished.Count(entry => ThisTurn(entry)
             && ReferenceEquals(entry.CardPlay.Player.Creature, owner)
             && entry.CardPlay.Card.Type == CardType.Skill);
 
@@ -141,9 +150,19 @@ internal sealed class NativeHistory
         => _damageReceived.Any(entry => ThisTurn(entry)
             && ReferenceEquals(entry.Receiver, receiver) && entry.Result.UnblockedDamage > 0);
 
+    /// <summary><c>SimulatedCombatState.PlayerUnblockedDamageEvents</c>: combat-cumulative events.</summary>
     public int UnblockedDamageEvents(Creature receiver)
+        => _damageReceived.Count(entry =>
+            ReferenceEquals(entry.Receiver, receiver) && entry.Result.UnblockedDamage > 0);
+
+    public int UnblockedDamageEventsThisTurn(Creature receiver)
         => _damageReceived.Count(entry => ThisTurn(entry)
             && ReferenceEquals(entry.Receiver, receiver) && entry.Result.UnblockedDamage > 0);
+
+    /// <summary><c>SimulatedCombatState._cumulativeHpLost</c>: player unblocked damage over the combat.</summary>
+    public int CumulativeHpLost(Creature receiver)
+        => _damageReceived.Where(entry => ReferenceEquals(entry.Receiver, receiver))
+            .Sum(entry => Math.Max(0, entry.Result.UnblockedDamage));
 
     public bool WasDoomAppliedThisTurn(Creature applier)
         => _powerReceived.Any(entry => ThisTurn(entry)
@@ -164,6 +183,10 @@ internal sealed class NativeHistory
     public int LightningChannels(Player player)
         => _orbsChanneled.Count(entry => ReferenceEquals(entry.Actor.Player, player)
             && entry.Orb is MegaCrit.Sts2.Core.Models.Orbs.LightningOrb);
+
+    /// <summary><c>SimulatedCombatState._orbChannels</c>: every orb the player channeled this combat.</summary>
+    public int OrbChannels(Player player)
+        => _orbsChanneled.Count(entry => ReferenceEquals(entry.Actor.Player, player));
 
     public int EtherealPlays(Player player)
         => _cardPlaysFinished.Count(entry => ReferenceEquals(entry.CardPlay.Player, player) && entry.WasEthereal);

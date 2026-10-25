@@ -10,8 +10,10 @@
 - 冻结快照回归（`tests/Golden`）不需要游戏文件，就能证明内核与搜索的每一步都和导出时的原引擎结果一致。
 - Mod 已能在无头游戏中加载，并在可出牌时把 20 个普通根捕获、导入；`Battle`、`Rules`、
   评估配置与原生状态转储都与冻结快照/离线宿主逐字节相同。同样的根能在游戏里对捕获状态做
-  一次单 Beam 搜索，确定性 `SREQ`/`SRES` 与离线组装/重解逐字节相同；普通玩家由 `F8` 触发。
-  动作部署与界面尚未接入。
+  一次单 Beam 搜索，确定性 `SREQ`/`SRES` 与离线组装/重解逐字节相同。
+- 这 20 个固定根已在无头游戏里自动打完整场（16 胜 4 负）：路线部署到原版出牌/药水/结束
+  回合/选牌入口，逐动作核对与每回合对账记录 0 偏差、0 部署失败。普通玩家用 `F8` 开关
+  “本场全自动”；界面留给后续批次。
 
 ## 目录
 
@@ -22,7 +24,7 @@
 | `src/Core/Search` | `BeamSolver`、状态评估与按功能归位的路线质量、资源策略、新颖度搜索 |
 | `tests/KernelChecks` | 内核合同（K0） |
 | `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data` |
-| `src/Mod` | RitsuLib Mod 入口、无头捕获测试模式；不加入 `BlitzSolver.sln` |
+| `src/Mod` | RitsuLib Mod 入口、无头捕获/整场自动战斗；不加入 `BlitzSolver.sln` |
 | `tools/testing` | Linux 无头实例启动与请求/结果轮询 |
 | `tests/corpora/quality` | 120 根质量语料（五个角色 × 三幕） |
 | `docs` | 规格文档，从 [docs/README.md](docs/README.md) 进入 |

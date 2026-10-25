@@ -51,6 +51,7 @@ public static class ModEntry
         RitsuLibFramework.SubscribeLifecycle<CombatEndedEvent>(static _ =>
         {
             SearchSession.OnCombatEnded();
+            AutoCombatSession.OnCombatEnded();
             TestSession.OnCombatEnded();
         });
         if (TestMode)
@@ -64,8 +65,12 @@ public static class ModEntry
         else
         {
             host.AddChild(new SearchHotkeyNode());
-            host.TreeExiting += static () => SearchSession.Cancel("tree_exiting");
-            ModLog.Info("[BlitzSolver] HOTKEY_READY key=F8 action=single_search");
+            host.TreeExiting += static () =>
+            {
+                AutoCombatSession.Cancel("tree_exiting");
+                SearchSession.Cancel("tree_exiting");
+            };
+            ModLog.Info("[BlitzSolver] HOTKEY_READY key=F8 action=toggle_full_auto");
         }
     }
 

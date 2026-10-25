@@ -1,0 +1,100 @@
+// Field-level reconciliation over the Battle encoding. Permanently dead enemies are tombstoned by
+// the native game (its move state machine is reset and the monster leaves CombatState.Enemies), so
+// their action-machine fields are normalized on both sides before the byte comparison. This is a
+// state-surface normalization, not a tolerance: every other byte must match.
+using BlitzSolver.Engine;
+
+namespace BlitzSolver;
+
+internal static class BattleReconciler
+{
+    internal const int MaxDiffLines = 24;
+
+    internal static bool Same(in Battle expected, in Battle actual)
+    {
+        Battle left = Normalize(in expected);
+        Battle right = Normalize(in actual);
+        return BattleCodec.Encode(left).AsSpan().SequenceEqual(BattleCodec.Encode(right));
+    }
+
+    internal static string[] Diff(in Battle expected, in Battle actual)
+    {
+        Battle left = Normalize(in expected);
+        Battle right = Normalize(in actual);
+        List<string> lines = BattleDump.Diff(left, right, "predicted", "live");
+        if (lines.Count > MaxDiffLines)
+        {
+            lines.RemoveRange(MaxDiffLines, lines.Count - MaxDiffLines);
+            lines.Add($"... 还有更多差异（已截断到 {MaxDiffLines} 行）");
+        }
+        return [.. lines];
+    }
+
+    internal static Battle Normalize(in Battle battle)
+    {
+        Battle copy = battle;
+        // The two legacy shuffle counters are carried from the route by LiveCombatTracker because
+        // the native game does not expose them. Zero them in the comparison view so a carried value
+        // cannot hide a real card-pile/RNG divergence.
+        copy.ShuffleEventCount = 0;
+        copy.ShufflesCrossed = 0;
+        // A detached card is a value snapshot, not a pile card that entered combat. The importer's
+        // one-time power-affliction entry marker is not observable for it, and the kernel's clone
+        // semantics clear it; normalize it on both sides.
+        for (int slot = 0; slot < Limits.DetachedCards; slot++)
+        {
+            ref Card detached = ref copy.DetachedCards[slot];
+            if (detached.Id != 0)
+                detached.Flags &= ~CardFlags.PowerAfflictionChecked;
+        }
+        for (int index = 0; index < copy.EnemyCount; index++)
+        {
+            ref Enemy enemy = ref copy.Enemies[index];
+            if (!IsPermanentTombstone(in enemy))
+                continue;
+            enemy.Move = 0;
+            enemy.ForcedMove = byte.MaxValue;
+            enemy.LoggedMoves = 0;
+            enemy.EverUsedMoves = 0;
+            enemy.PoweredAttackHitsThisTurn = 0;
+            enemy.SteamPhase = SteamPhase.None;
+            enemy.RecentMoves = default;
+            enemy.Ai = default;
+        }
+        // A permanently dead enemy is no longer in the native roster. Native keeps some power rows
+        // on the removed creature (MinionPower) while the old death cleanup removes most of them;
+        // the row is inert either way. Compact every power owned by such a tombstone so table order
+        // and count compare the living state only.
+        int write = 0;
+        for (int read = 0; read < copy.PowerCount; read++)
+        {
+            Power power = copy.Powers[read];
+            if (IsPermanentlyDeadOwner(in copy, power.Owner))
+                continue;
+            if (string.Equals(Registry.Power(power.Id).NativeId, "NIGHTMARE_POWER",
+                    StringComparison.Ordinal))
+            {
+                // Nightmare's native PowerModel.Target is null; the kernel and the frozen import
+                // both project it as the player owner. The field does not drive the power.
+                power.Target = Limits.PlayerOwner;
+            }
+            copy.Powers[write++] = power;
+        }
+        for (int index = write; index < copy.PowerCount; index++)
+            copy.Powers[index] = default;
+        copy.PowerCount = checked((byte)write);
+        return copy;
+    }
+
+    private static bool IsPermanentlyDeadOwner(in Battle battle, byte owner)
+    {
+        if (owner < Limits.FirstEnemyOwner || owner == Limits.NoOwner)
+            return false;
+        int index = owner - Limits.FirstEnemyOwner;
+        return index < battle.EnemyCount && IsPermanentTombstone(in battle.Enemies[index]);
+    }
+
+    internal static bool IsPermanentTombstone(in Enemy enemy)
+        => enemy.DeathPhase == DeathPhase.PermanentlyDead
+            || (!enemy.Creature.IsAlive && (enemy.Flags & EnemyFlags.DeathProcessed) != 0);
+}

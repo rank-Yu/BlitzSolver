@@ -30,6 +30,8 @@ cleanup_instance=0
 coexist=0
 probe_only=0
 no_launch=0
+full_combat=0
+search_tier=""
 combat_solver_dir="$HOME/games/sts2/mods/CombatSolver"
 declare -a roots=()
 declare -a request_files=()
@@ -52,6 +54,8 @@ usage() {
   --coexist-combat-solver      把 CombatSolver 也放进实例（只用于共存检查）
   --probe-only                 只等到 Mod 初始化/禁用日志，不要求 results/done.json
   --no-launch                  只准备实例和请求，不启动游戏
+  --full-combat                用 --roots-file/--root 生成整场自动战斗请求
+  --search-tier NAME           整场自动战斗的搜索档位（Low/Medium/High/VeryHigh，默认 Medium）
   --instance-root DIR          实例根（默认 .local/headless-instances）
   --game-root DIR              游戏目录（默认 ~/games/sts2）
   --ritsu-root DIR             RitsuLib 目录（默认 workshop 3747602295）
@@ -83,6 +87,8 @@ while (($#)); do
         --coexist-combat-solver) coexist=1; shift ;;
         --probe-only) probe_only=1; shift ;;
         --no-launch) no_launch=1; shift ;;
+        --full-combat) full_combat=1; shift ;;
+        --search-tier) search_tier="${2:-}"; shift 2 ;;
         --game-root) game_root="${2:-}"; shift 2 ;;
         --ritsu-root) ritsu_root="${2:-}"; shift 2 ;;
         --mod-dir) mod_dir="${2:-}"; shift 2 ;;
@@ -203,7 +209,10 @@ if ((${#roots[@]} > 0)); then
     roots_tmp="$instance_dir/run/roots.txt"
     printf '%s\n' "${roots[@]}" >"$roots_tmp" || die "写根列表失败"
     info "emitting ${#roots[@]} request(s)"
-    dotnet "$offline_host" --emit-live-requests "$requests_out" --roots-file "$roots_tmp" \
+    emit_args=(--emit-live-requests "$requests_out" --roots-file "$roots_tmp")
+    ((full_combat)) && emit_args+=(--full-combat)
+    [[ -n $search_tier ]] && emit_args+=(--search-tier "$search_tier")
+    dotnet "$offline_host" "${emit_args[@]}" \
         >"$instance_dir/run/emit-requests.log" 2>&1 || {
         cat "$instance_dir/run/emit-requests.log" >&2
         die "生成请求失败"

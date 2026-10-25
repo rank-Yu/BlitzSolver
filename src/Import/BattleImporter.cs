@@ -52,21 +52,43 @@ public static class BattleImporter
         if (state.EscapedCreatures.Count != 0)
             throw new UnsupportedImportException(ImportReason.KnownEnemyHistory,
                 $"有 {state.EscapedCreatures.Count} 个已逃离生物；原生 Enemies 已不是 KnownEnemies");
-        IReadOnlyList<Creature> known = state.Enemies;
+        IReadOnlyList<Creature> known = options.KnownEnemies ?? state.Enemies;
         if (known.Count == 0)
             throw new UnsupportedImportException(ImportReason.KnownEnemyHistory, "根没有敌人");
+        int rootEnemyCount = options.RootEnemyCount > 0 ? options.RootEnemyCount : known.Count;
         foreach (Creature enemy in known)
         {
             if (enemy.Monster == null)
                 throw new UnsupportedImportException(ImportReason.UnsupportedMonster, $"{enemy.Name} 没有怪物模型");
             if (!enemy.IsAlive)
+            {
+                if (!options.AllowDeadEnemies)
+                    throw new UnsupportedImportException(ImportReason.KnownEnemyHistory,
+                        $"敌人 {enemy.Monster.Id.Entry} 已死亡，原生 Enemies 不再保留 KnownEnemies 的先后顺序");
+                // A dead but still-listed creature is allowed: the caller tracks the stable known
+                // order, and the import writes a permanent-death tombstone without reading the
+                // monster's already-reset move state machine.
+                NativeAccess.RequireOriginal(enemy.Monster);
+                continue;
+            }
+            if (!ContainsCreature(state.Enemies, enemy))
                 throw new UnsupportedImportException(ImportReason.KnownEnemyHistory,
-                    $"敌人 {enemy.Monster.Id.Entry} 已死亡，原生 Enemies 不再保留 KnownEnemies 的先后顺序");
+                    $"敌人 {enemy.Monster.Id.Entry} 还活着但不在原生 Enemies 中");
             NativeAccess.RequireOriginal(enemy.Monster);
         }
-        if (known.Count != rules.RootEnemyCount)
+        if (known.Count < rootEnemyCount)
+            throw new UnsupportedImportException(ImportReason.RulesMismatch,
+                $"已知敌人数 {known.Count} 少于规则根敌人数 {rootEnemyCount}");
+        if (options.KnownEnemies == null && known.Count != rootEnemyCount)
             throw new UnsupportedImportException(ImportReason.RulesMismatch,
                 $"原生敌人数 {known.Count} 与规则根敌人数 {rules.RootEnemyCount} 不符");
+        foreach (Creature enemy in state.Enemies)
+        {
+            if (!enemy.IsAlive || ContainsCreature(known, enemy))
+                continue;
+            throw new UnsupportedImportException(ImportReason.KnownEnemyHistory,
+                $"原生敌人 {enemy.Name} 不在调用方维护的已知敌人顺序中");
+        }
         if (rules.HasEncounter != (state.Encounter != null))
             throw new UnsupportedImportException(ImportReason.RulesMismatch, "HasEncounter 与原生遭遇不一致");
         if (state.Encounter != null)
@@ -129,7 +151,7 @@ public static class BattleImporter
 
         ImportCounters(ref battle, state, player, known, osty, history, options);
         ImportRng(ref battle, state.RunState.Rng);
-        ImportEnemies(ref battle, player, known, rules, history, projections);
+        ImportEnemies(ref battle, state, player, known, rules, history, projections, options);
         ImportPowers(ref battle, player, known, osty, rules, history, projections);
         ImportCards(ref battle, player, playerState, rules, history, options);
         RejectRunListenerDeckCards(player);
@@ -156,7 +178,8 @@ public static class BattleImporter
     {
         Creature owner = player.Creature;
         battle.SetCounter(Counter.DampenCasterMask, DampenCasterMask(player, known));
-        battle.SetCounter(Counter.CardsPlayedThisTurn, history.CardsPlayedThisTurn(owner));
+        battle.SetCounter(Counter.CardsPlayedThisTurn,
+            options.Reconciliation ? history.CardsFinishedThisTurn(owner) : history.CardsPlayedThisTurn(owner));
         battle.SetCounter(Counter.ManualCardsPlayedThisTurn, history.ManualCardsPlayedThisTurn(owner));
         battle.SetCounter(Counter.CardPlayStartsThisTurn, history.CardPlayStartsThisTurn(owner));
         battle.SetCounter(Counter.AttackPlayStartsThisTurn, history.AttackPlayStartsThisTurn(owner));
@@ -165,7 +188,10 @@ public static class BattleImporter
         battle.SetCounter(Counter.CardPlaySeriesStartedThisTurn, history.CardPlaySeriesStartedThisTurn(owner));
         battle.SetCounter(Counter.AttacksPlayedThisTurn, history.AttacksPlayedThisTurn(owner));
         battle.SetCounter(Counter.ShivsPlayedThisTurn, history.ShivsPlayedThisTurn(owner));
-        battle.SetCounter(Counter.SkillCardsPlayedThisTurn, history.SkillCardsPlayedThisTurn(owner));
+        battle.SetCounter(Counter.SkillCardsPlayedThisTurn,
+            options.Reconciliation
+                ? history.SkillCardsFinishedThisTurn(owner)
+                : history.SkillCardsPlayedThisTurn(owner));
         battle.SetCounter(Counter.BlockCardsPlayedThisTurn, history.BlockCardsPlayedThisTurn(owner));
         battle.SetCounter(Counter.CardsExhaustedThisTurn, history.CardsExhaustedThisTurn(owner));
         battle.SetCounter(Counter.CardsDiscardedThisTurn, history.CardsDiscardedThisTurn(owner));
@@ -176,9 +202,13 @@ public static class BattleImporter
         battle.SetCounter(Counter.StarsGainedThisTurn, history.StarsGainedThisTurn(player));
         // The old simulator's cumulative ledgers start at zero on a fresh root; only its per-turn
         // root-history getters are seeded. The same holds for growth/death/theft ledgers.
-        battle.SetCounter(Counter.CumulativeHpLost, 0);
+        battle.SetCounter(Counter.CumulativeHpLost,
+            options.Reconciliation ? history.CumulativeHpLost(owner) : 0);
         battle.SetCounter(Counter.RecoveredHp, 0);
-        battle.SetCounter(Counter.PlayerUnblockedDamageEvents, history.UnblockedDamageEvents(owner));
+        battle.SetCounter(Counter.PlayerUnblockedDamageEvents,
+            options.Reconciliation
+                ? history.UnblockedDamageEvents(owner)
+                : history.UnblockedDamageEventsThisTurn(owner));
         battle.SetCounter(Counter.LongTermResourceValue, 0);
         battle.SetCounter(Counter.AngerCopiesGenerated, 0);
         battle.SetCounter(Counter.DeathSaveRelicHpRestored, 0);
@@ -188,7 +218,8 @@ public static class BattleImporter
         battle.SetCounter(Counter.VitalSparkNormalizedAmount, options.TurnSetupRoot ? 0 : int.MinValue);
         // SimulatedCombatState._skillsPlayedThisTurn starts empty at a root; the historical
         // skill count above is a separate counter and does not seed this flag.
-        battle.SetCounter(Counter.SkillPlayedThisSideTurn, 0);
+        battle.SetCounter(Counter.SkillPlayedThisSideTurn,
+            options.Reconciliation && history.SkillCardsFinishedThisTurn(owner) > 0 ? 1 : 0);
         battle.SetCounter(Counter.FinishedCardPlays, history.FinishedCardPlays);
         battle.SetCounter(Counter.CardsDrawn, history.CardsDrawn(player));
         battle.SetCounter(Counter.LightningChannels, history.LightningChannels(player));
@@ -196,7 +227,8 @@ public static class BattleImporter
         battle.SetCounter(Counter.DoomAppliedThisTurn, history.WasDoomAppliedThisTurn(owner) ? 1 : 0);
         battle.SetCounter(Counter.EtherealPlays, history.EtherealPlays(player));
         battle.SetCounter(Counter.CardsGeneratedThisCombat, history.CardsGenerated(player));
-        battle.SetCounter(Counter.OrbChannels, 0);
+        battle.SetCounter(Counter.OrbChannels,
+            options.Reconciliation ? history.OrbChannels(player) : 0);
         (int stolenGold, int stolenCards) = ScanHeldLoot(known, state);
         battle.SetCounter(Counter.OutstandingStolenGold, stolenGold);
         battle.SetCounter(Counter.OutstandingStolenCards, stolenCards);
@@ -281,8 +313,8 @@ public static class BattleImporter
         }
     }
 
-    private static void ImportEnemies(ref Battle battle, Player player, IReadOnlyList<Creature> known,
-        Rules rules, NativeHistory history, BattleProjections projections)
+    private static void ImportEnemies(ref Battle battle, CombatState state, Player player, IReadOnlyList<Creature> known,
+        Rules rules, NativeHistory history, BattleProjections projections, ImportOptions options)
     {
         if (known.Count > Limits.Enemies)
             throw new UnsupportedImportException(ImportReason.Capacity, $"敌人数 {known.Count}");
@@ -309,9 +341,29 @@ public static class BattleImporter
             enemy.MonsterId = monsterId;
             enemy.Rules = checked((byte)rulesId);
             enemy.Slot = SlotFor(rules, creature);
-            enemy.DeathPhase = DeathPhase.None;
             enemy.CombatId = creature.CombatId
                 ?? throw new UnsupportedImportException(ImportReason.Unrepresentable, "敌人没有 CombatId");
+            if (!creature.IsAlive && options.RevivingEnemies?.Contains(index) != true)
+            {
+                // CombatManager.RemoveCreature resets the move state machine when a monster dies.
+                // Its tombstone is no longer readable and no longer participates in resolution;
+                // write the same canonical permanent-death row the reconciliation view expects.
+                enemy.DeathPhase = DeathPhase.PermanentlyDead;
+                enemy.Flags = EnemyFlags.DeathProcessed;
+                enemy.Move = 0;
+                enemy.ForcedMove = byte.MaxValue;
+                enemy.LoggedMoves = 0;
+                enemy.EverUsedMoves = 0;
+                enemy.PoweredAttackHitsThisTurn = 0;
+                enemy.SteamPhase = SteamPhase.None;
+                enemy.RecentMoves = default;
+                enemy.Ai = default;
+                continue;
+            }
+            bool reviving = !creature.IsAlive;
+            enemy.DeathPhase = reviving ? DeathPhase.Reviving : DeathPhase.None;
+            if (reviving)
+                enemy.Flags = EnemyFlags.DeathProcessed | EnemyFlags.InCombat;
             string current = NativeAccess.CurrentMoveId(monster);
             if (current == "STUNNED")
             {
@@ -357,12 +409,17 @@ public static class BattleImporter
             enemy.PoweredAttackHitsThisTurn = checked((byte)poweredHits);
             projections.ProjectMonster(creature, Registry.Monster(monsterId), ref enemy);
         }
-        battle.RosterCount = checked((byte)known.Count);
+        int rosterCount = 0;
         for (int position = 0; position < known.Count; position++)
         {
-            battle.Roster[position] = checked((byte)position);
+            Creature creature = known[position];
+            bool reviving = options.RevivingEnemies?.Contains(position) == true;
+            if (!reviving && (!creature.IsAlive || !ContainsCreature(state.Enemies, creature)))
+                continue;
+            battle.Roster[rosterCount++] = checked((byte)position);
             battle.Enemies[position].Flags |= EnemyFlags.InCombat;
         }
+        battle.RosterCount = checked((byte)rosterCount);
     }
 
     private static int NodeIndex(MonsterRules machine, string nativeId, MonsterModel monster)
@@ -807,6 +864,16 @@ public static class BattleImporter
                 throw new UnsupportedImportException(ImportReason.Unrepresentable, $"{orb.Id.Entry} 私有值 {stored}");
             battle.Orbs[index] = new Orb { Id = checked((byte)id), Aux = (int)stored };
         }
+    }
+
+    private static bool ContainsCreature(IReadOnlyList<Creature> creatures, Creature creature)
+    {
+        for (int index = 0; index < creatures.Count; index++)
+        {
+            if (ReferenceEquals(creatures[index], creature))
+                return true;
+        }
+        return false;
     }
 
     private static byte Owner(Creature creature, Player player, IReadOnlyList<Creature> known, Creature? osty)

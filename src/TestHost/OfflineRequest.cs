@@ -78,6 +78,11 @@ internal sealed record OfflineRequest
     public bool DeterministicSearchForTest { get; init; } = true;
     public int? SearchCancelAfterMillisecondsForTest { get; init; }
 
+    // Whole-combat acceptance. The run starts full auto immediately after the root is captured and
+    // uses normal-tier searches with the profile's soft time; HeadlessFastModeForTest may override
+    // the combat animation speed (Instant by default for this mode).
+    public bool FullCombatForTest { get; init; }
+
     // Search/deployment fields present in frozen fixture JSON. They do not affect root construction;
     // ValidateSupported rejects the values this batch does not understand.
     public bool UseNoveltyPortfolioForTest { get; init; }

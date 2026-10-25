@@ -64,6 +64,7 @@ internal static class Program
         string? searchTier = null;
         int? searchCancelAfterMilliseconds = null;
         bool searchNormal = false;
+        bool fullCombat = false;
         int jobs = 1;
 
         for (int index = 0; index < args.Length; index++)
@@ -125,6 +126,9 @@ internal static class Program
                 case "--search-normal":
                     searchNormal = true;
                     break;
+                case "--full-combat":
+                    fullCombat = true;
+                    break;
                 case "--search-cancel-after-ms" when index + 1 < args.Length:
                     searchCancelAfterMilliseconds = int.Parse(args[++index]);
                     break;
@@ -149,9 +153,9 @@ internal static class Program
 
         if (emitLiveRequestsDir != null)
         {
-            if (searchTier != null || searchNormal || searchCancelAfterMilliseconds != null)
+            if (searchTier != null || searchNormal || searchCancelAfterMilliseconds != null || fullCombat)
                 return EmitLiveRequests(data, corpora, emitLiveRequestsDir, liveRootsFile, all, root,
-                    searchTier, searchNormal, searchCancelAfterMilliseconds);
+                    searchTier, searchNormal, searchCancelAfterMilliseconds, fullCombat);
             return EmitLiveRequests(data, corpora, emitLiveRequestsDir, liveRootsFile, all, root);
         }
         if (searchCompareDir != null)
@@ -178,10 +182,10 @@ internal static class Program
             Console.Error.WriteLine("--roots-file 只能与 --emit-live-requests 一起使用。");
             return 2;
         }
-        if (searchTier != null || searchNormal || searchCancelAfterMilliseconds != null)
+        if (searchTier != null || searchNormal || searchCancelAfterMilliseconds != null || fullCombat)
         {
             Console.Error.WriteLine(
-                "--search-tier/--search-normal/--search-cancel-after-ms 只能与 --emit-live-requests 一起使用。");
+                "--search-tier/--search-normal/--search-cancel-after-ms/--full-combat 只能与 --emit-live-requests 一起使用。");
             return 2;
         }
 
@@ -717,7 +721,7 @@ internal static class Program
 
     private static int EmitLiveRequests(string data, string corpora, string output, string? rootsFile,
         bool all, string? root, string? searchTier = null, bool searchNormal = false,
-        int? searchCancelAfterMilliseconds = null)
+        int? searchCancelAfterMilliseconds = null, bool fullCombat = false)
     {
         if (searchCancelAfterMilliseconds is < 1)
         {
@@ -792,8 +796,10 @@ internal static class Program
                 request = request with { GeneratedScenarioPath = Path.GetFullPath(scenarioPath) };
             if (searchTier != null)
                 request = request with { SearchTier = searchTier };
-            if (searchNormal)
+            if (searchNormal || fullCombat)
                 request = request with { DeterministicSearchForTest = false };
+            if (fullCombat)
+                request = request with { FullCombatForTest = true };
             if (searchCancelAfterMilliseconds is { } cancelAfter)
                 request = request with { SearchCancelAfterMillisecondsForTest = cancelAfter };
             string path = Path.Combine(output, name + ".json");
@@ -826,7 +832,7 @@ internal static class Program
               dotnet OfflineHost.dll --search-compare <resultDir>
               dotnet OfflineHost.dll --emit-live-requests <dir> (--root <name> | --roots-file <file> | --all)
                   [--search-tier Low|Medium|High|VeryHigh] [--search-normal]
-                  [--search-cancel-after-ms N]
+                  [--search-cancel-after-ms N] [--full-combat]
             """);
     }
 }

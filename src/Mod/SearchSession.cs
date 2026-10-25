@@ -33,83 +33,6 @@ internal static class SearchSession
 
     public static bool IsRunning => Volatile.Read(ref _running) != 0;
 
-    /// <summary>Main-thread trigger used by the ordinary-game hotkey.</summary>
-    public static void TryStartManual(NGame host)
-    {
-        if (!NGame.IsMainThread())
-        {
-            ModLog.Error("[BlitzSolver] SEARCH_REJECTED reason=not_main_thread");
-            return;
-        }
-        if (TestSession.Active)
-        {
-            ModLog.Info("[BlitzSolver] SEARCH_REJECTED reason=test_session_active");
-            return;
-        }
-        CombatState? state = CombatManager.Instance.DebugOnlyGetState();
-        if (state == null || !CombatManager.Instance.IsInProgress)
-        {
-            ModLog.Info("[BlitzSolver] SEARCH_REJECTED reason=no_active_combat");
-            return;
-        }
-        Player? player = LocalContext.GetMe(state);
-        if (player?.PlayerCombatState is null
-            || state.CurrentSide != CombatSide.Player
-            || player.PlayerCombatState.Phase != PlayerTurnPhase.Play)
-        {
-            ModLog.Info("[BlitzSolver] SEARCH_REJECTED reason=not_playable");
-            return;
-        }
-        _ = ManualAsync(host, state);
-    }
-
-    private static async Task ManualAsync(NGame host, CombatState combat)
-    {
-        try
-        {
-            SearchRunResult result = await CaptureAndRunAsync(
-                host, combat, request: null, root: "manual",
-                deterministic: false, tier: SearchPerformanceTier.Medium,
-                resultDirectory: null, cancelAfterMilliseconds: null);
-            if (result.Status == "ok")
-                ModLog.Info($"[BlitzSolver] SEARCH_ROUTE {result.RouteSummary}");
-        }
-        catch (UnsupportedImportException error)
-        {
-            ModLog.Error(
-                $"[BlitzSolver] SEARCH_REJECTED root=manual stage=capture reason={error.Reason} {error.Detail}");
-        }
-        catch (UnsupportedException error)
-        {
-            ModLog.Error($"[BlitzSolver] SEARCH_REJECTED root=manual stage=capture unsupported {error.Message}");
-        }
-        catch (CapacityException error)
-        {
-            ModLog.Error(
-                $"[BlitzSolver] SEARCH_REJECTED root=manual stage=capture capacity region={error.Region} {error.Message}");
-        }
-        catch (NotSupportedException error)
-        {
-            ModLog.Error($"[BlitzSolver] SEARCH_REJECTED root=manual stage=capture unsupported {error.Message}");
-        }
-        catch (InvalidDataException error)
-        {
-            ModLog.Error($"[BlitzSolver] SEARCH_REJECTED root=manual stage=capture invalid_data {error.Message}");
-        }
-        catch (InvalidOperationException error)
-        {
-            ModLog.Error($"[BlitzSolver] SEARCH_REJECTED root=manual stage=capture invalid_operation {error.Message}");
-        }
-        catch (TimeoutException error)
-        {
-            ModLog.Error($"[BlitzSolver] SEARCH_REJECTED root=manual stage=capture timeout {error.Message}");
-        }
-        catch (OperationCanceledException)
-        {
-            ModLog.Info("[BlitzSolver] SEARCH_CANCELLED root=manual reason=capture");
-        }
-    }
-
     /// <summary>
     /// Captures the imported root on the main thread, compiles the request, then runs the solver on
     /// a worker. <paramref name="request"/> is null for the ordinary-game hotkey path.
@@ -130,19 +53,8 @@ internal static class SearchSession
             return SearchRunResult.Busy(root);
         try
         {
-            Player player = LocalContext.GetMe(combat)
-                ?? throw new InvalidOperationException("找不到本地玩家。");
-            if (combat.RunState is not RunState runState)
-                throw new InvalidDataException("原生战斗的 RunState 不是具体 RunState。");
-            Rules rules = RulesCompiler.Compile(combat, player, runState);
-            Battle battle = BattleImporter.Import(combat, player, rules, ImportOptions.Default);
-            SearchPolicy policy = request == null
-                ? SearchPolicyCapture.Capture(combat, player)
-                : SearchPolicyOverrides.ApplyOverrides(
-                    SearchPolicyCapture.Capture(combat, player), request, player);
-            SearchCase searchCase = SearchRequestCompiler.CompileRequest(
-                combat, player, rules, battle, policy, EvaluationRootFacts.Default,
-                SearchPerformanceProfile.For(tier), deterministic);
+            SearchCase searchCase = CaptureCase(combat, request, deterministic, tier,
+                ImportOptions.Default);
             return await RunAsync(
                 host, root, searchCase, deterministic, tier, resultDirectory,
                 cancelAfterMilliseconds);
@@ -151,6 +63,42 @@ internal static class SearchSession
         {
             Volatile.Write(ref _starting, 0);
         }
+    }
+
+    /// <summary>
+    /// Captures the live root and compiles one search request without running it. The auto-combat
+    /// driver uses this for its first and every re-search root; <paramref name="importOptions"/>
+    /// carries the stable known-enemy order for a mid-combat import.
+    /// </summary>
+    public static SearchCase CaptureCase(CombatState combat, OfflineRequest? request,
+        bool deterministic, SearchPerformanceTier tier, ImportOptions importOptions)
+    {
+        if (!NGame.IsMainThread())
+            throw new InvalidOperationException("搜索请求必须在游戏主线程组装。");
+        Player player = LocalContext.GetMe(combat)
+            ?? throw new InvalidOperationException("找不到本地玩家。");
+        if (combat.RunState is not RunState runState)
+            throw new InvalidDataException("原生战斗的 RunState 不是具体 RunState。");
+        Rules rules = RulesCompiler.Compile(combat, player, runState);
+        Battle battle = BattleImporter.Import(combat, player, rules, importOptions);
+        return CompileCase(combat, player, rules, battle, request, deterministic, tier);
+    }
+
+    /// <summary>
+    /// Compiles a request for an already imported root and an already frozen rule table. Auto
+    /// combat reuses the combat's first <see cref="Rules"/>: the native enemy list no longer holds
+    /// dead monsters, but the frozen rule table still describes the root's full monster closure.
+    /// </summary>
+    public static SearchCase CompileCase(CombatState combat, Player player, Rules rules, Battle battle,
+        OfflineRequest? request, bool deterministic, SearchPerformanceTier tier)
+    {
+        SearchPolicy policy = request == null
+            ? SearchPolicyCapture.Capture(combat, player)
+            : SearchPolicyOverrides.ApplyOverrides(
+                SearchPolicyCapture.Capture(combat, player), request, player);
+        return SearchRequestCompiler.CompileRequest(
+            combat, player, rules, battle, policy, EvaluationRootFacts.Default,
+            SearchPerformanceProfile.For(tier), deterministic);
     }
 
     /// <summary>
@@ -268,7 +216,8 @@ internal static class SearchSession
             {
                 BeamResult beam = worker.GetAwaiter().GetResult();
                 result = SearchRunResult.Ok(root, beam, elapsed.ElapsedMilliseconds,
-                    managedPeak, workingSetPeak, allocated, workerExited, pacer?.YieldCount ?? 0);
+                    managedPeak, workingSetPeak, allocated, workerExited, pacer?.YieldCount ?? 0,
+                    searchCase);
                 if (resultDirectory != null && deterministic)
                     WriteBytes(Path.Combine(resultDirectory, "SRES"), SearchCodec.EncodeResult(beam));
                 ModLog.Info(
@@ -424,7 +373,9 @@ internal sealed record SearchRunResult(
     long WorkingSetPeakBytes,
     long AllocatedBytes,
     bool WorkerExited,
-    int PacerYields)
+    int PacerYields,
+    SearchCase? Case = null,
+    BeamResult? Beam = null)
 {
     public static SearchRunResult Busy(string root) => new(
         root, "failed", "busy", "已有搜索在运行", "busy", 0, 0, 0, 0, 0,
@@ -446,12 +397,12 @@ internal sealed record SearchRunResult(
 
     public static SearchRunResult Ok(
         string root, BeamResult result, long elapsed, long managedPeak, long workingSetPeak,
-        long allocated, bool workerExited, int yields)
+        long allocated, bool workerExited, int yields, SearchCase searchCase)
         => new(root, "ok", "solve", null, "", elapsed, result.ExpandedNodes,
             result.Transitions, result.Duplicates, result.TurnsSearched, result.BestIsVictory,
             result.BestScore, result.BestRoute.Length, Summarize(result.BestRoute),
             result.CapacityPruned, result.PrunedIncumbents, managedPeak, workingSetPeak,
-            allocated, workerExited, yields);
+            allocated, workerExited, yields, searchCase, result);
 
     public SearchMetrics ToMetrics(SearchPerformanceTier tier, bool deterministic) => new(
         1, Root, Status, Stage, Error, ErrorKind, tier.ToString(), deterministic,

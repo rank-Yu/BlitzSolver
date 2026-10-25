@@ -8,8 +8,8 @@
 [测试与验证](testing.md) 第 6 节。
 
 M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 在捕获之后对根调用一次
-`BeamSolver` 得到路线。**本批不部署**：不在游戏里执行路线动作，也没有界面。普通玩家可以用
-`F8` 对当前可出牌战斗触发一次搜索，结果只写日志。
+`BeamSolver` 得到路线；M2b-2 把路线翻译成原版入口调用，逐动作核对，按回合对账，并在路线
+仍然有效时续用剩余动作。普通玩家用 `F8` 开关“本场全自动”，没有界面，状态只写日志。
 
 ## 1. 目录与依赖
 
@@ -18,8 +18,14 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 | `src/Mod/BlitzSolver.csproj` | `Godot.NET.Sdk/4.5.1` Mod 工程；不加入 `BlitzSolver.sln` |
 | `src/Mod/Entry.cs` | 游戏 `ModInitializer` 入口；检测 CombatSolver；注册补丁与生命周期 |
 | `src/Mod/SearchSession.cs` | 主线程捕获→后台 `BeamSolver.Solve`→主线程收结果；取消、让帧与内存采样 |
-| `src/Mod/SearchHotkeyNode.cs` | 普通玩家的 `F8` 单次搜索触发器 |
-| `src/Mod/TestSession.cs` | 无头测试循环：请求、建局、捕获、确定性/测量求解、写结果、返回主菜单 |
+| `src/Mod/AutoCombatSession.cs` | 全自动会话：搜索、当前回合部署、回合对账、偏差重算、暂停与结果统计 |
+| `src/Mod/RouteReplay.cs` | 把 `PlayerAction[]` 回放成每个动作的 `Before`/`After` 与选择计划 |
+| `src/Mod/ActionDeployer.cs` | 主线程动作部署；出牌/药水/结束回合；动作队列捕获与边界等待 |
+| `src/Mod/PlannedNativeSelector.cs` | 原版 `ICardSelector` 驱动；选项身份与所在牌堆核对 |
+| `src/Mod/LiveCombatTracker.cs` | 实时导入：稳定敌人顺序、死亡/复活行与不可观测搜索账本 |
+| `src/Mod/BattleReconciler.cs` | `Battle` 编码的严格比较与墓碑/搜索账本归一化 |
+| `src/Mod/SearchHotkeyNode.cs` | 普通玩家的 `F8` 全自动开关 |
+| `src/Mod/TestSession.cs` | 无头测试循环：请求、建局、捕获、单次求解或整场自动战斗、写结果、返回主菜单 |
 | `src/Mod/GodotCombatWaiter.cs` | 主线程建局与 Play 阶段等待 |
 | `src/Mod/Patches/` | 无头隔离、教学发现顺序、FTUE、回合准备 Start 卡牌捕获 |
 | `src/TestHost/` | Mod 与 `tests/OfflineHost` 共用的建局、注入与原生状态转储 |
@@ -86,7 +92,8 @@ PE 引用表只包含 BCL、`GodotSharp`、`sts2`、RitsuLib 与 `0Harmony`，�
 ```
 
 中文名「极速战斗求解器」，英文名 "Blitz Solver"（初始化日志带 `name=... english=...`）。
-`affects_gameplay` 为 `false`：本版在正常游戏中不改变任何游戏状态。
+`affects_gameplay` 为 `true`：玩家按 `F8` 开启全自动后，Mod 通过原版动作队列写战斗动作；
+不按 `F8` 时只加载入口与快捷键节点，不建局、不搜索、不部署。
 
 构建：
 
@@ -111,20 +118,21 @@ dotnet build src/Mod/BlitzSolver.csproj -c Release
 3. 只有设置环境变量 `BLITZ_TEST_DIR` 时才进入测试模式，并在 `GameReadyEvent` 后启动测试
    循环。普通玩家不设置该变量时仍会加载入口与快捷键节点，但不会自动建局或自动搜索。
 
-普通玩家的触发方式是 **`F8`**：当前战斗处于本地玩家 `Play` 阶段时，`SearchHotkeyNode`
-调用 `SearchSession.TryStartManual`，捕获一次、导入、组装中档请求并在后台求解一次。不会
-每回合自动触发，也不会部署路线。测试模式下 `TestSession.Active=true`，`F8` 被显式拒绝，避免
-与测试循环并发。
+普通玩家的触发方式是 **`F8` 开关**：当前战斗处于本地玩家 `Play` 阶段时，`SearchHotkeyNode`
+调用 `AutoCombatSession.Toggle`。第一次按下开始“本场全自动”，会话在每回合自动搜索并部署；
+再按一次、战斗结束、预测偏差达到暂停上限或战斗退出时恢复手动。没有界面，全部状态写
+`[BlitzSolver] AUTO_*`/`DEPLOY_*` 日志。测试模式下 `TestSession.Active=true`，`F8` 被显式
+拒绝，避免与测试循环并发。
 
 取消入口：
 
 | 事件 | 行为 |
 | --- | --- |
-| `CombatEndedEvent` | `SearchSession.OnCombatEnded()` 立即 `Cancel("combat_ended")` |
+| `CombatEndedEvent` | `SearchSession.OnCombatEnded()` 取消搜索；`AutoCombatSession.OnCombatEnded()` 记录停止原因 |
 | `CombatStartingEvent` | 取消上一场残留搜索（`combat_started`） |
-| `NGame.TreeExiting` | 取消搜索（`tree_exiting`），覆盖退出/切场景 |
-| 测试模式请求清理 | `CancelAndWaitAsync` 取消并等待 worker 退出后才返回主菜单 |
-| 测试请求 `searchCancelAfterMillisecondsForTest` | 到点主动取消，用于验证取消不残留 |
+| `NGame.TreeExiting` | `AutoCombatSession.Cancel("tree_exiting")` + `SearchSession.Cancel(...)`，覆盖退出/切场景 |
+| 测试模式请求清理 | `AutoCombatSession.CancelAndWaitAsync` 与 `SearchSession.CancelAndWaitAsync` 都等待任务退出后才返回主菜单 |
+| 测试请求 `searchCancelAfterMillisecondsForTest` | 单次搜索到点取消；整场测试时到点取消全自动会话 |
 
 ## 5. 线程与取消模型
 
@@ -145,7 +153,9 @@ dotnet build src/Mod/BlitzSolver.csproj -c Release
    摘要只写日志（`SEARCH_DONE`/`SEARCH_ROUTE`），不修改战斗。
 
 取消通过 `CancellationTokenSource`：`BeamSolver` 在每个父状态/动作/回合层检查
-`ThrowIfCancellationRequested`，不轮询游戏状态。取消只停止 worker，不触碰 live 战斗。
+`ThrowIfCancellationRequested`，不轮询游戏状态。全自动会话的取消令牌只在主线程动作之间
+检查；已经入队的原版动作会走完并等待稳定边界，不会把半执行动作留在游戏里。取消会同时取消
+当前 worker 并让会话在下一个等待点停止；之后 `CancelAndWaitAsync` 等待两段任务都退出。
 取消后日志带 `worker_exited=true/false`；测试模式会在离开当前根前等待 worker 退出。取消的
 搜索仍能报告已展开节点数（`BeamSolver.ExpandedNodes`/`TransitionCount`）。
 
@@ -166,8 +176,9 @@ $BLITZ_TEST_DIR/
     SREQ                            # 完整搜索请求（主 Beam，确定性时写）
     SRES                            # SearchCodec.EncodeResult（确定性求解成功时写）
     native.txt                      # NativeStateDump
-    search.json                     # 搜索状态、耗时、节点/转移、内存峰值
-    status.json                     # ok/failed、stage、搜索状态与指标、准备选择
+    search.json                     # 单次搜索状态、耗时、节点/转移、内存峰值
+    full-combat.json                # 整场测试：胜负、回合、HP、搜索/沿用/偏差/失败与逐次日志
+    status.json                     # ok/failed、stage、搜索/整场状态与指标、准备选择
   results/done.json                 # 请求数、成功/失败数、总耗时、逐根结果
   mod.log                           # Mod 自己的日志
 ```
@@ -183,14 +194,21 @@ $BLITZ_TEST_DIR/
 - 捕获在主线程完成：`RulesCompiler.Compile` → `BattleImporter.Import` →
   `EvaluationConfigCompiler.CompileRequest`（写 `SREQ.capture`）→
   `SearchRequestCompiler.CompileRequest`（写 `SREQ`）。
-- 测试模式的搜索选项由请求控制：
+- 整场测试由 `fullCombatForTest=true` 开启：捕获根后立刻进入全自动，用请求的
+  `searchTier`（默认中档）和软时间做正常搜索，直到胜利、失败、暂停或取消。`status.json` 的
+  `fullCombat*` 字段与 `full-combat.json` 记录胜负、结束回合、剩余 HP、药水使用、搜索次数、
+  沿用回合数、偏差次数与字段差异、部署失败次数与原因、总耗时。
+- `headlessFastModeForTest` 在整场测试中覆盖战斗动画速度（默认 `Instant`，跑完恢复原值）；
+  其余模式不变。
+- 单次搜索的选项由请求控制：
   - `searchTier`：`Low`/`Medium`/`High`/`VeryHigh`，默认 `Medium`。
   - `deterministicSearchForTest`：默认 `true`。去掉软时间（`TimeSpan.MaxValue`），只保留
     节点上限，求解后写 `SREQ`/`SRES`，供离线逐字节重放。
   - `false` 时使用该档位的正常软时间，带 pacer，只写 `search.json` 的耗时与内存，不写
     `SREQ`/`SRES`；用于“中”档重根测量。
-  - `searchCancelAfterMillisecondsForTest`：到点取消；测试把
-    `searchStatus=cancelled, workerExited=true` 视为预期的取消验证。
+  - `searchCancelAfterMillisecondsForTest`：单次搜索到点取消；整场测试时作为全自动取消
+    时点。测试把 `searchStatus=cancelled`/`fullCombatStatus=cancelled` 与任务已退出视为预期
+    的取消验证。
 - 回合准备 fixture 的 `SREQ.capture` 仍只做评分/下界子部件比较；本批不对准备根做单 Beam
   搜索，`searchStatus=skipped`。前缀根在实机测试模式显式拒绝。
 - 捕获前等待 1.5s，让回合开始的可视/计时协程（例如 `FakeHappyFlower` 的 1 秒激活）结束。
@@ -307,11 +325,104 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 ```
 
 `--search-tier Low|Medium|High|VeryHigh` 默认 `Medium`；`--search-normal` 关闭确定性；
-`--search-cancel-after-ms` 只用于测试。
+`--search-cancel-after-ms` 只用于测试。整场自动战斗请求加 `--full-combat`：
 
-## 9. 实机对照
+```bash
+tools/testing/run-headless.sh --instance m2b2-full-1 \
+  --roots-file .local/full-1.txt --full-combat \
+  --results .local/m2b2-full-1-results \
+  --cleanup-instance-on-exit --timeout-seconds 480
+```
 
-### 9.1 捕获/冻结快照对照
+脚本把 `--roots-file/--root` 与 `--full-combat`/`--search-tier` 一起传给
+`OfflineHost --emit-live-requests`；整场请求固定 `deterministicSearchForTest=false`，搜索使用
+正常档软时间。
+
+## 9. 部署、逐步核对与回合对账
+
+### 9.1 路线回放
+
+`RouteReplay.Build` 从搜索根开始，用 `Kernel.Step` 重放 `BeamResult.BestRoute`：
+
+- 每个动作先用“0 个选择”的副本执行，拿到 `NeedsChoice` 的实时 `ChoiceRequest`；再逐个追加
+  路线里的位集，直到动作完整完成。这样每个选择都保留请求时的选项卡值与所在牌堆。
+- `Before[i]`/`After[i]` 是动作前后的预测 `Battle`；末尾结局必须与 `BestIsVictory` 一致。
+- 动作携带的选择数、结局或位集不自洽时，整条路线作废并重新搜索，不部署半条路线。
+
+### 9.2 动作翻译与选择
+
+部署只在主线程、通过原版入口执行：
+
+| 路线动作 | 原生入口 | 部署前核对 |
+| --- | --- | --- |
+| `PlayCard` | `CardModel.TryManualPlay(Creature?)` + `PlayCardAction` | 回合/轮次/能量/星能/手牌数；手牌下标处的卡 id+升级；目标 `CombatId` 存活；`CanPlayTargeting` |
+| `UsePotion` | `PotionModel.EnqueueManualUse(Creature?)` + `UsePotionAction` | 槽位存在、药水 id 与预测一致、目标合法；`Self` 药水按原版规则用玩家自己补目标 |
+| `EndTurn` | `CombatManager.OnEndedTurnLocally()` + `EndPlayerTurnAction` | 当前仍是预测的玩家回合 |
+
+选择使用原版 `CardSelectCmd` 的 `ICardSelector` 路径（`PlannedNativeSelector`），无头与可见
+游戏走同一条 `CardSelectCmd` 代码。每次 `GetSelectedCards`：
+
+1. 取计划里的下一个显式选择；选项数必须等于预测 `ChoiceRequest.OptionCount`。
+2. 按卡牌 id+升级把预测选项逐项映射到原生 `CardModel`，并核对它在
+   `ChoiceRequest.Source` 牌堆中。抽牌堆选牌在游戏里会按稀有度/id 排序，因此只按身份映射，
+   不按下标猜。
+3. 生成牌选择（Discovery、药水等）按生成卡 id+升级映射；`SelectOption` 同样按 id。
+4. 选择数量必须落在原生界面给出的实时上下界内；对不上抛
+   `ChoicePlanMismatchException`，会话暂停并清空路线，不用空选择或默认选择继续。
+
+原生会在“选项数 ≤ 最小选择数且不要求手动确认”时自己选满、不调用 `ICardSelector`。路线
+回放把这部分标成 implicit，不放进原生选择队列；其余选择都必须被游戏实际请求。
+
+### 9.3 逐步核对
+
+每执行一个动作：
+
+1. 等原版动作 `CompletionTask` 结束，再等动作队列空闲和预测的稳定边界（玩家 `Play` 阶段或
+   战斗结束）；回合开始额外等 1.5s，让回合开始协程（例如 `FakeHappyFlower` 的计时器）结束。
+2. `LiveCombatTracker` 从当前原生状态导入 `Battle`。稳定敌人顺序在会话开始时冻结；之后
+   新召唤的敌人追加，死亡敌人保留墓碑行，预测为 `Reviving` 的敌人按复活行导入。
+3. `BattleReconciler` 编码两侧 `Battle` 并比较。不同就记录 `ACTION_DEVIATION`/字段差异，
+   丢弃本回合剩余部署，从当前实际状态重新搜索；相同才继续下一个动作。
+
+严格比较前只做以下归一化，都是原生不可观测或搜索专用字段：
+
+- `ShuffleEventCount`/`ShufflesCrossed`：旧搜索的打乱计数/计分派生值，原生没有对应字段；
+  从最近预测边界携带，比较视图清零。
+- `DetachedCards[*].Flags` 的 `PowerAfflictionChecked`：detached 卡是值快照，未进入战斗，
+  原生没有这个一次性标记。
+- 永久死亡敌人的 AI 节点/日志/寄存器，以及它们名下的 Power 行：原生在死亡移除后已重置或
+  保留为不可达墓碑；两者都从比较视图移除，复活行不适用。
+- `NIGHTMARE_POWER.Target`：原生为 null、内核/冻结导入投影为玩家；Power 本身不使用该字段。
+
+其余字段（HP、护甲、能量、星能、牌堆顺序、卡值、9 条 RNG、计数、Powers、Relics、Orbs、
+药水、回合/侧/阶段、结局）都按 `BattleCodec` 字节比较，没有容差。
+
+### 9.4 回合对账与续用
+
+玩家新回合开始、状态稳定时，`AutoCombatSession` 重新导入实际 `Battle`，与路线里“上一动作
+之后”的预测边界比较：
+
+- 相同且路线还有后续动作：直接沿用剩余路线，记一次 `TURN_REUSE`，不重新搜索；
+- 不同：记一次 `TURN_DEVIATION`，字段差异写入 `full-combat.json` 的 `deviationLog`，从当前
+  实际状态重新搜索；
+- 路线已用完：重新搜索，直到战斗结束。
+
+Blitz 精确模拟 9 条随机数流，所以预测正确时这些边界应当逐字节相同；不同就是模拟/导入/
+部署问题的信号，不能靠放宽比较消掉。
+
+### 9.5 失败约定
+
+- 部署前校验失败、动作未入队、动作抛出/取消、选择对不上、边界超时、战斗提前结束：都不硬
+  执行下一步；清空当前路线并从实际状态重新搜索。
+- 同一回合连续 3 次预测偏差/部署失败：`AUTO_STOP`，交还手动；已执行的动作保留，已入队的
+  原版动作走完。
+- 搜索结果为空、路线回放不自洽、搜索失败：不部署半成品路线。
+- 战斗结束、玩家退出、`NGame.TreeExiting` 或测试清理：取消搜索与全自动会话，等待两段任务
+  退出；不留下后台 worker 或原生选择器。
+
+## 10. 实机对照
+
+### 10.1 捕获/冻结快照对照
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
@@ -343,7 +454,13 @@ live roots=23 same=23 diff=0 reject=0 native=23
 `qf2-gradient-failure`、`ts-a-toasty`、`ts-b-toolbox` 的 `SREQ` 仍是 `sreq=subparts`，
 其余 20 根为 `sreq=full`；`BATL`/`RULE`/`native` 全部相同。
 
-### 9.2 搜索请求/结果对照
+397 个普通根全量（`--emit-live-requests --all`，4 条通道并行，构建与 M2b-0b 合并后的 `main` 相同）：
+
+```text
+live roots=397 same=397 diff=0 reject=0 native=397
+```
+
+### 10.2 搜索请求/结果对照
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
@@ -362,11 +479,23 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `SREQ`/`SRES`）计为 `skipped reason=measure-only`；回合准备根计为
 `skipped reason=turn-setup-root`。
 
-## 10. 当前边界
+同一次 397 根运行里，每个根都做了确定性中档搜索：
 
-- 不部署：不在游戏里执行路线动作，不做跨回合续用对账，没有全自动。
-- 没有界面；普通玩家只有 `F8` 单次触发，测试模式才有自动逐根求解。
+```text
+search-compare roots=397 same=393 diff=0 reject=1 skipped=3
+```
+
+`skipped` 是 3 个回合准备 fixture。`reject` 是 `sk-a-discard-sly`：搜索在根节点第一次展开时就以
+内核不支持停止（`Kernel.Discard.cs`：被弃的 TACTICIAN+1 在自动打出前失去瞬态标记）。这是内核
+语义缺口，不是捕获或请求编译的问题，留给后续语义批次。
+
+## 11. 当前边界
+
+- 已部署、逐步核对、回合对账并自动打完整场；没有界面，普通玩家只有 `F8` 开关与日志。
+- 测试模式的整场请求使用正常档软时间；单次确定性搜索仍写 `SREQ`/`SRES` 供离线重放。
 - 只做单根 `BeamSolver.Solve`；前缀根不在实机测试模式执行，回合准备根只捕获不搜索。
+- 选择驱动覆盖原版 `CardSelectCmd` 的 `ICardSelector` 路径；不覆盖未来的非选牌模态请求，
+  也不猜测未知选项。
 - 搜索选项不覆盖 novelty、计划承诺、早期侦察、能力承诺与 incumbent；这些成员保持默认。
 - `PowerCommitments`、`HpTargetStop`、药水审计等高级成员未接入，路线可能与本仓库外的
   CombatSolver 主搜索成员不同；本批的对照只要求游戏与离线宿主使用同一个请求编译器。

@@ -328,7 +328,37 @@ M2b-1 的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=sam
 `quality-REGENT-013` 在 1s 时取消，输出 `searchStatus=cancelled, workerExited=true`，随后
 返回主菜单，没有后台任务残留。完整数值与字段来源见 M2b-1 报告。
 
-### 6.6 负例
+### 6.6 实机整场自动战斗
+
+`OfflineRequest` 增加 `fullCombatForTest`；`--emit-live-requests` 的 `--full-combat` 把它置位
+并关闭确定性。测试模式捕获根后立刻进入 `AutoCombatSession`，每回合搜索/沿用路线、逐动作
+核对、回合对账，直到胜利、失败、暂停或取消。结果写 `full-combat.json`，并在 `status.json`
+增加 `fullCombatStatus/outcome/turns/playerHp/playerMaxHp/searches/reusedTurns/deviations/
+deploymentFailures`。整场搜索使用请求档位的正常软时间；`src/Mod` 还会把
+`headlessFastModeForTest` 覆盖为 `Instant`（默认）并在结束后恢复。
+
+命令：
+
+```bash
+tools/testing/run-headless.sh --instance m2b2-full-1 \
+  --roots-file .local/full-1.txt --full-combat \
+  --results .local/m2b2-full-1-results \
+  --cleanup-instance-on-exit --timeout-seconds 480
+```
+
+M2b-2 的 20 个固定根分两条命令执行，全部结束：
+
+```text
+HEADLESS_DONE instance=m2b2-final-a ok=10 failed=0 total_ms=272809.2872
+HEADLESS_DONE instance=m2b2-final-b ok=10 failed=0 total_ms=297313.871
+```
+
+16 胜 4 负，合计搜索 20 次、沿用回合 88 次、预测偏差 0、部署失败 0；逐场数据见
+`.local/tool-tasks/blitz/M2b2-report.md`。取消验证用
+`--full-combat --search-cancel-after-ms 5000`，得到 `fullCombatStatus=cancelled`、
+`AutoCombatSession.IsRunning=false`，随后正常返回主菜单。
+
+### 6.7 负例
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
@@ -357,15 +387,16 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 | manifest | 快照完整性与来源声明 | 语义正确性 |
 | 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 实机部署、任意 Mod、语料外前缀/准备阶段 |
 | Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
-| 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 部署、跨回合续用、界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
+| 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
+| 实机整场（手动） | 20 个固定根在无头游戏里自动打完（16 胜 4 负），逐动作核对与回合对账均为 0 偏差/0 部署失败；至少一个根实际走过选牌、抽牌堆/弃牌堆选择与药水目标；取消测试无残留 | 120 根全量、界面、未捕获前缀/准备根、第三方 Mod |
 
-这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的，并且能在真实游戏中导入状态、对捕获的根做一次单 Beam 搜索。它们不证明：BlitzSolver 能在真实战斗中部署路线、在界面上显示，或支持任意第三方 Mod。
+这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的，能在真实游戏中导入状态、搜索并在无头战斗里自动打完固定 20 根。它们不证明：全部 397 个普通根都能结束、界面可用，或支持任意第三方 Mod。
 
 ## 8. 未验证项
 
-- **实机全量**：M2b-0 验证了 20 个普通根与 3 个回合准备 fixture，M2b-0b 追加 5 个第三幕 A10 Boss 根与 23 根复跑，M2b-1 验证了 20 个普通根的确定性搜索与 3 个 PF1 重根的中档测量。397 个普通根的整轮运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
-- **部署**：搜索已接入，但尚未把路线接到实机动作、回合对账或自动执行。
-- **界面**：没有设置页、进度、路线预览或失败提示；普通玩家只有 `F8` 单次触发。
+- **实机全量**：M2b-0 验证了 20 个普通根与 3 个回合准备 fixture，M2b-0b 追加 5 个第三幕 A10 Boss 根与 23 根复跑，M2b-1 验证了 20 个普通根的确定性搜索与 3 个 PF1 重根的中档测量，M2b-2 只验证了 20 个固定根的整场自动战斗。397 个普通根的捕获与确定性搜索、120 根质量语料的整场运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
+- **界面**：没有设置页、进度、路线预览或失败提示；普通玩家只有 `F8` 开关与日志。
+- **非选牌模态**：选择驱动只覆盖 `CardSelectCmd` 的 `ICardSelector` 路径；未验证未来/第三方 Mod 的其它模态请求。
 - **前缀根**：实机测试模式显式拒绝前缀动作；继续由离线宿主的 `PrefixReplay` 覆盖。
 - **回合准备多根**：实机只捕获第一个准备选项；完整 `config.br` 的多根排序仍只在离线宿主验证。
 - **第三方 Mod**：没有实机 Mod 根；导入层只显式拒绝非 `sts2` 程序集的模型，未做兼容层。

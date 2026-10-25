@@ -4,8 +4,8 @@ using MegaCrit.Sts2.Core.Nodes;
 namespace BlitzSolver;
 
 /// <summary>
-/// The ordinary-game trigger for this batch: F8 starts one capture + background search of the
-/// current playable combat. It is deliberately not a UI and not an automatic per-turn search.
+/// The ordinary-game trigger: F8 toggles whole-combat automation. The UI and per-turn controls are
+/// later batches; this node only owns the key edge.
 /// </summary>
 internal sealed partial class SearchHotkeyNode : Node
 {
@@ -21,7 +21,7 @@ internal sealed partial class SearchHotkeyNode : Node
         NGame? host = NGame.Instance;
         if (host == null)
             return;
-        ModLog.Info("[BlitzSolver] HOTKEY_SEARCH_TRIGGER key=F8");
-        SearchSession.TryStartManual(host);
+        ModLog.Info("[BlitzSolver] HOTKEY_AUTO_TOGGLE key=F8");
+        AutoCombatSession.Toggle(host);
     }
 }

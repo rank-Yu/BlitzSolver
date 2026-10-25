@@ -34,6 +34,10 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
   一张共享规则表导入同 fixture 的多个准备根。
 - `options`：在根上没有原生对应物的少量事实（`ShufflesCrossed`、`HasRisk`、事件失败边界、
   回合准备根标记与 Start 卡牌对象集合 `RootCards`）。默认值描述普通出牌阶段根。
+  自动战斗的实时导入还会设置 `KnownEnemies`/`AllowDeadEnemies`/`RootEnemyCount`
+  （稳定敌人顺序、死亡墓碑）、`RevivingEnemies`（预测为复活的死亡行）与 `Reconciliation`
+  （从原生 History 重建本回合/累计计数）。这些字段只由 `LiveCombatTracker` 使用，根捕获保持
+  旧行为，冻结快照的 410/410 不受影响。
 
 输出先 `default(Battle)`，再逐字段写；不复用缓冲，因此 padding 始终为零。卡牌小数变量最后
 按“detached 卡 → 牌堆存储顺序”规范化。
@@ -63,6 +67,17 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 新根上成长、死亡、偷窃与累计 HP 账本都从零开始；本回合计数从原生 History 现算。
 `VitalSparkNormalizedAmount` 在普通根是 `int.MinValue`，回合准备根是 0（旧桥在准备阶段
 至少做过一次规范化）。
+
+实时导入（`Reconciliation=true`）与根捕获的区别：
+
+- `CardsPlayedThisTurn`/`SkillCardsPlayedThisTurn` 按“已完成的出牌”计数，和内核的
+  `RecordCardPlayed` 一致；根捕获保留旧桥的 first-in-series 口径。
+- `CumulativeHpLost`、`PlayerUnblockedDamageEvents`、`OrbChannels` 从整场 History 现算；
+  根捕获仍写 0/本回合值，保持冻结快照。
+- `SkillPlayedThisSideTurn` 由本回合已完成技能推导；根捕获写 0。
+- 原生会在敌人死亡后把它从 `CombatState.Enemies` 移除并重置行动状态机。实时导入用会话开始时
+  冻结的已知敌人顺序保留墓碑行；预测为 `Reviving` 的行按复活行导入，行动/AI 仍从原生
+  `MonsterModel` 读取。永久死亡行不读已经重置的行动状态机。
 
 ## 3. 规则编译
 
