@@ -60,6 +60,7 @@ dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/d
 
 ## 6. 提交与文档
 
-- 提交信息用中文。只提交本任务的文件；`artifacts/`、`bin/`、`obj/`、`.local/` 不进提交。
+- 提交信息首行写成 `<模块>: <中文说明>`，冒号用半角加空格，说明与正文用中文。模块用英文：只改一个目录时用目录或项目名（`Engine`、`Content`、`Search`、`Import`、`TestHost`、`Mod`、`OfflineHost`、`Golden`、`KernelChecks`、`corpora`）；跨 `src/Core` 多个部分用 `Core`；不对应单个目录时用 `docs`、`repo`、`ci`、`license`；只改顶层文件时用文件名（`README`、`AGENTS.md`）。
+- 只提交本任务的文件；`artifacts/`、`bin/`、`obj/`、`.local/` 不进提交。
 - 一次性脚本、探针与中间产物放 `.local/`，任务结束后删除。
 - 文档用中文，每份文档只有一个职责，`docs/README.md` 是索引。进度、批次与运行流水不写进本文件。
