@@ -44,7 +44,7 @@ namespace BlitzSolver.Import;
 /// frozen rule object: the 30 constructor inputs are read from the native combat state and models.
 /// Unsupported or missing native reads reject the root with a stable <see cref="ImportReason"/>.
 /// </summary>
-public static class RulesCompiler
+public static partial class RulesCompiler
 {
     private static readonly Lazy<Dictionary<string, CardModel>> CanonicalCards = new(() =>
         ModelDb.All.OfType<CardModel>().GroupBy(card => card.Id.Entry, StringComparer.Ordinal)
@@ -837,7 +837,8 @@ public static class RulesCompiler
     }
 
     private static MonsterRules CompileMonster(MonsterModel monster, Creature creature,
-        bool rootPowerAmountsFromCreature)
+        bool rootPowerAmountsFromCreature, int[]? initialAiRegistersOverride = null,
+        int[]? rootPowerAmountsOverride = null)
     {
         if (!Registry.TryMonster(monster.Id.Entry, out ushort monsterId))
             throw new UnsupportedImportException(ImportReason.UnsupportedMonster, monster.Id.Entry);
@@ -950,27 +951,35 @@ public static class RulesCompiler
         {
             staticInts[position] = NativeAccess.MonsterInt(monster, def.StaticIntNames[position]);
         }
-        int[] rootPowerAmounts = new int[def.RootPowerAmountNames.Count];
-        for (int position = 0; position < rootPowerAmounts.Length; position++)
+        int[] rootPowerAmounts = rootPowerAmountsOverride
+            ?? new int[def.RootPowerAmountNames.Count];
+        if (rootPowerAmountsOverride == null)
         {
-            string nativePower = def.RootPowerAmountNames[position];
-            rootPowerAmounts[position] = 0;
-            if (!rootPowerAmountsFromCreature)
-                continue;
-            foreach (PowerModel power in creature.Powers)
+            for (int position = 0; position < rootPowerAmounts.Length; position++)
             {
-                if (power.Amount != 0 && power.Id.Entry == nativePower)
+                string nativePower = def.RootPowerAmountNames[position];
+                rootPowerAmounts[position] = 0;
+                if (!rootPowerAmountsFromCreature)
+                    continue;
+                foreach (PowerModel power in creature.Powers)
                 {
-                    rootPowerAmounts[position] = power.Amount;
-                    break;
+                    if (power.Amount != 0 && power.Id.Entry == nativePower)
+                    {
+                        rootPowerAmounts[position] = power.Amount;
+                        break;
+                    }
                 }
             }
         }
-        int[] initialAiRegisters = new int[def.AiRegisterNames.Count];
-        for (int position = 0; position < initialAiRegisters.Length; position++)
+        int[] initialAiRegisters = initialAiRegistersOverride
+            ?? new int[def.AiRegisterNames.Count];
+        if (initialAiRegistersOverride == null)
         {
-            initialAiRegisters[position] = NativeAccess.MonsterInt(monster,
-                def.AiRegisterNames[position]);
+            for (int position = 0; position < initialAiRegisters.Length; position++)
+            {
+                initialAiRegisters[position] = NativeAccess.MonsterInt(monster,
+                    def.AiRegisterNames[position]);
+            }
         }
         return new MonsterRules
         {

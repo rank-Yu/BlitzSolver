@@ -34,14 +34,194 @@ internal sealed record ConfigResult(ConfigStatus Status, string Reason, string F
 
 internal static class ConfigCompare
 {
+
+    /// <summary>
+    /// Compiles the rules/config for a fixed-prefix root: rules come from the replayed Battle, while
+    /// the root-frozen score/bound facts come from the pre-prefix native request root and the replay
+    /// counters, matching CombatSolver's FlashDifferentialProbe.
+    /// </summary>
+
+    /// <summary>Assembles the full SREQ request from all enumerated turn-setup roots and compares it.</summary>
+    public static ConfigResult RunSetup(string data, string root, SetupRootSet set)
+    {
+        if (set.Score is not { } score || set.Bound is not { } boundConfig)
+            return new(ConfigStatus.Rejected, ImportReason.UnsupportedPolicy, "",
+                "回合准备根的评分/下界配置没有编译。", false);
+        byte[] expectedBytes;
+        SearchCase expected;
+        GoldenRootRecord golden;
+        try
+        {
+            string directory = Path.Combine(data, "d1", root);
+            expectedBytes = ReadBrotli(Path.Combine(directory, "config.br"));
+            expected = SearchCodec.DecodeRequest(expectedBytes);
+            golden = GoldenData.Decode(ReadBrotli(Path.Combine(directory, "golden.br")));
+        }
+        catch (InvalidDataException error)
+        {
+            return new(ConfigStatus.Rejected, "invalid-golden", "", error.Message, false);
+        }
+        if (set.Roots.Count < golden.Roots.Count)
+        {
+            return new(ConfigStatus.Different, "", "roots",
+                $"setup roots compiled={set.Roots.Count} golden={golden.Roots.Count}", false);
+        }
+        List<Battle> ordered = new(golden.Roots.Count);
+        bool[] used = new bool[set.Roots.Count];
+        for (int index = 0; index < golden.Roots.Count; index++)
+        {
+            int match = -1;
+            for (int candidate = 0; candidate < set.Roots.Count; candidate++)
+            {
+                if (used[candidate] || !ImportCompare.SameBytes(golden.Roots[index].Battle, set.Roots[candidate]))
+                    continue;
+                match = candidate;
+                break;
+            }
+            if (match < 0)
+                return new(ConfigStatus.Different, "", "roots",
+                    $"golden root[{index}] 没有匹配的 setup 根", false);
+            used[match] = true;
+            ordered.Add(set.Roots[match]);
+        }
+
+        Scorer scorer = new(score);
+        BoundFeatures bound = boundConfig;
+        BeamOptions options = new(1, 1, 1, TimeSpan.Zero, ordered[0].Player.MaxHp)
+        {
+            Scorer = scorer,
+            Bound = bound,
+            InitialActionCount = 0,
+        };
+        SearchCase actual = new(set.Rules, [.. ordered], options);
+        byte[] actualBytes = SearchCodec.EncodeRequest(actual);
+        if (!actualBytes.AsSpan().SequenceEqual(expectedBytes))
+        {
+            string? section = DescribeRequestDifference(expected, actual, out string detail);
+            return new(ConfigStatus.Different, "", section ?? "<bytes>", detail, false);
+        }
+        for (int index = 0; index < golden.Roots.Count; index++)
+        {
+            ConfigResult hashes = CheckHashes(golden.Roots[index], ordered[index], scorer, bound, 0, false);
+            if (hashes.Status != ConfigStatus.Same)
+                return hashes;
+        }
+        return new(ConfigStatus.Same, "", "", "", false);
+    }
+
+    public static ConfigResult RunPrefix(string data, string root, CombatState state,
+        OfflineRequest request)
+    {
+        Player player = LocalContext.GetMe(state)
+            ?? throw new InvalidOperationException("找不到本地玩家。");
+        if (state.RunState is not RunState runState)
+            return new(ConfigStatus.Rejected, ImportReason.RulesMismatch, "", "原生战斗的 RunState 不是具体 RunState", false);
+
+        PrefixAction[] actions;
+        PrefixReplayResult replay;
+        Battle pre;
+        Rules preRules;
+        Rules rules;
+        try
+        {
+            preRules = RulesCompiler.Compile(state, player, runState);
+            pre = BattleImporter.Import(state, player, preRules, ImportOptions.Default);
+            actions = PrefixPlan.Parse(request);
+            replay = PrefixReplay.Replay(pre, preRules, actions);
+            rules = RulesCompiler.CompileAfterPrefix(state, player, runState, replay.Battle);
+        }
+        catch (UnsupportedImportException error)
+        {
+            return new(ConfigStatus.Rejected, error.Reason, "", error.Detail, false);
+        }
+        catch (UnsupportedException error)
+        {
+            return new(ConfigStatus.Rejected, "core-unsupported", "", error.Message, false);
+        }
+        catch (CapacityException error)
+        {
+            return new(ConfigStatus.Rejected, ImportReason.Capacity, error.Region, error.Message, false);
+        }
+        catch (InvalidOperationException error)
+        {
+            return new(ConfigStatus.Rejected, ImportReason.PrefixPlan, "", error.Message, false);
+        }
+
+        byte[] expectedBytes;
+        SearchCase expected;
+        GoldenRootRecord golden;
+        try
+        {
+            string directory = Path.Combine(data, "d1", root);
+            expectedBytes = ReadBrotli(Path.Combine(directory, "config.br"));
+            expected = SearchCodec.DecodeRequest(expectedBytes);
+            golden = GoldenData.Decode(ReadBrotli(Path.Combine(directory, "golden.br")));
+            if (golden.Roots.Count != 1)
+                throw new InvalidDataException($"{root} 的前缀快照有 {golden.Roots.Count} 个根，预期 1 个。");
+        }
+        catch (InvalidDataException error)
+        {
+            return new(ConfigStatus.Rejected, "invalid-golden", "", error.Message, false);
+        }
+
+        SearchPolicy policy;
+        Scorer scorer;
+        BoundFeatures bound;
+        EvaluationRootFacts facts = EvaluationRootFacts.Default with
+        {
+            InitialActionCount = actions.Length,
+            InitialPotionUseCount = replay.PotionUseCount,
+            InitialPotionStrategicCost = replay.PotionStrategicCost,
+            InitialExplicitPotionStrategicCost = replay.ExplicitPotionStrategicCost,
+            // M0's FlashDifferentialProbe constructs the bound with its default 0/0 initial potion
+            // use counts; the score table still carries the replayed cumulative counts above.
+            InitialExplicitPotionUses = 0,
+            InitialAutomaticPotionUses = 0,
+        };
+        try
+        {
+            policy = ApplyOverrides(SearchPolicyCapture.Capture(state, player), request, player);
+            scorer = EvaluationConfigCompiler.CompileScorer(state, player, rules, replay.Battle,
+                policy, facts, rankBaselineRoot: pre, rankBaselineRules: preRules);
+            bound = EvaluationConfigCompiler.CompileBound(state, player, replay.Battle, policy, facts);
+        }
+        catch (UnsupportedImportException error)
+        {
+            return new(ConfigStatus.Rejected, error.Reason, "", error.Detail, false);
+        }
+        catch (UnsupportedException error)
+        {
+            return new(ConfigStatus.Rejected, "core-unsupported", "", error.Message, false);
+        }
+        catch (CapacityException error)
+        {
+            return new(ConfigStatus.Rejected, ImportReason.Capacity, error.Region, error.Message, false);
+        }
+
+        BeamOptions options = new(1, 1, 1, TimeSpan.Zero, replay.Battle.Player.MaxHp)
+        {
+            Scorer = scorer,
+            Bound = bound,
+            InitialActionCount = actions.Length,
+        };
+        SearchCase actual = new(rules, [replay.Battle], options);
+        byte[] actualBytes = SearchCodec.EncodeRequest(actual);
+        if (!actualBytes.AsSpan().SequenceEqual(expectedBytes))
+        {
+            string? section = DescribeRequestDifference(expected, actual, out string detail);
+            return new(ConfigStatus.Different, "", section ?? "<bytes>", detail, false);
+        }
+        return CheckHashes(golden.Roots[0], replay.Battle, scorer, bound, actions.Length, false);
+    }
+
     public static ConfigResult Run(string data, string root, CombatState state,
         IReadOnlyList<string> setupSelections, bool preInjectionSetupRoot,
         OfflineRequest request)
     {
         if (request.FlashPrefixActions.Length != 0 || request.FlashPrefixPlan.Length != 0)
         {
-            return new(ConfigStatus.Rejected, ImportReason.RootPhase, "",
-                "前缀根的评估配置留给 M2a-5", false);
+            return new(ConfigStatus.Rejected, ImportReason.PrefixPlan, "",
+                "前缀根必须走 ConfigCompare.RunPrefix", false);
         }
         Player player = LocalContext.GetMe(state)
             ?? throw new InvalidOperationException("找不到本地玩家。");
@@ -159,7 +339,7 @@ internal static class ConfigCompare
 
 
 
-    private static SearchPolicy ApplyOverrides(SearchPolicy policy, OfflineRequest request,
+    internal static SearchPolicy ApplyOverrides(SearchPolicy policy, OfflineRequest request,
         Player player)
     {
         if (request.GrowthBudgets is { } budgets)

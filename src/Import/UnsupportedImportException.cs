@@ -23,6 +23,7 @@ public static class ImportReason
     public const string UnclaimedPrivateState = "unclaimed-private-state";
     public const string RulesMismatch = "rules-mismatch";
     public const string KnownEnemyHistory = "known-enemy-history";
+    public const string PrefixPlan = "prefix-plan";
     public const string RunDeckHook = "run-deck-hook";
     public const string TestContent = "test-content";
     public const string DeprecatedContent = "deprecated-content";

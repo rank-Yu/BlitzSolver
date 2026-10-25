@@ -12,8 +12,10 @@ namespace BlitzSolver.Import;
 internal static class EvaluationConfigCompiler
 {
     public static Scorer CompileScorer(CombatState state, Player player, Rules rules,
-        in Battle root, SearchPolicy policy, EvaluationRootFacts facts)
-        => new(ScoreCompiler.Compile(state, player, rules, root, policy, facts));
+        in Battle root, SearchPolicy policy, EvaluationRootFacts facts,
+        Battle? rankBaselineRoot = null, Rules? rankBaselineRules = null)
+        => new(ScoreCompiler.Compile(state, player, rules, root, policy, facts,
+            rankBaselineRoot, rankBaselineRules));
 
     public static BoundFeatures CompileBound(CombatState state, Player player, in Battle root,
         SearchPolicy policy, EvaluationRootFacts facts)

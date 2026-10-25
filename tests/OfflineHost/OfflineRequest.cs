@@ -67,7 +67,7 @@ internal sealed record OfflineRequest
     public bool ClearAllPowers { get; init; }
     public double TimeoutSeconds { get; init; } = 120;
 
-    // Recognized but not applied in M2a-0: prefixes and turn-setup roots belong to M2a-5.
+    // Fixed prefix and turn-setup fixtures; parsed by PrefixPlan/TurnSetupRootCapture.
     public JsonElement[] FlashPrefixActions { get; init; } = [];
     public JsonElement[] FlashPrefixPlan { get; init; } = [];
     public bool FlashTurnSetupRootForTest { get; init; }

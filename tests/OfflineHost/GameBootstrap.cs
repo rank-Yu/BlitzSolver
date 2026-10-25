@@ -54,6 +54,7 @@ internal static class GameBootstrap
             nameof(MegaCrit.Sts2.Core.Platform.PlatformUtil.GetPlatformBranch), prefix: nameof(PlatformBranchPrefix));
         Patch(typeof(MegaCrit.Sts2.Core.Platform.PlatformUtil),
             nameof(MegaCrit.Sts2.Core.Platform.PlatformUtil.GetPlayerNameRaw), prefix: nameof(PlayerNameRawPrefix));
+        TurnSetupRootCapture.Install();
     }
 
     /// <summary>第二步：游戏静态状态。顺序照 OneTimeInitialization.ExecuteEssential。</summary>

@@ -504,11 +504,13 @@ public static class BattleImporter
             {
                 imported.Add(card);
                 int originalUpgrade = dampen.TryGetValue(card, out int level) ? level : -1;
-                // A turn-setup ordinary root was captured before the test host injected cards. Cards without a
-                // run-deck source were created during setup (Toolbox's chosen card) and therefore carry
-                // CreatedAfterRoot, matching CombatSolver's _liveCardsAtSnapshot. Other roots treat every
-                // combat-pile card as a root card.
-                bool rootCard = !options.TurnSetupRoot || card.DeckVersion != null;
+                // A turn-setup root reports the exact card objects captured at the Start snapshot;
+                // cards created during setup (Toolbox's chosen card) are not in that set and therefore
+                // carry CreatedAfterRoot, matching CombatSolver's _liveCardsAtSnapshot. Older callers
+                // without the set keep the run-deck-source approximation for setup roots.
+                bool rootCard = options.RootCards is { } rootCards
+                    ? rootCards.Contains(card)
+                    : !options.TurnSetupRoot || card.DeckVersion != null;
                 Card value = Card(ref battle, card, rules, rootCard, originalUpgrade);
                 if (card is SovereignBlade)
                     value.Private = checked((short)rules.RootSwordSageAmount);

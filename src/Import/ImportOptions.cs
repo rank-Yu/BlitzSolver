@@ -1,3 +1,5 @@
+using MegaCrit.Sts2.Core.Models;
+
 namespace BlitzSolver.Import;
 
 /// <summary>
@@ -25,10 +27,19 @@ public sealed record ImportOptions
     public bool RequirePlayPhase { get; init; } = true;
 
     /// <summary>
-    /// The root is the ordinary root of a turn-setup fixture (captured before the test host's initial
-    /// injection). The old bridge's setup capture normalized Vital Spark at least once.
+    /// The root belongs to a turn-setup fixture (the ordinary Play root or an enumerated setup
+    /// branch), captured before the test host's initial injection. The old bridge's setup capture
+    /// normalized Vital Spark at least once.
     /// </summary>
     public bool TurnSetupRoot { get; init; }
+
+    /// <summary>
+    /// The exact card objects present in the player's combat piles at the turn-setup Start snapshot.
+    /// <see cref="BattleImporter"/> marks a card created during setup with
+    /// <see cref="BlitzSolver.Engine.Keywords.CreatedAfterRoot"/> when it is not in this set. Null keeps
+    /// the previous approximation for non-setup roots.
+    /// </summary>
+    public IReadOnlySet<CardModel>? RootCards { get; init; }
 
     public static ImportOptions Default { get; } = new();
 }

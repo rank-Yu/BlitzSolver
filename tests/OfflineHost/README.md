@@ -64,8 +64,10 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 每个根建原生状态、调 `BattleImporter.Import`，再与 `d1/<root>/golden.br` 的期望 `BATL`
 逐字节比较。结果只有 `same`、`diff`（打印 `BattleDump` 的前 24 个差异字段及偏移）与
-`reject`（打印稳定原因码）。`--all` 只跑 397 个在范围根，跳过 13 个前缀 fixture；额外 8 个
-回合准备根与 3 个普通根的处理见 [`docs/import.md`](../../docs/import.md)。
+`reject`（打印稳定原因码）。`--all` 覆盖全部 410 个输入/418 个根：前缀 fixture 先导入前缀前
+状态，再用 `PrefixReplay` 在 Core 内核上执行冻结动作；回合准备 fixture 用
+`SetupPlayerTurn` Harmony 前缀记录 Start 卡牌集合并按原生选项逐个重建分支。实现见
+[`docs/import.md`](../../docs/import.md)。
 
 `--compiled-rules` 改用 `RulesCompiler.Compile` 的输出来导入：
 
@@ -98,9 +100,12 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --conf
 `d1/<root>/config.br` 逐字节比较。`diff` 依次比较规则、根、评分表、下界与其余选项并打印
 第一处字段；同时用同一份 `tests/Golden/GoldenHash.cs` 校验 `scoreHash`/`boundHash`。
 
-3 个回合准备 fixture 的 `config.br` 含全部准备根，本批只导入普通根，因此只比较
-`ScoreRules`/`Bound` 子结构；完整请求与额外准备根留给 M2a-5。当前 397 个在范围根
-`config same=397 diff=0 reject=0`。
+3 个回合准备 fixture 的 `config.br` 含全部准备根，离线宿主按 GOLD 的 `Choices` 顺序把独立
+重建的根排入请求后做完整请求比较。当前 410 个输入：
+
+```text
+config same=410 diff=0 reject=0 full=410 subparts=0
+```
 
 请求 DTO 新增了会影响评估配置的政策覆盖：`growthBudgets`、`relicCounterRules`、
 `ignoreLongTermRewards`、`actTransitionBossHpStrategy`、`finalBossHpStrategy`、
@@ -134,8 +139,10 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   根名为 `quality-<name>`。
 
 请求 DTO 覆盖当前 410 个输入、生成场景 spec 与评估政策实际用到的字段；未知字段、非空
-`checkpointArchivePath`/`replayPolicyOverridePath` 以及本批不支持的搜索/部署值会显式失败。
-`flashPrefixActions`/`flashPrefixPlan` 被识别但不执行；额外回合准备根不在本批范围。
+`checkpointArchivePath`/`replayPolicyOverridePath` 以及不支持的搜索/部署值会显式失败。
+`flashPrefixActions`/`flashPrefixPlan` 由 `PrefixPlan` 按 CombatSolver 的计划语义翻译；无法
+翻译的字段抛 `prefix-plan`。`flashTurnSetupRootForTest` 的 Start 卡牌集合由
+`TurnSetupRootCapture` 捕获。
 
 ## 转储
 

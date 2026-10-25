@@ -179,7 +179,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --all --jobs 8 --out .l
 # 单个根：建原生状态 → 导入 → 与 golden.br 的第一个/普通根 BATL 比较
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --import-compare
 
-# 397 个在范围根；13 个前缀 fixture 自动跳过
+# 全部 410 个输入（前缀根回放，回合准备 fixture 枚举全部分支）
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --import-compare
 
 # 改用规则编译器输出，而不是解码冻结规则对象
@@ -191,12 +191,12 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --impo
 计数，并按首个差异字段、拒绝原因分组。当前：
 
 ```text
-import same=397 diff=0 reject=0
+import same=410 diff=0 reject=0
 ```
 
-`qf2-gradient-failure`、`ts-b-toolbox`、`ts-a-toasty` 的普通根分别是 GOLD 的下标 1/0/1；
-额外 8 个回合准备根不在本批。对照模式用原生第一个准备选项匹配对应的 golden 根，原因与字段
-来源见 [原生状态导入](import.md)。
+`qf2-gradient-failure`、`ts-b-toolbox`、`ts-a-toasty` 共 11 个根全部对照。前缀根是
+“导入前缀前状态 + 内核回放”，回合准备 fixture 是“SetupPlayerTurn 前缀捕获 Start 卡牌集合 +
+逐个原生准备选项重建”。实现与字段来源见 [原生状态导入](import.md)。
 
 ### 6.2 规则编译对照
 
@@ -204,7 +204,7 @@ import same=397 diff=0 reject=0
 # 单个根：编译 Rules → RulesCodec.Encode → 与冻结规则对象逐字节比较
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --rules-compare
 
-# 397 个在范围根；13 个前缀 fixture 自动跳过
+# 全部 410 个输入
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --rules-compare
 
 # 静态镜像覆盖率表合同：没有遗漏/多余 id，且覆盖全部 Blitz Registry 内容
@@ -212,11 +212,11 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-table-check
 ```
 
 每根输出 `same`、`diff` 或 `reject`。`diff` 随后打印 `RulesDiff` 的第一处表/项及前 16 行差异；
-`reject` 打印稳定原因码与 detail。`--all` 同时打印 397 个根覆盖的不同冻结规则对象数。当前：
+`reject` 打印稳定原因码与 detail。`--all` 同时打印 410 个输入覆盖的不同冻结规则对象数。当前：
 
 ```text
-rules-objects distinct=376 roots=397
-rules same=397 diff=0 reject=0
+rules-objects distinct=388 roots=410
+rules same=410 diff=0 reject=0
 RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
   missing_cards=0 extra_cards=0 missing_powers=0 extra_powers=0 registry_missing=0
 ```
@@ -227,16 +227,16 @@ RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
 # 单个根：编译 ScoreRules/Bound → 重组 SREQ → 与 config.br 逐字节比较
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --config-compare
 
-# 397 个在范围根；13 个前缀 fixture 自动跳过
+# 全部 410 个输入
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --config-compare
 ```
 
-394 个普通根整份请求逐字节相同；3 个回合准备 fixture 只比较 `ScoreRules`/`Bound` 子结构。
-`diff` 依次比较规则、根、评分表、下界与其余选项，打印第一处字段。当前同时通过
-`GoldenHash` 校验 397 个根的 `scoreHash`/`boundHash`：
+410 个输入整份请求逐字节相同，包括 3 个回合准备 fixture 的全部准备根。`diff` 依次比较规则、
+根、评分表、下界与其余选项，打印第一处字段。当前同时通过 `GoldenHash` 校验 418 个根的
+`scoreHash`/`boundHash`：
 
 ```text
-config same=397 diff=0 reject=0
+config same=410 diff=0 reject=0 full=410 subparts=0
 ```
 
 ### 6.4 负例
@@ -250,10 +250,10 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 `OfflineHost` 程序集里的测试 Power 挂到玩家身上得到 `third-party-content`。三条都必须拒绝，
 输出 `negative failures=0`。
 
-离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态；397 个在
-范围根能直接导入并与 GOLD 的 `BATL` 逐字节相同，也能编译出与冻结规则对象逐字节相同的
-`Rules`，还能编译出与 `config.br` 相同的评分表与下界；3 类私有状态/第三方内容负例显式
-拒绝。它不证明：13 个前缀根、8 个额外回合准备根、实机运行，以及未捕获的第三方 Mod 内容。
+离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态；410 个
+输入（418 个根）能导入并与 GOLD 的 `BATL` 逐字节相同，也能编译出与冻结规则对象逐字节相同
+的 `Rules`，还能编译出与 `config.br` 相同的评分表与下界；3 类私有状态/第三方内容负例显式
+拒绝。它不证明：实机运行、准备阶段的多段选择，以及未捕获的第三方 Mod 内容。
 
 ## 7. 每层证明什么
 
@@ -264,14 +264,14 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；397 个在范围根导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 前缀/额外回合准备根、实机运行、任意 Mod |
+| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 实机运行、任意 Mod、语料外前缀/准备阶段 |
 
 这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的。它们不证明：BlitzSolver 能在真实游戏中导入状态、在真实战斗中部署、在界面上显示，或支持任意第三方 Mod。
 
 ## 8. 未验证项
 
 - **实机运行**：尚未在游戏内启动 BlitzSolver。
-- **状态导入**：离线宿主的 `--import-compare` 已覆盖 397 个在范围根的 `Battle`；`--rules-compare` 已覆盖规则编译；`--config-compare` 已覆盖评估配置。
+- **状态导入**：离线宿主的 `--import-compare` 已覆盖 410 个输入（418 个根）的 `Battle`；`--rules-compare` 已覆盖全部 388 个冻结规则对象；`--config-compare` 已覆盖全部评估配置。
 - **实机状态导入**：尚未从游戏运行时把 `CombatState`/`RunState` 投影成 `Battle`。
 - **部署**：尚未把搜索结果翻译回游戏动作并执行。
 - **界面**：没有设置页、进度、路线预览或失败提示。

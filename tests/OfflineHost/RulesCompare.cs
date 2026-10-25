@@ -30,6 +30,82 @@ internal sealed record RulesResult(RulesStatus Status, string Reason, string Fir
 
 internal static class RulesCompare
 {
+
+
+    public static RulesResult RunSetup(string data, string root, SetupRootSet set)
+        => CompareEncoded(data, root, set.Rules);
+
+    public static RulesResult RunPrefix(string data, string root, CombatState state,
+        OfflineRequest request)
+    {
+        Player player = LocalContext.GetMe(state)
+            ?? throw new InvalidOperationException("找不到本地玩家。");
+        try
+        {
+            if (state.RunState is not RunState runState)
+                return new(RulesStatus.Rejected, ImportReason.RulesMismatch, "",
+                    "原生战斗的 RunState 不是具体 RunState");
+            Rules preRules = RulesCompiler.Compile(state, player, runState);
+            Battle pre = BattleImporter.Import(state, player, preRules, ImportOptions.Default);
+            PrefixAction[] actions = PrefixPlan.Parse(request);
+            PrefixReplayResult replay = PrefixReplay.Replay(pre, preRules, actions);
+            Rules rules = RulesCompiler.CompileAfterPrefix(state, player, runState, replay.Battle);
+            return CompareEncoded(data, root, rules);
+        }
+        catch (UnsupportedImportException error)
+        {
+            return new(RulesStatus.Rejected, error.Reason, "", error.Detail);
+        }
+        catch (UnsupportedException error)
+        {
+            return new(RulesStatus.Rejected, "core-unsupported", "", error.Message);
+        }
+        catch (CapacityException error)
+        {
+            return new(RulesStatus.Rejected, ImportReason.Capacity, error.Region, error.Message);
+        }
+        catch (InvalidOperationException error)
+        {
+            return new(RulesStatus.Rejected, "rules-build", "", error.Message);
+        }
+    }
+
+    private static RulesResult CompareEncoded(string data, string root, Rules rules)
+    {
+        byte[] expected;
+        int expectedLength;
+        try
+        {
+            expected = ImportCompare.LoadRulesBytes(data, root);
+            expectedLength = expected.Length;
+        }
+        catch (InvalidDataException error)
+        {
+            return new(RulesStatus.Rejected, "invalid-golden", "", error.Message);
+        }
+
+        byte[] actual = RulesCodec.Encode(rules);
+        if (actual.AsSpan().SequenceEqual(expected))
+            return new(RulesStatus.Same, "", "", "");
+
+        Rules golden;
+        try
+        {
+            golden = RulesCodec.Decode(expected);
+        }
+        catch (InvalidDataException error)
+        {
+            return new(RulesStatus.Different, "", "<bytes>",
+                $"编码长度 golden={expectedLength} compiled={actual.Length}，golden 解码失败：{error.Message}");
+        }
+        IReadOnlyList<string> differences = RulesDiff.Compare(golden, rules);
+        string firstTable = differences.Count == 0
+            ? "<bytes>"
+            : differences[0].Split(' ')[0];
+        return new(RulesStatus.Different, "", firstTable,
+            string.Join('\n', differences.Take(16)));
+    }
+
     public static RulesResult Run(string data, string root, CombatState state)
     {
         byte[] expected;

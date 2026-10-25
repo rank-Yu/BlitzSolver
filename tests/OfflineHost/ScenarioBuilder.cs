@@ -35,7 +35,7 @@ internal static class ScenarioBuilder
     private const int MaxBulkCardInjectionCount = 4096;
 
     internal static async Task<CombatState> BuildAsync(MainLoopContext loop, OfflineRequest request,
-        bool skipInitialInjection = false)
+        bool skipInitialInjection = false, TurnSetupCardSelector? turnSetupSelector = null)
     {
         GeneratedScenarioSetup setup = GeneratedScenarioSetup.Prepare(request);
         request = setup.Request;
@@ -53,11 +53,13 @@ internal static class ScenarioBuilder
         using IDisposable? generatedChoices = generatedSelector == null
             ? null
             : CardSelectCmd.PushSelector(generatedSelector, localOnly: true);
-        // The reference harness answers the native turn-setup page with the first option so the
-        // live game reaches Play. The pre-setup root itself is an M2a-5 item and is not captured here.
-        using IDisposable? turnSetupChoices = request.FlashTurnSetupRootForTest
-            ? CardSelectCmd.PushSelector(new FirstChoiceCardSelector(), localOnly: true)
-            : null;
+        // The reference harness answers the native turn-setup page with a deterministic selector so
+        // the live game reaches Play. Comparison modes pass one selector per native option.
+        using IDisposable? turnSetupChoices = turnSetupSelector != null
+            ? CardSelectCmd.PushSelector(turnSetupSelector, localOnly: true)
+            : request.FlashTurnSetupRootForTest
+                ? CardSelectCmd.PushSelector(new FirstChoiceCardSelector(), localOnly: true)
+                : null;
         // The reference harness gives the PR-batch direct fixtures a deterministic first-option
         // selector because their setup relics (ChoicesParadox/ToastyMittens) own a native first-turn
         // card selection before the captured root.

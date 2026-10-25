@@ -106,6 +106,107 @@ internal static class ImportCompare
         return new(ImportStatus.Different, "", first, string.Join('\n', diff.Take(24)));
     }
 
+
+    /// <summary>
+    /// Imports the pre-prefix native root, replays the frozen prefix on the kernel, and compares the
+    /// replayed command projection with the fixture's single golden root.
+    /// </summary>
+    public static ImportResult RunPrefix(string data, string root, CombatState state,
+        OfflineRequest request)
+    {
+        Player player = LocalContext.GetMe(state)
+            ?? throw new InvalidOperationException("找不到本地玩家。");
+        Battle expected;
+        try
+        {
+            string directory = Path.Combine(data, "d1", root);
+            GoldenRootRecord golden = GoldenData.Decode(ReadBrotli(Path.Combine(directory, "golden.br")));
+            if (golden.Roots.Count != 1)
+                throw new InvalidDataException($"{root} 的前缀快照有 {golden.Roots.Count} 个根，预期 1 个。");
+            expected = golden.Roots[0].Battle;
+        }
+        catch (InvalidDataException error)
+        {
+            return new(ImportStatus.Rejected, "invalid-golden", "", error.Message);
+        }
+
+        try
+        {
+            if (state.RunState is not MegaCrit.Sts2.Core.Runs.RunState runState)
+                return new(ImportStatus.Rejected, ImportReason.RulesMismatch, "",
+                    "原生战斗的 RunState 不是具体 RunState");
+            Rules rules = RulesCompiler.Compile(state, player, runState);
+            Battle pre = BattleImporter.Import(state, player, rules, ImportOptions.Default);
+            PrefixAction[] actions = PrefixPlan.Parse(request);
+            PrefixReplayResult replay = PrefixReplay.Replay(pre, rules, actions);
+            if (SameBytes(expected, replay.Battle))
+                return new(ImportStatus.Same, "", "", "");
+            List<string> diff = BattleDump.Diff(expected, replay.Battle, "golden", "replay");
+            string first = diff.Count == 0 ? "<bytes>" : FieldOf(diff[0]);
+            return new(ImportStatus.Different, "", first, string.Join('\n', diff.Take(24)));
+        }
+        catch (UnsupportedImportException error)
+        {
+            return new(ImportStatus.Rejected, error.Reason, "", error.Detail);
+        }
+        catch (UnsupportedException error)
+        {
+            return new(ImportStatus.Rejected, "core-unsupported", "", error.Message);
+        }
+        catch (CapacityException error)
+        {
+            return new(ImportStatus.Rejected, ImportReason.Capacity, error.Region, error.Message);
+        }
+        catch (InvalidOperationException error)
+        {
+            return new(ImportStatus.Rejected, ImportReason.PrefixPlan, "", error.Message);
+        }
+    }
+
+
+    /// <summary>Compares every enumerated turn-setup root with the fixture's golden root set.</summary>
+    public static ImportResult RunSetup(string data, string root, SetupRootSet set)
+    {
+        GoldenRootRecord golden;
+        try
+        {
+            string directory = Path.Combine(data, "d1", root);
+            golden = GoldenData.Decode(ReadBrotli(Path.Combine(directory, "golden.br")));
+        }
+        catch (InvalidDataException error)
+        {
+            return new(ImportStatus.Rejected, "invalid-golden", "", error.Message);
+        }
+        if (set.Roots.Count < golden.Roots.Count)
+        {
+            return new(ImportStatus.Different, "", "roots",
+                $"setup roots compiled={set.Roots.Count} golden={golden.Roots.Count} " +
+                $"options={string.Join(',', set.OptionIds)}");
+        }
+        bool[] used = new bool[set.Roots.Count];
+        for (int index = 0; index < golden.Roots.Count; index++)
+        {
+            int match = -1;
+            for (int candidate = 0; candidate < set.Roots.Count; candidate++)
+            {
+                if (used[candidate] || !SameBytes(golden.Roots[index].Battle, set.Roots[candidate]))
+                    continue;
+                match = candidate;
+                break;
+            }
+            if (match < 0)
+            {
+                List<string> diff = BattleDump.Diff(golden.Roots[index].Battle, set.Roots[index],
+                    "golden", "setup");
+                string first = diff.Count == 0 ? "<bytes>" : FieldOf(diff[0]);
+                return new(ImportStatus.Different, "", first,
+                    $"golden root[{index}] 没有匹配的 setup 根；" + string.Join('\n', diff.Take(24)));
+            }
+            used[match] = true;
+        }
+        return new(ImportStatus.Same, "", "", "");
+    }
+
     public static Rules LoadRules(string data, string root)
         => RulesCodec.Decode(LoadRulesBytes(data, root));
 
@@ -125,8 +226,8 @@ internal static class ImportCompare
         if (!preInjectionSetupRoot || setupSelections.Count == 0)
             return (golden.Roots[0].Battle, 0);
         // A turn-setup fixture's ordinary root is the one reached by the native first-option setup
-        // choice; the remaining roots enumerate other setup choices (M2a-5). Match the recorded
-        // selection to the golden choice breadcrumb instead of assuming index 0.
+        // choice. Match the recorded selection to the golden choice breadcrumb instead of assuming
+        // index 0; comparison modes now enumerate the remaining roots in SetupRootSet.
         for (int index = 0; index < golden.Roots.Count; index++)
         {
             string choices = golden.Roots[index].Choices;

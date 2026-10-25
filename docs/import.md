@@ -17,15 +17,18 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 ```
 
 - `combatState`：当前原生战斗；导入与规则编译都只读，不改状态。
-- `player`：本地单人玩家；根要求玩家出牌阶段（`RequirePlayPhase`）。
+- `player`：本地单人玩家。普通根要求玩家出牌阶段；回合准备根用 `TurnSetupRoot` 标记，
+  并由离线宿主传入 Start 时刻的卡牌对象集合（`RootCards`），不再用 `DeckVersion == null`
+  近似“准备期间生成”。
 - `runState`：玩家所在跑局。规则编译从它读取当前地图坐标、解锁状态与
   `CardMultiplayerConstraint`，并把它作为召唤物 scratch 创建路径的 RunRng；必须与
   `combatState.RunState` 是同一个实例。
-- `rules`：`RulesCompiler` 编译出的该根规则表。`BattleImporter` 不再要求冻结对象；离线
-  `--import-compare` 默认仍解码 `objects/rules/<sha>.br`，加 `--compiled-rules` 时改用编译
-  结果。
+- `rules`：`RulesCompiler` 编译出的该根规则表。`BattleImporter` 不再要求冻结对象；普通根的
+  离线 `--import-compare` 默认仍解码 `objects/rules/<sha>.br`，加 `--compiled-rules` 时改用
+  编译结果。前缀根与回合准备根必须用编译结果：前者需要先有前缀前规则表才能回放，后者需要
+  一张共享规则表导入同 fixture 的多个准备根。
 - `options`：在根上没有原生对应物的少量事实（`ShufflesCrossed`、`HasRisk`、事件失败边界、
-  回合准备普通根标记）。默认值描述普通出牌阶段根。
+  回合准备根标记与 Start 卡牌对象集合 `RootCards`）。默认值描述普通出牌阶段根。
 
 输出先 `default(Battle)`，再逐字段写；不复用缓冲，因此 padding 始终为零。卡牌小数变量最后
 按“detached 卡 → 牌堆存储顺序”规范化。
@@ -49,11 +52,11 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 | `DetachedCards` | `NightmarePower.selectedCard`、`SwipePower.StolenCard` | 直接读 |
 | `DecimalVars` | `DynamicVars` 与规则基值的差 | `DecimalVars.TryAllocate/TryCanonicalize` |
 | `Counters` | `CombatManager.History` 的 13 类条目 + 根上为 0 的账本 | 独立实现，对照 `RootCombatHistorySnapshot`/`SimulatedCombatState` 的 getter |
-| `HistoryCourseCard` | 根上旧引擎的 `_lastAttackThisTurn` 为空 | 不填；跨回合槽由 M2a-5 处理 |
+| `HistoryCourseCard` | 根上旧引擎的 `_lastAttackThisTurn` | 按旧桥根物化；前缀/准备起点当前为空，回放后由内核维护 |
 
 `Counters` 的按项划分沿用 M2-0 报告 A.1.2：45 项是历史/账本，2 项原生私有状态，1 项引擎缓存。
 新根上成长、死亡、偷窃与累计 HP 账本都从零开始；本回合计数从原生 History 现算。
-`VitalSparkNormalizedAmount` 在普通根是 `int.MinValue`，回合准备普通根是 0（旧桥在准备阶段
+`VitalSparkNormalizedAmount` 在普通根是 `int.MinValue`，回合准备根是 0（旧桥在准备阶段
 至少做过一次规范化）。
 
 ## 3. 规则编译
@@ -187,9 +190,10 @@ SearchCase request = EvaluationConfigCompiler.CompileRequest(
 
 四个 rank baseline（`InitialPersistentBuffValue`、`InitialEnemyStrengthSuppression`、
 `InitialEnemyWeakTurns`、`InitialRetainedAttackValue`）先用四项为 0 的 `ScoreRules` 构造 Core
-`Scorer`，在导入根上算 `ScoreFeatures`，再把四个 feature 值填回最终表。这样与原引擎
+`Scorer`，在根上算 `ScoreFeatures`，再把四个 feature 值填回最终表。这样与原引擎
 `CombatBeamSolver`/`SimulationSnapshot` 的冻结值逐字段一致，不复制原引擎计算。回合准备根按
-`FlashScoreBridge.cs:74-80` 强制四项为 0。
+`FlashScoreBridge.cs:74-80` 强制四项为 0；前缀根按同一 Bridge 的 request-root 语义，用前缀前
+`Battle` 与前缀前规则表计算四项 baseline，而评分表本身仍取回放后的内容。
 
 ### 4.3 `BoundFeatures.Config`
 
@@ -224,8 +228,10 @@ SearchCase request = EvaluationConfigCompiler.CompileRequest(
 
 `--config-compare` 用编译规则、导入根与编译出的 `Scorer`/`Bound` 重组 `SREQ`，与
 `config.br` 逐字节比较；不一致时依次比较规则、根、`ScoreRules`、`Bound` 与其余选项并打印
-第一处字段。3 个回合准备 fixture 的 `config.br` 含全部准备根，本批只导入普通根，因此只比较
-`ScoreRules` 与 `Bound` 子结构；普通根仍做完整请求比较。
+第一处字段。3 个回合准备 fixture 的 `config.br` 含全部准备根，离线宿主按 GOLD 的选择顺序
+把独立重建的准备根排入请求后做完整请求比较。前缀根的评分/下界根事实取前缀前原生状态
+（含四个 rank baseline 与 `InitialEnemyCount`），评分表/规则取回放后的 `Battle`，药水计数取
+`PrefixReplay` 的累计值。
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
@@ -236,8 +242,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 同时还用编译出的 `ScoreRules`/`Bound` 在导入根上算 D1 的 `GoldenHash.Score`/`GoldenHash.Bound`
 （与 `tests/Golden/GoldenHash.cs` 同一份代码），对照 `golden.br` 的 `scoreHash`/`boundHash`。
-394 个普通根做完整请求 + 哈希；3 个回合准备 fixture 的普通根也按选择向量选到对应
-golden 根做哈希。
+410 个输入做完整请求；418 个根逐一对照哈希。
 
 ## 5. 拒绝规则
 
@@ -259,6 +264,7 @@ golden 根做哈希。
 | `capacity` | 固定容量不足 |
 | `rules-mismatch` | 原生根与传入的 `Rules` 不一致，或 `RunState` 不是同一实例 |
 | `known-enemy-history` | 已逃离/已死亡敌人破坏了 `KnownEnemies` 顺序 |
+| `prefix-plan` | 前缀动作或选择无法按 CombatSolver 的计划语义翻译/回放（缺手牌、目标、选项或选择次数不符） |
 | `run-deck-hook` | 牌组卡实现局外监听 Hook |
 | `unsupported-policy` | 评估配置政策含未移植的第三方登记/DevelopmentStrategy/非法覆盖 |
 | `unsupported-healing-certificate` | 需要尚未移植的 environment 治疗证书特殊分支（保留原因码；当前语料未触发） |
@@ -312,61 +318,59 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --all --jobs 8 --import-compare --compiled-rules
 ```
 
-每根只产生三种结果：`same`、`diff`、`reject`。`--all` 只对照 397 个根（410 个输入去掉 13 个
-带 `flashPrefixActions`/`flashPrefixPlan` 的 fixture），汇总 `same/diff/reject`，并分别按首个
-差异字段/表、拒绝原因分组计数。`--rules-table-check` 在初始化游戏静态状态后校验静态表：
+每根只产生三种结果：`same`、`diff`、`reject`。`--all` 对照全部 410 个输入（418 个根），
+汇总 `same/diff/reject`，并分别按首个差异字段/表、拒绝原因分组计数。前缀根先在原生前缀之前
+导入 `Battle`，再用 `PrefixReplay` 在内核上执行冻结动作；回合准备 fixture 用原生
+`SetupPlayerTurn` 前缀捕获 Start 卡牌集合，并逐个选项重建原生准备阶段，导入全部准备根。
+`--rules-table-check` 在初始化游戏静态状态后校验静态表：
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
 ```
 
-### 6.1 回合准备的三个普通根
+### 6.1 回合准备的三个 fixture
 
 `qf2-gradient-failure`、`ts-b-toolbox`、`ts-a-toasty` 是回合准备 fixture。它们各自的
-`golden.br` 有 4/3/4 个根：1 个普通根 + 8 个额外准备根（不在本批范围）。普通根是旧桥用
-**第一个准备选项**回放得到的根；离线宿主用 `FirstChoiceCardSelector` 记录原生第一个选项，
-对照模式据此选择 golden 中的对应根，而不是固定取 `Roots[0]`：
+`golden.br` 有 4/3/4 个根，共 11 个根。旧桥在 `CombatManager.SetupPlayerTurn` 之前捕获 Start
+根，再在影子引擎上枚举准备选择；离线宿主在同一个原生入口用 Harmony 前缀记录 Start 时刻的
+卡牌对象集合，然后按原生准备页的每个选项重建一次同一场战斗（每次都跳过测试宿主的初始注入），
+把每个分支导入成 `Battle`。这样准备选择本身仍由原游戏执行，分支状态不需要在 Blitz 内核里
+重写 `SetupPlayerTurn`。
 
-| 根 | 普通根下标 | 其余准备根 |
-| --- | ---: | ---: |
-| `qf2-gradient-failure` | 1 / 4 | 3 |
-| `ts-b-toolbox` | 0 / 3 | 2 |
-| `ts-a-toasty` | 1 / 4 | 3 |
-
-这 3 个普通根的普通原生状态是在测试宿主注入初始状态**之前**捕获的；对照模式因此跳过
-`InjectInitialStateAsync`。额外 8 个准备根与 13 个前缀根都留给 M2a-5。
+原生选项顺序与 M0 的搜索枚举顺序不同，且 M0 会按语义去重/限额：Toasty Mittens 的 5 个选项
+在 GOLD 里留下 4 个根（其中两个根投影字节相同），Toolbox 的 3 个选项留下 3 个根。比较时按
+`golden.br` 的根顺序（其 `Choices` 与之一致）把独立重建出的根逐一对齐；只借用 GOLD 的顺序
+做请求根列表排序，根内容仍由原生重建。三个 fixture 的普通根同时是上述准备根之一（GOLD 下标 1/0/1）。
 
 ## 7. 当前结果与限制
 
 `--all --jobs 8 --rules-compare` 当前：
 
 ```text
-rules-objects distinct=376 roots=397
-rules same=397 diff=0 reject=0
+rules-objects distinct=388 roots=410
+rules same=410 diff=0 reject=0
 ```
 
-397 个在范围根覆盖 376 个不同冻结规则对象；410 个输入合计 388 个对象，余下 12 个只被前缀根
-使用。`--rules-table-check` 当前：
+410 个输入覆盖全部 388 个冻结规则对象。`--rules-table-check` 当前：
 
 ```text
 RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
   missing_cards=0 extra_cards=0 missing_powers=0 extra_powers=0 registry_missing=0
 ```
 
-`--all --jobs 8 --import-compare --compiled-rules` 当前：
+`--all --jobs 8 --import-compare` 与 `--compiled-rules` 当前：
 
 ```text
-import same=397 diff=0 reject=0
+import same=410 diff=0 reject=0
 ```
 
 `--all --jobs 8 --config-compare` 当前：
 
 ```text
-config same=397 diff=0 reject=0
+config same=410 diff=0 reject=0 full=410 subparts=0
 ```
 
-394 个普通根整份请求逐字节相同；3 个回合准备 fixture 的普通根 `ScoreRules`/`Bound` 子结构
-相同（完整请求留给 M2a-5）。397 个根的 `scoreHash`/`boundHash` 都与 D1 一致。
+410 个输入整份请求逐字节相同；418 个根的 `scoreHash`/`boundHash` 都与 D1 一致。
 
 3 类负例由 `--import-negative` 验证：
 
@@ -378,9 +382,12 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
 
 未完成/限制：
 
-- 13 个前缀根与 8 个额外回合准备根不在本批；需要旧引擎的回放语义，留给 M2a-5。
-- 回合准备普通根用 `CardModel.DeckVersion == null` 判断“准备期间生成的卡”，因为本批没有
-  捕获 Start 时刻的卡对象集合；M2a-5 应改为传入真实的根卡集合。
+- 前缀回放的规则表由 `RulesCompiler.CompileAfterPrefix` 从“前缀前原生状态 + 回放后
+  `Battle`”重建；前缀动作本身不在游戏里执行，因此如果后续前缀包含内核尚未支持的结算，会以
+  `prefix-plan`/内核异常显式拒绝，而不是回退到游戏重放。
+- 回合准备分支的**选取与排序**没有独立复现：M0 的枚举会按语义去重、限额并按自己的顺序排列（Toasty Mittens 5 个原生选项留下 4 个根），对照时借用 `golden.br` 的选择记录来对齐。各分支的状态内容是独立重建的。实机生成回合准备根时，需要移植 CombatSolver 的枚举规则（`CaptureTurnSetupRootsForFlash`），并另做对照。
+- 回合准备根目前按原生准备页的每个选项重建整场战斗；多段准备选择（一次准备阶段多次选牌）
+  尚未在语料中出现，遇到时选择器的数量合同会失败而不是静默取第一个。
 - 手牌上限读游戏的 `CardPile.MaxCardsInHand`（当前为 10）。RitsuLib 等 Mod 另行修改手牌上限的方式不在支持范围。
 - 私有字段读取绑定当前游戏版本；字段缺失、类型不符或内部数据为 null 都显式拒绝。
 - 镜像覆盖率表是由 `a62f1850` 一次性导出的数据，不是运行时推断；游戏或 CombatSolver 更新后

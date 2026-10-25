@@ -169,8 +169,6 @@ internal static class Program
         }
 
         string[] roots = EnumerateRoots(data);
-        if (importCompare || rulesCompare || configCompare)
-            roots = [.. roots.Where(name => !HasPrefix(data, corpora, name))];
         Console.WriteLine($"roots={roots.Length} jobs={jobs} out={output}");
         if (rulesCompare)
             PrintRulesObjectCoverage(data, roots);
@@ -407,13 +405,47 @@ internal static class Program
             GameBootstrap.SkipGodotNodeStaticConstructors();
             GameBootstrap.InitializeStaticState();
             stage = "build";
-            // The ordinary root of a turn-setup fixture was captured before the test host injected
-            // its initial-state patch (the extra 8 setup roots are out of M2a-1 scope). Compare that
-            // pre-injection Play root; the default card injection belongs to the post-capture state.
-            bool preInjectionSetupRoot = (importCompare || rulesCompare || configCompare)
-                && request.FlashTurnSetupRootForTest;
+            bool hasPrefix = request.FlashPrefixActions.Length != 0
+                || request.FlashPrefixPlan.Length != 0;
+            if ((importCompare || rulesCompare || configCompare) && request.FlashTurnSetupRootForTest)
+            {
+                SetupRootSet set = SetupRootSet.Build(loop, request, needConfig: configCompare);
+                Console.WriteLine($"root={root} setup-roots={set.Roots.Count} options={set.OptionIds.Count}");
+                if (rulesCompare)
+                {
+                    RulesResult setupRules = RulesCompare.RunSetup(data, root, set);
+                    LastRulesResult = setupRules.Status;
+                    Console.WriteLine(setupRules.Line);
+                    if (setupRules.Status == RulesStatus.Different)
+                        Console.WriteLine(setupRules.Detail);
+                    else if (setupRules.Status == RulesStatus.Rejected)
+                        Console.WriteLine($"  detail={setupRules.Detail}");
+                }
+                else if (importCompare)
+                {
+                    ImportResult setupImport = ImportCompare.RunSetup(data, root, set);
+                    LastImportResult = setupImport.Status;
+                    Console.WriteLine(setupImport.Line);
+                    if (setupImport.Status == ImportStatus.Different)
+                        Console.WriteLine(setupImport.Detail);
+                    else if (setupImport.Status == ImportStatus.Rejected)
+                        Console.WriteLine($"  detail={setupImport.Detail}");
+                }
+                else
+                {
+                    ConfigResult setupConfig = ConfigCompare.RunSetup(data, root, set);
+                    LastConfigResult = setupConfig.Status;
+                    Console.WriteLine(setupConfig.Line);
+                    if (setupConfig.Status == ConfigStatus.Different)
+                        Console.WriteLine(setupConfig.Detail);
+                    else if (setupConfig.Status == ConfigStatus.Rejected)
+                        Console.WriteLine($"  detail={setupConfig.Detail}");
+                }
+                return 0;
+            }
+
             FirstChoiceCardSelector.LastSelections.Clear();
-            Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request, preInjectionSetupRoot);
+            Task<CombatState> build = ScenarioBuilder.BuildAsync(loop, request);
             loop.RunUntilCompleted(build, TimeSpan.FromSeconds(600), $"建局 {root}");
             CombatState combat = build.GetAwaiter().GetResult();
             stage = "dump";
@@ -422,7 +454,9 @@ internal static class Program
             Console.WriteLine($"root={root} dump={path}");
             if (rulesCompare)
             {
-                RulesResult result = RulesCompare.Run(data, root, combat);
+                RulesResult result = hasPrefix
+                    ? RulesCompare.RunPrefix(data, root, combat, request)
+                    : RulesCompare.Run(data, root, combat);
                 LastRulesResult = result.Status;
                 Console.WriteLine(result.Line);
                 if (result.Status == RulesStatus.Different)
@@ -432,8 +466,10 @@ internal static class Program
             }
             else if (importCompare)
             {
-                ImportResult result = ImportCompare.Run(data, root, combat, [.. FirstChoiceCardSelector.LastSelections],
-                    preInjectionSetupRoot, compiledRules);
+                ImportResult result = hasPrefix
+                    ? ImportCompare.RunPrefix(data, root, combat, request)
+                    : ImportCompare.Run(data, root, combat, [.. FirstChoiceCardSelector.LastSelections],
+                        false, compiledRules);
                 LastImportResult = result.Status;
                 Console.WriteLine(result.Line);
                 if (result.Status == ImportStatus.Different)
@@ -443,7 +479,9 @@ internal static class Program
             }
             else if (configCompare)
             {
-                ConfigResult result = ConfigCompare.Run(data, root, combat, [.. FirstChoiceCardSelector.LastSelections], preInjectionSetupRoot, request);
+                ConfigResult result = hasPrefix
+                    ? ConfigCompare.RunPrefix(data, root, combat, request)
+                    : ConfigCompare.Run(data, root, combat, [.. FirstChoiceCardSelector.LastSelections], false, request);
                 LastConfigResult = result.Status;
                 Console.WriteLine(result.Line);
                 if (result.Status == ConfigStatus.Different)
@@ -452,6 +490,11 @@ internal static class Program
                     Console.WriteLine($"  detail={result.Detail}");
             }
             return 0;
+        }
+        catch (UnsupportedImportException error)
+        {
+            Console.Error.WriteLine($"root={root} stage={stage} UNSUPPORTED reason={error.Reason} {error.Detail}");
+            return 3;
         }
         catch (UnsupportedException error)
         {
@@ -594,12 +637,6 @@ internal static class Program
         }
         Console.WriteLine($"compare roots={names.Length} mismatches={mismatches} reference={referenceDirectory}");
         return mismatches == 0 ? 0 : 1;
-    }
-
-    private static bool HasPrefix(string data, string corpora, string root)
-    {
-        OfflineRequest request = LoadRequest(data, corpora, root);
-        return request.FlashPrefixActions.Length != 0 || request.FlashPrefixPlan.Length != 0;
     }
 
     private static string ValueOf(string line, string key)

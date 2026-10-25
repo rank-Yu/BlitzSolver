@@ -70,7 +70,9 @@ internal static class ScoreCompiler
         Rules rules,
         Battle root,
         SearchPolicy policy,
-        EvaluationRootFacts facts)
+        EvaluationRootFacts facts,
+        Battle? rankBaselineRoot = null,
+        Rules? rankBaselineRules = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(player);
@@ -87,9 +89,10 @@ internal static class ScoreCompiler
         BossHpRelief bossHpRelief = ResolveBossHpRelief(state, policy);
         ushort[] rootPotions = RootPotions(root);
 
-        ScoreRules Build(int persistent, int suppression, int weak, int retained) => new()
+        ScoreRules Build(int persistent, int suppression, int weak, int retained,
+            Rules? ruleTable = null) => new()
         {
-            Rules = rules,
+            Rules = ruleTable ?? rules,
             Cards = cards,
             Powers = powers,
             PotionStrategicCost = potionCosts,
@@ -102,7 +105,10 @@ internal static class ScoreCompiler
             BossHpRelief = bossHpRelief,
             ContinuousThreatRanking = policy.ContinuousThreatRanking,
             ContextualRanking = null,
-            InitialPlayerMaxHp = root.Player.MaxHp,
+            // The reference bridge freezes the request root's native max HP / enemy count. A fixed
+            // prefix can add enemies (Fabricator's bots), so these must come from the pre-prefix
+            // native state rather than the replayed Battle.
+            InitialPlayerMaxHp = player.Creature.MaxHp,
             IsActEndingBoss = bossHpRelief != BossHpRelief.None,
             Act3BossStrategy = policy.Act3BossStrategy,
             BaseScoreOnly = policy.BaseScoreOnly,
@@ -112,7 +118,7 @@ internal static class ScoreCompiler
                 : null,
             IgnoreLongTermRewards = policy.IgnoreLongTermRewards,
             TheftPolicy = policy.TheftPolicy is { } theft ? (SolverTheftPolicy)(int)theft : null,
-            InitialEnemyCount = root.EnemyCount,
+            InitialEnemyCount = state.Enemies.Count,
             InitialPersistentBuffValue = persistent,
             InitialEnemyStrengthSuppression = suppression,
             InitialEnemyWeakTurns = weak,
@@ -159,8 +165,13 @@ internal static class ScoreCompiler
 
         if (facts.TurnSetupRoot)
             return Build(0, 0, 0, 0);
-        ScoreRules provisional = Build(0, 0, 0, 0);
-        ScoreFeatures features = new Scorer(provisional).Features(root, facts.InitialActionCount);
+        // The reference bridge freezes the four rank baselines on the request root (the state
+        // before a fixed prefix), not on the replayed search root. That root can contain a card the
+        // prefix removed, so the baseline scorer uses the request root's rule table too.
+        Battle baseline = rankBaselineRoot ?? root;
+        int baselineActions = rankBaselineRoot is null ? facts.InitialActionCount : 0;
+        ScoreRules provisional = Build(0, 0, 0, 0, rankBaselineRules ?? rules);
+        ScoreFeatures features = new Scorer(provisional).Features(baseline, baselineActions);
         return Build(features.PersistentBuffValue, features.EnemyStrengthSuppression,
             features.EnemyWeakTurns, features.RetainedAttackValue);
     }
