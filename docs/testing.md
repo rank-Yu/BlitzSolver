@@ -469,8 +469,8 @@ M2b-1 的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=sam
 ### 6.6 实机整场自动战斗
 
 `OfflineRequest` 增加 `fullCombatForTest`；`--emit-live-requests` 的 `--full-combat` 把它置位
-并关闭确定性。测试模式捕获根后立刻进入 `AutoCombatSession`，每回合搜索/沿用路线、逐动作
-核对、回合对账，直到胜利、失败、暂停或取消。结果写 `full-combat.json`，并在 `status.json`
+并关闭确定性。测试模式捕获根后立刻进入 `AutoCombatSession`，由共享的 `FullCombatDriver`
+每回合搜索/沿用路线、逐动作核对、回合对账，直到胜利、失败、暂停或取消。结果写 `full-combat.json`，并在 `status.json`
 增加 `fullCombatStatus/outcome/turns/playerHp/playerMaxHp/searches/reusedTurns/deviations/
 deploymentFailures`。整场搜索使用请求档位的正常软时间；`src/Mod` 还会把
 `headlessFastModeForTest` 覆盖为 `Instant`（默认）并在结束后恢复。
@@ -496,7 +496,99 @@ HEADLESS_DONE instance=m2b2-final-b ok=10 failed=0 total_ms=297313.871
 `--full-combat --search-cancel-after-ms 5000`，得到 `fullCombatStatus=cancelled`、
 `AutoCombatSession.IsRunning=false`，随后正常返回主菜单。
 
-### 6.7 负例
+### 6.7 离线整场自动战斗
+
+`--offline-combat` 用与 Mod 完全相同的整场决策循环（`src/Core/Search/FullCombatDriver.cs`）
+在 Blitz 内核里打完一个根，不启动 Godot，也不模拟原生动画。默认跑质量语料的 120 根：
+
+```bash
+# 默认中档、确定性搜索；每个根一个子进程，--jobs 控制同时运行的重进程数
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --corpora tests/corpora --jobs 4 \
+  --out .local/offline-combat/default
+
+# 指定根列表（每行一个根名，# 注释）；根名必须是 d1 根
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --roots-file .local/roots120.txt --jobs 4 \
+  --out .local/offline-combat/default
+
+# 只跑一个根，便于定位（同进程，不再起子进程）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --root quality-DEFECT-000 --out .local/offline-combat/one
+
+# 加宽试验：宽度与节点上限可覆盖；只给 --beam-width 时按默认比例放大节点上限
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --corpora tests/corpora --jobs 6 \
+  --beam-width 480 --max-nodes 960000 --out .local/offline-combat/w480
+
+# 极小预算强制路线用尽，走一遍重搜路径（不是等价用例）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --root quality-DEFECT-000 \
+  --beam-width 1 --max-nodes 10 --out .local/offline-combat/reroute
+```
+
+开局根与无头整场的实际搜索根一致：`ScenarioBuilder` 建出原生 `CombatState`，
+`RulesCompiler.Compile` 冻结规则，`LiveCombatTracker.ImportRoot` 导入开局 `Battle`
+（`RootCards`、`Reconciliation` 等选项与 Mod 首根相同）。注意 `--emit-live-requests` 后
+`TestSession` 写出的 `BATL` 捕获根用的是普通 `ImportOptions.Default`，不是整场搜索根；在
+120 个质量根上 96 根逐字节相同，24 个 DEFECT 根只差 `Counter.OrbChannels`（捕获根 0，
+整场根按原生 History 重建为 1 或 2）。离线工具使用整场根，因此与实机整场搜索结果对齐。
+搜索请求用同一个 `SearchRequestCompiler`，性能档默认 `Medium`（宽度 240、节点上限
+480,000）；离线模式把软时间设为 `TimeSpan.MaxValue`，只受节点上限约束。实机软时间是
+120 秒；若某次离线搜索耗时达到 120 秒，说明实机可能被时限截断，该次日志的
+`softTimeRisk=true`（同时 `elapsedMs >= 120000`），不能直接当成等价结果。
+
+每根输出 `<out>/<root>/full-combat.json`，字段与无头整场的 `full-combat.json` 对齐：
+`outcome`、`turns`、`playerHp`、`playerMaxHp`、`potionsUsed`、`searches`、
+`reusedTurns`、`deviations`、`deploymentFailures`、`elapsedMs`、`pauseReason`、
+`searchLog`、`deviationLog`、`failureLog`。`searchLog` 的每项包含
+`turn`/`reason`/`status`/`elapsedMs`/`expandedNodes`/`routeActions`/`victory`/`error`，另加
+`managedHeapPeakBytes`/`workingSetPeakBytes`，以及 `softTimeRisk`（该次搜索耗时达到档位软
+时间，实机可能被时限截断）。父进程还写 `<out>/summary.json`（档位、宽度、
+节点上限、逐根摘要与墙钟）。
+
+路线用完而战斗未结束时，离线工具从预测的最后一个 `Battle` 直接重搜；Mod 在同样的边界用
+`LiveCombatTracker.ImportRoot` 从实机重新导入。两者逐字段的关系是：
+
+- 原生可观测字段（HP、护甲、牌堆、卡值、9 条 RNG、Powers、Relics、Orbs、药水、回合/侧/
+  阶段、结局）由同一 `BattleImporter` 投影；预测正确时离线根与实机根逐字节相同，逐动作
+  `BattleReconciler` 已经在前一回合验证过这一点。
+- `ShuffleEventCount`、`ShufflesCrossed`、`HasRisk` 与
+  `LiveCombatTracker.CarriedCounters` 中的求解器账本在实机不可观测，`ImportRoot` 从最近预测
+  边界携带；离线根本来就带着这些值，因此相同。
+- `RevivingEnemies` 由预测边界中 `DeathPhase.Reviving` 的行决定；离线根的行相位已经是预测
+  值，相同。
+- 终局 `turns` 与 `playerHp` 按原生收尾投影：若最后一个动作到达敌方侧回合结束阶段
+  （Doom 一类击杀），原生 `TurnNumber` 已前进一格，离线结果也加一；胜利后原生
+  `AfterCombatVictory` 会结算 Burning Blood/Black Blood/Meat on the Bone，离线用同一个
+  `PostCombatRelicHealProfile` 把等价治疗加到 `playerHp`。这两项都是结果投影，不回写搜索
+  根或后续搜索输入。
+- 实机比较视图会归一化永久死亡敌人的 AI 节点/日志、其名下 Power 行、detached 卡的一次性
+  `PowerAfflictionChecked`、`NIGHTMARE_POWER.Target` 与不衰减 Power 的
+  `SkipNextTickFromMonster`。这些字段在实机导入根与预测根之间可能不同，但都不参与后续
+  搜索行为；离线重搜保留预测值。若后续在这些字段上加入搜索语义，需要先把它们从比较投影
+  移回严格比较。
+
+离线搜索的评分/下界配置仍从开局原生状态捕获（`SearchPolicyCapture` 与
+`EvaluationConfigCompiler` 的冻结表），因为离线进程没有后续回合的原生模型；这是离线重搜与实机
+重搜唯一未逐字节对齐的输入。当前 120 根在 867e5a9 上只需要开局搜索，因此不影响本批等价；
+若以后出现路线用尽后的重搜，需要同时验证这部分的请求字节。
+
+整场等价的口径是逐根比较 `outcome`、`turns`、`playerHp`、`searches`，以及每次搜索的
+`expandedNodes` 与 `routeActions`；不设容差。汇总表用仓库入口
+[`tools/testing/offline-combat-table.py`](../tools/testing/offline-combat-table.py) 生成，格式
+与协调者的 q120 表一致：
+
+```bash
+tools/testing/offline-combat-table.py \
+  --results .local/offline-combat/default \
+  --baseline ~/sts2/BlitzSolver/.local/q120/baseline.tsv
+```
+
+它按角色、幕与房间类型对照 CombatSolver 基线，并列出胜负不同的根与异常（非胜负结果、偏差、
+部署失败）。加宽档把 `--results` 换成对应 `--out` 即可复用同一张表。
+
+### 6.8 负例
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative

@@ -65,6 +65,9 @@ internal static class Program
         int? searchCancelAfterMilliseconds = null;
         bool searchNormal = false;
         bool fullCombat = false;
+        bool offlineCombat = false;
+        int? beamWidth = null;
+        int? maxNodes = null;
         int jobs = 1;
 
         for (int index = 0; index < args.Length; index++)
@@ -129,6 +132,15 @@ internal static class Program
                 case "--full-combat":
                     fullCombat = true;
                     break;
+                case "--offline-combat":
+                    offlineCombat = true;
+                    break;
+                case "--beam-width" when index + 1 < args.Length:
+                    beamWidth = int.Parse(args[++index]);
+                    break;
+                case "--max-nodes" when index + 1 < args.Length:
+                    maxNodes = int.Parse(args[++index]);
+                    break;
                 case "--search-cancel-after-ms" when index + 1 < args.Length:
                     searchCancelAfterMilliseconds = int.Parse(args[++index]);
                     break;
@@ -148,6 +160,25 @@ internal static class Program
             }
         }
 
+        if (offlineCombat)
+        {
+            if (all || importCompare || importNegative || rulesCompare || rulesTableCheck
+                || configCompare || compiledRules || compareDir != null
+                || emitLiveRequestsDir != null || liveCompareDir != null
+                || searchCompareDir != null || searchNormal
+                || searchCancelAfterMilliseconds != null || compareOnlyNew != null)
+            {
+                Console.Error.WriteLine("--offline-combat 不能与其它对照/发射模式同时使用。");
+                return 2;
+            }
+            return RunOfflineCombat(data, corpora, output, searchTier, beamWidth, maxNodes,
+                fullCombat, jobs, root, liveRootsFile);
+        }
+        if (beamWidth != null || maxNodes != null)
+        {
+            Console.Error.WriteLine("--beam-width/--max-nodes 只能与 --offline-combat 一起使用。");
+            return 2;
+        }
         if (compareOnlyNew != null)
             return Compare(compareOnlyNew, compareOnlyRef!, roots: null);
 
@@ -719,6 +750,56 @@ internal static class Program
         return end < 0 ? line[start..] : line[start..end];
     }
 
+    private static int RunOfflineCombat(string data, string corpora, string output,
+        string? searchTier, int? beamWidth, int? maxNodes, bool fullCombat, int jobs, string? root,
+        string? rootsFile)
+    {
+        if (fullCombat)
+        {
+            // fullCombat is the headless request flag; it is not valid in this mode.
+            Console.Error.WriteLine("--offline-combat 不能与 --full-combat 同时使用。");
+            return 2;
+        }
+        if (jobs is < 1 or > 8)
+        {
+            Console.Error.WriteLine("--jobs 必须在 1 到 8 之间。");
+            return 2;
+        }
+        if (beamWidth is <= 0)
+        {
+            Console.Error.WriteLine("--beam-width 必须是正整数。");
+            return 2;
+        }
+        if (maxNodes is <= 0)
+        {
+            Console.Error.WriteLine("--max-nodes 必须是正整数。");
+            return 2;
+        }
+        SearchPerformanceTier tier;
+        try
+        {
+            tier = SearchPerformanceProfile.ParseTier(searchTier ?? "Medium");
+        }
+        catch (UnsupportedImportException error)
+        {
+            Console.Error.WriteLine($"INVALID_INPUT {error.Detail}");
+            return 2;
+        }
+        SearchPerformanceProfile profile = SearchPerformanceProfile.For(tier);
+        if (beamWidth is { } width)
+        {
+            int scaledNodes = checked((int)((long)profile.MaxExpandedNodes * width
+                / profile.BeamWidth));
+            profile = profile with { BeamWidth = width };
+            if (maxNodes == null)
+                profile = profile with { MaxExpandedNodes = scaledNodes };
+        }
+        if (maxNodes is { } nodes)
+            profile = profile with { MaxExpandedNodes = nodes };
+        OfflineCombatSettings settings = new(data, corpora, output, tier, profile);
+        return OfflineCombat.Run(settings, root, rootsFile, jobs);
+    }
+
     private static int EmitLiveRequests(string data, string corpora, string output, string? rootsFile,
         bool all, string? root, string? searchTier = null, bool searchNormal = false,
         int? searchCancelAfterMilliseconds = null, bool fullCombat = false)
@@ -833,6 +914,9 @@ internal static class Program
               dotnet OfflineHost.dll --emit-live-requests <dir> (--root <name> | --roots-file <file> | --all)
                   [--search-tier Low|Medium|High|VeryHigh] [--search-normal]
                   [--search-cancel-after-ms N] [--full-combat]
+              dotnet OfflineHost.dll --offline-combat [--root <name> | --roots-file <file> | --corpora <dir>]
+                  [--search-tier Low|Medium|High|VeryHigh] [--jobs 1..8] [--out <dir>]
+                  [--beam-width N] [--max-nodes N]
             """);
     }
 }

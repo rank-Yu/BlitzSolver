@@ -284,6 +284,12 @@ public ref struct Exec
 
     /// <summary>Unblocked-player hits in the current attack context (PainfulStabs after the attack).</summary>
     public int AttackUnblockedHits;
+
+    /// <summary>
+    /// The step reached the enemy-side turn-end pass. The native turn counter advances after that pass
+    /// even when a kill there ends the combat; search does not read this flag.
+    /// </summary>
+    internal bool EnemySideTurnEndReached;
     private readonly ChoiceSelections _choices;
     private readonly int _choiceCount;
     private int _choicesTaken;
@@ -297,6 +303,7 @@ public ref struct Exec
         _choicesTaken = 0;
         NeedsChoice = false;
         HistoryRisk = false;
+        EnemySideTurnEndReached = false;
         Request = default;
         Card = default;
         Stats = null;

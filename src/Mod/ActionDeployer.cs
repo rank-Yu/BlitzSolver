@@ -6,6 +6,7 @@
 using System.Diagnostics;
 using Godot;
 using BlitzSolver.Engine;
+using BlitzSolver.Import;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Actions;

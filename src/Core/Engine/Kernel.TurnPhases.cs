@@ -531,6 +531,7 @@ public static partial class Kernel
     /// <summary><c>CorePowerSupport.TriggerEnemySideTurnEndEffects</c>.</summary>
     internal static void TriggerEnemySideTurnEndEffects(ref Exec x, scoped ReadOnlySpan<byte> enemies)
     {
+        x.EnemySideTurnEndReached = true;
         // EndTurnPowerSupport.TriggerVeryEarly has no supported source (Asleep is rejected at admission).
         TriggerEnemyDoom(ref x, enemies);
         if (x.NeedsChoice)

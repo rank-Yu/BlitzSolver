@@ -69,6 +69,15 @@ internal static class ExecCoverage
         nameof(Exec.TakingExtraTurn),
     ];
 
+    /// <summary>
+    /// Step-only phase marker read by route replay. It is neither part of the battle state nor of
+    /// the end-turn continuation: a split step is never used for the native final-turn projection.
+    /// </summary>
+    private static readonly string[] StepTransient =
+    [
+        nameof(Exec.EnemySideTurnEndReached),
+    ];
+
     private static readonly string[] ResetAtPlayerStart =
     [
         nameof(Exec.PendingBlockBreakOwners),
@@ -99,6 +108,7 @@ internal static class ExecCoverage
             ("ExecContinuation", Snapshot),
             ("捕获断言为空", AssertedEmpty),
             ("AdvanceRoundPlayerStart 入口重置", ResetAtPlayerStart),
+            ("步骤阶段标记", StepTransient),
             ("单独处理", Special),
         ];
 

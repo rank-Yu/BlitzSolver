@@ -36,7 +36,7 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
   回合准备根标记与 Start 卡牌对象集合 `RootCards`）。默认值描述普通出牌阶段根。
   自动战斗的实时导入还会设置 `KnownEnemies`/`AllowDeadEnemies`/`RootEnemyCount`
   （稳定敌人顺序、死亡墓碑）、`RevivingEnemies`（预测为复活的死亡行）与 `Reconciliation`
-  （从原生 History 重建本回合/累计计数）。这些字段只由 `LiveCombatTracker` 使用，根捕获保持
+  （从原生 History 重建本回合/累计计数）。这些字段只由 `src/Import/LiveCombatTracker.cs` 使用，根捕获保持
   旧行为，冻结快照的 410/410 不受影响。
 
 输出先 `default(Battle)`，再逐字段写；不复用缓冲，因此 padding 始终为零。卡牌小数变量最后

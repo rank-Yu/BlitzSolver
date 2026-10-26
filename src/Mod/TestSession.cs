@@ -109,7 +109,7 @@ internal static class TestSession
                     if (captured == null)
                         throw new InvalidDataException("整场测试不支持回合准备根。");
                     stage = "full_combat";
-                    AutoCombatResult auto = await RunFullCombatAsync(
+                    FullCombatResult auto = await RunFullCombatAsync(
                         host, root, request, combat, tier,
                         request.SearchCancelAfterMillisecondsForTest);
                     WriteJson(Path.Combine(resultDirectory, "full-combat.json"), auto);
@@ -375,7 +375,7 @@ internal static class TestSession
             selections ?? [], turnSetupRoot, "failed", 0);
     }
 
-    private static async Task<AutoCombatResult> RunFullCombatAsync(NGame host, string root,
+    private static async Task<FullCombatResult> RunFullCombatAsync(NGame host, string root,
         OfflineRequest request, CombatState combat, SearchPerformanceTier tier,
         int? cancelAfterMilliseconds)
     {

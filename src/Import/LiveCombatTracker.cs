@@ -11,7 +11,7 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using NativeCreature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver;
+namespace BlitzSolver.Import;
 
 internal sealed class LiveCombatTracker
 {

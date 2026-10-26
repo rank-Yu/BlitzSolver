@@ -2,9 +2,7 @@
 // partial Battle the kernel is in when it asks, mirroring the existing search's replay order; this
 // is a translation of the deployment design in CombatSolver src/Runtime/SolverController.cs at
 // a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors), not a copy of its engine.
-using BlitzSolver.Engine;
-
-namespace BlitzSolver;
+namespace BlitzSolver.Engine;
 
 /// <summary>
 /// One choice request observed while replaying an action, plus the selection the route carries and
@@ -49,6 +47,12 @@ internal sealed class ReplayedAction
     internal required Battle Before { get; init; }
     internal required Battle After { get; init; }
     internal required PlannedChoice[] Choices { get; init; }
+
+    /// <summary>
+    /// The action reached the enemy-side turn-end pass. The native turn counter is already one ahead
+    /// of the kernel boundary when a kill there ends the fight.
+    /// </summary>
+    internal required bool EnemySideTurnEndReached { get; init; }
 }
 
 /// <summary>
@@ -90,12 +94,14 @@ internal sealed class ReplayedRoute
             List<PlannedChoice> choices = new(action.ChoiceCount);
             Battle after = default;
             bool completed = false;
+            bool enemySideTurnEndReached = false;
             for (int prefix = 0; prefix <= action.ChoiceCount; prefix++)
             {
                 Battle partial = before;
                 PlayerAction partialAction = action;
                 partialAction.ChoiceCount = checked((byte)prefix);
-                StepResult step = Kernel.Step(ref partial, partialAction, rules, out ChoiceRequest request);
+                StepResult step = Kernel.Step(ref partial, partialAction, rules,
+                    out ChoiceRequest request, out _, out bool reachedEnemySideTurnEnd);
                 if (prefix < action.ChoiceCount)
                 {
                     if (step != StepResult.NeedsChoice)
@@ -114,6 +120,7 @@ internal sealed class ReplayedRoute
                     }
                     after = partial;
                     completed = true;
+                    enemySideTurnEndReached = reachedEnemySideTurnEnd;
                 }
             }
             if (!completed)
@@ -125,6 +132,7 @@ internal sealed class ReplayedRoute
                 Before = before,
                 After = after,
                 Choices = [.. choices],
+                EnemySideTurnEndReached = enemySideTurnEndReached,
             });
             current = after;
         }

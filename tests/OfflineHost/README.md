@@ -179,6 +179,32 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `search-compare roots=N same=... diff=... reject=... skipped=...`。正常档测量结果计为
 `skipped reason=measure-only`，回合准备根计为 `skipped reason=turn-setup-root`。
 
+## 离线整场自动战斗
+
+`--offline-combat` 不启动 Godot，用与 Mod 相同的 `FullCombatDriver` 在内核里打完一个根：
+
+```bash
+# 全部质量根（默认 tests/corpora/quality）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --corpora tests/corpora --jobs 4 \
+  --out .local/offline-combat/default
+
+# 指定根列表
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --roots-file .local/roots120.txt --jobs 4 \
+  --out .local/offline-combat/default
+
+# 单根；加宽/节点上限覆盖
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --root quality-DEFECT-000 \
+  --beam-width 480 --max-nodes 960000 --out .local/offline-combat/one
+```
+
+`--search-tier` 默认 `Medium`；`--beam-width` 只给宽度时按默认宽度与节点上限的比例放大节点
+上限。每个根写 `<out>/<root>/full-combat.json`，父进程写 `<out>/summary.json`。搜索使用
+确定性选项（去软时间，只受节点上限约束）；每次搜索另记托管堆/工作集峰值。逐场与实机比较
+的口径见 [`docs/testing.md`](../../docs/testing.md) 6.7 节。
+
 ## 与参考转储对照
 
 ```bash

@@ -9,7 +9,7 @@ public static partial class Kernel
     /// </summary>
     public static StepResult Step(ref Battle battle, in PlayerAction action, Rules rules,
         out ChoiceRequest request)
-        => Step(ref battle, action, rules, out request, out _);
+        => Step(ref battle, action, rules, out request, out _, out _);
 
     /// <summary>
     /// As <see cref="Step(ref Battle, in PlayerAction, Rules, out ChoiceRequest)"/>, also
@@ -18,6 +18,15 @@ public static partial class Kernel
     /// </summary>
     public static StepResult Step(ref Battle battle, in PlayerAction action, Rules rules,
         out ChoiceRequest request, out bool historyRisk)
+        => Step(ref battle, action, rules, out request, out historyRisk, out _);
+
+    /// <summary>
+    /// As <see cref="Step(ref Battle, in PlayerAction, Rules, out ChoiceRequest)"/>, also reporting
+    /// whether the action reached the enemy-side turn-end pass. Route replay reads this to reproduce
+    /// the native final turn counter; the search path ignores it.
+    /// </summary>
+    internal static StepResult Step(ref Battle battle, in PlayerAction action, Rules rules,
+        out ChoiceRequest request, out bool historyRisk, out bool enemySideTurnEndReached)
     {
         if (!IsInProgress(battle))
             throw new InvalidOperationException("战斗已经结束，不能再执行动作。");
@@ -40,7 +49,9 @@ public static partial class Kernel
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action.Kind, null);
         }
-        return FinishStep(ref x, action, out request, out historyRisk);
+        StepResult result = FinishStep(ref x, action, out request, out historyRisk);
+        enemySideTurnEndReached = x.EnemySideTurnEndReached;
+        return result;
     }
 
     /// <summary>
