@@ -224,7 +224,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 `--search-tier` 默认 `Medium`（宽度 256→512，每轮节点上限 宽度 × 2,000，决策总时间
 120 秒）；`Low`/`High`/`ExtraHigh` 的最多宽度分别为 256/1,024/2,048，时间保险分别为
-60/180/240 秒；旧名 `VeryHigh` 显式报错。`--beam-width W` 把起始与最多宽度都设成 W
+60/180/240 秒。`--beam-width W` 把起始与最多宽度都设成 W
 （单宽度探针），`--max-width N` 可单独覆盖最多宽度，`--nodes-per-width N`/`--max-nodes N`
 覆盖节点上限，`--pool-state-budget-mb N` 固定每轮局面池上限。多轮搜索的单池上限为
 `max(200 MiB, 宽度 × 1 MiB)`，封顶 1,728 MiB；宽度 2,048 的乘积先按 64 位计算再截断。

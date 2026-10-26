@@ -218,7 +218,7 @@ $BLITZ_TEST_DIR/
 - `headlessFastModeForTest` 在整场测试中覆盖战斗动画速度（默认 `Instant`，跑完恢复原值）；
   其余模式不变。
 - 单次搜索的选项由请求控制：
-  - `searchTier`：`Low`/`Medium`/`High`/`ExtraHigh`，默认 `Medium`；旧名 `VeryHigh` 显式拒绝。
+  - `searchTier`：`Low`/`Medium`/`High`/`ExtraHigh`，默认 `Medium`。
   - `deterministicSearchForTest`：默认 `true`。去掉软时间（`TimeSpan.MaxValue`），只保留
     节点上限，求解后写 `SREQ`/`SRES`，供离线逐字节重放。
   - `false` 时使用该档位的正常软时间，带 pacer，只写 `search.json` 的耗时与内存，不写
@@ -364,7 +364,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --search-tier Medium --search-normal --search-cancel-after-ms 1000
 ```
 
-`--search-tier Low|Medium|High|ExtraHigh` 默认 `Medium`；旧名 `VeryHigh` 显式报错；`--search-normal` 关闭确定性；
+`--search-tier Low|Medium|High|ExtraHigh` 默认 `Medium`；`--search-normal` 关闭确定性；
 `--search-cancel-after-ms` 只用于测试。整场自动战斗请求加 `--full-combat`：
 
 ```bash

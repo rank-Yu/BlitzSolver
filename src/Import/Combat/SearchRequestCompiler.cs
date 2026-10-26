@@ -69,13 +69,6 @@ public readonly record struct SearchPerformanceProfile(
 
     public static SearchPerformanceTier ParseTier(string text)
     {
-        // The old fourth tier name was renamed; keep rejecting it explicitly so a stale config
-        // or script gets a migration message instead of a generic unknown-tier error.
-        if (string.Equals(text.Trim(), "VeryHigh", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"搜索性能档位 VeryHigh 已更名为 ExtraHigh，旧名不再接受；请改用 ExtraHigh。");
-        }
         if (!Enum.TryParse(text, ignoreCase: true, out SearchPerformanceTier tier)
             || !Enum.IsDefined(tier))
         {

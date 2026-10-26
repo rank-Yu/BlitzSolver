@@ -447,8 +447,8 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 ```
 
 `--all` 跳过 13 个前缀输入，输出 397 个普通请求；回合准备 fixture 也在其中。
-`--emit-live-requests` 还接受 `--search-tier Low|Medium|High|ExtraHigh`（默认 `Medium`；
-旧名 `VeryHigh` 显式报错）、`--search-normal`（关掉确定性软时间）与
+`--emit-live-requests` 还接受 `--search-tier Low|Medium|High|ExtraHigh`（默认 `Medium`）、
+`--search-normal`（关掉确定性软时间）与
 `--search-cancel-after-ms N`（取消测试）。
 
 ### 6.5 实机搜索请求/结果对照
