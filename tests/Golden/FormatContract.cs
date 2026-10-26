@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
-using BlitzSolver.Engine;
-using BlitzSolver.Search;
+using BlitzSolver.Simulation.Combat;
+using BlitzSolver.Ai.Combat;
 
 namespace BlitzSolver.Golden;
 

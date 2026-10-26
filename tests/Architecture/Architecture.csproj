@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>BlitzSolver.Architecture</AssemblyName>
+    <RootNamespace>BlitzSolver.Architecture</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Core/BlitzSolver.Core.csproj" />
+  </ItemGroup>
+</Project>

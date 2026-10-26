@@ -1,4 +1,4 @@
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 
 namespace BlitzSolver.Content.Cards.Event;
 
@@ -331,7 +331,7 @@ public sealed class MadScience : CardDef
     public const int RiderWisdom = 5;
     public const int RiderChaos = 6;
     public const int RiderExpertise = 7;
-    public const int RiderCurious = 8;
+    public const int RiderCurious = CardPrivateRiders.MadScienceCurious;
     public const int RiderImprovement = 9;
 
     public override IReadOnlyList<string> VarNames =>

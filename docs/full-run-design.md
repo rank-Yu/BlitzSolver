@@ -73,14 +73,16 @@ src/Core/                     BlitzSolver.Core（只依赖 .NET 基础库，一�
 
 命名空间与目录一致：`BlitzSolver.Simulation.Combat`、`BlitzSolver.Simulation.Run`、`BlitzSolver.Content.*`、`BlitzSolver.Ai.Combat`、`BlitzSolver.Ai.Run`、`BlitzSolver.Autoplay`。
 
-由现有目录迁移：
+R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；`Simulation/Run`、`Ai/Run` 目前只有 README，`RunPilot` 随 R3 落地。
 
-| 现在 | 迁移后 |
-| --- | --- |
-| `src/Core/Engine` | `src/Core/Simulation/Combat` |
-| `src/Core/Content` | 不变，新增局外内容 |
-| `src/Core/Search` | `src/Core/Ai/Combat` |
-| `src/Core/Search/FullCombatDriver.cs` | `src/Core/Autoplay`（`CombatPilot`） |
+R1a 已完成的迁移：
+
+| 迁移前 | 现在 | 命名空间与类型 |
+| --- | --- | --- |
+| `src/Core/Engine` | `src/Core/Simulation/Combat` | `BlitzSolver.Simulation.Combat` |
+| `src/Core/Content` | 不变 | `BlitzSolver.Content.*` |
+| `src/Core/Search` | `src/Core/Ai/Combat` | `BlitzSolver.Ai.Combat`，子命名空间照旧 |
+| `src/Core/Search/FullCombatDriver.cs` | `src/Core/Autoplay/CombatPilot.cs` | `BlitzSolver.Autoplay`；类 `CombatPilot`，宿主接口 `ICombatPilotHost`，结果类型以 `CombatPilot*` 为前缀 |
 
 依赖规则，由 `tests/Architecture` 在编译后自动检查：
 
@@ -90,28 +92,28 @@ src/Core/                     BlitzSolver.Core（只依赖 .NET 基础库，一�
 | `Simulation/Run` | `Simulation/Combat` |
 | `Content` | `Simulation/Combat`、`Simulation/Run` |
 | `Ai/Combat` | `Simulation/Combat` |
-| `Ai/Run` | 只能用 `Simulation/Run` 的可见投影（`RunView`）和决策请求类型，不能引用局外状态本体或随机数类型 |
-| `Autoplay` | `Simulation`、`Ai` |
+| `Ai/Run` | 只能引用 `Simulation/Run` 里登记为可见投影 / 决策请求的类型（目前未登记），不能引用局外状态本体或随机数类型 |
+| `Autoplay` | `Simulation.*`、`Ai.*` |
 
 - 一件遗物的战斗效果和局外效果写在同一份定义里，通过各自的注册表挂到两个模拟上。
 - `Ai/Run` 需要推演评估时，通过 `Autoplay` 注入的接口调用，不直接引用 `Simulation/Run` 的状态。
-- 不拆程序集：内容定义要大量调用模拟的内部函数，战斗热路径也不宜跨程序集。依赖方向由检查程序保证。
+- 不拆程序集：内容定义要大量调用模拟的内部函数，战斗热路径也不宜跨程序集。依赖方向由 `tests/Architecture` 读取编译后的 `BlitzSolver.Core` 检查；`Ai/Run` 的未登记引用用本地反例验证会报错。
 
 Core 以外按"战斗 / 整局"对称分子目录，项目名、程序集名、数据格式和命令行不变：
 
 | 位置 | 子目录 |
 | --- | --- |
-| `src/Import` | `Combat/`、`Run/`；仍是唯一读取原版私有字段的层 |
-| `src/Mod` | `Combat/`（部署、整场宿主、搜索会话）、`Run/`（整局宿主；`Screens/` 每个界面一个执行器，`Rooms/` 各类房间）、`UI/`、`Testing/`、`Patches/` |
-| `src/TestHost` | `Combat/`、`Run/`（建整局、跳到指定楼层） |
-| `tests/KernelChecks` | `Combat/`、`Run/` |
-| `tests/Golden` | 校验器分 `Combat/`（D1/D2）与 `Run/`（R1）；数据新增 `data/r1/`，已有数据不动 |
-| `tests/OfflineHost` | `Combat/`、`Run/`（离线整局）、`Differential/`（与原版代码的进程内差分） |
-| `tests/Architecture` | 新增：依赖规则检查 |
-| `tests/corpora` | `quality/` 不动；新增 `runs/`（固定种子集、录下的整局） |
-| `tools` | `testing/` 不动；新增 `eval/`（离线整局评估、配对比较、报表） |
+| `src/Import` | `Combat/`（现有导入代码）；`Run/`（R1a 仅 README）；仍是唯一读取原版私有字段的层 |
+| `src/Mod` | `Combat/`（部署、整场宿主、搜索会话）、`Run/`（R1a 仅 README；落地后含 `Screens/`、`Rooms/`）、`UI/`、`Testing/`、`Patches/` |
+| `src/TestHost` | `Combat/`；`Run/` 待建整局与跳层 |
+| `tests/KernelChecks` | `Combat/`；`Run/` 待后续 |
+| `tests/Golden` | 战斗校验器在 `Combat/`（D1/D2、compare、refreeze、rerecord）；manifest、文件读写、哈希、格式合同留根目录；`data/` 不动 |
+| `tests/OfflineHost` | `Combat/`（离线整场、各对照）；入口与引导留根目录；`Run/`、`Differential/` 待后续 |
+| `tests/Architecture` | 已加入：编译后的 Core 层依赖检查 |
+| `tests/corpora` | `quality/` 不动；`runs/` 待新增（固定种子集、录下的整局） |
+| `tools` | `testing/` 不动；`eval/` 待新增（离线整局评估、配对比较、报表） |
 
-文档保持平铺，用文件名前缀区分领域：战斗一组是 `combat-state-layout.md`、`combat-semantics.md`、`combat-characters.md`、`combat-potions-relics.md`、`combat-ai.md`，由现有的 `state-layout.md`、`kernel-semantics.md`、`kernel-characters.md`、`kernel-potions-relics.md`、`search.md` 改名而来；整局一组随阶段新增 `run-state-layout.md`、`run-semantics.md`、`run-ai.md`，另有 `autoplay.md`。`import.md`、`mod.md`、`testing.md`、`golden-data.md` 不改名，内容按战斗与整局分节。
+文档保持平铺，用文件名前缀区分领域。R1a 已把战斗一组改名为 `combat-state-layout.md`、`combat-semantics.md`、`combat-characters.md`、`combat-potions-relics.md`、`combat-ai.md`；整局一组随阶段新增 `run-state-layout.md`、`run-semantics.md`、`run-ai.md`，另有 `autoplay.md`。`import.md`、`mod.md`、`testing.md`、`golden-data.md` 不改名，内容按战斗与整局分节。
 
 ## 5. 局外状态 `RunState`
 

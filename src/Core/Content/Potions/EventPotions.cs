@@ -1,4 +1,4 @@
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 
 namespace BlitzSolver.Content.Potions;
 

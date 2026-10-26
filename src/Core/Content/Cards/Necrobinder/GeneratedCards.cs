@@ -1,5 +1,5 @@
 using BlitzSolver.Content.Powers;
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 
 namespace BlitzSolver.Content.Cards.Necrobinder;
 

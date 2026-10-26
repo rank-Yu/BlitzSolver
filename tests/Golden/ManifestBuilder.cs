@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 
 namespace BlitzSolver.Golden;
 

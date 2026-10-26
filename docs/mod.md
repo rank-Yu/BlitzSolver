@@ -17,20 +17,20 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 | --- | --- |
 | `src/Mod/BlitzSolver.csproj` | `Godot.NET.Sdk/4.5.1` Mod 工程；不加入 `BlitzSolver.sln` |
 | `src/Mod/Entry.cs` | 游戏 `ModInitializer` 入口；检测 CombatSolver；注册补丁与生命周期 |
-| `src/Core/Search/FullCombatDriver.cs` | Mod 与离线工具共用的整场决策循环：搜索时机、路线所有权、用尽/失败约定与回合记账 |
-| `src/Core/Engine/RouteReplay.cs` | 把 `PlayerAction[]` 回放成每个动作的 `Before`/`After` 与选择计划 |
-| `src/Import/LiveCombatTracker.cs` | 实时导入：稳定敌人顺序、死亡/复活行与不可观测搜索账本 |
-| `src/Mod/AutoCombatSession.cs` | 全自动会话生命周期、取消、主线程设置与结果转换；循环本身在 `FullCombatDriver` |
-| `src/Mod/FullCombatHost.cs` | 共享驱动的 Mod 宿主：等待可出牌、实时导入、游戏内搜索、部署与边界投影 |
-| `src/Mod/SearchSession.cs` | 主线程捕获→后台 `BeamSolver.Solve`→主线程收结果；取消、让帧与内存采样 |
-| `src/Mod/ActionDeployer.cs` | 主线程动作部署；出牌/药水/结束回合；动作队列捕获与边界等待 |
-| `src/Mod/PlannedNativeSelector.cs` | 原版 `ICardSelector` 驱动；选项身份与所在牌堆核对 |
-| `src/Mod/BattleReconciler.cs` | `Battle` 编码的严格比较与墓碑/搜索账本归一化 |
-| `src/Mod/SearchHotkeyNode.cs` | 普通玩家的 `F8` 全自动开关 |
-| `src/Mod/TestSession.cs` | 无头测试循环：请求、建局、捕获、单次求解或整场自动战斗、写结果、返回主菜单 |
-| `src/Mod/GodotCombatWaiter.cs` | 主线程建局与 Play 阶段等待 |
+| `src/Core/Autoplay/CombatPilot.cs` | Mod 与离线工具共用的整场决策循环：搜索时机、路线所有权、用尽/失败约定与回合记账 |
+| `src/Core/Simulation/Combat/RouteReplay.cs` | 把 `PlayerAction[]` 回放成每个动作的 `Before`/`After` 与选择计划 |
+| `src/Import/Combat/LiveCombatTracker.cs` | 实时导入：稳定敌人顺序、死亡/复活行与不可观测搜索账本 |
+| `src/Mod/Combat/AutoCombatSession.cs` | 全自动会话生命周期、取消、主线程设置与结果转换；循环本身在 `CombatPilot` |
+| `src/Mod/Combat/CombatPilotHost.cs` | 共享驱动的 Mod 宿主：等待可出牌、实时导入、游戏内搜索、部署与边界投影 |
+| `src/Mod/Combat/SearchSession.cs` | 主线程捕获→后台 `BeamSolver.Solve`→主线程收结果；取消、让帧与内存采样 |
+| `src/Mod/Combat/ActionDeployer.cs` | 主线程动作部署；出牌/药水/结束回合；动作队列捕获与边界等待 |
+| `src/Mod/Combat/PlannedNativeSelector.cs` | 原版 `ICardSelector` 驱动；选项身份与所在牌堆核对 |
+| `src/Mod/Combat/BattleReconciler.cs` | `Battle` 编码的严格比较与墓碑/搜索账本归一化 |
+| `src/Mod/UI/SearchHotkeyNode.cs` | 普通玩家的 `F8` 全自动开关 |
+| `src/Mod/Testing/TestSession.cs` | 无头测试循环：请求、建局、捕获、单次求解或整场自动战斗、写结果、返回主菜单 |
+| `src/Mod/Combat/GodotCombatWaiter.cs` | 主线程建局与 Play 阶段等待 |
 | `src/Mod/Patches/` | 无头隔离、教学发现顺序、FTUE、回合准备 Start 卡牌捕获 |
-| `src/TestHost/` | Mod 与 `tests/OfflineHost` 共用的建局、注入与原生状态转储 |
+| `src/TestHost/Combat/` | Mod 与 `tests/OfflineHost` 共用的建局、注入与原生状态转储 |
 | `tools/testing/run-headless.sh` | Linux 隔离实例、请求、启动、轮询与清理 |
 
 依赖方向：`Mod` 编入 `TestHost`、`Import` 与 `Core`；`TestHost → Import → Core`。
@@ -38,11 +38,11 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 不复制 `ScenarioBuilder`/`OfflineRequest`，只提供游戏侧的 `ICombatHost` 实现
 （`NGame.StartNewSingleplayerRun` 与帧等待）。
 
-整场循环的决策部分在 `src/Core/Search/FullCombatDriver.cs`，只依赖 `Engine`，因此离线工具
-与 Mod 跑同一份搜索时机、路线使用和失败约定。`src/Mod/FullCombatHost.cs` 提供原生 I/O：
+整场循环的决策部分在 `src/Core/Autoplay/CombatPilot.cs`，只依赖 `Simulation.Combat`，因此离线工具
+与 Mod 跑同一份搜索时机、路线使用和失败约定。`src/Mod/Combat/CombatPilotHost.cs` 提供原生 I/O：
 等待 Play 阶段、`LiveCombatTracker.ImportRoot`、`SearchSession`、`ActionDeployer` 与
-`BattleReconciler`。`src/Import/LiveCombatTracker.cs` 放在 Import，是因为它只做实时根导入；
-`src/Core/Engine/RouteReplay.cs` 放在 Engine，是因为它只回放内核动作，不读搜索配置。
+`BattleReconciler`。`src/Import/Combat/LiveCombatTracker.cs` 放在 `Import.Combat`，是因为它只做实时根导入；
+`src/Core/Simulation/Combat/RouteReplay.cs` 放在 `Simulation.Combat`，是因为它只回放内核动作，不读搜索配置。
 
 Core 仍然只依赖 BCL。`Mod` 引用游戏程序集、Godot、Harmony 与 RitsuLib；只读导入/规则编译
 的模型私有字段读取集中在 `src/Import`，`src/TestHost` 仅测试使用 publicizer 做建局、注入与
@@ -90,8 +90,9 @@ PE 引用表只包含 BCL、`GodotSharp`、`sts2`、RitsuLib 与 `0Harmony`，�
 ```json
 {
   "id": "BlitzSolver",
-  "name": "极速战斗求解器",
+  "name": "极速求解器",
   "author": "rank-Yu",
+  "description": "极速求解器（Blitz Solver）：整场战斗路线搜索、部署与逐动作核对。F8 开关本场全自动。",
   "version": "0.1.0",
   "has_dll": true,
   "min_game_version": "0.111.0",
@@ -99,7 +100,7 @@ PE 引用表只包含 BCL、`GodotSharp`、`sts2`、RitsuLib 与 `0Harmony`，�
 }
 ```
 
-中文名「极速战斗求解器」，英文名 "Blitz Solver"（初始化日志带 `name=... english=...`）。
+中文名「极速求解器」，英文名 "Blitz Solver"（初始化日志带 `name=... english=...`）。
 `affects_gameplay` 为 `true`：玩家按 `F8` 开启全自动后，Mod 通过原版动作队列写战斗动作；
 不按 `F8` 时只加载入口与快捷键节点，不建局、不搜索、不部署。
 
@@ -204,7 +205,7 @@ $BLITZ_TEST_DIR/
   生成请求，质量语料的 spec 路径会自动变成绝对路径。
 - 一个游戏进程按文件名顺序处理多个请求；每根结束后调用 `NGame.ReturnToMainMenu`，等
   `RunManager` 空闲、主菜单出现、`CombatManager` 无状态后，再建下一局。
-- 建局、注入、等待 Play 与离线宿主共用 `src/TestHost/ScenarioBuilder.cs`；Mod 只替换
+- 建局、注入、等待 Play 与离线宿主共用 `src/TestHost/Combat/ScenarioBuilder.cs`；Mod 只替换
   `ICombatHost.StartRunAsync` 为 `NGame.StartNewSingleplayerRun`，以及把离线消息泵换成 Godot
   帧等待。
 - 捕获在主线程完成：`RulesCompiler.Compile` → `BattleImporter.Import` →
@@ -293,9 +294,9 @@ $BLITZ_TEST_DIR/
 | 极高（`ExtraHigh`） | 256 | 2,048 | 宽度 × 2,000 | 240 秒 | 72 / 42 / 54 |
 
 四档都从 256 起步；低档只跑一轮，中/高/极高档最多翻倍到 512/1,024/2,048。局面池随宽度
-放大、单池封顶 1,728 MiB，规则与 2,048 轮的 64 位计算见 [Blitz 搜索](search.md)。
+放大、单池封顶 1,728 MiB，规则与 2,048 轮的 64 位计算见 [Blitz 搜索](combat-ai.md)。
 
-`FullCombatHost.SearchAsync` 组装第一轮请求后调用 Core 的 `WideningSearch`，Mod 只提供一个
+`CombatPilotHost.SearchAsync` 组装第一轮请求后调用 Core 的 `WideningSearch`，Mod 只提供一个
 执行单轮的委托（`SearchSession.RunAsync`）和共享的 `SearchStorage`；档位解析、翻倍、节点
 上限、局面池放大、终局比较、无伤停止与时间保险都在 Core 这一份实现里，离线宿主调用同一
 个入口。第二轮及以后各轮用翻倍后的宽度重新搜索同一个根，仍是独立求解，不复用上一轮的
@@ -379,15 +380,15 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
 
 ## 9. 部署、逐步核对与回合对账
 
-整场循环的决策段由 `FullCombatDriver`（`src/Core/Search/FullCombatDriver.cs`）持有：它决定
+整场循环的决策段由 `CombatPilot`（`src/Core/Autoplay/CombatPilot.cs`）持有：它决定
 何时搜索、沿用哪条路线、路线何时算用完，以及连续失败/回合上限的暂停。`Mod` 的
-`FullCombatHost` 只在驱动要求时做原生 I/O；`OfflineHost` 的 `--offline-combat` 用同一个
+`CombatPilotHost` 只在驱动要求时做原生 I/O；`OfflineHost` 的 `--offline-combat` 用同一个
 驱动和同一个 `ReplayedRoute` 在内核里执行。新增搜索时机、加宽参数或重搜策略只改驱动与请求
 编译入口，离线测到的就是实机跑的。
 
 ### 9.1 路线回放
 
-`ReplayedRoute.Build`（`src/Core/Engine/RouteReplay.cs`）从搜索根开始，用 `Kernel.Step`
+`ReplayedRoute.Build`（`src/Core/Simulation/Combat/RouteReplay.cs`）从搜索根开始，用 `Kernel.Step`
 重放 `BeamResult.BestRoute`：
 
 - 每个动作先用“0 个选择”的副本执行，拿到 `NeedsChoice` 的实时 `ChoiceRequest`；再逐个追加
@@ -465,8 +466,8 @@ TheBomb/Panache/ToricToughness 的 `Target` 与 SlimedBerserker Weak、BeltBuckl
 
 ### 9.4 回合对账与续用
 
-玩家新回合开始、状态稳定时，`FullCombatHost` 重新导入实际 `Battle`，由
-`FullCombatDriver` 与路线里“上一动作之后”的预测边界比较：
+玩家新回合开始、状态稳定时，`CombatPilotHost` 重新导入实际 `Battle`，由
+`CombatPilot` 与路线里“上一动作之后”的预测边界比较：
 
 - 相同且路线还有后续动作：直接沿用剩余路线，记一次 `TURN_REUSE`，不重新搜索；
 - 不同：记一次 `TURN_DEVIATION`，字段差异写入 `full-combat.json` 的 `deviationLog`，从当前

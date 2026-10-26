@@ -1,6 +1,6 @@
 using BlitzSolver.Content.Afflictions;
 using BlitzSolver.Content.Monsters.Act1;
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 
 namespace BlitzSolver.Content.Powers;
 

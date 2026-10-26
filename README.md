@@ -19,12 +19,19 @@
 
 | 目录 | 内容 |
 | --- | --- |
-| `src/Core/Engine` | 状态布局、回合与出牌管线、结算、规则表 |
+| `src/Core/Simulation/Combat` | 状态布局、回合与出牌管线、结算、规则表 |
+| `src/Core/Simulation/Run` | 整局模拟（R1a 只有目录说明） |
 | `src/Core/Content` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
-| `src/Core/Search` | `BeamSolver`、状态评估与按功能归位的路线质量、资源策略、新颖度搜索 |
-| `tests/KernelChecks` | 内核合同（K0） |
-| `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data` |
-| `src/Mod` | RitsuLib Mod 入口、无头捕获/整场自动战斗；不加入 `BlitzSolver.sln` |
+| `src/Core/Ai/Combat` | `BeamSolver`、状态评估与按功能归位的路线质量、资源策略、新颖度搜索 |
+| `src/Core/Ai/Run` | 局外决策（R1a 只有目录说明） |
+| `src/Core/Autoplay` | `CombatPilot` 整场战斗决策循环，Mod 与离线宿主共用 |
+| `src/Import` | 原生导入；战斗导入在 `Combat/`，`Run/` 待整局导入 |
+| `src/TestHost` | 测试共享建局与转储；战斗部分在 `Combat/` |
+| `src/Mod` | RitsuLib Mod 入口、战斗与测试代码；不加入 `BlitzSolver.sln` |
+| `tests/KernelChecks` | 内核合同（K0）；战斗合同在 `Combat/` |
+| `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data`，战斗校验器在 `Combat/` |
+| `tests/Architecture` | 编译后的 Core 层依赖检查 |
+| `tests/OfflineHost` | 离线宿主；战斗对照与离线整场在 `Combat/` |
 | `tools/testing` | Linux 无头实例启动与请求/结果轮询 |
 | `tests/corpora/quality` | 120 根质量语料（五个角色 × 三幕） |
 | `docs` | 规格文档，从 [docs/README.md](docs/README.md) 进入 |
@@ -36,6 +43,7 @@
 ```bash
 dotnet build BlitzSolver.sln -c Release
 dotnet run --project tests/KernelChecks -c Release --no-build
+dotnet run --project tests/Architecture -c Release --no-build
 dotnet run --project tests/Golden -c Release --no-build -- k0
 dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data
 ```

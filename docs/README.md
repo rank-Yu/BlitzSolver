@@ -23,33 +23,37 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 
 | 目录 | 内容 |
 | --- | --- |
-| `src/Core/Engine/` | `BlitzSolver.Engine`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
+| `src/Core/Simulation/Combat/` | `BlitzSolver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
+| `src/Core/Simulation/Run/` | 整局模拟：局外状态、地图、房间、奖励与局外随机数；R1a 只有目录说明 |
 | `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
-| `src/Core/Search/` | `BlitzSolver.Search`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
-| `src/Core/Search/Quality/` | `BlitzSolver.Search.Quality`：路线质量比较与 incumbent 剪枝 |
-| `src/Core/Search/Policy/` | `BlitzSolver.Search.Policy`：药水、偷窃、成长、遗物计数与首领结算策略 |
-| `src/Core/Search/Scoring/` | `BlitzSolver.Search.Scoring`：状态评估、评分权重与能力牌估值 |
-| `src/Core/Search/Novelty/` | `BlitzSolver.Search.Novelty`：Bfws 新颖度容器、选项与遥测 |
-| `src/Import/` | `BlitzSolver.Import`：原生 `CombatState` → `Battle` 导入；唯一允许读游戏模型与私有字段的层，只读 |
-| `src/TestHost/` | `BlitzSolver.TestHost`：无头与离线共用的建局、注入与原生状态转储；只在测试中使用 |
-| `src/Mod/` | `BlitzSolver`：RitsuLib Mod 入口、战斗生命周期、无头捕获测试模式；不加入 `BlitzSolver.sln` |
-| `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`） |
-| `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/` |
-| [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState` 并转储；需要游戏文件，不在 CI 中运行 |
+| `src/Core/Ai/Combat/` | `BlitzSolver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
+| `src/Core/Ai/Combat/Quality/` | `BlitzSolver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
+| `src/Core/Ai/Combat/Policy/` | `BlitzSolver.Ai.Combat.Policy`：药水、偷窃、成长、遗物计数与首领结算策略 |
+| `src/Core/Ai/Combat/Scoring/` | `BlitzSolver.Ai.Combat.Scoring`：状态评估、评分权重与能力牌估值 |
+| `src/Core/Ai/Combat/Novelty/` | `BlitzSolver.Ai.Combat.Novelty`：Bfws 新颖度容器、选项与遥测 |
+| `src/Core/Ai/Run/` | 局外决策：只读 `RunView` 与决策请求；R1a 只有目录说明 |
+| `src/Core/Autoplay/` | `BlitzSolver.Autoplay`：`CombatPilot` 整场战斗决策循环，Mod 与离线宿主共用 |
+| `src/Import/` | `BlitzSolver.Import`：原生 `CombatState` → `Battle` 导入；唯一允许读游戏模型与私有字段的层，只读；战斗导入在 `Combat/` |
+| `src/TestHost/` | `BlitzSolver.TestHost`：无头与离线共用的建局、注入与原生状态转储；只在测试中使用；战斗部分在 `Combat/` |
+| `src/Mod/` | `BlitzSolver`：RitsuLib Mod 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Testing/`、`UI/`、`Patches/`；不加入 `BlitzSolver.sln` |
+| `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`）；战斗合同在 `Combat/` |
+| `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/`；战斗校验器在 `Combat/` |
+| `tests/Architecture/` | 编译后的 `BlitzSolver.Core` 层依赖检查（程序集 `BlitzSolver.Architecture`），加入 `BlitzSolver.sln` |
+| [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState` 并转储；战斗对照与离线整场在 `Combat/`；需要游戏文件，不在 CI 中运行 |
 | `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
 
-依赖方向：`Content → Engine`、`Search → Engine`、`Mod → Import → Core`。Engine 不引用 Content 或 Search，Search 也不引用 Content（内容通过注册表挂到引擎上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁。`Import` 与 `Mod` 都不加入 `BlitzSolver.sln`。
+依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层，`Ai.Combat` 不引用 `Content`（内容通过注册表挂到模拟上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁。`Import` 与 `Mod` 都不加入 `BlitzSolver.sln`，依赖规则由 `tests/Architecture` 检查。
 
 ## 3. 文档索引
 
 | 文档 | 内容 |
 | --- | --- |
 | [整局设计](full-run-design.md) | 整局自动游玩的目标架构：随机数分工、局外状态与内核、战斗边界、决策层、托管、目录与依赖规则、验证与阶段 |
-| [状态布局](state-layout.md) | `Battle` 字段、容量、规范化与指纹 |
-| [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
-| [角色机制](kernel-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
-| [药水与遗物](kernel-potions-relics.md) | 额外回合管线、药水与遗物机制 |
-| [搜索](search.md) | `BeamSolver` 的容器复用、保留、评估、剪枝与容量边界 |
+| [战斗状态布局](combat-state-layout.md) | `Battle` 字段、容量、规范化与指纹 |
+| [战斗内核语义](combat-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
+| [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
+| [战斗药水与遗物](combat-potions-relics.md) | 额外回合管线、药水与遗物机制 |
+| [战斗搜索](combat-ai.md) | `BeamSolver` 的容器复用、保留、评估、剪枝与容量边界 |
 | [原生状态导入](import.md) | `CombatState` → `Battle`/`Rules`/评估配置的编译、拒绝码与离线对照 |
 | [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
 | [Mod 入口与无头捕获](mod.md) | 打包、RitsuLib 入口、共存、部署与对账、测试协议、启动脚本与实机对照 |
@@ -65,7 +69,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 
 ## 4. 当前状态
 
-- Core 独立编译，只有 BCL 依赖；构建 0 警告。
+- Core 独立编译，只有 BCL 依赖；构建 0 警告；`tests/Architecture` 的层依赖检查 0 违反。
 - K0 纯内核合同通过；`Golden` 的 D1 重放与 D2 全量求解通过。D2 期望结果已按 M3b 的默认搜索重冻（`provenance.refreeze`）。
 - 冻结快照 `tests/Golden/data` 由 `manifest.json` 逐文件校验；校验入口见 [测试与验证](testing.md)。
 - 离线宿主 `--rules-compare`：410 个输入编译出的 `Rules` 与 388 个冻结规则对象全部逐字节相同；`--import-compare`（含 `--compiled-rules`）对照 410 个输入/418 个根全部相同；`--config-compare` 的 410 份整请求全部相同，418 个根的特征哈希一致；`--import-negative` 验证 3 类显式拒绝。
@@ -79,4 +83,4 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 - **未验证**：界面、397 根/120 根质量语料的整场全量、语料外的多段准备阶段与未捕获前缀、
   非选牌模态、第三方 Mod 内容、Windows 启动脚本。
 
-内核语义以 [状态布局](state-layout.md)、[内核语义](kernel-semantics.md)、[角色机制](kernel-characters.md) 与 [药水与遗物](kernel-potions-relics.md) 为准；搜索行为以 [搜索](search.md) 为准；快照与证据以 [冻结快照](golden-data.md) 和 [测试与验证](testing.md) 为准。
+内核语义以 [战斗状态布局](combat-state-layout.md)、[战斗内核语义](combat-semantics.md)、[战斗角色机制](combat-characters.md) 与 [战斗药水与遗物](combat-potions-relics.md) 为准；搜索行为以 [战斗搜索](combat-ai.md) 为准；快照与证据以 [冻结快照](golden-data.md) 和 [测试与验证](testing.md) 为准。

@@ -3,7 +3,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 using BlitzSolver.KernelChecks;
 using BlitzSolver.Content.Afflictions;
 using BlitzSolver.Content.Cards.Status;

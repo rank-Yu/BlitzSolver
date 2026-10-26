@@ -86,7 +86,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
 
 `--rules-compare` 对每个根编译 `Rules`、用 `RulesCodec.Encode` 编码，再与该根冻结规则对象
 逐字节比较；`diff` 打印 `RulesDiff` 的第一处表/项。`--rules-table-check` 校验
-`src/Import/MirrorRiskTables.cs` 与 `ModelDb.All`/Blitz Registry 的 id 集合完全一致。
+`src/Import/Combat/MirrorRiskTables.cs` 与 `ModelDb.All`/Blitz Registry 的 id 集合完全一致。
 
 ## 评估配置对照
 
@@ -181,7 +181,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 ## 离线整场自动战斗
 
-`--offline-combat` 不启动 Godot，用与 Mod 相同的 `FullCombatDriver` 在内核里打完一个根：
+`--offline-combat` 不启动 Godot，用与 Mod 相同的 `CombatPilot` 在内核里打完一个根：
 
 ```bash
 # 全部质量根（默认 tests/corpora/quality）

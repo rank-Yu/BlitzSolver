@@ -36,7 +36,7 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
   回合准备根标记与 Start 卡牌对象集合 `RootCards`）。默认值描述普通出牌阶段根。
   自动战斗的实时导入还会设置 `KnownEnemies`/`AllowDeadEnemies`/`RootEnemyCount`
   （稳定敌人顺序、死亡墓碑）、`RevivingEnemies`（预测为复活的死亡行）与 `Reconciliation`
-  （从原生 History 重建本回合/累计计数）。这些字段只由 `src/Import/LiveCombatTracker.cs` 使用，根捕获保持
+  （从原生 History 重建本回合/累计计数）。这些字段只由 `src/Import/Combat/LiveCombatTracker.cs` 使用，根捕获保持
   旧行为，冻结快照的 410/410 不受影响。
 
 输出先 `default(Battle)`，再逐字段写；不复用缓冲，因此 padding 始终为零。卡牌小数变量最后
@@ -146,7 +146,7 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 
 `Card.PlaysRecordRisk` 与 `Rules.PowerDeathHistoryRisk` 不是游戏数据，而是旧引擎
 `CardOnPlayMirrors.ResolveDispatchKind` / `AfterDeathMirrors.ResolveDispatchKind` 的镜像覆盖率。
-本仓库不重写这套推断逻辑，而是把结果冻结为 `src/Import/MirrorRiskTables.cs`：
+本仓库不重写这套推断逻辑，而是把结果冻结为 `src/Import/Combat/MirrorRiskTables.cs`：
 
 - 导出源：CombatSolver `src/Flash/Bridge/FlashRulesCompiler.cs` 的同一查询，源提交 `a62f1850`；
 - 覆盖 603 个原版卡牌 id、283 个原版 Power id（`ModelDb.All` 的全量 canonical 内容）；
@@ -235,7 +235,7 @@ SearchCase request = EvaluationConfigCompiler.CompileRequest(
 
 ### 4.3 `BoundFeatures.Config`
 
-下界的逐内容分类表冻结在 `src/Import/HealingBoundTables.cs`，来源是 D1 的 384 份 enabled
+下界的逐内容分类表冻结在 `src/Import/Combat/HealingBoundTables.cs`，来源是 D1 的 384 份 enabled
 `config.br`：384 份的 `ComponentUnsafe*`、`SafeEnchantment`/`SafeAffliction`、
 `KnownBlocking*`、`Regen*`/`Reattach*`/`Swipe*`、药水分类与数值逐字节相同，因此只保存一份，
 生成时逐一比较过。这些数组是 CombatSolver `FlashBoundBridge` 分类器在导出时的输出，本仓库没有
@@ -314,7 +314,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 | 极高（`ExtraHigh`） | 256 | 2,048 | 宽度 × 2,000 | 240 秒 |
 
 `CompileRequest` 只组装第一轮；多轮翻倍、每轮节点上限、局面池放大与时间保险由
-`src/Core/Search/WideningSearch.cs` 完成，Mod 与离线整场共用该实现。
+`src/Core/Ai/Combat/WideningSearch.cs` 完成，Mod 与离线整场共用该实现。
 
 CombatSolver 档位里的 `MaxCardBranchesPerNode`/`MaxPileChoiceBranchesPerAction`/
 `MaxHandChoiceBranchesPerAction` 只用于旧引擎协调器；Flash 与 Blitz 都固定 32 个选择分支，

@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using BlitzSolver.Search;
-using BlitzSolver.Search.Scoring;
-using BlitzSolver.Search.Policy;
+using BlitzSolver.Ai.Combat;
+using BlitzSolver.Ai.Combat.Scoring;
+using BlitzSolver.Ai.Combat.Policy;
 
 namespace BlitzSolver.Golden;
 

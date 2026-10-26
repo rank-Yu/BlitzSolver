@@ -1,5 +1,5 @@
 using System.IO.Compression;
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 
 namespace BlitzSolver.Golden;
 

@@ -54,7 +54,7 @@ u32 magic="BATL" | u16 version=2 | i32 Unsafe.SizeOf<Battle>() | raw bytes
 
 魔数常量为 `0x4C544142`；按小端字节解出的 ASCII 是 `BATL`。解码要求 magic、version、声明大小与当前 `Unsafe.SizeOf<Battle>()`（12,696）一致，且数据长度正好等于 `HeaderSize + size`；否则抛 `InvalidDataException`。v1 的 `FBAT` 或 version 1 会被显式拒绝，不保留 v1 读取路径。解码后校验各计数上限（卡牌、敌人、Power、遗物、球、药水槽、decimal 变量）、卡牌 Id 与敌人规则下标。
 
-`BATL` 是整块状态的容器；字段布局、容量与规范化见 [状态布局](state-layout.md)。
+`BATL` 是整块状态的容器；字段布局、容量与规范化见 [状态布局](combat-state-layout.md)。
 
 ## 4. `RULE`：Rules
 

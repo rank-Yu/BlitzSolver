@@ -1,0 +1,446 @@
+// Single-Beam in-game driver. The main-thread capture / background worker / main-thread completion
+// split and the cancellation lifecycle are adapted from CombatSolver src/Runtime/SolverController.cs
+// at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors); only the single search
+// path is carried over, without deployment, continuation or portfolio logic.
+using System.Diagnostics;
+using System.Text.Json;
+using BlitzSolver.Simulation.Combat;
+using BlitzSolver.Import;
+using BlitzSolver.Ai.Combat;
+using BlitzSolver.TestHost;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Context;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Nodes;
+using MegaCrit.Sts2.Core.Runs;
+
+namespace BlitzSolver;
+
+/// <summary>
+/// The single-Beam driver. Capture/import/request assembly happen on the game main thread; the
+/// solver then owns only the copied <see cref="SearchCase"/> and runs on a worker thread. Nothing in
+/// this type reads or writes a live model after the capture returns.
+/// </summary>
+internal static class SearchSession
+{
+    private static readonly object Gate = new();
+    private static CancellationTokenSource? _cancellation;
+    private static Task<BeamResult>? _worker;
+    private static string? _cancelReason;
+    private static int _running;
+    private static int _starting;
+    private static string _root = "";
+
+    public static bool IsRunning => Volatile.Read(ref _running) != 0;
+
+    /// <summary>
+    /// Captures the imported root on the main thread, compiles the request, then runs the solver on
+    /// a worker. <paramref name="request"/> is null for the ordinary-game hotkey path.
+    /// </summary>
+    public static async Task<SearchRunResult> CaptureAndRunAsync(
+        NGame host,
+        CombatState combat,
+        OfflineRequest? request,
+        string root,
+        bool deterministic,
+        SearchPerformanceTier tier,
+        string? resultDirectory,
+        int? cancelAfterMilliseconds)
+    {
+        if (!NGame.IsMainThread())
+            throw new InvalidOperationException("搜索请求必须在游戏主线程组装。");
+        if (Interlocked.CompareExchange(ref _starting, 1, 0) != 0)
+            return SearchRunResult.Busy(root);
+        try
+        {
+            SearchCase searchCase = CaptureCase(combat, request, deterministic, tier,
+                ImportOptions.Default);
+            return await RunAsync(
+                host, root, searchCase, deterministic, tier, resultDirectory,
+                cancelAfterMilliseconds);
+        }
+        finally
+        {
+            Volatile.Write(ref _starting, 0);
+        }
+    }
+
+    /// <summary>
+    /// Captures the live root and compiles one search request without running it. The auto-combat
+    /// driver uses this for its first and every re-search root; <paramref name="importOptions"/>
+    /// carries the stable known-enemy order for a mid-combat import.
+    /// </summary>
+    public static SearchCase CaptureCase(CombatState combat, OfflineRequest? request,
+        bool deterministic, SearchPerformanceTier tier, ImportOptions importOptions)
+    {
+        if (!NGame.IsMainThread())
+            throw new InvalidOperationException("搜索请求必须在游戏主线程组装。");
+        Player player = LocalContext.GetMe(combat)
+            ?? throw new InvalidOperationException("找不到本地玩家。");
+        if (combat.RunState is not RunState runState)
+            throw new InvalidDataException("原生战斗的 RunState 不是具体 RunState。");
+        Rules rules = RulesCompiler.Compile(combat, player, runState);
+        Battle battle = BattleImporter.Import(combat, player, rules, importOptions);
+        return CompileCase(combat, player, rules, battle, request, deterministic, tier);
+    }
+
+    /// <summary>
+    /// Compiles a request for an already imported root and an already frozen rule table. Auto
+    /// combat reuses the combat's first <see cref="Rules"/>: the native enemy list no longer holds
+    /// dead monsters, but the frozen rule table still describes the root's full monster closure.
+    /// </summary>
+    public static SearchCase CompileCase(CombatState combat, Player player, Rules rules, Battle battle,
+        OfflineRequest? request, bool deterministic, SearchPerformanceTier tier)
+    {
+        SearchPolicy policy = request == null
+            ? SearchPolicyCapture.Capture(combat, player)
+            : SearchPolicyOverrides.ApplyOverrides(
+                SearchPolicyCapture.Capture(combat, player), request, player);
+        return SearchRequestCompiler.CompileRequest(
+            combat, player, rules, battle, policy, EvaluationRootFacts.Default,
+            SearchPerformanceProfile.For(tier), deterministic, SearchMemoryBudget.Bytes);
+    }
+
+    /// <summary>
+    /// Runs one already-assembled request. The request options must not contain host callbacks; the
+    /// pacer is added only to the in-memory solve copy, never to the encoded SREQ.
+    /// </summary>
+    public static async Task<SearchRunResult> RunAsync(
+        NGame host,
+        string root,
+        SearchCase searchCase,
+        bool deterministic,
+        SearchPerformanceTier tier,
+        string? resultDirectory,
+        int? cancelAfterMilliseconds,
+        SearchStorage? storage = null)
+    {
+        if (!NGame.IsMainThread())
+            throw new InvalidOperationException("搜索必须从游戏主线程启动。");
+        if (Interlocked.CompareExchange(ref _running, 1, 0) != 0)
+            return SearchRunResult.Busy(root);
+        if (searchCase.Options.Pacer != null
+            || searchCase.Options.Progress != null
+            || searchCase.Options.PollTakeover != null
+            || searchCase.Options.Trace != null)
+        {
+            Volatile.Write(ref _running, 0);
+            throw new InvalidOperationException("搜索请求不得包含宿主回调。");
+        }
+        CancellationTokenSource cancellation = new();
+        Task<BeamResult>? worker = null;
+        BeamSolver? solver = null;
+        _root = root;
+        lock (Gate)
+        {
+            _cancellation = cancellation;
+            _cancelReason = null;
+        }
+
+        try
+        {
+            SearchFramePressureSignal signal = new();
+            SearchWorkPacer? pacer = deterministic ? null : new SearchWorkPacer(signal);
+            BeamOptions solveOptions = pacer == null
+                ? searchCase.Options
+                : searchCase.Options with { Pacer = pacer };
+            byte[] requestBytes = SearchCodec.EncodeRequest(searchCase);
+            if (resultDirectory != null && deterministic)
+                WriteBytes(Path.Combine(resultDirectory, "SREQ"), requestBytes);
+            ModLog.Info(
+                $"[BlitzSolver] SEARCH_STARTED root={root} tier={tier} deterministic={deterministic} "
+                + $"beam={searchCase.Options.BeamWidth} nodes={searchCase.Options.MaxExpandedNodes} "
+                + $"soft_ms={(deterministic ? -1 : (long)searchCase.Options.SoftTimeBudget.TotalMilliseconds)} "
+                + $"turn={searchCase.Options.InitialPlayerTurn} root_bytes={requestBytes.Length}");
+
+            Stopwatch elapsed = Stopwatch.StartNew();
+            long managedPeak = 0;
+            long workingSetPeak = 0;
+            long allocatedBefore = GC.GetTotalAllocatedBytes(precise: false);
+            long lastFrame = Stopwatch.GetTimestamp();
+            worker = Task.Run(() =>
+            {
+                solver = new BeamSolver(searchCase.Rules, solveOptions);
+                return solver.Solve(searchCase.Battles, storage ?? new SearchStorage(),
+                    cancellation.Token);
+            });
+            lock (Gate)
+                _worker = worker;
+
+            while (!worker.IsCompleted)
+            {
+                await GodotCombatWaiter.NextFrameAsync(host);
+                long now = Stopwatch.GetTimestamp();
+                if (!deterministic)
+                {
+                    double frameMilliseconds = Stopwatch.GetElapsedTime(lastFrame, now).TotalMilliseconds;
+                    signal.ObserveFrame(frameMilliseconds, searchActive: true);
+                }
+                lastFrame = now;
+                SampleMemory(ref managedPeak, ref workingSetPeak);
+                if (cancelAfterMilliseconds is { } limit
+                    && elapsed.ElapsedMilliseconds >= limit
+                    && !cancellation.IsCancellationRequested)
+                {
+                    Cancel("test_cancel_after_ms");
+                }
+            }
+            if (!NGame.IsMainThread())
+                throw new InvalidOperationException("搜索结果没有回到游戏主线程。");
+            elapsed.Stop();
+            SampleMemory(ref managedPeak, ref workingSetPeak);
+            long allocated = GC.GetTotalAllocatedBytes(precise: false) - allocatedBefore;
+
+            bool workerExited = worker.IsCompleted;
+            SearchRunResult result;
+            if (cancellation.IsCancellationRequested || worker.IsCanceled)
+            {
+                result = SearchRunResult.Cancelled(root, elapsed.ElapsedMilliseconds,
+                    solver?.ExpandedNodes ?? 0, solver?.TransitionCount ?? 0,
+                    managedPeak, workingSetPeak, allocated, workerExited, pacer?.YieldCount ?? 0,
+                    Reason());
+                ModLog.Info(
+                    $"[BlitzSolver] SEARCH_CANCELLED root={root} reason={result.Error} "
+                    + $"ms={elapsed.ElapsedMilliseconds} worker_exited={workerExited}");
+            }
+            else if (worker.IsFaulted)
+            {
+                Exception? error = worker.Exception?.GetBaseException();
+                (string status, string reason) = Classify(error);
+                result = SearchRunResult.Failed(root, elapsed.ElapsedMilliseconds,
+                    managedPeak, workingSetPeak, allocated, workerExited, pacer?.YieldCount ?? 0,
+                    status, reason);
+                ModLog.Error(
+                    $"[BlitzSolver] SEARCH_FAILED root={root} stage=solve kind={result.ErrorKind} "
+                    + $"reason={result.Error} ms={elapsed.ElapsedMilliseconds}");
+            }
+            else
+            {
+                BeamResult beam = worker.GetAwaiter().GetResult();
+                result = SearchRunResult.Ok(root, beam, elapsed.ElapsedMilliseconds,
+                    managedPeak, workingSetPeak, allocated, workerExited, pacer?.YieldCount ?? 0,
+                    searchCase);
+                if (resultDirectory != null && deterministic)
+                    WriteBytes(Path.Combine(resultDirectory, "SRES"), SearchCodec.EncodeResult(beam));
+                ModLog.Info(
+                    $"[BlitzSolver] SEARCH_DONE root={root} ms={elapsed.ElapsedMilliseconds} "
+                    + $"expanded={beam.ExpandedNodes} transitions={beam.Transitions} turns={beam.TurnsSearched} "
+                    + $"victory={beam.BestIsVictory} score={beam.BestScore} actions={beam.BestRoute.Length} "
+                    + $"duplicates={beam.Duplicates} pruned={beam.PrunedIncumbents} "
+                    + $"capacity_pruned={beam.CapacityPruned} managed_peak_mb={ToMegabytes(managedPeak):0.0} "
+                    + $"working_set_peak_mb={ToMegabytes(workingSetPeak):0.0} "
+                    + $"allocated_mb={ToMegabytes(allocated):0.0} yields={pacer?.YieldCount ?? 0}");
+            }
+
+            if (resultDirectory != null)
+                WriteJson(Path.Combine(resultDirectory, "search.json"),
+                    result.ToMetrics(tier, deterministic));
+            return result;
+        }
+        finally
+        {
+            if (worker is { IsCompleted: false })
+            {
+                cancellation.Cancel();
+                ModLog.Error($"[BlitzSolver] SEARCH_ABANDONED root={root} reason=driver_exception");
+            }
+            lock (Gate)
+            {
+                if (ReferenceEquals(_cancellation, cancellation))
+                {
+                    _cancellation = null;
+                    _worker = null;
+                    _cancelReason = null;
+                }
+            }
+            cancellation.Dispose();
+            Volatile.Write(ref _running, 0);
+        }
+    }
+
+    public static void OnCombatEnded()
+    {
+        if (IsRunning)
+            Cancel("combat_ended");
+    }
+
+    public static void OnCombatStarting()
+    {
+        if (IsRunning)
+            Cancel("combat_started");
+    }
+
+    public static void Cancel(string reason)
+    {
+        CancellationTokenSource? cancellation;
+        lock (Gate)
+        {
+            cancellation = _cancellation;
+            if (cancellation == null || cancellation.IsCancellationRequested)
+                return;
+            _cancelReason = reason;
+        }
+        ModLog.Info($"[BlitzSolver] SEARCH_CANCEL_REQUESTED root={_root} reason={reason}");
+        cancellation.Cancel();
+    }
+
+    public static async Task<bool> CancelAndWaitAsync(NGame host, string reason, int timeoutMilliseconds)
+    {
+        Cancel(reason);
+        long deadline = Environment.TickCount64 + timeoutMilliseconds;
+        while (IsRunning)
+        {
+            if (Environment.TickCount64 >= deadline)
+            {
+                ModLog.Error(
+                    $"[BlitzSolver] SEARCH_CANCEL_TIMEOUT root={_root} reason={reason} "
+                    + $"running={IsRunning}");
+                return false;
+            }
+            await GodotCombatWaiter.NextFrameAsync(host);
+        }
+        return true;
+    }
+
+    private static string? Reason()
+    {
+        lock (Gate)
+            return _cancelReason;
+    }
+
+    private static (string Status, string Reason) Classify(Exception? error)
+    {
+        if (error is UnsupportedImportException import)
+            return ("unsupported", $"reason={import.Reason} {import.Detail}");
+        if (error is UnsupportedException unsupported)
+            return ("unsupported", unsupported.Message);
+        if (error is CapacityException capacity)
+            return ("capacity", $"region={capacity.Region} {capacity.Message}");
+        if (error is NotSupportedException notSupported)
+            return ("unsupported", notSupported.Message);
+        if (error is InvalidDataException invalidData)
+            return ("invalid_data", invalidData.Message);
+        if (error is InvalidOperationException invalidOperation)
+            return ("invalid_operation", invalidOperation.Message);
+        if (error is OperationCanceledException canceled)
+            return ("cancelled", canceled.Message);
+        return (error?.GetType().FullName ?? "unknown", error?.Message ?? "搜索任务没有异常对象");
+    }
+
+    private static void SampleMemory(ref long managedPeak, ref long workingSetPeak)
+    {
+        long managed = GC.GetTotalMemory(forceFullCollection: false);
+        if (managed > managedPeak)
+            managedPeak = managed;
+        long workingSet = Environment.WorkingSet;
+        if (workingSet > workingSetPeak)
+            workingSetPeak = workingSet;
+    }
+
+    private static double ToMegabytes(long bytes) => bytes / (1024d * 1024d);
+
+    private static void WriteBytes(string path, byte[] bytes)
+    {
+        string temporary = path + ".tmp";
+        File.WriteAllBytes(temporary, bytes);
+        File.Move(temporary, path, true);
+    }
+
+    private static void WriteJson<T>(string path, T value)
+    {
+        string temporary = path + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(value, OfflineJson.Options));
+        File.Move(temporary, path, true);
+    }
+}
+
+internal sealed record SearchRunResult(
+    string Root,
+    string Status,
+    string Stage,
+    string? Error,
+    string ErrorKind,
+    long ElapsedMilliseconds,
+    int ExpandedNodes,
+    int Transitions,
+    int Duplicates,
+    int TurnsSearched,
+    bool Victory,
+    double Score,
+    int RouteActionCount,
+    string RouteSummary,
+    int CapacityPruned,
+    int PrunedIncumbents,
+    long ManagedHeapPeakBytes,
+    long WorkingSetPeakBytes,
+    long AllocatedBytes,
+    bool WorkerExited,
+    int PacerYields,
+    SearchCase? Case = null,
+    BeamResult? Beam = null)
+{
+    public static SearchRunResult Busy(string root) => new(
+        root, "failed", "busy", "已有搜索在运行", "busy", 0, 0, 0, 0, 0,
+        false, 0, 0, "", 0, 0, 0, 0, 0, false, 0);
+
+    public static SearchRunResult Cancelled(
+        string root, long elapsed, int expanded, int transitions, long managedPeak,
+        long workingSetPeak, long allocated, bool workerExited, int yields, string? reason)
+        => new(root, "cancelled", "solve", reason ?? "canceled", "cancelled", elapsed,
+            expanded, transitions, 0, 0, false, 0, 0, "", 0, 0, managedPeak, workingSetPeak,
+            allocated, workerExited, yields);
+
+    public static SearchRunResult Failed(
+        string root, long elapsed, long managedPeak, long workingSetPeak, long allocated,
+        bool workerExited, int yields, string kind, string reason)
+        => new(root, "failed", "solve", reason, kind, elapsed,
+            0, 0, 0, 0, false, 0, 0, "", 0, 0, managedPeak, workingSetPeak, allocated,
+            workerExited, yields);
+
+    public static SearchRunResult Ok(
+        string root, BeamResult result, long elapsed, long managedPeak, long workingSetPeak,
+        long allocated, bool workerExited, int yields, SearchCase searchCase)
+        => new(root, "ok", "solve", null, "", elapsed, result.ExpandedNodes,
+            result.Transitions, result.Duplicates, result.TurnsSearched, result.BestIsVictory,
+            result.BestScore, result.BestRoute.Length, Summarize(result.BestRoute),
+            result.CapacityPruned, result.PrunedIncumbents, managedPeak, workingSetPeak,
+            allocated, workerExited, yields, searchCase, result);
+
+    public SearchMetrics ToMetrics(SearchPerformanceTier tier, bool deterministic) => new(
+        1, Root, Status, Stage, Error, ErrorKind, tier.ToString(), deterministic,
+        ElapsedMilliseconds, ExpandedNodes, Transitions, Duplicates, TurnsSearched, Victory,
+        Score, RouteActionCount, CapacityPruned, PrunedIncumbents, ManagedHeapPeakBytes,
+        WorkingSetPeakBytes, AllocatedBytes, WorkerExited, PacerYields);
+
+    private static string Summarize(PlayerAction[] route)
+    {
+        const int limit = 32;
+        string summary = string.Join(", ", route.Take(limit).Select(static action => action.ToString()));
+        return route.Length > limit ? summary + $", ... ({route.Length} total)" : summary;
+    }
+}
+
+internal sealed record SearchMetrics(
+    int SchemaVersion,
+    string Root,
+    string Status,
+    string Stage,
+    string? Error,
+    string ErrorKind,
+    string Tier,
+    bool Deterministic,
+    long ElapsedMs,
+    int ExpandedNodes,
+    int Transitions,
+    int Duplicates,
+    int TurnsSearched,
+    bool Victory,
+    double Score,
+    int RouteActions,
+    int CapacityPruned,
+    int PrunedIncumbents,
+    long ManagedHeapPeakBytes,
+    long WorkingSetPeakBytes,
+    long AllocatedBytes,
+    bool WorkerExited,
+    int PacerYields);

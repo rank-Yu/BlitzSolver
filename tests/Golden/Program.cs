@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using BlitzSolver.Engine;
+using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Golden;
-using BlitzSolver.Search;
+using BlitzSolver.Ai.Combat;
 
 // Pure-core Blitz golden verifier: Engine + Content + Search, with only the BCL as a dependency.
 

@@ -21,6 +21,19 @@ dotnet build BlitzSolver.sln -c Release -t:Rebuild
 - `BlitzSolver.Core.dll`
 - `BlitzSolver.KernelChecks.dll`
 - `BlitzSolver.Golden.dll`
+- `BlitzSolver.Architecture.dll`
+
+### 2.1 层依赖规则
+
+```bash
+dotnet run --project tests/Architecture -c Release --no-build
+```
+
+`tests/Architecture` 读取编译后的 `BlitzSolver.Core`，检查 `Simulation.Combat`、`Simulation.Run`、
+`Content`、`Ai.Combat`、`Ai.Run` 与 `Autoplay` 之间的类型引用；BCL 引用一律允许。违反时逐条输出
+`源类型 -> 目标类型 via ...` 并以非零退出。`Ai.Run` 目前只允许 `Simulation.Run` 中显式登记为可见
+投影 / 决策请求的类型（当前登记为空）；测试程序集里的本地反例同时验证未登记引用会报错、登记后
+会被允许。规则表见 [整局设计](full-run-design.md) 第 4 节。
 
 ## 3. K0：纯内核合同
 
@@ -213,7 +226,7 @@ MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
 
 ### 4.4 搜索等价自检（`Exec` 覆盖合同 + 原地投影）
 
-`tests/KernelChecks` 的 `ExecCoverage` 合同用反射枚举 `Exec` 的全部实例字段（含私有字段），要求每个字段恰好归入一类：进入 `ExecContinuation`、捕获时断言为空/为零、`AdvanceRoundPlayerStart` 入口重置、或单独处理（`B`/`R`/选择游标）。分类表在 `tests/KernelChecks/ExecCoverage.cs` 一处；同时反向校验快照字段集合与 `ExecContinuation` 完全一致。出现未分类、重复归类或快照表不一致时，消息写出字段名。临时给 `Exec` 加字段的本地反向检查会失败（`ReverseCoverageProbe` 未分类）。
+`tests/KernelChecks` 的 `ExecCoverage` 合同用反射枚举 `Exec` 的全部实例字段（含私有字段），要求每个字段恰好归入一类：进入 `ExecContinuation`、捕获时断言为空/为零、`AdvanceRoundPlayerStart` 入口重置、或单独处理（`B`/`R`/选择游标）。分类表在 `tests/KernelChecks/Combat/ExecCoverage.cs` 一处；同时反向校验快照字段集合与 `ExecContinuation` 完全一致。出现未分类、重复归类或快照表不一致时，消息写出字段名。临时给 `Exec` 加字段的本地反向检查会失败（`ReverseCoverageProbe` 未分类）。
 
 `BeamSolver` 默认使用共享的 `EndTurn` 前缀；设置 `BLITZ_VERIFY_SEARCH_EQUIVALENCE=1` 后同时开启：
 
@@ -471,7 +484,7 @@ M2b-1 的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=sam
 ### 6.6 实机整场自动战斗
 
 `OfflineRequest` 增加 `fullCombatForTest`；`--emit-live-requests` 的 `--full-combat` 把它置位
-并关闭确定性。测试模式捕获根后立刻进入 `AutoCombatSession`，由共享的 `FullCombatDriver`
+并关闭确定性。测试模式捕获根后立刻进入 `AutoCombatSession`，由共享的 `CombatPilot`
 每回合搜索/沿用路线、逐动作核对、回合对账，直到胜利、失败、暂停或取消。结果写 `full-combat.json`，并在 `status.json`
 增加 `fullCombatStatus/outcome/turns/playerHp/playerMaxHp/searches/reusedTurns/deviations/
 deploymentFailures`。整场搜索的每一轮使用该次决策剩余的正常软时间（见 6.7 的多轮规则）；`src/Mod` 还会把
@@ -500,7 +513,7 @@ HEADLESS_DONE instance=m2b2-final-b ok=10 failed=0 total_ms=297313.871
 
 ### 6.7 离线整场自动战斗
 
-`--offline-combat` 用与 Mod 完全相同的整场决策循环（`src/Core/Search/FullCombatDriver.cs`）
+`--offline-combat` 用与 Mod 完全相同的整场决策循环（`src/Core/Autoplay/CombatPilot.cs`）
 在 Blitz 内核里打完一个根，不启动 Godot，也不模拟原生动画。默认跑质量语料的 120 根：
 
 ```bash

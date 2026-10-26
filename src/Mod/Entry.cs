@@ -9,7 +9,7 @@ namespace BlitzSolver;
 public static class ModEntry
 {
     public const string ModId = "BlitzSolver";
-    public const string DisplayName = "极速战斗求解器";
+    public const string DisplayName = "极速求解器";
     public const string EnglishName = "Blitz Solver";
     public const string Version = "0.1.0";
 
