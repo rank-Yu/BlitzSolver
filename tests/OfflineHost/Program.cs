@@ -67,7 +67,10 @@ internal static class Program
         bool fullCombat = false;
         bool offlineCombat = false;
         int? beamWidth = null;
+        int? maxWidth = null;
         int? maxNodes = null;
+        int? nodesPerWidth = null;
+        int? poolStateBudgetMb = null;
         int? memoryBudgetMb = null;
         long? memoryBudgetBytes = null;
         int jobs = 1;
@@ -143,6 +146,15 @@ internal static class Program
                 case "--max-nodes" when index + 1 < args.Length:
                     maxNodes = int.Parse(args[++index]);
                     break;
+                case "--max-width" when index + 1 < args.Length:
+                    maxWidth = int.Parse(args[++index]);
+                    break;
+                case "--nodes-per-width" when index + 1 < args.Length:
+                    nodesPerWidth = int.Parse(args[++index]);
+                    break;
+                case "--pool-state-budget-mb" when index + 1 < args.Length:
+                    poolStateBudgetMb = int.Parse(args[++index]);
+                    break;
                 case "--memory-budget-mb" when index + 1 < args.Length:
                     memoryBudgetMb = int.Parse(args[++index]);
                     break;
@@ -179,13 +191,16 @@ internal static class Program
                 Console.Error.WriteLine("--offline-combat 不能与其它对照/发射模式同时使用。");
                 return 2;
             }
-            return RunOfflineCombat(data, corpora, output, searchTier, beamWidth, maxNodes,
-                memoryBudgetMb, memoryBudgetBytes, fullCombat, jobs, root, liveRootsFile);
+            return RunOfflineCombat(data, corpora, output, searchTier, beamWidth, maxWidth,
+                maxNodes, nodesPerWidth, poolStateBudgetMb, memoryBudgetMb, memoryBudgetBytes,
+                fullCombat, jobs, root, liveRootsFile);
         }
-        if (beamWidth != null || maxNodes != null || memoryBudgetMb != null
-            || memoryBudgetBytes != null)
+        if (beamWidth != null || maxWidth != null || maxNodes != null || nodesPerWidth != null
+            || poolStateBudgetMb != null || memoryBudgetMb != null || memoryBudgetBytes != null)
         {
-            Console.Error.WriteLine("--beam-width/--max-nodes/--memory-budget-mb 只能与 --offline-combat 一起使用。");
+            Console.Error.WriteLine(
+                "--beam-width/--max-width/--max-nodes/--nodes-per-width/--pool-state-budget-mb/"
+                + "--memory-budget-mb 只能与 --offline-combat 一起使用。");
             return 2;
         }
         if (compareOnlyNew != null)
@@ -760,9 +775,9 @@ internal static class Program
     }
 
     private static int RunOfflineCombat(string data, string corpora, string output,
-        string? searchTier, int? beamWidth, int? maxNodes, int? memoryBudgetMb,
-        long? memoryBudgetBytesOverride, bool fullCombat, int jobs, string? root,
-        string? rootsFile)
+        string? searchTier, int? beamWidth, int? maxWidth, int? maxNodes, int? nodesPerWidth,
+        int? poolStateBudgetMb, int? memoryBudgetMb, long? memoryBudgetBytesOverride,
+        bool fullCombat, int jobs, string? root, string? rootsFile)
     {
         if (fullCombat)
         {
@@ -780,9 +795,24 @@ internal static class Program
             Console.Error.WriteLine("--beam-width 必须是正整数。");
             return 2;
         }
+        if (maxWidth is <= 0)
+        {
+            Console.Error.WriteLine("--max-width 必须是正整数。");
+            return 2;
+        }
         if (maxNodes is <= 0)
         {
             Console.Error.WriteLine("--max-nodes 必须是正整数。");
+            return 2;
+        }
+        if (nodesPerWidth is <= 0)
+        {
+            Console.Error.WriteLine("--nodes-per-width 必须是正整数。");
+            return 2;
+        }
+        if (poolStateBudgetMb is <= 0)
+        {
+            Console.Error.WriteLine("--pool-state-budget-mb 必须是正整数。");
             return 2;
         }
         if (memoryBudgetMb is <= 0)
@@ -807,15 +837,16 @@ internal static class Program
         }
         SearchPerformanceProfile profile = SearchPerformanceProfile.For(tier);
         if (beamWidth is { } width)
+            profile = profile with { StartWidth = width, MaxWidth = maxWidth ?? width };
+        else if (maxWidth is { } maximum)
+            profile = profile with { MaxWidth = maximum };
+        if (nodesPerWidth is { } perWidth)
+            profile = profile with { MaxExpandedNodesPerWidth = perWidth };
+        if (profile.MaxWidth < profile.StartWidth)
         {
-            int scaledNodes = checked((int)((long)profile.MaxExpandedNodes * width
-                / profile.BeamWidth));
-            profile = profile with { BeamWidth = width };
-            if (maxNodes == null)
-                profile = profile with { MaxExpandedNodes = scaledNodes };
+            Console.Error.WriteLine("--max-width 不能小于起始宽度。");
+            return 2;
         }
-        if (maxNodes is { } nodes)
-            profile = profile with { MaxExpandedNodes = nodes };
         long memoryBudgetBytes = memoryBudgetBytesOverride
             ?? (memoryBudgetMb is { } budgetMb
                 ? (long)budgetMb * 1024 * 1024
@@ -824,7 +855,7 @@ internal static class Program
             Environment.GetEnvironmentVariable("BLITZ_OFFLINE_WARMUP_NODES"), out int warmup)
             ? Math.Max(0, warmup) : 50_000;
         OfflineCombatSettings settings = new(data, corpora, output, tier, profile,
-            memoryBudgetBytes, warmupNodes);
+            memoryBudgetBytes, warmupNodes, maxNodes, poolStateBudgetMb);
         return OfflineCombat.Run(settings, root, rootsFile, jobs);
     }
 
@@ -944,7 +975,8 @@ internal static class Program
                   [--search-cancel-after-ms N] [--full-combat]
               dotnet OfflineHost.dll --offline-combat [--root <name> | --roots-file <file> | --corpora <dir>]
                   [--search-tier Low|Medium|High|VeryHigh] [--jobs 1..8] [--out <dir>]
-                  [--beam-width N] [--max-nodes N]
+                  [--beam-width N] [--max-width N] [--max-nodes N] [--nodes-per-width N]
+                  [--pool-state-budget-mb N] [--memory-budget-mb N]
             """);
     }
 }

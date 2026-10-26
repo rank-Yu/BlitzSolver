@@ -22,7 +22,9 @@ internal sealed record OfflineCombatSettings(
     SearchPerformanceTier Tier,
     SearchPerformanceProfile Profile,
     long MemoryBudgetBytes,
-    int WarmupNodes)
+    int WarmupNodes,
+    int? MaxExpandedNodesOverride,
+    int? PoolStateBudgetMb)
 {
     /// <summary>0.15 x 16 GiB, the fixed machine size the offline comparison assumes.</summary>
     internal static long DefaultMemoryBudgetBytes => (16L << 30) / 100 * 15 + (16L << 30) % 100 * 15 / 100;
@@ -74,8 +76,9 @@ internal static class OfflineCombat
         }
         Console.WriteLine(
             $"offline-combat roots={roots.Length} jobs={jobs} tier={settings.Tier} " +
-            $"beam={settings.Profile.BeamWidth} nodes={settings.Profile.MaxExpandedNodes} " +
-            $"out={settings.Output}");
+            $"beam={settings.Profile.StartWidth}..{settings.Profile.MaxWidth} " +
+            $"nodes_per_width={settings.Profile.MaxExpandedNodesPerWidth} " +
+            $"time_ms={settings.Profile.TotalTimeBudgetMilliseconds} out={settings.Output}");
         Stopwatch wall = Stopwatch.StartNew();
         List<OfflineCombatRootResult> results = [];
         object gate = new();
@@ -152,7 +155,8 @@ internal static class OfflineCombat
             SearchPolicy policy = SearchPolicyOverrides.ApplyOverrides(
                 SearchPolicyCapture.Capture(combat, player), request, player);
             OfflineHostCombat host = new(combat, player, rules, policy, settings.Profile,
-                settings.MemoryBudgetBytes, settings.WarmupNodes, opening);
+                settings.MemoryBudgetBytes, settings.WarmupNodes,
+                settings.MaxExpandedNodesOverride, settings.PoolStateBudgetMb, opening);
             FullCombatResult result = FullCombatDriver.RunAsync(host, root, CancellationToken.None)
                 .GetAwaiter().GetResult();
             long wallMs = stopwatch.ElapsedMilliseconds;
@@ -248,9 +252,21 @@ internal static class OfflineCombat
         start.ArgumentList.Add("--search-tier");
         start.ArgumentList.Add(settings.Tier.ToString());
         start.ArgumentList.Add("--beam-width");
-        start.ArgumentList.Add(settings.Profile.BeamWidth.ToString());
-        start.ArgumentList.Add("--max-nodes");
-        start.ArgumentList.Add(settings.Profile.MaxExpandedNodes.ToString());
+        start.ArgumentList.Add(settings.Profile.StartWidth.ToString());
+        start.ArgumentList.Add("--max-width");
+        start.ArgumentList.Add(settings.Profile.MaxWidth.ToString());
+        start.ArgumentList.Add("--nodes-per-width");
+        start.ArgumentList.Add(settings.Profile.MaxExpandedNodesPerWidth.ToString());
+        if (settings.MaxExpandedNodesOverride is { } maxNodes)
+        {
+            start.ArgumentList.Add("--max-nodes");
+            start.ArgumentList.Add(maxNodes.ToString());
+        }
+        if (settings.PoolStateBudgetMb is { } poolMb)
+        {
+            start.ArgumentList.Add("--pool-state-budget-mb");
+            start.ArgumentList.Add(poolMb.ToString());
+        }
         start.ArgumentList.Add("--memory-budget-bytes");
         start.ArgumentList.Add(settings.MemoryBudgetBytes.ToString());
         start.ArgumentList.Add("--jobs");
@@ -291,8 +307,12 @@ internal static class OfflineCombat
         {
             schemaVersion = 1,
             tier = settings.Tier.ToString(),
-            beamWidth = settings.Profile.BeamWidth,
-            maxExpandedNodes = settings.Profile.MaxExpandedNodes,
+            startWidth = settings.Profile.StartWidth,
+            maxWidth = settings.Profile.MaxWidth,
+            maxExpandedNodesPerWidth = settings.Profile.MaxExpandedNodesPerWidth,
+            totalTimeBudgetMilliseconds = settings.Profile.TotalTimeBudgetMilliseconds,
+            maxExpandedNodesOverride = settings.MaxExpandedNodesOverride,
+            poolStateBudgetMb = settings.PoolStateBudgetMb,
             memoryBudgetBytes = settings.MemoryBudgetBytes,
             roots,
             failed,
@@ -338,11 +358,17 @@ internal static class OfflineCombat
         SearchPerformanceProfile profile,
         long MemoryBudgetBytes,
         int WarmupNodes,
+        int? MaxExpandedNodesOverride,
+        int? PoolStateBudgetMb,
         Battle opening) : IFullCombatHost
     {
         private readonly List<string> _potionsUsed = [];
         private bool _warmedUp;
         private bool _storageChecked;
+        private SearchStorage? _roundStorage;
+        private CancellationToken _roundToken;
+        private readonly int _combatStartHp = opening.Player.CurrentHp;
+        private readonly int _combatStartMaxHp = opening.Player.MaxHp;
         private Battle _current = opening;
         private ReplayedAction? _lastAction;
         private readonly PostCombatRelicHealProfile _postCombatHeal =
@@ -436,55 +462,30 @@ internal static class OfflineCombat
                 _warmedUp = true;
                 Warmup(searchCase, token);
             }
-            Stopwatch elapsed = Stopwatch.StartNew();
-            long managedPeak = 0;
-            long workingSetPeak = 0;
-            BeamResult beam = null!;
-            bool storageChecked = false;
-            if (!_storageChecked
-                && Environment.GetEnvironmentVariable("BLITZ_STORAGE_CHECK") == "1")
+            if (!_storageChecked && Environment.GetEnvironmentVariable("BLITZ_STORAGE_CHECK") == "1")
             {
                 _storageChecked = true;
-                SearchStorage storage = new();
-                long gcStart = GC.GetAllocatedBytesForCurrentThread();
-                BeamResult first = new BeamSolver(searchCase.Rules, searchCase.Options)
-                    .Solve(searchCase.Battles, storage, token);
-                long firstBytes = storage.AllocatedBytes;
-                string regionsFirst = RegionDump(storage);
-                long gcFirst = GC.GetAllocatedBytesForCurrentThread();
-                BeamResult second = new BeamSolver(searchCase.Rules, searchCase.Options)
-                    .Solve(searchCase.Battles, storage, token);
-                long secondBytes = storage.AllocatedBytes;
-                string regionsSecond = RegionDump(storage);
-                long gcSecond = GC.GetAllocatedBytesForCurrentThread();
-                bool same = SearchCodec.EncodeResult(first)
-                    .AsSpan().SequenceEqual(SearchCodec.EncodeResult(second));
-                Console.WriteLine(
-                    $"STORAGE_CHECK same={same} firstBytes={firstBytes} " +
-                    $"secondBytes={secondBytes} secondDelta={secondBytes - firstBytes} " +
-                    $"nodesFirst={first.RouteNodePeakCount} nodesSecond={second.RouteNodePeakCount} " +
-                    $"gcFirst={gcFirst - gcStart} gcSecond={gcSecond - gcFirst} " +
-                    $"regionsFirst=[{regionsFirst}] regionsSecond=[{regionsSecond}]");
-                if (!same)
-                    throw new InvalidDataException("同一请求复用存储两次的结果不同。");
-                beam = first;
-                storageChecked = true;
+                StorageCheck(searchCase, token);
             }
+
+            WideningSearchPlan plan = new(profile.StartWidth, profile.MaxWidth,
+                profile.MaxExpandedNodesPerWidth, profile.TotalTimeBudgetMilliseconds,
+                EnforceTimeBudget: false)
+            {
+                MaxExpandedNodesOverride = MaxExpandedNodesOverride ?? 0,
+                PoolStateBudgetOverrideBytes = PoolStateBudgetMb is { } poolMb
+                    ? checked(poolMb * 1024 * 1024) : 0,
+                CombatStartPlayerHp = _combatStartHp,
+                CombatStartPlayerMaxHp = _combatStartMaxHp,
+            };
+            SearchStorage storage = new();
+            _roundStorage = storage;
+            _roundToken = token;
+            WideningSearchOutcome outcome;
             try
             {
-                if (!storageChecked)
-                {
-                    Task<BeamResult> solve = Task.Run(() =>
-                        new BeamSolver(searchCase.Rules, searchCase.Options)
-                            .Solve(searchCase.Battles, token));
-                    while (!solve.IsCompleted)
-                    {
-                        SampleMemory(ref managedPeak, ref workingSetPeak);
-                        Thread.Sleep(2);
-                    }
-                    SampleMemory(ref managedPeak, ref workingSetPeak);
-                    beam = solve.GetAwaiter().GetResult();
-                }
+                outcome = WideningSearch.RunAsync(searchCase, plan, storage, RunRound, token)
+                    .AsTask().GetAwaiter().GetResult();
             }
             catch (OperationCanceledException)
             {
@@ -492,41 +493,50 @@ internal static class OfflineCombat
             }
             catch (CapacityException error)
             {
-                elapsed.Stop();
                 string detail = $"region={error.Region} {error.Message}";
-                return ValueTask.FromResult(new FullCombatSearch(null, "capacity",
-                    elapsed.ElapsedMilliseconds, 0, 0, false, detail, "search_failed", detail,
-                    managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(Failed("capacity", detail, "search_failed", detail));
             }
             catch (UnsupportedException error)
             {
-                elapsed.Stop();
-                return ValueTask.FromResult(new FullCombatSearch(null, "unsupported",
-                    elapsed.ElapsedMilliseconds, 0, 0, false, error.Message, "search_failed",
-                    error.Message, managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(Failed("unsupported", error.Message, "search_failed",
+                    error.Message));
             }
             catch (NotSupportedException error)
             {
-                elapsed.Stop();
-                return ValueTask.FromResult(new FullCombatSearch(null, "unsupported",
-                    elapsed.ElapsedMilliseconds, 0, 0, false, error.Message, "search_failed",
-                    error.Message, managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(Failed("unsupported", error.Message, "search_failed",
+                    error.Message));
             }
             catch (InvalidDataException error)
             {
-                elapsed.Stop();
-                return ValueTask.FromResult(new FullCombatSearch(null, "invalid_data",
-                    elapsed.ElapsedMilliseconds, 0, 0, false, error.Message, "search_failed",
-                    error.Message, managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(Failed("invalid_data", error.Message, "search_failed",
+                    error.Message));
             }
             catch (InvalidOperationException error)
             {
-                elapsed.Stop();
-                return ValueTask.FromResult(new FullCombatSearch(null, "invalid_operation",
-                    elapsed.ElapsedMilliseconds, 0, 0, false, error.Message, "search_failed",
-                    error.Message, managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(Failed("invalid_operation", error.Message,
+                    "search_failed", error.Message));
             }
-            elapsed.Stop();
+
+            _roundStorage = null;
+            WideningRoundLog[] rounds = outcome.Rounds;
+            if (outcome.Beam is not { } beam)
+            {
+                string status = outcome.FailureStatus.Length > 0 ? outcome.FailureStatus : "failed";
+                string error = outcome.FailureError ?? "搜索没有返回路线";
+                return ValueTask.FromResult(new FullCombatSearch(null, status,
+                    outcome.ElapsedMs, outcome.TotalExpandedNodes, 0, false, error,
+                    "search_failed", error, outcome.ManagedHeapPeakBytes,
+                    outcome.WorkingSetPeakBytes, outcome.SoftTimeRisk,
+                    outcome.MemoryBudgetExceeded, outcome.MemoryExceededAtBytes,
+                    outcome.PoolCapacityDropped, outcome.SearchMemoryUsedBytes,
+                    outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
+                    outcome.RouteNodePeakCount)
+                {
+                    Rounds = rounds,
+                    RoundsRun = outcome.RoundsRun,
+                    RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+                });
+            }
 
             ReplayedRoute route;
             try
@@ -535,42 +545,144 @@ internal static class OfflineCombat
             }
             catch (InvalidDataException error)
             {
-                return ValueTask.FromResult(new FullCombatSearch(null, "invalid",
-                    elapsed.ElapsedMilliseconds, beam.ExpandedNodes, beam.BestRoute.Length,
-                    beam.BestIsVictory, error.Message, "route_invalid", error.Message,
-                    managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(InvalidRoute(outcome, beam, "invalid", "route_invalid",
+                    error.Message));
             }
             catch (InvalidOperationException error)
             {
-                return ValueTask.FromResult(new FullCombatSearch(null, "invalid",
-                    elapsed.ElapsedMilliseconds, beam.ExpandedNodes, beam.BestRoute.Length,
-                    beam.BestIsVictory, error.Message, "route_invalid", error.Message,
-                    managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(InvalidRoute(outcome, beam, "invalid", "route_invalid",
+                    error.Message));
             }
             catch (UnsupportedException error)
             {
-                return ValueTask.FromResult(new FullCombatSearch(null, "invalid",
-                    elapsed.ElapsedMilliseconds, beam.ExpandedNodes, beam.BestRoute.Length,
-                    beam.BestIsVictory, error.Message, "route_unsupported", error.Message,
-                    managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                return ValueTask.FromResult(InvalidRoute(outcome, beam, "invalid",
+                    "route_unsupported", error.Message));
             }
             catch (CapacityException error)
             {
                 string detail = $"region={error.Region} {error.Message}";
-                return ValueTask.FromResult(new FullCombatSearch(null, "invalid",
-                    elapsed.ElapsedMilliseconds, beam.ExpandedNodes, beam.BestRoute.Length,
-                    beam.BestIsVictory, detail, "route_capacity", detail, managedPeak,
+                return ValueTask.FromResult(InvalidRoute(outcome, beam, "invalid",
+                    "route_capacity", detail));
+            }
+
+            return ValueTask.FromResult(new FullCombatSearch(route, "ok", outcome.ElapsedMs,
+                outcome.TotalExpandedNodes, beam.BestRoute.Length, beam.BestIsVictory, null,
+                null, null, outcome.ManagedHeapPeakBytes, outcome.WorkingSetPeakBytes,
+                outcome.SoftTimeRisk, outcome.MemoryBudgetExceeded,
+                outcome.MemoryExceededAtBytes, outcome.PoolCapacityDropped,
+                outcome.SearchMemoryUsedBytes, outcome.SearchMemoryPeakBytes,
+                outcome.RouteNodeStorageBytes, outcome.RouteNodePeakCount)
+            {
+                DamageFreeVictory = outcome.DamageFreeVictory,
+                BestRound = outcome.BestRound,
+                Rounds = rounds,
+                RoundsRun = outcome.RoundsRun,
+                RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+            });
+        }
+
+        private static FullCombatSearch InvalidRoute(WideningSearchOutcome outcome, BeamResult beam,
+            string status, string reason, string detail)
+            => new(null, status, outcome.ElapsedMs, outcome.TotalExpandedNodes,
+                beam.BestRoute.Length, beam.BestIsVictory, detail, reason, detail,
+                outcome.ManagedHeapPeakBytes, outcome.WorkingSetPeakBytes, outcome.SoftTimeRisk,
+                outcome.MemoryBudgetExceeded, outcome.MemoryExceededAtBytes,
+                outcome.PoolCapacityDropped, outcome.SearchMemoryUsedBytes,
+                outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
+                outcome.RouteNodePeakCount)
+            {
+                Rounds = outcome.Rounds,
+                RoundsRun = outcome.RoundsRun,
+                RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+            };
+
+        private ValueTask<WideningRoundMeasurement> RunRound(WideningRoundRequest request)
+        {
+            Stopwatch roundWatch = Stopwatch.StartNew();
+            long managedPeak = 0;
+            long workingSetPeak = 0;
+            BeamResult beam;
+            try
+            {
+                Task<BeamResult> solve = Task.Run(() =>
+                    new BeamSolver(request.Case.Rules, request.Case.Options)
+                        .Solve(request.Case.Battles, RoundStorage(), _roundToken));
+                while (!solve.IsCompleted)
+                {
+                    SampleMemory(ref managedPeak, ref workingSetPeak);
+                    Thread.Sleep(2);
+                }
+                SampleMemory(ref managedPeak, ref workingSetPeak);
+                beam = solve.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (CapacityException error)
+            {
+                roundWatch.Stop();
+                string detail = $"region={error.Region} {error.Message}";
+                return ValueTask.FromResult(new WideningRoundMeasurement(null, "capacity", detail,
+                    roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
+            }
+            catch (UnsupportedException error)
+            {
+                roundWatch.Stop();
+                return ValueTask.FromResult(new WideningRoundMeasurement(null, "unsupported",
+                    error.Message, roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
+            }
+            catch (NotSupportedException error)
+            {
+                roundWatch.Stop();
+                return ValueTask.FromResult(new WideningRoundMeasurement(null, "unsupported",
+                    error.Message, roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
+            }
+            catch (InvalidDataException error)
+            {
+                roundWatch.Stop();
+                return ValueTask.FromResult(new WideningRoundMeasurement(null, "invalid_data",
+                    error.Message, roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
+            }
+            catch (InvalidOperationException error)
+            {
+                roundWatch.Stop();
+                return ValueTask.FromResult(new WideningRoundMeasurement(null,
+                    "invalid_operation", error.Message, roundWatch.ElapsedMilliseconds, managedPeak,
                     workingSetPeak));
             }
-            int poolDrops = beam.CapacityDroppedChildren.TryGetValue("Beam.Pool",
-                out int dropped) ? dropped : 0;
-            return ValueTask.FromResult(new FullCombatSearch(route, "ok",
-                elapsed.ElapsedMilliseconds, beam.ExpandedNodes, beam.BestRoute.Length,
-                beam.BestIsVictory, null, null, null, managedPeak, workingSetPeak,
-                SoftTimeRisk(elapsed), beam.SearchMemoryBudgetExceeded,
-                beam.SearchMemoryExceededAtBytes, poolDrops,
-                beam.SearchMemoryUsedBytes, beam.SearchMemoryPeakBytes,
-                beam.RouteNodeStorageBytes, beam.RouteNodePeakCount));
+            roundWatch.Stop();
+            return ValueTask.FromResult(new WideningRoundMeasurement(beam, "ok", null,
+                roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
+        }
+
+        private SearchStorage RoundStorage()
+            => _roundStorage ?? throw new InvalidOperationException("多轮搜索没有建立共享存储。");
+
+        private void StorageCheck(SearchCase searchCase, CancellationToken token)
+        {
+            SearchStorage storage = new();
+            long gcStart = GC.GetAllocatedBytesForCurrentThread();
+            BeamResult first = new BeamSolver(searchCase.Rules, searchCase.Options)
+                .Solve(searchCase.Battles, storage, token);
+            long firstBytes = storage.AllocatedBytes;
+            string regionsFirst = RegionDump(storage);
+            long gcFirst = GC.GetAllocatedBytesForCurrentThread();
+            BeamResult second = new BeamSolver(searchCase.Rules, searchCase.Options)
+                .Solve(searchCase.Battles, storage, token);
+            long secondBytes = storage.AllocatedBytes;
+            string regionsSecond = RegionDump(storage);
+            long gcSecond = GC.GetAllocatedBytesForCurrentThread();
+            bool same = SearchCodec.EncodeResult(first)
+                .AsSpan().SequenceEqual(SearchCodec.EncodeResult(second));
+            Console.WriteLine(
+                $"STORAGE_CHECK same={same} firstBytes={firstBytes} " +
+                $"secondBytes={secondBytes} secondDelta={secondBytes - firstBytes} " +
+                $"nodesFirst={first.RouteNodePeakCount} nodesSecond={second.RouteNodePeakCount} " +
+                $"gcFirst={gcFirst - gcStart} gcSecond={gcSecond - gcFirst} " +
+                $"regionsFirst=[{regionsFirst}] regionsSecond=[{regionsSecond}]");
+            if (!same)
+                throw new InvalidDataException("同一请求复用存储两次的结果不同。");
         }
 
         private static string RegionDump(SearchStorage storage)
@@ -658,9 +770,6 @@ internal static class OfflineCombat
             return new FullCombatFinal(outcome, status, turns,
                 playerHp, _current.Player.MaxHp, [.. _potionsUsed]);
         }
-
-        private bool SoftTimeRisk(Stopwatch elapsed)
-            => elapsed.ElapsedMilliseconds >= profile.SoftTimeBudgetMilliseconds;
 
         private FullCombatSearch Failed(string status, string error, string reason, string detail)
             => new(null, status, 0, 0, 0, false, error, reason, detail, 0, 0);

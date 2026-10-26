@@ -262,14 +262,14 @@ $BLITZ_TEST_DIR/
 `run.room.type/id`、`run.tutorial.discoveryOrder`、`run.unlock.*` 与 `rng.UpFront`，
 让这类幕结构偏差在原生层直接可见。
 
-## 7. 搜索请求与档位
+## 7. 搜索请求、档位与时间保险
 
 `SearchRequestCompiler`（`src/Import`）从已经导入的根、`Rules`、`SearchPolicy`、根事实与
-性能档位组装 `SearchCase`。它只读，不写游戏状态。字段来源与默认值：
+性能档位组装第一轮的 `SearchCase`。它只读，不写游戏状态。字段来源与默认值：
 
 | 字段 | 取值 |
 | --- | --- |
-| `BeamWidth` / `MaxExpandedNodes` / `SoftTimeBudget` | 档位表；确定性测试把软时间改成 `TimeSpan.MaxValue` |
+| `BeamWidth` / `MaxExpandedNodes` / `SoftTimeBudget` | 第一轮取档位起始宽度、`起始宽度 × 2,000` 和决策总时间；`WideningSearch` 每轮重写这三项；确定性测试把软时间改成 `TimeSpan.MaxValue` |
 | `MaxTurns` | 64（主搜索成员固定） |
 | `InitialPlayerMaxHp` | 导入根的玩家最大 HP |
 | `Scorer` / `Bound` | `EvaluationConfigCompiler.CompileScorer`/`CompileBound` |
@@ -281,16 +281,35 @@ $BLITZ_TEST_DIR/
 | `Act3BossStrategy` | `SearchPolicy.Act3BossStrategy` |
 | `PreserveReplayAllocatorOpening` | 未融化的 `ThrowingAxe` 且本场未使用 |
 | `AmbergrisPotionId` | `ScoreRules.AmbergrisPotionId` |
-| `SecondRankBandWidth` | 档位 Beam 宽度；`SecondRankBand=false` |
+| `SecondRankBandWidth` | 当轮 Beam 宽度；多轮搜索每轮同步；`SecondRankBand=false` |
 
-档位：
+档位（`SearchPerformanceProfile`）：
 
-| 档位 | Beam 宽度 | 节点上限 | 软时间 | 分支上限（卡/堆/手） |
-| --- | ---: | ---: | ---: | --- |
-| 低 | 180 | 240,000 | 60 秒 | 24 / 12 / 16 |
-| 中 | 240 | 480,000 | 120 秒（`SolverSearchProfile.Default`） | 32 / 18 / 24 |
-| 高 | 360 | 1,000,000 | 180 秒 | 48 / 28 / 36 |
-| 极高 | 540 | 2,000,000 | 300 秒 | 72 / 42 / 54 |
+| 档位 | 起始宽度 | 最多宽度 | 每轮节点上限 | 决策总时间 | 分支上限（卡/堆/手） |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 低 | 128 | 128 | 宽度 × 2,000 | 30 秒 | 24 / 12 / 16 |
+| 中（默认） | 128 | 256 | 宽度 × 2,000 | 60 秒 | 32 / 18 / 24 |
+| 高 | 128 | 512 | 宽度 × 2,000 | 120 秒 | 48 / 28 / 36 |
+| 极高 | 128 | 1024 | 宽度 × 2,000 | 240 秒 | 72 / 42 / 54 |
+
+`FullCombatHost.SearchAsync` 组装第一轮请求后调用 Core 的 `WideningSearch`，Mod 只提供一个
+执行单轮的委托（`SearchSession.RunAsync`）和共享的 `SearchStorage`；档位解析、翻倍、节点
+上限、局面池放大、终局比较、无伤停止与时间保险都在 Core 这一份实现里，离线宿主调用同一
+个入口。第二轮及以后各轮用翻倍后的宽度重新搜索同一个根，仍是独立求解，不复用上一轮的
+`BeamSolver`。
+
+### 7.1 时间保险
+
+- 一次决策的所有轮共用档位总时间，第一轮把它全部作为软时间。
+- 每轮开始前按上一轮实际耗时的 2 倍预估；剩余时间小于预估就不开始，直接用当前最好的
+  路线。第一轮没有上一轮，总是开始。
+- 正在跑的一轮把开始时的剩余时间作为 `BeamOptions.SoftTimeBudget`；被时限截断时
+  `BeamSolver` 返回当时最好的路线，`BeamResult.SoftTimeBudgetReached=true`。
+- 每轮耗时按挂钟计，包含该轮的搜索与主线程等待；轮次结束后重新读剩余时间。
+- 离线确定性模式不截断、不跳过，但用同一套预估把游戏里会跳过的轮次标成
+  `wouldSkip`、会截断的标成 `wouldTruncate`，并在决策级 `softTimeRisk` 汇总；报告以这些
+  标记区分“离线跑出的潜力”和“实机真的会跑到的轮次”。
+- 只有内存预算会同时约束两侧：某一轮撞到全局搜索内存预算时，该轮结束即停止，不再加宽。
 
 Blitz 的 `BeamOptions` 没有分支上限字段；Flash 路径本身也固定使用 32 个选择分支，Blitz
 `BeamSolver.MaxChoiceBranches=32` 与之相同，因此这三列只记录档位来源，不进入请求。其余

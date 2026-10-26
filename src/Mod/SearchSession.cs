@@ -112,7 +112,8 @@ internal static class SearchSession
         bool deterministic,
         SearchPerformanceTier tier,
         string? resultDirectory,
-        int? cancelAfterMilliseconds)
+        int? cancelAfterMilliseconds,
+        SearchStorage? storage = null)
     {
         if (!NGame.IsMainThread())
             throw new InvalidOperationException("搜索必须从游戏主线程启动。");
@@ -160,7 +161,8 @@ internal static class SearchSession
             worker = Task.Run(() =>
             {
                 solver = new BeamSolver(searchCase.Rules, solveOptions);
-                return solver.Solve(searchCase.Battles, cancellation.Token);
+                return solver.Solve(searchCase.Battles, storage ?? new SearchStorage(),
+                    cancellation.Token);
             });
             lock (Gate)
                 _worker = worker;

@@ -304,14 +304,17 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 | `PreserveReplayAllocatorOpening` | 未融化 `ThrowingAxe._usedThisCombat == false` |
 | `AmbergrisPotionId` | `ScoreRules.AmbergrisPotionId` |
 
-档位值直接取 Flash 主搜索成员：
+档位值取 `SearchPerformanceProfile` 的多轮字段：
 
-| 档位 | Beam | 节点上限 | 软时间 |
-| --- | ---: | ---: | ---: |
-| 低 | 180 | 240,000 | 60 秒 |
-| 中 | 240 | 480,000 | 120 秒 |
-| 高 | 360 | 1,000,000 | 180 秒 |
-| 极高 | 540 | 2,000,000 | 300 秒 |
+| 档位 | 起始宽度 | 最多宽度 | 每轮节点上限 | 决策总时间 |
+| --- | ---: | ---: | ---: | ---: |
+| 低 | 128 | 128 | 宽度 × 2,000 | 30 秒 |
+| 中 | 128 | 256 | 宽度 × 2,000 | 60 秒 |
+| 高 | 128 | 512 | 宽度 × 2,000 | 120 秒 |
+| 极高 | 128 | 1024 | 宽度 × 2,000 | 240 秒 |
+
+`CompileRequest` 只组装第一轮；多轮翻倍、每轮节点上限、局面池放大与时间保险由
+`src/Core/Search/WideningSearch.cs` 完成，Mod 与离线整场共用该实现。
 
 CombatSolver 档位里的 `MaxCardBranchesPerNode`/`MaxPileChoiceBranchesPerAction`/
 `MaxHandChoiceBranchesPerAction` 只用于旧引擎协调器；Flash 与 Blitz 都固定 32 个选择分支，

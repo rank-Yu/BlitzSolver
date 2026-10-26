@@ -26,6 +26,13 @@ internal sealed record BeamOptions(
     /// </summary>
     public long SearchMemoryBudgetBytes { get; init; }
 
+    /// <summary>
+    /// Byte budget of each growable state pool, or zero for the built-in 200 MiB. The multi-round
+    /// widening search raises it with the beam width; the request codec does not encode it, so
+    /// decoded legacy requests, direct kernel calls and D2 keep the old single-pool bound.
+    /// </summary>
+    public int PoolStateBudgetBytes { get; init; }
+
     /// <summary>Which root potions may be used and what each use costs; disabled unless the caller sets it.</summary>
     public PotionPolicy Potions { get; init; } = PotionPolicy.Disabled;
 
@@ -378,6 +385,13 @@ internal sealed record BeamResult(
     /// <summary>Charged bytes at the first refused allocation; zero when not exceeded.</summary>
     public long SearchMemoryExceededAtBytes { get; init; }
 
+    /// <summary>
+    /// The solve stopped because its soft-time budget was reached (only possible for a limited
+    /// solve). The widening loop uses this to mark the round as truncated by the in-game time
+    /// insurance. Not encoded in SRES.
+    /// </summary>
+    public bool SoftTimeBudgetReached { get; init; }
+
     /// <summary>Bytes occupied by the route-node chunks (the largest search-owned growing store).</summary>
     public long RouteNodeStorageBytes { get; init; }
 
@@ -514,7 +528,7 @@ internal sealed partial class BeamSolver
     /// turn (REGENT-V-06: 434 action layers in one turn) retains hundreds of megabytes per pool in the
     /// game process; 200 MiB per pool keeps the search well below the old ~0.8-1.0 GB single-pool peak.
     /// </summary>
-    private const int PoolStateBudgetBytes = 200 * 1024 * 1024;
+    private const int DefaultPoolStateBudgetBytes = 200 * 1024 * 1024;
 
     /// <summary>Dictionary/bucket allowance charged once per unique routing signature.</summary>
     private const int RoutingSignatureDictionaryBytes = 64;
@@ -823,7 +837,8 @@ internal sealed partial class BeamSolver
         // the semantic upper bound for small widths. The state count is rounded down to the 64-state
         // chunk so the chunked arrays stay inside the budget.
         int chunkStates = ChunkedArray<Battle>.ChunkSize;
-        int budgetStates = PoolStateBudgetBytes / Unsafe.SizeOf<Battle>() / chunkStates * chunkStates;
+        int poolStateBudgetBytes = EffectivePoolStateBudgetBytes;
+        int budgetStates = poolStateBudgetBytes / Unsafe.SizeOf<Battle>() / chunkStates * chunkStates;
         int poolLimit = Math.Min(maxChildren, Math.Max(chunkStates, budgetStates));
         int initialChildren = Math.Min(poolLimit, Math.Max(64, width * 8));
         // The compaction target is measured in beam widths: it always keeps more than the turn
@@ -1122,6 +1137,7 @@ internal sealed partial class BeamSolver
                 || _storage.Memory.Exceeded,
             SearchMemoryExceededAtBytes = _memoryBudgetExceeded
                 ? _memoryBudgetExceededAtBytes : _storage.Memory.ExceededAtBytes,
+            SoftTimeBudgetReached = SoftTimeReached(watch),
             RouteNodeStorageBytes = _nodes.StorageBytes,
             RouteNodeCount = _nodes.Count,
             RouteNodePeakCount = _nodes.PeakCount,
@@ -1185,6 +1201,7 @@ internal sealed partial class BeamSolver
                 || _storage.Memory.Exceeded,
             SearchMemoryExceededAtBytes = _memoryBudgetExceeded
                 ? _memoryBudgetExceededAtBytes : _storage.Memory.ExceededAtBytes,
+            SoftTimeBudgetReached = SoftTimeReached(watch),
             RouteNodeStorageBytes = _nodes.StorageBytes,
             RouteNodeCount = _nodes.Count,
             RouteNodePeakCount = _nodes.PeakCount,
@@ -2546,9 +2563,25 @@ internal sealed partial class BeamSolver
             && left.AfflictionId == right.AfflictionId
             && left.AfflictionAmount == right.AfflictionAmount;
 
+    /// <summary>Per-pool state budget: the request override, or the original 200 MiB.</summary>
+    private int EffectivePoolStateBudgetBytes
+        => _options.PoolStateBudgetBytes > 0
+            ? _options.PoolStateBudgetBytes : DefaultPoolStateBudgetBytes;
+
     private bool OutOfBudget(Stopwatch watch)
         => _memoryBudgetExceeded || _expanded >= _options.MaxExpandedNodes
             || watch.Elapsed >= _options.SoftTimeBudget;
+
+    /// <summary>
+    /// The loop ended on the soft-time limit rather than the node cap or an early stop. A search
+    /// that happened to cross the limit exactly at its natural end is reported as timed out; the
+    /// flag is diagnostic and never enters the result codec.
+    /// </summary>
+    private bool SoftTimeReached(Stopwatch watch)
+        => _options.SoftTimeBudget != TimeSpan.MaxValue
+            && !_memoryBudgetExceeded
+            && _expanded < _options.MaxExpandedNodes
+            && watch.Elapsed >= _options.SoftTimeBudget;
 
     private int Depth(int node) => _nodes[node].Depth;
 

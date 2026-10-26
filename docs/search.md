@@ -4,7 +4,20 @@
 
 本文保留 `BeamSolver` 的搜索、评估、剪枝与容量合同。CombatSolver 时期的接入、请求参数、路线物化、Off/On 与回落已整体移到 [archive/combatsolver-integration.md](archive/combatsolver-integration.md)，仅作历史参考。
 
-本节部分条目仍以 CombatSolver 的接入层词汇（Bridge、协调器、Off/On、`Mode`、`StateImporter`）说明移植来源；这些类型在当前仓库不存在。当前仓库的接入层是 `src/Import/SearchRequestCompiler`（请求组装）与 `src/Mod/SearchSession`（游戏内单次驱动），用法见 [Mod 入口、无头捕获与实机搜索](mod.md)。
+本节部分条目仍以 CombatSolver 的接入层词汇（Bridge、协调器、Off/On、`Mode`、`StateImporter`）说明移植来源；这些类型在当前仓库不存在。当前仓库的接入层是 `src/Import/SearchRequestCompiler`（第一轮请求组装）、`src/Core/Search/WideningSearch`（多轮循环）与 `src/Mod/SearchSession`（游戏内单轮驱动），用法见 [Mod 入口、无头捕获与实机搜索](mod.md)。
+
+## 多轮加宽决策
+
+每次需要搜索时，共享的 `WideningSearch`（`src/Core/Search/WideningSearch.cs`）在同一份 `SearchStorage` 上从起始宽度开始跑一轮，未达到“无伤胜利”就翻倍宽度，直到最多宽度、内存预算停止或时间保险不允许下一轮。
+
+- **档位**：起始宽度、最多宽度、每轮节点上限系数与一次决策的总时间定义在 `SearchPerformanceProfile`；具体数值见 [Mod 入口、无头捕获与实机搜索](mod.md#7-搜索请求档位与时间保险) 的档位表。低/中/高/极高四档都从宽度 128 开始，最多分别为 128/256/512/1024。
+- **每轮节点上限**：`宽度 × 2,000`。因此中档两轮分别是 256,000 与 512,000 个展开节点，不是把节点预算在轮次之间平分。
+- **无伤胜利**：路线判定胜利，且战斗开始时的玩家 HP 到路线结束时没有下降、最大生命没有减少。重搜仍以整场战斗开始时的 HP 为准，前面回合已经掉的血不会被当成 0；药水使用本身不构成停止条件。这个判定只看路线终点，不改变 `BeamSolver` 自己的终局比较键。
+- **保留哪条路线**：每轮结束都用 `BeamSolver.TryCompareResultQuality` 比较该轮最好路线与当前最好路线；它重放两条路线并调用与 `BeamSolver` 选择最终路线相同的 `CompareRoutes` 键。更好的一轮替换候选，相等保留先到者，第一轮始终在候选里。宽度变化不改变这个比较键。
+- **停止条件**：无伤胜利、已到该档最多宽度、某一轮撞到全局搜索内存预算（保留该轮及此前最好的路线后停止），或下一轮的时间预估放不下。最后一轮即使不是无伤胜利也使用当前最好路线。
+- **内存**：所有轮共用一份 `SearchStorage`，账本在轮次之间只增不减；每轮开始时 `BeginSolve` 重新启用保留块，只有更大的块才追加分配。轮次不会各自重置预算，因此整次多轮搜索不超过宿主给出的全局预算。
+- **局面池容量**：默认单池 200 MiB；多轮搜索按 `max(200 MiB, 宽度 × 1 MiB)` 放大，宽度 512 为 512 MiB、宽度 1024 为 1 GiB，单池封顶 1 GiB。容量只决定池的拒绝边界，实际分配仍逐块记在 `SearchStorage` 的预算里。这个放大通过不进 `SREQ` 的 `BeamOptions.PoolStateBudgetBytes` 传入；直接解码的 D2 请求和普通单次搜索仍用 200 MiB。
+- **时间保险**：只在游戏内生效。一次决策的所有轮共用档位总时间；第一轮用剩余总时间作为软时间，之后每轮开始前按上一轮实际耗时的 2 倍预估，剩余时间放不下就不开始。正在跑的一轮把当时的剩余时间作为 `BeamOptions.SoftTimeBudget`。离线工具不截断、不跳过，只用同一套预估把游戏里会跳过或截断的轮次标成 `wouldSkip`/`wouldTruncate`，并在 `softTimeRisk` 汇总。
 
 ## 1. BeamSolver
 
@@ -50,15 +63,15 @@ Beam 在 `Battle` 上做按回合分层的 Beam 搜索，产出候选路线，�
 - **早停**：照抄现有搜索的两种早停：HP 目标（请求可在 HP 目标处停止、且不要求显式药水时，一次无死亡豁免、显式药水不超过额度、本场已失血加路线失血不超过可接受值的完整胜利，在下一个父节点之前结束搜索）与零伤害（胜利且未失血、未用显式药水、满血且最大生命未减少时，当前回合结束后停止）。
 - **incumbent 下界剪枝**：移植现有主搜索成员的局部 HP 下界（`CombatBeamSolver.Retention.cs` 的 `CanUseLocalPrimaryHpBound`、`IsLocalPrimaryHpBucket`、`ApplyPrimaryIncumbentBound`/`ApplyPrimaryIncumbentBoundCore`、`ShouldPruneByIncumbent`、`TryTightenIncumbent`、`TightenPrimarySearchIncumbentAtTurnLayer`）。`BoundFeatures` 在根上冻结 `FutureHealPotential`、`HasRisk`、剩余治疗额度（Component/KnownNative 证书）、战略首领减伤与初始 incumbent；求值只读 `Battle` 和冻结表。终局完整胜利在提交时收紧 incumbent（与现有搜索的同一层 Prune 对齐）；现有搜索的回合结束收紧作用于同一批已提交的 `completed` 终局，Blitz 在提交时已经收紧，因此不重复。每个动作层保留之后与回合边界保留之后各剪一次；被剪掉的席位不补。参数沿用现有语义：`allowTurnTieBound` 由 `costClosed` 门控，`pruneEqualHp` 只对非终局、无风险且药水成本闭合的节点生效，`costClosed` 读 `ExplicitPotionStrategicCost`。某个下界输入在 Blitz 上无法精确给出时该根整体禁用剪枝，汇总行写 `bound=disabled(<原因>)`，不使用近似值。共享的 incumbent 表不接入；初始 `SearchIncumbent` 由请求传入并按 `Battle.PlayerTurn` 相对根的偏移换算。
 - **容量边界（分支级）**：搜索展开中的容量溢出按“一个子状态装不下”处理，只丢弃该子状态并继续：内核执行动作时的状态级写入（卡牌、Power、已知敌人、遗物、充能球、`DetachedCards`、小数卡牌变量、费用修饰、选择选项、动作选择链、`Exec` 的暂存队列等）、动作执行后的评分，以及提交到非累积池，全部在 `ExpandAction` 的同一个边界内捕获 `CapacityException`；一次选择请求的某个选项分支溢出只丢弃该分支，同请求的其余选项照常展开。诊断按容量区块分别计数（`BeamResult.CapacityDroppedChildren`，日志 `capacity_dropped=Cards:1,Powers:2`，合计仍在 `capacity_pruned`）。这与节点预算同类，是搜索边界而不是模拟错误；采用的路线仍逐步核对。**根状态本身**装不下仍是导入拒绝：`StateImporter`/根评分在展开循环之前抛出的容量溢出与 `UnsupportedException` 一样让整次 Blitz 尝试失败，开启模式写 `SEARCH_FAILED reason=kernel-capacity` 并停止部署，不回落。
-- **回合结束层压缩**：`ended` 只在累计子状态达到容量上限（`min(width × (MaxLegalActions + 1), 向下取整到 64 槽的 200 MiB / sizeof(Battle) = 16,512)`）时触发压缩：把当前全部 `ended` 子状态按与回合边界 `CopyTopTo` **完全相同的选择函数**（按 Beam rank 的前列席位与全部必保代表——每个药水分组的各泳道/整理/回合边界手牌领先者、持续铺垫特征与焦点目标分组、根动作谱系、偷窃根的资源保全代表等）重选到 `clamp(width × 8, width, 容量)` 个席位，原地前移并重建去重表后继续累积。压缩目标取 8 倍 Beam 宽度的依据：回合边界最终只消费 `width` 个席位，8 倍宽度保留了 8 组完整的排序席位并容纳全部必保代表（宽度 4–512 时目标为 32–4096 个状态，约 0.4–51 MB）；它与容量上限之间留有足够余量（宽度 ≥ 92 时上限是 16,512 个状态；更小宽度取原 `width × (MaxLegalActions + 1)`），正常回合不会触发压缩。触发条件严格是达到上限，因此 `ended` 未达到上限的根不会进入压缩，路线、转移数、展开数与去重数逐位不变；只有原本会超出容量上界的根才观察到压缩后的保留集合，且采用路线仍逐步由现有引擎回放核对。压缩次数与被压缩掉的子状态数分别记入 `BeamResult.EndedCompactions`/`EndedCompressedStates`，日志为 `ended_compactions`/`ended_dropped`；压缩不释放已分配的块，后续累积复用同一批状态块。
-- **预算**：开启模式（`Mode == On`）在主线程构造 `SearchPolicySnapshot` 时，把档位 `Profile` 的 `BeamWidth` 与 `MaxExpandedNodes` 换成 Blitz 自己的档位值，其余字段（软时间、分支上限、排序开关等）沿用常规档位；关闭模式仍使用常规档位 profile，逐位不变。协调器的组合成员宽度与共享节点预算从替换后的 profile 计算，因此自然落在 Blitz 的宽度与节点上限上。自定义档位不替换，继续使用玩家填写的 Beam 宽度与节点上限。Beam 的宽度、全局节点上限与软时间直接取自请求 profile（桥接层不再放大）。
+- **回合结束层压缩**：`ended` 只在累计子状态达到容量上限（`min(width × (MaxLegalActions + 1), 单池状态预算 / sizeof(Battle))` 向下取整到 64 槽；默认单池 200 MiB 时为 16,512，多轮搜索按宽度放大后更高）时触发压缩：把当前全部 `ended` 子状态按与回合边界 `CopyTopTo` **完全相同的选择函数**（按 Beam rank 的前列席位与全部必保代表——每个药水分组的各泳道/整理/回合边界手牌领先者、持续铺垫特征与焦点目标分组、根动作谱系、偷窃根的资源保全代表等）重选到 `clamp(width × 8, width, 容量)` 个席位，原地前移并重建去重表后继续累积。压缩目标取 8 倍 Beam 宽度的依据：回合边界最终只消费 `width` 个席位，8 倍宽度保留了 8 组完整的排序席位并容纳全部必保代表（宽度 4–512 时目标为 32–4096 个状态，约 0.4–51 MB）；它与容量上限之间留有足够余量，正常回合不会触发压缩。触发条件严格是达到上限，因此 `ended` 未达到上限的根不会进入压缩，路线、转移数、展开数与去重数逐位不变；只有原本会超出容量上界的根才观察到压缩后的保留集合，且采用路线仍逐步由现有引擎回放核对。压缩次数与被压缩掉的子状态数分别记入 `BeamResult.EndedCompactions`/`EndedCompressedStates`，日志为 `ended_compactions`/`ended_dropped`；压缩不释放已分配的块，后续累积复用同一批状态块。
+- **预算**：开启模式（`Mode == On`）在主线程构造 `SearchPolicySnapshot` 时，使用 Blitz 自己的 `SearchPerformanceProfile`：起始宽度、最多宽度、每轮节点上限系数与一次决策的总时间；分支上限与排序开关沿用常规档位。关闭模式仍使用常规档位 profile，逐位不变。协调器的组合成员宽度与共享节点预算从同一份 profile 计算。Beam 每轮的宽度、节点上限与软时间由 `WideningSearch` 写入请求选项，桥接层不再放大。
 
-  | 档位 | Blitz Beam 宽度 | Blitz 节点上限 | 常规 Beam 宽度 / 节点上限 |
-  | --- | ---: | ---: | ---: |
-  | 低档 | 180 | 240,000 | 45 / 60,000 |
-  | 中档（默认） | 240 | 480,000 | 60 / 120,000 |
-  | 高档 | 360 | 1,000,000 | 90 / 250,000 |
-  | 极高 | 540 | 2,000,000 | 135 / 500,000 |
+  | 档位 | 起始宽度 | 最多宽度 | 每轮节点上限 | 决策总时间 | 分支上限（卡/堆/手） |
+  | --- | ---: | ---: | ---: | ---: | --- |
+  | 低档 | 128 | 128 | 宽度 × 2,000 | 30 秒 | 24 / 12 / 16 |
+  | 中档（默认） | 128 | 256 | 宽度 × 2,000 | 60 秒 | 32 / 18 / 24 |
+  | 高档 | 128 | 512 | 宽度 × 2,000 | 120 秒 | 48 / 28 / 36 |
+  | 极高 | 128 | 1024 | 宽度 × 2,000 | 240 秒 | 72 / 42 / 54 |
 
   旧引擎按回合层分配节点预算的规则尚未移植。
 - **产出**：按旧引擎终局比较器（`FinalPlanOrdering.Select` 的排序键）选出一条路线：完整胜利、存活、死亡保护次数、战略失血（`ActEndingBossPolicy.StrategicHpDeficit`，含成长/遗物信用与战后遗物回复）、成长信用、成长收益数、结束回合、生命资源消耗、长期资源、愤怒复制数、政策边界原因、可选药水数、敌人 HP、分数、动作数。没有胜利路线时，预算耗尽时的回合起点状态与终局状态一起参与比较。偷窃恢复与政策边界原因键已移植，政策边界原因排在可选药水数之前，与常规相同。卖血键（`StrategicSold`）是请求已提交的卖血加路线的未来卖血；Beam 没有路线级未来卖血，同一请求内各路线的该键相同，因此不参与比较。
@@ -72,7 +85,7 @@ Beam 在 `Battle` 上做按回合分层的 Beam 搜索，产出候选路线，�
 已记账的分配：
 
 - 路线节点：每个字段一个 `ChunkedList<T>` 块（4,096 节点/块），单节点 126 B；路由上下文、承诺元数据和路由签名各自分块，路由签名字典按唯一签名计 64 B。
-- 局面池：状态块（`64 × sizeof(Battle)`）、全部平行元数据块、去重表、连续排序/选择数组、池内选择结构按 `maxCapacity × 128 B` 的固定上限，以及多目标标签（列表创建 256 B、每条 64 B）。4 个池仍各自受 `PoolStateBudgetBytes = 200 MiB` 状态上限约束，本批只把它们计入总预算，没有改这个上限。
+- 局面池：状态块（`64 × sizeof(Battle)`）、全部平行元数据块、去重表、连续排序/选择数组、池内选择结构按 `maxCapacity × 128 B` 的固定上限，以及多目标标签（列表创建 256 B、每条 64 B）。4 个池各自受单池状态预算约束：普通请求默认 200 MiB；多轮搜索按 `max(200 MiB, 宽度 × 1 MiB)` 放大、单池封顶 1 GiB。放大后的池块仍逐块记在同一份账本里。
 - 新颖度：packed novelty 按 `MaxNoveltyEntries × 32 B`、open 队列按 `MaxOpen × (sizeof(NoveltyOpenEntry) + 64 B)` 在创建时记账。
 - 终局候选：每条候选 32 B；侦察层只保存路线数组，按 `MaxTurns × 24` 个候选有界，未单独记账。
 
@@ -96,4 +109,4 @@ Beam 在 `Battle` 上做按回合分层的 Beam 搜索，产出候选路线，�
 
 ### 可复用存储
 
-`BeamSolver.Solve(roots, storage, token)` 接收调用方持有的 `SearchStorage`。求解开始时 `BeginSolve` 清空账本触发标志并把上一次的分块/数组放回可租用列表；求解结束不释放这些块。下一次求解优先租用同样的块，只有更大的尺寸才追加分配。账本中的已用字节不因复用而回落，因此多轮加宽可以共用一份预算。只复用存储、不复用 `BeamSolver` 实例：`Scorer` 带有求解内状态，复用实例不属于本批合同。
+`BeamSolver.Solve(roots, storage, token)` 接收调用方持有的 `SearchStorage`。求解开始时 `BeginSolve` 清空账本触发标志并把上一次的分块/数组放回可租用列表；求解结束不释放这些块。下一次求解优先租用同样的块，只有更大的尺寸才追加分配。账本中的已用字节不因复用而回落，因此多轮加宽可以共用一份预算。`WideningSearch` 每次决策新建一份 `SearchStorage`，该决策的所有轮次共用；只复用存储、不复用 `BeamSolver` 实例：`Scorer` 带有求解内状态，复用实例不属于本批合同。

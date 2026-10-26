@@ -34,6 +34,8 @@ internal sealed class FullCombatHost(
     private int _lastTurn = player.PlayerCombatState?.TurnNumber ?? 0;
     private int _lastHp = player.Creature.CurrentHp;
     private int _lastMaxHp = player.Creature.MaxHp;
+    private readonly int _combatStartHp = player.Creature.CurrentHp;
+    private readonly int _combatStartMaxHp = player.Creature.MaxHp;
 
     public async ValueTask<FullCombatTurn?> WaitForTurnAsync(CancellationToken token)
     {
@@ -131,20 +133,39 @@ internal sealed class FullCombatHost(
             return new FullCombatSearch(null, "rejected", 0, 0, 0, false, error.Message,
                 "request_invalid", error.Message, 0, 0);
         }
-        SearchRunResult result = await SearchSession.RunAsync(
-            host, _root, searchCase, deterministic: false, tier, resultDirectory: null,
-            cancelAfterMilliseconds: null);
-        if (result.Status != "ok" || result.Beam is null)
+        SearchPerformanceProfile profile = SearchPerformanceProfile.For(tier);
+        WideningSearchPlan plan = new(profile.StartWidth, profile.MaxWidth,
+            profile.MaxExpandedNodesPerWidth, profile.TotalTimeBudgetMilliseconds,
+            EnforceTimeBudget: true)
         {
-            string detail = $"search {result.Status}: {result.Error}";
+            CombatStartPlayerHp = _combatStartHp,
+            CombatStartPlayerMaxHp = _combatStartMaxHp,
+        };
+        SearchStorage storage = new();
+        WideningSearchOutcome outcome = await WideningSearch.RunAsync(
+            searchCase, plan, storage, RunRound, token);
+        WideningRoundLog[] rounds = outcome.Rounds;
+        if (outcome.Beam is not { } beam)
+        {
+            string status = outcome.FailureStatus.Length > 0 ? outcome.FailureStatus : "failed";
+            string error = outcome.FailureError ?? "搜索没有返回路线";
+            string detail = $"search {status}: {error}";
             ModLog.Error(
                 $"[BlitzSolver] AUTO_SEARCH_FAILED turn={turn} reason={reason} " +
-                $"status={result.Status} error={result.Error}");
-            return new FullCombatSearch(null, result.Status, result.ElapsedMilliseconds,
-                result.ExpandedNodes, 0, false, result.Error, "search_failed", detail,
-                result.ManagedHeapPeakBytes, result.WorkingSetPeakBytes);
+                $"status={status} error={error} rounds={rounds.Length}");
+            return new FullCombatSearch(null, status, outcome.ElapsedMs,
+                outcome.TotalExpandedNodes, 0, false, error, "search_failed", detail,
+                outcome.ManagedHeapPeakBytes, outcome.WorkingSetPeakBytes, outcome.SoftTimeRisk,
+                outcome.MemoryBudgetExceeded, outcome.MemoryExceededAtBytes,
+                outcome.PoolCapacityDropped, outcome.SearchMemoryUsedBytes,
+                outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
+                outcome.RouteNodePeakCount)
+            {
+                Rounds = rounds,
+                RoundsRun = outcome.RoundsRun,
+                RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+            };
         }
-        BeamResult beam = result.Beam;
         ReplayedRoute route;
         try
         {
@@ -153,49 +174,77 @@ internal sealed class FullCombatHost(
         catch (InvalidDataException error)
         {
             ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
-            return new FullCombatSearch(null, "invalid", result.ElapsedMilliseconds,
-                result.ExpandedNodes, beam.BestRoute.Length, beam.BestIsVictory, error.Message,
-                "route_invalid", error.Message, result.ManagedHeapPeakBytes,
-                result.WorkingSetPeakBytes);
+            return InvalidRoute(outcome, beam, "invalid", "route_invalid", error.Message);
         }
         catch (InvalidOperationException error)
         {
             ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
-            return new FullCombatSearch(null, "invalid", result.ElapsedMilliseconds,
-                result.ExpandedNodes, beam.BestRoute.Length, beam.BestIsVictory, error.Message,
-                "route_invalid", error.Message, result.ManagedHeapPeakBytes,
-                result.WorkingSetPeakBytes);
+            return InvalidRoute(outcome, beam, "invalid", "route_invalid", error.Message);
         }
         catch (UnsupportedException error)
         {
             ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
-            return new FullCombatSearch(null, "invalid", result.ElapsedMilliseconds,
-                result.ExpandedNodes, beam.BestRoute.Length, beam.BestIsVictory, error.Message,
-                "route_unsupported", error.Message, result.ManagedHeapPeakBytes,
-                result.WorkingSetPeakBytes);
+            return InvalidRoute(outcome, beam, "invalid", "route_unsupported", error.Message);
         }
         catch (CapacityException error)
         {
             string detail = $"region={error.Region} {error.Message}";
             ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {detail}");
-            return new FullCombatSearch(null, "invalid", result.ElapsedMilliseconds,
-                result.ExpandedNodes, beam.BestRoute.Length, beam.BestIsVictory, detail,
-                "route_capacity", detail, result.ManagedHeapPeakBytes, result.WorkingSetPeakBytes);
+            return InvalidRoute(outcome, beam, "invalid", "route_capacity", detail);
         }
         tracker.Observe(searchRoot);
         ModLog.Info(
-            $"[BlitzSolver] AUTO_SEARCH turn={turn} reason={reason} ms={result.ElapsedMilliseconds} " +
-            $"expanded={result.ExpandedNodes} route={beam.BestRoute.Length} victory={beam.BestIsVictory} " +
-            $"score={beam.BestScore}");
-        int poolDrops = beam.CapacityDroppedChildren.TryGetValue("Beam.Pool",
-            out int dropped) ? dropped : 0;
-        return new FullCombatSearch(route, "ok", result.ElapsedMilliseconds, result.ExpandedNodes,
+            $"[BlitzSolver] AUTO_SEARCH turn={turn} reason={reason} ms={outcome.ElapsedMs} " +
+            $"expanded={outcome.TotalExpandedNodes} route={beam.BestRoute.Length} " +
+            $"victory={beam.BestIsVictory} score={beam.BestScore} rounds={rounds.Length} " +
+            $"best_round={outcome.BestRound} damage_free={outcome.DamageFreeVictory} " +
+            $"soft_time_risk={outcome.SoftTimeRisk} skipped={outcome.RoundsSkippedByTime}");
+        return new FullCombatSearch(route, "ok", outcome.ElapsedMs, outcome.TotalExpandedNodes,
             beam.BestRoute.Length, beam.BestIsVictory, null, null, null,
-            result.ManagedHeapPeakBytes, result.WorkingSetPeakBytes, false,
-            beam.SearchMemoryBudgetExceeded, beam.SearchMemoryExceededAtBytes, poolDrops,
-            beam.SearchMemoryUsedBytes, beam.SearchMemoryPeakBytes,
-            beam.RouteNodeStorageBytes, beam.RouteNodePeakCount);
+            outcome.ManagedHeapPeakBytes, outcome.WorkingSetPeakBytes, outcome.SoftTimeRisk,
+            outcome.MemoryBudgetExceeded, outcome.MemoryExceededAtBytes,
+            outcome.PoolCapacityDropped, outcome.SearchMemoryUsedBytes,
+            outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
+            outcome.RouteNodePeakCount)
+        {
+            BestRound = outcome.BestRound,
+            DamageFreeVictory = outcome.DamageFreeVictory,
+            Rounds = rounds,
+            RoundsRun = outcome.RoundsRun,
+            RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+        };
+
+        async ValueTask<WideningRoundMeasurement> RunRound(WideningRoundRequest round)
+        {
+            token.ThrowIfCancellationRequested();
+            SearchRunResult result = await SearchSession.RunAsync(
+                host, _root, round.Case, deterministic: false, tier, resultDirectory: null,
+                cancelAfterMilliseconds: null, storage);
+            ModLog.Info(
+                $"[BlitzSolver] AUTO_WIDEN_ROUND turn={turn} reason={reason} round={round.Round} " +
+                $"width={round.Width} remaining_ms={round.RemainingMilliseconds} " +
+                $"soft_ms={round.SoftTimeMilliseconds} status={result.Status} " +
+                $"ms={result.ElapsedMilliseconds} expanded={result.ExpandedNodes}");
+            return new WideningRoundMeasurement(result.Beam, result.Status, result.Error,
+                result.ElapsedMilliseconds, result.ManagedHeapPeakBytes,
+                result.WorkingSetPeakBytes);
+        }
     }
+
+    private static FullCombatSearch InvalidRoute(WideningSearchOutcome outcome, BeamResult beam,
+        string status, string reason, string detail)
+        => new(null, status, outcome.ElapsedMs, outcome.TotalExpandedNodes,
+            beam.BestRoute.Length, beam.BestIsVictory, detail, reason, detail,
+            outcome.ManagedHeapPeakBytes, outcome.WorkingSetPeakBytes, outcome.SoftTimeRisk,
+            outcome.MemoryBudgetExceeded, outcome.MemoryExceededAtBytes,
+            outcome.PoolCapacityDropped, outcome.SearchMemoryUsedBytes,
+            outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
+            outcome.RouteNodePeakCount)
+        {
+            Rounds = outcome.Rounds,
+            RoundsRun = outcome.RoundsRun,
+            RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+        };
 
     public ValueTask<FullCombatBoundary> CheckBoundaryAsync(ReplayedAction expected, int turn,
         int index, CancellationToken token)

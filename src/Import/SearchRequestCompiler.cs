@@ -23,14 +23,18 @@ public enum SearchPerformanceTier
 }
 
 /// <summary>
-/// The CombatSolver performance profile values the primary Beam reads. The branch caps are carried
-/// for the report and for parity with <c>SolverSearchProfile</c>; Blitz enforces the same fixed
+/// The performance tiers exposed by the Flash solver settings. A decision starts at
+/// <see cref="StartWidth"/> and doubles the beam until <see cref="MaxWidth"/>; every round's node
+/// cap is <c>width × MaxExpandedNodesPerWidth</c>, and all rounds of one decision share
+/// <see cref="TotalTimeBudgetMilliseconds"/> in the game. The branch caps are carried for the
+/// report and for parity with <c>SolverSearchProfile</c>; Blitz enforces the same fixed
 /// 32-selection branch cap in the kernel, so no <see cref="BeamOptions"/> field receives them.
 /// </summary>
 public readonly record struct SearchPerformanceProfile(
-    int BeamWidth,
-    int MaxExpandedNodes,
-    int SoftTimeBudgetMilliseconds,
+    int StartWidth,
+    int MaxWidth,
+    int MaxExpandedNodesPerWidth,
+    int TotalTimeBudgetMilliseconds,
     int MaxCardBranchesPerNode,
     int MaxPileChoiceBranchesPerAction,
     int MaxHandChoiceBranchesPerAction)
@@ -38,16 +42,19 @@ public readonly record struct SearchPerformanceProfile(
     /// <summary>The fixed turn cap of the primary member (<c>FlashRouteMaterializer.cs:360</c>).</summary>
     public const int MaxTurns = 64;
 
+    public int StartMaxExpandedNodes
+        => checked(StartWidth * MaxExpandedNodesPerWidth);
+
     public static SearchPerformanceProfile For(SearchPerformanceTier tier) => tier switch
     {
         SearchPerformanceTier.Low => new(
-            180, 240_000, 60_000, 24, 12, 16),
+            128, 128, 2_000, 30_000, 24, 12, 16),
         SearchPerformanceTier.Medium => new(
-            240, 480_000, 120_000, 32, 18, 24),
+            128, 256, 2_000, 60_000, 32, 18, 24),
         SearchPerformanceTier.High => new(
-            360, 1_000_000, 180_000, 48, 28, 36),
+            128, 512, 2_000, 120_000, 48, 28, 36),
         SearchPerformanceTier.VeryHigh => new(
-            540, 2_000_000, 300_000, 72, 42, 54),
+            128, 1024, 2_000, 240_000, 72, 42, 54),
         _ => throw new ArgumentOutOfRangeException(nameof(tier)),
     };
 
@@ -81,15 +88,15 @@ internal static class SearchRequestCompiler
         bool deterministic,
         long searchMemoryBudgetBytes = 0)
     {
-        if (profile.BeamWidth <= 0)
+        if (profile.StartWidth <= 0 || profile.MaxWidth < profile.StartWidth)
             throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"Beam 宽度必须为正：{profile.BeamWidth}");
-        if (profile.MaxExpandedNodes <= 0)
+                $"Beam 宽度范围无效：{profile.StartWidth}..{profile.MaxWidth}");
+        if (profile.MaxExpandedNodesPerWidth <= 0)
             throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"节点上限必须为正：{profile.MaxExpandedNodes}");
-        if (!deterministic && profile.SoftTimeBudgetMilliseconds <= 0)
+                $"每轮节点上限系数必须为正：{profile.MaxExpandedNodesPerWidth}");
+        if (!deterministic && profile.TotalTimeBudgetMilliseconds <= 0)
             throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"软时间预算必须为正：{profile.SoftTimeBudgetMilliseconds}");
+                $"决策总时间必须为正：{profile.TotalTimeBudgetMilliseconds}");
 
         Scorer scorer = EvaluationConfigCompiler.CompileScorer(
             state, player, rules, root, policy, facts);
@@ -101,10 +108,10 @@ internal static class SearchRequestCompiler
         // the first parent (`OutOfBudget` compares elapsed >= budget); MaxValue disables that clock.
         TimeSpan softTime = deterministic
             ? TimeSpan.MaxValue
-            : TimeSpan.FromMilliseconds(profile.SoftTimeBudgetMilliseconds);
+            : TimeSpan.FromMilliseconds(profile.TotalTimeBudgetMilliseconds);
         BeamOptions options = new(
-            profile.BeamWidth,
-            profile.MaxExpandedNodes,
+            profile.StartWidth,
+            profile.StartMaxExpandedNodes,
             SearchPerformanceProfile.MaxTurns,
             softTime,
             root.Player.MaxHp)
@@ -126,7 +133,7 @@ internal static class SearchRequestCompiler
             Act3BossStrategy = policy.Act3BossStrategy,
             InitialPlayerTurn = root.PlayerTurn,
             InitialSearchTurn = root.PlayerTurn,
-            SecondRankBandWidth = profile.BeamWidth,
+            SecondRankBandWidth = profile.StartWidth,
             PreserveReplayAllocatorOpening = HasUnusedCardReplayAllocator(player),
             SearchMemoryBudgetBytes = searchMemoryBudgetBytes,
         };

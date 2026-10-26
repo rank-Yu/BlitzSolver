@@ -26,7 +26,14 @@ internal sealed record FullCombatSearchEntry(
     long SearchMemoryUsedBytes = 0,
     long SearchMemoryPeakBytes = 0,
     long RouteNodeStorageBytes = 0,
-    int RouteNodePeakCount = 0);
+    int RouteNodePeakCount = 0)
+{
+    public int BestRound { get; init; }
+    public bool DamageFreeVictory { get; init; }
+    public WideningRoundLog[] Rounds { get; init; } = [];
+    public int RoundsRun { get; init; }
+    public int RoundsSkippedByTime { get; init; }
+}
 
 /// <summary>One predicted/live boundary deviation.</summary>
 internal sealed record FullCombatDeviationEntry(
@@ -83,7 +90,23 @@ internal sealed record FullCombatSearch(
     long SearchMemoryUsedBytes = 0,
     long SearchMemoryPeakBytes = 0,
     long RouteNodeStorageBytes = 0,
-    int RouteNodePeakCount = 0);
+    int RouteNodePeakCount = 0)
+{
+    /// <summary>The widening round whose route was kept; 0 for a single search.</summary>
+    public int BestRound { get; init; }
+
+    /// <summary>The kept route is a victory with no HP or max-HP loss from the combat opening.</summary>
+    public bool DamageFreeVictory { get; init; }
+
+    /// <summary>Every round of this decision, including rounds the game would skip or truncate.</summary>
+    public WideningRoundLog[] Rounds { get; init; } = [];
+
+    /// <summary>Rounds actually run by this host.</summary>
+    public int RoundsRun { get; init; }
+
+    /// <summary>Rounds the in-game time insurance refused to start.</summary>
+    public int RoundsSkippedByTime { get; init; }
+}
 
 /// <summary>A boundary projection comparison at a reused turn start.</summary>
 internal sealed record FullCombatBoundary(
@@ -204,7 +227,14 @@ internal static class FullCombatDriver
                         search.SoftTimeRisk, search.MemoryBudgetExceeded,
                         search.MemoryExceededAtBytes, search.PoolCapacityDropped,
                         search.SearchMemoryUsedBytes, search.SearchMemoryPeakBytes,
-                        search.RouteNodeStorageBytes, search.RouteNodePeakCount));
+                        search.RouteNodeStorageBytes, search.RouteNodePeakCount)
+                    {
+                        BestRound = search.BestRound,
+                        DamageFreeVictory = search.DamageFreeVictory,
+                        Rounds = search.Rounds,
+                        RoundsRun = search.RoundsRun,
+                        RoundsSkippedByTime = search.RoundsSkippedByTime,
+                    });
                     if (search.Route == null)
                     {
                         deploymentFailures++;

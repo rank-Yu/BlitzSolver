@@ -439,7 +439,8 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 ### 6.5 实机搜索请求/结果对照
 
-测试模式在捕获后默认用中档确定性选项求解一次（软时间关闭，只留 480,000 节点上限），写
+测试模式在捕获后默认用中档确定性选项求解一次（软时间关闭，起始宽度 128、节点上限
+256,000），写
 `SREQ`/`SRES`/`search.json`。离线宿主：
 
 ```bash
@@ -472,7 +473,7 @@ M2b-1 的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=sam
 并关闭确定性。测试模式捕获根后立刻进入 `AutoCombatSession`，由共享的 `FullCombatDriver`
 每回合搜索/沿用路线、逐动作核对、回合对账，直到胜利、失败、暂停或取消。结果写 `full-combat.json`，并在 `status.json`
 增加 `fullCombatStatus/outcome/turns/playerHp/playerMaxHp/searches/reusedTurns/deviations/
-deploymentFailures`。整场搜索使用请求档位的正常软时间；`src/Mod` 还会把
+deploymentFailures`。整场搜索的每一轮使用该次决策剩余的正常软时间（见 6.7 的多轮规则）；`src/Mod` 还会把
 `headlessFastModeForTest` 覆盖为 `Instant`（默认）并在结束后恢复。
 
 命令：
@@ -516,15 +517,29 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --offline-combat --root quality-DEFECT-000 --out .local/offline-combat/one
 
-# 加宽试验：宽度与节点上限可覆盖；只给 --beam-width 时按默认比例放大节点上限
+# 四档评估：每档 120 根，--jobs 6。Low/Medium 各一两分钟，High 约 3 分钟，
+# VeryHigh 建议按 60 根拆两次，单条命令保持在 8 分钟内
+for tier in Low Medium High VeryHigh; do
+  dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+    --offline-combat --roots-file .local/roots120.txt --jobs 6 \
+    --search-tier "$tier" --out ".local/offline-combat/$tier"
+done
+
+# 单宽度探针：起始=最多，便于只测某一宽度；每轮节点上限仍可覆盖
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --offline-combat --corpora tests/corpora --jobs 6 \
-  --beam-width 480 --max-nodes 960000 --out .local/offline-combat/w480
+  --beam-width 512 --max-width 512 --out .local/offline-combat/w512
 
-# 极小预算强制路线用尽，走一遍重搜路径（不是等价用例）
+# 同宽度、旧局面池上限（200 MiB），用于放大前后对照
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --offline-combat --root quality-DEFECT-000 \
-  --beam-width 1 --max-nodes 10 --out .local/offline-combat/reroute
+  --offline-combat --corpora tests/corpora --jobs 6 \
+  --beam-width 512 --max-width 512 --pool-state-budget-mb 200 \
+  --out .local/offline-combat/w512-pool200
+
+# 极小预算强制部分路线，走一遍重搜路径（不是等价用例）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --root quality-REGENT-013 --memory-budget-mb 64 \
+  --out .local/offline-combat/reroute
 ```
 
 开局根与无头整场的实际搜索根一致：`ScenarioBuilder` 建出原生 `CombatState`，
@@ -533,19 +548,28 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `TestSession` 写出的 `BATL` 捕获根用的是普通 `ImportOptions.Default`，不是整场搜索根；在
 120 个质量根上 96 根逐字节相同，24 个 DEFECT 根只差 `Counter.OrbChannels`（捕获根 0，
 整场根按原生 History 重建为 1 或 2）。离线工具使用整场根，因此与实机整场搜索结果对齐。
-搜索请求用同一个 `SearchRequestCompiler`，性能档默认 `Medium`（宽度 240、节点上限
-480,000）；离线模式把软时间设为 `TimeSpan.MaxValue`，只受节点上限约束。实机软时间是
-120 秒；若某次离线搜索耗时达到 120 秒，说明实机可能被时限截断，该次日志的
-`softTimeRisk=true`（同时 `elapsedMs >= 120000`），不能直接当成等价结果。
+搜索请求用同一个 `SearchRequestCompiler` 组装第一轮，性能档默认 `Medium`（起始宽度
+128、最多 256、每轮节点上限 宽度 × 2,000、决策总时间 60 秒）；离线模式把每轮软时间设为
+`TimeSpan.MaxValue`，只受节点上限和全局内存预算约束。多轮翻倍、每轮节点上限、终局比较、
+局面池放大与时间预估都在 Core 的 `WideningSearch` 里，Mod 与离线整场共用该入口。
+
+离线不按时间截断或跳过任何一轮；它用游戏内同一套“上一轮耗时的 2 倍”预估，把实机会跳过
+的轮次标成 `wouldSkip`、会截断的标成 `wouldTruncate`，决策级 `softTimeRisk` 为任一标记。
+`rounds[].remainingBeforeMilliseconds`/`estimatedMilliseconds` 是当时的预估输入，来自挂钟，
+因此两次运行的这几个字段可能有小差异；`expandedNodes`、`routeActions`、胜负等确定性字段
+不变。报告不能把 `wouldSkip`/`wouldTruncate` 的轮次当成实机一定会执行。
 
 每根输出 `<out>/<root>/full-combat.json`，字段与无头整场的 `full-combat.json` 对齐：
 `outcome`、`turns`、`playerHp`、`playerMaxHp`、`potionsUsed`、`searches`、
 `reusedTurns`、`deviations`、`deploymentFailures`、`elapsedMs`、`pauseReason`、
 `searchLog`、`deviationLog`、`failureLog`。`searchLog` 的每项包含
 `turn`/`reason`/`status`/`elapsedMs`/`expandedNodes`/`routeActions`/`victory`/`error`，另加
-`managedHeapPeakBytes`/`workingSetPeakBytes`，以及 `softTimeRisk`（该次搜索耗时达到档位软
-时间，实机可能被时限截断）。父进程还写 `<out>/summary.json`（档位、宽度、
-节点上限、逐根摘要与墙钟）。
+`managedHeapPeakBytes`/`workingSetPeakBytes`、`bestRound`、`damageFreeVictory`、
+`roundsRun`、`roundsSkippedByTime`、`softTimeRisk` 和 `rounds`。`rounds` 的每项记录
+`width`/`maxExpandedNodes`/`poolStateBudgetBytes`/`elapsedMs`/`expandedNodes`/`routeActions`/
+`victory`/`damageFreeVictory`/`wouldSkip`/`wouldTruncate`/`poolCapacityDropped`/
+`searchMemoryPeakBytes` 等。父进程还写 `<out>/summary.json`（档位、起始/最多宽度、每宽节点
+系数、总时间、逐根摘要与墙钟）。
 
 路线用完而战斗未结束时，离线工具从预测的最后一个 `Battle` 直接重搜；Mod 在同样的边界用
 `LiveCombatTracker.ImportRoot` 从实机重新导入。两者逐字段的关系是：
@@ -571,8 +595,8 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 离线搜索的评分/下界配置仍从开局原生状态捕获（`SearchPolicyCapture` 与
 `EvaluationConfigCompiler` 的冻结表），因为离线进程没有后续回合的原生模型；这是离线重搜与实机
-重搜唯一未逐字节对齐的输入。当前 120 根在 867e5a9 上只需要开局搜索，因此不影响本批等价；
-若以后出现路线用尽后的重搜，需要同时验证这部分的请求字节。
+重搜唯一未逐字节对齐的输入。本批四档 120 根默认仍只需要开局搜索，因此不影响对应关系；
+出现路线用尽后的重搜时，需要同时验证这部分的请求字节。
 
 整场等价的口径是逐根比较 `outcome`、`turns`、`playerHp`、`searches`，以及每次搜索的
 `expandedNodes` 与 `routeActions`；不设容差。汇总表用仓库入口
@@ -581,19 +605,22 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 ```bash
 tools/testing/offline-combat-table.py \
-  --results .local/offline-combat/default \
+  --results .local/offline-combat/Medium \
   --baseline ~/sts2/BlitzSolver/.local/q120/baseline.tsv
 ```
 
 它按角色、幕与房间类型对照 CombatSolver 基线，并列出胜负不同的根与异常（非胜负结果、偏差、
-部署失败）。加宽档把 `--results` 换成对应 `--out` 即可复用同一张表。
+部署失败）。四档把 `--results` 换成对应的 `--out` 目录即可复用同一张表。
 
 ### 6.8 离线搜索内存与计时
 
-`--offline-combat` 的每次搜索都写内存诊断：`searchMemoryUsedBytes`、
+`--offline-combat` 的每次决策和每一轮都写内存诊断：`searchMemoryUsedBytes`、
 `searchMemoryPeakBytes`、`routeNodeStorageBytes`、`routeNodePeakCount`、
 `memoryBudgetExceeded`、`memoryExceededAtBytes` 与 `poolCapacityDropped`。这些是搜索账本
-的逻辑字节，不读 GC；`managedHeapPeakBytes` 才是进程托管堆采样，只用于报告。
+的逻辑字节，不读 GC；`managedHeapPeakBytes` 才是进程托管堆采样，只用于报告。多轮搜索共用
+一份 `SearchStorage`，轮次之间保留的块也计入预算；默认局面池从 200 MiB 随宽度放大到 512
+MiB（宽度 512）和 1 GiB（宽度 1024），放大后的实际池块逐块记账。
+`--pool-state-budget-mb N` 可把每轮池上限固定为 N MiB，用于放大前后对照，不进入 `SREQ`。
 
 离线宿主的默认预算固定按 0.15 × 16 GiB = 2,576,980,377 B；`--memory-budget-mb N` 用 MiB
 覆盖。预算触发后搜索停止展开并返回当时最好的路线（没有候选时取已展开状态的排序领先者），
