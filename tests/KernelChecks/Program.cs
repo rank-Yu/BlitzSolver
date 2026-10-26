@@ -1025,15 +1025,58 @@ static void CheckIdKernel(Rules rules)
     Check(Registry.TryPower("VULNERABLE_POWER", out ushort vulnerable), "缺少 VULNERABLE_POWER");
     Check(Registry.TryRelic("UNSETTLING_LAMP", out ushort lamp), "缺少 UNSETTLING_LAMP");
 
+    // Power application target: the native Monologue/Nightmare/Orbit bodies all use PowerCmd.Apply,
+    // which does not write PowerModel.Target. The kernel row must stay NoOwner.
+    Check(Registry.TryCard("MONOLOGUE", out ushort monologueCard), "缺少 MONOLOGUE 定义");
+    Check(Registry.TryCard("NIGHTMARE", out ushort nightmareCard), "缺少 NIGHTMARE 定义");
+    Check(Registry.TryCard("ORBIT", out ushort orbitCard), "缺少 ORBIT 定义");
+    CardStats TargetStats(decimal[] vars) => new()
+    {
+        Type = CardType.Skill, Target = TargetType.Self, Rarity = CardRarity.Uncommon, EnergyCost = 0,
+        CostsX = false, StarCost = -1, StarCostsX = false, Keywords = Keywords.None,
+        MaxUpgradeLevel = 1, Vars = vars,
+    };
+    // Call the card definition directly: the KernelChecks rules table intentionally carries only the
+    // fixture cards, not every identity card. This still exercises the exact OnPlay/OwnChoice body.
+    Battle monologueCardBattle = NewBattle();
+    Exec monologueCardExec = new(ref monologueCardBattle, rules, PlayerAction.EndTurn());
+    monologueCardExec.Card = new Card { Id = monologueCard };
+    monologueCardExec.Stats = TargetStats([1m]);
+    Registry.Card(monologueCard).OnPlay(ref monologueCardExec);
+    int monologueCardRow = Kernel.FindLastPower(monologueCardBattle, Limits.PlayerOwner, monologue);
+    Check(monologueCardRow >= 0
+          && monologueCardBattle.Powers[monologueCardRow].Target == Limits.NoOwner,
+        "Monologue 的 Power 行应保持 Target=NoOwner");
+
+    Battle nightmareCardBattle = NewBattle();
+    Piles.Append(ref nightmareCardBattle, Pile.Hand, Kernel.CreateCard(rules, strike));
+    Exec nightmareCardExec = new(ref nightmareCardBattle, rules, PlayerAction.EndTurn().WithChoice(1UL));
+    nightmareCardExec.Card = new Card { Id = nightmareCard };
+    nightmareCardExec.Stats = TargetStats([0m]);
+    Registry.Card(nightmareCard).OwnChoice(ref nightmareCardExec);
+    int nightmareCardRow = Kernel.FindLastPower(nightmareCardBattle, Limits.PlayerOwner, nightmare);
+    Check(nightmareCardRow >= 0
+          && nightmareCardBattle.Powers[nightmareCardRow].Target == Limits.NoOwner,
+        "Nightmare 的 Power 行应保持 Target=NoOwner");
+
+    Battle orbitCardBattle = NewBattle();
+    Exec orbitCardExec = new(ref orbitCardBattle, rules, PlayerAction.EndTurn());
+    orbitCardExec.Card = new Card { Id = orbitCard };
+    orbitCardExec.Stats = TargetStats([2m]);
+    Registry.Card(orbitCard).OnPlay(ref orbitCardExec);
+    int orbitCardRow = Kernel.FindLastPower(orbitCardBattle, Limits.PlayerOwner, orbit);
+    Check(orbitCardRow >= 0 && orbitCardBattle.Powers[orbitCardRow].Target == Limits.NoOwner,
+        "Orbit 的 Power 行应保持 Target=NoOwner");
+
     // Monologue: two instances keep separate Strength/StrengthApplied rows; a play applies both and the
     // side turn end removes each and reverts its applied Strength.
     Battle monologueBattle = NewBattle();
     Piles.Append(ref monologueBattle, Pile.Hand, Kernel.CreateCard(rules, strike));
     Exec monologueExec = new(ref monologueBattle, rules, default);
-    Kernel.ApplyPower(ref monologueExec, Limits.PlayerOwner, monologue, 1, Limits.PlayerOwner,
-        Limits.PlayerOwner);
-    Kernel.ApplyPower(ref monologueExec, Limits.PlayerOwner, monologue, 1, Limits.PlayerOwner,
-        Limits.PlayerOwner);
+    Kernel.ApplyPowerPreservingTarget(ref monologueExec, Limits.PlayerOwner, monologue, 1,
+        Limits.PlayerOwner, Limits.PlayerOwner);
+    Kernel.ApplyPowerPreservingTarget(ref monologueExec, Limits.PlayerOwner, monologue, 1,
+        Limits.PlayerOwner, Limits.PlayerOwner);
     Check(monologueBattle.PowerCount == 2, "Monologue 应有两个实例行");
     monologueBattle.Powers[0].Aux0 = 3;
     monologueBattle.Powers[1].Aux0 = 5;
@@ -1073,8 +1116,8 @@ static void CheckIdKernel(Rules rules)
     // removes the instance and frees the slot.
     Battle nightmareBattle = NewBattle();
     Exec nightmareExec = new(ref nightmareBattle, rules, default);
-    Kernel.ApplyPower(ref nightmareExec, Limits.PlayerOwner, nightmare, 3, Limits.PlayerOwner,
-        Limits.PlayerOwner);
+    Kernel.ApplyPowerPreservingTarget(ref nightmareExec, Limits.PlayerOwner, nightmare, 3,
+        Limits.PlayerOwner, Limits.PlayerOwner);
     Card selected = Kernel.CreateCard(rules, strike);
     int slot = Kernel.AllocateDetachedCard(ref nightmareBattle, selected);
     nightmareBattle.Powers[0].Aux0 = slot + 1;
@@ -1093,8 +1136,8 @@ static void CheckIdKernel(Rules rules)
     Battle orbitBattle = NewBattle();
     orbitBattle.Energy = 0;
     Exec orbitExec = new(ref orbitBattle, rules, default);
-    Kernel.ApplyPower(ref orbitExec, Limits.PlayerOwner, orbit, 2, Limits.PlayerOwner,
-        Limits.PlayerOwner);
+    Kernel.ApplyPowerPreservingTarget(ref orbitExec, Limits.PlayerOwner, orbit, 2,
+        Limits.PlayerOwner, Limits.PlayerOwner);
     Card energyCard = Kernel.CreateCard(rules, strike);
     HookDispatch.AfterEnergySpent(ref orbitExec, energyCard, 3);
     Check(orbitBattle.Powers[0].Aux0 == 3 && orbitBattle.Energy == 0,

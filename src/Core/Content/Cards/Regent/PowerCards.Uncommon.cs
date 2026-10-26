@@ -52,9 +52,9 @@ public sealed class Orbit : CardDef
     {
         if (!Registry.TryPower("ORBIT_POWER", out ushort power))
             throw new UnsupportedException("Orbit 需要 ORBIT_POWER 定义。");
-        // SimulatedCombatState.AddPowerInstance sets _target = owner (unlike Apply<T>).
+        // Native Orbit.OnPlay uses PowerCmd.Apply, which leaves PowerModel.Target null.
         Kernel.ApplyPower(ref x, Limits.PlayerOwner, power, (int)CardEffects.Var(x, 0),
-            Limits.PlayerOwner, Limits.PlayerOwner);
+            Limits.PlayerOwner);
     }
 }
 

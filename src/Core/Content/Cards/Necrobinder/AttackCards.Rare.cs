@@ -142,7 +142,8 @@ public sealed class Misery : CardDef
                 continue;
             for (int item = 0; item < count; item++)
             {
-                Kernel.ApplyPower(ref x, enemy, ids[item], amounts[item], appliers[item], targets[item]);
+                Kernel.ApplyPowerPreservingTarget(ref x, enemy, ids[item], amounts[item],
+                    appliers[item], targets[item]);
                 if (x.NeedsChoice)
                     return;
                 Kernel.ResolvePowerAmountChanges(ref x);

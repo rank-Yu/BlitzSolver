@@ -91,12 +91,6 @@ internal static class BattleReconciler
             if (IsPermanentlyDeadOwner(in copy, power.Owner))
                 continue;
             PowerDef def = Registry.Power(power.Id);
-            if (string.Equals(def.NativeId, "NIGHTMARE_POWER", StringComparison.Ordinal))
-            {
-                // Nightmare's native PowerModel.Target is null; the kernel and the frozen import
-                // both project it as the player owner. The field does not drive the power.
-                power.Target = Limits.PlayerOwner;
-            }
             if ((power.Flags & PowerFlags.SkipNextTickFromMonster) != 0 && !def.TicksAtEnemySideEnd)
             {
                 // ApplyFromMonster records a solver-side one-shot skip for powers outside the native

@@ -436,16 +436,25 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
   原生没有这个一次性标记。
 - 永久死亡敌人的 AI 节点/日志/寄存器，以及它们名下的 Power 行：原生在死亡移除后已重置或
   保留为不可达墓碑；两者都从比较视图移除，复活行不适用。
-- `NIGHTMARE_POWER.Target`：原生为 null、内核/冻结导入投影为玩家；Power 本身不使用该字段。
 - `Power.Flags.SkipNextTickFromMonster`：`ApplyFromMonster` 的求解器侧一次性跳过标记，原生
   `PowerModel` 没有该字段。只对不会进入 `TickDurations` 的 Power（如 ChainsOfBinding）清零：
   它们永远消费不到这个位；会衰减的 Power 仍严格比较。
 
 TheBomb/Panache/ToricToughness 的 `Target` 与 SlimedBerserker Weak、BeltBuckle Dexterity 的
-`Applier` 已在 M2c 按原版写成 `NoOwner`，不再经过比较投影。内核合并 Power 行只按
-`(Owner, Id)` 查现有实例（`IsInstanced` 时新建），与原生 `FindExistingInstanceForStacking` 的
+`Applier` 已在 M2c 按原版写成 `NoOwner`。M2d 又把 Monologue/Nightmare/Orbit 的 `Target`
+改成 `NoOwner`，并删除 `NIGHTMARE_POWER.Target` 的比较投影；这三张牌的原版 `OnPlay` 都用
+`PowerCmd.Apply`，不写 `PowerModel.Target`。内核合并 Power 行只按 `(Owner, Id)` 查现有实例
+（`IsInstanced` 时新建），与原生 `FindExistingInstanceForStacking` 的
 `PowerInstanceType.None`/`Instanced` 口径一致，不按 `Applier` 区分；这些行也不覆写
 `ApplierDied` 或读取 `Applier`，因此 `NoOwner` 不改变合并与生命周期行为。
+
+原版只有五处会主动写 `PowerModel.Target`：`SwipePower.Steal`（目标为被偷卡牌的拥有者）、
+`GremlinMerc.AfterAddedToRoom`（ThieveryPower 目标为玩家）、`TheInsatiable.LiquifyMove`
+（SandpitPower 目标为玩家）、`SurprisePower.AfterDeath`（HeistPower 继承 ThieveryPower 的
+目标）与 `Aeonglass.AfterAddedToRoom`（WitheringPresencePower 目标为每个对手）。前四处由
+`Kernel.ApplyPowerTargeted` 或导入的 `Power.Target` 表示；Aeonglass 是根之前的入场 Power，
+由导入层保留。`Misery` 克隆带目标的减益时用 `Kernel.ApplyPowerPreservingTarget` 保留源值，
+不是新的写入点。除此之外的 Power 行在稳定边界上 `Target` 都是 `NoOwner`。
 
 其余字段（HP、护甲、能量、星能、牌堆顺序、卡值、9 条 RNG、计数、Powers、Relics、Orbs、
 药水、回合/侧/阶段、结局）都按 `BattleCodec` 字节比较，没有容差。

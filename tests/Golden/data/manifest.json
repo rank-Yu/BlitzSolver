@@ -7,7 +7,7 @@
     "d1Config": "66a43838d89e7a03b05c0f04d5e4941ff555baec",
     "formatMigration": "v1\u2192v2 \u53EA\u6539\u4E86\u6570\u636E\u683C\u5F0F\u91CC\u7684\u540D\u5B57\uFF08\u9B54\u6570\u3001\u7248\u672C\u3001\u5BB9\u91CF\u952E\u4E0E\u6839\u540D\uFF09\uFF0C\u5B57\u6BB5\u503C\u4E0D\u53D8\u3002",
     "refreeze": "M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6",
-    "d1Rerecord": "roots=a3-slimed-berserker-normal,dx6-dampen-echoing,ec-b-event-skills,id-c-instanced-powers,id-f-generation,ls-a-silent-attacks,ls-b-silent-powers,p16-a-damage-history,p16-c-instanced-powers,quality-DEFECT-014,quality-DEFECT-015,quality-DEFECT-021,quality-DEFECT-023,quality-NECROBINDER-020,quality-REGENT-010,quality-REGENT-021,quality-SILENT-002,quality-SILENT-005,quality-SILENT-012,quality-SILENT-014,quality-SILENT-021,sk-f-xcalc,ts-b-toolbox reason=M2c semantic corrections sha256=7f5b2bf7a1376f72fa8ebf39ebd442ca978e25f0fcd938829adffb0954bcf730"
+    "d1Rerecord": "roots=hs3-regent13-rolling,id-a-monologue-swordsage,id-b-nightmare-phantom,id-c-instanced-powers,quality-REGENT-001,quality-REGENT-012,quality-REGENT-016,quality-SILENT-018 reason=M2d Power target corrections sha256=44896b5053256fb70184c69d081769d2ea5ce9b2e254de6fee82f19bd1201613"
   },
   "compression": "brotli",
   "counts": {
@@ -29,7 +29,7 @@
       "timeAffected": 0
     }
   },
-  "totalBytes": 23692497,
+  "totalBytes": 23692393,
   "targetBytes": 52428800,
   "files": [
     {
@@ -1029,8 +1029,8 @@
     },
     {
       "path": "d1/hs3-regent13-rolling/golden.br",
-      "bytes": 36847,
-      "sha256": "bfbf568ab7468edac98b215ca1d498b9506dd9cf01ee289e09d3e4973fa511a3"
+      "bytes": 36877,
+      "sha256": "f4af825d7b85396f778989d26b9c51a05a1e5713d1ff8df0a60c847c34c5c72a"
     },
     {
       "path": "d1/hs3-regent13-rolling/meta.json",
@@ -1104,8 +1104,8 @@
     },
     {
       "path": "d1/id-a-monologue-swordsage/golden.br",
-      "bytes": 6134,
-      "sha256": "9a44816ffef1ac09d9ed24ca10c5ad0f3037037c010db79e1fa9a70cb248618b"
+      "bytes": 6099,
+      "sha256": "c436bffe41036682ac8818b1a2f8c89049b794a268e814ad2612f9bcbab245f9"
     },
     {
       "path": "d1/id-a-monologue-swordsage/meta.json",
@@ -1119,8 +1119,8 @@
     },
     {
       "path": "d1/id-b-nightmare-phantom/golden.br",
-      "bytes": 12792,
-      "sha256": "c6e615d2c6311d6ff598057fabf939df53bbec1cf3a6e5b17634c9165d26998f"
+      "bytes": 12775,
+      "sha256": "ff704d9bc8da8ac7993d713eaa82f4a220aad541d0472082de4cfc1f51e73836"
     },
     {
       "path": "d1/id-b-nightmare-phantom/meta.json",
@@ -1134,8 +1134,8 @@
     },
     {
       "path": "d1/id-c-instanced-powers/golden.br",
-      "bytes": 11677,
-      "sha256": "3657646fa46fb16e52bec072f2080c76844304f501d2274d79240936b54090f9"
+      "bytes": 11644,
+      "sha256": "eb67be6438ec6c2a2ea6d606ffe140325bf09e82559aaef57daa3f179f77b4b7"
     },
     {
       "path": "d1/id-c-instanced-powers/meta.json",
@@ -5049,8 +5049,8 @@
     },
     {
       "path": "d1/quality-REGENT-001/golden.br",
-      "bytes": 37852,
-      "sha256": "d7d8ee4a3e5843f6eeca2dc9d2405a5b8a7a9993a3a5f838b9753bef075d4eb6"
+      "bytes": 37866,
+      "sha256": "c8259a9f68c73895717a7a7bf9d300da9b86768068e16073f77ac7a272554abc"
     },
     {
       "path": "d1/quality-REGENT-001/meta.json",
@@ -5214,8 +5214,8 @@
     },
     {
       "path": "d1/quality-REGENT-012/golden.br",
-      "bytes": 45495,
-      "sha256": "5ea59392c93cbbaecc0eb9cd7160035b974e4a93e9aa15ec6a315ecc7571ade3"
+      "bytes": 45453,
+      "sha256": "34cf6924002d4de56417de935a2237f3ff7718108d6b3ed94e3dcc3b55c6d0b5"
     },
     {
       "path": "d1/quality-REGENT-012/meta.json",
@@ -5275,7 +5275,7 @@
     {
       "path": "d1/quality-REGENT-016/golden.br",
       "bytes": 27360,
-      "sha256": "82b9dd3edce3f841ab663849d30b4237b300d3ef1642999b4d937d7fa42e59b7"
+      "sha256": "e8cd2f42c2a9c412f4172b4d2b8ea622abf3664951ef613f99e56e47b8ed6646"
     },
     {
       "path": "d1/quality-REGENT-016/meta.json",
@@ -5664,8 +5664,8 @@
     },
     {
       "path": "d1/quality-SILENT-018/golden.br",
-      "bytes": 23508,
-      "sha256": "0957d1af7a1dfca3e0b866629e9c596be4aed79a102931430e7d3a798521d643"
+      "bytes": 23487,
+      "sha256": "e05aa30c02c2bc76f90375ec2cd3034ce92fbd58a523e6d57949df3e3c217e13"
     },
     {
       "path": "d1/quality-SILENT-018/meta.json",

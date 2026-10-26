@@ -175,8 +175,7 @@ public sealed class Monologue : CardDef
     {
         if (!Registry.TryPower("MONOLOGUE_POWER", out ushort power))
             throw new UnsupportedException("Monologue 需要 MONOLOGUE_POWER 定义。");
-        Kernel.ApplyPower(ref x, Limits.PlayerOwner, power, 1, Limits.PlayerOwner,
-            Limits.PlayerOwner);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner, power, 1, Limits.PlayerOwner);
         if (x.NeedsChoice)
             return;
         int row = Kernel.FindLastPower(x.B, Limits.PlayerOwner, power);

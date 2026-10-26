@@ -79,8 +79,42 @@ public static partial class Kernel
     /// Mirrors <c>SimulatedCombatState.ApplyWithBeforeApplied</c> for the supported powers and
     /// returns the applied delta.
     /// </summary>
-    public static int ApplyPower(ref Exec x, byte target, ushort powerId, int amount, byte applier,
-        byte powerTarget = Limits.NoOwner)
+    public static int ApplyPower(ref Exec x, byte target, ushort powerId, int amount, byte applier)
+        => ApplyPowerInternal(ref x, target, powerId, amount, applier, Limits.NoOwner);
+
+    /// <summary>
+    /// The escape hatch for the five native sites that write <c>PowerModel.Target</c>: SwipePower,
+    /// ThieveryPower, SandpitPower, HeistPower and WitheringPresencePower (the last arrives through
+    /// the importer). Every other application must keep <see cref="Power.Target"/> at
+    /// <see cref="Limits.NoOwner"/>, because <c>PowerCmd.Apply</c> never writes it.
+    /// </summary>
+    public static int ApplyPowerTargeted(ref Exec x, byte owner, byte powerTarget, ushort powerId,
+        int amount, byte applier)
+    {
+        if (amount == 0)
+            return 0;
+        // Native order: PowerCmd.Apply returns the instance first, then the caller assigns Target.
+        // Do not pass powerTarget into the insertion: hooks during application must see NoOwner.
+        int applied = ApplyPowerInternal(ref x, owner, powerId, amount, applier, Limits.NoOwner);
+        if (applied == 0 || x.NeedsChoice)
+            return applied;
+        int index = FindLastPower(x.B, owner, powerId);
+        if (index >= 0)
+            x.B.Powers[index].Target = powerTarget;
+        return applied;
+    }
+
+    /// <summary>
+    /// The clone path of the non-generic <c>PowerCmd.Apply</c>: <c>Misery</c> clones a debuff
+    /// <c>PowerModel</c> (preserving its <c>Target</c>) and applies the clone, so the existing target
+    /// must survive. This is not a new native write site: the source row's target is copied verbatim.
+    /// </summary>
+    public static int ApplyPowerPreservingTarget(ref Exec x, byte target, ushort powerId, int amount,
+        byte applier, byte powerTarget)
+        => ApplyPowerInternal(ref x, target, powerId, amount, applier, powerTarget);
+
+    private static int ApplyPowerInternal(ref Exec x, byte target, ushort powerId, int amount,
+        byte applier, byte powerTarget)
     {
         TryResolveMonologuesBeforeCompensation(ref x);
         if (amount == 0 || !CanReceivePowers(x.B, target))
@@ -481,26 +515,6 @@ public static partial class Kernel
             return false;
         SetPowerAmount(ref battle, target, artifact, amount - 1);
         return true;
-    }
-
-    /// <summary>
-    /// Mirrors <c>SimulatedCombatState.ApplyTargeted</c>: the same stacking/Artifact path as
-    /// <see cref="ApplyPower"/>, then writes the native <c>PowerModel._target</c> on the resulting row.
-    /// A zero amount or an Artifact consumption leaves the target untouched, exactly like the native
-    /// early returns.
-    /// </summary>
-    public static int ApplyPowerTargeted(ref Exec x, byte owner, byte powerTarget, ushort powerId,
-        int amount, byte applier)
-    {
-        if (amount == 0)
-            return 0;
-        int applied = ApplyPower(ref x, owner, powerId, amount, applier);
-        if (applied == 0 || x.NeedsChoice)
-            return applied;
-        int index = FindLastPower(x.B, owner, powerId);
-        if (index >= 0)
-            x.B.Powers[index].Target = powerTarget;
-        return applied;
     }
 
     /// <summary>
