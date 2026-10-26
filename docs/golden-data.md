@@ -165,7 +165,8 @@ GOLD 只冻结 `Rules`（`objects/rules` 的 SHA-256），没有冻结 `ScoreRul
 | `provenance.d1` / `.d2` | M0 宿主捕获提交 `75217006903195bc94654680423bb9ca580ec48a` |
 | `provenance.d1Config` | D1 配置导出提交 `66a43838d89e7a03b05c0f04d5e4941ff555baec` |
 | `provenance.formatMigration` | v1→v2 迁移说明：只改数据格式里的名字（魔数、版本、容量键与根名），字段值不变 |
-| `provenance.refreeze` | 仅由 `Golden refreeze` 写入：当前代码重算后的 D2 结果集 SHA-256。仓库数据自 M3b 重冻起带有该字段；普通 `manifest` 不写它 |
+| `provenance.refreeze` | 由 `Golden refreeze` 写入并更新：当前代码重算后的 D2 结果集 SHA-256。仓库数据自 M3b 重冻起带有该字段；普通 `manifest` 保留已有的值 |
+| `provenance.d1Rerecord` | 由 `Golden rerecord` 写入：重录的 D1 根、原因与新记录的内容 SHA-256；普通 `manifest` 保留已有的值 |
 | `compression` | `brotli` |
 | `counts.d1` | roots/K1/walks/walkStates/transitions/files |
 | `counts.d2` | capturedCalls/uniqueRequests/expectedResults/comparable/equal/mismatch/timeAffected |
@@ -173,6 +174,31 @@ GOLD 只冻结 `Rules`（`objects/rules` 的 SHA-256），没有冻结 `ScoreRul
 | `files` | 按 `path` ordinal 严格递增的 `{path,bytes,sha256}` 列表 |
 
 D1/D2 的语义参照 CombatSolver `a62f1850`，但快照本身由 M0 宿主在 `752170…` 捕获；两者不是同一个提交。D1 的 410 个 `config.br` 与 `golden.br` 来自同一次确定性运行，M1a 已逐一核对 SHA-256。
+
+### 8.1 D1 重录
+
+原版语义修正后，旧 M0 录制会记录当时的内核行为；`Golden rerecord` 在副本上按当前 Blitz
+代码重录指定 D1 根：
+
+```bash
+dotnet run --project tests/Golden -c Release -- \
+  rerecord tests/Golden/data /tmp/blitz-rerecord --roots .local/rerecord-roots.txt --jobs 6
+```
+
+- 源目录只读；目标目录必须为空，两者不能互相包含。工具先复制整棵数据目录。
+- 未列出的根保持复制后的原样。列出的根保留根状态、`config.br`、`meta.json` 的 `input` 与
+  `rulesSha256`，重算 K1 完成、K2 游走、`scoreHash`/`boundHash`/`traitHash`，并按新计数
+  更新 `meta.json`。
+- K2 只使用 GOLD 里已记录的种子列表，不自行发明种子。策略来自 M0 宿主
+  `tools/search/OfflineSearchHarness/Flash/FlashDifferentialProbe.cs`（CombatSolver
+  `75217006`）：每条游走 `new Random(seed)`，每步按“4 次里 3 次偏向手牌”的规则抽取合法
+  动作，再用同一 `Random` 从 `ChoiceEnumerator.Enumerate` 的选择里抽；最多 60 步。K1 按
+  M0 的深度优先补全顺序、每次动作最多 64 个补全。
+- 未改语义时，410 个根的 `golden.br`、`config.br`、`meta.json` 全部逐字节相同；K1/K2 的
+  状态哈希、合法动作顺序、选择请求与选择、三个派生哈希都由当前内核重算并复核。
+- 重录后的清单写入 `provenance.d1Rerecord`，格式是
+  `roots=<按 ordinal 排序的根名> reason=<原因> sha256=<每个 golden.br 解码后 GOLD 内容的
+  SHA-256 汇总>`。普通 `manifest` 与 `refreeze` 都保留这一字段，不会把它丢掉。
 
 ## 9. 导出时核对过什么
 

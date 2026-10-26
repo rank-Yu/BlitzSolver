@@ -79,9 +79,38 @@ D1 对每个根重放：
 D1 证明：冻结的 410 个 D1 输入在 BlitzSolver 上可逐字节重放，评分/下界/路线标签特征与捕获时一致。
 D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 
+### 4.1.1 D1 重录与保真检查
+
+语义修正后旧 D1 录制本身会变成旧行为，需要 Blitz 自己重录。命令：
+
+```bash
+# 1. 在未改语义的代码上证明工具可复现旧录制：全部 410 个根逐字节相同
+dotnet run --project tests/Golden -c Release --no-build -- \
+  rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-fidelity \
+  --roots .local/tool-tasks/blitz/rerecord-roots-all.txt --jobs 6
+diff -r tests/Golden/data/d1 .local/tool-tasks/blitz/rerecord-fidelity/d1
+
+# 2. 语义修正后只重录失配可归因的根
+dotnet run --project tests/Golden -c Release --no-build -- \
+  rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-d1 \
+  --roots .local/tool-tasks/blitz/rerecord-roots.txt --jobs 6
+dotnet run --project tests/Golden -c Release --no-build -- \
+  verify .local/tool-tasks/blitz/rerecord-d1 --only d1 --jobs 6
+```
+
+第一项是阶段 C 的门槛：`rerecord` 解出旧记录，保留根状态、`config.br` 与 `meta.json` 的
+输入映射/规则哈希，用 M0 的种子与游走策略重算 K1/K2 与三个派生哈希，再以
+`CompressionLevel.SmallestSize` 写回。未改语义时 410 个根的 `golden.br` 必须逐字节相同；
+计数不变时 `meta.json` 不重写，因此也逐字节相同。若字节不同但解码后字段相同，报告必须
+说明压缩层原因。该检查不过，不做语义修正后的重录。
+
+第二项只对 `verify` 报出的失配根重录，其他根保持原样。每个根输出一行变化摘要：第一个
+失配位置（K1 下标或 seed/状态下标）、该步动作与卡牌/药水原生 id、变化的 K1 数、游走状态
+数与游走长度。摘要与归因表写进任务报告。重录后的清单写入 `provenance.d1Rerecord`。
+
 ### 4.2 D2
 
-`tests/Golden/data` 的 D2 期望结果已在 M3b 合并时按正式默认 `all-fill`（完全等价出牌 + 类优先补位选牌）用 `refreeze` 重算，清单带 `provenance.refreeze`；D1 没有变。默认 `verify` 对仓库数据严格通过。之后再有会改变搜索结果的改动，先按 4.3 运行 `compare`，经用户同意后在副本上 `refreeze`，再替换仓库数据；不要手改数据。
+`tests/Golden/data` 的 D2 期望结果已在 M3b 合并时按正式默认 `all-fill`（完全等价出牌 + 类优先补位选牌）用 `refreeze` 重算，清单带 `provenance.refreeze`；M3b 时 D1 没有变。之后再有会改变搜索结果的改动，先按 4.3 运行 `compare`，经用户同意后在副本上 `refreeze`，再替换仓库数据；不要手改数据。M2c 的语义修正另按 4.1.1 重录失配 D1 根，再按 4.3 在重录副本上 `refreeze`。
 
 D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
@@ -169,7 +198,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
   verify .local/tool-tasks/blitz/refreeze-data-fill --jobs 6
 ```
 
-`refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。普通 `manifest` 命令目前不写这个字段，在重冻后的仓库数据上重写清单会丢掉它；改为保留已有字段之前，不要对仓库数据单独运行 `manifest`。
+`refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。普通 `manifest` 现在保留已有的 `provenance.refreeze` 与 `provenance.d1Rerecord`；在重冻或重录后的数据上重写清单应逐字节不变。
 
 本次副本演示输出：
 

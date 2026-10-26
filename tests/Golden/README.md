@@ -12,6 +12,8 @@ dotnet run --project tests/Golden -c Release -- verify tests/Golden/data --only 
 dotnet run --project tests/Golden -c Release -- compare tests/Golden/data --jobs 6 --config all --shard 0/4
 dotnet run --project tests/Golden -c Release -- refreeze tests/Golden/data /tmp/blitz-refreeze --jobs 6
 dotnet run --project tests/Golden -c Release -- verify /tmp/blitz-refreeze --jobs 6
+dotnet run --project tests/Golden -c Release -- rerecord tests/Golden/data /tmp/blitz-rerecord --roots .local/rerecord-roots.txt --jobs 6
+dotnet run --project tests/Golden -c Release -- verify /tmp/blitz-rerecord --only d1 --jobs 6
 ```
 
 > `tests/Golden/data` 的 D2 期望结果已按 M3b 默认搜索重冻；之后改变搜索结果的改动先用 `compare` 做只报告对照，经用户同意后再 `refreeze`。
@@ -22,9 +24,10 @@ dotnet run --project tests/Golden -c Release -- verify /tmp/blitz-refreeze --job
   字节数与 SHA-256、`totalBytes`，以及 D1/D2 计数），再分别校验 D1 与 D2。
 - `compare`：只对照、不判失败。`--config none|play|choice|all|choice-fill|all-fill` 选择去重组合，正式默认是 `all-fill`；按求解器自己的终局比较键输出更好/相同/更差、展开/转移与耗时；`--out` 写逐请求 CSV，`--shard i/n` 使用与 `verify` 相同的权重分片，`--verify` 打开等价自检。默认严格 `verify` 不受影响。
 - `refreeze`：把源数据复制到目标目录，用当前代码重算全部 D2 结果，合并 replay-report 并重写 manifest，写入 `provenance.refreeze`。源目录只读；只在副本上演示或经用户同意后替换冻结数据。
+- `rerecord`：把源数据复制到目标目录，只重录 `--roots` 列出的 D1 根。根状态、`config.br` 与 `meta.json` 的输入映射/规则哈希不变；K1/K2、派生哈希与计数用 M0 的种子和游走策略重算，清单写入 `provenance.d1Rerecord`。未改语义时 410 个根逐字节相同。
 - `manifest`：确定性地重写 `manifest.json`。文件按路径排序，逐文件记录大小与 SHA-256，
-  沿用 D1/D2 计数字段，并认识 `d1/<root>/config.br`；未知文件、孤儿规则对象或缺失的
-  D1 根文件都会显式失败。
+  沿用 D1/D2 计数字段，并认识 `d1/<root>/config.br`；保留已有的 `provenance.refreeze` 与
+  `provenance.d1Rerecord`。未知文件、孤儿规则对象或缺失的 D1 根文件都会显式失败。
 - 成功时最后一行是 `GOLDEN_VERIFY ... mismatched=0`；解码或一致性失败输出 `GOLDEN_INVALID <原因>`，非预期异常输出 `GOLDEN_FAILED <类型>: <消息>`，并以非零退出。
 - `--jobs N`：并行度，默认处理器数。
 - `--only d1|d2`：只跑一侧。

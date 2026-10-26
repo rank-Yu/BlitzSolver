@@ -20,6 +20,13 @@ internal static class ManifestProvenance
     /// verifier's expected constants for the frozen data directory.
     /// </summary>
     internal static string? Refreeze { get; set; }
+
+    /// <summary>
+    /// Set only by the rerecord command for the manifest it writes: the re-recorded root names, the
+    /// reason and a content hash of the new <c>golden.br</c> bytes. Like <see cref="Refreeze"/> it is
+    /// carried through ordinary manifest rewrites instead of being dropped.
+    /// </summary>
+    internal static string? D1Rerecord { get; set; }
 }
 
 internal static class ManifestBuilder
@@ -175,9 +182,11 @@ internal static class ManifestBuilder
             throw new InvalidDataException($"manifest 缺少 D1 引用的规则对象：{string.Join(",", missingRules)}");
 
         long totalBytes = entries.Sum(static entry => entry.Bytes);
+        (string? existingRefreeze, string? existingRerecord) = ReadProvenance(
+            Path.Combine(rootDirectory, "manifest.json"));
         byte[] manifestBytes = WriteJson(d1Directories.Length, d1Roots, d1K1, d1Walks, d1WalkStates,
             d1Transitions, captured, unique, expectedHashes.Count, comparable, equal, mismatch,
-            timeAffected, totalBytes, entries);
+            timeAffected, totalBytes, entries, existingRefreeze, existingRerecord);
         string manifestPath = Path.Combine(rootDirectory, "manifest.json");
         string temporary = manifestPath + ".tmp";
         File.WriteAllBytes(temporary, manifestBytes);
@@ -188,9 +197,26 @@ internal static class ManifestBuilder
             + $"d2Requests={requestHashes.Count} d2Expected={expectedHashes.Count}");
     }
 
+    private static (string? Refreeze, string? D1Rerecord) ReadProvenance(string manifestPath)
+    {
+        if (!File.Exists(manifestPath))
+            return (null, null);
+        using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        if (!manifest.RootElement.TryGetProperty("provenance", out JsonElement provenance))
+            return (null, null);
+        return (
+            provenance.TryGetProperty("refreeze", out JsonElement refreeze)
+                ? refreeze.GetString()
+                : null,
+            provenance.TryGetProperty("d1Rerecord", out JsonElement rerecord)
+                ? rerecord.GetString()
+                : null);
+    }
+
     private static byte[] WriteJson(int d1Files, int d1Roots, int d1K1, int d1Walks,
         int d1WalkStates, int d1Transitions, int captured, int unique, int expected, int comparable,
-        int equal, int mismatch, int timeAffected, long totalBytes, List<FileEntry> entries)
+        int equal, int mismatch, int timeAffected, long totalBytes, List<FileEntry> entries,
+        string? existingRefreeze, string? existingRerecord)
     {
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions { Indented = true }))
@@ -203,8 +229,12 @@ internal static class ManifestBuilder
             writer.WriteString("d2", ManifestProvenance.D2);
             writer.WriteString("d1Config", ManifestProvenance.D1Config);
             writer.WriteString("formatMigration", ManifestProvenance.FormatMigration);
-            if (ManifestProvenance.Refreeze is { } refreeze)
+            string? refreeze = ManifestProvenance.Refreeze ?? existingRefreeze;
+            if (refreeze != null)
                 writer.WriteString("refreeze", refreeze);
+            string? rerecord = ManifestProvenance.D1Rerecord ?? existingRerecord;
+            if (rerecord != null)
+                writer.WriteString("d1Rerecord", rerecord);
             writer.WriteEndObject();
             writer.WriteString("compression", "brotli");
             writer.WriteStartObject("counts");

@@ -30,6 +30,8 @@ try
             return CompareCommand.Run(args[1..]);
         case "refreeze":
             return RefreezeCommand.Run(args[1..]);
+        case "rerecord":
+            return RerecordCommand.Run(args[1..]);
         case "manifest":
             return ManifestCommand.Run(args[1..]);
         default:
@@ -59,6 +61,7 @@ static void PrintUsage()
         + "compare <data-dir> [--jobs N] [--config none|play|choice|all|choice-fill|all-fill] "
         + "[--out csv] [--shard i/n] "
         + "[--only hash-prefix] [--verify] | refreeze <source-dir> <target-dir> [--jobs N] | "
+        + "rerecord <source-dir> <target-dir> --roots <file> [--jobs N] [--reason text] | "
         + "manifest <data-dir> | k0");
 
 internal static class VerifyCommand

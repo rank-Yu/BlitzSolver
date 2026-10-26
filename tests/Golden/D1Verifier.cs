@@ -278,33 +278,40 @@ internal static class D1Verifier
         int actionCount, Scorer scorer, BoundFeatures? bound, ulong scoreHash,
         byte boundStatus, ulong boundHash)
     {
-        ScoreFeatures features = scorer.Features(battle, actionCount);
-        ulong actualScore = GoldenHash.Score(features);
+        (ScoreFeatures features, ulong actualScore, byte actualStatus, ulong actualBound) =
+            ComputeFeatures(battle, actionCount, scorer, bound);
         if (actualScore != scoreHash)
             throw Mismatch(rootName, $"{where} scoreHash expected={scoreHash:X16} actual={actualScore:X16}");
-
-        byte actualStatus;
-        ulong actualBound = 0;
-        if (bound is null)
-        {
-            actualStatus = 0;
-        }
-        else if (!bound.Enabled)
-        {
-            actualStatus = 2;
-        }
-        else
-        {
-            actualStatus = 1;
-            BoundValues values = bound.Evaluate(battle, features.ExplicitPotionStrategicCost,
-                includeSmartPotionLowerBound: true);
-            actualBound = GoldenHash.Bound(values);
-        }
         if (actualStatus != boundStatus)
             throw Mismatch(rootName, $"{where} boundStatus expected={boundStatus} actual={actualStatus}");
         if (actualBound != boundHash)
             throw Mismatch(rootName, $"{where} boundHash expected={boundHash:X16} actual={actualBound:X16}");
         return features;
+    }
+
+    /// <summary>The K4 state hash inputs shared by the verifier and the D1 re-recorder.</summary>
+    internal static (ScoreFeatures Features, ulong ScoreHash, byte BoundStatus, ulong BoundHash)
+        ComputeFeatures(in Battle battle, int actionCount, Scorer scorer, BoundFeatures? bound)
+    {
+        ScoreFeatures features = scorer.Features(battle, actionCount);
+        byte boundStatus;
+        ulong boundHash = 0;
+        if (bound is null)
+        {
+            boundStatus = 0;
+        }
+        else if (!bound.Enabled)
+        {
+            boundStatus = 2;
+        }
+        else
+        {
+            boundStatus = 1;
+            BoundValues values = bound.Evaluate(battle, features.ExplicitPotionStrategicCost,
+                includeSmartPotionLowerBound: true);
+            boundHash = GoldenHash.Bound(values);
+        }
+        return (features, GoldenHash.Score(features), boundStatus, boundHash);
     }
 
     private static void CheckTrait(string rootName, string where, in Battle beforeBattle,
@@ -317,16 +324,29 @@ internal static class D1Verifier
                 throw Mismatch(rootName, $"{where} trait hash present=false expected={expected:X16}");
             return;
         }
+        (bool actualPresent, ulong actual) = ComputeTrait(beforeBattle, before, after, child, action,
+            rules, historyRisk);
+        if (!actualPresent || actual != expected)
+            throw Mismatch(rootName, $"{where} traitHash expected={expected:X16} actual={actual:X16}");
+    }
+
+    /// <summary>
+    /// K4 route-trait hash for one completed transition. The frozen data records a trait for every
+    /// K1 completion and every K2 step, including the killing step; only a walk state without a step
+    /// (terminal or boundary) has no trait.
+    /// </summary>
+    internal static (bool Present, ulong Hash) ComputeTrait(in Battle beforeBattle,
+        in ScoreFeatures before, in ScoreFeatures after, in Battle child, in PlayerAction action,
+        Rules rules, bool historyRisk)
+    {
         bool pure = BeamSolver.IsPureTransitionForTesting(beforeBattle, child, action, rules, historyRisk);
         bool declined = BeamSolver.DeclinedExtraTurn(beforeBattle);
         SearchRouteTraits traits = BeamSolver.ClassifyRouteTraitsForTesting(before, after, action, declined, !pure);
         BeamSolver.PocketwatchState(child, rules, out int threshold, out int played);
-        ulong actual = GoldenHash.Trait(traits, pure, declined, threshold, played);
-        if (actual != expected)
-            throw Mismatch(rootName, $"{where} traitHash expected={expected:X16} actual={actual:X16}");
+        return (true, GoldenHash.Trait(traits, pure, declined, threshold, played));
     }
 
-    private static Rules LoadRules(string dataDirectory, string hash)
+    internal static Rules LoadRules(string dataDirectory, string hash)
         => RulesCache.GetOrAdd(hash, key =>
         {
             string path = Path.Combine(dataDirectory, "objects", "rules", key + ".br");
@@ -339,7 +359,7 @@ internal static class D1Verifier
             return RulesCodec.Decode(bytes);
         });
 
-    private static SearchCase LoadConfig(string directory, string rootName, string rulesHash)
+    internal static SearchCase LoadConfig(string directory, string rootName, string rulesHash)
     {
         string path = Path.Combine(directory, "config.br");
         if (!File.Exists(path))

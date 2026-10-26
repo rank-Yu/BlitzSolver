@@ -46,7 +46,7 @@ internal static class RefreezeCommand
         if (Directory.Exists(target) && Directory.EnumerateFileSystemEntries(target).Any())
             throw new InvalidDataException($"目标目录已存在且非空：{target}");
 
-        CopyDirectory(source, target);
+        GoldenFiles.CopyDirectory(source, target);
         int captured = ReadCapturedCalls(source);
         string requestDirectory = Path.Combine(target, "d2", "requests");
         string expectedDirectory = Path.Combine(target, "d2", "expected");
@@ -132,18 +132,4 @@ internal static class RefreezeCommand
         return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
 
-    private static void CopyDirectory(string source, string target)
-    {
-        string sourcePrefix = source + Path.DirectorySeparatorChar;
-        Directory.CreateDirectory(target);
-        foreach (string path in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-        {
-            string relative = path[sourcePrefix.Length..];
-            string destination = Path.Combine(target, relative);
-            string? directory = Path.GetDirectoryName(destination);
-            if (directory != null)
-                Directory.CreateDirectory(directory);
-            File.Copy(path, destination, overwrite: false);
-        }
-    }
 }
