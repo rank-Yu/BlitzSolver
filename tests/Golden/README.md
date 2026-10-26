@@ -14,7 +14,7 @@ dotnet run --project tests/Golden -c Release -- refreeze tests/Golden/data /tmp/
 dotnet run --project tests/Golden -c Release -- verify /tmp/blitz-refreeze --jobs 6
 ```
 
-> M3b 后 `tests/Golden/data` 的 D2 会按预期失配；严格 D2 请用 `refreeze` 副本，或用 `compare` 做只报告对照。
+> `tests/Golden/data` 的 D2 期望结果已按 M3b 默认搜索重冻；之后改变搜索结果的改动先用 `compare` 做只报告对照，经用户同意后再 `refreeze`。
 
 - `k0`：运行 `RulesCodecContract`，检查 `Rules` 每个构造字段都进入编码字节、五个魔数的 ASCII 标签、`formatVersion=2` 与 `BATL` 旧魔数/version 1 的显式拒绝，并打印
   字段数与 `Unsafe.SizeOf<Battle>()`。
@@ -47,8 +47,7 @@ Core 重算；配置缺失时显式失败。`config.br` 已纳入 `manifest.json
 
 D2 读取 `d2/requests/*.request.br`（`SREQ`），把软时间预算改成 `TimeSpan.MaxValue` 后重新求解，再与
 `d2/expected/*.result.br`（`SRES`）逐字段比较路线、TopRoutes、分数（double 位模式）、展开/转移/去重计数、
-容量丢弃、终态压缩、药水审计、侦察层与接管动作。M3b 之前 1,983 个请求全部相等；M3b
-改变选择枚举与出牌去重后，原冻结数据的 D2 会按预期失配，改用 `compare`，在 `refreeze` 副本上
-再跑严格 `verify`。
+容量丢弃、终态压缩、药水审计、侦察层与接管动作。当前 1,983 个请求全部相等；期望结果在 M3b
+合并时用 `refreeze` 重算过。
 
 数据格式、计数和 Search 外部类型清单见 `.local/tool-tasks/blitz/M0-report.md`。

@@ -81,7 +81,7 @@ D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 
 ### 4.2 D2
 
-当前仓库存放的 `tests/Golden/data` 是 M3b 之前的冻结数据。M3b 正式默认是 `all-fill`（完全等价出牌 + 类优先补位选牌）；它会改变 `Transitions`/`Duplicates`，部分 D2 路线也会变，因此默认 `verify` 对这份数据的 D2 会以 `GOLDEN_INVALID ... ExpandedNodes expected=... actual=...` 显式失败；D1 仍 0 不一致。这是预期失配，不是崩溃，也不要手改数据。严格复跑前先按 4.3 运行 `compare`，需要冻结时只在临时副本上 `refreeze`。
+`tests/Golden/data` 的 D2 期望结果已在 M3b 合并时按正式默认 `all-fill`（完全等价出牌 + 类优先补位选牌）用 `refreeze` 重算，清单带 `provenance.refreeze`；D1 没有变。默认 `verify` 对仓库数据严格通过。之后再有会改变搜索结果的改动，先按 4.3 运行 `compare`，经用户同意后在副本上 `refreeze`，再替换仓库数据；不要手改数据。
 
 D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
@@ -94,7 +94,7 @@ D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
 `D2_OK` 还输出 `playDeduped`、`playVerifiedExact/Approx`、`choiceByClassRequests`、`choiceVerifiedExact/Approx` 与未决计数；关闭校验开关时 `*Verified*` 项为 0，打开后的实测见 4.4。
 
-D2 证明（在 expected 与当前代码一致的副本上）：1,983 个请求在去软时间预算后可复现完整搜索结果。
+D2 证明：1,983 个请求在去软时间预算后可复现完整搜索结果。
 D2 不证明：请求集合之外的根、实机运行、界面与部署行为。
 
 完整 `verify` 的最后一行是 `GOLDEN_VERIFY ... mismatched=0`。解码失败或字段不一致输出 `GOLDEN_INVALID <原因>`，非预期异常输出 `GOLDEN_FAILED <类型>: <消息>`，两者都以非零退出。
@@ -169,7 +169,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
   verify .local/tool-tasks/blitz/refreeze-data-fill --jobs 6
 ```
 
-`refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。正常 `manifest` 命令不写这个字段，因此原冻结数据的清单不变。
+`refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。普通 `manifest` 命令目前不写这个字段，在重冻后的仓库数据上重写清单会丢掉它；改为保留已有字段之前，不要对仓库数据单独运行 `manifest`。
 
 本次副本演示输出：
 
@@ -180,7 +180,7 @@ REFREEZE_OK source=.../tests/Golden/data target=.../.local/tool-tasks/blitz/refr
 MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
 ```
 
-副本上严格 `verify` 通过：D1 0 不一致；D2 `selected=1983 equal=1983 mismatch=0 expanded=15568469`，wall 122.3s（jobs 6）。是否把副本替换为仓库的 `tests/Golden/data` 由协调者在用户同意后执行。
+副本上严格 `verify` 通过：D1 0 不一致；D2 `selected=1983 equal=1983 mismatch=0 expanded=15568469`，wall 122.3s（jobs 6）。用户同意后，M3b 合并到 main 时在合并后的代码上对 `tests/Golden/data` 重跑同一命令，结果集 SHA-256 与副本相同（`682e89f0…`），随后替换仓库数据；替换后严格 `verify` 为 D1 0 不一致、D2 1983/1983，等价开关下的计数与 4.4 相同。
 
 ### 4.4 搜索等价自检（`Exec` 覆盖合同 + 原地投影）
 
