@@ -31,4 +31,16 @@ internal sealed class BfwsBoundedOpen<T>(int capacity)
     }
 
     public void Clear() => _entries.Clear();
+
+    /// <summary>
+    /// Rewrites the stored values while preserving every priority, so a route-node index cleanup does
+    /// not change the open-queue order.
+    /// </summary>
+    public void Remap(Func<T, T> map)
+    {
+        Entry[] entries = [.. _entries];
+        _entries.Clear();
+        foreach (Entry entry in entries)
+            _entries.Add(new Entry(map(entry.Value), entry.Priority));
+    }
 }

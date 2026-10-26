@@ -78,7 +78,8 @@ internal static class SearchRequestCompiler
         SearchPolicy policy,
         EvaluationRootFacts facts,
         SearchPerformanceProfile profile,
-        bool deterministic)
+        bool deterministic,
+        long searchMemoryBudgetBytes = 0)
     {
         if (profile.BeamWidth <= 0)
             throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
@@ -127,6 +128,7 @@ internal static class SearchRequestCompiler
             InitialSearchTurn = root.PlayerTurn,
             SecondRankBandWidth = profile.BeamWidth,
             PreserveReplayAllocatorOpening = HasUnusedCardReplayAllocator(player),
+            SearchMemoryBudgetBytes = searchMemoryBudgetBytes,
         };
         return new SearchCase(rules, [root], options);
     }

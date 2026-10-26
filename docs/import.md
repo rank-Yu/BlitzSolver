@@ -291,6 +291,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 | 字段 | 来源 |
 | --- | --- |
 | `BeamWidth` / `MaxExpandedNodes` / `SoftTimeBudget` | `SearchPerformanceProfile.For(tier)`；确定性测试把软时间改为 `TimeSpan.MaxValue` |
+| `SearchMemoryBudgetBytes` | `CompileRequest` 的可选 `searchMemoryBudgetBytes` 参数；宿主给数字（Mod 取物理内存总量或容器限制的 15%、离线 0.15 × 16 GiB），不进入 `SREQ` |
 | `MaxTurns` | 64 |
 | `InitialPlayerMaxHp` | `Battle.Player.MaxHp` |
 | `Scorer` / `Bound` | `EvaluationConfigCompiler.CompileScorer` / `CompileBound` |

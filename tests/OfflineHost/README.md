@@ -197,13 +197,21 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 # 单根；加宽/节点上限覆盖
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --offline-combat --root quality-DEFECT-000 \
-  --beam-width 480 --max-nodes 960000 --out .local/offline-combat/one
+  --beam-width 128 --max-nodes 256000 --out .local/offline-combat/one
+
+# 搜索内存预算覆盖（MiB）；默认是 0.15 × 16 GiB = 2,576,980,377 B
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --root quality-REGENT-013 \
+  --memory-budget-mb 64 --out .local/offline-combat/b64
 ```
 
 `--search-tier` 默认 `Medium`；`--beam-width` 只给宽度时按默认宽度与节点上限的比例放大节点
 上限。每个根写 `<out>/<root>/full-combat.json`，父进程写 `<out>/summary.json`。搜索使用
-确定性选项（去软时间，只受节点上限约束）；每次搜索另记托管堆/工作集峰值。逐场与实机比较
-的口径见 [`docs/testing.md`](../../docs/testing.md) 6.7 节。
+确定性选项（去软时间，只受节点上限约束）；每次搜索另记托管堆/工作集峰值、逻辑内存账本、
+节点存储字节、预算触发与池容量丢弃。子进程默认先做一次 50,000 节点热身（不计时；
+`BLITZ_OFFLINE_WARMUP_NODES` 可改，0 关闭），`BLITZ_STORAGE_CHECK=1` 会在首个搜索上用
+同一 `SearchStorage` 连续解两次并打印逐字节比较与分配差。逐场与实机比较的口径见
+[`docs/testing.md`](../../docs/testing.md) 6.7 节，内存预算与计时见 6.8 节。
 
 ## 与参考转储对照
 

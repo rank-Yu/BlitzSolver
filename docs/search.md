@@ -62,3 +62,38 @@ Beam 在 `Battle` 上做按回合分层的 Beam 搜索，产出候选路线，�
 
   旧引擎按回合层分配节点预算的规则尚未移植。
 - **产出**：按旧引擎终局比较器（`FinalPlanOrdering.Select` 的排序键）选出一条路线：完整胜利、存活、死亡保护次数、战略失血（`ActEndingBossPolicy.StrategicHpDeficit`，含成长/遗物信用与战后遗物回复）、成长信用、成长收益数、结束回合、生命资源消耗、长期资源、愤怒复制数、政策边界原因、可选药水数、敌人 HP、分数、动作数。没有胜利路线时，预算耗尽时的回合起点状态与终局状态一起参与比较。偷窃恢复与政策边界原因键已移植，政策边界原因排在可选药水数之前，与常规相同。卖血键（`StrategicSold`）是请求已提交的卖血加路线的未来卖血；Beam 没有路线级未来卖血，同一请求内各路线的该键相同，因此不参与比较。
+
+## 搜索内存记账、节点清理与预算
+
+### 记账
+
+`BeamSolver` 的搜索自有分配统一记在 `SearchMemoryLedger`（`src/Core/Search/SearchMemory.cs`）里；记账单位是**逻辑块大小**（数组/分块长度 × 元素大小），不读 GC、进程内存或系统内存，因此同一请求在游戏与离线宿主上的搜索结果一致。`BeamOptions.SearchMemoryBudgetBytes == 0` 表示不限预算；解码旧 `SREQ`、D2 与直接构造的 `SearchCase` 都保持 0。
+
+已记账的分配：
+
+- 路线节点：每个字段一个 `ChunkedList<T>` 块（4,096 节点/块），单节点 126 B；路由上下文、承诺元数据和路由签名各自分块，路由签名字典按唯一签名计 64 B。
+- 局面池：状态块（`64 × sizeof(Battle)`）、全部平行元数据块、去重表、连续排序/选择数组、池内选择结构按 `maxCapacity × 128 B` 的固定上限，以及多目标标签（列表创建 256 B、每条 64 B）。4 个池仍各自受 `PoolStateBudgetBytes = 200 MiB` 状态上限约束，本批只把它们计入总预算，没有改这个上限。
+- 新颖度：packed novelty 按 `MaxNoveltyEntries × 32 B`、open 队列按 `MaxOpen × (sizeof(NoveltyOpenEntry) + 64 B)` 在创建时记账。
+- 终局候选：每条候选 32 B；侦察层只保存路线数组，按 `MaxTurns × 24` 个候选有界，未单独记账。
+
+未单独记账、但在上界内的分配：`BeamResult` 返回的路线数组、`ScoutLayer` 路线数组、容量丢弃计数字典与进度快照的临时数组。它们都随池容量、候选数或回合数有固定上界，不会随搜索深度无限增长。
+
+### 回合边界与快满清理
+
+`CompactRouteNodes` 只保留仍是某个存活状态祖先的节点。根集合是：4 个池的当前席位、当前最佳节点、TopRoutes 候选、接管候选、`_bestFeaturesNode`、药水审计候选、结束回合前缀节点、新颖度最佳/回退/open 队列节点。标记沿 `Parent` 向上走；新下标按旧下标升序分配，因此所有“下标小者优先”的平局比较（`CompareRoutes`、候选排序）保持原顺序。父指针、池席位、候选/接管/审计/前缀/新颖度字段全部经同一映射重写。
+
+触发点：每个回合边界（清空上一回合的 `next`/`ended` 之后）以及动作层开始前节点数超过阈值时。阈值由预算决定（约预算/256，夹在 65,536 与 2,000,000 之间）；不限预算时为 1,000,000。清理不丢弃仍在池里的状态；状态池行为不变。
+
+压缩同时清掉没有被存活节点引用的承诺元数据、路由上下文与路由签名，并重建签名 id 字典；存活签名的 id 按旧顺序重排，后续相同签名的去重仍与清理前一致。
+
+### 预算与超预算
+
+分配前先查账；会越过上限时抛 `SearchMemoryBudgetException`（不是 `CapacityException`，不会被单分支容量处理吞掉），搜索循环捕获后停止展开，按现有终局顺序返回当时最好的路线。若此时还没有可倒推的候选，`BudgetFallbackNode` 取 `current`/`ended`/`turnFrontier` 中已展开且排序值最高的状态作为路线起点，保证宿主拿到非空路线；节点上限的既有行为不变。
+
+`BeamResult` 带 `SearchMemoryBudgetExceeded`、`SearchMemoryExceededAtBytes`、`SearchMemoryUsedBytes`/`PeakBytes`、`RouteNodeStorageBytes`、`RouteNodeCount`/`PeakCount` 等诊断字段；这些字段不进入 `SREQ`/`SRES`，不改变 D2 数据。
+
+宿主负责给出字节数：Mod 用 `GC.GetGCMemoryInfo().TotalAvailableMemoryBytes` 的 15%，下限 1 GiB，无上限；环境变量 `BLITZ_SEARCH_MEMORY_MB`（MiB）可覆盖。离线工具固定按 0.15 × 16 GiB = 2,576,980,377 B，`--memory-budget-mb N`（MiB）可覆盖。系统内存压力保险本批未实现。
+
+### 可复用存储
+
+`BeamSolver.Solve(roots, storage, token)` 接收调用方持有的 `SearchStorage`。求解开始时 `BeginSolve` 清空账本触发标志并把上一次的分块/数组放回可租用列表；求解结束不释放这些块。下一次求解优先租用同样的块，只有更大的尺寸才追加分配。账本中的已用字节不因复用而回落，因此多轮加宽可以共用一份预算。只复用存储、不复用 `BeamSolver` 实例：`Scorer` 带有求解内状态，复用实例不属于本批合同。

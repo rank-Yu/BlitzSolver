@@ -187,9 +187,14 @@ internal sealed class FullCombatHost(
             $"[BlitzSolver] AUTO_SEARCH turn={turn} reason={reason} ms={result.ElapsedMilliseconds} " +
             $"expanded={result.ExpandedNodes} route={beam.BestRoute.Length} victory={beam.BestIsVictory} " +
             $"score={beam.BestScore}");
+        int poolDrops = beam.CapacityDroppedChildren.TryGetValue("Beam.Pool",
+            out int dropped) ? dropped : 0;
         return new FullCombatSearch(route, "ok", result.ElapsedMilliseconds, result.ExpandedNodes,
             beam.BestRoute.Length, beam.BestIsVictory, null, null, null,
-            result.ManagedHeapPeakBytes, result.WorkingSetPeakBytes);
+            result.ManagedHeapPeakBytes, result.WorkingSetPeakBytes, false,
+            beam.SearchMemoryBudgetExceeded, beam.SearchMemoryExceededAtBytes, poolDrops,
+            beam.SearchMemoryUsedBytes, beam.SearchMemoryPeakBytes,
+            beam.RouteNodeStorageBytes, beam.RouteNodePeakCount);
     }
 
     public ValueTask<FullCombatBoundary> CheckBoundaryAsync(ReplayedAction expected, int turn,

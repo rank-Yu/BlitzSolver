@@ -36,6 +36,10 @@ internal static class CompareCommand
         bool OldVictory,
         bool NewVictory,
         double Milliseconds,
+        long ManagedHeapPeak,
+        long SearchMemoryUsed,
+        long RouteNodeStorage,
+        int RouteNodePeak,
         SearchEquivalenceDiagnostics Equivalence);
 
     internal static int Run(string[] args)
@@ -51,6 +55,7 @@ internal static class CompareCommand
         string? output = null;
         string? only = null;
         bool verify = false;
+        bool measureMemory = false;
         int shard = 0, shards = 1;
         for (int index = 1; index < args.Length; index++)
         {
@@ -78,6 +83,9 @@ internal static class CompareCommand
                     break;
                 case "--verify":
                     verify = true;
+                    break;
+                case "--memory":
+                    measureMemory = true;
                     break;
                 default:
                     throw new InvalidDataException($"未知参数：{args[index]}");
@@ -128,7 +136,24 @@ internal static class CompareCommand
                 GoldenFiles.ReadCompressed(Path.Combine(expectedDirectory, hash + ".result.br")));
             BeamSolver solver = new(search.Rules, options);
             Stopwatch solveWatch = Stopwatch.StartNew();
-            BeamResult actual = solver.Solve(search.Battles, CancellationToken.None);
+            long managedPeak = 0;
+            BeamResult actual;
+            if (measureMemory)
+            {
+                Task<BeamResult> solve = Task.Run(
+                    () => solver.Solve(search.Battles, CancellationToken.None));
+                while (!solve.IsCompleted)
+                {
+                    SampleHeap(ref managedPeak);
+                    Thread.Sleep(2);
+                }
+                SampleHeap(ref managedPeak);
+                actual = solve.GetAwaiter().GetResult();
+            }
+            else
+            {
+                actual = solver.Solve(search.Battles, CancellationToken.None);
+            }
             solveWatch.Stop();
             Quality quality = Quality.Unknown;
             if (solver.TryCompareResultQuality(search.Battles, expected, actual, out int comparison))
@@ -140,7 +165,9 @@ internal static class CompareCommand
             rows.Add(new Row(hash, quality, RouteEquals(expected.BestRoute, actual.BestRoute),
                 expected.ExpandedNodes, actual.ExpandedNodes, expected.Transitions, actual.Transitions,
                 expected.BestScore, actual.BestScore, expected.BestIsVictory, actual.BestIsVictory,
-                solveWatch.Elapsed.TotalMilliseconds, actual.Equivalence));
+                solveWatch.Elapsed.TotalMilliseconds, managedPeak,
+                actual.SearchMemoryUsedBytes, actual.RouteNodeStorageBytes,
+                actual.RouteNodePeakCount, actual.Equivalence));
         });
         watch.Stop();
         Row[] ordered = [.. rows.OrderBy(static row => row.Hash, StringComparer.Ordinal)];
@@ -148,7 +175,8 @@ internal static class CompareCommand
         {
             using StreamWriter writer = new(output, false, new UTF8Encoding(false));
             writer.WriteLine("config,hash,quality,routeEqual,oldExpanded,newExpanded,oldTransitions,"
-                + "newTransitions,oldScore,newScore,oldVictory,newVictory,ms,playDeduped,"
+                + "newTransitions,oldScore,newScore,oldVictory,newVictory,ms,managedHeapPeak,"
+                + "searchMemoryUsed,routeNodeStorage,routeNodePeak,playDeduped,"
                 + "playVerifiedExact,playVerifiedApprox,playVerifiedApproxEqual,playVerifiedUnresolved,"
                 + "choiceByClassRequests,choiceVerifiedExact,choiceVerifiedApprox,"
                 + "choiceVerifiedApproxEqual,choiceVerifiedUnresolved");
@@ -167,6 +195,10 @@ internal static class CompareCommand
                     row.NewScore.ToString("R", CultureInfo.InvariantCulture),
                     row.OldVictory ? "1" : "0", row.NewVictory ? "1" : "0",
                     row.Milliseconds.ToString("F1", CultureInfo.InvariantCulture),
+                    row.ManagedHeapPeak.ToString(CultureInfo.InvariantCulture),
+                    row.SearchMemoryUsed.ToString(CultureInfo.InvariantCulture),
+                    row.RouteNodeStorage.ToString(CultureInfo.InvariantCulture),
+                    row.RouteNodePeak.ToString(CultureInfo.InvariantCulture),
                     e.PlayDeduped.ToString(CultureInfo.InvariantCulture),
                     e.PlayVerifiedExact.ToString(CultureInfo.InvariantCulture),
                     e.PlayVerifiedApprox.ToString(CultureInfo.InvariantCulture),
@@ -235,6 +267,13 @@ internal static class CompareCommand
                 return false;
         }
         return true;
+    }
+
+    private static void SampleHeap(ref long peak)
+    {
+        long current = GC.GetTotalMemory(forceFullCollection: false);
+        if (current > peak)
+            peak = current;
     }
 
     private static string Next(string[] args, ref int index, string name)

@@ -20,7 +20,13 @@ internal sealed record OfflineCombatSettings(
     string Corpora,
     string Output,
     SearchPerformanceTier Tier,
-    SearchPerformanceProfile Profile);
+    SearchPerformanceProfile Profile,
+    long MemoryBudgetBytes,
+    int WarmupNodes)
+{
+    /// <summary>0.15 x 16 GiB, the fixed machine size the offline comparison assumes.</summary>
+    internal static long DefaultMemoryBudgetBytes => (16L << 30) / 100 * 15 + (16L << 30) % 100 * 15 / 100;
+}
 
 internal sealed record OfflineCombatRootResult(
     string Root,
@@ -145,7 +151,8 @@ internal static class OfflineCombat
             tracker.Observe(opening);
             SearchPolicy policy = SearchPolicyOverrides.ApplyOverrides(
                 SearchPolicyCapture.Capture(combat, player), request, player);
-            OfflineHostCombat host = new(combat, player, rules, policy, settings.Profile, opening);
+            OfflineHostCombat host = new(combat, player, rules, policy, settings.Profile,
+                settings.MemoryBudgetBytes, settings.WarmupNodes, opening);
             FullCombatResult result = FullCombatDriver.RunAsync(host, root, CancellationToken.None)
                 .GetAwaiter().GetResult();
             long wallMs = stopwatch.ElapsedMilliseconds;
@@ -244,6 +251,8 @@ internal static class OfflineCombat
         start.ArgumentList.Add(settings.Profile.BeamWidth.ToString());
         start.ArgumentList.Add("--max-nodes");
         start.ArgumentList.Add(settings.Profile.MaxExpandedNodes.ToString());
+        start.ArgumentList.Add("--memory-budget-bytes");
+        start.ArgumentList.Add(settings.MemoryBudgetBytes.ToString());
         start.ArgumentList.Add("--jobs");
         start.ArgumentList.Add("1");
         using Process process = Process.Start(start)
@@ -284,6 +293,7 @@ internal static class OfflineCombat
             tier = settings.Tier.ToString(),
             beamWidth = settings.Profile.BeamWidth,
             maxExpandedNodes = settings.Profile.MaxExpandedNodes,
+            memoryBudgetBytes = settings.MemoryBudgetBytes,
             roots,
             failed,
             wallMs,
@@ -326,13 +336,54 @@ internal static class OfflineCombat
         Rules rules,
         SearchPolicy policy,
         SearchPerformanceProfile profile,
+        long MemoryBudgetBytes,
+        int WarmupNodes,
         Battle opening) : IFullCombatHost
     {
         private readonly List<string> _potionsUsed = [];
+        private bool _warmedUp;
+        private bool _storageChecked;
         private Battle _current = opening;
         private ReplayedAction? _lastAction;
         private readonly PostCombatRelicHealProfile _postCombatHeal =
             ScoreCompiler.CompilePostCombatRelicHeal(player);
+
+        /// <summary>
+        /// Runs one short solve with the same code paths before the measured solve. Each offline root
+        /// is a fresh process; this gives tiered JIT the call counts a warm game process already has.
+        /// </summary>
+        private void Warmup(SearchCase searchCase, CancellationToken token)
+        {
+            if (WarmupNodes <= 0)
+                return;
+            BeamOptions options = searchCase.Options with
+            {
+                BeamWidth = searchCase.Options.BeamWidth,
+                MaxExpandedNodes = WarmupNodes,
+                CandidateScanCount = 0,
+                SearchMemoryBudgetBytes = 0,
+                SoftTimeBudget = TimeSpan.MaxValue,
+                Pacer = null,
+                Progress = null,
+                PollTakeover = null,
+                Trace = null,
+            };
+            try
+            {
+                _ = new BeamSolver(searchCase.Rules, options)
+                    .Solve(searchCase.Battles, token);
+            }
+            catch (CapacityException)
+            {
+                // A warm-up is best effort; the measured solve reports its own outcome.
+            }
+            catch (UnsupportedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
 
         public ValueTask<FullCombatTurn?> WaitForTurnAsync(CancellationToken token)
         {
@@ -352,7 +403,7 @@ internal static class OfflineCombat
             {
                 searchCase = SearchRequestCompiler.CompileRequest(
                     combat, player, rules, _current, policy, EvaluationRootFacts.Default,
-                    profile, deterministic: true);
+                    profile, deterministic: true, MemoryBudgetBytes);
             }
             catch (UnsupportedImportException error)
             {
@@ -380,22 +431,60 @@ internal static class OfflineCombat
                     "request_invalid", error.Message));
             }
 
+            if (!_warmedUp)
+            {
+                _warmedUp = true;
+                Warmup(searchCase, token);
+            }
             Stopwatch elapsed = Stopwatch.StartNew();
             long managedPeak = 0;
             long workingSetPeak = 0;
-            BeamResult beam;
+            BeamResult beam = null!;
+            bool storageChecked = false;
+            if (!_storageChecked
+                && Environment.GetEnvironmentVariable("BLITZ_STORAGE_CHECK") == "1")
+            {
+                _storageChecked = true;
+                SearchStorage storage = new();
+                long gcStart = GC.GetAllocatedBytesForCurrentThread();
+                BeamResult first = new BeamSolver(searchCase.Rules, searchCase.Options)
+                    .Solve(searchCase.Battles, storage, token);
+                long firstBytes = storage.AllocatedBytes;
+                string regionsFirst = RegionDump(storage);
+                long gcFirst = GC.GetAllocatedBytesForCurrentThread();
+                BeamResult second = new BeamSolver(searchCase.Rules, searchCase.Options)
+                    .Solve(searchCase.Battles, storage, token);
+                long secondBytes = storage.AllocatedBytes;
+                string regionsSecond = RegionDump(storage);
+                long gcSecond = GC.GetAllocatedBytesForCurrentThread();
+                bool same = SearchCodec.EncodeResult(first)
+                    .AsSpan().SequenceEqual(SearchCodec.EncodeResult(second));
+                Console.WriteLine(
+                    $"STORAGE_CHECK same={same} firstBytes={firstBytes} " +
+                    $"secondBytes={secondBytes} secondDelta={secondBytes - firstBytes} " +
+                    $"nodesFirst={first.RouteNodePeakCount} nodesSecond={second.RouteNodePeakCount} " +
+                    $"gcFirst={gcFirst - gcStart} gcSecond={gcSecond - gcFirst} " +
+                    $"regionsFirst=[{regionsFirst}] regionsSecond=[{regionsSecond}]");
+                if (!same)
+                    throw new InvalidDataException("同一请求复用存储两次的结果不同。");
+                beam = first;
+                storageChecked = true;
+            }
             try
             {
-                Task<BeamResult> solve = Task.Run(() =>
-                    new BeamSolver(searchCase.Rules, searchCase.Options)
-                        .Solve(searchCase.Battles, token));
-                while (!solve.IsCompleted)
+                if (!storageChecked)
                 {
+                    Task<BeamResult> solve = Task.Run(() =>
+                        new BeamSolver(searchCase.Rules, searchCase.Options)
+                            .Solve(searchCase.Battles, token));
+                    while (!solve.IsCompleted)
+                    {
+                        SampleMemory(ref managedPeak, ref workingSetPeak);
+                        Thread.Sleep(2);
+                    }
                     SampleMemory(ref managedPeak, ref workingSetPeak);
-                    Thread.Sleep(2);
+                    beam = solve.GetAwaiter().GetResult();
                 }
-                SampleMemory(ref managedPeak, ref workingSetPeak);
-                beam = solve.GetAwaiter().GetResult();
             }
             catch (OperationCanceledException)
             {
@@ -473,10 +562,21 @@ internal static class OfflineCombat
                     beam.BestIsVictory, detail, "route_capacity", detail, managedPeak,
                     workingSetPeak));
             }
+            int poolDrops = beam.CapacityDroppedChildren.TryGetValue("Beam.Pool",
+                out int dropped) ? dropped : 0;
             return ValueTask.FromResult(new FullCombatSearch(route, "ok",
                 elapsed.ElapsedMilliseconds, beam.ExpandedNodes, beam.BestRoute.Length,
-                beam.BestIsVictory, null, null, null, managedPeak, workingSetPeak, SoftTimeRisk(elapsed)));
+                beam.BestIsVictory, null, null, null, managedPeak, workingSetPeak,
+                SoftTimeRisk(elapsed), beam.SearchMemoryBudgetExceeded,
+                beam.SearchMemoryExceededAtBytes, poolDrops,
+                beam.SearchMemoryUsedBytes, beam.SearchMemoryPeakBytes,
+                beam.RouteNodeStorageBytes, beam.RouteNodePeakCount));
         }
+
+        private static string RegionDump(SearchStorage storage)
+            => string.Join(',', storage.Memory.AllocatedByRegion
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => $"{pair.Key}:{pair.Value}"));
 
         public ValueTask<FullCombatBoundary> CheckBoundaryAsync(ReplayedAction expected, int turn,
             int index, CancellationToken token)

@@ -588,7 +588,47 @@ tools/testing/offline-combat-table.py \
 它按角色、幕与房间类型对照 CombatSolver 基线，并列出胜负不同的根与异常（非胜负结果、偏差、
 部署失败）。加宽档把 `--results` 换成对应 `--out` 即可复用同一张表。
 
-### 6.8 负例
+### 6.8 离线搜索内存与计时
+
+`--offline-combat` 的每次搜索都写内存诊断：`searchMemoryUsedBytes`、
+`searchMemoryPeakBytes`、`routeNodeStorageBytes`、`routeNodePeakCount`、
+`memoryBudgetExceeded`、`memoryExceededAtBytes` 与 `poolCapacityDropped`。这些是搜索账本
+的逻辑字节，不读 GC；`managedHeapPeakBytes` 才是进程托管堆采样，只用于报告。
+
+离线宿主的默认预算固定按 0.15 × 16 GiB = 2,576,980,377 B；`--memory-budget-mb N` 用 MiB
+覆盖。预算触发后搜索停止展开并返回当时最好的路线（没有候选时取已展开状态的排序领先者），
+因此整场仍能打完。两个小预算回归例子：
+
+```bash
+# 3 个根 × 64/128/256 MiB；同一预算跑两次，逐根比较确定性字段
+for mb in 64 128 256; do
+  dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+    --offline-combat --root quality-REGENT-013 --memory-budget-mb $mb \
+    --out .local/budget-test/b$mb
+done
+```
+
+离线子进程默认先做一次 50,000 节点的热身求解（同一根、同宽度、不计入 `elapsedMs`），
+让分层 JIT 在测得的搜索前达到游戏进程的热状态。环境变量
+`BLITZ_OFFLINE_WARMUP_NODES` 可改节点数，0 关闭；测内存对照时应设为 0，避免热身堆残留
+抬高 `managedHeapPeakBytes`。计时口径：同一个 120 根、默认 Medium、`--jobs 6`；对照
+`~/sts2/BlitzSolver/.local/q120c` 的 3 lane 无头游戏结果，只取旧离线 `w240` 中
+`elapsedMs >= 500` 的 117 次搜索，逐次算 `gameMs / offlineMs`，取中位数。
+
+同一请求复用存储可单独验证：
+
+```bash
+BLITZ_STORAGE_CHECK=1 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --offline-combat --root quality-REGENT-013 --out .local/storage-check
+# STORAGE_CHECK same=True firstBytes=... secondBytes=... secondDelta=...
+#   regionsFirst=[chunk:...,array:...] regionsSecond=[chunk:...,array:...]
+```
+
+`chunk`/`array` 两类在第二次求解不再增长，说明大块已从 `SearchStorage` 复用；第二次仍会
+为池选择结构、路由签名字典与标签列表分配小块。`--emit-live-requests` 与
+`run-headless.sh --cleanup-instance-on-exit` 的 28 根核对见第 7 节，不随本批改变。
+
+### 6.9 负例
 
 ```bash
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative

@@ -32,6 +32,7 @@ internal sealed record NoveltyOptions(
 internal sealed partial class BeamSolver
 {
     private readonly List<BfwsFact> _noveltyFacts = [];
+    private readonly List<(RouteKey Key, int Node)> _noveltyCandidateRoots = [];
     private BfwsPackedNovelty? _noveltyPacked;
     private BfwsBoundedOpen<NoveltyOpenEntry>? _noveltyOpen;
     private long _noveltySequence;
@@ -156,6 +157,9 @@ internal sealed partial class BeamSolver
             _rootPotions[slot] = slot < roots[0].PotionSlotCount ? roots[0].Potions[slot] : (ushort)0;
         _noveltyPacked = new BfwsPackedNovelty(noveltyOptions.Width, noveltyOptions.MaxNoveltyEntries);
         _noveltyOpen = new BfwsBoundedOpen<NoveltyOpenEntry>(noveltyOptions.MaxOpen);
+        _storage.Memory.Charge((long)noveltyOptions.MaxNoveltyEntries * 32, "novelty-packed");
+        _storage.Memory.Charge(
+            (long)noveltyOptions.MaxOpen * (Unsafe.SizeOf<NoveltyOpenEntry>() + 64), "novelty-open");
         _noveltyStop = "open_exhausted";
         _noveltyMaximumTurn = _initialPlayerTurn;
         _noveltySequence = 0;
@@ -177,9 +181,6 @@ internal sealed partial class BeamSolver
         _noveltyBestNode = 0;
         _noveltyBestVictory = false;
         _noveltyHasTerminal = false;
-        _nodes.Clear();
-        _commitments.Clear();
-        _routingSignatures.Clear();
         _routingSignatureIds.Clear();
         int width = Math.Max(1, _options.BeamWidth);
         int frontierCapacity = Math.Max(width, roots.Count);
@@ -199,11 +200,11 @@ internal sealed partial class BeamSolver
         Pool next = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, trace: null);
+            _options.PreserveReplayAllocatorOpening, trace: null, _storage);
         Pool ended = new(initialChildren, noveltyPoolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, trace: null);
+            _options.PreserveReplayAllocatorOpening, trace: null, _storage);
 
         void Terminal(in Battle state, int node, double score)
         {
@@ -222,7 +223,7 @@ internal sealed partial class BeamSolver
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
             _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
                 _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
-                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0));
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0, 0), 0);
             bool terminalRoot = !Kernel.IsInProgress(root);
             ObserveNoveltySeed(root, rootIndex, rootFeatures);
             if (terminalRoot)
@@ -239,6 +240,8 @@ internal sealed partial class BeamSolver
         if (_noveltyTargetReached)
             _noveltyStop = "hp_target";
         PublishProgress(0, 0, _noveltyOpen?.Count ?? 0, 0, "初始化", force: true, routeNode: -1);
+        try
+        {
         while (_noveltyOpen!.Count > 0 && !_noveltyTargetReached
             && _takeoverAction == TakeoverAction.None)
         {
@@ -304,11 +307,24 @@ internal sealed partial class BeamSolver
                 routeNode: NoveltyPreviewNode());
             if (TryHandleTakeover(ended))
                 break;
+            if (_nodes.Count >= _nodeCleanupThreshold)
+            {
+                int preview = -1;
+                CompactRouteNodes(_noveltyCandidateRoots, ref preview, null, next, ended, null);
+                _nodeCleanupThreshold = Math.Max(_nodeCleanupThreshold, _nodes.Count * 2);
+            }
             if (_noveltyPacked.LimitReached)
             {
                 _noveltyStop = "novelty_limit";
                 break;
             }
+        }
+        }
+        catch (SearchMemoryBudgetException error)
+        {
+            _memoryBudgetExceeded = true;
+            _memoryBudgetExceededAtBytes = error.UsedBytes;
+            _noveltyStop = "memory_budget";
         }
         PublishProgress(Math.Max(0, _noveltyMaximumTurn - _initialPlayerTurn), 0,
             _noveltyOpen?.Count ?? 0, 0, "复核最终候选", force: true,
@@ -366,6 +382,16 @@ internal sealed partial class BeamSolver
             FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
             MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
             Equivalence = EquivalenceDiagnostics(),
+            SearchMemoryUsedBytes = _storage.Memory.UsedBytes,
+            SearchMemoryPeakBytes = _storage.Memory.PeakBytes,
+            SearchMemoryLimitBytes = _storage.Memory.LimitBytes,
+            SearchMemoryBudgetExceeded = _memoryBudgetExceeded
+                || _storage.Memory.Exceeded,
+            SearchMemoryExceededAtBytes = _memoryBudgetExceeded
+                ? _memoryBudgetExceededAtBytes : _storage.Memory.ExceededAtBytes,
+            RouteNodeStorageBytes = _nodes.StorageBytes,
+            RouteNodeCount = _nodes.Count,
+            RouteNodePeakCount = _nodes.PeakCount,
         };
         return result;
 

@@ -364,7 +364,8 @@ internal static class TestSession
         SearchPerformanceTier tier = SearchPerformanceProfile.ParseTier(request.SearchTier);
         SearchCase searchCase = SearchRequestCompiler.CompileRequest(
             combat, player, rules, battle, policy, facts,
-            SearchPerformanceProfile.For(tier), request.DeterministicSearchForTest);
+            SearchPerformanceProfile.For(tier), request.DeterministicSearchForTest,
+            SearchMemoryBudget.Bytes);
         return new CapturedSearch(searchCase, request.DeterministicSearchForTest, tier);
     }
 

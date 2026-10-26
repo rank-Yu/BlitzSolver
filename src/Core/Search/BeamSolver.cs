@@ -19,6 +19,13 @@ internal sealed record BeamOptions(
     /// <summary>Number of final candidate routes retained for offline replay scanning (0 = off).</summary>
     public int CandidateScanCount { get; init; }
 
+    /// <summary>
+    /// Hard cap on search-owned logical bytes for this solve, or zero for no cap. The host supplies
+    /// one number (the Mod's 15%-of-available default or the offline host's 0.15 x 16 GiB); the request
+    /// codec does not encode it, so decoded legacy requests and D2 run unlimited.
+    /// </summary>
+    public long SearchMemoryBudgetBytes { get; init; }
+
     /// <summary>Which root potions may be used and what each use costs; disabled unless the caller sets it.</summary>
     public PotionPolicy Potions { get; init; } = PotionPolicy.Disabled;
 
@@ -356,6 +363,30 @@ internal sealed record BeamResult(
     /// <summary>Audited branches removed by the Smart exact-layer HP ceiling.</summary>
     public int SmartPotionPruned { get; init; }
 
+    /// <summary>Search-owned logical bytes charged to the reusable storage at the end of the solve.</summary>
+    public long SearchMemoryUsedBytes { get; init; }
+
+    /// <summary>Highest search-owned logical byte count observed during the solve.</summary>
+    public long SearchMemoryPeakBytes { get; init; }
+
+    /// <summary>Configured search-memory limit, or zero when unlimited.</summary>
+    public long SearchMemoryLimitBytes { get; init; }
+
+    /// <summary>True when an allocation was refused because it would cross the memory limit.</summary>
+    public bool SearchMemoryBudgetExceeded { get; init; }
+
+    /// <summary>Charged bytes at the first refused allocation; zero when not exceeded.</summary>
+    public long SearchMemoryExceededAtBytes { get; init; }
+
+    /// <summary>Bytes occupied by the route-node chunks (the largest search-owned growing store).</summary>
+    public long RouteNodeStorageBytes { get; init; }
+
+    /// <summary>Route nodes still retained after the last boundary cleanup.</summary>
+    public int RouteNodeCount { get; init; }
+
+    /// <summary>Highest route-node count observed during the solve, before boundary cleanup.</summary>
+    public int RouteNodePeakCount { get; init; }
+
     /// <summary>
     /// The selected route's plan payoff evidence count, including
     /// <see cref="BeamOptions.InitialPlanPayoffCount"/>. Zero when the request has no plan
@@ -485,11 +516,19 @@ internal sealed partial class BeamSolver
     /// </summary>
     private const int PoolStateBudgetBytes = 200 * 1024 * 1024;
 
+    /// <summary>Dictionary/bucket allowance charged once per unique routing signature.</summary>
+    private const int RoutingSignatureDictionaryBytes = 64;
+
     private readonly Rules _rules;
     private readonly BeamOptions _options;
     private readonly Scorer _scorer;
     private readonly RouteOrdering _ordering;
-    private readonly List<RouteNode> _nodes = new(4096);
+    private RouteNodeStore _nodes = null!;
+    private RoutingMetaStore _routingMetas = null!;
+    private SearchStorage _storage = null!;
+    private int _nodeCleanupThreshold = 1_000_000;
+    private readonly List<int> _compactRoots = [];
+    private readonly List<int> _auditKeysScratch = [];
 
     /// <summary>
     /// Routing-choice signatures accumulated on the route. They are node metadata only; no value here
@@ -517,7 +556,7 @@ internal sealed partial class BeamSolver
         int SignatureId, int Turn, int ChoiceDepth, int ParentRank, double ParentScore,
         int ParentEnergy);
 
-    private readonly List<RoutingSignature> _routingSignatures = new();
+    private ChunkedList<RoutingSignature> _routingSignatures = null!;
     private readonly Dictionary<RoutingSignature, int> _routingSignatureIds = new();
 
     /// <summary>
@@ -544,14 +583,15 @@ internal sealed partial class BeamSolver
         int RoutingParentRank,
         double RoutingParentScore,
         int RoutingParentEnergy,
-        int ParentTurn);
+        int ParentTurn,
+        int RoutingMetaId);
 
     /// <summary>
     /// Route-node power-commitment metadata (1-based node field; 0 means no commitment). The existing
     /// search holds <c>PowerCommitment</c> on <c>SearchNode</c>, not in the simulated state, so this list
     /// never enters <see cref="Battle"/>, the fingerprint or the state key.
     /// </summary>
-    private readonly List<PowerCommitmentState> _commitments = new(256);
+    private ChunkedList<PowerCommitmentState> _commitments = null!;
     private readonly PowerCommitmentCatalog? _powerCommitments;
     private readonly bool _aggressivePowerCommitment;
     private readonly bool _preserveReplayAllocatorOpening;
@@ -579,6 +619,8 @@ internal sealed partial class BeamSolver
     private int _expanded;
     private int _transitions;
     private int _duplicates;
+    private bool _memoryBudgetExceeded;
+    private long _memoryBudgetExceededAtBytes;
     private int _capacityPruned;
     private int _pruned;
     private int _smartPruned;
@@ -699,9 +741,27 @@ internal sealed partial class BeamSolver
     /// identifies which one the selected route started from.
     /// </summary>
     public BeamResult Solve(IReadOnlyList<Battle> roots, CancellationToken cancellationToken)
+        => Solve(roots, new SearchStorage(), cancellationToken);
+
+    /// <summary>
+    /// Solves with a caller-owned reusable storage. The storage is cleared first and its retained
+    /// chunks are rented again before new blocks are allocated; the ledger keeps counting the retained
+    /// blocks, so repeated rounds share one memory budget.
+    /// </summary>
+    public BeamResult Solve(IReadOnlyList<Battle> roots, SearchStorage storage,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(storage);
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
+        _storage = storage;
+        _storage.BeginSolve(_options.SearchMemoryBudgetBytes);
+        _routingMetas = new RoutingMetaStore(storage);
+        _routingMetas.Clear();
+        _nodes = new RouteNodeStore(storage, _routingMetas);
+        _routingSignatures = new ChunkedList<RoutingSignature>(storage);
+        _commitments = new ChunkedList<PowerCommitmentState>(storage);
+        _nodeCleanupThreshold = NodeCleanupThreshold(_options.SearchMemoryBudgetBytes);
         _singleRoot = roots.Count == 1;
         _verifySearchEquivalence = SearchVerificationHooks.VerifySearchEquivalence;
         Kernel.VerifyStableBoundaryInvariants = _verifySearchEquivalence;
@@ -723,6 +783,27 @@ internal sealed partial class BeamSolver
         _cancellationToken = cancellationToken;
         _solveWatch = watch;
         ResetProgressState();
+        _expanded = 0;
+        _transitions = 0;
+        _duplicates = 0;
+        _memoryBudgetExceeded = false;
+        _memoryBudgetExceededAtBytes = 0;
+        _bestPotionFree = null;
+        _auditBestByPotionCount = null;
+        _anyAuditedVictory = false;
+        _endTurnPrefixNode = -1;
+        _endTurnPrefixAttemptNode = -1;
+        _endTurnPrefixGeneration = -1;
+        _endTurnPrefixAttemptGeneration = -1;
+        _endTurnPrefixValid = false;
+        _endTurnPrefixShared = 0;
+        _endTurnPrefixUnshared = 0;
+        _endTurnPrefixVerified = 0;
+        _endTurnPrefixReusedLeaves = 0;
+        _endTurnPrefixChoiceUnshared = 0;
+        _endTurnPrefixExtraTurnUnshared = 0;
+        _endTurnPrefixNotInProgress = 0;
+        _scoutLayers.Clear();
         if (_options.Novelty is { } novelty)
             return SolveNovelty(roots, novelty, watch, cancellationToken);
         _hpTargetReached = false;
@@ -760,19 +841,19 @@ internal sealed partial class BeamSolver
         Pool current = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _storage);
         Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _storage);
         Pool ended = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _storage);
         Pool turnFrontier = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
-            _options.PreserveReplayAllocatorOpening, _options.Trace);
+            _options.PreserveReplayAllocatorOpening, _options.Trace, _storage);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -797,7 +878,10 @@ internal sealed partial class BeamSolver
         void ConsiderCandidate(in Battle state, int node, in ScoreFeatures features, in RouteKey key)
         {
             if (_options.CandidateScanCount > 0)
+            {
                 candidateRoutes.Add((key, node));
+                _storage.Memory.Charge(32, "candidate-routes");
+            }
             if (_auditPotionPolicy)
                 ConsiderAudited(node, features, key);
             else
@@ -835,9 +919,6 @@ internal sealed partial class BeamSolver
             }
         }
 
-        _nodes.Clear();
-        _commitments.Clear();
-        _routingSignatures.Clear();
         _routingSignatureIds.Clear();
         for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++)
         {
@@ -847,7 +928,7 @@ internal sealed partial class BeamSolver
                 Score(root, _options.InitialActionCount, terminal: false, isEndTurn: false);
             _nodes.Add(new RouteNode(-1, Math.Max(0, _options.InitialActionCount), default, 0, 0,
                 _options.InitialPlanPayoffCount, ushort.MaxValue, ushort.MaxValue, int.MinValue, 0,
-                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0));
+                0, int.MinValue, 0, 0, 0, int.MaxValue, 0d, 0, 0, 0), 0);
             (int rootReachable, int rootZeroCost, _) = _scorer.ReachableHandPotential(root);
             PocketwatchState(root, out int rootPocketwatchThreshold, out int rootPocketwatchPlayed,
                 out int rootPocketwatchLastTurn);
@@ -862,6 +943,8 @@ internal sealed partial class BeamSolver
         TerminalSink terminal = ConsiderTerminal;
         PublishProgress(0, 0, turnFrontier.Count, 0, "初始化", force: true, routeNode: -1);
         int turns = 0;
+        try
+        {
         while (turnFrontier.Count > 0 && turns < _options.MaxTurns && !OutOfBudget(watch)
             && !hpTargetReached && _takeoverAction == TakeoverAction.None
             && (_earlyTurnScoutDepth == 0 || turns < _earlyTurnScoutDepth))
@@ -870,11 +953,15 @@ internal sealed partial class BeamSolver
             if (TryHandleTakeover(turnFrontier))
                 break;
             turns++;
+            // The previous turn's end-turn pool is no longer a route consumer; clear it before the
+            // boundary mark-sweep so only states that can still win a seat are retained.
+            ended.Clear();
+            next.Clear();
+            CompactRouteNodes(candidateRoutes, ref bestNode, current, next, ended, turnFrontier);
             current.Clear();
             _tracePhase = "turn-frontier";
             turnFrontier.TracePhase = _tracePhase;
             turnFrontier.CopyTopTo(current, turns == 1 ? frontierCapacity : width);
-            ended.Clear();
             // Turn one is the existing search's searchedTurnLayers == 0.
             _expandFetchedPowers = _options.Act3BossStrategy && turns == 1;
             PublishProgressWithPreview(turns - 1, 0, current.Count, 0, "展开回合", force: true,
@@ -887,6 +974,11 @@ internal sealed partial class BeamSolver
                 if (TryHandleTakeover(current))
                     break;
                 next.Clear();
+                if (_nodes.Count >= _nodeCleanupThreshold)
+                {
+                    CompactRouteNodes(candidateRoutes, ref bestNode, current, next, ended, turnFrontier);
+                    _nodeCleanupThreshold = Math.Max(_nodeCleanupThreshold, _nodes.Count * 2);
+                }
                 for (int index = 0; index < current.Count && !OutOfBudget(watch) && !hpTargetReached; index++)
                 {
                     SearchCheckpoint();
@@ -949,6 +1041,12 @@ internal sealed partial class BeamSolver
                 break;
             if (zeroDamageVictory)
                 break;
+        }
+        }
+        catch (SearchMemoryBudgetException error)
+        {
+            _memoryBudgetExceeded = true;
+            _memoryBudgetExceededAtBytes = error.UsedBytes;
         }
         PublishProgressWithPreview(turns, 0, turnFrontier.Count, ended.Count, "复核最终候选",
             force: true, best is null ? -1 : bestNode, best, turnFrontier);
@@ -1017,6 +1115,16 @@ internal sealed partial class BeamSolver
                 FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
                 MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
                 Equivalence = EquivalenceDiagnostics(),
+            SearchMemoryUsedBytes = _storage.Memory.UsedBytes,
+            SearchMemoryPeakBytes = _storage.Memory.PeakBytes,
+            SearchMemoryLimitBytes = _storage.Memory.LimitBytes,
+            SearchMemoryBudgetExceeded = _memoryBudgetExceeded
+                || _storage.Memory.Exceeded,
+            SearchMemoryExceededAtBytes = _memoryBudgetExceeded
+                ? _memoryBudgetExceededAtBytes : _storage.Memory.ExceededAtBytes,
+            RouteNodeStorageBytes = _nodes.StorageBytes,
+            RouteNodeCount = _nodes.Count,
+            RouteNodePeakCount = _nodes.PeakCount,
             };
             return audited;
         }
@@ -1034,6 +1142,12 @@ internal sealed partial class BeamSolver
                     _scorer.Features(state, actionCount, includeRetentionOnly: false);
                 Consider(state, node, Key(state, features, actionCount), features);
             }
+        }
+        if (_memoryBudgetExceeded && Route(bestNode).Length == 0)
+        {
+            int fallback = BudgetFallbackNode(current, ended, turnFrontier);
+            if (fallback >= 0)
+                bestNode = fallback;
         }
         _trace?.Finish(TraceFinishReason(hpTargetReached, zeroDamageVictory, watch, turns),
             turns, _expanded);
@@ -1064,6 +1178,16 @@ internal sealed partial class BeamSolver
             FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
             MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
             Equivalence = EquivalenceDiagnostics(),
+            SearchMemoryUsedBytes = _storage.Memory.UsedBytes,
+            SearchMemoryPeakBytes = _storage.Memory.PeakBytes,
+            SearchMemoryLimitBytes = _storage.Memory.LimitBytes,
+            SearchMemoryBudgetExceeded = _memoryBudgetExceeded
+                || _storage.Memory.Exceeded,
+            SearchMemoryExceededAtBytes = _memoryBudgetExceeded
+                ? _memoryBudgetExceededAtBytes : _storage.Memory.ExceededAtBytes,
+            RouteNodeStorageBytes = _nodes.StorageBytes,
+            RouteNodeCount = _nodes.Count,
+            RouteNodePeakCount = _nodes.PeakCount,
         };
         return result;
     }
@@ -1903,30 +2027,38 @@ internal sealed partial class BeamSolver
             int payoffCount = NextPayoffCount(parentNode, parent, action, features, parentFacts, commitment);
             RouteNode parentRoute = _nodes[parentNode];
             int routingSignature = routingChoice?.SignatureId ?? 0;
-            int routingTurn, routingDepth, routingParentRank, routingParentEnergy;
-            double routingParentScore;
+            RoutingMeta routingMeta;
+            int routingMetaId;
             if (routingSignature != 0)
             {
-                routingTurn = routingChoice!.Value.Turn;
-                routingDepth = routingChoice.Value.ChoiceDepth;
-                routingParentRank = routingChoice.Value.ParentRank;
-                routingParentScore = routingChoice.Value.ParentScore;
-                routingParentEnergy = routingChoice.Value.ParentEnergy;
+                routingMeta = new RoutingMeta(routingSignature, routingChoice!.Value.Turn,
+                    routingChoice.Value.ChoiceDepth, routingChoice.Value.ParentRank,
+                    routingChoice.Value.ParentScore, routingChoice.Value.ParentEnergy);
+                routingMetaId = _routingMetas.Add(routingMeta);
             }
             else
             {
-                routingTurn = parentRoute.RoutingChoiceTurn;
-                routingDepth = parentRoute.RoutingChoiceDepth;
-                routingParentRank = parentRoute.RoutingParentRank;
-                routingParentScore = parentRoute.RoutingParentScore;
-                routingParentEnergy = parentRoute.RoutingParentEnergy;
+                RoutingMeta parentMeta = _routingMetas[parentRoute.RoutingMetaId];
+                if (parentMeta.SignatureId == 0)
+                {
+                    routingMeta = parentMeta;
+                    routingMetaId = parentRoute.RoutingMetaId;
+                }
+                else
+                {
+                    // Descendants keep the inherited context fields but the answered signature is no
+                    // longer current; one shared entry serves the rest of that route segment.
+                    routingMeta = parentMeta with { SignatureId = 0 };
+                    routingMetaId = _routingMetas.Add(routingMeta);
+                }
             }
             int actionCardId = action.Kind == PlayerActionKind.PlayCard && action.HandIndex < parent.HandCount
                 ? parent.Cards[action.HandIndex].Id : 0;
             _nodes.Add(new RouteNode(parentNode, depth, action, rootActionKey, lineage, payoffCount,
                 usedPotion, firstCardId, firstCardTarget, commitment, actionCardId,
-                TargetCombatId(parent, action), routingSignature, routingTurn, routingDepth,
-                routingParentRank, routingParentScore, routingParentEnergy, parentFacts.Turn));
+                TargetCombatId(parent, action), routingMeta.SignatureId, routingMeta.Turn,
+                routingMeta.ChoiceDepth, routingMeta.ParentRank, routingMeta.ParentScore,
+                routingMeta.ParentEnergy, parentFacts.Turn, routingMetaId), routingMetaId);
             if (traceStep > 0)
                 _trace!.NodeCreated(node, traceStep);
             if (_options.Novelty != null)
@@ -2165,6 +2297,9 @@ internal sealed partial class BeamSolver
             _routingSignatures.Add(signature);
             id = _routingSignatures.Count;
             _routingSignatureIds.Add(signature, id);
+            // The chunk itself is charged by ChunkedList; this covers the dictionary entry and its
+            // bucket headroom, the only signature allocation outside the chunk store.
+            _storage.Memory.Charge(RoutingSignatureDictionaryBytes, "routing-signature");
         }
         choice = new RoutingChoice(id, turn, _nodes[parentNode].Depth + 1, parentRank, parentScore,
             parentFacts.Energy);
@@ -2310,6 +2445,7 @@ internal sealed partial class BeamSolver
 
     private bool CommitmentBudgetAvailable()
         => _expanded < _options.MaxExpandedNodes
+            && !_memoryBudgetExceeded
             && !_hpTargetReached
             && (_solveWatch is not { } watch || watch.Elapsed < _options.SoftTimeBudget);
 
@@ -2411,7 +2547,8 @@ internal sealed partial class BeamSolver
             && left.AfflictionAmount == right.AfflictionAmount;
 
     private bool OutOfBudget(Stopwatch watch)
-        => _expanded >= _options.MaxExpandedNodes || watch.Elapsed >= _options.SoftTimeBudget;
+        => _memoryBudgetExceeded || _expanded >= _options.MaxExpandedNodes
+            || watch.Elapsed >= _options.SoftTimeBudget;
 
     private int Depth(int node) => _nodes[node].Depth;
 
@@ -3785,9 +3922,14 @@ internal sealed partial class BeamSolver
         public static int ChunkMask => ChunkSize - 1;
 
         private readonly T[]?[] _chunks;
+        private readonly SearchStorage? _storage;
 
-        public ChunkedArray(int maxCapacity)
-            => _chunks = new T[]?[(maxCapacity + ChunkSize - 1) >> Shift];
+        public ChunkedArray(int maxCapacity, SearchStorage? storage = null)
+        {
+            _storage = storage;
+            int chunks = (maxCapacity + ChunkSize - 1) >> Shift;
+            _chunks = storage?.RentArray<T[]?>(chunks) ?? new T[]?[chunks];
+        }
 
         public ref T this[int index]
         {
@@ -3799,7 +3941,8 @@ internal sealed partial class BeamSolver
             }
         }
 
-        private static T[] CreateChunk() => new T[ChunkSize];
+        private T[] CreateChunk()
+            => _storage?.RentChunk<T>(ChunkSize) ?? new T[ChunkSize];
 
         private static int ComputeShift()
         {
@@ -3873,9 +4016,10 @@ internal sealed partial class BeamSolver
         private readonly int _secondRankBandWidth;
         private readonly bool _aggressivePowerCommitment;
         private readonly bool _trackPowerCommitments;
-        private readonly List<PowerCommitmentState> _commitmentStates;
-        private readonly List<RouteNode> _routeNodes;
-        private readonly List<RoutingSignature> _routingSignatures;
+        private readonly ChunkedList<PowerCommitmentState> _commitmentStates;
+        private readonly RouteNodeStore _routeNodes;
+        private readonly ChunkedList<RoutingSignature> _routingSignatures;
+        private readonly SearchStorage _storage;
         private readonly bool _checkPotionQuota;
         private readonly int _initialActionCount;
         private readonly bool _preserveReplayAllocatorOpening;
@@ -3938,9 +4082,9 @@ internal sealed partial class BeamSolver
         public Pool(int initialCapacity, int maxCapacity, bool preserveTheft, Scorer scorer,
             PlanCommitment? planCommitment, bool secondRankBand, int secondRankBandWidth,
             bool aggressivePowerCommitment, PowerCommitmentCatalog? powerCommitments,
-            List<PowerCommitmentState> commitmentStates, List<RouteNode> routeNodes,
-            List<RoutingSignature> routingSignatures, bool checkPotionQuota, int initialActionCount,
-            bool preserveReplayAllocatorOpening, BeamTrace? trace)
+            ChunkedList<PowerCommitmentState> commitmentStates, RouteNodeStore routeNodes,
+            ChunkedList<RoutingSignature> routingSignatures, bool checkPotionQuota, int initialActionCount,
+            bool preserveReplayAllocatorOpening, BeamTrace? trace, SearchStorage storage)
         {
             _maxCapacity = maxCapacity;
             _preserveTheft = preserveTheft;
@@ -3954,34 +4098,48 @@ internal sealed partial class BeamSolver
             _commitmentStates = commitmentStates;
             _routeNodes = routeNodes;
             _routingSignatures = routingSignatures;
+            _storage = storage;
             _checkPotionQuota = checkPotionQuota;
             _initialActionCount = initialActionCount;
             _preserveReplayAllocatorOpening = preserveReplayAllocatorOpening;
             _trace = trace;
             _policyWidth = secondRankBandWidth > 0 ? secondRankBandWidth : maxCapacity;
-            _states = new ChunkedArray<Battle>(maxCapacity);
-            _labels = new ChunkedArray<List<PoolLabel>?>(maxCapacity);
-            _nodes = new ChunkedArray<int>(maxCapacity);
-            _lineages = new ChunkedArray<ulong>(maxCapacity);
-            _scores = new ChunkedArray<double>(maxCapacity);
-            _ranks = new ChunkedArray<double>(maxCapacity);
-            _hashes = new ChunkedArray<ulong>(maxCapacity);
-            _facts = new ChunkedArray<RetentionFacts>(maxCapacity);
-            _potionCosts = new ChunkedArray<int>(maxCapacity);
-            _pureRanks = new ChunkedArray<double>(maxCapacity);
-            _payoffs = new ChunkedArray<int>(maxCapacity);
-            _commitment = new ChunkedArray<int>(maxCapacity);
+            _states = new ChunkedArray<Battle>(maxCapacity, storage);
+            _labels = new ChunkedArray<List<PoolLabel>?>(maxCapacity, storage);
+            _nodes = new ChunkedArray<int>(maxCapacity, storage);
+            _lineages = new ChunkedArray<ulong>(maxCapacity, storage);
+            _scores = new ChunkedArray<double>(maxCapacity, storage);
+            _ranks = new ChunkedArray<double>(maxCapacity, storage);
+            _hashes = new ChunkedArray<ulong>(maxCapacity, storage);
+            _facts = new ChunkedArray<RetentionFacts>(maxCapacity, storage);
+            _potionCosts = new ChunkedArray<int>(maxCapacity, storage);
+            _pureRanks = new ChunkedArray<double>(maxCapacity, storage);
+            _payoffs = new ChunkedArray<int>(maxCapacity, storage);
+            _commitment = new ChunkedArray<int>(maxCapacity, storage);
             // The rank/selection scratch stays contiguous because Span.Sort needs a single span. It is
             // sized to the capacity bound once (three int arrays plus two flags, ~1 MB at width 512)
             // instead of being reallocated while the beam grows.
-            _order = new int[maxCapacity];
-            _rankOrder = new int[maxCapacity];
-            _rankPosition = new int[maxCapacity];
-            _taken = new bool[maxCapacity];
-            _required = new bool[maxCapacity];
-            _representative = new bool[maxCapacity];
-            _table = new int[TableSize(Math.Clamp(initialCapacity, 1, maxCapacity))];
+            _order = storage.RentArray<int>(maxCapacity);
+            _rankOrder = storage.RentArray<int>(maxCapacity);
+            _rankPosition = storage.RentArray<int>(maxCapacity);
+            _taken = storage.RentArray<bool>(maxCapacity);
+            _required = storage.RentArray<bool>(maxCapacity);
+            _representative = storage.RentArray<bool>(maxCapacity);
+            _table = storage.RentArray<int>(TableSize(Math.Clamp(initialCapacity, 1, maxCapacity)));
+            // Selection dictionaries, representative lists and the per-state multi-objective label
+            // lists grow with the seat count. They are bounded by maxCapacity entries; charge a
+            // conservative fixed allowance so the hard budget cannot be crossed by unmeasured growth.
+            storage.Memory.Charge((long)maxCapacity * PoolAuxiliaryBytesPerSeat, "pool-aux");
         }
+
+        /// <summary>Upper bound per seat for the pool's small selection structures.</summary>
+        private const int PoolAuxiliaryBytesPerSeat = 128;
+
+        /// <summary>Charged per stored multi-objective label; sizeof(PoolLabel) is 28 B.</summary>
+        private const int PoolLabelBytes = 64;
+
+        /// <summary>Charged when the first label of a state creates its small list.</summary>
+        private const int PoolLabelListBytes = 256;
 
         private static int TableSize(int capacity)
         {
@@ -4001,7 +4159,7 @@ internal sealed partial class BeamSolver
 
         private void GrowTable()
         {
-            int[] table = new int[_table.Length * 2];
+            int[] table = _storage.RentArray<int>(_table.Length * 2);
             int mask = table.Length - 1;
             for (int index = 0; index < Count; index++)
             {
@@ -4019,6 +4177,25 @@ internal sealed partial class BeamSolver
         public ref Battle State(int index) => ref _states[index];
 
         public int Node(int index) => _nodes[index];
+
+        /// <summary>Appends this pool's live route-node indexes to a mark-sweep root list.</summary>
+        public void AppendNodes(List<int> roots)
+        {
+            for (int index = 0; index < Count; index++)
+                roots.Add(_nodes[index]);
+        }
+
+        /// <summary>Rewrites this pool's route-node indexes through a boundary cleanup map.</summary>
+        public void RemapNodes(int[] map)
+        {
+            for (int index = 0; index < Count; index++)
+            {
+                int node = _nodes[index];
+                if ((uint)node >= (uint)map.Length || map[node] < 0)
+                    throw new InvalidOperationException($"局面池路线节点未被清理标记：{node}。");
+                _nodes[index] = map[node];
+            }
+        }
 
         public double Score(int index) => _scores[index];
 
@@ -4142,7 +4319,10 @@ internal sealed partial class BeamSolver
                 lineage, payoffCount, commitment, facts.Traits, facts.PocketwatchCardThreshold,
                 facts.PocketwatchCardsPlayedThisTurn, facts.PocketwatchCardsPlayedLastTurn, 0, 0, 0, 0);
             if (added && labels is { Count: > 0 })
+            {
                 _labels[Count - 1] = new List<PoolLabel>(labels);
+                _storage.Memory.Charge(labels.Count * (long)PoolLabelBytes, "pool-labels");
+            }
             return added;
         }
 
@@ -4210,12 +4390,19 @@ internal sealed partial class BeamSolver
                     int existingNode = _nodes[existing];
                     PoolLabel nextLabel = new(features.PotionUseCount, features.PotionStrategicCost,
                         _facts[existing].FutureSoldHp, features.CumulativePlayerHpLost, depth, score);
-                    List<PoolLabel> labels = _labels[existing] ??=
-                    [
-                        new PoolLabel(_facts[existing].PotionCount, _facts[existing].PotionStrategicCost,
-                            _facts[existing].FutureSoldHp, _facts[existing].CumulativePlayerHpLost,
-                            _facts[existing].Depth, _scores[existing]),
-                    ];
+                    List<PoolLabel>? labelList = _labels[existing];
+                    if (labelList == null)
+                    {
+                        labelList =
+                        [
+                            new PoolLabel(_facts[existing].PotionCount, _facts[existing].PotionStrategicCost,
+                                _facts[existing].FutureSoldHp, _facts[existing].CumulativePlayerHpLost,
+                                _facts[existing].Depth, _scores[existing]),
+                        ];
+                        _labels[existing] = labelList;
+                        _storage.Memory.Charge(PoolLabelListBytes, "pool-labels");
+                    }
+                    List<PoolLabel> labels = labelList;
                     bool dominated = false;
                     for (int labelIndex = 0; labelIndex < labels.Count; labelIndex++)
                     {
@@ -4242,6 +4429,7 @@ internal sealed partial class BeamSolver
                     }
                     labels.RemoveAll(current => Dominates(nextLabel, current));
                     labels.Add(nextLabel);
+                    _storage.Memory.Charge(PoolLabelBytes, "pool-labels");
                     bool incomingWon = score > _scores[existing]
                         || score.Equals(_scores[existing]) && depth < _facts[existing].Depth;
                     if (incomingWon)

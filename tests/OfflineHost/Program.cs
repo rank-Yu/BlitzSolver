@@ -68,6 +68,8 @@ internal static class Program
         bool offlineCombat = false;
         int? beamWidth = null;
         int? maxNodes = null;
+        int? memoryBudgetMb = null;
+        long? memoryBudgetBytes = null;
         int jobs = 1;
 
         for (int index = 0; index < args.Length; index++)
@@ -141,6 +143,12 @@ internal static class Program
                 case "--max-nodes" when index + 1 < args.Length:
                     maxNodes = int.Parse(args[++index]);
                     break;
+                case "--memory-budget-mb" when index + 1 < args.Length:
+                    memoryBudgetMb = int.Parse(args[++index]);
+                    break;
+                case "--memory-budget-bytes" when index + 1 < args.Length:
+                    memoryBudgetBytes = long.Parse(args[++index]);
+                    break;
                 case "--search-cancel-after-ms" when index + 1 < args.Length:
                     searchCancelAfterMilliseconds = int.Parse(args[++index]);
                     break;
@@ -172,11 +180,12 @@ internal static class Program
                 return 2;
             }
             return RunOfflineCombat(data, corpora, output, searchTier, beamWidth, maxNodes,
-                fullCombat, jobs, root, liveRootsFile);
+                memoryBudgetMb, memoryBudgetBytes, fullCombat, jobs, root, liveRootsFile);
         }
-        if (beamWidth != null || maxNodes != null)
+        if (beamWidth != null || maxNodes != null || memoryBudgetMb != null
+            || memoryBudgetBytes != null)
         {
-            Console.Error.WriteLine("--beam-width/--max-nodes 只能与 --offline-combat 一起使用。");
+            Console.Error.WriteLine("--beam-width/--max-nodes/--memory-budget-mb 只能与 --offline-combat 一起使用。");
             return 2;
         }
         if (compareOnlyNew != null)
@@ -751,7 +760,8 @@ internal static class Program
     }
 
     private static int RunOfflineCombat(string data, string corpora, string output,
-        string? searchTier, int? beamWidth, int? maxNodes, bool fullCombat, int jobs, string? root,
+        string? searchTier, int? beamWidth, int? maxNodes, int? memoryBudgetMb,
+        long? memoryBudgetBytesOverride, bool fullCombat, int jobs, string? root,
         string? rootsFile)
     {
         if (fullCombat)
@@ -775,6 +785,16 @@ internal static class Program
             Console.Error.WriteLine("--max-nodes 必须是正整数。");
             return 2;
         }
+        if (memoryBudgetMb is <= 0)
+        {
+            Console.Error.WriteLine("--memory-budget-mb 必须是正整数。");
+            return 2;
+        }
+        if (memoryBudgetBytesOverride is <= 0)
+        {
+            Console.Error.WriteLine("--memory-budget-bytes 必须是正整数。");
+            return 2;
+        }
         SearchPerformanceTier tier;
         try
         {
@@ -796,7 +816,15 @@ internal static class Program
         }
         if (maxNodes is { } nodes)
             profile = profile with { MaxExpandedNodes = nodes };
-        OfflineCombatSettings settings = new(data, corpora, output, tier, profile);
+        long memoryBudgetBytes = memoryBudgetBytesOverride
+            ?? (memoryBudgetMb is { } budgetMb
+                ? (long)budgetMb * 1024 * 1024
+                : OfflineCombatSettings.DefaultMemoryBudgetBytes);
+        int warmupNodes = int.TryParse(
+            Environment.GetEnvironmentVariable("BLITZ_OFFLINE_WARMUP_NODES"), out int warmup)
+            ? Math.Max(0, warmup) : 50_000;
+        OfflineCombatSettings settings = new(data, corpora, output, tier, profile,
+            memoryBudgetBytes, warmupNodes);
         return OfflineCombat.Run(settings, root, rootsFile, jobs);
     }
 

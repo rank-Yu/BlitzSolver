@@ -98,7 +98,7 @@ internal static class SearchSession
                 SearchPolicyCapture.Capture(combat, player), request, player);
         return SearchRequestCompiler.CompileRequest(
             combat, player, rules, battle, policy, EvaluationRootFacts.Default,
-            SearchPerformanceProfile.For(tier), deterministic);
+            SearchPerformanceProfile.For(tier), deterministic, SearchMemoryBudget.Bytes);
     }
 
     /// <summary>

@@ -19,7 +19,14 @@ internal sealed record FullCombatSearchEntry(
     string? Error,
     long ManagedHeapPeakBytes = 0,
     long WorkingSetPeakBytes = 0,
-    bool SoftTimeRisk = false);
+    bool SoftTimeRisk = false,
+    bool MemoryBudgetExceeded = false,
+    long MemoryExceededAtBytes = 0,
+    int PoolCapacityDropped = 0,
+    long SearchMemoryUsedBytes = 0,
+    long SearchMemoryPeakBytes = 0,
+    long RouteNodeStorageBytes = 0,
+    int RouteNodePeakCount = 0);
 
 /// <summary>One predicted/live boundary deviation.</summary>
 internal sealed record FullCombatDeviationEntry(
@@ -69,7 +76,14 @@ internal sealed record FullCombatSearch(
     string? FailureDetail,
     long ManagedHeapPeakBytes,
     long WorkingSetPeakBytes,
-    bool SoftTimeRisk = false);
+    bool SoftTimeRisk = false,
+    bool MemoryBudgetExceeded = false,
+    long MemoryExceededAtBytes = 0,
+    int PoolCapacityDropped = 0,
+    long SearchMemoryUsedBytes = 0,
+    long SearchMemoryPeakBytes = 0,
+    long RouteNodeStorageBytes = 0,
+    int RouteNodePeakCount = 0);
 
 /// <summary>A boundary projection comparison at a reused turn start.</summary>
 internal sealed record FullCombatBoundary(
@@ -187,7 +201,10 @@ internal static class FullCombatDriver
                     searchLog.Add(new FullCombatSearchEntry(turn.Turn, reason, search.Status,
                         search.ElapsedMs, search.ExpandedNodes, search.RouteActions, search.Victory,
                         search.Error, search.ManagedHeapPeakBytes, search.WorkingSetPeakBytes,
-                        search.SoftTimeRisk));
+                        search.SoftTimeRisk, search.MemoryBudgetExceeded,
+                        search.MemoryExceededAtBytes, search.PoolCapacityDropped,
+                        search.SearchMemoryUsedBytes, search.SearchMemoryPeakBytes,
+                        search.RouteNodeStorageBytes, search.RouteNodePeakCount));
                     if (search.Route == null)
                     {
                         deploymentFailures++;

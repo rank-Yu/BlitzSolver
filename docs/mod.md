@@ -126,6 +126,14 @@ dotnet build src/Mod/BlitzSolver.csproj -c Release
 3. 只有设置环境变量 `BLITZ_TEST_DIR` 时才进入测试模式，并在 `GameReadyEvent` 后启动测试
    循环。普通玩家不设置该变量时仍会加载入口与快捷键节点，但不会自动建局或自动搜索。
 
+搜索内存上限由 Mod 宿主按机器给出：默认取
+`GC.GetGCMemoryInfo().TotalAvailableMemoryBytes` 的 15%，下限 1 GiB，不设上限；容器与任务
+对象限制已由该 API 计入。环境变量 `BLITZ_SEARCH_MEMORY_MB`（MiB）可覆盖默认值，非法值写
+`SEARCH_MEMORY_IGNORED` 后回退默认。这个数字只经 `SearchRequestCompiler` 传给
+`BeamOptions.SearchMemoryBudgetBytes`，不进入 `SREQ`/`SRES`；搜索核心不读取 GC 或系统
+内存。超预算时搜索按节点上限同样的边界停止并交出当前最好路线，日志与 `full-combat.json`
+的 `memoryBudgetExceeded`/`memoryExceededAtBytes` 记录触发点。
+
 普通玩家的触发方式是 **`F8` 开关**：当前战斗处于本地玩家 `Play` 阶段时，`SearchHotkeyNode`
 调用 `AutoCombatSession.Toggle`。第一次按下开始“本场全自动”，会话在每回合自动搜索并部署；
 再按一次、战斗结束、预测偏差达到暂停上限或战斗退出时恢复手动。没有界面，全部状态写
