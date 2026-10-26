@@ -44,7 +44,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 
 | 文档 | 内容 |
 | --- | --- |
-| [整局设计](full-run-design.md) | 整局自动游玩的目标架构：随机数分工、局外状态与内核、战斗边界、决策层、驱动、验证与阶段 |
+| [整局设计](full-run-design.md) | 整局自动游玩的目标架构：随机数分工、局外状态与内核、战斗边界、决策层、托管、目录与依赖规则、验证与阶段 |
 | [状态布局](state-layout.md) | `Battle` 字段、容量、规范化与指纹 |
 | [内核语义](kernel-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
 | [角色机制](kernel-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |

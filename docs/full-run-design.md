@@ -34,7 +34,7 @@
 - **确定性：** 同一状态只有一种字节表示；同一种子、同一输入、同一策略，结果逐字节相同。
 - **显式失败：** 未知内容抛 `UnsupportedException`，容量不足抛 `CapacityException`。不近似、不跳过、不返回默认值。
 - **原版是唯一的事实来源：** 模拟器的每一块都要和原版代码或真实游戏逐字节对拍，才算完成。
-- **只有一份实现：** Mod 与离线工具共用同一个整局驱动和同一套决策逻辑，离线测到的就是游戏里跑的。
+- **只有一份实现：** Mod 与离线工具共用同一个整局托管和同一套决策逻辑，离线测到的就是游戏里跑的。
 - **热路径零托管分配**，只要它会进入推演或评估的内循环。
 
 ## 3. 随机数分工
@@ -52,29 +52,66 @@
 
 ## 4. 分层与目录
 
+Core 按两个维度交叉组织：**模拟 / 决策 / 托管** × **战斗 / 整局**。"整局"（Run）沿用原版的叫法：原版一整局是 `RunState`、`RunManager`，一场战斗是 `CombatState`。`Run` 是包含战斗的整局，地图、房间、奖励都在这一层，进入战斗房间时交给 `Combat`。
+
 ```
-src/Core（只依赖 .NET 基础库）
-├─ Engine/     战斗状态 Battle 与内核（已有）
-├─ Run/        局外状态 RunState、局外随机数、局外内核、战斗边界（建局与写回）
-├─ Content/    战斗内容（已有）+ 局外内容：事件、地图、奖励池、商店、变牌、遗物拿到时的效果等
-├─ Search/     战斗搜索与多轮加宽（已有）
-├─ Strategy/   局外决策：统一接口与各种实现
-└─ Drivers/    整局驱动，以及从 Search 移来的整场战斗驱动
-src/Import     原版 → Battle（已有）；原版 → RunState、当前界面的决策请求
-src/Mod        入口与界面；原版执行器：战斗部署（已有）、各房间和界面的执行器；逐步对账
-tests/OfflineHost   离线整场战斗（已有）；离线整局；与原版代码的进程内差分
-tests/Golden        D1/D2（已有）；R1：真实游戏录下的整局，每个房间边界的状态
+src/Core/                     BlitzSolver.Core（只依赖 .NET 基础库，一个程序集）
+├─ Simulation/                模拟：游戏规则怎么运转
+│  ├─ Combat/                 战斗模拟：Battle、出牌与回合、结算、战斗随机数
+│  └─ Run/                    整局模拟：局外状态、地图、房间、奖励、商店、事件流程、局外随机数；
+│                             进战斗时建局交给 Combat，打完写回
+├─ Content/                   游戏内容：每件东西一份定义，战斗和局外的效果写在一起
+│  ├─ Cards/ Relics/ Potions/ Powers/ Monsters/ Orbs/ Enchantments/ Afflictions/
+│  └─ Events/ Ancients/ Encounters/ Acts/ Pools/
+├─ Ai/                        决策：该怎么做
+│  ├─ Combat/                 战斗搜索：BeamSolver、评分、翻倍重搜
+│  └─ Run/                    局外决策：只读玩家可见信息；规则、估值、以后的推演评估
+└─ Autoplay/                  托管：把模拟和决策串起来，Mod 和离线共用
+   ├─ CombatPilot             整场战斗托管
+   └─ RunPilot                整局托管
 ```
 
-依赖方向：
+命名空间与目录一致：`BlitzSolver.Simulation.Combat`、`BlitzSolver.Simulation.Run`、`BlitzSolver.Content.*`、`BlitzSolver.Ai.Combat`、`BlitzSolver.Ai.Run`、`BlitzSolver.Autoplay`。
 
-- `Run → Engine`：战斗边界要构造和读取 `Battle`。`Engine` 不引用 `Run`。
-- `Content → Engine`、`Content → Run`：一件遗物的战斗效果和局外效果写在同一份定义里，通过各自的注册表挂到两个内核上。`Run` 不引用 `Content`。
-- `Strategy → Run`：决策只读局外状态的可见投影。需要模拟评估时，通过驱动层注入的接口调用推演，不直接引用 `Search`。
-- `Drivers → Engine、Run、Search、Strategy`。
-- `Import`、`Mod` 照旧在 `Core` 之外；`Import` 仍是唯一读取原版模型私有字段的层。
+由现有目录迁移：
 
-`Run`、`Strategy`、`Drivers` 在对应阶段开工时建立，建立时同步更新 `AGENTS.md` 的目录表与本节。
+| 现在 | 迁移后 |
+| --- | --- |
+| `src/Core/Engine` | `src/Core/Simulation/Combat` |
+| `src/Core/Content` | 不变，新增局外内容 |
+| `src/Core/Search` | `src/Core/Ai/Combat` |
+| `src/Core/Search/FullCombatDriver.cs` | `src/Core/Autoplay`（`CombatPilot`） |
+
+依赖规则，由 `tests/Architecture` 在编译后自动检查：
+
+| 层 | 可以引用 |
+| --- | --- |
+| `Simulation/Combat` | 不引用其他层 |
+| `Simulation/Run` | `Simulation/Combat` |
+| `Content` | `Simulation/Combat`、`Simulation/Run` |
+| `Ai/Combat` | `Simulation/Combat` |
+| `Ai/Run` | 只能用 `Simulation/Run` 的可见投影（`RunView`）和决策请求类型，不能引用局外状态本体或随机数类型 |
+| `Autoplay` | `Simulation`、`Ai` |
+
+- 一件遗物的战斗效果和局外效果写在同一份定义里，通过各自的注册表挂到两个模拟上。
+- `Ai/Run` 需要推演评估时，通过 `Autoplay` 注入的接口调用，不直接引用 `Simulation/Run` 的状态。
+- 不拆程序集：内容定义要大量调用模拟的内部函数，战斗热路径也不宜跨程序集。依赖方向由检查程序保证。
+
+Core 以外按"战斗 / 整局"对称分子目录，项目名、程序集名、数据格式和命令行不变：
+
+| 位置 | 子目录 |
+| --- | --- |
+| `src/Import` | `Combat/`、`Run/`；仍是唯一读取原版私有字段的层 |
+| `src/Mod` | `Combat/`（部署、整场宿主、搜索会话）、`Run/`（整局宿主；`Screens/` 每个界面一个执行器，`Rooms/` 各类房间）、`UI/`、`Testing/`、`Patches/` |
+| `src/TestHost` | `Combat/`、`Run/`（建整局、跳到指定楼层） |
+| `tests/KernelChecks` | `Combat/`、`Run/` |
+| `tests/Golden` | 校验器分 `Combat/`（D1/D2）与 `Run/`（R1）；数据新增 `data/r1/`，已有数据不动 |
+| `tests/OfflineHost` | `Combat/`、`Run/`（离线整局）、`Differential/`（与原版代码的进程内差分） |
+| `tests/Architecture` | 新增：依赖规则检查 |
+| `tests/corpora` | `quality/` 不动；新增 `runs/`（固定种子集、录下的整局） |
+| `tools` | `testing/` 不动；新增 `eval/`（离线整局评估、配对比较、报表） |
+
+文档保持平铺，用文件名前缀区分领域：战斗一组是 `combat-state-layout.md`、`combat-semantics.md`、`combat-characters.md`、`combat-potions-relics.md`、`combat-ai.md`，由现有的 `state-layout.md`、`kernel-semantics.md`、`kernel-characters.md`、`kernel-potions-relics.md`、`search.md` 改名而来；整局一组随阶段新增 `run-state-layout.md`、`run-semantics.md`、`run-ai.md`，另有 `autoplay.md`。`import.md`、`mod.md`、`testing.md`、`golden-data.md` 不改名，内容按战斗与整局分节。
 
 ## 5. 局外状态 `RunState`
 
@@ -132,14 +169,14 @@ RunKernel.Step(ref RunState state, in RunAction action) → RunStepResult（完�
 
 **写回：** 战斗结束后，把 HP、最大生命、金币、牌组的永久变化（诅咒、成长、升级等）、药水增减、遗物计数和 9 条战斗流写回 `RunState`，再按原版生成战后奖励。
 
-**战斗本身：** 交给现有的整场战斗驱动和档位，不另写一套。
+**战斗本身：** 交给现有的整场战斗托管和档位，不另写一套。
 
-## 9. 整局驱动与宿主
+## 9. 整局托管与宿主
 
-整局驱动只有一份，放在 `Drivers`。它负责：
+整局托管只有一份，放在 `Autoplay`（`RunPilot`）。它负责：
 
 - 取当前决策请求，交给决策层或玩家，执行选择；
-- 遇到战斗时交给整场战斗驱动；
+- 遇到战斗时交给整场战斗托管（`CombatPilot`）；
 - 记录每一步，处理失败与暂停。
 
 宿主只做输入输出：
@@ -174,9 +211,9 @@ Mod 宿主的逐步对账和战斗的逐动作核对是同一种机制：玩家�
 | 阶段 | 内容 | 主要验证 |
 | --- | --- | --- |
 | R0 | 战斗搜索定型：翻倍重搜与新档位 | 离线 120 根、无头整场、D1/D2 |
-| R1 | `RunState`、局外随机数、从原版导入局外状态 | 导入结果与原版对象逐字段一致 |
+| R1 | 先做结构准备：按第 4 节改名与归位、建空骨架、加依赖检查、中文名改为"极速求解器"，不改行为。再做 `RunState`、局外随机数、从原版导入局外状态 | 结构准备：D1/D2、离线 120 根、28 根核对全部不变。导入：结果与原版对象逐字段一致 |
 | R2 | 局外模拟器，按顺序逐块完成：战斗边界 → 地图与开局序列 → 奖励、商店、变牌 → 遗物拿到时的效果、休息、宝箱 → 事件 → 先古之民与幕切换 | 进程内差分，每块成千上万个种子 |
-| R3 | 整局驱动，Mod 与离线共用；离线用简单策略跑通整局 | 离线大量跑整局；少量无头整局一致性确认；R1 冻结数据 |
+| R3 | 整局托管，Mod 与离线共用；离线用简单策略跑通整局 | 离线大量跑整局；少量无头整局一致性确认；R1 冻结数据 |
 | R4 | 局外规则策略；推荐与全自动的原版界面执行器 | 策略在模拟器上开发与调参；实机逐步对账 |
 | R5 | 离线评估与调参闭环、界面、设置、Windows 实测、打包 | 发布门槛（待定） |
 
@@ -190,7 +227,9 @@ R2 内部的顺序按"确定、易验证、被后面依赖"排列。每块做完
 - 局外决策不预知未来；
 - 局外模拟器自己写，按 Blitz 的结构设计，不依赖 sts2-sim。sts2-sim（MIT）可以作为第二个对照基准和参考实现，借鉴时注明出处；
 - 先做模拟器，策略开发和数据都在模拟器上进行；无头游戏只做最终确认；
-- 最终覆盖所有角色、所有进阶等级、所有场景。
+- 最终覆盖所有角色、所有进阶等级、所有场景；
+- 目录命名按第 4 节：`Simulation` / `Ai` / `Autoplay` × `Combat` / `Run`；
+- 中文名改为"极速求解器"，英文名 BlitzSolver 不变。
 
 待定：
 

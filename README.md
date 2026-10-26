@@ -1,4 +1,4 @@
-# BlitzSolver 极速战斗求解器
+# BlitzSolver 极速求解器
 
 《杀戮尖塔 2》单人自动游玩 Mod，开发中。战斗求解已经可用；目标是整局自动游玩，架构见 [整局设计](docs/full-run-design.md)。
 
