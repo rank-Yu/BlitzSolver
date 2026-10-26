@@ -308,8 +308,6 @@ public sealed class ToricToughness : CardDef
         int index = Kernel.FindLastPower(x.B, Limits.PlayerOwner, id);
         if (index < 0)
             return;
-        // SimulatedCombatState.AddPowerInstance sets _target = owner (unlike Apply<T>).
-        x.B.Powers[index].Target = Limits.PlayerOwner;
         Kernel.SetInstanceBlockValue(ref x.B, index, gained);
     }
 }

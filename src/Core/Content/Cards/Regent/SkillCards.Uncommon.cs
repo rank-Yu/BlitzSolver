@@ -202,20 +202,40 @@ public sealed class SummonForth : ForgeCardDef
         if (!Registry.TryCard(Kernel.SovereignBladeId, out ushort blade))
             throw new UnsupportedException("SummonForth 需要 SOVEREIGN_BLADE 定义。");
         Pile[] piles = [Pile.Draw, Pile.Discard, Pile.Exhaust, Pile.Play];
-        foreach (Pile pile in piles)
+        // Native SummonForth snapshots AllCards before CardPileCmd.Add. Capture each pile's original
+        // count first: a Draw blade diverted into the discard pile is appended after the original
+        // discard cards and must not be visited again when the discard pile is processed.
+        Span<int> originalCounts = stackalloc int[piles.Length];
+        for (int index = 0; index < piles.Length; index++)
+            originalCounts[index] = Piles.Count(x.B, piles[index]);
+        bool stopped = false;
+        for (int pileIndex = 0; pileIndex < piles.Length && !stopped; pileIndex++)
         {
+            Pile pile = piles[pileIndex];
+            int inspected = 0;
             int index = 0;
-            while (index < Piles.Count(x.B, pile))
+            while (inspected < originalCounts[pileIndex])
             {
-                if (x.B.Cards[Piles.Start(x.B, pile) + index].Id != blade)
+                if (index >= Piles.Count(x.B, pile))
+                    break;
+                Card card = x.B.Cards[Piles.Start(x.B, pile) + index];
+                if (card.Id != blade)
                 {
                     index++;
+                    inspected++;
                     continue;
                 }
-                Card card = Piles.RemoveAt(ref x.B, pile, index);
-                if (pile == Pile.Play && index < x.PlayPosition)
+                int playPosition = x.PlayPosition;
+                // Native CardPileCmd.Add moves each card to the hand bottom and diverts it to the
+                // discard pile when the hand is full; MoveCard implements exactly that rule.
+                if (!Kernel.MoveCard(ref x.B, pile, index, Pile.Hand, PilePosition.Bottom))
+                {
+                    stopped = true;
+                    break;
+                }
+                if (pile == Pile.Play && index < playPosition)
                     x.PlayPosition--;
-                Piles.Append(ref x.B, Pile.Hand, card);
+                inspected++;
             }
         }
         if (x.NeedsChoice)

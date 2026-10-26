@@ -138,17 +138,11 @@ public sealed class Anticipate : CardDef
 {
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 
-    // SimulatedCombatState.ApplyAnticipate: apply the temporary power, then give Dexterity equal to
-    // the amount that actually stuck (Artifact/stacking included).
+    // Native TemporaryDexterityPower.BeforeApplied applies Dexterity before PowerCmd.Apply inserts
+    // the temporary power row, so the row order is [DEXTERITY_POWER, ANTICIPATE_POWER].
     public override void OnPlay(ref Exec x)
-    {
-        ushort temporary = Registry.PowerId<AnticipatePower>();
-        int applied = Kernel.ApplyPower(ref x, Limits.PlayerOwner, temporary,
-            (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
-        if (applied > 0)
-            Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<DexterityPower>(),
-                applied, Limits.PlayerOwner);
-    }
+        => Kernel.ApplyTemporaryDexterity(ref x, Limits.PlayerOwner,
+            Registry.PowerId<AnticipatePower>(), (int)CardEffects.Var(x, 0), Limits.PlayerOwner);
 }
 
 [ContentId("UNTOUCHABLE")]

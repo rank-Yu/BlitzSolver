@@ -211,7 +211,9 @@ public sealed class Omnislice : CardDef
     // TotalDamage + OverkillDamage to every other hittable enemy as Unpowered|Move.
     public override void OnPlay(ref Exec x)
     {
-        CardEffects.GeneralAttack(ref x, 0);
+        // AttackContext.AddHit does not call AttackCommand.Execute, so Omnislice must not increment
+        // the per-turn attack counters (EchoingSlash uses the same context for its waves).
+        CardEffects.GeneralAttack(ref x, 0, recordAttack: false);
         if (x.NeedsChoice)
             return;
         int amount = x.LastDamageTotal + x.LastDamageOverkill;

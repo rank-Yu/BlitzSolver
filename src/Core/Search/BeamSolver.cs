@@ -704,6 +704,7 @@ internal sealed partial class BeamSolver
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
         _singleRoot = roots.Count == 1;
         _verifySearchEquivalence = SearchVerificationHooks.VerifySearchEquivalence;
+        Kernel.VerifyStableBoundaryInvariants = _verifySearchEquivalence;
         _dedupePlayActions = SearchVerificationHooks.DedupeExactPlayActions;
         _dedupeChoicesByClass = SearchVerificationHooks.DedupeEquivalentChoicesByClass;
         _choiceFillVariants = SearchVerificationHooks.ChoiceFillPhysicalVariants;

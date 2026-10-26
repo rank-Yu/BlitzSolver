@@ -97,22 +97,6 @@ internal static class BattleReconciler
                 // both project it as the player owner. The field does not drive the power.
                 power.Target = Limits.PlayerOwner;
             }
-            if (HasSyntheticOwnerTarget(def.NativeId))
-            {
-                // TheBomb/Panache/ToricToughness use PowerCmd.Apply, which leaves PowerModel.Target
-                // null; the old AddPowerInstance projection wrote the owner. None of the three reads
-                // Target, and the native row is null, so compare the field both ways as NoOwner.
-                power.Target = Limits.NoOwner;
-            }
-            if (def.NativeId is "WEAK_POWER" or "DEXTERITY_POWER")
-            {
-                // Weak: SlimedBerserker passes a null applier natively while the port passes the
-                // monster. Dexterity: BeltBuckle.ApplyDexterity explicitly passes null while the port
-                // passes the player. Neither definition overrides ApplierDied and neither reads
-                // Power.Applier (Weak keys on the owner, Dexterity on the block target), so the
-                // field is unreachable for these two rows.
-                power.Applier = Limits.NoOwner;
-            }
             if ((power.Flags & PowerFlags.SkipNextTickFromMonster) != 0 && !def.TicksAtEnemySideEnd)
             {
                 // ApplyFromMonster records a solver-side one-shot skip for powers outside the native
@@ -128,9 +112,6 @@ internal static class BattleReconciler
         copy.PowerCount = checked((byte)write);
         return copy;
     }
-
-    private static bool HasSyntheticOwnerTarget(string nativeId)
-        => nativeId is "THE_BOMB_POWER" or "PANACHE_POWER" or "TORIC_TOUGHNESS_POWER";
 
     private static bool IsPermanentlyDeadOwner(in Battle battle, byte owner)
     {

@@ -58,6 +58,8 @@ CheckMbKernel(rules);
 CheckTwKernel();
 CheckDfKernel(rules);
 CheckRgKernel(rules);
+CheckM2cSemantics(rules);
+CheckHandLimit(rules);
 CheckLrKernel(rules);
 CheckTsKernel(rules);
 CheckIdKernel(rules);
@@ -905,6 +907,23 @@ static Rules SliceRules()
     Registry.TryCard("SOVEREIGN_BLADE", out ushort blade);
     builder.SetCard(blade, 0, Stats(CardType.Attack, TargetType.AnyEnemy, 2, [10m]));
     builder.SetCard(blade, 1, Stats(CardType.Attack, TargetType.AnyEnemy, 2, [13m]));
+    Registry.TryCard("SUMMON_FORTH", out ushort summonForthCard);
+    builder.SetCard(summonForthCard, 0, Stats(CardType.Skill, TargetType.Self, 1, [8m]));
+    builder.SetCard(summonForthCard, 1, Stats(CardType.Skill, TargetType.Self, 1, [11m]));
+    // M2c: temporary-Dexterity ordering, Omnislice's AttackContext counter and the three powers
+    // whose native Target is null.
+    Registry.TryCard("ANTICIPATE", out ushort anticipate);
+    builder.SetCard(anticipate, 0, Stats(CardType.Skill, TargetType.Self, 0, [2m]));
+    Registry.TryCard("OMNISLICE", out ushort omnislice);
+    builder.SetCard(omnislice, 0, Stats(CardType.Attack, TargetType.AnyEnemy, 0, [8m]));
+    Registry.TryCard("THE_BOMB", out ushort theBomb);
+    builder.SetCard(theBomb, 0, Stats(CardType.Skill, TargetType.Self, 1, [3m, 40m]));
+    Registry.TryCard("PANACHE", out ushort panache);
+    builder.SetCard(panache, 0, Stats(CardType.Power, TargetType.Self, 1, [10m]));
+    Registry.TryCard("TORIC_TOUGHNESS", out ushort toric);
+    builder.SetCard(toric, 0, Stats(CardType.Skill, TargetType.Self, 1, [3m, 10m]));
+    Registry.TryRelic("BELT_BUCKLE", out ushort beltBuckle);
+    builder.SetRelicVars(beltBuckle, [2m]);
     Registry.TryCard("RG_TEST_STAR_CARD", out ushort starCard);
     builder.SetCard(starCard, 0, Stats(CardType.Skill, TargetType.Self, 0, [0m], starCost: 2));
     // LR: choice, transform, history-counter and VoidForm cards used by the K0 contracts.
@@ -1193,6 +1212,8 @@ static void CheckLsKernel()
     Check(battle.Enemies[0].Creature.IsDead, "EchoingSlash 第一波应击杀低血量敌人");
     Check(battle.Enemies[1].Creature.CurrentHp == 80,
         $"EchoingSlash 击杀后应追加一波，实际敌人生命 {battle.Enemies[1].Creature.CurrentHp}");
+    Check(battle.Counter(Counter.PlayerAttacksThisTurn) == 0,
+        "EchoingSlash 使用 AttackContext，不应增加本回合攻击次数");
 
     // KnifeTrap: two byte-equal Shivs in the exhaust pile are both auto-played (duplicate copies
     // must not make the second search pick the first again).
@@ -3227,6 +3248,165 @@ static void CheckRgKernel(Rules rules)
 
 // LR: new kernel capabilities. Turn-start choices, the fixed transform, the generated-card and
 // per-target powered-hit counters, and VoidForm's free-play window / forced turn end.
+static void CheckM2cSemantics(Rules rules)
+{
+    Check(Registry.TryCard("ANTICIPATE", out ushort anticipate), "缺少 ANTICIPATE 定义");
+    Check(Registry.TryCard("OMNISLICE", out ushort omnislice), "缺少 OMNISLICE 定义");
+    Check(Registry.TryCard("THE_BOMB", out ushort theBomb), "缺少 THE_BOMB 定义");
+    Check(Registry.TryCard("PANACHE", out ushort panache), "缺少 PANACHE 定义");
+    Check(Registry.TryCard("TORIC_TOUGHNESS", out ushort toric), "缺少 TORIC_TOUGHNESS 定义");
+    Check(Registry.TryPower("DEXTERITY_POWER", out ushort dexterity), "缺少 DEXTERITY_POWER");
+    Check(Registry.TryPower("ANTICIPATE_POWER", out ushort anticipatePower), "缺少 ANTICIPATE_POWER");
+    Check(Registry.TryPower("THE_BOMB_POWER", out ushort theBombPower), "缺少 THE_BOMB_POWER");
+    Check(Registry.TryPower("PANACHE_POWER", out ushort panachePower), "缺少 PANACHE_POWER");
+    Check(Registry.TryPower("TORIC_TOUGHNESS_POWER", out ushort toricPower), "缺少 TORIC_TOUGHNESS_POWER");
+    Check(Registry.TryRelic("BELT_BUCKLE", out ushort beltBuckle), "缺少 BELT_BUCKLE");
+
+    // Anticipate: TemporaryDexterityPower.BeforeApplied applies Dexterity before the temporary row.
+    Battle battle = NewBattle();
+    Piles.Append(ref battle, Pile.Hand, Kernel.CreateCard(rules, anticipate));
+    Kernel.Step(ref battle, PlayerAction.PlayCard(0, Limits.NoOwner), rules, out _);
+    Check(battle.PowerCount == 2,
+        $"Anticipate 应留下敏捷与临时敏捷两行，实际 {battle.PowerCount}");
+    Check(battle.Powers[0].Id == dexterity && battle.Powers[1].Id == anticipatePower,
+        "Anticipate 的 Power 行顺序应为 DEXTERITY_POWER、ANTICIPATE_POWER");
+    Check(battle.Powers[0].Amount == 2 && battle.Powers[1].Amount == 2,
+        "Anticipate 应先给 2 敏捷再插入 2 层临时敏捷");
+
+    // Omnislice uses an AttackContext, so neither hit records CreatureAttacked.
+    battle = NewBattle();
+    battle.EnemyCount = 2;
+    battle.RosterCount = 2;
+    battle.Roster[0] = 0;
+    battle.Roster[1] = 1;
+    battle.Enemies[0].Creature.CurrentHp = 100;
+    battle.Enemies[0].Creature.MaxHp = 100;
+    battle.Enemies[0].Flags = EnemyFlags.InCombat;
+    battle.Enemies[1].Creature.CurrentHp = 100;
+    battle.Enemies[1].Creature.MaxHp = 100;
+    battle.Enemies[1].Flags = EnemyFlags.InCombat;
+    Piles.Append(ref battle, Pile.Hand, Kernel.CreateCard(rules, omnislice));
+    Kernel.Step(ref battle, PlayerAction.PlayCard(0, Limits.FirstEnemyOwner + 1), rules, out _);
+    Check(battle.Counter(Counter.PlayerAttacksThisTurn) == 0,
+        "Omnislice 使用 AttackContext，不应增加本回合攻击次数");
+    Check(battle.Enemies[0].Creature.CurrentHp == 92 && battle.Enemies[1].Creature.CurrentHp == 92,
+        "Omnislice 应命中目标并把伤害复制给另一名敌人");
+
+    // TheBomb/Panache/ToricToughness use PowerCmd.Apply and leave Target null (= NoOwner).
+    battle = NewBattle();
+    Piles.Append(ref battle, Pile.Hand, Kernel.CreateCard(rules, theBomb));
+    Kernel.Step(ref battle, PlayerAction.PlayCard(0, Limits.NoOwner), rules, out _);
+    int bombRow = Kernel.FindLastPower(battle, Limits.PlayerOwner, theBombPower);
+    Check(bombRow >= 0 && battle.Powers[bombRow].Target == Limits.NoOwner,
+        "TheBomb 的 Power.Target 应为 NoOwner");
+    Check(bombRow >= 0 && battle.Powers[bombRow].Applier == Limits.PlayerOwner,
+        "TheBomb 的 Power.Applier 应保留玩家");
+
+    battle = NewBattle();
+    Piles.Append(ref battle, Pile.Hand, Kernel.CreateCard(rules, panache));
+    Kernel.Step(ref battle, PlayerAction.PlayCard(0, Limits.NoOwner), rules, out _);
+    int panacheRow = Kernel.FindLastPower(battle, Limits.PlayerOwner, panachePower);
+    Check(panacheRow >= 0 && battle.Powers[panacheRow].Target == Limits.NoOwner,
+        "Panache 的 Power.Target 应为 NoOwner");
+
+    battle = NewBattle();
+    Piles.Append(ref battle, Pile.Hand, Kernel.CreateCard(rules, toric));
+    Kernel.Step(ref battle, PlayerAction.PlayCard(0, Limits.NoOwner), rules, out _);
+    int toricRow = Kernel.FindLastPower(battle, Limits.PlayerOwner, toricPower);
+    Check(toricRow >= 0 && battle.Powers[toricRow].Target == Limits.NoOwner,
+        "ToricToughness 的 Power.Target 应为 NoOwner");
+
+    // BeltBuckle applies Dexterity with a null native applier.
+    battle = NewBattle();
+    battle.RelicCount = 1;
+    battle.Relics[0] = new Relic { Id = beltBuckle };
+    battle.PotionSlotCount = 0;
+    Exec belt = new(ref battle, rules, default);
+    Registry.Relic(beltBuckle).AfterPotionUsed(ref belt,
+        new Listener(ListenerKind.Relic, 0, Limits.PlayerOwner), 0);
+    int dexRow = Kernel.FindPower(battle, Limits.PlayerOwner, dexterity);
+    Check(dexRow >= 0 && battle.Powers[dexRow].Applier == Limits.NoOwner,
+        "BeltBuckle 的 Dexterity Applier 应为 NoOwner");
+}
+
+static void CheckHandLimit(Rules rules)
+{
+    Check(Registry.TryCard("SUMMON_FORTH", out ushort summonForth), "缺少 SUMMON_FORTH 定义");
+    Check(Registry.TryCard("SOVEREIGN_BLADE", out ushort blade), "缺少 SOVEREIGN_BLADE 定义");
+    Check(Registry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD 定义");
+
+    // Full hand: the hand stays at the cap and the overflow card goes to the discard pile, exactly
+    // like CardPileCmd.Add's isFullHandAdd branch.
+    Battle full = NewBattle();
+    full.Flags |= BattleFlags.PlayerHooksActive;
+    for (int index = 0; index < Limits.MaxHandSize - 1; index++)
+        Piles.Append(ref full, Pile.Hand, Kernel.CreateCard(rules, strike));
+    Piles.Append(ref full, Pile.Hand, Kernel.CreateCard(rules, summonForth));
+    Piles.Append(ref full, Pile.Draw, Kernel.CreateCard(rules, blade));
+    Piles.Append(ref full, Pile.Draw, Kernel.CreateCard(rules, blade));
+    Exec fullExec = new(ref full, rules, default);
+    int handBefore = full.HandCount;
+    int summonIndex = -1;
+    for (int index = 0; index < full.HandCount; index++)
+    {
+        if (full.Cards[index].Id == summonForth)
+        {
+            summonIndex = index;
+            break;
+        }
+    }
+    Check(summonIndex >= 0, "SummonForth 测试牌应在手牌中");
+    Check(Kernel.Step(ref full, PlayerAction.PlayCard(summonIndex, Limits.NoOwner), rules, out _)
+        == StepResult.Completed, "SummonForth 满手测试应完成");
+    Check(full.HandCount == Limits.MaxHandSize,
+        $"SummonForth 满手后手牌应保持 {Limits.MaxHandSize}，实际 {full.HandCount}");
+    int handBlades = 0, discardBlades = 0;
+    for (int index = 0; index < full.HandCount; index++)
+        if (full.Cards[index].Id == blade) handBlades++;
+    for (int index = 0; index < full.DiscardCount; index++)
+        if (Piles.At(ref full, Pile.Discard, index).Id == blade) discardBlades++;
+    Check(handBlades == 1 && discardBlades == 1,
+        $"SummonForth 应把手牌上限外的一张君王之刃送入弃牌堆，实际手牌 {handBlades} 弃牌 {discardBlades}");
+    Check(full.HandCount <= Limits.MaxHandSize, "SummonForth 不应突破手牌上限");
+
+    // The fixed legal-action buffer only fits ten hand cards. Eleven must fail explicitly, not write
+    // past the caller's span.
+    Battle overflow = SliceBattle();
+    for (int index = 0; index < 6; index++)
+        Piles.Append(ref overflow, Pile.Hand, Kernel.CreateCard(rules, strike));
+    Check(overflow.HandCount == Limits.MaxHandSize + 1, "越界测试前提不成立");
+    Span<PlayerAction> actions = stackalloc PlayerAction[Kernel.MaxLegalActions];
+    bool legalThrew = false;
+    try
+    {
+        Kernel.LegalActions(overflow, rules, actions);
+    }
+    catch (InvalidOperationException)
+    {
+        legalThrew = true;
+    }
+    Check(legalThrew, "手牌超过上限时 LegalActions 必须显式失败");
+    bool invariantThrew = false;
+    try
+    {
+        Kernel.ValidateStableBoundary(in overflow);
+    }
+    catch (InvalidOperationException)
+    {
+        invariantThrew = true;
+    }
+    Check(invariantThrew, "手牌超过上限时稳定边界不变量必须显式失败");
+
+    Battle atLimit = SliceBattle();
+    for (int index = 0; index < 5; index++)
+        Piles.Append(ref atLimit, Pile.Hand, Kernel.CreateCard(rules, strike));
+    Check(atLimit.HandCount == Limits.MaxHandSize, "上限测试前提不成立");
+    int legalCount = Kernel.LegalActions(atLimit, rules, actions);
+    Check(legalCount <= Kernel.MaxLegalActions,
+        $"手牌不超过上限时 LegalActions 不应超过 {Kernel.MaxLegalActions}，实际 {legalCount}");
+    Kernel.ValidateStableBoundary(atLimit);
+}
+
 static void CheckLrKernel(Rules rules)
 {
     Check(Registry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD");

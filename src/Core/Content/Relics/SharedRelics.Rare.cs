@@ -808,15 +808,8 @@ public sealed class HelicalDart : RelicDef
         if ((x.R.Card(play.Card.Id, play.Card.Upgrade).Tags & CardTag.Shiv) == 0)
             return;
         int amount = (int)x.R.RelicVar(Id, 0);
-        ushort temporary = Registry.PowerId<Powers.HelicalDartPower>();
-        ushort dexterity = Registry.PowerId<Powers.DexterityPower>();
-        bool alreadyApplied = Kernel.GetAmount(x.B, Limits.PlayerOwner, temporary) != 0;
-        if (!alreadyApplied)
-            Kernel.ApplyPower(ref x, Limits.PlayerOwner, dexterity, amount, Limits.PlayerOwner);
-        int applied = Kernel.ApplyPower(ref x, Limits.PlayerOwner, temporary, amount,
-            Limits.PlayerOwner);
-        if (alreadyApplied && applied != 0)
-            Kernel.ApplyPower(ref x, Limits.PlayerOwner, dexterity, applied, Limits.PlayerOwner);
+        Kernel.ApplyTemporaryDexterity(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.HelicalDartPower>(), amount, Limits.PlayerOwner);
     }
 }
 

@@ -285,7 +285,7 @@ public sealed class BeltBuckle : RelicDef
             return;
         x.B.Relics[self.Index].Counter = 1;
         Kernel.ApplyPower(ref x, Limits.PlayerOwner,
-            Registry.PowerId<Powers.DexterityPower>(), (int)x.R.RelicVar(Id, 0), Limits.PlayerOwner);
+            Registry.PowerId<Powers.DexterityPower>(), (int)x.R.RelicVar(Id, 0), Limits.NoOwner);
     }
 
     private static bool HasAvailablePotion(in Battle battle)

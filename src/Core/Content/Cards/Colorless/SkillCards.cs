@@ -377,8 +377,6 @@ public sealed class TheBomb : CardDef
         int index = Kernel.FindLastPower(x.B, Limits.PlayerOwner, id);
         if (index < 0)
             return;
-        // SimulatedCombatState.AddPowerInstance sets _target = owner (unlike Apply<T>).
-        x.B.Powers[index].Target = Limits.PlayerOwner;
         x.B.Powers[index].Aux0 = (int)CardEffects.Var(x, 1);
     }
 }

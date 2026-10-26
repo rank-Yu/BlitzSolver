@@ -79,8 +79,27 @@ public static partial class Kernel
         }
         if (!x.AllChoicesConsumed)
             throw new InvalidOperationException($"动作 {action} 携带了未使用的选择。");
+        if (VerifyStableBoundaryInvariants)
+            ValidateStableBoundary(x.B);
         request = default;
         return StepResult.Completed;
+    }
+
+    /// <summary>
+    /// Default-off verification switch set by the search's equivalence mode. When enabled, every
+    /// stable boundary asserts the fixed-capacity hand invariant before the state can become a child.
+    /// </summary>
+    internal static bool VerifyStableBoundaryInvariants { get; set; }
+
+    /// <summary>
+    /// Stable-boundary invariant: the hand never exceeds <see cref="Limits.MaxHandSize"/>. Violations
+    /// throw instead of being truncated or written past a fixed buffer.
+    /// </summary>
+    internal static void ValidateStableBoundary(in Battle battle)
+    {
+        if (battle.HandCount > Limits.MaxHandSize)
+            throw new InvalidOperationException(
+                $"稳定边界手牌 {battle.HandCount} 超过上限 {Limits.MaxHandSize}。");
     }
 
     private static void PlayCardAction(ref Exec x, in PlayerAction action)
@@ -117,6 +136,13 @@ public static partial class Kernel
     {
         if (!IsInProgress(battle))
             return 0;
+        if (battle.HandCount > Limits.MaxHandSize)
+            throw new InvalidOperationException(
+                $"手牌 {battle.HandCount} 超过上限 {Limits.MaxHandSize}，"
+                + $"LegalActions 的 {MaxLegalActions} 个固定槽位不再够用。");
+        if (output.Length < MaxLegalActions)
+            throw new ArgumentException(
+                $"LegalActions 需要至少 {MaxLegalActions} 个槽位，实际 {output.Length}。", nameof(output));
         int count = 0;
         for (int hand = 0; hand < battle.HandCount; hand++)
         {

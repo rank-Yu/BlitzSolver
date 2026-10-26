@@ -19,8 +19,8 @@ public sealed class ScrollOfBiting : MonsterDef
 
 /// <summary>
 /// SlimedBerserker: VOMIT_ICHOR_MOVE adds ten Slimed to the discard pile, LEECHING_HUG_MOVE applies
-/// Weak 3 to the player (with the monster as applier in the existing engine) and Strength 3 to itself
-/// (<c>MonsterMoveEffects</c> "SlimedBerserker").
+/// Weak 3 to the player with a null applier and Strength 3 to itself (<c>MonsterMoveEffects</c>
+/// "SlimedBerserker"; <c>SlimedBerserker.cs:77</c>).
 /// </summary>
 [ContentId("SLIMED_BERSERKER")]
 public sealed class SlimedBerserker : MonsterDef
@@ -41,8 +41,10 @@ public sealed class SlimedBerserker : MonsterDef
                 }
                 break;
             case "LEECHING_HUG_MOVE":
+                // SlimedBerserker passes a null applier natively; NoOwner keeps the native
+                // applier-given modifiers and ApplierDied paths off this Weak row.
                 Kernel.ApplyPowerFromMonster(ref x, Limits.PlayerOwner,
-                    Registry.PowerId<Powers.WeakPower>(), 3, owner);
+                    Registry.PowerId<Powers.WeakPower>(), 3, Limits.NoOwner);
                 Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.StrengthPower>(), 3, owner);
                 break;
         }

@@ -79,11 +79,7 @@ public sealed class Panache : CardDef
             return;
         int index = Kernel.FindLastPower(x.B, Limits.PlayerOwner, id);
         if (index >= 0)
-        {
-            // SimulatedCombatState.AddPowerInstance sets _target = owner (unlike Apply<T>).
-            x.B.Powers[index].Target = Limits.PlayerOwner;
             x.B.Powers[index].Aux0 = 5;
-        }
     }
 }
 

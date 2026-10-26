@@ -125,20 +125,11 @@ public sealed class SpeedPotion : PotionDef
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 
     // SpeedPotion: combat.ApplyTemporaryDexterity<SpeedPotionPower>(player, Dexterity, owner).
-    // SimulatedCombatState.ApplyTemporaryStat applies the Dexterity before the temporary power on a
-    // first application, and only the applied delta when the temporary power was already present.
+    // TemporaryDexterityPower.BeforeApplied applies Dexterity first, then the temporary row.
     public override void OnUse(ref Exec x)
-    {
-        int amount = (int)Kernel.PotionVar(x, this, 0);
-        ushort temporary = Registry.PowerId<Powers.SpeedPotionPower>();
-        ushort dexterity = Registry.PowerId<Powers.DexterityPower>();
-        bool alreadyApplied = Kernel.GetAmount(x.B, Limits.PlayerOwner, temporary) != 0;
-        if (!alreadyApplied)
-            Kernel.ApplyPower(ref x, Limits.PlayerOwner, dexterity, amount, Limits.PlayerOwner);
-        int applied = Kernel.ApplyPower(ref x, Limits.PlayerOwner, temporary, amount, Limits.PlayerOwner);
-        if (alreadyApplied && applied != 0)
-            Kernel.ApplyPower(ref x, Limits.PlayerOwner, dexterity, applied, Limits.PlayerOwner);
-    }
+        => Kernel.ApplyTemporaryDexterity(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.SpeedPotionPower>(), (int)Kernel.PotionVar(x, this, 0),
+            Limits.PlayerOwner);
 }
 
 [ContentId("VULNERABLE_POTION")]

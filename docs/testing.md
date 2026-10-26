@@ -76,7 +76,7 @@ D1 对每个根重放：
 - 每个转移的 `traitPresent`/`traitHash`；
 - 规则对象 `objects/rules/*.br` 的编码一致性。
 
-D1 证明：冻结的 410 个 D1 输入在 BlitzSolver 上可逐字节重放，评分/下界/路线标签特征与捕获时一致。
+D1 证明：冻结的 410 个 D1 输入在 BlitzSolver 上可逐字节重放，评分/下界/路线标签特征与录制时一致。其中 23 个根在 M2c 按原版证据修正语义后由 Blitz 重录（`provenance.d1Rerecord`），其余 387 个根仍是 M0 宿主的录制。
 D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 
 ### 4.1.1 D1 重录与保真检查
@@ -110,7 +110,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 
 ### 4.2 D2
 
-`tests/Golden/data` 的 D2 期望结果已在 M3b 合并时按正式默认 `all-fill`（完全等价出牌 + 类优先补位选牌）用 `refreeze` 重算，清单带 `provenance.refreeze`；M3b 时 D1 没有变。之后再有会改变搜索结果的改动，先按 4.3 运行 `compare`，经用户同意后在副本上 `refreeze`，再替换仓库数据；不要手改数据。M2c 的语义修正另按 4.1.1 重录失配 D1 根，再按 4.3 在重录副本上 `refreeze`。
+`tests/Golden/data` 的 D2 期望结果已在 M3b 合并时按正式默认 `all-fill`（完全等价出牌 + 类优先补位选牌）用 `refreeze` 重算，清单带 `provenance.refreeze`；M3b 时 D1 没有变。之后再有会改变搜索结果的改动，先按 4.3 运行 `compare`，经用户同意后在副本上 `refreeze`，再替换仓库数据；不要手改数据。M2c 合并时按 4.1.1 重录了 23 个 D1 根，再在重录副本上 `refreeze`，D2 结果不变。
 
 D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
@@ -253,7 +253,7 @@ D2_OK selected=1983 equal=1983 mismatch=0 expanded=15568469
 | D2（副本，严格 verify，全量一次运行） | 122.3s | 1,983/1,983，展开 15,568,469 |
 | D2（副本，等价开关，全量一次运行） | 132.7s | 1,983/1,983，prefix/threat 与等价检查 |
 | 副本 refreeze | 127.4s | 复制 + 重解 + 清单 |
-| manifest | 小于 1s | 副本 5,589 文件 / 23,692,454 B |
+| manifest | 小于 1s | 5,589 文件 / 23,692,497 B |
 
 D2 四片 `compare --config all`（依次运行，`--jobs 6`）：
 

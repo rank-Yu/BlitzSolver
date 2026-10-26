@@ -93,7 +93,7 @@
 | --- | --- | --- |
 | `MonologuePower.amountsForPlayedCards`（`PowerModel` 内部 `Dictionary<CardModel,int>`） | 不进入状态。`Exec` 的 `MonologuePending` 栈在每次出牌开始时快照当前所有正层 `(owner, occurrence, Strength)`，效果结束后逐条结算 | `BeforeCardPlayed` 登记、`AfterCardPlayed` 删除，只在一次出牌内部非空；现有引擎的 `CapturePendingMonologues` 也只在 `CardOnPlaySupport` 期间读取 |
 | `_swordSageReplayBonuses`（`Dictionary<PredictedCard,int>`） | 每张 `Card.Private`：该牌已应用的 SwordSage 重放加成（`short.MinValue` = 尚未初始化） | 随卡值移动；`NormalizeSwordSageReplays` 按“当前 SwordSage 层数 − 已应用”调整 `ReplayCount` 并写回 |
-| `SummonForth` 的 `MoveSovereignBladesToHand`（按 `AllCards` 对象取非手牌君王之刃） | 按卡牌 Id 扫描抽牌/弃牌/消耗/打出段，按当前顺序移动到手牌底部 | 只依赖牌值，不需要身份 |
+| `SummonForth` 的 `MoveSovereignBladesToHand`（按 `AllCards` 对象取非手牌君王之刃） | 先按卡牌 Id 快照抽牌/弃牌/消耗/打出段里的非手牌君王之刃，再逐张 `MoveCard` 到手牌底部（满手改送弃牌堆） | 只依赖牌值，不需要身份；快照避免把刚送入弃牌堆的牌再次捡回 |
 | `VambracePredictionState.TriggeringCard` | 不进入状态；`Exec` 保存触发卡所在出牌的 power-source serial 与相对位置 | `BlockGainedThisCombat` 持久化（`Relic.Counter`）；`TriggeringCard` 只在一次出牌内被读 |
 | `_unsettlingLampTriggeringCards` / `_unsettlingLampInternalPowerTypes` | 不进入状态；`Exec` 保存触发卡的 source serial 与本次已翻倍的临时 Power 内部 Id 集合 | `CompleteCardPowerApplication` 时清除；锁存位（`RelicStatus`/`_isFinishedTriggering` 的引擎状态）持久化为 `Relic.Counter` |
 | Fetch 的 `_fetchCardsPlayedThisTurn` | `Card.Private` 的 bit 0 | 随卡值移动；`RecordCardPlayed` 置位，玩家回合开始清零；生成的卡/克隆不清位复制 |

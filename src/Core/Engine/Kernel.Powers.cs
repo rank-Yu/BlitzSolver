@@ -246,6 +246,43 @@ public static partial class Kernel
     }
 
     /// <summary>
+    /// Mirrors <c>SimulatedCombatState.ApplyTemporaryDexterity</c> (<c>ApplyTemporaryStat</c>):
+    /// native <c>TemporaryDexterityPower.BeforeApplied</c> applies the Dexterity before
+    /// <c>PowerCmd.Apply</c> inserts the temporary power row. A first application therefore gives
+    /// Dexterity and then inserts the row; a stacking application inserts the row and gives the
+    /// applied delta afterwards.
+    /// </summary>
+    public static int ApplyTemporaryDexterity(ref Exec x, byte target, ushort temporaryId, int amount,
+        byte applier)
+    {
+        TryResolveMonologuesBeforeCompensation(ref x);
+        if (amount == 0 || !CanReceivePowers(x.B, target))
+            return 0;
+        PowerDef def = Registry.Power(temporaryId);
+        Span<Listener> received = stackalloc Listener[HookDispatch.MaxListenerCount];
+        amount = ApplyTemporaryPowerAmountModifiers(ref x, temporaryId, amount, target, applier, received,
+            out int receivedCount);
+        if (receivedCount > 0)
+        {
+            HookDispatch.AfterModifyingPowerAmountReceived(ref x, temporaryId, target, received[..receivedCount]);
+            if (x.NeedsChoice)
+                return 0;
+        }
+        if (def.TypeForAmount(amount) == PowerType.Debuff && ConsumeArtifact(ref x.B, target))
+            return 0;
+        ushort dexterity = Registry.TryPower("DEXTERITY_POWER", out ushort id)
+            ? id
+            : throw new UnsupportedException("临时敏捷需要敏捷的 Blitz 定义。");
+        bool alreadyApplied = GetAmount(x.B, target, temporaryId) != 0;
+        if (def.IsInstanced || !alreadyApplied)
+            ApplyPower(ref x, target, dexterity, amount, applier);
+        int applied = AddPowerAmount(ref x, target, temporaryId, def, amount, applier, out _);
+        if (alreadyApplied && applied != 0)
+            ApplyPower(ref x, target, dexterity, applied, applier);
+        return applied;
+    }
+
+    /// <summary>
     /// Mirrors <c>SimulatedCombatState.RetireTemporaryStat</c> for a temporary Focus power: removes it,
     /// then changes Focus by -amount for a buff and +amount for a debuff (type for the current amount).
     /// </summary>

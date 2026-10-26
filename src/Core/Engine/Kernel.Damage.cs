@@ -34,7 +34,8 @@ public static partial class Kernel
     /// Mirrors <c>CombatPredictionSimulator.ExecuteAttack</c> for a card attack.
     /// </summary>
     public static void CardAttack(ref Exec x, decimal damagePerHit, int hitCount, AttackTargeting targeting,
-        byte singleTarget, ValueProps props = ValueProps.Move, byte attacker = Limits.PlayerOwner)
+        byte singleTarget, ValueProps props = ValueProps.Move, byte attacker = Limits.PlayerOwner,
+        bool recordAttack = true)
     {
         // Single-target attacks read Creature(singleTarget); a missing target is an unsupported
         // caller assumption, not an index error.
@@ -92,10 +93,15 @@ public static partial class Kernel
         // listeners without the ending gate. The per-creature attack counter is keyed by the attacker
         // (<c>SimulatedCombatState.RecordCreatureAttacked</c>): the player's is PlayerAttacksThisTurn and
         // Osty's is OstyAttacksThisTurn (Rattle).
-        if (attacker == Limits.PlayerOwner)
-            x.B.AddCounter(Counter.PlayerAttacksThisTurn, 1);
-        else if (attacker == Limits.OstyOwner)
-            x.B.AddCounter(Counter.OstyAttacksThisTurn, 1);
+        // AttackCommand.Execute records CreatureAttacked; an AttackContext (EchoingSlash,
+        // Omnislice) only calls AfterAttack on dispose and leaves these counters unchanged.
+        if (recordAttack)
+        {
+            if (attacker == Limits.PlayerOwner)
+                x.B.AddCounter(Counter.PlayerAttacksThisTurn, 1);
+            else if (attacker == Limits.OstyOwner)
+                x.B.AddCounter(Counter.OstyAttacksThisTurn, 1);
+        }
         AfterAttackHook after = new() { Attacker = attacker };
         HookDispatch.Dispatch(ref x, ref after, gatedByEnding: false);
     }
@@ -155,10 +161,8 @@ public static partial class Kernel
             if (totalKills > Limits.Enemies)
                 throw new CapacityException("AttackWaves", Limits.Enemies);
         }
-        if (attacker == Limits.PlayerOwner)
-            x.B.AddCounter(Counter.PlayerAttacksThisTurn, 1);
-        else if (attacker == Limits.OstyOwner)
-            x.B.AddCounter(Counter.OstyAttacksThisTurn, 1);
+        // EchoingSlash uses one AttackContext around every wave (CardOnPlaySupport.Batch042), so its
+        // History.CreatureAttacked is never recorded; only AfterAttack fires on context dispose.
         AfterAttackHook after = new() { Attacker = attacker };
         HookDispatch.Dispatch(ref x, ref after, gatedByEnding: false);
     }

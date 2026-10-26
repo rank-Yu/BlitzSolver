@@ -28,7 +28,7 @@ tests/Golden/data/
 | 项 | 数量 |
 | --- | ---: |
 | 文件总数（不含 `manifest.json`） | 5,589 |
-| 总字节 | 23,692,454 |
+| 总字节 | 23,692,497 |
 | D1 文件/根目录 | 410（每个目录一份 `config.br`/`golden.br`/`meta.json`） |
 | D1 记录根（`counts.d1.roots`） | 418（与 410 个文件目录不是同一计数） |
 | D1 K1 动作 | 5,062 |
@@ -199,6 +199,7 @@ dotnet run --project tests/Golden -c Release -- \
 - 重录后的清单写入 `provenance.d1Rerecord`，格式是
   `roots=<按 ordinal 排序的根名> reason=<原因> sha256=<每个 golden.br 解码后 GOLD 内容的
   SHA-256 汇总>`。普通 `manifest` 与 `refreeze` 都保留这一字段，不会把它丢掉。
+- 仓库数据在 M2c 合并时重录了 23 个根（原因 `M2c semantic corrections`）：EchoingSlash/Omnislice 攻击计数 8 个、临时敏捷行顺序 3 个、Power 的 Target/Applier 12 个。名单见清单的 `provenance.d1Rerecord`；游走条数、状态数与转移数都不变。
 
 ## 9. 导出时核对过什么
 
