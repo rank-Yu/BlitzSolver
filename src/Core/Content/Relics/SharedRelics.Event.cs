@@ -275,7 +275,7 @@ public sealed class DarkstonePeriapt : RelicDef
 /// root, so the relic itself has no in-combat hook.
 /// </summary>
 [ContentId("FAKE_SNECKO_EYE")]
-public sealed class FakeSneckoEye : RelicDef
+public sealed partial class FakeSneckoEye : RelicDef
 {
 }
 
@@ -283,7 +283,7 @@ public sealed class FakeSneckoEye : RelicDef
 
 [ContentId("DREAM_CATCHER")] public sealed class DreamCatcher : RelicDef; // TryModifyRestSiteHealRewards
 
-[ContentId("EMBER_TEA")] public sealed class EmberTea : RelicDef; // AfterRoomEntered Strength
+[ContentId("EMBER_TEA")] public sealed partial class EmberTea : RelicDef; // AfterRoomEntered Strength
 
 [ContentId("FAKE_LEES_WAFFLE")] public sealed class FakeLeesWaffle : RelicDef; // AfterObtained
 
@@ -306,13 +306,13 @@ public sealed class FakeSneckoEye : RelicDef
 // counter is part of the imported Battle.
 [ContentId("BIG_MUSHROOM")] public sealed class BigMushroom : RelicDef; // ModifyHandDraw turn 1 only
 
-[ContentId("FAKE_ANCHOR")] public sealed class FakeAnchor : RelicDef; // BeforeCombatStart block
+[ContentId("FAKE_ANCHOR")] public sealed partial class FakeAnchor : RelicDef; // BeforeCombatStart block
 
 [ContentId("FAKE_BLOOD_VIAL")] public sealed class FakeBloodVial : RelicDef; // turn <= 1 AfterPlayerTurnStartLate heal
 
 [ContentId("ROYAL_POISON")] public sealed class RoyalPoison : RelicDef; // turn <= 1 AfterPlayerTurnStart damage
 
-[ContentId("SWORD_OF_JADE")] public sealed class SwordOfJade : RelicDef; // AfterRoomEntered Strength
+[ContentId("SWORD_OF_JADE")] public sealed partial class SwordOfJade : RelicDef; // AfterRoomEntered Strength
 
 [ContentId("TEA_OF_DISCOURTESY")] public sealed class TeaOfDiscourtesy : RelicDef; // BeforeCombatStart Dazed
 

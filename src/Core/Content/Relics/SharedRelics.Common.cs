@@ -30,7 +30,7 @@ public sealed class StrikeDummy : RelicDef
 /// no hook remains afterwards.
 /// </summary>
 [ContentId("ANCHOR")]
-public sealed class Anchor : RelicDef;
+public sealed partial class Anchor : RelicDef;
 
 /// <summary>
 /// <c>BagOfMarbles</c>: <c>BeforeSideTurnStart</c> applies Vulnerable only when the player turn number is
@@ -38,7 +38,7 @@ public sealed class Anchor : RelicDef;
 /// 1 start is before the root; from turn 2 the condition is false.
 /// </summary>
 [ContentId("BAG_OF_MARBLES")]
-public sealed class BagOfMarbles : RelicDef;
+public sealed partial class BagOfMarbles : RelicDef;
 
 /// <summary>
 /// <c>BagOfPreparation</c>: <c>ModifyHandDraw</c> adds 2 only when the turn number is &lt;= 1
@@ -46,7 +46,7 @@ public sealed class BagOfMarbles : RelicDef;
 /// The turn 1 hand draw happens before the root; on turn 2 the condition is false.
 /// </summary>
 [ContentId("BAG_OF_PREPARATION")]
-public sealed class BagOfPreparation : RelicDef;
+public sealed partial class BagOfPreparation : RelicDef;
 
 /// <summary>
 /// <c>BloodVial</c>: <c>AfterPlayerTurnStartLate</c> heals 2 on turn &lt;= 1; the existing engine runs the
@@ -54,42 +54,42 @@ public sealed class BagOfPreparation : RelicDef;
 /// no later turn satisfies it.
 /// </summary>
 [ContentId("BLOOD_VIAL")]
-public sealed class BloodVial : RelicDef;
+public sealed partial class BloodVial : RelicDef;
 
 /// <summary>
 /// <c>BronzeScales</c>: <c>AfterRoomEntered</c> applies Thorns when entering a combat room, i.e. during
 /// combat setup. The root already carries the power, and the relic has no later hook.
 /// </summary>
 [ContentId("BRONZE_SCALES")]
-public sealed class BronzeScales : RelicDef;
+public sealed partial class BronzeScales : RelicDef;
 
 /// <summary>
 /// <c>FestivePopper</c>: <c>AfterPlayerTurnStart</c> damages all opponents only when the turn number is
 /// &lt;= 1 (<c>ContinueRelicsAfterPlayerTurnStart</c>). The turn 1 start is before the root.
 /// </summary>
 [ContentId("FESTIVE_POPPER")]
-public sealed class FestivePopper : RelicDef;
+public sealed partial class FestivePopper : RelicDef;
 
 /// <summary>
 /// <c>Gorget</c>: <c>AfterRoomEntered</c> applies Plating when entering a combat room, during combat
 /// setup, and has no later hook.
 /// </summary>
 [ContentId("GORGET")]
-public sealed class Gorget : RelicDef;
+public sealed partial class Gorget : RelicDef;
 
 /// <summary>
 /// <c>Lantern</c>: <c>AfterSideTurnStart</c> gains 1 energy only when the player turn number is &lt;= 1
 /// (<c>TriggerRelicsAfterSideTurnStart</c>). The player turn 1 start is before the root.
 /// </summary>
 [ContentId("LANTERN")]
-public sealed class Lantern : RelicDef;
+public sealed partial class Lantern : RelicDef;
 
 /// <summary>
 /// <c>OddlySmoothStone</c>: <c>AfterRoomEntered</c> applies Dexterity when entering a combat room, during
 /// combat setup, and has no later hook.
 /// </summary>
 [ContentId("ODDLY_SMOOTH_STONE")]
-public sealed class OddlySmoothStone : RelicDef;
+public sealed partial class OddlySmoothStone : RelicDef;
 
 /// <summary>
 /// <c>RedMask</c>: <c>BeforeSideTurnStart</c> applies Weak only when the player turn number is &lt;= 1
@@ -97,14 +97,14 @@ public sealed class OddlySmoothStone : RelicDef;
 /// before the root.
 /// </summary>
 [ContentId("RED_MASK")]
-public sealed class RedMask : RelicDef;
+public sealed partial class RedMask : RelicDef;
 
 /// <summary>
 /// <c>Vajra</c>: <c>AfterRoomEntered</c> applies Strength when entering a combat room, during combat
 /// setup, and has no later hook.
 /// </summary>
 [ContentId("VAJRA")]
-public sealed class Vajra : RelicDef;
+public sealed partial class Vajra : RelicDef;
 
 /// <summary>Native <c>AmethystAubergine</c>: <c>TryModifyRewards</c>, <c>AfterModifyingRewards</c> and <c>IsAllowed</c> only.</summary>
 [ContentId("AMETHYST_AUBERGINE")]
@@ -235,7 +235,7 @@ public sealed class VenerableTeaSet : RelicDef
 /// projected by <c>ClaimStatefulRelic</c>.
 /// </summary>
 [ContentId("RED_SKULL")]
-public sealed class RedSkull : RelicDef
+public sealed partial class RedSkull : RelicDef
 {
     // RedSkull.cs: DynamicVar("HpThreshold", 50m), PowerVar<StrengthPower>(3m).
     public override IReadOnlyList<string> VarNames => ["HpThreshold", "StrengthPower"];
@@ -277,7 +277,7 @@ public sealed class BoneFlute : RelicDef
 /// before the captured root; the Focus power is already in the root.
 /// </summary>
 [ContentId("DATA_DISK")]
-public sealed class DataDisk : RelicDef
+public sealed partial class DataDisk : RelicDef
 {
 }
 

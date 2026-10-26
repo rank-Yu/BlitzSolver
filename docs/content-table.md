@@ -27,10 +27,11 @@
 | `PowerDeathHistoryRisk` | `MirrorRiskTables` 的每 Power 死亡镜像风险 | 242 项 |
 | `Potions` | 每个 `Registry` 药水的目标/稀有度/战略成本/变量与变量属性 | 65 个 |
 | `PotionGeneratableInCombat` | `PotionModel.CanBeGeneratedInCombat` | 65 项 |
-| `RelicVars` | 每个有变量名的遗物变量 | 100 个有变量（`Registry.RelicCount` 297） |
+| `RelicVars` | 每个有变量名的遗物变量（`Rules` 使用） | 100 个有变量（`Registry.RelicCount` 297） |
+| `RelicStartVars` | 每个遗物全部 `DynamicVars` 的 `name -> BaseValue`（建局使用，不进 `Rules`） | 297 个遗物 |
 | `Enchantments` | 每个 `Registry` 附魔的 native id 与 `HooksExt`（规则编译器只读 shuffle/before-flush 两位） | 22 个 |
 | `SpawnMonsters` | 每个怪物 id 的召唤变体 `MonsterRules`，按进阶 0..10 各一份 | 107 个可召唤变体 / 108 个怪物 |
-| `Encounters` | 每个 `RunCatalog` 遭遇的槽位、按遭遇 setup 生成的怪物及其按进阶的规则 | 89 个遭遇 |
+| `Encounters` | 每个 `RunCatalog` 遭遇的槽位、按（怪物，槽位，进阶）组织的怪物规则，以及从原版 `AfterAddedToRoom` 捕获的开战记录 | 89 个遭遇 |
 | `Characters` | 每个角色的卡池（`ContentPoolEntry`：id、类型、稀有度、战斗生成、多人限制、所需 epoch）、角色药水池、角色解锁 epoch | 5 个角色 |
 | `CharacterOrder` | 原生 `ModelDb.AllCharacters` 顺序，用于 Splash 的“其他角色攻击”拼接 | 5 |
 | `ColorlessPool`/`StatusPool`/`CursePool` | 共享卡池的候选顺序与所需 epoch | 合计 549 个卡池候选 |
@@ -130,6 +131,7 @@ public sealed class RulesRootFacts
     public required int[][] EnemyConditionalTargets;          // int.MinValue = 未知
     public required MonsterAttack[]?[][] EnemyNodeAttacks;    // null = 用内容表
     public required int[]?[] EnemyRootPowerAmounts;           // null = 从 Battle 推
+    public bool[] EnemyInitialMoveLogged;                     // 空 = 用内容表
 }
 ```
 
@@ -138,13 +140,33 @@ public sealed class RulesRootFacts
 setup 里得到同样的值，并把它们和 `Battle` 一起交给构建器。这不是默认值：缺失的初始化节点/
 条件/攻击不会被猜测，`RulesBuilder` 会在没有内容变体时显式拒绝。
 
-遭遇表目前是用 `GenerateMonstersWithSlots(NullRunState)` 生成的**一种**随机组合，不是全部
-可能。R2a-2 移植遭遇生成时，应改用 `EncounterModel.AllPossibleMonsters` 与 `Slots`，把怪物
-规则按（怪物，槽位，进阶）组织，再枚举或缓存所有组合。
+遭遇表现在按 `EncounterModel.AllPossibleMonsters` 与 `Slots` 导出：每个可能出现的
+（怪物，槽位）组合有一行按进阶的 `MonsterRules`，规则由该槽位下的 scratch 怪物编译；实际
+生成时再按 `EncounterDef` 的语义选择怪物、槽位和变体。这样不再只保存
+`GenerateMonstersWithSlots(NullRunState)` 的一种随机组合。槽位相关的条件分支（Exoskeleton、
+Wriggler、Myte、PhantasmalGardener 等）在导出时按真实槽位解析；遭遇变体的私有标志和 HP 扣减
+由 `EncounterSpawn.Variant`/`HpReduction` 在 Core 建局时应用。
 
 `docs/import.md` 的 30 项表仍描述原生编译器；本文件描述整局层的新来源。
 
-## 6. 对照方法
+## 6. 开战值
+
+`Rules` 只服务搜索，不携带建局数值；`ContentTable` 另存两份只读建局数据：
+
+- `RelicStartVars`：每个遗物规范 `DynamicVars` 的全量 `name -> BaseValue`。建局时遗物 Hook 通过
+  `ICombatStartContent.RelicVar` 读取，不把常量写进 `RelicDef`、不改变 `Rules` 字节。
+- `ContentEncounterMonster.CombatStartByAscension`：按（怪物、槽位、进阶）记录原版
+  `MonsterModel.AfterAddedToRoom` 的结果。导出器在临时原版 `CombatState` 中先建出同一遭遇的
+  全部怪物和玩家 Creature，再按顺序执行 `AfterAddedToRoom`，捕获施加到怪物/玩家的 Power
+  （目标、Applier、层数、`Power.Target`、WitheringPresence 的 `CardsLeft`）及 HP 模式。
+  逐组合补齐未出现在该次随机生成中的候选怪物；建局由内核按记录调用 `ApplyPower` 等入口。
+
+三个暂存的原版方法体常量明确列在 [战斗边界](run-combat-boundary.md) 4.1：
+`SneckoEye`/`FakeSneckoEye` 的 Confused 1、`FurCoat` 的 SpawnHp 1、Decimillipede 的 HP 步长 2。
+其余开战数值均由本机游戏模型导出；WaterfallGiant 的 `BasePressureGunDamage` 走反射读取并在
+字段/属性缺失时抛异常，不使用空条件跳过。
+
+## 7. 对照方法
 
 入口：`tests/OfflineHost` 的 `--rules-build-compare`。每个用例在独立子进程里：
 

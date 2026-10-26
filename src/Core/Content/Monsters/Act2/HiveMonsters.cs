@@ -4,9 +4,11 @@ namespace BlitzSolver.Content.Monsters.Act2;
 
 /// <summary>Chomper: "SCREECH_MOVE" adds three Dazed to the discard pile; its Artifact is a starting power.</summary>
 [ContentId("CHOMPER")]
-public sealed class Chomper : MonsterDef
+public sealed partial class Chomper : MonsterDef
 {
     private const int ScreechDazed = 3;
+
+    public override string? CombatStartMove(byte variant) => variant == 1 ? "SCREECH_MOVE" : "CLAMP_MOVE";
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("DAZED", 0)];
 
@@ -26,7 +28,7 @@ public sealed class Chomper : MonsterDef
 /// PersonalHivePower is imported with the root.
 /// </summary>
 [ContentId("ENTOMANCER")]
-public sealed class Entomancer : MonsterDef
+public sealed partial class Entomancer : MonsterDef
 {
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
@@ -45,7 +47,7 @@ public sealed class Entomancer : MonsterDef
 
 /// <summary>Exoskeleton: "ENRAGE_MOVE" applies Strength 2 to itself; HardToKill is a starting power.</summary>
 [ContentId("EXOSKELETON")]
-public sealed class Exoskeleton : MonsterDef
+public sealed partial class Exoskeleton : MonsterDef
 {
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
@@ -63,6 +65,22 @@ public sealed class Myte : MonsterDef
     public override IReadOnlyList<string> StaticIntNames => ["SuckStrength"];
 
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("TOXIC", 0)];
+
+    public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
+    {
+        MonsterRules rules = Kernel.MonsterRules(ref x, owner);
+        if (rules.Nodes[branchNode].NativeId != "INIT_MOVE")
+            return -1;
+        byte slot = x.B.Enemy(owner).Slot;
+        if (slot == Kernel.NoSlot)
+            throw new UnsupportedException("Myte 的 INIT_MOVE 没有遭遇槽位。");
+        return x.R.EncounterSlots[slot] switch
+        {
+            "first" => rules.NodeIndex("TOXIC_MOVE"),
+            "second" => rules.NodeIndex("SUCK_MOVE"),
+            _ => throw new UnsupportedException($"Myte 的 INIT_MOVE 没有槽位 {x.R.EncounterSlots[slot]} 的分支。"),
+        };
+    }
 
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
@@ -149,7 +167,7 @@ public sealed class Ovicopter : MonsterDef
 /// current and max HP (MonsterMoveEffects "ToughEgg"). The follow-up NIBBLE_MOVE is a plain attack.
 /// </summary>
 [ContentId("TOUGH_EGG")]
-public sealed class ToughEgg : MonsterDef
+public sealed partial class ToughEgg : MonsterDef
 {
     private const int HatchlingMinHp = 0;
     private const int HatchlingMaxHp = 1;

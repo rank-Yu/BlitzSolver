@@ -10,7 +10,7 @@ namespace BlitzSolver.Content.Relics;
 /// <c>AfterCardPlayedMirrors.HandleVambrace</c> (VambracePredictionState).
 /// </summary>
 [ContentId("VAMBRACE")]
-public sealed class Vambrace : RelicDef
+public sealed partial class Vambrace : RelicDef
 {
     public override bool IsIdentityContent => true;
 
@@ -57,7 +57,7 @@ public sealed class Vambrace : RelicDef
 /// CompleteCardPowerApplication</c>.
 /// </summary>
 [ContentId("UNSETTLING_LAMP")]
-public sealed class UnsettlingLamp : RelicDef
+public sealed partial class UnsettlingLamp : RelicDef
 {
     public override bool IsIdentityContent => true;
 

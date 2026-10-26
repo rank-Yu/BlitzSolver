@@ -27,7 +27,7 @@ public sealed class InfusedCore : RelicDef
 /// the StartOfCombat summon is already in the captured root (<c>SimulatedCombatState.RelicTurnStart</c>).
 /// </summary>
 [ContentId("PHYLACTERY_UNBOUND")]
-public sealed class PhylacteryUnbound : RelicDef
+public sealed partial class PhylacteryUnbound : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["StartOfCombat", "StartOfTurn"];
 

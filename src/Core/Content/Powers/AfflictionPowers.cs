@@ -156,6 +156,18 @@ public sealed class VitalSparkPower : PowerDef
 {
     public override PowerType Type => PowerType.Buff;
 
+    public override void BeforeCombatStart(ref Exec x, Listener self)
+    {
+        for (int position = 0; position < x.B.CardCount; position++)
+        {
+            Card card = x.B.Cards[position];
+            if (x.R.Card(card.Id, card.Upgrade).Type != CardType.Skill)
+                continue;
+            Kernel.ApplyAffliction(ref x, position,
+                Registry.AfflictionId<Afflictions.TaintedAffliction>(), x.B.Powers[self.Index].Amount);
+        }
+    }
+
     public override PowerStackType StackType => PowerStackType.Counter;
 
     public override void AfterCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)

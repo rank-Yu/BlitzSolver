@@ -8,7 +8,7 @@ namespace BlitzSolver.Content.Relics;
 /// in-combat hook of its own.
 /// </summary>
 [ContentId("DIVINE_RIGHT")]
-public sealed class DivineRight : RelicDef;
+public sealed partial class DivineRight : RelicDef;
 
 /// <summary>
 /// <c>GalacticDust</c>: <c>SimulatedCombatState.TriggerRelicsAfterStarsSpent</c> accumulates stars in the
@@ -118,7 +118,7 @@ public sealed class VitruvianMinion : RelicDef
 /// after that turn start, so the forge already happened before the root; later turns are no-ops.
 /// </summary>
 [ContentId("FENCING_MANUAL")]
-public sealed class FencingManual : RelicDef;
+public sealed partial class FencingManual : RelicDef;
 
 /// <summary>
 /// <c>OrangeDough</c>: <c>AfterSideTurnStart</c> generates two colorless cards on turn 1 only. A combat

@@ -9,7 +9,7 @@ namespace BlitzSolver.Content.Relics;
 /// the same reason), so the definition has no combat hook.
 /// </summary>
 [ContentId("TWISTED_FUNNEL")]
-public sealed class TwistedFunnel : RelicDef
+public sealed partial class TwistedFunnel : RelicDef
 {
 }
 
@@ -29,7 +29,7 @@ public sealed class BookRepairKnife : RelicDef
 /// captured root; the Souls and their random positions are already in the root.
 /// </summary>
 [ContentId("FUNERARY_MASK")]
-public sealed class FuneraryMask : RelicDef
+public sealed partial class FuneraryMask : RelicDef
 {
 }
 
@@ -252,28 +252,28 @@ public sealed class SelfFormingClay : RelicDef
 /// side can trigger it.
 /// </summary>
 [ContentId("AKABEKO")]
-public sealed class Akabeko : RelicDef;
+public sealed partial class Akabeko : RelicDef;
 
 /// <summary>
 /// <c>Pantograph</c>: <c>BeforeCombatStart</c> heals 25 only in a boss room, during combat setup; no later
 /// hook reads it.
 /// </summary>
 [ContentId("PANTOGRAPH")]
-public sealed class Pantograph : RelicDef;
+public sealed partial class Pantograph : RelicDef;
 
 /// <summary>
 /// <c>PetrifiedToad</c>: <c>BeforeCombatStartLate</c> procures a PotionShapedRock before the combat root;
 /// the potion is part of the imported starting state and there is no later hook.
 /// </summary>
 [ContentId("PETRIFIED_TOAD")]
-public sealed class PetrifiedToad : RelicDef;
+public sealed partial class PetrifiedToad : RelicDef;
 
 /// <summary>
 /// <c>StoneCracker</c>: <c>AfterRoomEntered</c> upgrades two upgradable draw-pile cards when entering a
 /// combat room, before the root; the upgraded cards are imported.
 /// </summary>
 [ContentId("STONE_CRACKER")]
-public sealed class StoneCracker : RelicDef;
+public sealed partial class StoneCracker : RelicDef;
 
 /// <summary><c>BowlerHat</c>: <c>ModifyGoldGained</c>/<c>AfterModifyingGoldGained</c> only; the existing engine registers it in <c>GoldGainedMirrors</c>, never as a combat hook.</summary>
 [ContentId("BOWLER_HAT")]

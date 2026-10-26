@@ -9,7 +9,7 @@ namespace BlitzSolver.Content.Monsters.Act3;
 /// existing engine has no Rampart mirror.
 /// </summary>
 [ContentId("LIVING_SHIELD")]
-public sealed class LivingShield : MonsterDef
+public sealed partial class LivingShield : MonsterDef
 {
     public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
@@ -56,7 +56,7 @@ public sealed class TurretOperator : MonsterDef
 /// Its death drives the Queen's <c>_hasAmalgamDied</c> branch (<see cref="Queen"/>).
 /// </summary>
 [ContentId("TORCH_HEAD_AMALGAM")]
-public sealed class TorchHeadAmalgam : MonsterDef;
+public sealed partial class TorchHeadAmalgam : MonsterDef;
 
 /// <summary>
 /// Aeonglass: EBB_MOVE gains <c>EbbBlock</c>; INCREASING_INTENSITY_MOVE fake-upgrades every Wither
@@ -67,7 +67,7 @@ public sealed class TorchHeadAmalgam : MonsterDef;
 /// to the summed upgrade level (<c>SimulatedCombatState.NormalizeAeonglassWithers</c>).
 /// </summary>
 [ContentId("AEONGLASS")]
-public sealed class Aeonglass : MonsterDef
+public sealed partial class Aeonglass : MonsterDef
 {
     private const int EbbBlockStat = 0;
     private const int WitherAmountStat = 1;
@@ -260,7 +260,7 @@ public sealed class Noisebot : MonsterDef
 /// <see cref="ApplyEntrancePowers"/> (<c>MonsterSpawnSupport.ApplyNativeEntrancePowers</c>).
 /// </summary>
 [ContentId("ZAPBOT")]
-public sealed class Zapbot : MonsterDef
+public sealed partial class Zapbot : MonsterDef
 {
     public override void ApplyEntrancePowers(ref Exec x, byte owner)
         => Kernel.ApplyPower(ref x, owner, Registry.PowerId<Powers.HighVoltagePower>(), 2, owner);
@@ -287,7 +287,7 @@ public sealed class Stabbot : MonsterDef
 /// the entrance adds the remaining +10 when the replacement has no stock left.
 /// </summary>
 [ContentId("AXEBOT")]
-public sealed class Axebot : MonsterDef
+public sealed partial class Axebot : MonsterDef
 {
     private const int BootUpBlockStat = 0;
     private const int BootUpStrengthStat = 1;
@@ -369,7 +369,7 @@ public sealed class Axebot : MonsterDef
 /// <c>BranchMonsterAi.CurrentMove</c>).
 /// </summary>
 [ContentId("TEST_SUBJECT")]
-public sealed class TestSubject : MonsterDef
+public sealed partial class TestSubject : MonsterDef
 {
     internal const string MultiClawMoveId = "MULTI_CLAW_MOVE";
 

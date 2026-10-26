@@ -190,7 +190,7 @@ public sealed class Ectoplasm : RelicDef
 /// <c>AfterRoomEntered</c> is applied before the root and imported.
 /// </summary>
 [ContentId("PHILOSOPHERS_STONE")]
-public sealed class PhilosophersStone : RelicDef
+public sealed partial class PhilosophersStone : RelicDef
 {
     // PhilosophersStone.cs: PowerVar&lt;StrengthPower&gt;(1m), EnergyVar(1).
     public override IReadOnlyList<string> VarNames => ["Energy"];
@@ -254,7 +254,7 @@ public sealed class RunicPyramid : RelicDef
 /// &lt;= 1 (<c>TriggerRelicsAfterSideTurnStart</c>). The player turn 1 start is before the root.
 /// </summary>
 [ContentId("VERY_HOT_COCOA")]
-public sealed class VeryHotCocoa : RelicDef;
+public sealed partial class VeryHotCocoa : RelicDef;
 
 /// <summary><c>LoomingFruit</c>: <c>AfterObtained</c> max-HP gain only.</summary>
 [ContentId("LOOMING_FRUIT")]
@@ -342,7 +342,7 @@ public sealed class Crossbow : RelicDef
 /// (<c>MonsterSpawnSupport.ApplyCreatureAddedRelics</c>); the relic itself has no combat hook.
 /// </summary>
 [ContentId("FUR_COAT")]
-public sealed class FurCoat : RelicDef
+public sealed partial class FurCoat : RelicDef
 {
 }
 
@@ -521,7 +521,7 @@ public sealed class SpikedGauntlets : RelicDef
 /// <c>ThrowingAxePredictionState.UsedThisCombat</c>, reset out of combat by <c>AfterRoomEntered</c>).
 /// </summary>
 [ContentId("THROWING_AXE")]
-public sealed class ThrowingAxe : RelicDef
+public sealed partial class ThrowingAxe : RelicDef
 {
     public override int ModifyCardPlayCount(ref Exec x, Listener self, in Card card, byte target,
         int playCount)
@@ -595,7 +595,7 @@ public sealed class SealOfGold : RelicDef
 /// combat and is already in the root.
 /// </summary>
 [ContentId("SNECKO_EYE")]
-public sealed class SneckoEye : RelicDef
+public sealed partial class SneckoEye : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 

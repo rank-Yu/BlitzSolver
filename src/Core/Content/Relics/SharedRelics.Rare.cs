@@ -78,7 +78,7 @@ public sealed class EmotionChip : RelicDef
 /// The counter is not reset by the trigger.
 /// </summary>
 [ContentId("METRONOME")]
-public sealed class Metronome : RelicDef
+public sealed partial class Metronome : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Damage", "OrbCount"];
 
@@ -462,7 +462,7 @@ public sealed class UnceasingTop : RelicDef;
 /// longer satisfies the condition.
 /// </summary>
 [ContentId("BELLOWS")]
-public sealed class Bellows : RelicDef;
+public sealed partial class Bellows : RelicDef;
 
 /// <summary>
 /// <c>GamblingChip</c>: <c>AfterPlayerTurnStart</c> offers its discard/draw choice only on turn 1
@@ -502,7 +502,7 @@ public sealed class Mango : RelicDef;
 /// combat-hook catalog marks it NotCombatRelevant, so there is no combat dispatch to mirror.
 /// </summary>
 [ContentId("MEAT_ON_THE_BONE")]
-public sealed class MeatOnTheBone : RelicDef;
+public sealed partial class MeatOnTheBone : RelicDef;
 
 /// <summary><c>MoltenEgg</c>: merchant/card-reward upgrade hooks and <c>IsAllowed</c> only.</summary>
 [ContentId("MOLTEN_EGG")]

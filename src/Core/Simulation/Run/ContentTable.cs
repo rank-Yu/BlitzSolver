@@ -16,6 +16,7 @@ public static class ContentReason
     public const string UnsupportedMonster = "unsupported-monster";
     public const string UnsupportedEnchantment = "unsupported-enchantment";
     public const string UnsupportedEncounter = "unsupported-encounter";
+    public const string UnsupportedRoom = "unsupported-room";
     public const string UnsupportedClosure = "unsupported-closure";
     public const string Capacity = "capacity";
 }
@@ -145,8 +146,14 @@ public sealed class ContentEncounterMonster
     /// </summary>
     public required MonsterRules[] RulesByAscension { get; init; }
 
+    /// <summary>Opening <c>AfterAddedToRoom</c> effects recorded from the native mutable model.</summary>
+    public required CombatStartRecord?[] CombatStartByAscension { get; init; }
+
     public MonsterRules Rules(int ascension)
         => RulesByAscension[Math.Clamp(ascension, 0, ContentTable.AscensionCount - 1)];
+
+    public CombatStartRecord? CombatStart(int ascension)
+        => CombatStartByAscension[Math.Clamp(ascension, 0, ContentTable.AscensionCount - 1)];
 }
 
 /// <summary>
@@ -181,7 +188,7 @@ public sealed class ContentEncounter
 /// unsupported reason and is rejected by <see cref="RulesBuilder"/> with the native rejection code.
 /// </para>
 /// </summary>
-public sealed class ContentTable
+public sealed class ContentTable : ICombatStartContent
 {
     public const ushort NoEncounter = ushort.MaxValue;
 
@@ -212,6 +219,9 @@ public sealed class ContentTable
 
     public required decimal[]?[] RelicVars { get; init; }
 
+    /// <summary>All canonical <c>DynamicVars</c> of each relic, by native variable name.</summary>
+    public required IReadOnlyDictionary<string, decimal>?[] RelicStartVars { get; init; }
+
     public required ContentUnsupported?[] RelicUnsupported { get; init; }
 
     /// <summary>
@@ -238,6 +248,18 @@ public sealed class ContentTable
     public required ContentCardPool CursePool { get; init; }
 
     public required ContentPotionEntry[] SharedPotionPool { get; init; }
+
+    public decimal RelicVar(ushort relicId, string name)
+    {
+        if (relicId < RelicStartVars.Length && RelicStartVars[relicId] is { } vars
+            && vars.TryGetValue(name, out decimal value))
+        {
+            return value;
+        }
+        string relicName = relicId < Registry.RelicCount ? Registry.Relic(relicId).NativeId : relicId.ToString();
+        throw new ContentUnavailableException(ContentReason.UnsupportedRelic,
+            $"内容表没有遗物 {relicName} 的开战变量 {name}。");
+    }
 
     public ContentCharacter Character(ushort id)
     {

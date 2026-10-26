@@ -769,6 +769,45 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8 --build-shard 1/2
 ```
 
+### 6.12 战斗边界建局对照（R2a-2）
+
+```bash
+# 自然开局：5 角色 × A0/A10 × 100 种子 = 1000
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind natural --setup-seeds 100 --setup-jobs 8
+
+# 全部 89 个遭遇 × A0/A10 × 20 种子 = 3560；可分片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 8 --setup-shard 0 2
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 8 --setup-shard 1 2
+
+# D1 的 410 个输入 × 4 种子 = 1640；分片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 8 --setup-shard 0 2
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 8 --setup-shard 1 2
+
+# 覆盖统计（只跑 Blitz 建局，不跑原版路径）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind d1 --setup-seeds 1 --setup-jobs 8 --setup-cover
+
+# 内容表（含逐（怪物、槽位、进阶）的原版 AfterAddedToRoom 记录）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
+```
+
+每个用例在独立子进程里跑两条路径：原版 `RunManager.EnterMapCoord` 到可出牌，导入 `Battle`、
+编译 `Rules`、转储进点后 `RunState`；Blitz 侧导入同一进点前 `RunState`，调用
+`RunCombatSetup.EnterMapCoord`，再用 `RulesBuilder` 和 `RunDump`。`Battle` 逐字节、`RulesCodec`
+逐字节、`RunState` 逐字段比较；失败打印第一处差异路径和值。
+
+2026-10 结果：自然 `same=1000 diff=0 reject=0`；遭遇 `same=3560 diff=0 reject=0`；D1
+`same=1492 diff=0 reject=148`，拒绝分布为 `unsupported-relic=128`、
+`unsupported-relic-state=20`。拒绝的根都是遗物开战效果需要玩家选择/生成整副牌组以外内容，或
+D1 请求给遗物注入了不进入 `RunState` 的整数字段；没有对比差异。`--setup-cover` 在 D1 一次运行
+中覆盖 378 个可建局根，记录每个使用的遗物/Power/附魔；完整数量见 `R2a2-report.md`。
+内容表导出约 0.82 秒、保留约 17 MB，encounter 级 unsupported 为 0。
+
 ## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |

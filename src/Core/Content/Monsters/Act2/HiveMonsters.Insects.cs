@@ -10,7 +10,7 @@ namespace BlitzSolver.Content.Monsters.Act2;
 /// (<c>MonsterMoveSemantics.ApplyForecastMove</c>).
 /// </summary>
 [ContentId("BOWLBUG_ROCK")]
-public sealed class BowlbugRock : MonsterDef
+public sealed partial class BowlbugRock : MonsterDef
 {
     public override int ResolveConditional(ref Exec x, byte owner, int branchNode)
     {
@@ -91,7 +91,7 @@ public sealed class BowlbugNectar : MonsterDef
 /// text).
 /// </summary>
 [ContentId("SLUMBERING_BEETLE")]
-public sealed class SlumberingBeetle : MonsterDef
+public sealed partial class SlumberingBeetle : MonsterDef
 {
     public override IReadOnlyList<string> InertMonsterIntNames => ["_isAwake"];
 
@@ -127,8 +127,16 @@ public sealed class SlumberingBeetle : MonsterDef
 /// still act, heal the ReattachPower amount and clear the reviving phase. The three concrete ids
 /// differ only in visuals.
 /// </summary>
-public abstract class DecimillipedeSegmentDef : MonsterDef
+public abstract partial class DecimillipedeSegmentDef : MonsterDef
 {
+    public override string? CombatStartMove(byte variant) => variant switch
+    {
+        0 => "WRITHE_MOVE",
+        1 => "BULK_MOVE",
+        2 => "CONSTRICT_MOVE",
+        _ => null,
+    };
+
     public override void ResolveReviveMove(ref Exec x, byte owner, int moveNode)
     {
         MonsterRules rules = Kernel.MonsterRules(ref x, owner);
@@ -194,7 +202,7 @@ public sealed class DecimillipedeSegmentBack : DecimillipedeSegmentDef
 /// starting InfestedPower spawns the Wrigglers on death.
 /// </summary>
 [ContentId("PHROG_PARASITE")]
-public sealed class PhrogParasite : MonsterDef
+public sealed partial class PhrogParasite : MonsterDef
 {
     public override IReadOnlyList<string> SpawnedMonsterIds => ["WRIGGLER"];
 
@@ -224,6 +232,8 @@ public sealed class PhrogParasite : MonsterDef
 [ContentId("WRIGGLER")]
 public sealed class Wriggler : MonsterDef
 {
+    public override string? CombatStartMove(byte variant) => variant == 1 ? "SPAWNED_MOVE" : null;
+
     public override string? SpawnSlotName => "wriggler1";
 
     public override bool SpawnedStunned => true;
@@ -284,7 +294,7 @@ public sealed class HunterKiller : MonsterDef
 /// it.
 /// </summary>
 [ContentId("LOUSE_PROGENITOR")]
-public sealed class LouseProgenitor : MonsterDef
+public sealed partial class LouseProgenitor : MonsterDef
 {
     private const int CurlBlock = 0;
     private const int GrowStrength = 1;
@@ -315,7 +325,7 @@ public sealed class LouseProgenitor : MonsterDef
 /// block (<c>MonsterMoveEffects</c> "Crusher"). BackAttackLeft/CrabRage start on the root creature.
 /// </summary>
 [ContentId("CRUSHER")]
-public sealed class Crusher : MonsterDef
+public sealed partial class Crusher : MonsterDef
 {
     private const int AdaptStrengthGain = 0;
     private const int GuardedStrikeBlock = 18;
@@ -351,7 +361,7 @@ public sealed class Crusher : MonsterDef
 /// CrabRage start on the root creature and its opponent.
 /// </summary>
 [ContentId("ROCKET")]
-public sealed class Rocket : MonsterDef
+public sealed partial class Rocket : MonsterDef
 {
     private const int ChargeUpStrengthGain = 0;
 

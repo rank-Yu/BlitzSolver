@@ -13,9 +13,10 @@ public sealed class FuzzyWurmCrawler : MonsterDef
 }
 
 [ContentId("NIBBIT")]
-public sealed class Nibbit : MonsterDef
+public sealed partial class Nibbit : MonsterDef
 {
     private const int SliceBlock = 0;
+
     private const int HissStrengthGain = 1;
 
     public override IReadOnlyList<string> StaticIntNames => ["SliceBlock", "HissStrengthGain"];
@@ -43,7 +44,7 @@ public sealed class Nibbit : MonsterDef
 /// consistent (no encounter summons one today).
 /// </summary>
 [ContentId("THIEVING_HOPPER")]
-public sealed class ThievingHopper : MonsterDef
+public sealed partial class ThievingHopper : MonsterDef
 {
     public override void ApplyEntrancePowers(ref Exec x, byte owner)
     {

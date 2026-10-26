@@ -52,6 +52,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | [战斗状态布局](combat-state-layout.md) | `Battle` 字段、容量、规范化与指纹 |
 | [整局状态布局](run-state-layout.md) | `RunState` 字段盘点、容量、局外随机数、编码、`RunView` 可见性与导入拒绝码 |
 | [内容表与 RulesBuilder](content-table.md) | 进程内内容表的范围与导出、`Rules` 30 项来源分类、根事实缺口与逐字节对照方法 |
+| [战斗边界](run-combat-boundary.md) | 从地图选点进入战斗点、遭遇生成、开战 Hook、第一回合、`RulesRootFacts` 与建局对照 |
 | [战斗内核语义](combat-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
 | [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [战斗药水与遗物](combat-potions-relics.md) | 额外回合管线、药水与遗物机制 |

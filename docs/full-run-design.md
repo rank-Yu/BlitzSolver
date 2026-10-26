@@ -73,7 +73,7 @@ src/Core/                     BlitzSolver.Core（只依赖 .NET 基础库，一�
 
 命名空间与目录一致：`BlitzSolver.Simulation.Combat`、`BlitzSolver.Simulation.Run`、`BlitzSolver.Content.*`、`BlitzSolver.Ai.Combat`、`BlitzSolver.Ai.Run`、`BlitzSolver.Autoplay`。
 
-R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；R1b 已落地 `Simulation/Run` 的 `RunState`、`RunView`、局外随机数与编码；R2a-1 已落地内容表 `ContentTable`、`RulesBuilder` 与 `RulesCompiler` 的逐字节对照。`Ai/Run` 仍只有 README，`RunPilot` 随 R3 落地。
+R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；R1b 已落地 `Simulation/Run` 的 `RunState`、`RunView`、局外随机数与编码；R2a-1 已落地内容表 `ContentTable`、`RulesBuilder` 与 `RulesCompiler` 的逐字节对照；R2a-2 已落地地图选点到首个出牌阶段的战斗边界 `RunCombatSetup`。`Ai/Run` 仍只有 README，`RunPilot` 随 R3 落地。
 
 R1a 已完成的迁移：
 
@@ -172,6 +172,9 @@ RunKernel.Step(ref RunState state, in RunAction action) → RunStepResult（完�
 **写回：** 战斗结束后，把 HP、最大生命、金币、牌组的永久变化（诅咒、成长、升级等）、药水增减、遗物计数和 9 条战斗流写回 `RunState`，再按原版生成战后奖励。
 
 **战斗本身：** 交给现有的整场战斗托管和档位，不另写一套。
+
+R2a-2 的入口、遭遇生成、开战与第一回合的逐步顺序、`RulesRootFacts` 和拒绝码见
+[战斗边界](run-combat-boundary.md)。
 
 ## 9. 整局托管与宿主
 

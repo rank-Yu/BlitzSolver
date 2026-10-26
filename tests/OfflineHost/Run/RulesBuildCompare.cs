@@ -517,6 +517,7 @@ internal static class RulesBuildCompare
         int[][] conditional = new int[battle.EnemyCount][];
         MonsterAttack[]?[][] attacks = new MonsterAttack[]?[battle.EnemyCount][];
         int[]?[] rootPowers = new int[]?[battle.EnemyCount];
+        bool[] moveLogged = new bool[battle.EnemyCount];
         for (int index = 0; index < battle.EnemyCount; index++)
         {
             MonsterRules row = rules.MonsterRule(battle.Enemies[index].Rules);
@@ -534,6 +535,7 @@ internal static class RulesBuildCompare
             }
             conditional[index] = targets;
             attacks[index] = nodeAttacks;
+            moveLogged[index] = row.InitialMoveLogged;
         }
         return new RulesRootFacts
         {
@@ -541,6 +543,7 @@ internal static class RulesBuildCompare
             EnemyConditionalTargets = conditional,
             EnemyNodeAttacks = attacks,
             EnemyRootPowerAmounts = rootPowers,
+            EnemyInitialMoveLogged = moveLogged,
         };
     }
 

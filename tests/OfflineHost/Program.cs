@@ -47,6 +47,8 @@ internal static class Program
             return ContentTableReport.Run();
         if (args.Length > 0 && args[0] == "--rules-build-compare")
             return RulesBuildCompare.Run(args[1..]);
+        if (args.Length > 0 && args[0] == "--combat-setup-compare")
+            return CombatSetupCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-compare")
             return RunImportCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-negative")

@@ -7,14 +7,17 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Ascension;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.CardPools;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models.Enchantments;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.PotionPools;
+using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Unlocks;
@@ -28,6 +31,10 @@ namespace BlitzSolver.Import;
 /// <summary>Builds the one process-local <see cref="ContentTable"/> from <c>ModelDb</c>.</summary>
 public static class ContentTableExporter
 {
+    // Native DecimillipedeSegment.AfterAddedToRoom increments MaxHp by 2m while avoiding a
+    // teammate's HP. It is an algorithm step, not a DynamicVar; this is the only such constant.
+    private const int DecimillipedeHpStep = 2;
+
     private static readonly Dictionary<string, ulong> CardEpochMasks = BuildCardEpochMasks();
     private static readonly Dictionary<string, ulong> PotionEpochMasks = BuildPotionEpochMasks();
 
@@ -49,6 +56,7 @@ public static class ContentTableExporter
             Enchantments = ExportEnchantments(out ContentUnsupported?[] enchantmentUnsupported),
             EnchantmentUnsupported = enchantmentUnsupported,
             RelicVars = ExportRelicVars(out ContentUnsupported?[] relicUnsupported),
+            RelicStartVars = ExportRelicStartVars(),
             RelicUnsupported = relicUnsupported,
             SpawnMonsters = ExportSpawnMonsters(ascension,
                 out ContentUnsupported?[] monsterUnsupported),
@@ -61,6 +69,30 @@ public static class ContentTableExporter
             CursePool = ExportCardPool(ModelDb.CardPool<CurseCardPool>()),
             SharedPotionPool = ExportPotionPool(ModelDb.PotionPool<SharedPotionPool>(), 0),
         };
+    }
+
+    private static IReadOnlyDictionary<string, decimal>?[] ExportRelicStartVars()
+    {
+        IReadOnlyDictionary<string, decimal>?[] vars =
+            new IReadOnlyDictionary<string, decimal>?[Registry.RelicCount];
+        for (ushort id = 0; id < Registry.RelicCount; id++)
+        {
+            RelicDef def = Registry.Relic(id);
+            if (!RulesCompiler.CanonicalRelicModels.TryGetValue(def.NativeId, out RelicModel? canonical))
+                continue;
+            Dictionary<string, decimal> map = new(StringComparer.Ordinal);
+            foreach ((string name, DynamicVar variable) in canonical.DynamicVars)
+                map[name] = variable.BaseValue;
+            // These two values are method-body literals in the native modals, not DynamicVars.
+            // Keep them here, with the native member named, until the content table can execute
+            // the relic hooks itself.
+            if (def.NativeId is "SNECKO_EYE" or "FAKE_SNECKO_EYE")
+                map["ConfusedPower"] = 1m; // SneckoEye.cs / FakeSneckoEye.cs ApplyPower: 1m
+            if (def.NativeId == "FUR_COAT")
+                map["SpawnHp"] = 1m; // FurCoat.cs BeforeCombatStart: SetCurrentHp(item, 1m)
+            vars[id] = map;
+        }
+        return vars;
     }
 
     private static ContentCard?[] ExportCards(Player scratch,
@@ -315,6 +347,160 @@ public static class ContentTableExporter
         return rules;
     }
 
+    /// <summary>
+    /// Runs the native <c>AfterAddedToRoom</c> over one generated encounter and records the powers,
+    /// HP and auxiliary values that are not present in <c>DynamicVars</c>.
+    /// </summary>
+    private static Dictionary<(string MonsterId, string? Slot), CombatStartRecord> CaptureCombatStarts(
+        EncounterModel encounter, int level, ScratchAscension ascension)
+    {
+        ascension.Set(level);
+        EncounterModel scratchEncounter = encounter.ToMutable();
+        scratchEncounter.GenerateMonstersWithSlots(NullRunState.Instance);
+        Player player = Player.CreateForNewRun(ModelDb.AllCharacters.First(), UnlockState.all, 1UL);
+        CombatState state = new(scratchEncounter, NullRunState.Instance);
+        state.AddPlayer(player);
+        player.ResetCombatState();
+        List<(string Id, string? Slot, NativeCreature Creature)> created = [];
+        foreach ((MonsterModel monster, string? slot) in scratchEncounter.MonstersWithSlots)
+        {
+            NativeCreature creature = state.CreateCreature(monster, CombatSide.Enemy, slot);
+            monster.SetUpForCombat();
+            state.AddCreature(creature);
+            created.Add((monster.Id.Entry, slot, creature));
+        }
+        foreach ((string _, string? _, NativeCreature creature) in created)
+        {
+            if (!creature.Monster!.AfterAddedToRoom().Wait(TimeSpan.FromSeconds(5)))
+                throw new InvalidOperationException(
+                    $"原版 {creature.Monster!.Id.Entry}.AfterAddedToRoom 未在 5 秒内完成。");
+        }
+        Dictionary<(string, string?), CombatStartRecord> result = [];
+        foreach ((string id, string? slot, NativeCreature creature) in created)
+        {
+            List<CombatStartPower> powers = [];
+            foreach (PowerModel power in creature.Powers)
+            {
+                bool ownerIsTarget = power.Owner == creature;
+                bool ownerIsPlayer = power.Owner == player.Creature;
+                if (!ownerIsTarget && !ownerIsPlayer)
+                    continue;
+                if (power.Applier != creature && power.Applier != null)
+                    continue;
+                int aux0 = 0;
+                if (power is WitheringPresencePower withering)
+                    aux0 = withering.DynamicVars["CardsLeft"].IntValue;
+                powers.Add(new CombatStartPower
+                {
+                    PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
+                        ? powerId
+                        : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                    Amount = power.Amount,
+                    Target = ownerIsPlayer ? CombatStartPowerTarget.Player : CombatStartPowerTarget.Owner,
+                    ApplierIsOwner = power.Applier == creature,
+                    TargetsPlayer = power.Target == player.Creature,
+                    Aux0 = aux0,
+                });
+            }
+            foreach (PowerModel power in player.Creature.Powers)
+            {
+                if (power.Applier != creature)
+                    continue;
+                powers.Add(new CombatStartPower
+                {
+                    PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
+                        ? powerId
+                        : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                    Amount = power.Amount,
+                    Target = CombatStartPowerTarget.Player,
+                    ApplierIsOwner = true,
+                    TargetsPlayer = false,
+                    Aux0 = 0,
+                });
+            }
+            CombatStartHpMode hpMode = creature.Monster is DecimillipedeSegment
+                ? CombatStartHpMode.UniqueEven
+                : CombatStartHpMode.None;
+            result[(id, slot)] = new CombatStartRecord
+            {
+                Powers = [.. powers],
+                HpMode = hpMode,
+                // Native DecimillipedeSegment.AfterAddedToRoom increments by 2m; this is an
+                // algorithm step, not a DynamicVar. It is the only such fallback in this table.
+                UniqueHpStep = hpMode == CombatStartHpMode.UniqueEven ? DecimillipedeHpStep : 0,
+            };
+        }
+        return result;
+    }
+
+    private static CombatStartRecord CaptureSingleStart(EncounterModel encounter, string monsterId,
+        string? slot, int level, ScratchAscension ascension)
+    {
+        ascension.Set(level);
+        MonsterModel canonical = encounter.AllPossibleMonsters
+            .First(monster => monster.Id.Entry == monsterId);
+        MonsterModel mutable = canonical.ToMutable();
+        Player player = Player.CreateForNewRun(ModelDb.AllCharacters.First(), UnlockState.all, 1UL);
+        CombatState state = new(null, NullRunState.Instance);
+        state.AddPlayer(player);
+        player.ResetCombatState();
+        NativeCreature creature = state.CreateCreature(mutable, CombatSide.Enemy, slot);
+        mutable.SetUpForCombat();
+        state.AddCreature(creature);
+        if (!creature.Monster!.AfterAddedToRoom().Wait(TimeSpan.FromSeconds(5)))
+            throw new InvalidOperationException(
+                $"原版 {creature.Monster!.Id.Entry}.AfterAddedToRoom 未在 5 秒内完成。");
+        List<CombatStartPower> powers = [];
+        foreach (PowerModel power in creature.Powers)
+        {
+            bool ownerIsTarget = power.Owner == creature;
+            bool ownerIsPlayer = power.Owner == player.Creature;
+            if (!ownerIsTarget && !ownerIsPlayer)
+                continue;
+            if (power.Applier != creature && power.Applier != null)
+                continue;
+            int aux0 = power is WitheringPresencePower withering
+                ? withering.DynamicVars["CardsLeft"].IntValue
+                : 0;
+            powers.Add(new CombatStartPower
+            {
+                PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
+                    ? powerId
+                    : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                Amount = power.Amount,
+                Target = ownerIsPlayer ? CombatStartPowerTarget.Player : CombatStartPowerTarget.Owner,
+                ApplierIsOwner = power.Applier == creature,
+                TargetsPlayer = power.Target == player.Creature,
+                Aux0 = aux0,
+            });
+        }
+        foreach (PowerModel power in player.Creature.Powers)
+        {
+            if (power.Applier != creature)
+                continue;
+            powers.Add(new CombatStartPower
+            {
+                PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
+                    ? powerId
+                    : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                Amount = power.Amount,
+                Target = CombatStartPowerTarget.Player,
+                ApplierIsOwner = true,
+                TargetsPlayer = false,
+                Aux0 = 0,
+            });
+        }
+        CombatStartHpMode hpMode = creature.Monster is DecimillipedeSegment
+            ? CombatStartHpMode.UniqueEven
+            : CombatStartHpMode.None;
+        return new CombatStartRecord
+        {
+            Powers = [.. powers],
+            HpMode = hpMode,
+            UniqueHpStep = hpMode == CombatStartHpMode.UniqueEven ? DecimillipedeHpStep : 0,
+        };
+    }
+
     private static ContentEncounter?[] ExportEncounters(ScratchAscension ascension)
     {
         Dictionary<string, EncounterModel> canonical = ModelDb.All.OfType<EncounterModel>()
@@ -326,52 +512,130 @@ public static class ContentTableExporter
             string nativeId = RunCatalog.EncounterName(id);
             if (!canonical.TryGetValue(nativeId, out EncounterModel? encounter))
             {
-                encounters[id] = new ContentEncounter
-                {
-                    NativeId = nativeId,
-                    Slots = [],
-                    Monsters = [],
-                    UnsupportedReason = ContentReason.UnsupportedEncounter,
-                    UnsupportedDetail = $"{nativeId} 没有规范模型",
-                };
+                encounters[id] = UnsupportedEncounter(nativeId,
+                    ContentReason.UnsupportedEncounter, $"{nativeId} 没有规范模型");
                 continue;
             }
             try
             {
-                EncounterModel mutable = encounter.ToMutable();
-                mutable.GenerateMonstersWithSlots(NullRunState.Instance);
+                EncounterModel probe = encounter.ToMutable();
+                probe.GenerateMonstersWithSlots(NullRunState.Instance);
+                List<string> slots = [.. probe.Slots];
+                List<(string MonsterId, string? Slot)> combinations = [];
+                HashSet<(string, string?)> seen = [];
+                Dictionary<string, HashSet<string?>> observed = new(StringComparer.Ordinal);
+                foreach ((MonsterModel monster, string? slot) in probe.MonstersWithSlots)
+                {
+                    string? mapped = slot != null && slots.Contains(slot, StringComparer.Ordinal) ? slot : null;
+                    if (!observed.TryGetValue(monster.Id.Entry, out HashSet<string?>? set))
+                    {
+                        set = new HashSet<string?>();
+                        observed.Add(monster.Id.Entry, set);
+                    }
+                    set.Add(mapped);
+                }
+                foreach (MonsterModel possible in encounter.AllPossibleMonsters)
+                {
+                    IEnumerable<string?> candidates = observed.TryGetValue(possible.Id.Entry, out HashSet<string?>? set)
+                        ? set
+                        : slots.Count == 0 ? [null] : SlotCandidates(possible, slots);
+                    foreach (string? slot in candidates)
+                    {
+                        if (seen.Add((possible.Id.Entry, slot)))
+                            combinations.Add((possible.Id.Entry, slot));
+                    }
+                }
+                foreach ((string monsterId, HashSet<string?> set) in observed)
+                {
+                    foreach (string? slot in set)
+                    {
+                        if (seen.Add((monsterId, slot)))
+                            combinations.Add((monsterId, slot));
+                    }
+                }
+                Dictionary<int, Dictionary<(string, string?), CombatStartRecord>> starts = [];
+                for (int level = 0; level < ContentTable.AscensionCount; level++)
+                    starts[level] = CaptureCombatStarts(encounter, level, ascension);
                 List<ContentEncounterMonster> monsters = [];
                 string? unsupportedReason = null;
                 string? unsupportedDetail = null;
-                foreach ((MonsterModel monster, string? slot) in mutable.MonstersWithSlots)
+                HashSet<(ushort, string?)> emitted = [];
+                foreach ((string possibleId, string? slot) in combinations)
                 {
-                    if (!Registry.TryMonster(monster.Id.Entry, out ushort monsterId))
+                    if (!Registry.TryMonster(possibleId, out ushort monsterId))
                     {
-                        unsupportedReason = ContentReason.UnsupportedMonster;
-                        unsupportedDetail = monster.Id.Entry;
-                        break;
+                        unsupportedReason ??= ContentReason.UnsupportedMonster;
+                        unsupportedDetail ??= possibleId;
+                        continue;
                     }
+                    if (!emitted.Add((monsterId, slot)))
+                        continue;
+                    MonsterModel canonicalMonster = encounter.AllPossibleMonsters
+                        .First(monster => monster.Id.Entry == possibleId);
                     MonsterRules[] byAscension = new MonsterRules[ContentTable.AscensionCount];
+                    bool compiled = true;
                     for (int level = 0; level < byAscension.Length; level++)
                     {
                         ascension.Set(level);
-                        MonsterModel variant = (MonsterModel)monster.ClonePreservingMutability();
-                        NativeCreature creature = RulesCompiler.CreateScratchMonster(
-                            variant, slot, NullRunState.Instance);
-                        byAscension[level] = RulesCompiler.CompileMonster(variant, creature,
-                            rootPowerAmountsFromCreature: false);
+                        MonsterModel variant = canonicalMonster.ToMutable();
+                        try
+                        {
+                            if (variant is MegaCrit.Sts2.Core.Models.Monsters.WaterfallGiant waterfall)
+                            {
+                                Type type = typeof(MegaCrit.Sts2.Core.Models.Monsters.WaterfallGiant);
+                                PropertyInfo basePressure = type.GetProperty("BasePressureGunDamage",
+                                        BindingFlags.Instance | BindingFlags.NonPublic)
+                                    ?? throw new MissingMemberException(type.FullName, "BasePressureGunDamage");
+                                FieldInfo pressure = type.GetField("_currentPressureGunDamage",
+                                        BindingFlags.Instance | BindingFlags.NonPublic)
+                                    ?? throw new MissingFieldException(type.FullName, "_currentPressureGunDamage");
+                                int value = basePressure.GetValue(waterfall) is int damage
+                                    ? damage
+                                    : throw new InvalidOperationException(
+                                        "WaterfallGiant.BasePressureGunDamage 不是 int。");
+                                pressure.SetValue(waterfall, value);
+                            }
+                            NativeCreature creature = RulesCompiler.CreateScratchMonster(
+                                variant, slot, NullRunState.Instance);
+                            byAscension[level] = RulesCompiler.CompileMonster(variant, creature,
+                                rootPowerAmountsFromCreature: false);
+                        }
+                        catch (UnsupportedImportException error)
+                        {
+                            unsupportedReason ??= error.Reason;
+                            unsupportedDetail ??= $"{possibleId}{(slot == null ? "" : "/" + slot)}: {error.Detail}";
+                            compiled = false;
+                            break;
+                        }
+                    }
+                    if (!compiled)
+                    {
+                        emitted.Remove((monsterId, slot));
+                        continue;
+                    }
+                    CombatStartRecord?[] startByAscension =
+                        new CombatStartRecord?[ContentTable.AscensionCount];
+                    for (int level = 0; level < startByAscension.Length; level++)
+                    {
+                        if (!starts[level].TryGetValue((possibleId, slot), out CombatStartRecord? record))
+                        {
+                            record = CaptureSingleStart(encounter, possibleId, slot, level, ascension);
+                            starts[level][(possibleId, slot)] = record;
+                        }
+                        startByAscension[level] = record;
                     }
                     monsters.Add(new ContentEncounterMonster
                     {
                         MonsterId = monsterId,
                         Slot = slot,
                         RulesByAscension = byAscension,
+                        CombatStartByAscension = startByAscension,
                     });
                 }
                 encounters[id] = new ContentEncounter
                 {
                     NativeId = nativeId,
-                    Slots = [.. mutable.Slots],
+                    Slots = [.. slots],
                     Monsters = [.. monsters],
                     UnsupportedReason = unsupportedReason,
                     UnsupportedDetail = unsupportedDetail,
@@ -379,18 +643,42 @@ public static class ContentTableExporter
             }
             catch (UnsupportedImportException error)
             {
-                encounters[id] = new ContentEncounter
-                {
-                    NativeId = nativeId,
-                    Slots = [],
-                    Monsters = [],
-                    UnsupportedReason = error.Reason,
-                    UnsupportedDetail = error.Detail,
-                };
+                encounters[id] = UnsupportedEncounter(nativeId, error.Reason, error.Detail);
             }
         }
         return encounters;
     }
+
+    private static IReadOnlyList<string?> SlotCandidates(MonsterModel monster, List<string> slots)
+    {
+        if (Registry.TryMonster(monster.Id.Entry, out ushort id))
+        {
+            string? spawnSlot = Registry.Monster(id).SpawnSlotName;
+            if (spawnSlot != null)
+            {
+                int end = spawnSlot.Length;
+                while (end > 0 && char.IsDigit(spawnSlot[end - 1]))
+                    end--;
+                string prefix = spawnSlot[..end];
+                List<string?> filtered = [.. slots
+                    .Where(slot => slot.StartsWith(prefix, StringComparison.Ordinal))
+                    .Select(static slot => (string?)slot)];
+                if (filtered.Count != 0)
+                    return filtered;
+            }
+        }
+        return [.. slots.Select(static slot => (string?)slot)];
+    }
+
+    private static ContentEncounter UnsupportedEncounter(string nativeId, string reason, string detail)
+        => new()
+        {
+            NativeId = nativeId,
+            Slots = [],
+            Monsters = [],
+            UnsupportedReason = reason,
+            UnsupportedDetail = detail,
+        };
 
     private static ContentCharacter?[] ExportCharacters(out ushort[] order)
     {

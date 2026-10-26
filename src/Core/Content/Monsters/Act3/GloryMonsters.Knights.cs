@@ -61,7 +61,7 @@ public sealed class SpectralKnight : MonsterDef
 /// the kernel.
 /// </summary>
 [ContentId("GLOBE_HEAD")]
-public sealed class GlobeHead : MonsterDef
+public sealed partial class GlobeHead : MonsterDef
 {
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
@@ -85,7 +85,7 @@ public sealed class GlobeHead : MonsterDef
 /// The starting PlatingPower 15 (19 on ToughEnemies) is a root power.
 /// </summary>
 [ContentId("FROG_KNIGHT")]
-public sealed class FrogKnight : MonsterDef
+public sealed partial class FrogKnight : MonsterDef
 {
     private const int HasBeetleCharged = 0;
 
@@ -128,7 +128,7 @@ public sealed class FrogKnight : MonsterDef
 /// Strength 5 (<c>MonsterMoveEffects</c> "MechaKnight"). The starting Artifact 3 is a root power.
 /// </summary>
 [ContentId("MECHA_KNIGHT")]
-public sealed class MechaKnight : MonsterDef
+public sealed partial class MechaKnight : MonsterDef
 {
     private const int FlamethrowerBurn = 4;
 

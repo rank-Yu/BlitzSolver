@@ -8,8 +8,16 @@ namespace BlitzSolver.Content.Monsters.Act3;
 /// move differs per instance (<c>StarterMoveIdx</c>) and is already the compiled initial node.
 /// </summary>
 [ContentId("SCROLL_OF_BITING")]
-public sealed class ScrollOfBiting : MonsterDef
+public sealed partial class ScrollOfBiting : MonsterDef
 {
+    public override string? CombatStartMove(byte variant) => variant switch
+    {
+        0 => "CHOMP",
+        1 => "CHEW",
+        2 => "MORE_TEETH",
+        _ => null,
+    };
+
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
         if (Kernel.MonsterRules(ref x, owner).Nodes[moveNode].NativeId == "MORE_TEETH")
@@ -75,7 +83,7 @@ public sealed class SoulNexus : MonsterDef
 /// is a root power (<c>MonsterMoveEffects</c> "TheLost").
 /// </summary>
 [ContentId("THE_LOST")]
-public sealed class TheLost : MonsterDef
+public sealed partial class TheLost : MonsterDef
 {
     private const int StrengthStealStat = 0;
 
@@ -100,7 +108,7 @@ public sealed class TheLost : MonsterDef
 /// starting PossessSpeedPower 1 is a root power.
 /// </summary>
 [ContentId("THE_FORGOTTEN")]
-public sealed class TheForgotten : MonsterDef
+public sealed partial class TheForgotten : MonsterDef
 {
     private const int DexterityStealStat = 0;
 

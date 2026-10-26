@@ -121,6 +121,23 @@ Core `RulesBuilder`，把两份 `RulesCodec` 字节逐字节比较；D1 覆盖�
 `--build-content` 汇总每个根用到的卡牌等级与怪物 id。细节见
 [`docs/content-table.md`](../../docs/content-table.md)。
 
+## 战斗边界建局对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind natural --setup-seeds 100 --setup-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 8 --setup-shard 0 2
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 8 --setup-shard 0 2
+```
+
+每个用例在独立子进程里：原版 `RunManager.EnterMapCoord` 到可出牌，导入 `Battle`、编译
+`Rules`、转储进点后 `RunState`；Blitz 侧导入同一进点前 `RunState`，调用
+`RunCombatSetup.EnterMapCoord`，用 `RulesBuilder` 建 `Rules`、`RunDump` 转储。比较
+`Battle` 逐字节、`RulesCodec` 逐字节、`RunState` 逐字段，失败打印第一处差异路径和值。
+`--setup-cover` 只统计覆盖。细节见 [`docs/run-combat-boundary.md`](../../docs/run-combat-boundary.md)。
+
 ## 评估配置对照
 
 ```bash

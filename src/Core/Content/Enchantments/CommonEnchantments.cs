@@ -274,7 +274,10 @@ public sealed class SoulsPower : EnchantmentDef;
 /// is applied by the root setup before the snapshot, so the imported draw pile already reflects it.
 /// </summary>
 [ContentId("IMBUED")]
-public sealed class Imbued : EnchantmentDef;
+public sealed class Imbued : EnchantmentDef
+{
+    public override bool StartsAtBottomOfDrawPile => true;
+}
 
 /// <summary>
 /// <c>Slither</c>: when this card is drawn into the hand, its combat energy cost becomes a random

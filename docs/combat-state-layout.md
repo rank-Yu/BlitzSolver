@@ -100,7 +100,10 @@
 | `_nightmareSelections`（`Dictionary<NightmarePower,PredictedCard>`） | `Battle.DetachedCards` 的小数组：`Power.Aux0 = 槽位 + 1`，槽位存选定卡的完整 `Card` 值 | Power 移除时清空槽位；每个 `NightmarePower` 实例一行，按获得顺序 |
 | `SwipePower.StolenCard`（被 THIEVERY 移除的卡） | `Battle.DetachedCards` 的同一小数组：`Power.Aux0 = 槽位 + 1`，槽位存被偷卡的完整 `Card` 值（含 `DeckCard`/`RemovedFromState`） | THIEVERY 从抽牌/弃牌堆移出时分配；击杀飞贼时 `RecoverStolenResources` 回收并清槽；逃跑移除 Power 时只清槽、不回收 |
 
-**瞬态值不进入指纹。** `Exec` 的 Monologue/Vambrace/UnsettlingLamp 数据在每次动作结束前排空，稳定边界的字节里没有它们。`Exec.TransientMarkBase` 同样只在动作内存在：`DiscardAndDraw`、`DecisionsDecisions` 的重复自动打出与 Mayhem 的自动预打出队列都用它从 64..255 分配身份字节；标记随卡值穿过抽牌、洗牌与牌堆移动，动作结束前清零（同一标记出现两次或标记丢失时抛显式未支持；确认已离开战斗牌堆时走 `AutoPlay` 的 no-pile 分支）；区间耗尽抛 `CapacityException`。`BeatDown` 的清理只覆盖 1..63，不会清除 Sly 批次；若 BeatDown 选中同一张卡，覆盖后的标记按显式未支持回落。`NightmarePower` 的选定卡是真正的跨回合值：它在下一次 `BeforeHandDraw` 要被克隆 `Amount` 次，因此进入 `DetachedCards`。
+**瞬态值不进入指纹。** `Exec.FirstRoomIsBoss`、`Exec.CombatStart` 与 `Exec.SetupContent` 只在
+建局的开战 Hook/首回合内使用，分别让 Pantograph/BagOfPreparation 等只执行一次、并提供内容表
+的遗物 `DynamicVars`；搜索的稳定边界不读它们。`Exec` 的
+Monologue/Vambrace/UnsettlingLamp 数据在每次动作结束前排空，稳定边界的字节里没有它们。`Exec.TransientMarkBase` 同样只在动作内存在：`DiscardAndDraw`、`DecisionsDecisions` 的重复自动打出与 Mayhem 的自动预打出队列都用它从 64..255 分配身份字节；标记随卡值穿过抽牌、洗牌与牌堆移动，动作结束前清零（同一标记出现两次或标记丢失时抛显式未支持；确认已离开战斗牌堆时走 `AutoPlay` 的 no-pile 分支）；区间耗尽抛 `CapacityException`。`BeatDown` 的清理只覆盖 1..63，不会清除 Sly 批次；若 BeatDown 选中同一张卡，覆盖后的标记按显式未支持回落。`NightmarePower` 的选定卡是真正的跨回合值：它在下一次 `BeforeHandDraw` 要被克隆 `Amount` 次，因此进入 `DetachedCards`。
 
 **移动、复制、生成、消耗、离场。**
 

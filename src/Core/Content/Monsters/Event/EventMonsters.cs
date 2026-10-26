@@ -31,7 +31,7 @@ public sealed class FakeMerchantMonster : MonsterDef
 /// "MysteriousKnight"/"FlailKnight"). Its starting Strength 6 and Plating 6 come from the root.
 /// </summary>
 [ContentId("MYSTERIOUS_KNIGHT")]
-public sealed class MysteriousKnight : MonsterDef
+public sealed partial class MysteriousKnight : MonsterDef
 {
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
@@ -59,16 +59,16 @@ public sealed class Architect : MonsterDef
 /// outcome).
 /// </summary>
 [ContentId("BATTLE_FRIEND_V1")]
-public sealed class BattleFriendV1 : MonsterDef
+public sealed partial class BattleFriendV1 : MonsterDef
 {
 }
 
 [ContentId("BATTLE_FRIEND_V2")]
-public sealed class BattleFriendV2 : MonsterDef
+public sealed partial class BattleFriendV2 : MonsterDef
 {
 }
 
 [ContentId("BATTLE_FRIEND_V3")]
-public sealed class BattleFriendV3 : MonsterDef
+public sealed partial class BattleFriendV3 : MonsterDef
 {
 }

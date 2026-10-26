@@ -3,7 +3,7 @@ using BlitzSolver.Simulation.Combat;
 namespace BlitzSolver.Content.Relics;
 
 [ContentId("CRACKED_CORE")]
-public sealed class CrackedCore : RelicDef
+public sealed partial class CrackedCore : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Lightning"];
 

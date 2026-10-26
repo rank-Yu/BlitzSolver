@@ -650,7 +650,8 @@ public static partial class Kernel
         if (x.NeedsChoice)
             return;
         // Relic stage: the modelled BeforeHandDraw relics (Pendulum, PollinousCore) act through
-        // ModifyHandDraw, which the turn-start path reads separately.
+        // ModifyHandDraw, which the turn-start path reads separately. First-turn-only generation
+        // (FuneraryMask) runs from StartFirstPlayerTurn, not from every round transition.
         ReturnCardsToHand(ref x);
     }
 

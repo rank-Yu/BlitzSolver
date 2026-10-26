@@ -67,9 +67,11 @@ public sealed class HauntedShip : MonsterDef
 /// "FAST_PUNCH_MOVE"), not static model values. Its starting Artifact is imported, not replayed here.
 /// </summary>
 [ContentId("PUNCH_CONSTRUCT")]
-public sealed class PunchConstruct : MonsterDef
+public sealed partial class PunchConstruct : MonsterDef
 {
     private const int ReadyBlock = 10;
+
+    public override string? CombatStartMove(byte variant) => variant == 1 ? "FAST_PUNCH_MOVE" : "READY_MOVE";
     private const int FastPunchFrail = 1;
 
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
@@ -115,7 +117,7 @@ public sealed class Seapunk : MonsterDef
 /// "SewerClam", "PRESSURIZE_MOVE"). Its starting Plating is imported, not replayed here.
 /// </summary>
 [ContentId("SEWER_CLAM")]
-public sealed class SewerClam : MonsterDef
+public sealed partial class SewerClam : MonsterDef
 {
     private const int PressurizeStrength = 4;
 
@@ -155,7 +157,7 @@ public sealed class SludgeSpinner : MonsterDef
 /// (MonsterMoveEffects "Toadpole", literals <c>SpikenAmount = 2</c> in the decompiled model).
 /// </summary>
 [ContentId("TOADPOLE")]
-public sealed class Toadpole : MonsterDef
+public sealed partial class Toadpole : MonsterDef
 {
     private const int SpikenAmount = 2;
 
@@ -189,6 +191,14 @@ public sealed class Toadpole : MonsterDef
 public sealed class TwoTailedRat : MonsterDef
 {
     private const int TurnsUntilSummonable = 0;
+
+    public override string? CombatStartMove(byte variant) => variant switch
+    {
+        0 => "SCRATCH_MOVE",
+        1 => "DISEASE_BITE_MOVE",
+        2 => "SCREECH_MOVE",
+        _ => null,
+    };
     private const int CallForBackupCount = 1;
     private const float CallForBackupWeight = 0.75f;
     private const float OtherBranchWeightWhenSummonable = 1f / 12f;
@@ -288,7 +298,7 @@ public sealed class TwoTailedRat : MonsterDef
 /// DOUBLE_SMASH also applies Weak 2 and HEHE Strength 2.
 /// </summary>
 [ContentId("GREMLIN_MERC")]
-public sealed class GremlinMerc : MonsterDef
+public sealed partial class GremlinMerc : MonsterDef
 {
     public override IReadOnlyList<string> SpawnedMonsterIds => ["FAT_GREMLIN", "SNEAKY_GREMLIN"];
 

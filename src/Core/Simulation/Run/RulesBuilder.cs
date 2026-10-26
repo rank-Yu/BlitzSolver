@@ -22,6 +22,7 @@ public sealed class RulesRootFacts
         EnemyConditionalTargets = [],
         EnemyNodeAttacks = [],
         EnemyRootPowerAmounts = [],
+        EnemyInitialMoveLogged = [],
     };
 
     /// <summary>Initial node of each known enemy, indexed like <see cref="Battle.Enemies"/>.</summary>
@@ -50,6 +51,12 @@ public sealed class RulesRootFacts
     /// </summary>
     public required int[]?[] EnemyRootPowerAmounts { get; init; }
 
+    /// <summary>Native <c>InitialMoveLogged</c> per known enemy, or empty to use the content row.</summary>
+    public bool[] EnemyInitialMoveLogged { get; init; } = [];
+
+    /// <summary>Cards generated before the root that are not carried by <see cref="Battle.Cards"/>.</summary>
+    public (string NativeId, int Upgrade)[] ExtraCards { get; init; } = [];
+
     public int[]? RootPowerAmounts(int enemy)
         => (uint)enemy < (uint)EnemyRootPowerAmounts.Length
             ? EnemyRootPowerAmounts[enemy]
@@ -60,6 +67,9 @@ public sealed class RulesRootFacts
             && (uint)node < (uint)EnemyNodeAttacks[enemy].Length
             ? EnemyNodeAttacks[enemy][node]
             : null;
+
+    public bool? InitialMoveLogged(int enemy)
+        => (uint)enemy < (uint)EnemyInitialMoveLogged.Length ? EnemyInitialMoveLogged[enemy] : null;
 
     public byte InitialNode(int enemy)
         => (uint)enemy < (uint)EnemyInitialNodes.Length
@@ -188,7 +198,7 @@ public static class RulesBuilder
                 detached.Add((card.Id, card.Upgrade));
         }
         AddGeneratedCardClosure(draft, table, in run, in battle, character,
-            spawnClosure, detached);
+            spawnClosure, detached, facts.ExtraCards);
         draft.HasInfiniteHpDisplayMonster = HasInfiniteHpDisplayMonster(in battle, spawnClosure);
 
         List<MonsterRules> rows = BuildMonsterRows(table, encounter, in battle, facts, ascension);
@@ -298,7 +308,7 @@ public static class RulesBuilder
             Nodes = nodes,
             InitialNode = initialNode,
             PendingInitialMoveNode = baseRules.PendingInitialMoveNode,
-            InitialMoveLogged = baseRules.InitialMoveLogged,
+            InitialMoveLogged = facts.InitialMoveLogged(index) ?? baseRules.InitialMoveLogged,
             StunnedNode = baseRules.StunnedNode,
             ReviveNode = baseRules.ReviveNode,
             InitialHpMin = baseRules.InitialHpMin,
@@ -387,12 +397,22 @@ public static class RulesBuilder
 
     private static void AddGeneratedCardClosure(RulesDraft draft, ContentTable table,
         in RunState run, in Battle battle, ContentCharacter character,
-        IReadOnlyList<ushort> spawnClosure, IReadOnlyList<(ushort CardId, int Upgrade)> detached)
+        IReadOnlyList<ushort> spawnClosure, IReadOnlyList<(ushort CardId, int Upgrade)> detached,
+        IReadOnlyList<(string NativeId, int Upgrade)> extraCards)
     {
         Queue<(ushort CardId, int Upgrade)> pendingCards = new();
         Queue<string> pendingPools = new();
         Queue<string> pendingPowers = new();
         HashSet<(ushort, int)> seenCards = [];
+        foreach ((string nativeId, int upgrade) in extraCards)
+        {
+            if (!Registry.TryCard(nativeId, out ushort extraId))
+                throw new ContentUnavailableException(ContentReason.UnsupportedClosure,
+                    $"开战生成卡 {nativeId} 没有 Blitz 定义");
+            AddCardStats(draft, table, in battle, extraId, upgrade);
+            if (seenCards.Add((extraId, upgrade)))
+                pendingCards.Enqueue((extraId, upgrade));
+        }
         foreach ((ushort cardId, int upgrade) in detached)
         {
             if (seenCards.Add((cardId, upgrade)))

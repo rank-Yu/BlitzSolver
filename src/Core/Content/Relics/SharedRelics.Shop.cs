@@ -43,7 +43,7 @@ public sealed class NinjaScroll : RelicDef
 /// before the root.
 /// </summary>
 [ContentId("BREAD")]
-public sealed class Bread : RelicDef
+public sealed partial class Bread : RelicDef
 {
     // Bread.cs: EnergyVar("GainEnergy", 1).
     public override IReadOnlyList<string> VarNames => ["GainEnergy"];
@@ -151,7 +151,7 @@ public sealed class ChemicalX : RelicDef
 /// <c>GhostSeedMirrors.AfterCardEnteredCombat</c>).
 /// </summary>
 [ContentId("GHOST_SEED")]
-public sealed class GhostSeed : RelicDef
+public sealed partial class GhostSeed : RelicDef
 {
     public override void AfterCardEnteredCombat(ref Exec x, Listener self, Pile pile, int index,
         in Card card)
@@ -175,7 +175,7 @@ public sealed class GhostSeed : RelicDef
 /// setup, and has no later hook.
 /// </summary>
 [ContentId("SLING_OF_COURAGE")]
-public sealed class SlingOfCourage : RelicDef;
+public sealed partial class SlingOfCourage : RelicDef;
 
 /// <summary>
 /// <c>Toolbox</c>: <c>BeforeHandDraw</c> offers its colourless card choice only on turn 1
@@ -256,7 +256,7 @@ public sealed class WingCharm : RelicDef;
 /// Counter = 1 once used this combat.
 /// </summary>
 [ContentId("BURNING_STICKS")]
-public sealed class BurningSticks : RelicDef
+public sealed partial class BurningSticks : RelicDef
 {
     public override void AfterCardExhausted(ref Exec x, Listener self, in Card card, bool causedByEthereal)
     {
@@ -275,7 +275,7 @@ public sealed class BurningSticks : RelicDef
 /// StatefulRelicState.Current flag).
 /// </summary>
 [ContentId("BELT_BUCKLE")]
-public sealed class BeltBuckle : RelicDef
+public sealed partial class BeltBuckle : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["DexterityPower"];
 

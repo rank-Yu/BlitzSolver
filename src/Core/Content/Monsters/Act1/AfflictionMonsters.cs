@@ -67,7 +67,7 @@ public sealed class VineShambler : MonsterDef
 /// VitalSpark is already in the root; JAB_MOVE and WHIRLWIND_MOVE are attacks only.
 /// </summary>
 [ContentId("INFESTED_PRISM")]
-public sealed class InfestedPrism : MonsterDef
+public sealed partial class InfestedPrism : MonsterDef
 {
     private const int RadiateBlock = 0;
     private const int PulsateBlock = 1;

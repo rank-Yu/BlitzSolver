@@ -13,7 +13,7 @@ public sealed class BurningBlood : RelicDef;
 /// the root, so later roots see nothing from it.
 /// </summary>
 [ContentId("RING_OF_THE_SNAKE")]
-public sealed class RingOfTheSnake : RelicDef
+public sealed partial class RingOfTheSnake : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Cards"];
 
@@ -28,7 +28,7 @@ public sealed class RingOfTheSnake : RelicDef
 /// <c>TurnStartRelicSupport.TriggerAfterEnergyResetLate</c>).
 /// </summary>
 [ContentId("BOUND_PHYLACTERY")]
-public sealed class BoundPhylactery : RelicDef
+public sealed partial class BoundPhylactery : RelicDef
 {
     public override IReadOnlyList<string> VarNames => ["Summon"];
 

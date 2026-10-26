@@ -177,7 +177,7 @@ public sealed class TrackerRubyRaider : MonsterDef
 /// 13 block and one Artifact stack exist before the root and are imported, not replayed here.
 /// </summary>
 [ContentId("CUBEX_CONSTRUCT")]
-public sealed class CubexConstruct : MonsterDef
+public sealed partial class CubexConstruct : MonsterDef
 {
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
@@ -218,11 +218,14 @@ public sealed class SlitheringStrangler : MonsterDef
 
 /// <summary>Byrdonis: only "PECK_MOVE" and "SWOOP_MOVE"; its TerritorialPower is a starting power.</summary>
 [ContentId("BYRDONIS")]
-public sealed class Byrdonis : MonsterDef;
+public sealed partial class Byrdonis : MonsterDef;
 
 /// <summary>Inklet: only attacks; its SlipperyPower starts in the root.</summary>
 [ContentId("INKLET")]
-public sealed class Inklet : MonsterDef;
+public sealed partial class Inklet : MonsterDef
+{
+    public override string? CombatStartMove(byte variant) => variant == 1 ? "WHIRLWIND_MOVE" : "JAB_MOVE";
+}
 
 /// <summary>
 /// BygoneEffigy: "WAKE_MOVE" applies Strength 10 to itself. The amount is a literal in
@@ -230,7 +233,7 @@ public sealed class Inklet : MonsterDef;
 /// dynamic or static value for it. Sleep moves have no effect.
 /// </summary>
 [ContentId("BYGONE_EFFIGY")]
-public sealed class BygoneEffigy : MonsterDef
+public sealed partial class BygoneEffigy : MonsterDef
 {
     private const int WakeStrength = 10;
 
@@ -247,9 +250,17 @@ public sealed class BygoneEffigy : MonsterDef
 /// RavenousPower is a starting power; the private <c>_isRavenous</c> flag only selects animations.
 /// </summary>
 [ContentId("CORPSE_SLUG")]
-public sealed class CorpseSlug : MonsterDef
+public sealed partial class CorpseSlug : MonsterDef
 {
     private const int GoopFrailAmt = 0;
+
+    public override string? CombatStartMove(byte variant) => variant switch
+    {
+        0 => "WHIP_SLAP_MOVE",
+        1 => "GLOMP_MOVE",
+        2 => "GOOP_MOVE",
+        _ => null,
+    };
 
     public override IReadOnlyList<string> StaticIntNames => ["GoopFrailAmt"];
 

@@ -8,7 +8,7 @@ namespace BlitzSolver.Content.Monsters.Act1;
 /// imported from the root, not replayed here.
 /// </summary>
 [ContentId("VANTOM")]
-public sealed class Vantom : MonsterDef
+public sealed partial class Vantom : MonsterDef
 {
     private const int DismemberWounds = 3;
     private const int PrepareStrength = 2;
@@ -71,9 +71,11 @@ public sealed class KinPriest : MonsterDef
 /// root. The encounter's first follower starts on the dance move; that initial state is imported.
 /// </summary>
 [ContentId("KIN_FOLLOWER")]
-public sealed class KinFollower : MonsterDef
+public sealed partial class KinFollower : MonsterDef
 {
     private const int DanceStrength = 0;
+
+    public override string? CombatStartMove(byte variant) => variant == 1 ? "POWER_DANCE_MOVE" : "QUICK_SLASH_MOVE";
 
     public override IReadOnlyList<string> StaticIntNames => ["DanceStrength"];
 
@@ -105,7 +107,7 @@ public sealed class KinFollower : MonsterDef
 /// spawns them in slot order, so the enemy index recovers the native slot.
 /// </summary>
 [ContentId("PHANTASMAL_GARDENER")]
-public sealed class PhantasmalGardener : MonsterDef
+public sealed partial class PhantasmalGardener : MonsterDef
 {
     private const int EnlargeStr = 0;
 
@@ -148,7 +150,7 @@ public sealed class PhantasmalGardener : MonsterDef
 /// the root-frozen selection, so the definition overrides ResolveConditional.
 /// </summary>
 [ContentId("LAGAVULIN_MATRIARCH")]
-public sealed class LagavulinMatriarch : MonsterDef
+public sealed partial class LagavulinMatriarch : MonsterDef
 {
     private const int Slash2Block = 0;
 

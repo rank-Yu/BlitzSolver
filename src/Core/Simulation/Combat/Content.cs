@@ -1161,6 +1161,16 @@ public abstract class PowerDef : ListenerDef
     /// </summary>
     public virtual bool IsVisible => true;
 
+    /// <summary>Native <c>BeforeCombatStart</c> (Vital Spark/Galvanic card affliction).</summary>
+    public virtual void BeforeCombatStart(ref Exec x, Listener self)
+    {
+    }
+
+    /// <summary>Native <c>BeforeCombatStartLate</c>.</summary>
+    public virtual void BeforeCombatStartLate(ref Exec x, Listener self)
+    {
+    }
+
     /// <summary>
     /// The instance carries a selected card value in <see cref="Battle.DetachedCards"/>
     /// (<see cref="Power.Aux0"/> = slot + 1). Removing the power clears the slot.
@@ -1392,6 +1402,32 @@ public abstract class RelicDef : ListenerDef
     {
     }
 
+    /// <summary>Native <c>AfterRoomEntered</c> for the room just entered.</summary>
+    public virtual void AfterRoomEntered(ref Exec x, Listener self, bool elite, bool boss)
+    {
+    }
+
+    /// <summary>Native <c>BeforeCombatStart</c>, after the room-entry hooks and before the first turn.</summary>
+    public virtual void BeforeCombatStart(ref Exec x, Listener self)
+    {
+    }
+
+    /// <summary>Native <c>BeforeCombatStartLate</c>, the second pass over the same listeners.</summary>
+    public virtual void BeforeCombatStartLate(ref Exec x, Listener self)
+    {
+    }
+
+    /// <summary>Native <c>BeforeHandDraw</c> relic stage on the player's hand draw.</summary>
+    public virtual void BeforeHandDraw(ref Exec x, Listener self)
+    {
+    }
+
+    /// <summary>
+    /// Native relic-bar status after the room-entry/combat-start passes: 0 Normal, 1 Active,
+    /// 2 Disabled, or -1 to keep the imported status.
+    /// </summary>
+    public virtual sbyte RoomEnteredStatus(in Battle battle, ushort relicId,
+        ICombatStartContent content, bool elite, bool boss) => -1;
 }
 
 /// <summary>
@@ -1498,6 +1534,9 @@ public abstract class OrbDef : ListenerDef
 /// </summary>
 public abstract class EnchantmentDef : ListenerDef
 {
+    /// <summary>Native <c>EnchantmentModel.ShouldStartAtBottomOfDrawPile</c> (Imbued).</summary>
+    public virtual bool StartsAtBottomOfDrawPile => false;
+
     public virtual decimal EnchantDamageAdditive(in Card card, decimal damage, ValueProps props) => 0m;
 
     public virtual decimal EnchantDamageMultiplicative(in Card card, decimal damage, ValueProps props) => 1m;
@@ -1682,6 +1721,112 @@ public abstract class MonsterDef : ListenerDef
     /// native default (most recent logged move) otherwise; -1 selects that default.
     /// </summary>
     public virtual int ImbalancedStunFollowUp(in MonsterRules rules) => -1;
+
+    /// <summary>
+    /// The native constructor's initial move when an encounter variant changes it (Chomper's
+    /// <c>ScreamFirst</c>, KinFollower's <c>StartsWithDance</c>, ...), or null to use the compiled
+    /// content-table initial node. The encounter generator selects the variant byte.
+    /// </summary>
+    public virtual string? CombatStartMove(byte variant) => null;
+
+    /// <summary>Current-HP reduction an encounter variant applies after the initial roll (PunchOff).</summary>
+    public virtual int CombatStartHpReduction(byte variant) => 0;
+
+    /// <summary>
+    /// Resolved target of a conditional branch for an encounter variant that changes a private model
+    /// flag the Battle does not carry (Nibbit/Toadpole front/back), or -1 to use the compiled target.
+    /// </summary>
+    public virtual int CombatStartConditional(byte variant, in MonsterRules rules, int node) => -1;
+
+}
+
+/// <summary>
+/// One monster the encounter generator produces. <see cref="Slot"/> is an index into
+/// <see cref="EncounterDef.Slots"/> or <see cref="Kernel.NoSlot"/>; <see cref="Variant"/> is the
+/// monster-specific encounter variant (constructor flags and initial move).
+/// </summary>
+public readonly record struct EncounterSpawn(ushort MonsterId, byte Slot, byte Variant, int HpReduction = 0);
+
+/// <summary>
+/// Deterministic per-encounter RNG. The native encounter RNG is
+/// <c>seed + TotalFloor + hash(encounter id)</c> and is not carried past the encounter, so the
+/// wrapper owns a private <see cref="RngState"/>.
+/// </summary>
+public struct EncounterRng(RngState state)
+{
+    public RngState State = state;
+
+    public int NextInt(int maxExclusive) => State.NextInt(maxExclusive);
+
+    public int NextInt(int minInclusive, int maxExclusive) => State.NextInt(minInclusive, maxExclusive);
+
+    public bool NextBool() => State.NextBool();
+
+    public int NextItem(int count) => State.NextInt(count);
+
+    public int NextItem<T>(IReadOnlyList<T> items) => State.NextInt(items.Count);
+}
+
+/// <summary>
+/// An encounter definition: its native slot names (the <c>EncounterModel.Slots</c> list the import
+/// layer maps creature slot names through) and the ported <c>GenerateMonsters</c> semantics. The
+/// generator writes into the caller's fixed span; running out is a capacity failure.
+/// </summary>
+public abstract class EncounterDef : ContentDef
+{
+    public virtual IReadOnlyList<string> Slots => [];
+
+    public abstract void Generate(ref EncounterRng rng, Span<EncounterSpawn> spawns, out int count);
+
+    protected static ushort Monster(string nativeId)
+        => Registry.TryMonster(nativeId, out ushort id)
+            ? id
+            : throw new UnsupportedException($"遭遇生成引用了未知怪物 {nativeId}。");
+
+    protected byte Slot(string? name)
+    {
+        if (name == null)
+            return Kernel.NoSlot;
+        for (int index = 0; index < Slots.Count; index++)
+        {
+            if (string.Equals(Slots[index], name, StringComparison.Ordinal))
+                return checked((byte)index);
+        }
+        throw new UnsupportedException($"遭遇 {NativeId} 没有槽位 {name}。");
+    }
+
+    /// <summary>
+    /// The import layer maps a native creature slot name through <c>EncounterModel.Slots</c>; a name
+    /// outside that list becomes <see cref="Kernel.NoSlot"/>. Encounter generation still uses the
+    /// native name (Exoskeleton's conditional branch reads the creature's slot), but the stored row
+    /// only keeps the mapped index.
+    /// </summary>
+    protected byte SlotOrNone(string? name)
+    {
+        if (name == null)
+            return Kernel.NoSlot;
+        for (int index = 0; index < Slots.Count; index++)
+        {
+            if (string.Equals(Slots[index], name, StringComparison.Ordinal))
+                return checked((byte)index);
+        }
+        return Kernel.NoSlot;
+    }
+
+    protected static EncounterSpawn Spawn(string nativeId, byte slot = Kernel.NoSlot, byte variant = 0,
+        int hpReduction = 0)
+        => new(Monster(nativeId), slot, variant, hpReduction);
+
+    protected static EncounterSpawn Spawn(ushort monsterId, byte slot = Kernel.NoSlot, byte variant = 0,
+        int hpReduction = 0)
+        => new(monsterId, slot, variant, hpReduction);
+
+    protected static void Add(ref int count, Span<EncounterSpawn> spawns, in EncounterSpawn spawn)
+    {
+        if ((uint)count >= (uint)spawns.Length)
+            throw new CapacityException("EncounterSpawns", spawns.Length);
+        spawns[count++] = spawn;
+    }
 }
 
 /// <summary>
@@ -1742,6 +1887,8 @@ public static class Registry
 
     public static int OrbCount => Data.Value.Orbs.Length;
 
+    public static int EncounterCount => Data.Value.Encounters.Length;
+
     public static CardDef Card(ushort id) => Data.Value.Cards[id];
 
     public static PowerDef Power(ushort id) => Data.Value.Powers[id];
@@ -1757,6 +1904,8 @@ public static class Registry
     public static EnchantmentDef Enchantment(ushort id) => Data.Value.Enchantments[id];
 
     public static AfflictionDef Affliction(ushort id) => Data.Value.Afflictions[id];
+
+    public static EncounterDef Encounter(ushort id) => Data.Value.Encounters[id];
 
     public static bool TryCard(string nativeId, out ushort id) => Data.Value.CardIds.TryGetValue(nativeId, out id);
 
@@ -1789,6 +1938,8 @@ public static class Registry
     public static bool TryEnchantment(string nativeId, out ushort id) => Data.Value.EnchantmentIds.TryGetValue(nativeId, out id);
 
     public static bool TryAffliction(string nativeId, out ushort id) => Data.Value.AfflictionIds.TryGetValue(nativeId, out id);
+
+    public static bool TryEncounter(string nativeId, out ushort id) => Data.Value.EncounterIds.TryGetValue(nativeId, out id);
 
     public static ushort PowerId<T>() where T : PowerDef => PowerIdCache<T>.Id;
 
@@ -1844,6 +1995,7 @@ public static class Registry
         OrbDef[] Orbs, Dictionary<string, ushort> OrbIds,
         EnchantmentDef[] Enchantments, Dictionary<string, ushort> EnchantmentIds,
         AfflictionDef[] Afflictions, Dictionary<string, ushort> AfflictionIds,
+        EncounterDef[] Encounters, Dictionary<string, ushort> EncounterIds,
         Dictionary<Type, ContentDef> ByType)
     {
         public HookMask AnyHooks { get; } = ByType.Values.Aggregate(HookMask.None, (mask, def) => mask | def.Hooks);
@@ -1886,10 +2038,12 @@ public static class Registry
         var orbs = Collect<OrbDef>(types, byType, byte.MaxValue);
         var enchantments = Collect<EnchantmentDef>(types, byType, byte.MaxValue);
         var afflictions = Collect<AfflictionDef>(types, byType, byte.MaxValue);
+        var encounters = Collect<EncounterDef>(types, byType, ushort.MaxValue);
         return new Tables(
             cards.Defs, cards.Ids, powers.Defs, powers.Ids, relics.Defs, relics.Ids,
             potions.Defs, potions.Ids, monsters.Defs, monsters.Ids, orbs.Defs, orbs.Ids,
-            enchantments.Defs, enchantments.Ids, afflictions.Defs, afflictions.Ids, byType);
+            enchantments.Defs, enchantments.Ids, afflictions.Defs, afflictions.Ids,
+            encounters.Defs, encounters.Ids, byType);
     }
 
     private static (T[] Defs, Dictionary<string, ushort> Ids) Collect<T>(

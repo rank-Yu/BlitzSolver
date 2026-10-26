@@ -34,10 +34,38 @@ internal static class ScenarioBuilder
 {
     private const int MaxBulkCardInjectionCount = 4096;
 
-    internal static async Task<CombatState> BuildAsync(ICombatHost waiter, OfflineRequest request,
-        bool skipInitialInjection = false, TurnSetupCardSelector? turnSetupSelector = null)
+    internal sealed class PreparedRun : IDisposable
     {
-        GeneratedScenarioSetup setup = GeneratedScenarioSetup.Prepare(request);
+        private readonly IDisposable[] _scopes;
+
+        internal PreparedRun(RunState run, Player player, OfflineRequest request,
+            EncounterModel encounter, GeneratedScenarioSetup setup, IDisposable[] scopes)
+        {
+            Run = run;
+            Player = player;
+            Request = request;
+            Encounter = encounter;
+            Setup = setup;
+            _scopes = scopes;
+        }
+
+        internal RunState Run { get; }
+        internal Player Player { get; }
+        internal OfflineRequest Request { get; }
+        internal EncounterModel Encounter { get; }
+        internal GeneratedScenarioSetup Setup { get; }
+
+        public void Dispose()
+        {
+            for (int index = _scopes.Length - 1; index >= 0; index--)
+                _scopes[index].Dispose();
+        }
+    }
+
+    internal static async Task<PreparedRun> PrepareRunAsync(ICombatHost waiter, OfflineRequest request,
+        TurnSetupCardSelector? turnSetupSelector = null, GeneratedScenarioSetup? preparedSetup = null)
+    {
+        GeneratedScenarioSetup setup = preparedSetup ?? GeneratedScenarioSetup.Prepare(request);
         request = setup.Request;
         ResolvedGeneratedCombatScenario? generated = setup.Resolved;
         GeneratedScenarioCardSelector? generatedSelector = setup.Selector;
@@ -51,23 +79,16 @@ internal static class ScenarioBuilder
         if (RunManager.Instance.IsInProgress)
             throw new InvalidOperationException("已经有进行中的跑局。");
 
-        using IDisposable? generatedChoices = generatedSelector == null
-            ? null
-            : CardSelectCmd.PushSelector(generatedSelector, localOnly: true);
-        // The reference harness answers the native turn-setup page with a deterministic selector so
-        // the live game reaches Play. Comparison modes pass one selector per native option.
-        using IDisposable? turnSetupChoices = turnSetupSelector != null
-            ? CardSelectCmd.PushSelector(turnSetupSelector, localOnly: true)
-            : request.FlashTurnSetupRootForTest
-                ? CardSelectCmd.PushSelector(new FirstChoiceCardSelector(), localOnly: true)
-                : null;
-        // The reference harness gives the PR-batch direct fixtures a deterministic first-option
-        // selector because their setup relics (ChoicesParadox/ToastyMittens) own a native first-turn
-        // card selection before the captured root.
-        using IDisposable? prChoices = generatedSelector == null
-            && request.ScenarioId.StartsWith("FLASH-PR-", StringComparison.Ordinal)
-                ? CardSelectCmd.PushSelector(new FirstChoiceCardSelector(), localOnly: true)
-                : null;
+        List<IDisposable> scopes = [];
+        if (generatedSelector != null)
+            scopes.Add(CardSelectCmd.PushSelector(generatedSelector, localOnly: true));
+        if (turnSetupSelector != null)
+            scopes.Add(CardSelectCmd.PushSelector(turnSetupSelector, localOnly: true));
+        else if (request.FlashTurnSetupRootForTest)
+            scopes.Add(CardSelectCmd.PushSelector(new FirstChoiceCardSelector(), localOnly: true));
+        if (generatedSelector == null
+            && request.ScenarioId.StartsWith("FLASH-PR-", StringComparison.Ordinal))
+            scopes.Add(CardSelectCmd.PushSelector(new FirstChoiceCardSelector(), localOnly: true));
 
         TestHostLog.Trace("scenario.start_run");
         RunState runState = await waiter.StartRunAsync(character, request.Ascension, request.Seed);
@@ -102,8 +123,18 @@ internal static class ScenarioBuilder
                 InjectPotionForTest(player, injection.PotionId);
         }
         CaptureGeneratedLoadout(runState, player, request, generated);
+        return new PreparedRun(runState, player, request, encounter, setup, [.. scopes]);
+    }
 
-        EncounterModel mutableEncounter = encounter.ToMutable();
+    internal static async Task<CombatState> BuildAsync(ICombatHost waiter, OfflineRequest request,
+        bool skipInitialInjection = false, TurnSetupCardSelector? turnSetupSelector = null)
+    {
+        using PreparedRun prepared = await PrepareRunAsync(waiter, request, turnSetupSelector);
+        request = prepared.Request;
+        ResolvedGeneratedCombatScenario? generated = prepared.Setup.Resolved;
+        GeneratedScenarioCardSelector? generatedSelector = prepared.Setup.Selector;
+        Player player = prepared.Player;
+        EncounterModel mutableEncounter = prepared.Encounter.ToMutable();
         MapPointType targetMapPointType = request.TargetMapPointType != MapPointType.Unassigned
             ? request.TargetMapPointType
             : request.TargetRoomType switch

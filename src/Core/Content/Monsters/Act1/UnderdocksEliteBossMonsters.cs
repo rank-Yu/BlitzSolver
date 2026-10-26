@@ -8,7 +8,7 @@ namespace BlitzSolver.Content.Monsters.Act1;
 /// attacks and the random branch weights are compiled from the native model.
 /// </summary>
 [ContentId("FOSSIL_STALKER")]
-public sealed class FossilStalker : MonsterDef
+public sealed partial class FossilStalker : MonsterDef
 {
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)
     {
@@ -76,7 +76,7 @@ public sealed class SoulFysh : MonsterDef
 /// from the root; ZOOM/PIERCING_STABS are pure attacks.
 /// </summary>
 [ContentId("SKULKING_COLONY")]
-public sealed class SkulkingColony : MonsterDef
+public sealed partial class SkulkingColony : MonsterDef
 {
     private const int InertiaStrengthGain = 0;
 
@@ -98,7 +98,7 @@ public sealed class SkulkingColony : MonsterDef
 /// reaches (Shriek uses <c>CreatureCmd.Stun</c> with TERROR_MOVE as the follow-up).
 /// </summary>
 [ContentId("TERROR_EEL")]
-public sealed class TerrorEel : MonsterDef
+public sealed partial class TerrorEel : MonsterDef
 {
     private const int TerrorVulnerable = 99;
     private const int ThrashVigor = 6;
@@ -127,7 +127,7 @@ public sealed class TerrorEel : MonsterDef
 /// (<see cref="Kernel.TryTriggerSteamEruptionDeath"/> / <see cref="Kernel.TryConsumeSteamForcedMove"/>).
 /// </summary>
 [ContentId("WATERFALL_GIANT")]
-public sealed class WaterfallGiant : MonsterDef
+public sealed partial class WaterfallGiant : MonsterDef
 {
     public override bool HasInfiniteHpDisplay => true;
 

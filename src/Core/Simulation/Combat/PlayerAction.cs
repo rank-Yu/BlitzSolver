@@ -286,6 +286,21 @@ public ref struct Exec
     public int AttackUnblockedHits;
 
     /// <summary>
+    /// The room being entered is a boss room. Set only while the opening combat-start hooks run;
+    /// Pantograph reads it, and later steps leave it false.
+    /// </summary>
+    public bool FirstRoomIsBoss;
+
+    /// <summary>
+    /// The opening build is running its battle-start hooks. First-turn-only relic/room effects
+    /// check this so a search root captured at turn 1 does not replay them.
+    /// </summary>
+    public bool CombatStart;
+
+    /// <summary>Opening-content values supplied only while the battle is being built.</summary>
+    public ICombatStartContent? SetupContent;
+
+    /// <summary>
     /// The step reached the enemy-side turn-end pass. The native turn counter advances after that pass
     /// even when a kill there ends the combat; search does not read this flag.
     /// </summary>
