@@ -434,13 +434,14 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 ```
 
 `--all` 跳过 13 个前缀输入，输出 397 个普通请求；回合准备 fixture 也在其中。
-`--emit-live-requests` 还接受 `--search-tier Low|Medium|High|VeryHigh`（默认 `Medium`）、
-`--search-normal`（关掉确定性软时间）与 `--search-cancel-after-ms N`（取消测试）。
+`--emit-live-requests` 还接受 `--search-tier Low|Medium|High|ExtraHigh`（默认 `Medium`；
+旧名 `VeryHigh` 显式报错）、`--search-normal`（关掉确定性软时间）与
+`--search-cancel-after-ms N`（取消测试）。
 
 ### 6.5 实机搜索请求/结果对照
 
-测试模式在捕获后默认用中档确定性选项求解一次（软时间关闭，起始宽度 128、节点上限
-256,000），写
+测试模式在捕获后默认用中档确定性选项求解一次（软时间关闭，起始宽度 256、第一轮节点上限
+512,000），写
 `SREQ`/`SRES`/`search.json`。离线宿主：
 
 ```bash
@@ -517,22 +518,27 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --offline-combat --root quality-DEFECT-000 --out .local/offline-combat/one
 
-# 四档评估：每档 120 根，--jobs 6。Low/Medium 各一两分钟，High 约 3 分钟，
-# VeryHigh 建议按 60 根拆两次，单条命令保持在 8 分钟内
-for tier in Low Medium High VeryHigh; do
+# 四档评估：每档 120 根，--jobs 4。低/中/高各约 3/5/7 分钟；
+# ExtraHigh 按 60 根拆两次，单条命令保持在 8 分钟内
+for tier in Low Medium High; do
   dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-    --offline-combat --roots-file .local/roots120.txt --jobs 6 \
+    --offline-combat --roots-file .local/roots120.txt --jobs 4 \
     --search-tier "$tier" --out ".local/offline-combat/$tier"
+done
+for part in a b; do
+  dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+    --offline-combat --roots-file ".local/roots-xhigh-$part.txt" --jobs 4 \
+    --search-tier ExtraHigh --out ".local/offline-combat/xhigh-$part"
 done
 
 # 单宽度探针：起始=最多，便于只测某一宽度；每轮节点上限仍可覆盖
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --offline-combat --corpora tests/corpora --jobs 6 \
+  --offline-combat --corpora tests/corpora --jobs 4 \
   --beam-width 512 --max-width 512 --out .local/offline-combat/w512
 
 # 同宽度、旧局面池上限（200 MiB），用于放大前后对照
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --offline-combat --corpora tests/corpora --jobs 6 \
+  --offline-combat --corpora tests/corpora --jobs 4 \
   --beam-width 512 --max-width 512 --pool-state-budget-mb 200 \
   --out .local/offline-combat/w512-pool200
 
@@ -549,7 +555,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 120 个质量根上 96 根逐字节相同，24 个 DEFECT 根只差 `Counter.OrbChannels`（捕获根 0，
 整场根按原生 History 重建为 1 或 2）。离线工具使用整场根，因此与实机整场搜索结果对齐。
 搜索请求用同一个 `SearchRequestCompiler` 组装第一轮，性能档默认 `Medium`（起始宽度
-128、最多 256、每轮节点上限 宽度 × 2,000、决策总时间 60 秒）；离线模式把每轮软时间设为
+256、最多 512、每轮节点上限 宽度 × 2,000、决策总时间 120 秒）；离线模式把每轮软时间设为
 `TimeSpan.MaxValue`，只受节点上限和全局内存预算约束。多轮翻倍、每轮节点上限、终局比较、
 局面池放大与时间预估都在 Core 的 `WideningSearch` 里，Mod 与离线整场共用该入口。
 
@@ -569,7 +575,10 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `width`/`maxExpandedNodes`/`poolStateBudgetBytes`/`elapsedMs`/`expandedNodes`/`routeActions`/
 `victory`/`damageFreeVictory`/`wouldSkip`/`wouldTruncate`/`poolCapacityDropped`/
 `searchMemoryPeakBytes` 等。父进程还写 `<out>/summary.json`（档位、起始/最多宽度、每宽节点
-系数、总时间、逐根摘要与墙钟）。
+系数、总时间、逐根摘要与墙钟）。逐根摘要的 `exitCode` 是子进程退出码，`exceptionType` 是
+从 stderr 的 `Unhandled exception.` 行解析出的异常类型；子进程没有写出 `full-combat.json`
+时 `status=crashed`、`error` 为异常类型与消息（解析不到时保留退出码与缺失文件的说明），
+不会再把 `[scenario] ...` 的最后一个阶段当成错误原因。
 
 路线用完而战斗未结束时，离线工具从预测的最后一个 `Battle` 直接重搜；Mod 在同样的边界用
 `LiveCombatTracker.ImportRoot` 从实机重新导入。两者逐字段的关系是：
@@ -618,8 +627,9 @@ tools/testing/offline-combat-table.py \
 `searchMemoryPeakBytes`、`routeNodeStorageBytes`、`routeNodePeakCount`、
 `memoryBudgetExceeded`、`memoryExceededAtBytes` 与 `poolCapacityDropped`。这些是搜索账本
 的逻辑字节，不读 GC；`managedHeapPeakBytes` 才是进程托管堆采样，只用于报告。多轮搜索共用
-一份 `SearchStorage`，轮次之间保留的块也计入预算；默认局面池从 200 MiB 随宽度放大到 512
-MiB（宽度 512）和 1 GiB（宽度 1024），放大后的实际池块逐块记账。
+一份 `SearchStorage`，轮次之间保留的块也计入预算；默认局面池从 200 MiB 随宽度放大到
+256/512/1,024 MiB（宽度 256/512/1,024），宽度 2,048 的单池上限为 1,728 MiB；乘积先按
+64 位计算再截断到 `int`，放大后的实际池块逐块记账。
 `--pool-state-budget-mb N` 可把每轮池上限固定为 N MiB，用于放大前后对照，不进入 `SREQ`。
 
 离线宿主的默认预算固定按 0.15 × 16 GiB = 2,576,980,377 B；`--memory-budget-mb N` 用 MiB

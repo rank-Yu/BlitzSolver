@@ -971,10 +971,10 @@ internal static class Program
               dotnet OfflineHost.dll --live-compare <resultDir>
               dotnet OfflineHost.dll --search-compare <resultDir>
               dotnet OfflineHost.dll --emit-live-requests <dir> (--root <name> | --roots-file <file> | --all)
-                  [--search-tier Low|Medium|High|VeryHigh] [--search-normal]
+                  [--search-tier Low|Medium|High|ExtraHigh] [--search-normal]
                   [--search-cancel-after-ms N] [--full-combat]
               dotnet OfflineHost.dll --offline-combat [--root <name> | --roots-file <file> | --corpora <dir>]
-                  [--search-tier Low|Medium|High|VeryHigh] [--jobs 1..8] [--out <dir>]
+                  [--search-tier Low|Medium|High|ExtraHigh] [--jobs 1..8] [--out <dir>]
                   [--beam-width N] [--max-width N] [--max-nodes N] [--nodes-per-width N]
                   [--pool-state-budget-mb N] [--memory-budget-mb N]
             """);

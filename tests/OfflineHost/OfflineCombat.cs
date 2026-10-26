@@ -38,7 +38,9 @@ internal sealed record OfflineCombatRootResult(
     int PlayerHp,
     int Searches,
     long ElapsedMs,
-    string? Error);
+    string? Error,
+    int ExitCode,
+    string? ExceptionType);
 
 internal static class OfflineCombat
 {
@@ -90,12 +92,13 @@ internal static class OfflineCombat
             {
                 (int code, string stdout, string stderr) = RunChild(settings, name);
                 OfflineCombatRootResult? entry = ReadSummary(settings.Output, name);
-                entry ??= new OfflineCombatRootResult(name, "failed", "", 0, 0, 0, 0,
-                    code == 0 ? "没有写出 full-combat.json" : FirstLine(stderr));
+                entry = entry is null
+                    ? FailedRoot(name, code, stderr)
+                    : entry with { ExitCode = code };
                 lock (gate)
                 {
                     results.Add(entry);
-                    if (code != 0 || entry.Status is "failed" or "error")
+                    if (code != 0 || entry.Status is "failed" or "error" or "crashed")
                         failed++;
                 }
                 Console.WriteLine(
@@ -292,7 +295,8 @@ internal static class OfflineCombat
             if (result == null)
                 return null;
             return new OfflineCombatRootResult(result.Root, result.Status, result.Outcome,
-                result.Turns, result.PlayerHp, result.Searches, result.ElapsedMs, result.PauseReason);
+                result.Turns, result.PlayerHp, result.Searches, result.ElapsedMs, result.PauseReason,
+                0, null);
         }
         catch (JsonException)
         {
@@ -343,10 +347,56 @@ internal static class OfflineCombat
         File.WriteAllText(path, JsonSerializer.Serialize(new { root, error }, OfflineJson.Options));
     }
 
-    private static string FirstLine(string text)
+    /// <summary>
+    /// A child that died before writing full-combat.json. Its exit code is always recorded, and the
+    /// unhandled exception type/message is extracted from stderr when the runtime printed one. The
+    /// scenario trace lines ("[scenario] ...") are diagnostics from the last completed stage, not an
+    /// error reason, so they are never used as the summary's error text.
+    /// </summary>
+    private static OfflineCombatRootResult FailedRoot(string root, int exitCode, string stderr)
     {
-        int newline = text.IndexOf('\n');
-        return (newline < 0 ? text : text[..newline]).Trim();
+        (string? type, string? message) = ParseChildException(stderr);
+        string error;
+        if (type is not null)
+            error = message is { Length: > 0 } ? $"{type}: {message}" : type;
+        else
+            error = exitCode == 0
+                ? "没有写出 full-combat.json"
+                : $"exit={exitCode} 没有写出 full-combat.json";
+        return new OfflineCombatRootResult(root, exitCode == 0 ? "failed" : "crashed", "",
+            0, 0, 0, 0, error, exitCode, type);
+    }
+
+    /// <summary>Reads the runtime's unhandled-exception banner, e.g. "Unhandled exception. System.X: msg".</summary>
+    private static (string? Type, string? Message) ParseChildException(string stderr)
+    {
+        string[] lines = stderr.Split('\n');
+        for (int index = 0; index < lines.Length; index++)
+        {
+            string line = lines[index].Trim();
+            const string marker = "Unhandled exception";
+            if (!line.StartsWith(marker, StringComparison.Ordinal))
+                continue;
+            string rest = line[marker.Length..].TrimStart('.', ':', ' ').Trim();
+            if (rest.Length == 0 && index + 1 < lines.Length)
+                rest = lines[index + 1].Trim();
+            return SplitException(rest);
+        }
+        return (null, null);
+    }
+
+    private static (string? Type, string? Message) SplitException(string text)
+    {
+        if (text.Length == 0)
+            return (null, null);
+        int colon = text.IndexOf(':');
+        if (colon > 0)
+        {
+            string type = text[..colon].Trim();
+            if (type.Length > 0 && type.IndexOf(' ') < 0)
+                return (type, text[(colon + 1)..].Trim());
+        }
+        return (text, null);
     }
 
     /// <summary>Offline host for <see cref="FullCombatDriver"/>: kernel-only root and deployment.</summary>

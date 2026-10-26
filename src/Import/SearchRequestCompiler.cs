@@ -19,7 +19,7 @@ public enum SearchPerformanceTier
     Low,
     Medium,
     High,
-    VeryHigh,
+    ExtraHigh,
 }
 
 /// <summary>
@@ -43,23 +43,39 @@ public readonly record struct SearchPerformanceProfile(
     public const int MaxTurns = 64;
 
     public int StartMaxExpandedNodes
-        => checked(StartWidth * MaxExpandedNodesPerWidth);
+    {
+        get
+        {
+            long nodes = (long)StartWidth * MaxExpandedNodesPerWidth;
+            return nodes <= int.MaxValue
+                ? (int)nodes
+                : throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
+                    $"起始宽度 {StartWidth} × 每宽节点 {MaxExpandedNodesPerWidth} 超过 32 位上限。");
+        }
+    }
 
     public static SearchPerformanceProfile For(SearchPerformanceTier tier) => tier switch
     {
         SearchPerformanceTier.Low => new(
-            128, 128, 2_000, 30_000, 24, 12, 16),
+            256, 256, 2_000, 60_000, 24, 12, 16),
         SearchPerformanceTier.Medium => new(
-            128, 256, 2_000, 60_000, 32, 18, 24),
+            256, 512, 2_000, 120_000, 32, 18, 24),
         SearchPerformanceTier.High => new(
-            128, 512, 2_000, 120_000, 48, 28, 36),
-        SearchPerformanceTier.VeryHigh => new(
-            128, 1024, 2_000, 240_000, 72, 42, 54),
+            256, 1_024, 2_000, 180_000, 48, 28, 36),
+        SearchPerformanceTier.ExtraHigh => new(
+            256, 2_048, 2_000, 240_000, 72, 42, 54),
         _ => throw new ArgumentOutOfRangeException(nameof(tier)),
     };
 
     public static SearchPerformanceTier ParseTier(string text)
     {
+        // The old fourth tier name was renamed; keep rejecting it explicitly so a stale config
+        // or script gets a migration message instead of a generic unknown-tier error.
+        if (string.Equals(text.Trim(), "VeryHigh", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
+                $"搜索性能档位 VeryHigh 已更名为 ExtraHigh，旧名不再接受；请改用 ExtraHigh。");
+        }
         if (!Enum.TryParse(text, ignoreCase: true, out SearchPerformanceTier tier)
             || !Enum.IsDefined(tier))
         {

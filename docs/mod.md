@@ -217,7 +217,7 @@ $BLITZ_TEST_DIR/
 - `headlessFastModeForTest` 在整场测试中覆盖战斗动画速度（默认 `Instant`，跑完恢复原值）；
   其余模式不变。
 - 单次搜索的选项由请求控制：
-  - `searchTier`：`Low`/`Medium`/`High`/`VeryHigh`，默认 `Medium`。
+  - `searchTier`：`Low`/`Medium`/`High`/`ExtraHigh`，默认 `Medium`；旧名 `VeryHigh` 显式拒绝。
   - `deterministicSearchForTest`：默认 `true`。去掉软时间（`TimeSpan.MaxValue`），只保留
     节点上限，求解后写 `SREQ`/`SRES`，供离线逐字节重放。
   - `false` 时使用该档位的正常软时间，带 pacer，只写 `search.json` 的耗时与内存，不写
@@ -287,10 +287,13 @@ $BLITZ_TEST_DIR/
 
 | 档位 | 起始宽度 | 最多宽度 | 每轮节点上限 | 决策总时间 | 分支上限（卡/堆/手） |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 低 | 128 | 128 | 宽度 × 2,000 | 30 秒 | 24 / 12 / 16 |
-| 中（默认） | 128 | 256 | 宽度 × 2,000 | 60 秒 | 32 / 18 / 24 |
-| 高 | 128 | 512 | 宽度 × 2,000 | 120 秒 | 48 / 28 / 36 |
-| 极高 | 128 | 1024 | 宽度 × 2,000 | 240 秒 | 72 / 42 / 54 |
+| 低 | 256 | 256 | 宽度 × 2,000 | 60 秒 | 24 / 12 / 16 |
+| 中（默认） | 256 | 512 | 宽度 × 2,000 | 120 秒 | 32 / 18 / 24 |
+| 高 | 256 | 1,024 | 宽度 × 2,000 | 180 秒 | 48 / 28 / 36 |
+| 极高（`ExtraHigh`） | 256 | 2,048 | 宽度 × 2,000 | 240 秒 | 72 / 42 / 54 |
+
+四档都从 256 起步；低档只跑一轮，中/高/极高档最多翻倍到 512/1,024/2,048。局面池随宽度
+放大、单池封顶 1,728 MiB，规则与 2,048 轮的 64 位计算见 [Blitz 搜索](search.md)。
 
 `FullCombatHost.SearchAsync` 组装第一轮请求后调用 Core 的 `WideningSearch`，Mod 只提供一个
 执行单轮的委托（`SearchSession.RunAsync`）和共享的 `SearchStorage`；档位解析、翻倍、节点
@@ -300,7 +303,8 @@ $BLITZ_TEST_DIR/
 
 ### 7.1 时间保险
 
-- 一次决策的所有轮共用档位总时间，第一轮把它全部作为软时间。
+- 一次决策的所有轮共用档位总时间（低/中/高/极高档分别为 60/120/180/240 秒），第一轮把
+  它全部作为软时间。
 - 每轮开始前按上一轮实际耗时的 2 倍预估；剩余时间小于预估就不开始，直接用当前最好的
   路线。第一轮没有上一轮，总是开始。
 - 正在跑的一轮把开始时的剩余时间作为 `BeamOptions.SoftTimeBudget`；被时限截断时
@@ -359,7 +363,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --search-tier Medium --search-normal --search-cancel-after-ms 1000
 ```
 
-`--search-tier Low|Medium|High|VeryHigh` 默认 `Medium`；`--search-normal` 关闭确定性；
+`--search-tier Low|Medium|High|ExtraHigh` 默认 `Medium`；旧名 `VeryHigh` 显式报错；`--search-normal` 关闭确定性；
 `--search-cancel-after-ms` 只用于测试。整场自动战斗请求加 `--full-combat`：
 
 ```bash

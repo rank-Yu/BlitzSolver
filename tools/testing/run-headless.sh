@@ -55,7 +55,7 @@ usage() {
   --probe-only                 只等到 Mod 初始化/禁用日志，不要求 results/done.json
   --no-launch                  只准备实例和请求，不启动游戏
   --full-combat                用 --roots-file/--root 生成整场自动战斗请求
-  --search-tier NAME           整场自动战斗的搜索档位（Low/Medium/High/VeryHigh，默认 Medium）
+  --search-tier NAME           整场自动战斗的搜索档位（Low/Medium/High/ExtraHigh，默认 Medium）
   --instance-root DIR          实例根（默认 .local/headless-instances）
   --game-root DIR              游戏目录（默认 ~/games/sts2）
   --ritsu-root DIR             RitsuLib 目录（默认 workshop 3747602295）

@@ -151,7 +151,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 生成请求时可以指定搜索选项：
 
 ```bash
-# 默认中档确定性（去软时间，起始宽度 128、节点上限 256,000）
+# 默认中档确定性（去软时间，起始宽度 256、第一轮节点上限 512,000）
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --emit-live-requests .local/live-requests --roots-file .local/m2b0-20-roots.txt
 
@@ -197,7 +197,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 # 单根；单宽度探针（起始=最多）或节点上限覆盖
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --offline-combat --root quality-DEFECT-000 \
-  --beam-width 128 --max-width 128 --out .local/offline-combat/one
+  --beam-width 256 --max-width 256 --out .local/offline-combat/one
 
 # 搜索内存预算覆盖（MiB）；默认是 0.15 × 16 GiB = 2,576,980,377 B
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
@@ -205,16 +205,32 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --memory-budget-mb 64 --out .local/offline-combat/b64
 ```
 
-`--search-tier` 默认 `Medium`（宽度 128→256，每轮节点上限 宽度 × 2,000）。`--beam-width W`
-把起始与最多宽度都设成 W（单宽度探针），`--max-width N` 可单独覆盖最多宽度，
-`--nodes-per-width N`/`--max-nodes N` 覆盖节点上限，`--pool-state-budget-mb N` 固定每轮
-局面池上限。每个根写 `<out>/<root>/full-combat.json`，父进程写 `<out>/summary.json`。搜索
+`--search-tier` 默认 `Medium`（宽度 256→512，每轮节点上限 宽度 × 2,000，决策总时间
+120 秒）；`Low`/`High`/`ExtraHigh` 的最多宽度分别为 256/1,024/2,048，时间保险分别为
+60/180/240 秒；旧名 `VeryHigh` 显式报错。`--beam-width W` 把起始与最多宽度都设成 W
+（单宽度探针），`--max-width N` 可单独覆盖最多宽度，`--nodes-per-width N`/`--max-nodes N`
+覆盖节点上限，`--pool-state-budget-mb N` 固定每轮局面池上限。多轮搜索的单池上限为
+`max(200 MiB, 宽度 × 1 MiB)`，封顶 1,728 MiB；宽度 2,048 的乘积先按 64 位计算再截断。
+每个根写 `<out>/<root>/full-combat.json`，父进程写 `<out>/summary.json`。搜索
 使用确定性选项（去软时间，只受节点上限与全局预算约束）；每次决策和每一轮另记托管堆/工作集
 峰值、逻辑内存账本、节点存储字节、预算触发、池容量丢弃与时间预估标记。子进程默认先做一次
 50,000 节点热身（不计时；`BLITZ_OFFLINE_WARMUP_NODES` 可改，0 关闭），
 `BLITZ_STORAGE_CHECK=1` 会在首个搜索上用同一 `SearchStorage` 连续解两次并打印逐字节比较与
-分配差。逐场与实机比较的口径见 [`docs/testing.md`](../../docs/testing.md) 6.7 节，内存预算与
-计时见 6.8 节。
+分配差。ExtraHigh 的 120 根通常超过 8 分钟，按 60 根拆两次：
+
+```bash
+for part in a b; do
+  dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+    --offline-combat --roots-file ".local/roots-xhigh-$part.txt" --jobs 4 \
+    --search-tier ExtraHigh --out ".local/offline-combat/xhigh-$part"
+done
+```
+
+`summary.json` 的逐根摘要总是带 `exitCode`。子进程在写出 `full-combat.json` 前崩溃时，
+`status=crashed`，`exceptionType`/`error` 来自 stderr 的 `Unhandled exception.` 行；
+解析不到异常时保留退出码与“没有写出 full-combat.json”的说明，不会把
+`[scenario] scenario.validate` 之类的最后阶段误记为错误原因。逐场与实机比较的口径见
+[`docs/testing.md`](../../docs/testing.md) 6.7 节，内存预算与计时见 6.8 节。
 
 ## 与参考转储对照
 

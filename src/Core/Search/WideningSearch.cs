@@ -35,27 +35,42 @@ internal sealed record WideningSearchPlan(
     /// <summary>The original single-pool state budget (200 MiB), raised only by this loop.</summary>
     internal const int BasePoolStateBudgetBytes = 200 * 1024 * 1024;
 
-    /// <summary>One extra MiB of state budget per beam seat; 128 seats keep the original 200 MiB.</summary>
+    /// <summary>One extra MiB of state budget per beam seat; 256 seats keep 256 MiB.</summary>
     internal const int PoolStateBudgetBytesPerWidth = 1024 * 1024;
 
-    /// <summary>Per-pool cap; two pools plus the rest of the search still fit one global budget.</summary>
-    internal const int MaximumPoolStateBudgetBytes = 1024 * 1024 * 1024;
+    /// <summary>
+    /// Per-pool cap; two pools plus the rest of the search still fit one global budget. 1728 MiB is
+    /// the smallest tested 64-MiB-aligned cap that removes the 2048-seat round's Beam.Pool drops on
+    /// the 120-root corpus (1664 and 1696 MiB still dropped); the 0.15 × 16 GiB offline budget
+    /// still stops only REGENT-013, as it did with the old 1 GiB cap.
+    /// </summary>
+    internal const int MaximumPoolStateBudgetBytes = 1728 * 1024 * 1024;
 
     internal int MaxExpandedNodesFor(int width)
-        => MaxExpandedNodesOverride > 0
-            ? MaxExpandedNodesOverride
-            : checked(width * MaxExpandedNodesPerWidth);
+    {
+        if (MaxExpandedNodesOverride > 0)
+            return MaxExpandedNodesOverride;
+        long nodes = (long)width * MaxExpandedNodesPerWidth;
+        return nodes <= int.MaxValue
+            ? (int)nodes
+            : throw new ArgumentOutOfRangeException(nameof(width),
+                $"宽度 {width} × 每宽节点 {MaxExpandedNodesPerWidth} 超过 32 位节点上限。");
+    }
 
     /// <summary>
-    /// Pool capacity grows with the beam width. At the 128-seat start it is the old 200 MiB; at
-    /// 1024 seats it is 1 GiB, which covers the full width × (MaxLegalActions + 1) bound. The pool
-    /// chunks are charged to the shared search-memory ledger as they are allocated.
+    /// Pool capacity grows with the beam width. At the 256-seat start it is 256 MiB; the width ×
+    /// 1 MiB product is computed in 64 bits and then clamped to 1728 MiB, so a 2048-seat round
+    /// stays representable in <see cref="BeamOptions.PoolStateBudgetBytes"/>. The pool chunks are
+    /// charged to the shared search-memory ledger as they are allocated.
     /// </summary>
     internal int PoolStateBudgetBytesFor(int width)
-        => PoolStateBudgetOverrideBytes > 0
-            ? PoolStateBudgetOverrideBytes
-            : Math.Clamp(checked(width * PoolStateBudgetBytesPerWidth),
-                BasePoolStateBudgetBytes, MaximumPoolStateBudgetBytes);
+    {
+        if (PoolStateBudgetOverrideBytes > 0)
+            return PoolStateBudgetOverrideBytes;
+        long bytes = Math.Clamp((long)width * PoolStateBudgetBytesPerWidth,
+            (long)BasePoolStateBudgetBytes, (long)MaximumPoolStateBudgetBytes);
+        return (int)bytes;
+    }
 }
 
 /// <summary>One round handed to the host. The case already carries the round's width and limits.</summary>
@@ -176,6 +191,9 @@ internal static class WideningSearch
             throw new ArgumentOutOfRangeException(nameof(plan), "加宽档位的宽度范围无效。");
         if (plan.MaxExpandedNodesPerWidth <= 0)
             throw new ArgumentOutOfRangeException(nameof(plan), "每轮节点上限系数必须为正。");
+        if (plan.MaxWidth > int.MaxValue / plan.MaxExpandedNodesPerWidth)
+            throw new ArgumentOutOfRangeException(nameof(plan),
+                $"最多宽度 {plan.MaxWidth} × 每宽节点 {plan.MaxExpandedNodesPerWidth} 超过 32 位节点上限。");
         if (plan.TotalTimeBudgetMilliseconds < 0)
             throw new ArgumentOutOfRangeException(nameof(plan), "决策总时间不能为负。");
 
