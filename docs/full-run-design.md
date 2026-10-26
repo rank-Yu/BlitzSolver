@@ -73,7 +73,7 @@ src/Core/                     BlitzSolver.Core（只依赖 .NET 基础库，一�
 
 命名空间与目录一致：`BlitzSolver.Simulation.Combat`、`BlitzSolver.Simulation.Run`、`BlitzSolver.Content.*`、`BlitzSolver.Ai.Combat`、`BlitzSolver.Ai.Run`、`BlitzSolver.Autoplay`。
 
-R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；`Simulation/Run`、`Ai/Run` 目前只有 README，`RunPilot` 随 R3 落地。
+R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；R1b 已落地 `Simulation/Run` 的 `RunState`、`RunView`、局外随机数与编码。`Ai/Run` 仍只有 README，`RunPilot` 随 R3 落地。
 
 R1a 已完成的迁移：
 
@@ -103,12 +103,12 @@ Core 以外按"战斗 / 整局"对称分子目录，项目名、程序集名、�
 
 | 位置 | 子目录 |
 | --- | --- |
-| `src/Import` | `Combat/`（现有导入代码）；`Run/`（R1a 仅 README）；仍是唯一读取原版私有字段的层 |
+| `src/Import` | `Combat/`（战斗导入）；`Run/`（R1b 整局导入）；仍是唯一读取原版私有字段的层 |
 | `src/Mod` | `Combat/`（部署、整场宿主、搜索会话）、`Run/`（R1a 仅 README；落地后含 `Screens/`、`Rooms/`）、`UI/`、`Testing/`、`Patches/` |
-| `src/TestHost` | `Combat/`；`Run/` 待建整局与跳层 |
-| `tests/KernelChecks` | `Combat/`；`Run/` 待后续 |
+| `src/TestHost` | `Combat/`；`Run/`（R1b 新局入口与原生整局转储） |
+| `tests/KernelChecks` | `Combat/`；`Run/`（R1b 整局合同） |
 | `tests/Golden` | 战斗校验器在 `Combat/`（D1/D2、compare、refreeze、rerecord）；manifest、文件读写、哈希、格式合同留根目录；`data/` 不动 |
-| `tests/OfflineHost` | `Combat/`（离线整场、各对照）；入口与引导留根目录；`Run/`、`Differential/` 待后续 |
+| `tests/OfflineHost` | `Combat/`（离线整场、各对照）；`Run/`（R1b 整局导入对照）；入口与引导留根目录；`Differential/` 待后续 |
 | `tests/Architecture` | 已加入：编译后的 Core 层依赖检查 |
 | `tests/corpora` | `quality/` 不动；`runs/` 待新增（固定种子集、录下的整局） |
 | `tools` | `testing/` 不动；`eval/` 待新增（离线整局评估、配对比较、报表） |

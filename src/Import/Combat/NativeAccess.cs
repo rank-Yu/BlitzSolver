@@ -38,6 +38,13 @@ internal static class NativeAccess
 
     public static int EncountersSeenCount(UnlockState state) => state._encountersSeen.Count;
 
+    /// <summary>Read-only unlock sets used by the run importer.</summary>
+    public static IReadOnlyCollection<string> UnlockedEpochs(UnlockState state)
+        => state._unlockedEpochIds;
+
+    public static IReadOnlyCollection<ModelId> EncountersSeen(UnlockState state)
+        => state._encountersSeen;
+
     /// <summary>Whether the model's type belongs to the audited game assembly.</summary>
     public static bool IsOriginal(AbstractModel model)
         => ReferenceEquals(model.GetType().Assembly, GameAssembly);

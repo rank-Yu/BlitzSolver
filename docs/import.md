@@ -484,3 +484,38 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
   `SREQ` 与离线组装的请求逐字节相同、游戏 `SRES` 与离线重解逐字节相同。3 个回合准备 fixture
   的 `BATL`/`RULE`/`NativeStateDump` 相同，`SREQ.capture` 为评分/下界子部件比较，搜索跳过。
   前缀根与完整准备阶段多根排序仍只在离线宿主验证。实机与离线建局的第三幕幕结构曾有偏差（教学发现顺序），已在测试会话中对齐，5 个受影响根复跑相同。见 [Mod 入口与无头捕获](mod.md)。
+
+
+## 8. 整局状态导入（R1b）
+
+```csharp
+RunState run = RunStateImporter.Import(nativeRunState, localPlayer);
+```
+
+`src/Import/Run/RunStateImporter.cs` 从原版 `RunState` 与本地 `Player` 读取定长
+`BlitzSolver.Simulation.Run.RunState`；只读，不改动游戏状态。字段盘点、容量、编码与可见性见
+[整局状态布局](run-state-layout.md)。
+
+- 只支持单人、`GameMode.Standard`、原版内容；多人、Daily/Custom、Modifier、第三方程序集模型
+  显式拒绝。
+- 未知卡牌/遗物/药水/怪物/附魔/苦难/球/角色/幕/遭遇/事件、未知解锁 epoch 或已见遭遇，以及
+  非标准地图都返回稳定 `ImportReason` 码。
+- 牌组、遗物、卡牌与遗物私有 `SavedProperties` 统一编码为定长属性包；不复制游戏模型。
+- `CapacityException.Region` 指出溢出区块；导入从不截断。
+- 战斗开始时的 9 条战斗流与原版逐字节相同；`--run-import-compare` 还会用现有
+  `RulesCompiler`/`BattleImporter` 导入同一战斗，检查 HP、牌组身份、遗物身份/顺序/Melted、
+  药水槽与 9 条流。牌组比较取战斗中带 `DeckCard` 标记的持久牌多重集，要求与 `RunState.Deck` 完全相同；开局生成的额外卡不计入。私有属性由 `NativeRunDump` 直接从原生 `SavedProperties` 打印为
+`名字哈希:类型:值`，与 `RunDump` 从 `RunPropertyBag` 解码出的文本比较，不共用属性编码器。
+
+离线命令：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-compare --run-kind d1 --run-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-compare --run-kind natural --run-seeds 20 --run-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
+```
+
+2026-10 结果：自然开局 200/200、D1 410/410（含 120 个质量根）逐字段相同；战斗一致性
+410/410；15 条流 × 64 次抽取 0 偏差；地图 410/410；7 类负例 0 失败。详细结果见
+[测试与验证](testing.md)第 6.10 节。

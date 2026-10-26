@@ -76,6 +76,23 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --import-compare --compiled-rules
 ```
 
+## 整局状态导入对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
+```
+
+自然开局（5 角色 × A0/A10 × 20 种子）与全部 410 个 D1 输入各起一个子进程：导入
+`RunState`，与独立原生转储逐字段比较；每条随机流抽 64 次；比较当前幕地图；D1 还检查
+9 条战斗流、HP、牌组、遗物与药水。只跑一类用 `--run-kind natural|d1`。负例：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
+```
+
+字段与命令细节见[整局状态布局](../../docs/run-state-layout.md)与
+[测试与验证](../../docs/testing.md)第 6.10 节。
+
 ## 规则编译对照
 
 ```bash

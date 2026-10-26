@@ -696,6 +696,46 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 状态导入与单 Beam 搜索已由 `src/Mod` 的 20 根捕获、`--live-compare` 与 `--search-compare`
 覆盖。
 
+### 6.10 整局状态导入对照（R1b）
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
+```
+
+父进程按 8 并发起子进程：每个自然开局一个进程（5 角色 × A0/A10 × 20 种子 = 200），每个
+D1 输入一个进程（410，含 120 个质量根）。子进程：
+
+1. 自然开局用 `RunTestHost.StartNewRunAsync` 在 `EnterAct(0)` 后、玩家第一次选择前取原生
+   `RunState`/`Player`；D1 用 `ScenarioBuilder.BuildAsync(skipInitialInjection: true)` 取
+   战斗开始的整局状态。
+2. `RunStateImporter.Import` 后，与独立实现的 `NativeRunDump`（`src/TestHost/Run/`，不调用
+   导入层）逐字段比较；差异打印字段路径与两边值。私有属性由原生侧直接从 `SavedProperties`
+   打印 `名字哈希:类型:值`，Blitz 侧从属性包解码出同一文本，属性编码器不参与对照。
+3. 15 条流各从原版与 Blitz 抽 64 次（`NextInt(1000)`、`NextFloat`、`NextDouble`、
+   `NextInt(-5,100)`、`NextBool` 轮换），并检查计数器；另抽当前事件流与 4 条 `act_N_map`。
+4. 比较当前幕地图的节点、连线、类型、起始/Boss/第二 Boss、已走坐标。
+5. D1 还导入同一战斗的 `Battle`，检查 9 条战斗流、HP/最大 HP、持久牌组身份、遗物
+   顺序/id/Melted、药水槽。
+
+只跑其中一类：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-kind natural --run-seeds 20 --run-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-kind d1 --run-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-d1-root kg2-b-stomp
+```
+
+局外导入负例（多人、非标准模式、Modifier、未知事件、未知解锁、无地图、牌组容量）：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
+```
+
+2026-10 结果：自然开局 `same=200 diff=0 reject=0`；D1 `same=410 diff=0 reject=0`；战斗一致性
+`same=410`；RNG `same=610`（每类都 15 条 × 64 次 + 地图/事件）；地图 `same=610`；负例
+`failed=0`。逐字段比较包含地图、预生成序列、遗物袋顺序、解锁位图、RNG 五元组与模型私有
+属性包。
+
 ## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |
@@ -705,7 +745,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致 | 实机部署、任意 Mod、语料外前缀/准备阶段 |
+| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同 | 实机部署、任意 Mod、语料外前缀/准备阶段、奖励/商店/事件负载 |
 | Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
 | 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
 | 实机整场（手动） | 20 个固定根在无头游戏里自动打完（16 胜 4 负），逐动作核对与回合对账均为 0 偏差/0 部署失败；至少一个根实际走过选牌、抽牌堆/弃牌堆选择与药水目标；取消测试无残留 | 120 根全量、界面、未捕获前缀/准备根、第三方 Mod |

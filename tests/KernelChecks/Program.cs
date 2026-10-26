@@ -28,6 +28,7 @@ string? execCoverageError = ExecCoverage.Validate();
 Check(execCoverageError == null, $"Exec 字段覆盖合同失败：{execCoverageError}");
 
 CheckRng();
+RunChecks.Check();
 CheckGrowthRewards();
 Rules rules = SliceRules();
 bool lateRegistrationThrew = false;
@@ -75,6 +76,8 @@ Console.WriteLine(JsonSerializer.Serialize(new
 {
     contracts = "Passed",
     battleBytes = Unsafe.SizeOf<Battle>(),
+    runStateBytes = Unsafe.SizeOf<BlitzSolver.Simulation.Run.RunState>(),
+    runViewBytes = Unsafe.SizeOf<BlitzSolver.Simulation.Run.RunView>(),
     runtime = Environment.Version.ToString(),
     benchmark,
 }, new JsonSerializerOptions { WriteIndented = true }));

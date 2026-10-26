@@ -22,4 +22,10 @@ namespace BlitzSolver.Ai.Run
     {
         internal static BlitzSolver.Simulation.Run.RunProjectionFixture Make() => new();
     }
+
+    /// <summary>Positive fixture: the registered RunView projection is visible to Ai.Run.</summary>
+    internal sealed class VisibleRunReferenceFixture
+    {
+        internal static BlitzSolver.Simulation.Run.RunView Make() => default;
+    }
 }

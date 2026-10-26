@@ -62,8 +62,37 @@ internal static class ArchitectureRules
     /// <c>Simulation.Run</c> types that <c>Ai.Run</c> may see: only visible projections and
     /// decision requests, registered explicitly. R1a has no such type yet.
     /// </summary>
-    internal static readonly IReadOnlySet<string> VisibleRunTypes =
-        new HashSet<string>(StringComparer.Ordinal);
+    internal static readonly IReadOnlySet<string> VisibleRunTypes = new HashSet<string>(
+        StringComparer.Ordinal)
+    {
+        "BlitzSolver.Simulation.Run.RunView",
+        "BlitzSolver.Simulation.Run.RunView+PlayerView",
+        "BlitzSolver.Simulation.Run.RunView+PotionView",
+        "BlitzSolver.Simulation.Run.RunView+PotionViewArray",
+        "BlitzSolver.Simulation.Run.RunView+CardView",
+        "BlitzSolver.Simulation.Run.RunView+CardViewArray",
+        "BlitzSolver.Simulation.Run.RunView+DeckView",
+        "BlitzSolver.Simulation.Run.RunView+RelicView",
+        "BlitzSolver.Simulation.Run.RunView+RelicViewArray",
+        "BlitzSolver.Simulation.Run.RunView+RelicViewSet",
+        "BlitzSolver.Simulation.Run.RunView+MapPointView",
+        "BlitzSolver.Simulation.Run.RunView+MapPointViewArray",
+        "BlitzSolver.Simulation.Run.RunView+MapView",
+        "BlitzSolver.Simulation.Run.RunView+RoomView",
+        "BlitzSolver.Simulation.Run.RunView+RoomViewArray",
+        "BlitzSolver.Simulation.Run.RunView+RoomViewSet",
+        "BlitzSolver.Simulation.Run.RunCoord",
+        "BlitzSolver.Simulation.Run.RunRef",
+        "BlitzSolver.Simulation.Run.RunRefKind",
+        "BlitzSolver.Simulation.Run.RunDecision",
+        "BlitzSolver.Simulation.Run.RunMapPointType",
+        "BlitzSolver.Simulation.Run.RunRoomType",
+        "BlitzSolver.Simulation.Run.RunRelicStatus",
+        "BlitzSolver.Simulation.Run.RunRelicFlags",
+        "BlitzSolver.Simulation.Run.RunLimits",
+        "BlitzSolver.Simulation.Run.RunMapStartArray",
+        "BlitzSolver.Simulation.Run.RunMapChildren",
+    };
 
     internal static Layer LayerOf(string? ns)
     {

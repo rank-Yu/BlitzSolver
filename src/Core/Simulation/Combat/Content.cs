@@ -1736,6 +1736,12 @@ public static class Registry
 
     public static int PotionCount => Data.Value.Potions.Length;
 
+    public static int EnchantmentCount => Data.Value.Enchantments.Length;
+
+    public static int AfflictionCount => Data.Value.Afflictions.Length;
+
+    public static int OrbCount => Data.Value.Orbs.Length;
+
     public static CardDef Card(ushort id) => Data.Value.Cards[id];
 
     public static PowerDef Power(ushort id) => Data.Value.Powers[id];

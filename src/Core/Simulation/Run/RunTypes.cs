@@ -1,0 +1,548 @@
+using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using BlitzSolver.Simulation.Combat;
+
+namespace BlitzSolver.Simulation.Run;
+
+/// <summary>
+/// Out-of-combat and carried combat streams, in the order stored by <see cref="RunState"/>.
+/// The first six are the run/player streams that only exist outside combat; the last nine are the
+/// combat streams carried across the battle boundary without re-derivation.
+/// </summary>
+public enum RunRngStream : byte
+{
+    UpFront,
+    UnknownMapPoint,
+    TreasureRoomRelics,
+    Rewards,
+    Shops,
+    Transformations,
+    Shuffle,
+    CombatCardGeneration,
+    CombatPotionGeneration,
+    CombatCardSelection,
+    CombatEnergyCosts,
+    CombatTargets,
+    CombatOrbGeneration,
+    MonsterAi,
+    Niche,
+}
+
+/// <summary>Native <c>MapPointType</c>; values match the game enum.</summary>
+public enum RunMapPointType : byte
+{
+    Unassigned = 0,
+    Unknown = 1,
+    Shop = 2,
+    Treasure = 3,
+    RestSite = 4,
+    Monster = 5,
+    Elite = 6,
+    Boss = 7,
+    Ancient = 8,
+}
+
+/// <summary>Native <c>RoomType</c>; values match the game enum.</summary>
+public enum RunRoomType : byte
+{
+    Unassigned = 0,
+    Monster = 1,
+    Elite = 2,
+    Boss = 3,
+    Treasure = 4,
+    Shop = 5,
+    Event = 6,
+    RestSite = 7,
+    Map = 8,
+}
+
+/// <summary>Native <c>GameMode</c>; only <see cref="Standard"/> is imported in R1b.</summary>
+public enum RunGameMode : byte
+{
+    None = 0,
+    Standard = 1,
+    Daily = 2,
+    Custom = 3,
+}
+
+/// <summary>What the player is currently being asked to decide, if anything.</summary>
+public enum RunDecision : byte
+{
+    None = 0,
+    MapPoint = 1,
+    Event = 2,
+    CombatReward = 3,
+    CardReward = 4,
+    Shop = 5,
+    RestSite = 6,
+    CardSelect = 7,
+    RelicSelect = 8,
+    PotionDiscard = 9,
+    GameOver = 10,
+}
+
+/// <summary>Native <c>RelicRarity</c>; values match the game enum.</summary>
+public enum RunRelicRarity : byte
+{
+    None = 0,
+    Starter = 1,
+    Common = 2,
+    Uncommon = 3,
+    Rare = 4,
+    Shop = 5,
+    Event = 6,
+    Ancient = 7,
+}
+
+/// <summary>Native <c>RelicStatus</c>.</summary>
+public enum RunRelicStatus : byte
+{
+    Normal = 0,
+    Active = 1,
+    Disabled = 2,
+}
+
+[Flags]
+public enum RunRelicFlags : byte
+{
+    None = 0,
+    Wax = 1 << 0,
+    Melted = 1 << 1,
+}
+
+/// <summary>One map or history coordinate.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunCoord : IEquatable<RunCoord>
+{
+    public byte Col;
+    public byte Row;
+
+    public RunCoord(byte col, byte row)
+    {
+        Col = col;
+        Row = row;
+    }
+
+    public readonly bool Equals(RunCoord other) => Col == other.Col && Row == other.Row;
+    public readonly override bool Equals(object? obj) => obj is RunCoord other && Equals(other);
+    public readonly override int GetHashCode() => (Col << 8) | Row;
+    public readonly override string ToString() => $"{Col},{Row}";
+}
+
+/// <summary>
+/// A card held by the run (deck, or a card carried by a relic/event saved property). Only the
+/// fields persisted by <c>SerializableCard</c> are stored. Saved properties whose value is a model
+/// are encoded as a <see cref="RunRef"/>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunCard
+{
+    public ushort Id;
+    public byte Upgrade;
+    public byte HasEnchantment;
+    public ushort EnchantmentId;
+    public short EnchantmentAmount;
+    public int FloorAddedToDeck;
+    public RunPropertyBag Properties;
+    public RunPropertyBag EnchantmentProperties;
+}
+
+/// <summary>A held relic, in native relic-bar order.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRelic
+{
+    public ushort Id;
+    public RunRelicStatus Status;
+    public RunRelicFlags Flags;
+    public short StackCount;
+    public int DisplayAmount;
+    public int FloorAddedToDeck;
+    public RunPropertyBag Properties;
+}
+
+/// <summary>One potion slot; <see cref="Present"/> distinguishes an empty slot from potion id 0.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunPotion
+{
+    public ushort Id;
+    public byte Present;
+    private byte _padding;
+}
+
+/// <summary>Run-level reward/unknown-map odds (native <c>RunOddsSet</c>).</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunOdds
+{
+    public float Monster;
+    public float Elite;
+    public float Treasure;
+    public float Shop;
+}
+
+/// <summary>Per-player card/potion odds (native <c>PlayerOddsSet</c>).</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunPlayerOdds
+{
+    public float CardRarity;
+    public float PotionReward;
+}
+
+/// <summary>Native <c>ExtraRunFields</c>; combat/achievement-only counters live in the dump.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunExtraFields
+{
+    public byte StartedWithNeow;
+    private byte _padding0;
+    private ushort _padding1;
+    public int TestSubjectKills;
+}
+
+/// <summary>Native <c>ExtraPlayerFields</c> fields that change future results.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunExtraPlayerFields
+{
+    public int CardShopRemovalsUsed;
+    public int WongoPoints;
+}
+
+/// <summary>One RNG slot that belongs to an active event instance.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunEventRng
+{
+    public ushort EventId;
+    public byte Active;
+    private byte _padding;
+    public RngState State;
+}
+
+/// <summary>One act's pre-generated room set.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunAct
+{
+    public ushort Id;
+    public byte HasAncient;
+    public ushort AncientId;
+    public ushort BossId;
+    public byte HasSecondBoss;
+    public ushort SecondBossId;
+    public ushort EventCount;
+    public ushort NormalCount;
+    public ushort EliteCount;
+    public int EventsVisited;
+    public int NormalVisited;
+    public int EliteVisited;
+    public int BossVisited;
+    public RunActEvents Events;
+    public RunActNormal Normal;
+    public RunActElite Elite;
+}
+
+[InlineArray(RunLimits.ActEvents)]
+public struct RunActEvents
+{
+    private ushort _first;
+}
+
+[InlineArray(RunLimits.ActNormalEncounters)]
+public struct RunActNormal
+{
+    private ushort _first;
+}
+
+[InlineArray(RunLimits.ActEliteEncounters)]
+public struct RunActElite
+{
+    private ushort _first;
+}
+
+[InlineArray(RunLimits.Acts)]
+public struct RunActArray
+{
+    private RunAct _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunActs
+{
+    public byte Count;
+    private byte _padding;
+    public RunActArray Items;
+}
+
+/// <summary>One map node, including the starting, boss and second-boss points.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunMapPoint
+{
+    public RunCoord Coord;
+    public RunMapPointType Type;
+    public byte CanBeModified;
+    public byte ChildCount;
+    public RunMapChildren Children;
+}
+
+[InlineArray(RunLimits.MapChildren)]
+public struct RunMapChildren
+{
+    private RunCoord _first;
+}
+
+[InlineArray(RunLimits.MapPoints)]
+public struct RunMapPointArray
+{
+    private RunMapPoint _first;
+}
+
+[InlineArray(RunLimits.MapStarts)]
+public struct RunMapStartArray
+{
+    private RunCoord _first;
+}
+
+/// <summary>The current act's complete map, in native column-major enumeration order.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunMap
+{
+    public byte Width;
+    public byte Height;
+    public ushort NodeCount;
+    public RunCoord Starting;
+    public RunCoord Boss;
+    public byte HasSecondBoss;
+    public RunCoord SecondBoss;
+    public byte StartCount;
+    public RunMapStartArray Starts;
+    public RunMapPointArray Nodes;
+}
+
+/// <summary>One room in a map-point history entry.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunHistoryRoom
+{
+    public RunRoomType RoomType;
+    public RunRef Model;
+    public byte MonsterCount;
+    public RunHistoryMonsters Monsters;
+    public int TurnsTaken;
+}
+
+[InlineArray(RunLimits.HistoryMonsters)]
+public struct RunHistoryMonsters
+{
+    private ushort _first;
+}
+
+[InlineArray(RunLimits.HistoryRooms)]
+public struct RunHistoryRoomArray
+{
+    private RunHistoryRoom _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunHistoryEntry
+{
+    public byte ActIndex;
+    public RunMapPointType MapPointType;
+    public byte RoomCount;
+    public RunHistoryRoomArray Rooms;
+}
+
+[InlineArray(RunLimits.MapHistory)]
+public struct RunHistoryArray
+{
+    private RunHistoryEntry _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunHistory
+{
+    public ushort Count;
+    public RunHistoryArray Entries;
+}
+
+/// <summary>One room in the live room stack (the UI's current room and its parents).</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRoom
+{
+    public RunRoomType RoomType;
+    public RunRef Model;
+    public RunRef ParentEvent;
+    public byte IsPreFinished;
+    private byte _padding0;
+    private ushort _padding1;
+}
+
+[InlineArray(RunLimits.RoomStack)]
+public struct RunRoomArray
+{
+    private RunRoom _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRooms
+{
+    public byte Count;
+    public RunRoomArray Items;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunPotionArray
+{
+    public byte Count;
+    private byte _padding;
+    public RunPotionSlots Items;
+}
+
+[InlineArray(RunLimits.PotionSlots)]
+public struct RunPotionSlots
+{
+    private RunPotion _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunDeck
+{
+    public ushort Count;
+    public RunCardArray Cards;
+}
+
+[InlineArray(RunLimits.DeckCards)]
+public struct RunCardArray
+{
+    private RunCard _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRelics
+{
+    public byte Count;
+    public RunRelicArray Items;
+}
+
+[InlineArray(RunLimits.Relics)]
+public struct RunRelicArray
+{
+    private RunRelic _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRelicBagSegment
+{
+    public ushort Count;
+    public RunRelicBagIds Ids;
+}
+
+[InlineArray(RunLimits.RelicBagPerRarity)]
+public struct RunRelicBagIds
+{
+    private ushort _first;
+}
+
+[InlineArray(RunLimits.RelicRarities)]
+public struct RunRelicBagSegments
+{
+    private RunRelicBagSegment _first;
+}
+
+/// <summary>
+/// One native <c>RelicGrabBag</c>: per-rarity remaining order. The single-player game currently
+/// populates all eight rarity buckets, including Event and Ancient; every bucket is preserved.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRelicBag
+{
+    /// <summary>Native <c>RelicGrabBag._refreshAllowed</c> (shared bag true, player bag false).</summary>
+    public byte RefreshAllowed;
+    private byte _padding;
+    public RunRelicBagSegments Segments;
+}
+
+/// <summary>Run-level RNG: named streams, per-act map streams and active event streams.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRngState
+{
+    public ulong Seed;
+    public ulong PlayerSeed;
+    public RunRngStreams Streams;
+    public RunMapRngs Map;
+    public RunMapRngConsumed MapConsumed;
+    public byte EventCount;
+    public RunEventRngs Events;
+}
+
+[InlineArray(RunLimits.RngStreams)]
+public struct RunRngStreams
+{
+    private RngState _first;
+}
+
+[InlineArray(RunLimits.ActMapRngs)]
+public struct RunMapRngs
+{
+    private RngState _first;
+}
+
+[InlineArray(RunLimits.ActMapRngs)]
+public struct RunMapRngConsumed
+{
+    private byte _first;
+}
+
+[InlineArray(RunLimits.EventRngs)]
+public struct RunEventRngs
+{
+    private RunEventRng _first;
+}
+
+[InlineArray(RunLimits.UnlockEpochWords)]
+public struct RunUnlockEpochWords
+{
+    private ulong _first;
+}
+
+[InlineArray(RunLimits.UnlockEncounterWords)]
+public struct RunUnlockEncounterWords
+{
+    private ulong _first;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunUnlockState
+{
+    public RunUnlockEpochWords Epochs;
+    public RunUnlockEncounterWords EncountersSeen;
+    public int NumberOfRuns;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RunVisited
+{
+    public byte CoordCount;
+    public RunVisitedCoords Coords;
+    public RunVisitedEventWords Events;
+}
+
+[InlineArray(RunLimits.VisitedCoords)]
+public struct RunVisitedCoords
+{
+    private RunCoord _first;
+}
+
+[InlineArray(RunLimits.VisitedEventWords)]
+public struct RunVisitedEventWords
+{
+    private ulong _first;
+}
+
+/// <summary>The player's persistent run-scoped numbers.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunPlayer
+{
+    public ushort Character;
+    public int CurrentHp;
+    public int MaxHp;
+    public int MaxEnergy;
+    public int Gold;
+    public int BaseOrbSlots;
+    public RunPotionArray Potions;
+}

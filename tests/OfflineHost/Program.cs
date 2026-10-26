@@ -43,6 +43,10 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--run-import-compare")
+            return RunImportCompare.Run(args[1..]);
+        if (args.Length > 0 && args[0] == "--run-import-negative")
+            return RunImportNegative.Run();
         string data = DefaultData;
         string corpora = DefaultCorpora;
         string output = DefaultOutput;

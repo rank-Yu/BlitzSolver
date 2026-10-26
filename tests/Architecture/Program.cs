@@ -12,7 +12,7 @@ if (violations.Count != 0)
     return 1;
 }
 Console.WriteLine($"ARCHITECTURE_OK assembly={core.GetName().Name} types={core.GetTypes().Length} "
-    + "rules=6 visibleRunTypes=0");
+    + $"rules=6 visibleRunTypes={ArchitectureRules.VisibleRunTypes.Count}");
 
 Assembly self = typeof(DependencyChecker).Assembly;
 IReadOnlyList<Violation> negative = DependencyChecker.Check(self);
@@ -35,4 +35,14 @@ if (permitted.Any(violation => violation.Source == sourceType && violation.Targe
     return 1;
 }
 Console.WriteLine("ARCHITECTURE_ALLOWLIST_OK 登记后的可见投影被允许");
+
+IReadOnlyList<Violation> visible = DependencyChecker.Check(self);
+const string visibleSource = "BlitzSolver.Ai.Run.VisibleRunReferenceFixture";
+const string visibleTarget = "BlitzSolver.Simulation.Run.RunView";
+if (visible.Any(violation => violation.Source == visibleSource && violation.Target == visibleTarget))
+{
+    Console.WriteLine("ARCHITECTURE_VISIBLE_FAILED RunView 已登记但仍被拒绝");
+    return 1;
+}
+Console.WriteLine("ARCHITECTURE_VISIBLE_OK RunView 对 Ai.Run 可见");
 return 0;
