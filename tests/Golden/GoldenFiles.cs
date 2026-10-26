@@ -14,6 +14,16 @@ internal static class GoldenFiles
         return stream.ToArray();
     }
 
+    public static void WriteCompressed(string path, byte[] bytes)
+    {
+        string? directory = Path.GetDirectoryName(path);
+        if (directory != null)
+            Directory.CreateDirectory(directory);
+        using FileStream file = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        using BrotliStream brotli = new(file, CompressionLevel.Optimal, leaveOpen: false);
+        brotli.Write(bytes);
+    }
+
     public static bool ActionEquals(in PlayerAction left, in PlayerAction right)
     {
         if (left.Kind != right.Kind || left.HandIndex != right.HandIndex || left.Target != right.Target

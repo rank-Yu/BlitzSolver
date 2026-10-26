@@ -305,6 +305,7 @@ internal sealed partial class BeamSolver
             FrameRecoveryWaitCount = _options.Pacer?.FrameRecoveryWaitCount ?? 0,
             FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
             MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
+            Equivalence = EquivalenceDiagnostics(),
         };
     }
 

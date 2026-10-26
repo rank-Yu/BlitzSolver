@@ -165,6 +165,7 @@ GOLD 只冻结 `Rules`（`objects/rules` 的 SHA-256），没有冻结 `ScoreRul
 | `provenance.d1` / `.d2` | M0 宿主捕获提交 `75217006903195bc94654680423bb9ca580ec48a` |
 | `provenance.d1Config` | D1 配置导出提交 `66a43838d89e7a03b05c0f04d5e4941ff555baec` |
 | `provenance.formatMigration` | v1→v2 迁移说明：只改数据格式里的名字（魔数、版本、容量键与根名），字段值不变 |
+| `provenance.refreeze` | 仅由 `Golden refreeze` 写入：当前代码重算后的 D2 结果集 SHA-256；原冻结数据没有该字段，普通 `manifest` 也不写它 |
 | `compression` | `brotli` |
 | `counts.d1` | roots/K1/walks/walkStates/transitions/files |
 | `counts.d2` | capturedCalls/uniqueRequests/expectedResults/comparable/equal/mismatch/timeAffected |
@@ -177,8 +178,8 @@ D1/D2 的语义参照 CombatSolver `a62f1850`，但快照本身由 M0 宿主在 
 
 - D1 的 410 个 `golden.br` 与 410 个 `config.br` 来自同一套根输入；每个根的 `meta.json` 记录输入映射、规则哈希与计数。
 - D1 重放：状态、合法动作、选择、K1/K2、`scoreHash`/`boundHash`/`traitHash` 与导出值一致；当前实测 `mismatched=0`。
-- D2 全量：1,983 个请求在去掉软时间预算后重新求解，路线、分数、计数、容量丢弃、审计与接管逐字段等于 `expected`；当前实测 `1983/1983`。
-- manifest：5,592 个文件的大小与 SHA-256、`totalBytes`、D1/D2 计数与 `provenance` 全部自洽；`manifest tests/Golden/data` 重写后逐字节相同。
+- D2 全量：M3b 之前 1,983 个请求在去掉软时间预算后重新求解，路线、分数、计数、容量丢弃、审计与接管逐字段等于 `expected`。M3b 改变选择枚举与出牌去重后，这份冻结数据会按预期失配；在 `refreeze` 副本上严格 `verify` 仍为 `1983/1983`（展开 15,568,469），见 [测试与验证](testing.md) 的 4.2–4.3。
+- manifest：原冻结数据 5,592 个文件的大小与 SHA-256、`totalBytes`、D1/D2 计数与 `provenance` 全部自洽；`manifest tests/Golden/data` 重写后逐字节相同。`refreeze` 副本合并 replay-report 后为 5,589 个文件、23,692,454 B，清单自洽。
 - 没有把时间、GC、帧压力或运行期路径写进确定性结果；这些字段只存在于旧宿主的诊断里。
 
 ## 10. 格式 v2 迁移

@@ -65,7 +65,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 ## 4. 当前状态
 
 - Core 独立编译，只有 BCL 依赖；构建 0 警告。
-- K0 纯内核合同通过；`Golden` 的 D1 重放与 D2 全量求解通过。
+- K0 纯内核合同通过；`Golden` 的 D1 重放通过。M3b 改变选择枚举与出牌去重后，原冻结 D2 会按预期失配；`compare` 只报告不判失败，`refreeze` 副本上的严格 `verify` 为 `1983/1983`。
 - 冻结快照 `tests/Golden/data` 由 `manifest.json` 逐文件校验；校验入口见 [测试与验证](testing.md)。
 - 离线宿主 `--rules-compare`：410 个输入编译出的 `Rules` 与 388 个冻结规则对象全部逐字节相同；`--import-compare`（含 `--compiled-rules`）对照 410 个输入/418 个根全部相同；`--config-compare` 的 410 份整请求全部相同，418 个根的特征哈希一致；`--import-negative` 验证 3 类显式拒绝。
 - Mod 已在无头游戏中加载；20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的

@@ -9,12 +9,19 @@ dotnet run --project tests/Golden -c Release -- verify tests/Golden/data
 dotnet run --project tests/Golden -c Release -- manifest tests/Golden/data
 dotnet run --project tests/Golden -c Release -- verify tests/Golden/data --only d1 --jobs 8
 dotnet run --project tests/Golden -c Release -- verify tests/Golden/data --only d2 --jobs 8 --shard 0/4
+dotnet run --project tests/Golden -c Release -- compare tests/Golden/data --jobs 6 --config all --shard 0/4
+dotnet run --project tests/Golden -c Release -- refreeze tests/Golden/data /tmp/blitz-refreeze --jobs 6
+dotnet run --project tests/Golden -c Release -- verify /tmp/blitz-refreeze --jobs 6
 ```
+
+> M3b 后 `tests/Golden/data` 的 D2 会按预期失配；严格 D2 请用 `refreeze` 副本，或用 `compare` 做只报告对照。
 
 - `k0`：运行 `RulesCodecContract`，检查 `Rules` 每个构造字段都进入编码字节、五个魔数的 ASCII 标签、`formatVersion=2` 与 `BATL` 旧魔数/version 1 的显式拒绝，并打印
   字段数与 `Unsafe.SizeOf<Battle>()`。
 - `verify`：先核对 `manifest.json`（格式版本、`Battle` 大小、`provenance`（含 `formatMigration`）、每个文件的
   字节数与 SHA-256、`totalBytes`，以及 D1/D2 计数），再分别校验 D1 与 D2。
+- `compare`：只对照、不判失败。`--config none|play|choice|all|choice-fill|all-fill` 选择去重组合，正式默认是 `all-fill`；按求解器自己的终局比较键输出更好/相同/更差、展开/转移与耗时；`--out` 写逐请求 CSV，`--shard i/n` 使用与 `verify` 相同的权重分片，`--verify` 打开等价自检。默认严格 `verify` 不受影响。
+- `refreeze`：把源数据复制到目标目录，用当前代码重算全部 D2 结果，合并 replay-report 并重写 manifest，写入 `provenance.refreeze`。源目录只读；只在副本上演示或经用户同意后替换冻结数据。
 - `manifest`：确定性地重写 `manifest.json`。文件按路径排序，逐文件记录大小与 SHA-256，
   沿用 D1/D2 计数字段，并认识 `d1/<root>/config.br`；未知文件、孤儿规则对象或缺失的
   D1 根文件都会显式失败。
@@ -40,6 +47,8 @@ Core 重算；配置缺失时显式失败。`config.br` 已纳入 `manifest.json
 
 D2 读取 `d2/requests/*.request.br`（`SREQ`），把软时间预算改成 `TimeSpan.MaxValue` 后重新求解，再与
 `d2/expected/*.result.br`（`SRES`）逐字段比较路线、TopRoutes、分数（double 位模式）、展开/转移/去重计数、
-容量丢弃、终态压缩、药水审计、侦察层与接管动作。1,983 个请求全部相等。
+容量丢弃、终态压缩、药水审计、侦察层与接管动作。M3b 之前 1,983 个请求全部相等；M3b
+改变选择枚举与出牌去重后，原冻结数据的 D2 会按预期失配，改用 `compare`，在 `refreeze` 副本上
+再跑严格 `verify`。
 
 数据格式、计数和 Search 外部类型清单见 `.local/tool-tasks/blitz/M0-report.md`。

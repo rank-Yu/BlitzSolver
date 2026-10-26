@@ -2006,7 +2006,9 @@ internal sealed class Scorer
         int freeUses = GetAmount(battle, powerId, Limits.PlayerOwner);
         if (freeUses <= 0)
             return 0;
-        Span<int> values = stackalloc int[Limits.MaxHandSize];
+        // Add-to-hand effects can put the stable hand above Limits.MaxHandSize; the battle
+        // capacity for cards is Limits.Cards.
+        Span<int> values = stackalloc int[Limits.Cards];
         int count = 0;
         for (int index = 0; index < battle.HandCount; index++)
         {
@@ -2058,7 +2060,9 @@ internal sealed class Scorer
         int freeUses = battle.Powers[powerIndex].Amount - battle.Powers[powerIndex].Aux0;
         if (freeUses <= 0)
             return 0;
-        Span<int> values = stackalloc int[Limits.MaxHandSize];
+        // Add-to-hand effects can put the stable hand above Limits.MaxHandSize; the battle
+        // capacity for cards is Limits.Cards.
+        Span<int> values = stackalloc int[Limits.Cards];
         int count = 0;
         for (int hand = 0; hand < battle.HandCount; hand++)
         {

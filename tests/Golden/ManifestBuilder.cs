@@ -12,6 +12,14 @@ internal static class ManifestProvenance
     internal const string D2 = "75217006903195bc94654680423bb9ca580ec48a";
     internal const string D1Config = "66a43838d89e7a03b05c0f04d5e4941ff555baec";
     internal const string FormatMigration = "v1→v2 只改了数据格式里的名字（魔数、版本、容量键与根名），字段值不变。";
+
+    /// <summary>
+    /// Set only by the refreeze command for the manifest it writes: a content hash of the newly
+    /// generated D2 expected results. The original capture hashes stay in <see cref="D1"/> and
+    /// <see cref="D2"/>; this field records the new result provenance without changing the strict
+    /// verifier's expected constants for the frozen data directory.
+    /// </summary>
+    internal static string? Refreeze { get; set; }
 }
 
 internal static class ManifestBuilder
@@ -195,6 +203,8 @@ internal static class ManifestBuilder
             writer.WriteString("d2", ManifestProvenance.D2);
             writer.WriteString("d1Config", ManifestProvenance.D1Config);
             writer.WriteString("formatMigration", ManifestProvenance.FormatMigration);
+            if (ManifestProvenance.Refreeze is { } refreeze)
+                writer.WriteString("refreeze", refreeze);
             writer.WriteEndObject();
             writer.WriteString("compression", "brotli");
             writer.WriteStartObject("counts");

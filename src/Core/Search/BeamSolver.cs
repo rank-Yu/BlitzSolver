@@ -437,6 +437,12 @@ internal sealed record BeamResult(
     /// seed itself).
     /// </summary>
     public TakeoverAction Takeover { get; init; }
+
+    /// <summary>
+    /// Counts of the two content-deduplications and, when the verification switch is on, of the
+    /// skipped-alternative comparisons. Diagnostics only; not part of the result encoding.
+    /// </summary>
+    public SearchEquivalenceDiagnostics Equivalence { get; init; } = SearchEquivalenceDiagnostics.Empty;
 }
 
 /// <summary>
@@ -450,6 +456,12 @@ internal sealed partial class BeamSolver
 {
     /// <summary>Selections explored per choice request (lexicographic within each size).</summary>
     private const int MaxChoiceBranches = 32;
+
+    /// <summary>
+    /// Cap on skipped physical choice alternatives checked per request by the verification switch.
+    /// The equality statistics are a bounded sample; the search itself is unaffected.
+    /// </summary>
+    private const int MaxChoiceAlternativesVerifiedPerRequest = 8;
 
     /// <summary>The existing <c>EarlyTurnCandidatesPerLayer</c>.</summary>
     private const int EarlyTurnCandidatesPerLayer = 24;
@@ -592,6 +604,19 @@ internal sealed partial class BeamSolver
     private int _endTurnPrefixExtraTurnUnshared;
     private int _endTurnPrefixNotInProgress;
     private bool _verifySearchEquivalence;
+    private bool _dedupePlayActions;
+    private bool _dedupeChoicesByClass;
+    private bool _choiceFillVariants;
+    private long _playDeduped;
+    private long _playVerifiedExact;
+    private long _playVerifiedApprox;
+    private long _playVerifiedApproxEqual;
+    private long _playVerifiedUnresolved;
+    private long _choiceByClassRequests;
+    private long _choiceVerifiedExact;
+    private long _choiceVerifiedApprox;
+    private long _choiceVerifiedApproxEqual;
+    private long _choiceVerifiedUnresolved;
     private EndTurnPrefix _endTurnPrefix;
 
     /// <summary>Offline route trace (null in production) and the pool phase it reports.</summary>
@@ -679,6 +704,19 @@ internal sealed partial class BeamSolver
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
         _singleRoot = roots.Count == 1;
         _verifySearchEquivalence = SearchVerificationHooks.VerifySearchEquivalence;
+        _dedupePlayActions = SearchVerificationHooks.DedupeExactPlayActions;
+        _dedupeChoicesByClass = SearchVerificationHooks.DedupeEquivalentChoicesByClass;
+        _choiceFillVariants = SearchVerificationHooks.ChoiceFillPhysicalVariants;
+        _playDeduped = 0;
+        _playVerifiedExact = 0;
+        _playVerifiedApprox = 0;
+        _playVerifiedApproxEqual = 0;
+        _playVerifiedUnresolved = 0;
+        _choiceByClassRequests = 0;
+        _choiceVerifiedExact = 0;
+        _choiceVerifiedApprox = 0;
+        _choiceVerifiedApproxEqual = 0;
+        _choiceVerifiedUnresolved = 0;
         _scorer.VerifyThreatProjection = _verifySearchEquivalence;
         Stopwatch watch = Stopwatch.StartNew();
         _cancellationToken = cancellationToken;
@@ -856,12 +894,26 @@ internal sealed partial class BeamSolver
                     ref Battle parent = ref current.State(index);
                     int parentNode = current.Node(index);
                     int count = Kernel.LegalActions(parent, _rules, _actions);
+                    scoped ReadOnlySpan<PlayerAction> legal = _actions.AsSpan(0, count);
                     for (int actionIndex = 0; actionIndex < count; actionIndex++)
                     {
                         _cancellationToken.ThrowIfCancellationRequested();
-                        if (_actions[actionIndex].Kind == PlayerActionKind.UsePotion && !PotionAllowed(parent, _actions[actionIndex].PotionSlot))
+                        ref readonly PlayerAction action = ref legal[actionIndex];
+                        if (action.Kind == PlayerActionKind.UsePotion && !PotionAllowed(parent, action.PotionSlot))
                             continue;
-                        ExpandAction(ref parent, parentNode, _actions[actionIndex], next, ended, terminal,
+                        if (_dedupePlayActions
+                            && TryFindEarlierEquivalentPlay(in parent, legal, actionIndex,
+                                out int representative, out bool exact)
+                            && exact)
+                        {
+                            _playDeduped++;
+                            if (_verifySearchEquivalence)
+                            {
+                                VerifySkippedPlay(in parent, legal[representative], action, exact);
+                            }
+                            continue;
+                        }
+                        ExpandAction(ref parent, parentNode, action, next, ended, terminal,
                             current.Facts(index), current.RankPosition(index), current.Rank(index));
                     }
                     PublishProgressWithPreview(turns - 1, playDepth,
@@ -963,6 +1015,7 @@ internal sealed partial class BeamSolver
                 FrameRecoveryWaitCount = _options.Pacer?.FrameRecoveryWaitCount ?? 0,
                 FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
                 MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
+                Equivalence = EquivalenceDiagnostics(),
             };
             return audited;
         }
@@ -1009,6 +1062,7 @@ internal sealed partial class BeamSolver
             FrameRecoveryWaitCount = _options.Pacer?.FrameRecoveryWaitCount ?? 0,
             FrameRecoveryWaitDuration = _options.Pacer?.FrameRecoveryWaitDuration ?? TimeSpan.Zero,
             MaxObservedGcPause = _options.Pacer?.MaxObservedGcPause ?? TimeSpan.Zero,
+            Equivalence = EquivalenceDiagnostics(),
         };
         return result;
     }
@@ -1417,6 +1471,264 @@ internal sealed partial class BeamSolver
         return comparison != 0 ? comparison : left.ActionCount.CompareTo(right.ActionCount);
     }
 
+    /// <summary>
+    /// Compares two solved results with the same final-ordering key the solver used to select its best
+    /// route. Both routes are replayed from their recorded root and scored at their final state; a
+    /// result whose route cannot be replayed or whose root index is invalid is treated as the worse
+    /// one. Negative means <paramref name="left"/> is better, zero equal, positive worse. The report
+    /// command calls this after solving with the current code; the frozen result's route is replayed
+    /// with the same kernel, so the comparison is against the solver's own key, not a proxy score.
+    /// </summary>
+    internal int CompareResultQuality(IReadOnlyList<Battle> roots, in BeamResult left, in BeamResult right)
+    {
+        if (!TryCompareResultQuality(roots, left, right, out int comparison))
+            return 0;
+        return comparison;
+    }
+
+    /// <summary>
+    /// As <see cref="CompareResultQuality"/>, but reports whether both routes could be replayed and
+    /// scored. The report harness uses the false case as "unknown" instead of treating it as a tie.
+    /// </summary>
+    internal bool TryCompareResultQuality(IReadOnlyList<Battle> roots, in BeamResult left,
+        in BeamResult right, out int comparison)
+    {
+        comparison = 0;
+        bool leftOk = TryEvaluateResultQuality(roots, left, out RouteKey leftKey);
+        bool rightOk = TryEvaluateResultQuality(roots, right, out RouteKey rightKey);
+        if (!leftOk || !rightOk)
+            return false;
+        comparison = CompareRoutes(leftKey, rightKey);
+        return true;
+    }
+
+    private bool TryEvaluateResultQuality(IReadOnlyList<Battle> roots, in BeamResult result,
+        out RouteKey key)
+    {
+        key = default;
+        if ((uint)result.BestRootIndex >= (uint)roots.Count)
+            return false;
+        Battle state = roots[result.BestRootIndex];
+        int actionCount = _options.InitialActionCount;
+        foreach (PlayerAction action in result.BestRoute)
+        {
+            try
+            {
+                StepResult step = Kernel.Step(ref state, action, _rules, out ChoiceRequest request);
+                if (step != StepResult.Completed)
+                    return false;
+            }
+            catch (CapacityException)
+            {
+                return false;
+            }
+            actionCount++;
+        }
+        ScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
+        key = Key(state, features, actionCount);
+        return true;
+    }
+
+    /// <summary>
+    /// Finds the lowest-index play action with the same hand-card content and target. The action list
+    /// is ordered by hand index, so the first match is the representative. Exact means that every
+    /// hand position between the two copies is content-equal: playing either leaves the same hand
+    /// sequence. Any other content-equal copy is an approximate sibling in the A/B sense.
+    /// </summary>
+    private static bool TryFindEarlierEquivalentPlay(in Battle parent,
+        scoped ReadOnlySpan<PlayerAction> actions, int actionIndex, out int representative,
+        out bool exact)
+    {
+        representative = -1;
+        exact = false;
+        ref readonly PlayerAction action = ref actions[actionIndex];
+        if (action.Kind != PlayerActionKind.PlayCard || action.HandIndex >= parent.HandCount)
+            return false;
+        Card card = parent.Cards[action.HandIndex];
+        for (int prior = 0; prior < actionIndex; prior++)
+        {
+            ref readonly PlayerAction candidate = ref actions[prior];
+            if (candidate.Kind != PlayerActionKind.PlayCard || candidate.Target != action.Target
+                || candidate.HandIndex >= parent.HandCount)
+                continue;
+            if (!CardEquivalence.ContentEquals(in card, in parent.Cards[candidate.HandIndex]))
+                continue;
+            representative = prior;
+            exact = CardEquivalence.SameHandRun(in parent, action.HandIndex, candidate.HandIndex);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Runs the skipped play action and its representative from the same parent with one deterministic
+    /// choice policy, then compares the completed battles. An exact prediction must match; an
+    /// approximate one only contributes to the equality count.
+    /// </summary>
+    private void VerifySkippedPlay(in Battle parent, in PlayerAction representative,
+        in PlayerAction skipped, bool exact)
+    {
+        if (!TryExecuteForVerification(in parent, representative, out Battle expected)
+            || !TryExecuteForVerification(in parent, skipped, out Battle actual))
+        {
+            _playVerifiedUnresolved++;
+            return;
+        }
+        bool equal = Fingerprint.Equal(expected, actual);
+        if (exact)
+        {
+            _playVerifiedExact++;
+            if (!equal)
+            {
+                throw new InvalidOperationException(
+                    $"同名出牌完全等价校验失败：representative=hand{representative.HandIndex} "
+                    + $"skipped=hand{skipped.HandIndex} target={skipped.Target}。");
+            }
+            return;
+        }
+        _playVerifiedApprox++;
+        if (equal)
+            _playVerifiedApproxEqual++;
+    }
+
+    /// <summary>
+    /// For every enumerated class vector, checks one distinct physical selection (the last occurrence
+    /// of each class) against the vector's representative. A class vector is exact when the selected
+    /// content can only leave the same source-pile order; generated options are always exact.
+    /// </summary>
+    private void VerifyChoiceAlternatives(in Battle parent, in Battle choiceState,
+        in PlayerAction action, in ChoiceRequest request, scoped ReadOnlySpan<Card> cards,
+        scoped ReadOnlySpan<ulong> selections)
+    {
+        int checkedAlternatives = 0;
+        for (int index = 0; index < selections.Length
+            && checkedAlternatives < MaxChoiceAlternativesVerifiedPerRequest; index++)
+        {
+            if (!ChoiceEnumerator.TryBuildLastOccurrenceSelection(request, cards, selections[index],
+                    out ulong alternative))
+                continue;
+            checkedAlternatives++;
+            bool exact = ChoiceEnumerator.IsExactByClass(in choiceState, request, cards, selections[index]);
+            bool expectedComplete, actualComplete;
+            Battle expected, actual;
+            try
+            {
+                expectedComplete = TryExecuteForVerification(in parent,
+                    action.WithChoice(selections[index]), out expected);
+                actualComplete = TryExecuteForVerification(in parent,
+                    action.WithChoice(alternative), out actual);
+            }
+            catch (CapacityException)
+            {
+                _choiceVerifiedUnresolved++;
+                continue;
+            }
+            if (!expectedComplete || !actualComplete)
+            {
+                _choiceVerifiedUnresolved++;
+                continue;
+            }
+            bool equal = Fingerprint.Equal(expected, actual);
+            if (exact)
+            {
+                _choiceVerifiedExact++;
+                if (!equal)
+                {
+                    System.Text.StringBuilder optionsText = new();
+                    for (int option = 0; option < request.OptionCount; option++)
+                    {
+                        if (option != 0)
+                            optionsText.Append(',');
+                        optionsText.Append(option).Append(':')
+                            .Append(cards[option].Id).Append('+').Append(cards[option].Upgrade)
+                            .Append('@')
+                            .Append(request.OptionsAreGenerated ? -1 : request.Options[option]);
+                    }
+                    throw new InvalidOperationException(
+                        $"选牌等价类完全等价校验失败：effect={request.Effect} "
+                        + $"source={request.Source} options={request.OptionCount} "
+                        + $"choices={action.ChoiceCount} representative=0x{selections[index]:x} "
+                        + $"alternative=0x{alternative:x} cards=[{optionsText}] "
+                        + string.Join("; ", BattleDump.Diff(expected, actual, "representative", "alternative")));
+                }
+                continue;
+            }
+            _choiceVerifiedApprox++;
+            if (equal)
+                _choiceVerifiedApproxEqual++;
+        }
+    }
+
+    /// <summary>
+    /// Executes one action from a parent with the same deterministic continuation for both sides of a
+    /// comparison: after every <see cref="StepResult.NeedsChoice"/> it reruns the action with the
+    /// first class-vector selection appended. Returns false when the action hits a child capacity
+    /// boundary or exceeds the choice depth; those comparisons are reported as unresolved.
+    /// </summary>
+    private bool TryExecuteForVerification(in Battle parent, in PlayerAction action, out Battle result)
+    {
+        Span<Card> optionCards = stackalloc Card[Limits.MaxChoiceOptions];
+        Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
+        PlayerAction current = action;
+        for (int depth = 0; depth <= Limits.MaxChoices; depth++)
+        {
+            Battle state = parent;
+            StepResult step;
+            ChoiceRequest request;
+            try
+            {
+                step = Kernel.Step(ref state, current, _rules, out request);
+            }
+            catch (CapacityException)
+            {
+                result = default;
+                return false;
+            }
+            if (step == StepResult.Completed)
+            {
+                result = state;
+                return true;
+            }
+            if (current.ChoiceCount >= Limits.MaxChoices)
+                break;
+            for (int option = 0; option < request.OptionCount; option++)
+            {
+                if (request.OptionsAreGenerated)
+                {
+                    optionCards[option] = request.GeneratedOptions[option];
+                    continue;
+                }
+                int position = request.Options[option];
+                if ((uint)position >= Limits.Cards)
+                {
+                    result = default;
+                    return false;
+                }
+                optionCards[option] = state.Cards[position];
+            }
+            int count = ChoiceEnumerator.EnumerateByClass(request, optionCards[..request.OptionCount],
+                selections);
+            if (count == 0)
+                break;
+            try
+            {
+                current = current.WithChoice(selections[0]);
+            }
+            catch (CapacityException)
+            {
+                result = default;
+                return false;
+            }
+        }
+        result = default;
+        return false;
+    }
+
+    private SearchEquivalenceDiagnostics EquivalenceDiagnostics()
+        => new(_playDeduped, _playVerifiedExact, _playVerifiedApprox, _playVerifiedApproxEqual,
+            _playVerifiedUnresolved, _choiceByClassRequests, _choiceVerifiedExact,
+            _choiceVerifiedApprox, _choiceVerifiedApproxEqual, _choiceVerifiedUnresolved);
+
     private void ExpandAction(ref Battle parent, int parentNode, PlayerAction action, Pool next,
         Pool ended, TerminalSink terminal, in RetentionFacts parentFacts, int parentRank,
         double parentScore)
@@ -1472,9 +1784,6 @@ internal sealed partial class BeamSolver
             }
             if (stepResult == StepResult.NeedsChoice)
             {
-                // Every executed selection is exact; the cap only bounds how many are explored.
-                Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
-                int count = ChoiceEnumerator.Enumerate(request, selections);
                 // The branch loop below expands every selection through the same pool. A recursive
                 // ExpandAction reserves and overwrites next's current slot, so `child` is no longer a
                 // stable view of the partial state once the first branch runs. Capture the option card
@@ -1493,6 +1802,33 @@ internal sealed partial class BeamSolver
                             $"选择选项 {option} 的卡牌位置 {position} 超出牌数组容量。");
                     optionCards[option] = child.Cards[position];
                 }
+                // Every executed selection is exact; the cap only bounds how many are explored. With
+                // class enumeration each slot is a different content multiset.
+                Span<ulong> selections = stackalloc ulong[MaxChoiceBranches];
+                int count;
+                if (!_dedupeChoicesByClass)
+                {
+                    count = ChoiceEnumerator.Enumerate(request, selections);
+                }
+                else if (_choiceFillVariants)
+                {
+                    bool truncated = ChoiceEnumerator.Count(request, MaxChoiceBranches + 1)
+                        > MaxChoiceBranches;
+                    count = truncated
+                        ? ChoiceEnumerator.EnumerateByClassFilled(request, optionCards, selections)
+                        : ChoiceEnumerator.Enumerate(request, selections);
+                }
+                else
+                {
+                    count = ChoiceEnumerator.EnumerateByClass(request, optionCards, selections);
+                }
+                if (_dedupeChoicesByClass)
+                {
+                    _choiceByClassRequests++;
+                    if (_verifySearchEquivalence)
+                        VerifyChoiceAlternatives(in parent, in child, action, request, optionCards,
+                            selections[..count]);
+                }
                 bool captureFetchedPowers = allowFetchedPowerCommit && primaryEffect is null
                     && request.Timing == ChoiceTiming.Action
                     && IsPrimaryMoveToHandAction(parent, action)
@@ -1502,7 +1838,7 @@ internal sealed partial class BeamSolver
                 for (int option = 0; option < optionIsPower.Length; option++)
                     optionIsPower[option] =
                         Kernel.ResolveCardType(child, _rules, optionCards[option]) == CardType.Power;
-                Span<Card> capturedPowers = stackalloc Card[Limits.MaxHandSize];
+                Span<Card> capturedPowers = stackalloc Card[Limits.MaxChoiceOptions];
                 for (int index = 0; index < count; index++)
                 {
                     ChoiceEffect? effect = primaryEffect;

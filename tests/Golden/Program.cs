@@ -26,6 +26,10 @@ try
             return 0;
         case "verify":
             return VerifyCommand.Run(args[1..]);
+        case "compare":
+            return CompareCommand.Run(args[1..]);
+        case "refreeze":
+            return RefreezeCommand.Run(args[1..]);
         case "manifest":
             return ManifestCommand.Run(args[1..]);
         default:
@@ -52,6 +56,9 @@ catch (AggregateException error)
 static void PrintUsage()
     => Console.Error.WriteLine(
         "用法：Golden verify <data-dir> [--jobs N] [--only d1|d2] [--shard i/n] | "
+        + "compare <data-dir> [--jobs N] [--config none|play|choice|all|choice-fill|all-fill] "
+        + "[--out csv] [--shard i/n] "
+        + "[--only hash-prefix] [--verify] | refreeze <source-dir> <target-dir> [--jobs N] | "
         + "manifest <data-dir> | k0");
 
 internal static class VerifyCommand
@@ -120,6 +127,15 @@ internal static class VerifyCommand
                 + $"prefixShared={d2.PrefixShared} prefixUnshared={d2.PrefixUnshared} "
                 + $"prefixReuse={d2.PrefixReuse} prefixChoice={d2.PrefixChoiceUnshared} "
                 + $"prefixExtraTurn={d2.PrefixExtraTurnUnshared} prefixNotInProgress={d2.PrefixNotInProgress} "
+                + $"playDeduped={d2.PlayDeduped} playVerifiedExact={d2.PlayVerifiedExact} "
+                + $"playVerifiedApprox={d2.PlayVerifiedApprox} "
+                + $"playVerifiedApproxEqual={d2.PlayVerifiedApproxEqual} "
+                + $"playVerifiedUnresolved={d2.PlayVerifiedUnresolved} "
+                + $"choiceByClassRequests={d2.ChoiceByClassRequests} "
+                + $"choiceVerifiedExact={d2.ChoiceVerifiedExact} "
+                + $"choiceVerifiedApprox={d2.ChoiceVerifiedApprox} "
+                + $"choiceVerifiedApproxEqual={d2.ChoiceVerifiedApproxEqual} "
+                + $"choiceVerifiedUnresolved={d2.ChoiceVerifiedUnresolved} "
                 + $"wall={watch.Elapsed.TotalSeconds:F1}s jobs={jobs}");
             Console.WriteLine($"D2_TIME wall={watch.Elapsed.TotalSeconds:F3}s jobs={jobs} selected={d2.Selected}");
         }

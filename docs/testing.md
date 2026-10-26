@@ -81,13 +81,7 @@ D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 
 ### 4.2 D2
 
-当前结果：
-
-```text
-D2_OK selected=1983 equal=1983 mismatch=0 expanded=15739416 prefixChecks=0 threatChecks=0
-  prefixShared=15484187 prefixUnshared=229786 prefixReuse=10798057
-  prefixChoice=229786 prefixExtraTurn=0 prefixNotInProgress=0
-```
+当前仓库存放的 `tests/Golden/data` 是 M3b 之前的冻结数据。M3b 正式默认是 `all-fill`（完全等价出牌 + 类优先补位选牌）；它会改变 `Transitions`/`Duplicates`，部分 D2 路线也会变，因此默认 `verify` 对这份数据的 D2 会以 `GOLDEN_INVALID ... ExpandedNodes expected=... actual=...` 显式失败；D1 仍 0 不一致。这是预期失配，不是崩溃，也不要手改数据。严格复跑前先按 4.3 运行 `compare`，需要冻结时只在临时副本上 `refreeze`。
 
 D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
@@ -98,58 +92,151 @@ D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
 分片权重取第 4 步所比较的同一个 `ExpandedNodes` 字段。它是确定性计数，与机器无关；全量运行和分片运行都不依赖目录枚举顺序。
 
-D2 证明：冻结的 1,983 个请求在去软时间预算后可复现完整搜索结果。
+`D2_OK` 还输出 `playDeduped`、`playVerifiedExact/Approx`、`choiceByClassRequests`、`choiceVerifiedExact/Approx` 与未决计数；关闭校验开关时 `*Verified*` 项为 0，打开后的实测见 4.4。
+
+D2 证明（在 expected 与当前代码一致的副本上）：1,983 个请求在去软时间预算后可复现完整搜索结果。
 D2 不证明：请求集合之外的根、实机运行、界面与部署行为。
 
 完整 `verify` 的最后一行是 `GOLDEN_VERIFY ... mismatched=0`。解码失败或字段不一致输出 `GOLDEN_INVALID <原因>`，非预期异常输出 `GOLDEN_FAILED <类型>: <消息>`，两者都以非零退出。
 
-### 4.3 搜索等价自检（`Exec` 覆盖合同 + 原地投影）
+### 4.3 M3b 对照、校验与重冻
+
+#### `compare`：只报告、不判失败
+
+```bash
+dotnet run --project tests/Golden -c Release --no-build -- \
+  compare tests/Golden/data --jobs 6 --config all --shard 0/4 \
+  --out .local/compare-all-0.csv
+```
+
+- `--config none|play|choice|all|choice-fill|all-fill`：`none` 关闭两项去重，`play` 只开完全等价的出牌去重，`choice` 只开旧版选牌等价类（每个类向量一个代表），`all` 是 `play + choice`，`choice-fill` 是类优先并补位置变体，`all-fill` 是 `play + choice-fill`（正式默认）。
+- `--shard i/n`：与 `verify` 相同的 D2 权重分片；全量对照按 4 片运行。
+- `--out`：逐请求 CSV，含质量分类、路线是否逐动作相同、展开/转移、分数、胜负、`ms` 与等价计数。
+- `--verify`：在对照时打开 `BLITZ_VERIFY_SEARCH_EQUIVALENCE` 的全部检查；精确等价断言失败仍会以 `GOLDEN_FAILED` 退出，近似项只统计。
+- 质量用 `BeamSolver.TryCompareResultQuality`：把冻结路线与当前路线分别从同一根重放，按求解器自己的终局比较键（胜负、存活、死亡保护、战略失血、成长、回合、资源、可选药水、敌人 HP、分数、动作数）分类为更好/相同/更差。无法重放时计 `unknown`。
+- 本命令不修改 `tests/Golden/data`，也不更新 manifest。
+
+M3b 在 1,983 个 D2 请求上的 `--jobs 6` 四片合计（`solveMsSum` 是逐请求求解时间之和，墙钟是四片顺序运行的合计；基线 `none` 的第一片同时含慢请求 `40e330…`）：
+
+| 配置 | 更好/相同/更差 | 胜利 +/− | 展开 | 转移 | 求解 ms 合计 | 四片墙钟 | 最慢片 |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `none`（冻结基线） | 0 / 1,983 / 0 | 0 / 0 | 15,739,416 | 89,023,995 | 1,013,005 | 295.1s | 177.4s |
+| `play`（完全等价出牌） | 0 / 1,983 / 0 | 0 / 0 | 15,739,416 | 84,595,399（−4.98%） | 1,012,406 | 292.6s | 176.2s |
+| `choice`（旧版选牌等价类） | 97 / 1,816 / 70 | +11 / −5 | 15,627,412（−0.71%） | 80,329,530（−9.77%） | 912,795 | 196.8s | 82.7s |
+| `all`（`play + choice`） | 97 / 1,816 / 70 | +11 / −5 | 15,627,412（−0.71%） | 75,891,681（−14.75%） | 888,978 | 193.7s | 82.3s |
+| `choice-fill` | 29 / 1,941 / 13 | +5 / −4 | 15,568,469（−1.09%） | 77,836,748（−12.57%） | 859,367 | 157.6s | 39.9s |
+| `all-fill`（正式默认） | 29 / 1,941 / 13 | +5 / −4 | 15,568,469（−1.09%） | 73,395,937（−17.56%） | 843,219 | 154.8s | 39.2s |
+
+`all-fill` 与 `all` 的质量差异集中在“位置变体是否被保留”：
+
+| 配置 | 更差（截断请求/未截断） | 更好（截断/未截断） | 胜利变失败（截断/未截断） | 失败变胜利（截断/未截断） |
+| --- | --- | --- | --- | --- |
+| `all` | 70（15 / 55） | 97（47 / 50） | 5（2 / 3） | 11（5 / 6） |
+| `all-fill` | 13（13 / 0） | 29（29 / 0） | 4（4 / 0） | 5（5 / 0） |
+
+旧版 `choice` 在未截断请求上虽然集合相同（32 个名额足够），但把类代表顺序放在前面，会改变池的插入/同分顺序；`all-fill` 对未截断请求直接使用原 `Enumerate`，把所有这类变化清零。截断请求里 `choice-fill` 先保留不同内容选法，再补位置变体，13 个变差和 29 个变好全部落在这一子集。
+
+慢请求 `40e330…`（REGENT-013）：
+
+| 配置 | 展开 | 转移 | 求解时间 | 路线/质量 |
+| --- | ---: | ---: | ---: | --- |
+| `none` | 283,539 | 12,430,403 | 177.1s | 冻结 |
+| `choice` | 143,643 | 6,105,755 | 82.4s | 逐动作相同，相同 |
+| `all` | 143,643 | 6,072,056 | 82.0s | 逐动作相同，相同 |
+| `all-fill` | 132,270 | 1,573,784 | 23.0s | 逐动作相同，相同 |
+
+`play` 完全等价出牌只改变转移/去重计数，路线、展开与质量全部相同；`all-fill` 与 `choice-fill` 的质量完全相同，说明完全等价出牌没有叠入质量变化。`all-fill` 的 29 个更好对 13 个更差、净多 1 次胜利（+5/−4）；旧 `all` 虽然净多 6 次胜利（+11/−5），但其中 55 个变差、3 个胜利变失败发生在未截断请求，纯粹来自类代表顺序/位置变体的丢失。按“未截断请求零变化”的标准，正式默认选 `all-fill`。近似出牌去重评估后已撤掉，不在当前 `compare` 配置中。
+
+按 D1 根匹配（`Fingerprint.Hash` + 完整字节比较，1,315/1,983 个请求命中 D1 根；其余 668 个无法定位根），`all-fill`：
+
+| 角色 | 请求 | 更好 | 相同 | 更差 | 胜利 +/− | 展开 | 转移 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| REGENT | 255 | 11 | 237 | 7 | +5 / −4 | −9.89% | −59.16% |
+| DEFECT | 276 | 2 | 274 | 0 | 0 / 0 | −0.28% | −4.66% |
+| NECROBINDER | 254 | 7 | 247 | 0 | 0 / 0 | +0.03% | −3.78% |
+| SILENT | 252 | 0 | 252 | 0 | 0 / 0 | +0.01% | −12.11% |
+| IRONCLAD | 278 | 0 | 278 | 0 | 0 / 0 | −0.00% | −5.13% |
+| 未匹配 | 668 | 9 | 653 | 6 | 0 / 0 | −0.23% | −5.66% |
+
+D2/D1 数据没有幕字段；`quality-*` 根名只带角色，`a3-*` 根可确定为第三幕。上表只按角色汇总，不按幕拆分。变差集中在未匹配根（6）、`quality-REGENT-015`（4）、`quality-REGENT-008`（2）与 `quality-REGENT-002`（1）；4 个胜利变失败全部在截断请求里，分别是 `22850c40`/`e690d0fa`（REGENT-015）、`a7e0e220`（REGENT-002）、`0e87f3a0`（REGENT-008）。
+
+#### `refreeze`：在副本上重算并重写清单
+
+```bash
+dotnet run --project tests/Golden -c Release --no-build -- \
+  refreeze tests/Golden/data .local/tool-tasks/blitz/refreeze-data-fill --jobs 6
+dotnet run --project tests/Golden -c Release --no-build -- \
+  verify .local/tool-tasks/blitz/refreeze-data-fill --jobs 6
+```
+
+`refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。正常 `manifest` 命令不写这个字段，因此原冻结数据的清单不变。
+
+本次副本演示输出：
+
+```text
+REFREEZE_OK source=.../tests/Golden/data target=.../.local/tool-tasks/blitz/refreeze-data-fill
+  requests=1983 captured=2802 jobs=6
+  refreeze=M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6
+MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
+```
+
+副本上严格 `verify` 通过：D1 0 不一致；D2 `selected=1983 equal=1983 mismatch=0 expanded=15568469`，wall 122.3s（jobs 6）。是否把副本替换为仓库的 `tests/Golden/data` 由协调者在用户同意后执行。
+
+### 4.4 搜索等价自检（`Exec` 覆盖合同 + 原地投影）
 
 `tests/KernelChecks` 的 `ExecCoverage` 合同用反射枚举 `Exec` 的全部实例字段（含私有字段），要求每个字段恰好归入一类：进入 `ExecContinuation`、捕获时断言为空/为零、`AdvanceRoundPlayerStart` 入口重置、或单独处理（`B`/`R`/选择游标）。分类表在 `tests/KernelChecks/ExecCoverage.cs` 一处；同时反向校验快照字段集合与 `ExecContinuation` 完全一致。出现未分类、重复归类或快照表不一致时，消息写出字段名。临时给 `Exec` 加字段的本地反向检查会失败（`ReverseCoverageProbe` 未分类）。
 
-`BeamSolver` 默认使用共享的 `EndTurn` 前缀；设置 `BLITZ_VERIFY_SEARCH_EQUIVALENCE=1` 后同时开启两项等价检查：
+`BeamSolver` 默认使用共享的 `EndTurn` 前缀；设置 `BLITZ_VERIFY_SEARCH_EQUIVALENCE=1` 后同时开启：
 
 - 每个复用前缀的选择叶子同时执行完整 `Kernel.Step` 与前缀续跑，先逐字节比较 `Battle`（不一致时用 `BattleDump.Diff` 输出字段差异），并比较 `StepResult`、`ChoiceRequest`（选项、来源、时机与生成卡字节）和 `HistoryRisk`；
-- 每次 `Scorer.ProjectHpAfterThreat` 原地投影前保存 `Battle`，`finally` 恢复后逐字节比较前后镜像；不一致时用 `BattleDump.Diff` 写出字段差异。
+- 每次 `Scorer.ProjectHpAfterThreat` 原地投影前保存 `Battle`，`finally` 恢复后逐字节比较前后镜像；不一致时用 `BattleDump.Diff` 写出字段差异；
+- 每个被跳过的完全等价出牌从父状态执行代表与被跳过的动作，按同一确定策略续完后续选择，逐字节比较 `Battle`；完全等价必须相同，否则抛 `同名出牌完全等价校验失败`；
+- 每个选牌输出（类代表或补位物理选择）取一个同类但不同位置的物理选择（各类最后一次出现）与它比较；判定为完全等价时必须相同，判定为近似时只统计实际相同的比例。每请求最多抽样 8 个输出，容量/选择深度失败的比较计未决。
 
-不一致时分别抛出 `EndTurn 前缀等价校验失败` 或 `威胁投影原地自检失败`。开关默认关闭，不进入请求格式。D2 输出行的 `prefixChecks` 与 `threatChecks` 分别是两项检查实际比较的次数：
+在副本上全量 D2 打开开关的命令与结果：
 
 ```bash
 BLITZ_VERIFY_SEARCH_EQUIVALENCE=1 \
-  dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data --only d2 --jobs 6
+  dotnet run --project tests/Golden -c Release --no-build -- \
+  verify .local/tool-tasks/blitz/refreeze-data-fill --only d2 --jobs 6
 ```
 
-M3a 跟进的实测：全量 D2 1983/1983，`prefixChecks=10,764,918`，`threatChecks=86,463,608`，wall 358.2s（jobs 6）。关闭时全量 `verify`：D1 12.2s、D2 192.9s，1983/1983 相等；正常请求 `6a4d89…` 关闭开关的 3 次中位数 4.993s，与加入检查前的 4.988s 相差 +0.09%，在 1% 以内。
+```text
+D2_OK selected=1983 equal=1983 mismatch=0 expanded=15568469
+  prefixChecks=1881251 threatChecks=73033078
+  playDeduped=4404006 playVerifiedExact=4403604 playVerifiedApprox=0
+  playVerifiedApproxEqual=0 playVerifiedUnresolved=402
+  choiceByClassRequests=2046332 choiceVerifiedExact=500305
+  choiceVerifiedApprox=1992813 choiceVerifiedApproxEqual=175350
+  choiceVerifiedUnresolved=6221 wall=132.7s jobs=6
+```
 
-### 4.4 计时
+完全等价的断言（出牌 4,403,604 次、选牌 500,305 次）全部成立；近似选牌比较 1,992,813 次，其中实际完全相同 175,350 次（8.80%），未决 6,221 次。`playVerifiedApprox=0` 是因为正式代码只保留完全等价的出牌去重，近似出牌去重已撤。
 
-本机 24 逻辑处理器，`--jobs 8`（D2 分片模拟另标 `--jobs 4`）：
+### 4.5 计时
+
+本机 24 逻辑处理器，M3b 以 `--jobs 6` 测量：
 
 | 运行 | 墙钟 | 备注 |
 | --- | ---: | --- |
-| Release 重建 | 约 4.6s | 0 警告 |
-| D1 | 12.0s | 410 文件 / 482,227 状态 / 474,832 特征 |
-| D2 全量 | 267.2s | 1,983/1,983，展开 15,739,416 |
-| D1 + D2（分项相加） | 约 279s | 不含构建 |
-| manifest | 小于 1s | 5,592 文件 / 24,338,737 B |
+| Release 重建 | 约 5.8s | 0 警告 |
+| D1 | 10.6–11.2s | 410 文件 / 482,227 状态 / 474,832 特征 |
+| D2（副本，严格 verify，全量一次运行） | 122.3s | 1,983/1,983，展开 15,568,469 |
+| D2（副本，等价开关，全量一次运行） | 132.7s | 1,983/1,983，prefix/threat 与等价检查 |
+| 副本 refreeze | 127.4s | 复制 + 重解 + 清单 |
+| manifest | 小于 1s | 副本 5,589 文件 / 23,692,454 B |
 
-D1 计时沿用本轮之前的测量；D1 分片与执行路径未改。D2 全量按新的权重顺序运行。
+D2 四片 `compare --config all`（依次运行，`--jobs 6`）：
 
-D2 的 4 片 CI 模拟（依次运行，`--jobs 4`）：
+| 分片 | 请求 | equal/质量 | 墙钟 |
+| ---: | ---: | --- | ---: |
+| 0/4 | 494 | 11 更好 / 482 相同 / 1 更差 | 38.5s |
+| 1/4 | 495 | 6 / 483 / 6 | 38.7s |
+| 2/4 | 496 | 4 / 488 / 4 | 39.2s |
+| 3/4 | 498 | 8 / 488 / 2 | 38.4s |
+| 合计 | 1,983 | 29 / 1,941 / 13 | 154.8s |
 
-| 分片 | 请求 | 权重和 | equal | 墙钟 |
-| ---: | ---: | ---: | ---: | ---: |
-| 0/4 | 494 | 3,934,854 | 494 | 260.8s |
-| 1/4 | 495 | 3,934,854 | 495 | 50.1s |
-| 2/4 | 496 | 3,934,854 | 496 | 50.7s |
-| 3/4 | 498 | 3,934,854 | 498 | 48.4s |
-| 合计 | 1,983 | 15,739,416 | 1,983 | 410.1s |
-
-按权重分配后 4 片的权重和完全相同，但墙钟仍取决于最重的单请求。分片 0 包含权重 283,539 的请求 `40e330b6…`；它单独求解需要 249.2s，已经超过 4 片平均墙钟 102.5s。这是单请求下限，增加分片数不能把这一片的墙钟压到 249.2s 以下。
-
-M1b 的 D2 为 331.3s；v2 迁移后为 283.9s；改为按权重调度后为 267.2s。全量总展开数不变，差异来自调度与测量波动。
-
-M3a（`EndTurn` 前缀共享 + 评分/内核聚合）在同一台机器上以 `--jobs 6` 测得：基线 `main@f4909de` 全量 D2 267.2s，本批最终一次 185.1s（多次运行 179.0–195.6s）；跟进的关闭检查全量 192.9s。慢请求 `40e330b6…` 的中位数从 259.1s 降到 170.2s（283,539 个展开节点，0.914→0.600 ms/节点）。开启 `BLITZ_VERIFY_SEARCH_EQUIVALENCE=1` 的全量 D2 为 1983/1983，`prefixChecks=10,764,918`、`threatChecks=86,463,608`，358.2s。
+慢请求 `40e330…` 从冻结基线的 177.1s 降到 23.0s（−87.0%），展开 283,539→132,270（−53.3%），转移 12,430,403→1,573,784（−87.3%），路线逐动作相同；单进程 `--jobs 1` 实测 17.2s。M3a 的计时（前缀共享）不再与 M3b 直接相加：本批的收益来自选择分支数，而 D1 与内核路径未改。
 
 ## 5. manifest
 

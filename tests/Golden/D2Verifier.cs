@@ -7,7 +7,10 @@ namespace BlitzSolver.Golden;
 
 internal sealed record D2Summary(int Selected, int Equal, int Mismatch, long Expanded, long PrefixChecks,
     long ThreatChecks, long PrefixShared, long PrefixUnshared, long PrefixReuse, long PrefixChoiceUnshared,
-    long PrefixExtraTurnUnshared, long PrefixNotInProgress);
+    long PrefixExtraTurnUnshared, long PrefixNotInProgress, long PlayDeduped, long PlayVerifiedExact,
+    long PlayVerifiedApprox, long PlayVerifiedApproxEqual, long PlayVerifiedUnresolved,
+    long ChoiceByClassRequests, long ChoiceVerifiedExact, long ChoiceVerifiedApprox,
+    long ChoiceVerifiedApproxEqual, long ChoiceVerifiedUnresolved);
 
 internal sealed record D2Request(string Hash, string Path, int Weight);
 
@@ -103,6 +106,10 @@ internal static class D2Verifier
         long threatChecks = 0;
         long prefixShared = 0, prefixUnshared = 0, prefixReuse = 0;
         long prefixChoiceUnshared = 0, prefixExtraTurnUnshared = 0, prefixNotInProgress = 0;
+        long playDeduped = 0, playVerifiedExact = 0, playVerifiedApprox = 0;
+        long playVerifiedApproxEqual = 0, playVerifiedUnresolved = 0;
+        long choiceByClassRequests = 0, choiceVerifiedExact = 0, choiceVerifiedApprox = 0;
+        long choiceVerifiedApproxEqual = 0, choiceVerifiedUnresolved = 0;
         void VerifyOne(D2Request request)
         {
             string path = request.Path;
@@ -145,6 +152,17 @@ internal static class D2Verifier
             Interlocked.Add(ref prefixChoiceUnshared, actual.EndTurnPrefixChoiceUnshared);
             Interlocked.Add(ref prefixExtraTurnUnshared, actual.EndTurnPrefixExtraTurnUnshared);
             Interlocked.Add(ref prefixNotInProgress, actual.EndTurnPrefixNotInProgress);
+            SearchEquivalenceDiagnostics equivalence = actual.Equivalence;
+            Interlocked.Add(ref playDeduped, equivalence.PlayDeduped);
+            Interlocked.Add(ref playVerifiedExact, equivalence.PlayVerifiedExact);
+            Interlocked.Add(ref playVerifiedApprox, equivalence.PlayVerifiedApprox);
+            Interlocked.Add(ref playVerifiedApproxEqual, equivalence.PlayVerifiedApproxEqual);
+            Interlocked.Add(ref playVerifiedUnresolved, equivalence.PlayVerifiedUnresolved);
+            Interlocked.Add(ref choiceByClassRequests, equivalence.ChoiceByClassRequests);
+            Interlocked.Add(ref choiceVerifiedExact, equivalence.ChoiceVerifiedExact);
+            Interlocked.Add(ref choiceVerifiedApprox, equivalence.ChoiceVerifiedApprox);
+            Interlocked.Add(ref choiceVerifiedApproxEqual, equivalence.ChoiceVerifiedApproxEqual);
+            Interlocked.Add(ref choiceVerifiedUnresolved, equivalence.ChoiceVerifiedUnresolved);
             int done = Interlocked.Increment(ref completed);
             if (done % 100 == 0)
                 Console.WriteLine($"D2 progress={done}/{selected.Length}");
@@ -158,7 +176,10 @@ internal static class D2Verifier
             VerifyOne);
         return new D2Summary(selected.Length, equal, selected.Length - equal, expanded, prefixChecks,
             threatChecks, prefixShared, prefixUnshared, prefixReuse, prefixChoiceUnshared,
-            prefixExtraTurnUnshared, prefixNotInProgress);
+            prefixExtraTurnUnshared, prefixNotInProgress, playDeduped, playVerifiedExact,
+            playVerifiedApprox, playVerifiedApproxEqual, playVerifiedUnresolved,
+            choiceByClassRequests, choiceVerifiedExact, choiceVerifiedApprox,
+            choiceVerifiedApproxEqual, choiceVerifiedUnresolved);
     }
 
     private static string? FirstDifference(in BeamResult expected, in BeamResult actual)
