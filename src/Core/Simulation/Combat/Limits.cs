@@ -25,7 +25,7 @@ public static class Limits
 
     /// <summary>
     /// Total monster rule entries: the root's known enemies first, then one entry per spawnable
-    /// monster type in the closure (<c>RulesBuilder.SetMonster</c>/<c>AddSpawnableMonster</c>).
+    /// monster type in the closure (<c>RulesDraft.SetMonster</c>/<c>AddSpawnableMonster</c>).
     /// </summary>
     public const int MonsterRules = 32;
 

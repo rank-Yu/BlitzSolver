@@ -560,7 +560,7 @@ public sealed class Rules
 }
 
 /// <summary>Collects root data from the bridge and freezes it into <see cref="Rules"/>.</summary>
-public sealed class RulesBuilder
+public sealed class RulesDraft
 {
     private readonly List<CardStats?>[] _cards = new List<CardStats?>[Registry.CardCount];
     private readonly decimal[]?[] _powerVars = new decimal[]?[Registry.PowerCount];

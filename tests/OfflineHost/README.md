@@ -105,6 +105,22 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
 逐字节比较；`diff` 打印 `RulesDiff` 的第一处表/项。`--rules-table-check` 校验
 `src/Import/Combat/MirrorRiskTables.cs` 与 `ModelDb.All`/Blitz Registry 的 id 集合完全一致。
 
+## 内容表与 RulesBuilder 对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind natural --build-seeds 20 --build-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind encounter --build-jobs 8
+```
+
+`--content-table-report` 导出一次进程内内容表并打印覆盖、耗时与保留内存。
+`--rules-build-compare` 对每个根同时走原生 `RulesCompiler` 与导入 `RunState`/`Battle` 后的
+Core `RulesBuilder`，把两份 `RulesCodec` 字节逐字节比较；D1 覆盖全部输入，自然开局覆盖
+5 角色 × A0/A10 × 20 种子，遭遇覆盖 `RunCatalog` 全部 89 个加 Ruby Raiders 覆盖种子。加
+`--build-content` 汇总每个根用到的卡牌等级与怪物 id。细节见
+[`docs/content-table.md`](../../docs/content-table.md)。
+
 ## 评估配置对照
 
 ```bash

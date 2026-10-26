@@ -1,3 +1,5 @@
+using BlitzSolver.Simulation.Run;
+
 namespace BlitzSolver.Import;
 
 /// <summary>Stable rejection codes for native-to-Battle import.</summary>
@@ -6,18 +8,18 @@ public static class ImportReason
     public const string MultiPlayer = "multi-player";
     public const string RootPhase = "root-phase";
     public const string PendingChoice = "pending-choice";
-    public const string UnsupportedCard = "unsupported-card";
-    public const string UnsupportedPower = "unsupported-power";
-    public const string UnsupportedRelic = "unsupported-relic";
-    public const string UnsupportedPotion = "unsupported-potion";
+    public const string UnsupportedCard = ContentReason.UnsupportedCard;
+    public const string UnsupportedPower = ContentReason.UnsupportedPower;
+    public const string UnsupportedRelic = ContentReason.UnsupportedRelic;
+    public const string UnsupportedPotion = ContentReason.UnsupportedPotion;
     public const string UnsupportedOrb = "unsupported-orb";
-    public const string UnsupportedMonster = "unsupported-monster";
-    public const string UnsupportedEnchantment = "unsupported-enchantment";
+    public const string UnsupportedMonster = ContentReason.UnsupportedMonster;
+    public const string UnsupportedEnchantment = ContentReason.UnsupportedEnchantment;
     public const string UnsupportedAffliction = "unsupported-affliction";
-    public const string UnsupportedClosure = "unsupported-closure";
+    public const string UnsupportedClosure = ContentReason.UnsupportedClosure;
     public const string MissingMirrorRisk = "missing-mirror-risk";
     public const string Unrepresentable = "unrepresentable-state";
-    public const string Capacity = "capacity";
+    public const string Capacity = ContentReason.Capacity;
     public const string ThirdPartyContent = "third-party-content";
     public const string MissingPrivateField = "missing-private-field";
     public const string UnclaimedPrivateState = "unclaimed-private-state";
@@ -36,7 +38,7 @@ public static class ImportReason
     public const string UnsupportedModifier = "unsupported-modifier";
     public const string UnsupportedCharacter = "unsupported-character";
     public const string UnsupportedAct = "unsupported-act";
-    public const string UnsupportedEncounter = "unsupported-encounter";
+    public const string UnsupportedEncounter = ContentReason.UnsupportedEncounter;
     public const string UnsupportedEvent = "unsupported-event";
     public const string UnsupportedRoom = "unsupported-room";
     public const string UnsupportedMap = "unsupported-map";

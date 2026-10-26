@@ -550,7 +550,7 @@ static Battle TwBattle(Rules rules)
 static Rules TwRules()
 {
     Registry.TryMonster("WATERFALL_GIANT", out ushort waterfall);
-    RulesBuilder builder = new() { RootEnemyCount = 1, HasTheftContent = true };
+    RulesDraft builder = new() { RootEnemyCount = 1, HasTheftContent = true };
     MonsterNode[] nodes =
     [
         new MonsterNode
@@ -852,7 +852,7 @@ static void CheckMbKernel(Rules battleRules)
 
 static Rules MbPotionRules()
 {
-    RulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, BaseOrbSlotCount = 0 };
+    RulesDraft builder = new() { BaseMaxEnergy = 3, HasEncounter = true, BaseOrbSlotCount = 0 };
     Check(Registry.TryPotion("ENTROPIC_BREW", out ushort brew), "缺少 ENTROPIC_BREW");
     Check(Registry.TryPotion("FIRE_POTION", out ushort fire), "缺少 FIRE_POTION");
     builder.SetPotion(brew, new PotionStats
@@ -874,7 +874,7 @@ static Rules MbPotionRules()
 
 static Rules SliceRules()
 {
-    RulesBuilder builder = new()
+    RulesDraft builder = new()
     {
         BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first", "second", "third"], BaseOrbSlotCount = 3,
         // The CX contracts install PerfectFit/SlumberingEssence on hand/discard cards.
@@ -1387,7 +1387,7 @@ static void CheckLsKernel()
 
 static Rules LsRules()
 {
-    RulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 0 };
+    RulesDraft builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 0 };
     Registry.TryCard("ECHOING_SLASH", out ushort echoing);
     Registry.TryCard("KNIFE_TRAP", out ushort knifeTrap);
     Registry.TryCard("SHIV", out ushort shiv);
@@ -1590,7 +1590,7 @@ static void CheckNbKernel()
 
 static Rules NbRules()
 {
-    RulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1 };
+    RulesDraft builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1 };
     Registry.TryCard("STRIKE_NECROBINDER", out ushort strike);
     Registry.TryCard("DEFEND_NECROBINDER", out ushort defend);
     Registry.TryCard("BODYGUARD", out ushort bodyguard);
@@ -1965,7 +1965,7 @@ static void CheckSkKernel()
 
 static Rules SilentRules()
 {
-    RulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 0 };
+    RulesDraft builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 0 };
     Registry.TryCard("KS_DISCARD_TARGET", out ushort targetCard);
     Registry.TryCard("KS_SLY_CARD", out ushort slyCard);
     Registry.TryCard("SHIV", out ushort shiv);
@@ -2060,7 +2060,7 @@ static void CheckGenerationAndAutoPlay()
 {
     Check(Registry.TryCard("DEFEND_IRONCLAD", out ushort defend), "缺少 DEFEND_IRONCLAD 定义");
     Check(Registry.TryCard("STRIKE_IRONCLAD", out ushort strike), "缺少 STRIKE_IRONCLAD 定义");
-    RulesBuilder builder = new()
+    RulesDraft builder = new()
     {
         BaseMaxEnergy = 3,
         PlayerSlotIndex = 0,
@@ -2260,7 +2260,7 @@ static void CheckDecimalVars(Rules rules)
 static void CheckDx3Kernel(Rules rules)
 {
     Check(Registry.TryMonster("NIBBIT", out ushort nibbit), "缺少 NIBBIT");
-    RulesBuilder builder = new() { RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
+    RulesDraft builder = new() { RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
     builder.SetMonster(0, SpawnMonsterRules(nibbit));
     builder.AddSpawnableMonster(SpawnMonsterRules(nibbit, initialMoveLogged: true));
     Rules spawnRules = builder.Build();
@@ -2361,7 +2361,7 @@ static void CheckDx5Kernel(Rules rules)
     // HistoryCourse: the turn-start AutoPrePlay clones the previous turn's last attack, auto-plays it,
     // removes the dupe from combat and leaves the slot empty for the new turn.
     Check(Registry.TryRelic("HISTORY_COURSE", out ushort historyCourse), "缺少 HISTORY_COURSE");
-    RulesBuilder historyBuilder = new()
+    RulesDraft historyBuilder = new()
     {
         BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
         HasHistoryCourse = true,
@@ -2431,7 +2431,7 @@ static void CheckPrKernel()
 {
     Registry.TryRelic("PAELS_EYE", out ushort paelsEye);
     Registry.TryCard("STRIKE_IRONCLAD", out ushort strike);
-    RulesBuilder builder = new()
+    RulesDraft builder = new()
     {
         BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
     };
@@ -2465,7 +2465,7 @@ static void CheckPrKernel()
     // PaelsLegion doubles a card's block while the cooldown is down; the root flag replaces the
     // identity-content gate that used to skip the changed-block listener pass entirely.
     Registry.TryRelic("PAELS_LEGION", out ushort paelsLegion);
-    RulesBuilder blockBuilder = new()
+    RulesDraft blockBuilder = new()
     {
         BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
         HasPaelsLegion = true,
@@ -2492,7 +2492,7 @@ static void CheckPrKernel()
     // FurCoat freezes the marked-coordinate check into the rules: a spawned enemy starts at 1 HP
     // but keeps its rolled max HP (MonsterSpawnSupport.ApplyCreatureAddedRelics).
     Registry.TryMonster("NIBBIT", out ushort nibbit);
-    RulesBuilder coatBuilder = new()
+    RulesDraft coatBuilder = new()
     {
         RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"],
         FurCoatSpawnHpOne = true,
@@ -2512,7 +2512,7 @@ static void CheckPrKernel()
     // flush (SimulatedCombatState.TriggerBookmarkAfterFlush).
     Registry.TryRelic("BOOKMARK", out ushort bookmark);
     Registry.TryCard("GOLD_AXE", out ushort goldAxe);
-    RulesBuilder bookmarkBuilder = new()
+    RulesDraft bookmarkBuilder = new()
     {
         BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["first"], RootEnemyCount = 1,
     };
@@ -2756,7 +2756,7 @@ static void CheckMonsterSpawn(Rules rules)
 static Rules SpawnRules()
 {
     Registry.TryMonster("NIBBIT", out ushort nibbit);
-    RulesBuilder builder = new() { RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
+    RulesDraft builder = new() { RootEnemyCount = 1, HasEncounter = true, EncounterSlots = ["first", "second", "third"] };
     builder.SetMonster(0, SpawnMonsterRules(nibbit));
     builder.AddSpawnableMonster(SpawnMonsterRules(nibbit));
     return builder.Build();
@@ -2765,7 +2765,7 @@ static Rules SpawnRules()
 static Rules NoEncounterRules()
 {
     Registry.TryMonster("NIBBIT", out ushort nibbit);
-    RulesBuilder builder = new();
+    RulesDraft builder = new();
     builder.SetMonster(0, SpawnMonsterRules(nibbit));
     return builder.Build();
 }
@@ -3139,7 +3139,7 @@ static void CheckKaAttachments()
 
 static Rules KaRules()
 {
-    RulesBuilder builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["a"], RootEnemyCount = 0 };
+    RulesDraft builder = new() { BaseMaxEnergy = 3, HasEncounter = true, EncounterSlots = ["a"], RootEnemyCount = 0 };
     Registry.TryCard("STRIKE_IRONCLAD", out ushort strike);
     Registry.TryCard("DEFEND_IRONCLAD", out ushort defend);
     Registry.TryRelic("MYSTIC_LIGHTER", out ushort lighter);

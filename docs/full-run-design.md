@@ -73,7 +73,7 @@ src/Core/                     BlitzSolver.Core（只依赖 .NET 基础库，一�
 
 命名空间与目录一致：`BlitzSolver.Simulation.Combat`、`BlitzSolver.Simulation.Run`、`BlitzSolver.Content.*`、`BlitzSolver.Ai.Combat`、`BlitzSolver.Ai.Run`、`BlitzSolver.Autoplay`。
 
-R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；R1b 已落地 `Simulation/Run` 的 `RunState`、`RunView`、局外随机数与编码。`Ai/Run` 仍只有 README，`RunPilot` 随 R3 落地。
+R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；R1b 已落地 `Simulation/Run` 的 `RunState`、`RunView`、局外随机数与编码；R2a-1 已落地内容表 `ContentTable`、`RulesBuilder` 与 `RulesCompiler` 的逐字节对照。`Ai/Run` 仍只有 README，`RunPilot` 随 R3 落地。
 
 R1a 已完成的迁移：
 
@@ -92,7 +92,7 @@ R1a 已完成的迁移：
 | `Simulation/Run` | `Simulation/Combat` |
 | `Content` | `Simulation/Combat`、`Simulation/Run` |
 | `Ai/Combat` | `Simulation/Combat` |
-| `Ai/Run` | 只能引用 `Simulation/Run` 里登记为可见投影 / 决策请求的类型（目前未登记），不能引用局外状态本体或随机数类型 |
+| `Ai/Run` | 只能引用 `Simulation/Run` 里登记为可见投影 / 决策请求的类型（`RunView`、`RunOdds`、`RunPlayerOdds` 等），不能引用局外状态本体或随机数类型 |
 | `Autoplay` | `Simulation.*`、`Ai.*` |
 
 - 一件遗物的战斗效果和局外效果写在同一份定义里，通过各自的注册表挂到两个模拟上。
@@ -129,7 +129,7 @@ Core 以外按"战斗 / 整局"对称分子目录，项目名、程序集名、�
 
 容量按原版上限和实测定，溢出抛 `CapacityException`。字段变动同步状态布局文档。
 
-**可见投影 `RunView`：** 决策层只能看到它。它去掉随机数状态、未来的生成序列，以及当前界面上玩家看不到的信息。可见与不可见的划分按原版界面逐项确定，并用测试锁定：决策层的类型里不能出现随机数或未来序列。
+**可见投影 `RunView`：** 决策层只能看到它。界面上看不到、**并且**不能从玩家见过的历史推出来的信息，不进 `RunView`；界面上看不到但能从历史推导的隐藏保底计数（未知点房间概率、卡牌稀有度与药水掉落）是例外，按原版规则进入投影。随机数状态、预生成序列、遗物袋顺序与解锁位图仍然不可见。可见与不可见的划分按原版界面逐项确定，并用测试锁定：决策层的类型里不能出现随机数或未来序列。
 
 ## 6. 局外内核与决策协议
 

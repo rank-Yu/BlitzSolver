@@ -24,7 +24,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | 目录 | 内容 |
 | --- | --- |
 | `src/Core/Simulation/Combat/` | `BlitzSolver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
-| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、局外随机数、编码与状态校验（R1b） |
+| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、局外随机数、编码与状态校验（R1b）；进程内内容表与 `RulesBuilder`（R2a-1） |
 | `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
 | `src/Core/Ai/Combat/` | `BlitzSolver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
 | `src/Core/Ai/Combat/Quality/` | `BlitzSolver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
@@ -51,6 +51,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | [整局设计](full-run-design.md) | 整局自动游玩的目标架构：随机数分工、局外状态与内核、战斗边界、决策层、托管、目录与依赖规则、验证与阶段 |
 | [战斗状态布局](combat-state-layout.md) | `Battle` 字段、容量、规范化与指纹 |
 | [整局状态布局](run-state-layout.md) | `RunState` 字段盘点、容量、局外随机数、编码、`RunView` 可见性与导入拒绝码 |
+| [内容表与 RulesBuilder](content-table.md) | 进程内内容表的范围与导出、`Rules` 30 项来源分类、根事实缺口与逐字节对照方法 |
 | [战斗内核语义](combat-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
 | [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [战斗药水与遗物](combat-potions-relics.md) | 额外回合管线、药水与遗物机制 |
@@ -84,6 +85,10 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 - R1b 新增：`RunState`（45,512 字节）与 `RunView`；15 条随机流的派生与 64 次抽取和原版一致；
   自然开局 200/200、D1 410/410（含 120 个质量根）逐字段相同，战斗一致性 410/410 相同；
   7 类局外导入负例显式拒绝。见 [整局状态布局](run-state-layout.md)。
+- R2a-1 新增：进程内内容表与 `RulesBuilder`。D1 全部 410 个输入（420 个根，含前缀与回合准备
+  fixture）、自然第一场战斗 200、全部 89 个遭遇加 Ruby Raiders 覆盖种子，`RulesBuilder` 与
+  `RulesCompiler` 的 `RulesCodec` 编码全部逐字节相同；内容覆盖 1078/1078 个卡牌等级、108/108 个
+  怪物。见 [内容表与 RulesBuilder](content-table.md)。
 - **未验证**：界面、397 根/120 根质量语料的整场全量、语料外的多段准备阶段与未捕获前缀、
   非选牌模态、第三方 Mod 内容、Windows 启动脚本。
 

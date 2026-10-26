@@ -90,6 +90,8 @@ internal static class ArchitectureRules
         "BlitzSolver.Simulation.Run.RunRelicStatus",
         "BlitzSolver.Simulation.Run.RunRelicFlags",
         "BlitzSolver.Simulation.Run.RunLimits",
+        "BlitzSolver.Simulation.Run.RunOdds",
+        "BlitzSolver.Simulation.Run.RunPlayerOdds",
         "BlitzSolver.Simulation.Run.RunMapStartArray",
         "BlitzSolver.Simulation.Run.RunMapChildren",
     };

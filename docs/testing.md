@@ -32,7 +32,7 @@ dotnet run --project tests/Architecture -c Release --no-build
 `tests/Architecture` 读取编译后的 `BlitzSolver.Core`，检查 `Simulation.Combat`、`Simulation.Run`、
 `Content`、`Ai.Combat`、`Ai.Run` 与 `Autoplay` 之间的类型引用；BCL 引用一律允许。违反时逐条输出
 `源类型 -> 目标类型 via ...` 并以非零退出。`Ai.Run` 目前只允许 `Simulation.Run` 中显式登记为可见
-投影 / 决策请求的类型（当前登记为空）；测试程序集里的本地反例同时验证未登记引用会报错、登记后
+投影 / 决策请求的类型（目前为 `RunView` 及其嵌套类型、`RunOdds`、`RunPlayerOdds` 等可见元素）；测试程序集里的本地反例同时验证未登记引用会报错、登记后
 会被允许。规则表见 [整局设计](full-run-design.md) 第 4 节。
 
 ## 3. K0：纯内核合同
@@ -735,6 +735,39 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
 `same=410`；RNG `same=610`（每类都 15 条 × 64 次 + 地图/事件）；地图 `same=610`；负例
 `failed=0`。逐字段比较包含地图、预生成序列、遗物袋顺序、解锁位图、RNG 五元组与模型私有
 属性包。
+
+### 6.11 内容表与 RulesBuilder 对照（R2a-1）
+
+```bash
+# 只导出内容表并报告覆盖、耗时与保留内存
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
+
+# 三类逐字节对照
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind natural --build-seeds 20 --build-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind encounter --build-jobs 8
+```
+
+每个用例在独立子进程里用原版路径编译 `Rules`（前缀根用 `CompileAfterPrefix`），再导入
+`RunState`/`Battle` 并用 Core `RulesBuilder.Build` 重建，两边 `RulesCodec.Encode` 后逐字节
+比较；不一致时 `RulesDiff` 打印第一处差异。D1 覆盖 410 个输入（回合准备 fixture 展开为 13 个
+准备根，共 420 个根）；自然开局是 5 角色 × A0/A10 × 20 种子，经 `RunManager.EnterMapCoord`
+进入第一排战斗点；遭遇是 89 个 `RunCatalog` 遭遇各一次，另加 Ruby Raiders 的第二个种子。
+
+加 `--build-content` 可让子进程输出本根实际用到的卡牌等级与怪物 id，父进程汇总后打印
+`BUILD-CONTENT-SUMMARY`。当前覆盖 1078/1078 个卡牌升级等级、108/108 个 `Registry` 怪物；
+未用项为 0。`--content-table-report` 同时用 `CONTENT-UNSUPPORTED type=...` 列出所有没有
+规范模型/无法编译的条目及原因；当前为 1 个 `EXOSKELETON` 召唤变体和 37 个卡池缺失候选。
+
+2026-10 结果：D1 `same=420 diff=0 reject=0 skip=0`；自然 `same=200`；遭遇 `same=90`；所有
+拒绝码分布为空。内容表一次导出约 0.42 秒、保留约 2.4 MB。
+
+分片：
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8 --build-shard 0/2
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8 --build-shard 1/2
+```
 
 ## 7. 每层证明什么
 

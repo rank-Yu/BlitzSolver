@@ -156,6 +156,18 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 
 导出钩子提交在 CombatSolver `flash/m0` 的 `91641ff0`（环境变量 `M2A3_RULES_TABLES_DUMP`），读取 `a62f1850` 的原引擎；游戏或 CombatSolver 更新后用它重新导出，再用 `--rules-table-check` 复核。
 
+### 3.3 内容表与整局构建器
+
+R2a-1 起，内容级输入有第二个来源：`src/Import/Run/ContentTableExporter.cs` 在进程内遍历规范模型，
+导出 `src/Core/Simulation/Run/ContentTable.cs` 的内容表；整局层用 `RulesBuilder` 从内容表 +
+`RunState` + `Battle` 重建同一份 `Rules`，不读原版对象。导出的卡牌克隆/升级、Power/遗物/药水变量
+与怪物状态机直接复用本文件描述的那套 `RulesCompiler` 辅助函数，避免两份内容解释。表的范围、
+30 项来源分类、`RulesRootFacts` 缺口与逐字节对照见 [内容表与 RulesBuilder](content-table.md)。
+
+`RulesCompiler` 仍保留原生路径：它必须在导入 `Battle` 之前产出规则表，而 `RulesBuilder` 以
+`Battle` 为输入，所以不能简单改成“导出表 + 调构建器”。两条路径共享内容辅助函数，根状态读取各自
+保留；对照工具负责证明结果逐字节一致。
+
 ## 4. 评估配置编译
 
 每个 D1 根还冻结一份 `d1/<root>/config.br`：CombatSolver 的 `FlashGoldenConfigDump`

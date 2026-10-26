@@ -169,7 +169,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `RunOdds`/`RunPlayerOdds` | 概率当前值 |
 | `RunExtraFields`/`RunExtraPlayerFields` | `StartedWithNeow`、`TestSubjectKills`、删牌次数、Wongo 点数 |
 
-`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 144 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 4736`。
+`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 144 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 4760`（R2a-1 加入两份保底计数）。
 
 ### 3.1 容量
 
@@ -258,7 +258,7 @@ payload byte[]  RunState 的规范字节镜像
 
 ## 6. 可见投影 `RunView`
 
-`RunView` 是 `RunState` 的只读投影，`Simulation.Run` 中唯一登记给 `Ai.Run` 的类型组（`tests/Architecture` 的 `VisibleRunTypes`）。它不含随机数、未来序列、保底计数、遗物袋顺序、解锁位图、属性包或玩家统计。
+`RunView` 是 `RunState` 的只读投影，`Simulation.Run` 中唯一登记给 `Ai.Run` 的类型组（`tests/Architecture` 的 `VisibleRunTypes`）。可见性准则是：界面上看不到、**并且**不能从玩家见过的历史推出来的信息不进 `RunView`。因此它不含随机数、未来序列、遗物袋顺序、解锁位图、属性包或玩家统计；未知点房间保底、卡牌稀有度保底与药水掉落的当前值可以由玩家见过的历史推导，按已定决策进入投影。
 
 | `RunView` 字段 | 原版界面是否可见 | 来源 |
 | --- | --- | --- |
@@ -271,10 +271,10 @@ payload byte[]  RunState 的规范字节镜像
 | 地图：节点、连线、类型、已走、起始/Boss/第二 Boss | 是（未知点显示为未知） | `Map`、`Visited` |
 | 当前房间类型/模型 | 是 | `Rooms` |
 | 当前决策种类与选项数 | 是 | `Decision`/`DecisionOptionCount` |
+| 未知点房间概率、卡牌稀有度保底、药水掉落保底 | 界面隐藏，但可由玩家见过的历史推导 | `Odds`/`PlayerOdds` 的当前值 |
 | 随机数状态、RNG 计数 | 否 | 不进入 |
 | 预生成事件/遭遇序列、后续幕的 Boss/先古与未来内容 | 否（地图上不可见） | 不进入 |
 | 遗物袋剩余顺序、`_originalRelics` | 否 | 不进入 |
-| 保底计数（`UnknownMapPoint`、卡牌稀有度、药水概率） | 否 | 不进入 |
 | 解锁位图、已见遭遇位图、跑局数 | 否（界面只显示已解锁内容，不显示内部集合） | 不进入 |
 | 模型私有 `SavedProperties` | 否（卡面只显示派生数字；内部属性不可见） | 不进入 |
 | `FreedRepy`、成就、图鉴统计 | 部分可见但只影响界面 | 不进入 |

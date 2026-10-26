@@ -122,7 +122,7 @@ public static partial class RulesCompiler
             NativeAccess.RequireOriginal(modifier);
 
         NativeHistory history = NativeHistory.Capture(state);
-        RulesBuilder builder = new()
+        RulesDraft builder = new()
         {
             // SimulatedCombatState captures Player.MaxEnergy, the un-hooked base value.
             BaseMaxEnergy = player.MaxEnergy,
@@ -368,7 +368,7 @@ public static partial class RulesCompiler
     /// definition's spawn configuration, the native <c>SetUpForCombat</c> state-machine generation,
     /// and a throwaway <see cref="CombatState"/> that only supplies creature identity to conditions.
     /// </summary>
-    private static void CompileSpawnedMonster(RulesBuilder builder, CombatState state,
+    private static void CompileSpawnedMonster(RulesDraft builder, CombatState state,
         RunState runState, ushort monsterId)
     {
         MonsterDef def = Registry.Monster(monsterId);
@@ -389,7 +389,8 @@ public static partial class RulesCompiler
         builder.AddSpawnableMonster(CompileMonster(mutable, created, rootPowerAmountsFromCreature: false));
     }
 
-    private static Creature CreateScratchMonster(MonsterModel monster, string? slot, RunState runState)
+    internal static Creature CreateScratchMonster(MonsterModel monster, string? slot,
+        IRunState runState)
     {
         CombatState scratch = new(encounter: null, runState);
         monster.RunRng = runState.Rng;
@@ -426,11 +427,11 @@ public static partial class RulesCompiler
     public static ushort CardId(CardModel card)
         => Registry.TryCard(card.Id.Entry, out ushort id) ? id : throw UnsupportedContent.Card(card);
 
-    private static void AddCard(RulesBuilder builder, ushort id, int upgrade, CardModel canonical,
+    private static void AddCard(RulesDraft builder, ushort id, int upgrade, CardModel canonical,
         Player player)
         => AddStatsWithUpgrade(builder, id, upgrade, canonical, player);
 
-    private static void AddStatsWithUpgrade(RulesBuilder builder, ushort id, int upgrade,
+    private static void AddStatsWithUpgrade(RulesDraft builder, ushort id, int upgrade,
         CardModel canonical, Player player)
     {
         builder.HasDecimalCardVars |= Registry.Card(id).UsesDecimalDamageVar;
@@ -442,7 +443,7 @@ public static partial class RulesCompiler
             builder.SetCard(id, upgrade + 1, CanonicalStats(canonical, upgrade + 1, player));
     }
 
-    private static CardStats CanonicalStats(CardModel canonical, int upgrade, Player player)
+    internal static CardStats CanonicalStats(CardModel canonical, int upgrade, Player player)
     {
         CardModel copy = CreateUpgradedCard(canonical, upgrade, player);
         CardDef def = Registry.Card(CardId(canonical));
@@ -504,7 +505,7 @@ public static partial class RulesCompiler
         return copy;
     }
 
-    private static void AddGeneratedCardClosure(RulesBuilder builder, CombatState state, Player player,
+    private static void AddGeneratedCardClosure(RulesDraft builder, CombatState state, Player player,
         PlayerCombatState playerState, IReadOnlyList<Creature> known, IReadOnlyList<ushort> spawnClosure,
         IReadOnlyList<(string CardId, int Upgrade)> detachedCards)
     {
@@ -745,11 +746,14 @@ public static partial class RulesCompiler
         }
     }
 
-    private static void AddRelicVars(RulesBuilder builder, ushort id)
+    private static void AddRelicVars(RulesDraft builder, ushort id)
+        => builder.SetRelicVars(id, CompileRelicVars(id));
+
+    internal static decimal[] CompileRelicVars(ushort id)
     {
         RelicDef def = Registry.Relic(id);
         if (def.VarNames.Count == 0)
-            return;
+            return [];
         RelicModel canonical = CanonicalRelics.Value.TryGetValue(def.NativeId, out RelicModel? relic)
             ? relic
             : throw new UnsupportedImportException(ImportReason.UnsupportedRelic,
@@ -762,10 +766,13 @@ public static partial class RulesCompiler
                 : throw new UnsupportedImportException(ImportReason.UnsupportedRelic,
                     $"遗物 {def.NativeId} 没有动态变量 {def.VarNames[index]}");
         }
-        builder.SetRelicVars(id, vars);
+        return vars;
     }
 
-    private static void AddPotionStats(RulesBuilder builder, ushort id)
+    private static void AddPotionStats(RulesDraft builder, ushort id)
+        => builder.SetPotion(id, CompilePotionStats(id));
+
+    internal static PotionStats CompilePotionStats(ushort id, bool inCombat = true)
     {
         PotionDef def = Registry.Potion(id);
         PotionModel canonical = CanonicalPotions.Value.TryGetValue(def.NativeId, out PotionModel? potion)
@@ -789,17 +796,27 @@ public static partial class RulesCompiler
                 _ => ValueProps.None,
             };
         }
-        builder.SetPotion(id, new PotionStats
+        return new PotionStats
         {
-            Target = (EngineTargetType)(byte)canonical.TargetType,
+            // FoulPotion's native TargetType switches on CombatManager.IsInProgress; the rules
+            // compiler only runs inside a battle, so the table also stores the in-combat value.
+            Target = canonical is FoulPotion && inCombat
+                ? EngineTargetType.AllEnemies
+                : (EngineTargetType)(byte)canonical.TargetType,
             Rarity = (EnginePotionRarity)(byte)canonical.Rarity,
             StrategicCost = PotionStrategicCost(canonical),
             Vars = vars,
             VarProps = props,
-        });
+        };
     }
 
-    private static void AddPowerVars(RulesBuilder builder, string nativeId)
+    private static void AddPowerVars(RulesDraft builder, string nativeId)
+    {
+        Registry.TryPower(nativeId, out ushort id);
+        builder.SetPowerVars(id, CompilePowerVars(nativeId));
+    }
+
+    internal static decimal[] CompilePowerVars(string nativeId)
     {
         Registry.TryPower(nativeId, out ushort id);
         PowerDef def = Registry.Power(id);
@@ -815,7 +832,7 @@ public static partial class RulesCompiler
                 : throw new UnsupportedImportException(ImportReason.UnsupportedPower,
                     $"Power {nativeId} 没有动态变量 {def.VarNames[index]}");
         }
-        builder.SetPowerVars(id, vars);
+        return vars;
     }
 
     /// <summary>
@@ -836,7 +853,7 @@ public static partial class RulesCompiler
         };
     }
 
-    private static MonsterRules CompileMonster(MonsterModel monster, Creature creature,
+    internal static MonsterRules CompileMonster(MonsterModel monster, Creature creature,
         bool rootPowerAmountsFromCreature, int[]? initialAiRegistersOverride = null,
         int[]? rootPowerAmountsOverride = null)
     {

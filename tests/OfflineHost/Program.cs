@@ -43,6 +43,10 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--content-table-report")
+            return ContentTableReport.Run();
+        if (args.Length > 0 && args[0] == "--rules-build-compare")
+            return RulesBuildCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-compare")
             return RunImportCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-negative")
@@ -969,6 +973,11 @@ internal static class Program
               dotnet OfflineHost.dll --root <name> --config-compare
               dotnet OfflineHost.dll --all --jobs 1..8 --config-compare
               dotnet OfflineHost.dll --rules-table-check
+              dotnet OfflineHost.dll --content-table-report
+              dotnet OfflineHost.dll --rules-build-compare (--build-kind d1|natural|encounter [--build-seeds N]
+                  [--build-jobs 1..8] [--build-shard i/n] [--build-content])
+                  | --build-root <name> | --build-character <name> --build-ascension N --build-seed <text>
+                  | --build-encounter <id> [--build-seed <text>]
               dotnet OfflineHost.dll --import-negative [--root <name>]
               dotnet OfflineHost.dll --compare-only <newDir> <referenceDir>
               dotnet OfflineHost.dll --all --compare <referenceDir>

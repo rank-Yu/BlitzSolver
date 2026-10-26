@@ -62,7 +62,7 @@ public static partial class RulesCompiler
         foreach (ModifierModel modifier in state.Modifiers)
             NativeAccess.RequireOriginal(modifier);
 
-        RulesBuilder builder = new()
+        RulesDraft builder = new()
         {
             BaseMaxEnergy = player.MaxEnergy,
             BaseOrbSlotCount = player.Character.BaseOrbSlotCount,
@@ -348,7 +348,7 @@ public static partial class RulesCompiler
         return null;
     }
 
-    private static void AddGeneratedCardClosure(RulesBuilder builder, in Battle root, Player player,
+    private static void AddGeneratedCardClosure(RulesDraft builder, in Battle root, Player player,
         IReadOnlyList<ushort> spawnClosure, IReadOnlyList<(string CardId, int Upgrade)> detachedCards)
     {
         Queue<(string CardId, int Upgrade)> pendingCards = new();

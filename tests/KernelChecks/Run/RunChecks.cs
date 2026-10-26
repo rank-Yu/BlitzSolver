@@ -171,6 +171,14 @@ internal static class RunChecks
         RunState state = SampleState();
         RunView view = RunView.From(state);
         Check(view.Player.CurrentHp == state.Player.CurrentHp, "RunView HP 不一致。");
+        Check(view.PlayerOdds.CardRarity == state.PlayerOdds.CardRarity
+            && view.PlayerOdds.PotionReward == state.PlayerOdds.PotionReward,
+            "RunView 卡牌稀有度/药水掉落保底不一致。");
+        Check(view.Odds.Monster == state.Odds.Monster
+            && view.Odds.Elite == state.Odds.Elite
+            && view.Odds.Treasure == state.Odds.Treasure
+            && view.Odds.Shop == state.Odds.Shop,
+            "RunView 未知点房间保底不一致。");
         Check(view.Deck.Count == state.Deck.Count, "RunView 牌组数量不一致。");
         Check(view.Relics.Count == state.Relics.Count, "RunView 遗物数量不一致。");
         Check(view.Map.NodeCount == state.Map.NodeCount, "RunView 地图节点数不一致。");

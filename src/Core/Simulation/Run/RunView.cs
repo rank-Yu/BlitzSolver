@@ -7,9 +7,10 @@ namespace BlitzSolver.Simulation.Run;
 /// Player-visible projection of <see cref="RunState"/>. The run decision layer
 /// (<c>BlitzSolver.Ai.Run</c>) may reference this type and its nested element types and nothing else
 /// from <c>Simulation.Run</c>. It deliberately contains no RNG state, no pre-generated act room
-/// sequences, no grab-bag order, no odds, no unlock state and no per-model private saved properties:
-/// those are not visible on the native screen. Visibility is tabulated in
-/// <c>docs/run-state-layout.md</c>.
+/// sequences, no grab-bag order, no unlock state and no per-model private saved properties: those
+/// are not visible on the native screen and cannot be derived from the history the player has seen.
+/// The hidden reward pity counters are included because the player can derive them from that
+/// history. Visibility is tabulated in <c>docs/run-state-layout.md</c>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct RunView
@@ -26,6 +27,10 @@ public struct RunView
     public byte HasSecondBoss;
     public byte HasAncient;
     private ushort _padding2;
+    /// <summary>Native <c>PlayerOddsSet</c> current values (card rarity and potion reward pity).</summary>
+    public RunPlayerOdds PlayerOdds;
+    /// <summary>Native <c>RunOddsSet.UnknownMapPoint</c> current values (four room-type pity counters).</summary>
+    public RunOdds Odds;
     public int Ascension;
     public int ActIndex;
     public int ActFloor;
@@ -54,6 +59,8 @@ public struct RunView
             view.Ancient = act.AncientId;
             view.HasAncient = act.HasAncient;
         }
+        view.PlayerOdds = state.PlayerOdds;
+        view.Odds = state.Odds;
         view.Ascension = state.Ascension;
         view.ActIndex = state.ActIndex;
         view.ActFloor = state.ActFloor;

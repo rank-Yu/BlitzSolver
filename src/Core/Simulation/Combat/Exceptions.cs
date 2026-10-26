@@ -18,5 +18,5 @@ public sealed class CapacityException(string region, int capacity)
 /// The kernel reached content or a mechanic it does not implement. Admission should have
 /// rejected the root; reaching this at run time abandons the whole Blitz solve.
 /// </summary>
-public sealed class UnsupportedException(string detail)
+public class UnsupportedException(string detail)
     : Exception($"Blitz 内核不支持：{detail}");

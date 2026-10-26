@@ -10,12 +10,14 @@ using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
+using RunState = BlitzSolver.Simulation.Run.RunState;
 
 namespace OfflineHost;
 
 internal sealed class SetupRootSet
 {
     public required Rules Rules { get; init; }
+    public required RunState Run { get; init; }
     public required List<Battle> Roots { get; init; }
     public required List<string> Choices { get; init; }
     public required List<string> OptionIds { get; init; }
@@ -36,8 +38,9 @@ internal sealed class SetupRootSet
             ?? throw new InvalidDataException("回合准备 Start 快照没有捕获到卡牌集合。");
         Player player = LocalContext.GetMe(firstCombat)
             ?? throw new InvalidOperationException("找不到本地玩家。");
-        if (firstCombat.RunState is not RunState runState)
+        if (firstCombat.RunState is not MegaCrit.Sts2.Core.Runs.RunState runState)
             throw new InvalidDataException("原生战斗的 RunState 不是具体 RunState。");
+        RunState importedRun = RunStateImporter.Import(runState, player);
         Rules rules = RulesCompiler.Compile(firstCombat, player, runState);
         Battle first = BattleImporter.Import(firstCombat, player, rules,
             ImportOptions.Default with { TurnSetupRoot = true, RootCards = firstCards });
@@ -93,6 +96,7 @@ internal sealed class SetupRootSet
         return new SetupRootSet
         {
             Rules = rules,
+            Run = importedRun,
             Roots = roots,
             Choices = choices,
             OptionIds = optionIds,
