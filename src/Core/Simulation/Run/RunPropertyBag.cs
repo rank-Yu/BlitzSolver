@@ -158,6 +158,28 @@ public static class RunProperties
         return false;
     }
 
+    /// <summary>Reads one bool saved property by its canonical name hash.</summary>
+    public static bool TryGetBool(in RunPropertyBag bag, ulong nameHash, out bool value)
+    {
+        Reader reader = new(bag);
+        while (reader.TryNext(out ulong hash, out byte kind))
+        {
+            if (kind == KindBool)
+            {
+                bool read = reader.ReadBool();
+                if (hash == nameHash)
+                {
+                    value = read;
+                    return true;
+                }
+                continue;
+            }
+            reader.Skip(kind);
+        }
+        value = false;
+        return false;
+    }
+
     /// <summary>
     /// Replaces one int saved property, keeping every other entry. A new key is appended; callers
     /// that need canonical order should sort at the R2 layer that owns the name set.

@@ -1,12 +1,14 @@
+using BlitzSolver.Simulation.Combat;
+
 namespace BlitzSolver.Simulation.Run;
 
 /// <summary>
 /// The run kernel: one action in, one result out, mirroring the combat kernel's "action + choice"
-/// shape. R2b-2 implements the map-point action only. Later phases answer the same
-/// <see cref="RunDecisionRequest"/> with the matching <see cref="RunActionKind"/> and reuse this
-/// boundary: run state enters through <c>ref</c>, a rejected action leaves it untouched, and a
-/// room whose content belongs to a later phase returns <see cref="RunStepStatus.UnsupportedRoom"/>
-/// after advancing to the native "room built, not entered" state.
+/// shape. R2b-2 implements the map-point action; R2c adds post-combat reward generation/selection
+/// (the caller generates rewards after <see cref="RunCombatWriteback"/>) and leaving the reward
+/// screen. A rejected action leaves the state untouched, and a room whose content belongs to a
+/// later phase returns <see cref="RunStepStatus.UnsupportedRoom"/> after advancing to the native
+/// "room built, not entered" state.
 /// </summary>
 public sealed class RunKernel
 {
@@ -23,9 +25,26 @@ public sealed class RunKernel
         RunDecisionRequest request = RunDecisionRequest.Capture(in state);
         if (state.Player.CurrentHp <= 0 || request.Kind == RunDecision.GameOver)
             return new RunStepResult { Status = RunStepStatus.Ended };
+
+        if (state.Rewards.Stage != RunRewardStage.None)
+            return StepReward(ref state, action, request);
+
+        if (action.Kind is RunActionKind.TakeReward or RunActionKind.SkipReward
+            or RunActionKind.ChooseCard or RunActionKind.ChoosePotion
+            or RunActionKind.LeaveRewards or RunActionKind.RerollCardReward)
+        {
+            return Reject(request, RunStepReject.NotRewardDecision, RunStepReason.NotRewardDecision,
+                $"当前决策是 {request.Kind}，不是奖励选择。");
+        }
+        if (state.Rewards.Generated == 0 && HasPendingCombatRewards(in state))
+        {
+            return Reject(request, RunStepReject.NotRewardDecision,
+                RunRewardReason.RewardNotGenerated,
+                "战斗已写回，但奖励尚未生成；先调用 RunRewardGenerator.GenerateForCombat。");
+        }
         if (action.Kind != RunActionKind.SelectMapPoint)
             return Reject(request, RunStepReject.WrongActionKind, RunStepReason.WrongActionKind,
-                $"R2b-2 只实现地图选点，收到 {action.Kind}。");
+                $"R2c 的地图阶段只接受地图选点，收到 {action.Kind}。");
         if (request.Kind != RunDecision.MapPoint)
             return Reject(request, RunStepReject.NotMapDecision, RunStepReason.NotMapDecision,
                 $"当前决策是 {request.Kind}，不是地图选点。");
@@ -80,6 +99,131 @@ public sealed class RunKernel
             RoomType = entry.RoomType,
             PointType = entry.PointType,
         };
+    }
+
+    private RunStepResult StepReward(ref RunState state, in RunAction action,
+        in RunDecisionRequest request)
+    {
+        RunState next = state;
+        try
+        {
+            switch (action.Kind)
+            {
+                case RunActionKind.TakeReward:
+                {
+                    if (request.Kind != RunDecision.CombatReward
+                        || (uint)action.Option >= request.OptionCount)
+                    {
+                        return Reject(request, RunStepReject.NotRewardDecision,
+                            RunRewardReason.RewardIndex,
+                            $"奖励动作下标 {action.Option} 非法。");
+                    }
+                    RunDecisionOption option = request.Options[action.Option];
+                    if (option.Kind != RunDecisionOptionKind.Reward)
+                    {
+                        return Reject(request, RunStepReject.NotRewardDecision,
+                            RunRewardReason.RewardIndex,
+                            $"动作 {action.Option} 不是奖励选项。");
+                    }
+                    RunRewardGenerator.TakeReward(ref next, _content, option);
+                    break;
+                }
+                case RunActionKind.ChooseCard:
+                {
+                    if (request.Kind != RunDecision.CardReward
+                        || (uint)action.Option >= request.OptionCount)
+                    {
+                        return Reject(request, RunStepReject.NotRewardDecision,
+                            RunRewardReason.CardOption,
+                            $"卡牌选项 {action.Option} 非法。");
+                    }
+                    RunDecisionOption option = request.Options[action.Option];
+                    if (option.Kind == RunDecisionOptionKind.Reroll)
+                    {
+                        RunRewardGenerator.RerollCardReward(ref next, _content);
+                        break;
+                    }
+                    if (option.Kind != RunDecisionOptionKind.Card)
+                    {
+                        return Reject(request, RunStepReject.NotRewardDecision,
+                            RunRewardReason.CardOption,
+                            $"动作 {action.Option} 不是卡牌选项。");
+                    }
+                    RunRewardGenerator.ChooseCard(ref next, _content, option.Index, reroll: false);
+                    break;
+                }
+                case RunActionKind.RerollCardReward:
+                {
+                    if (request.Kind != RunDecision.CardReward)
+                    {
+                        return Reject(request, RunStepReject.NotRewardDecision,
+                            RunRewardReason.CardRewardAlternative,
+                            "当前不是卡牌奖励。");
+                    }
+                    RunRewardGenerator.RerollCardReward(ref next, _content);
+                    break;
+                }
+                case RunActionKind.ChoosePotion:
+                {
+                    if (request.Kind != RunDecision.PotionDiscard
+                        || (uint)action.Option >= request.OptionCount)
+                    {
+                        return Reject(request, RunStepReject.NotRewardDecision,
+                            RunRewardReason.PotionSlot,
+                            $"药水槽选项 {action.Option} 非法。");
+                    }
+                    RunDecisionOption option = request.Options[action.Option];
+                    if (option.Kind != RunDecisionOptionKind.Potion)
+                    {
+                        return Reject(request, RunStepReject.NotRewardDecision,
+                            RunRewardReason.PotionSlot,
+                            $"动作 {action.Option} 不是药水槽。");
+                    }
+                    RunRewardGenerator.ChoosePotion(ref next, _content, option.Index);
+                    break;
+                }
+                case RunActionKind.SkipReward:
+                    RunRewardGenerator.SkipCurrentReward(ref next);
+                    break;
+                case RunActionKind.LeaveRewards:
+                    RunRewardGenerator.Leave(ref next);
+                    break;
+                default:
+                    return Reject(request, RunStepReject.WrongActionKind,
+                        RunStepReason.WrongActionKind,
+                        $"奖励阶段不接受动作 {action.Kind}。");
+            }
+        }
+        catch (ContentUnavailableException exception)
+        {
+            return Reject(request, RunStepReject.NotRewardDecision, exception.Reason,
+                exception.Detail);
+        }
+        catch (CapacityException exception)
+        {
+            return Reject(request, RunStepReject.NotRewardDecision, ContentReason.Capacity,
+                exception.Message);
+        }
+
+        state = next;
+        RunDecisionRequest follow = RunDecisionRequest.Capture(in state);
+        return new RunStepResult
+        {
+            Status = RunStepStatus.Decision,
+            Request = follow,
+            RoomType = state.Rooms.Count == 0
+                ? RunRoomType.Unassigned
+                : state.Rooms.Items[state.Rooms.Count - 1].RoomType,
+        };
+    }
+
+    private static bool HasPendingCombatRewards(in RunState state)
+    {
+        if (state.Rooms.Count == 0)
+            return false;
+        RunRoom room = state.Rooms.Items[state.Rooms.Count - 1];
+        return room.IsPreFinished != 0
+            && room.RoomType is RunRoomType.Monster or RunRoomType.Elite or RunRoomType.Boss;
     }
 
     private static RunStepResult Reject(in RunDecisionRequest request, RunStepReject reject,

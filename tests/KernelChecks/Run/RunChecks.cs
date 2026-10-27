@@ -109,6 +109,36 @@ internal static class RunChecks
         overCount.Deck.Count = RunLimits.DeckCards + 1;
         Check(Throws<InvalidDataException>(() => RunCodec.Encode(overCount)),
             "牌组越界的 RunState 未被拒绝。");
+
+        RunState rewarded = SampleState();
+        RunReward gold = default;
+        gold.Type = RunRewardType.Gold;
+        gold.Amount = 17;
+        gold.AmountMax = 17;
+        gold.Flags = RunRewardFlags.Populated;
+        rewarded.AddReward(gold);
+        RunReward card = default;
+        card.Type = RunRewardType.Card;
+        card.OptionStart = rewarded.ReserveRewardCards(2);
+        card.OptionCount = 2;
+        card.CardCount = 2;
+        card.Flags = RunRewardFlags.Populated;
+        for (int option = 0; option < 2; option++)
+        {
+            RunCard optionCard = default;
+            optionCard.Id = 0;
+            optionCard.Upgrade = checked((byte)option);
+            rewarded.SetRewardCard(card.OptionStart + option, optionCard);
+        }
+        rewarded.AddReward(card);
+        byte[] rewardBytes = RunCodec.Encode(rewarded);
+        RunState rewardDecoded = RunCodec.Decode(rewardBytes);
+        Check(rewardBytes.AsSpan().SequenceEqual(RunCodec.Encode(rewardDecoded)),
+            "含奖励的 RunState 编码往返不是逐字节相同。");
+        Check(rewardDecoded.Rewards.Count == 2
+            && rewardDecoded.Rewards.Items[0].Amount == 17
+            && rewardDecoded.Rewards.Items[1].OptionCount == 2,
+            "奖励负载没有在编码中保留。");
     }
 
     private static void CheckCapacity()
@@ -142,6 +172,12 @@ internal static class RunChecks
         state = default;
         state.Rng.EventCount = RunLimits.EventRngs;
         ExpectCapacity("EventRngs", () => state.AddEventRng(default));
+        state = default;
+        state.Rewards.Count = RunLimits.Rewards;
+        ExpectCapacity("Rewards", () => state.AddReward(default));
+        state = default;
+        ExpectCapacity("RewardCardOptions", () => state.ReserveRewardCards(
+            RunLimits.RewardCardOptions + 1));
         RunAct act = default;
         act.EventCount = RunLimits.ActEvents;
         ExpectCapacity("ActEvents", () => RunState.AddActEvent(ref act, 0));
@@ -170,8 +206,8 @@ internal static class RunChecks
 
     private static void CheckView()
     {
-        Check(Unsafe.SizeOf<RunView>() == 5276,
-            $"RunView 应为 5276 字节，实际 {Unsafe.SizeOf<RunView>()}");
+        Check(Unsafe.SizeOf<RunView>() == 5404,
+            $"RunView 应为 5404 字节，实际 {Unsafe.SizeOf<RunView>()}");
         RunState state = SampleState();
         RunView view = RunView.From(state);
         Check(view.Player.CurrentHp == state.Player.CurrentHp, "RunView HP 不一致。");
@@ -184,6 +220,32 @@ internal static class RunChecks
             && view.Odds.Shop == state.Odds.Shop,
             "RunView 未知点房间保底不一致。");
         Check(view.Deck.Count == state.Deck.Count, "RunView 牌组数量不一致。");
+        RunState rewardState = state;
+        RunReward reward = default;
+        reward.Type = RunRewardType.Card;
+        reward.OptionStart = rewardState.ReserveRewardCards(2);
+        reward.OptionCount = 2;
+        reward.CardCount = 2;
+        reward.Flags = RunRewardFlags.Populated;
+        RunCard first = default;
+        first.Id = 0;
+        first.Upgrade = 1;
+        rewardState.SetRewardCard(reward.OptionStart, first);
+        RunCard second = default;
+        second.Id = 1;
+        rewardState.SetRewardCard(reward.OptionStart + 1, second);
+        rewardState.AddReward(reward);
+        rewardState.Rewards.Stage = RunRewardStage.Card;
+        rewardState.Rewards.ChoiceIndex = 0;
+        rewardState.Rewards.ChoiceCount = 2;
+        RunView rewardView = RunView.From(rewardState);
+        Check(rewardView.RewardStage == RunRewardStage.Card
+            && rewardView.Decision == RunDecision.CardReward
+            && rewardView.Request.OptionCount == 3,
+            "RunView 没有投影卡牌奖励请求。");
+        Check(rewardView.Request.Options[0].Upgrade == 1
+            && rewardView.Request.Options[1].Model.Id == 1,
+            "RunView 卡牌奖励选项缺少升级或卡牌 id。");
         Check(view.Relics.Count == state.Relics.Count, "RunView 遗物数量不一致。");
         Check(view.Map.NodeCount == state.Map.NodeCount, "RunView 地图节点数不一致。");
         RunAct current = state.Acts.Items[state.ActIndex];

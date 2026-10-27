@@ -1,5 +1,6 @@
 // Reads the native RunState/Player into the fixed RunState. This is the only place that reads the
 // native run save model and its private fields; it never mutates the game.
+using System.Reflection;
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -10,6 +11,7 @@ using MegaCrit.Sts2.Core.Runs.History;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
+using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
@@ -28,7 +30,8 @@ namespace BlitzSolver.Import;
 /// </summary>
 public static class RunStateImporter
 {
-    public static RunState Import(NativeRunState native, Player localPlayer)
+    public static RunState Import(NativeRunState native, Player localPlayer,
+        RewardsSet? rewards = null, IReadOnlyList<Reward>? rewardList = null)
     {
         ArgumentNullException.ThrowIfNull(native);
         ArgumentNullException.ThrowIfNull(localPlayer);
@@ -86,6 +89,7 @@ public static class RunStateImporter
         ImportMap(ref state, native.Map);
         ImportHistory(ref state, native);
         ImportRooms(ref state, native);
+        ImportRewardPayload(ref state, native, localPlayer, rewards, rewardList);
         ImportVisited(ref state, native);
         ImportRng(ref state, native, localPlayer);
         state.Canonicalize();
@@ -463,6 +467,7 @@ public static class RunStateImporter
             RunRoom target = default;
             target.RoomType = (RunRoomType)(int)room.RoomType;
             target.IsPreFinished = room.IsPreFinished ? (byte)1 : (byte)0;
+            target.GoldProportion = 1f;
             switch (room)
             {
                 case CombatRoom combat:
@@ -470,6 +475,7 @@ public static class RunStateImporter
                     target.ParentEvent = combat.ParentEventId is { } parent
                         ? EventRef(parent)
                         : RunRef.None;
+                    target.GoldProportion = combat.GoldProportion;
                     break;
                 case EventRoom eventRoom:
                     target.Model = EventRef(eventRoom.ModelId);
@@ -480,6 +486,153 @@ public static class RunStateImporter
             }
             state.AddRoom(target);
         }
+    }
+
+    private static void ImportRewardPayload(ref RunState state, NativeRunState native,
+        Player localPlayer, RewardsSet? rewards, IReadOnlyList<Reward>? rewardList)
+    {
+        if (rewards != null)
+        {
+            state.Rewards.Generated = 1;
+            state.Rewards.Stage = RunRewardStage.List;
+            foreach (Reward reward in rewardList ?? rewards.Rewards)
+                ImportReward(ref state, reward);
+            state.Canonicalize();
+            return;
+        }
+        if (native.CurrentRoom is not CombatRoom combat)
+            return;
+        if (!combat.ExtraRewards.TryGetValue(localPlayer, out List<Reward>? extras))
+            return;
+        foreach (Reward reward in extras)
+            ImportReward(ref state, reward);
+        state.Canonicalize();
+    }
+
+    private static void ImportReward(ref RunState state, Reward reward)
+    {
+        RunReward target = default;
+        target.Amount = -1;
+        target.AmountMax = -1;
+        switch (reward)
+        {
+            case GoldReward gold:
+            {
+                target.Type = RunRewardType.Gold;
+                target.Amount = gold.Amount;
+                target.AmountMax = gold.Amount;
+                if (gold.Amount >= 0)
+                    target.Flags |= RunRewardFlags.Populated;
+                if (ReadPrivateField<bool>(gold, "_wasGoldStolenBack"))
+                    target.Flags |= RunRewardFlags.GoldStolenBack;
+                break;
+            }
+            case PotionReward potion:
+            {
+                target.Type = RunRewardType.Potion;
+                if (potion.Potion is { } model)
+                {
+                    NativeAccess.RequireOriginal(model);
+                    if (!Registry.TryPotion(model.Id.Entry, out ushort id))
+                        throw Unsupported(ImportReason.UnsupportedPotion, model.Id.Entry);
+                    target.ModelId = id;
+                    target.Flags |= RunRewardFlags.Populated;
+                }
+                break;
+            }
+            case RelicReward relic:
+            {
+                target.Type = RunRewardType.Relic;
+                if (relic.Relic is { } model)
+                {
+                    NativeAccess.RequireOriginal(model);
+                    if (!Registry.TryRelic(model.Id.Entry, out ushort id))
+                        throw Unsupported(ImportReason.UnsupportedRelic, model.Id.Entry);
+                    target.ModelId = id;
+                    target.Flags |= RunRewardFlags.Populated;
+                }
+                break;
+            }
+            case CardReward cards:
+            {
+                target.Type = RunRewardType.Card;
+                CardCreationOptions options = ReadPrivateProperty<CardCreationOptions>(cards,
+                    "Options");
+                target.CardCount = checked((byte)ReadPrivateProperty<int>(cards, "OptionCount"));
+                target.RaritySource = options.RarityOdds switch
+                {
+                    CardRarityOddsType.EliteEncounter => (byte)RoomRarityOdds.Elite,
+                    CardRarityOddsType.BossEncounter => (byte)RoomRarityOdds.Boss,
+                    _ => (byte)RoomRarityOdds.Regular,
+                };
+                if (cards.CanReroll)
+                    target.Flags |= RunRewardFlags.CardCanReroll;
+                if ((options.Flags & CardCreationFlags.IsFromCombat) != 0)
+                    target.Flags |= RunRewardFlags.CardFromCombat;
+                if (ReadPrivateField<bool>(cards, "_cardsWereManuallySet"))
+                    target.Flags |= RunRewardFlags.ManualCards;
+                if (cards.IsPopulated)
+                {
+                    List<CardModel> cardModels = [.. cards.Cards];
+                    if (cardModels.Count > RunLimits.RewardCardOptions)
+                        throw new CapacityException("RunState.RewardCardOptions",
+                            RunLimits.RewardCardOptions);
+                    byte start = state.ReserveRewardCards(cardModels.Count);
+                    for (int index = 0; index < cardModels.Count; index++)
+                    {
+                        NativeAccess.RequireOriginal(cardModels[index]);
+                        state.SetRewardCard(start + index, ConvertCardModel(cardModels[index]));
+                    }
+                    target.OptionStart = start;
+                    target.OptionCount = checked((byte)cardModels.Count);
+                    target.Flags |= RunRewardFlags.Populated;
+                }
+                break;
+            }
+            case SpecialCardReward special:
+            {
+                target.Type = RunRewardType.SpecialCard;
+                SerializableCard save = special.ToSerializable().SpecialCard
+                    ?? throw new InvalidDataException("SpecialCardReward 没有卡牌。");
+                RunCard card = ConvertCard(save);
+                target.OptionStart = state.ReserveRewardCards(1);
+                target.OptionCount = 1;
+                target.CardCount = 1;
+                target.Flags |= RunRewardFlags.Populated;
+                state.SetRewardCard(target.OptionStart, card);
+                break;
+            }
+            case CardRemovalReward:
+                target.Type = RunRewardType.CardRemoval;
+                target.Flags |= RunRewardFlags.Populated;
+                break;
+            default:
+                throw Unsupported(ImportReason.UnsupportedRun,
+                    $"未知奖励类型 {reward.GetType().Name}");
+        }
+        state.AddReward(target);
+    }
+
+    internal static RunCard ConvertCardModel(CardModel card) => ConvertCard(card.ToSerializable());
+
+    private static T ReadPrivateProperty<T>(object target, string name)
+    {
+        PropertyInfo property = target.GetType().GetProperty(name,
+            System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new MissingMemberException(target.GetType().FullName, name);
+        return (T)(property.GetValue(target)
+            ?? throw new InvalidDataException($"{target.GetType().Name}.{name} 返回空。"));
+    }
+
+    private static T ReadPrivateField<T>(object target, string name)
+    {
+        FieldInfo field = target.GetType().GetField(name,
+            System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new MissingFieldException(target.GetType().FullName, name);
+        return (T)(field.GetValue(target)
+            ?? throw new InvalidDataException($"{target.GetType().Name}.{name} 返回空。"));
     }
 
     private static void ImportVisited(ref RunState state, NativeRunState native)
@@ -557,7 +710,7 @@ public static class RunStateImporter
         return RngState.FromSerializable(save.counter, save.state0, save.state1, save.state2, save.state3);
     }
 
-    private static RunPropertyBag EncodeProperties(SavedProperties? properties, int capacity, string where)
+    internal static RunPropertyBag EncodeProperties(SavedProperties? properties, int capacity, string where)
     {
         RunPropertyBag result = default;
         if (properties == null)

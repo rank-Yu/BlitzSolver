@@ -51,7 +51,7 @@
 类型列出。当前 0.111.0 只有 `EXOSKELETON` 没有独立召唤变体（它的 `INIT_MOVE` 条件分支在
 无槽位 scratch 中无法解析），遭遇变体仍然完整；另有 37 个原版卡池候选卡没有 Blitz 定义。
 
-导出耗时与保留内存（`--content-table-report`，Release，单次）：约 **0.42 秒**、**2.4 MB**（`GC.GetTotalMemory(true)` 前后差）。只测量，不做缓存或优化。
+导出耗时与保留内存（`--content-table-report`，Release，单次）：约 **1.5 秒**、**19.5 MB**（`GC.GetTotalMemory(true)` 前后差；R2c-1 新增每个卡牌等级与遗物的默认属性包、奖励事实与教学表，保留量因此上升）。只测量，不做缓存或优化。
 
 ## 3. `RulesBuilder`
 
@@ -204,6 +204,7 @@ R2b-1 在同一个 `ContentTable` 里加入新局与地图需要的静态数据�
 | `UnknownPointHookRelics` / `UnknownPointHookCards` | 覆写未知点候选或概率成长的模型（GoldenCompass/JuzuBracelet、LanternKey） | 2 / 1 |
 | `NextEventHookCards` | 覆写 `ModifyNextEvent` 的卡牌（LanternKey） | 1 |
 | `EventAllowedOverride` | 按事件 id 标记覆写 `IsAllowed` 的事件，R2b-2 遇到时显式拒绝 | 36 / 66 |
+| R2c-1 奖励区块 | 见第 9 节：遭遇金币/奖励开关、奖励概率、教学奖励、遗物/卡牌默认属性 | — |
 
 池子按原版枚举顺序保存，不排序；解锁过滤按 epoch 掩码。两处原版方法只能“探测”得到：
 
@@ -217,3 +218,33 @@ R2b-1 在同一个 `ContentTable` 里加入新局与地图需要的静态数据�
 
 导出器对目录外事件、幕外交换模型、非法稀有度显式失败。单次导出（Release）约 1.3 秒，其中新局
 推断约 0.45 秒；仍然只在进程内保留一次，不写盘、不缓存。详见[新局生成与地图](run-generation.md)。
+
+## 9. 战后奖励区块（R2c-1）
+
+R2c-1 在同一个 `ContentTable` 里加入战后奖励需要的静态数据；Core 的 `RunRewardGenerator`
+只读这些字段，不写奖励数值字面量。
+
+| 区块 | 内容 | 覆盖数量（0.111.0） |
+| --- | --- | --- |
+| `Encounters[].ShouldGiveRewards` | 遭遇是否产生战后奖励 | 89 |
+| `Encounters[].MinGoldByAscension` / `MaxGoldByAscension` | 每个进阶等级的遭遇金币区间（含 Poverty） | 89 × 11 |
+| `Encounters[].CustomGoldProportion` | `CalculateGoldProportion` 依赖战斗私有状态（GremlinMerc） | 1 |
+| `RewardRules` | 药水基础概率/保底步长/精英加成、卡牌稀有度两套（Scarcity）阈值与成长、升级概率、遗物稀有度阈值、药水稀有度阈值 | — |
+| `TutorialRewards` | 首次跑局 Ironclad 的怪物 7 组、精英 2 组、Boss 1 组固定卡牌/药水/遗物与金币常量 | 10 组 |
+| `RelicRewardFacts[].Allowed` | 反射确认重写 `IsAllowed` 后按映射得到的五种变体（常真、Act3 宝箱前、单人、首次跑局 Ironclad 例外、永不允许）；未映射的重写为 `Unsupported`，映射里有但未重写导出失败 | 297 |
+| `RelicRewardFacts[].Stackable` | 拿到后是否从袋中移除 | 297 |
+| `RelicRewardFacts[].InitialDisplayAmount` | 新建可变遗物的 `DisplayAmount` | 297（非可抽稀有度记 0） |
+| `RelicRewardFacts[].Obtain` | `SimpleAdd` / `Implemented` / `Unsupported` | 297 |
+| `RelicRewardFacts[].RewardHooks` | 反射得到的奖励 Hook `Overridden`/`Implemented` 位集；任何 `Unsupported` 位在生成/领取前拒绝 | 297 |
+| `ContentTable.CardRewardHooks` / `EnchantmentRewardHooks` / `PotionRewardHooks` | 按 id 索引的同类反射位集；卡牌 1 个重写（SovereignBlade），附魔/药水 0 | 558 / 22 / 65 |
+| `RelicRewardFacts[].DefaultProperties` | 新建遗物的 `SavedProperties` 默认值 | 297 |
+| `Cards[].DefaultProperties` | 每个升级等级的卡牌 `SavedProperties` 默认值（Genetic Algorithm 等） | 1078 个等级 |
+
+奖励监听者清单与三态规则见[战后奖励](run-rewards.md)第 5 节；`CONTENT-REWARD-HOOK` 行会打印每类
+实际重写/未实现数量。
+
+`RewardRules` 的几个内联常量（药水 0.1 保底、精英 0.5 系数、遗物 0.5/0.83 阈值、药水
+0.1/0.35 阈值）通过读取原版方法体的 `ldc.r4` 导出；卡牌稀有度阈值通过
+`CardRarityOdds.GetBaseOdds` 与 `CardRarityOdds.RarityGrowth` 在 A0/A10 两种
+`ScratchAscension` 下读取；升级概率通过 `CardFactory.UpgradedCardOddScaling` 读取。
+枚举与表结构见 `src/Core/Simulation/Run/RunContent.cs`。

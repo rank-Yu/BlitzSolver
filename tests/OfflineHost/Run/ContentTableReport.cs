@@ -49,6 +49,8 @@ internal static class ContentTableReport
             if (table.Characters[id] is { } character)
                 poolCards += character.CardPool.Cards.Length;
         }
+        ContentRewardRules rr = table.RewardRules;
+        Console.WriteLine($"CONTENT-ODDS regular={rr.Regular.Rare}/{rr.Regular.Uncommon} elite={rr.Elite.Rare}/{rr.Elite.Uncommon} boss={rr.Boss.Rare}/{rr.Boss.Uncommon} scarcityBoss={rr.ScarcityBoss.Rare}/{rr.ScarcityBoss.Uncommon}");
         Console.WriteLine(
             $"CONTENT cards={cardIds}/{table.Cards.Length} levels={cardLevels} " +
             $"powerVars={powerVars}/{table.PowerVars.Length} potions={potions}/{table.Potions.Length} " +
@@ -69,16 +71,79 @@ internal static class ContentTableReport
             }
         }
         PrintNewRun(table);
+        PrintRewardHooks(table);
         PrintUnsupported(table);
         for (int id = 0; id < table.Encounters.Length; id++)
         {
-            if (table.Encounters[id] == null)
+            if (table.Encounters[id] is not { } encounter)
+            {
                 Console.WriteLine($"CONTENT-MISSING encounter={RunCatalog.EncounterName((ushort)id)}");
+                continue;
+            }
+            Console.WriteLine($"CONTENT-ENCOUNTER id={id} name={encounter.NativeId} " +
+                $"room={encounter.RoomType} rewards={encounter.ShouldGiveRewards} " +
+                $"eventScript={Registry.Encounter((ushort)id).EndsByEventScript}");
         }
         Console.WriteLine(
             $"CONTENT-TIME ms={stopwatch.Elapsed.TotalMilliseconds:0.0} " +
             $"retainedBytes={after - before} before={before} after={after}");
         return 0;
+    }
+
+    private static void PrintRewardHooks(ContentTable table)
+    {
+        PrintHookCategory("card", table.CardRewardHooks,
+            id => Registry.Card((ushort)id).NativeId);
+        PrintHookCategory("enchantment", table.EnchantmentRewardHooks,
+            id => Registry.Enchantment((ushort)id).NativeId);
+        PrintHookCategory("potion", table.PotionRewardHooks,
+            id => Registry.Potion((ushort)id).NativeId);
+        int relicOverridden = 0, relicUnsupported = 0;
+        for (int id = 0; id < table.RelicRewardFacts.Length; id++)
+        {
+            if (table.RelicRewardFacts[id] is not { } facts)
+                continue;
+            if (facts.RewardHooks.Overridden != 0)
+            {
+                relicOverridden++;
+                if (facts.RewardHooks.Unsupported != 0)
+                    relicUnsupported++;
+                Console.WriteLine(
+                    $"CONTENT-HOOK relic={Registry.Relic((ushort)id).NativeId} " +
+                    $"overridden={(ContentRewardHook)facts.RewardHooks.Overridden} " +
+                    $"implemented={(ContentRewardHook)facts.RewardHooks.Implemented} " +
+                    $"unsupported={(ContentRewardHook)facts.RewardHooks.Unsupported}");
+            }
+            if (facts.Allowed == ContentRelicAllowedKind.Unsupported)
+            {
+                Console.WriteLine(
+                    $"CONTENT-ALLOWED-UNSUPPORTED relic={Registry.Relic((ushort)id).NativeId}");
+            }
+        }
+        Console.WriteLine($"CONTENT-REWARD-HOOK relic overridden={relicOverridden} " +
+            $"unsupported={relicUnsupported} total={table.RelicRewardFacts.Length}");
+    }
+
+    private static void PrintHookCategory(string kind, ContentRewardHookMask[] masks,
+        Func<int, string> name)
+    {
+        int overridden = 0, unsupported = 0;
+        for (int id = 0; id < masks.Length; id++)
+        {
+            if (masks[id].Overridden == 0)
+                continue;
+            overridden++;
+            if (masks[id].Unsupported == 0)
+                continue;
+            unsupported++;
+            Console.WriteLine(
+                $"CONTENT-HOOK {kind}={name(id)} " +
+                $"overridden={(ContentRewardHook)masks[id].Overridden} " +
+                $"implemented={(ContentRewardHook)masks[id].Implemented} " +
+                $"unsupported={(ContentRewardHook)masks[id].Unsupported}");
+        }
+        Console.WriteLine($"CONTENT-REWARD-HOOK {kind} overridden={overridden} " +
+            $"unsupported={unsupported} total={masks.Length}");
     }
 
     private static void PrintNewRun(ContentTable table)

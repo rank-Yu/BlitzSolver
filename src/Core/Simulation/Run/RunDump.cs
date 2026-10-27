@@ -58,6 +58,13 @@ public static class RunDump
             RunPotion potion = state.Player.Potions.Items[index];
             Line($"potion.{index}", potion.Present == 0 ? "-" : Registry.Potion(potion.Id).NativeId);
         }
+        Line("rewards.stage", state.Rewards.Stage.ToString());
+        Int("rewards.generated", state.Rewards.Generated);
+        Int("rewards.count", state.Rewards.Count);
+        Int("rewards.choiceIndex", state.Rewards.ChoiceIndex);
+        Int("rewards.choiceCount", state.Rewards.ChoiceCount);
+        for (int index = 0; index < state.Rewards.Count; index++)
+            Line($"rewards.{index}", Reward(state.Rewards, index));
         DumpBag(text, "sharedBag", state.SharedBag);
         DumpBag(text, "playerBag", state.PlayerBag);
 
@@ -121,7 +128,7 @@ public static class RunDump
         {
             RunRoom room = state.Rooms.Items[index];
             Line($"room.{index}",
-                $"{room.RoomType},{RefName(room.Model)},{RefName(room.ParentEvent)},pre={room.IsPreFinished}");
+                $"{room.RoomType},{RefName(room.Model)},{RefName(room.ParentEvent)},pre={room.IsPreFinished},gold={F(room.GoldProportion)}");
         }
 
         for (int index = 0; index < RunLimits.RngStreams; index++)
@@ -179,6 +186,45 @@ public static class RunDump
         text.Append(",props=").Append(PropertyText(card.Properties));
         text.Append(",enchantProps=").Append(PropertyText(card.EnchantmentProperties));
         return text.ToString();
+    }
+
+    public static string Reward(in RunRewards rewards, int index)
+    {
+        RunReward item = rewards.Items[index];
+        StringBuilder text = new(item.Type.ToString());
+        text.Append(",flags=").Append((int)item.Flags);
+        switch (item.Type)
+        {
+            case RunRewardType.Gold:
+                text.Append(",amount=").Append(item.Amount);
+                text.Append(",amountMax=").Append(item.AmountMax);
+                return text.ToString();
+            case RunRewardType.Potion:
+                text.Append(',').Append(item.ModelId == 0 && (item.Flags & RunRewardFlags.Populated) == 0
+                    ? "-" : Registry.Potion(item.ModelId).NativeId);
+                return text.ToString();
+            case RunRewardType.Relic:
+                text.Append(',').Append(item.ModelId == 0 && (item.Flags & RunRewardFlags.Populated) == 0
+                    ? "-" : Registry.Relic(item.ModelId).NativeId);
+                return text.ToString();
+            case RunRewardType.CardRemoval:
+                return text.ToString();
+            case RunRewardType.Card:
+            case RunRewardType.SpecialCard:
+                text.Append(",cardCount=").Append(item.CardCount);
+                text.Append(",rarity=").Append((RoomRarityOdds)item.RaritySource);
+                text.Append(",options=").Append(item.OptionCount);
+                text.Append(",cards=[");
+                for (int option = 0; option < item.OptionCount; option++)
+                {
+                    if (option != 0)
+                        text.Append(';');
+                    text.Append(Card(rewards.Choices[item.OptionStart + option]));
+                }
+                return text.Append(']').ToString();
+            default:
+                return text.ToString();
+        }
     }
 
     public static string Relic(in RunRelic relic)

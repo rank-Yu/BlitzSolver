@@ -584,7 +584,11 @@ public static partial class Kernel
             // detached power (Nightmare) drops its selection.
             if (definition.NativeId == "SWIPE_POWER")
             {
-                if (battle.Creature(removed.Owner).IsDead)
+                int enemy = removed.Owner - Limits.FirstEnemyOwner;
+                bool escaped = removed.Owner >= Limits.FirstEnemyOwner
+                    && (uint)enemy < (uint)battle.EnemyCount
+                    && (battle.Enemy(removed.Owner).Flags & EnemyFlags.Escaped) != 0;
+                if (battle.Creature(removed.Owner).IsDead && !escaped)
                     battle.DetachedCards[slot].Flags &= ~CardFlags.RemovedFromState;
             }
             else

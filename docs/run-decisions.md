@@ -21,7 +21,7 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 | 类型 | 内容 |
 | --- | --- |
 | `RunDecisionRequest` | 当前决策种类 `Kind`、选项数 `OptionCount`、固定容量 32 的 `RunDecisionOptionArray Options` |
-| `RunDecisionOption` | `Kind`（`MapPoint` / `EventOption` / `Reward` / `Skip` / `Card` / `Potion` / `Relic` / `ShopEntry` / `CardRemoval` / `RestSiteOption` / `BossRelic`）、`Index`、`Coord`、点类型、`Model`（`RunRef`）、`Amount` |
+| `RunDecisionOption` | `Kind`（`MapPoint` / `EventOption` / `Reward` / `Skip` / `Card` / `Potion` / `Relic` / `ShopEntry` / `CardRemoval` / `RestSiteOption` / `BossRelic` / `Reroll`）、`Index`、`Coord`、点类型、`RewardType`、卡牌的 `Upgrade`/附魔字段、`Model`（`RunRef`）、`Amount` |
 | `RunAction` | `Kind`（与决策种类对应）、`Option`（请求里的下标）、`Coord`（地图点） |
 | `RunStepResult` | `Status`（`Decision` / `Combat` / `Ended` / `UnsupportedRoom` / `Rejected`）、`Reject`、稳定原因码 `Reason`、`Detail`、当前请求、房间与点类型、`CombatSetupResult` |
 
@@ -150,6 +150,21 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 - 先古点 `PullAncient` 只取本幕 `Act.AncientId`，不写 `Visited.Events`；事件 RNG 仍按同一
   公式预置。Neow 与先古事件页仍是 R2f。
 
+### 5.1 战后奖励决策（R2c-1）
+
+奖励界面不是地图选点：`RunState.Rewards.Stage` 是先于地图的判定。三个阶段的完整选项与
+动作见[战后奖励](run-rewards.md)第 3 节。要点：
+
+- `Rewards.Stage=List` 时 `Capture` 返回 `CombatReward`，选项是剩余奖励加“离开”；
+  `TakeReward.Option` 是**请求下标**，内核再用 `RunDecisionOption.Index` 找奖励项。
+- `TakeReward` 拿到卡牌奖励时切到 `CardReward`，拿到满槽药水时切到 `PotionDiscard`；
+  这两个阶段的 `SkipReward` 只跳过当前一项。
+- 所有奖励取完后仍停在 `List`，只剩“离开”；`LeaveRewards` 清空界面并回到地图。
+- `RunDecisionRequest.Capture` 只看玩家可见的奖励列表、卡牌选项与药水槽；随机数、遗物袋
+  顺序和未来序列不在请求里。
+- 写回后必须先调用 `RunRewardGenerator.GenerateForCombat`；未生成时奖励动作返回
+  `rewards-not-generated`，奖励界面未离开时地图选点返回 `reward-open`。
+
 ## 6. 结果与拒绝码
 
 | 结果 | 含义 |
@@ -175,6 +190,9 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 | `room-stack-active` | 房间栈里有未完成的非地图房间 |
 | `combat-unsupported` | 战斗建局的内容表拒绝（原因码见战斗边界） |
 | `corrupt-map` | 已走坐标找不到对应地图点（`Collect` 返回空） |
+| `not-reward-decision` / `reward-index` / `card-option` / `potion-slot` | 奖励阶段下标或动作不符 |
+| `rewards-not-generated` / `reward-open` | 奖励尚未生成 / 奖励界面未离开 |
+| `reward-hook-relic` / `relic-obtain-effect` / `gold-proportion-encounter` | 奖励 Hook、遗物获得效果或金币比例未实现 |
 
 ## 7. 后续决策的接法
 
@@ -182,8 +200,8 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 
 | 阶段 | 决策 | 选项 | 动作 |
 | --- | --- | --- | --- |
-| R2c | 战后奖励、跳过 | 每条奖励 `Kind=Reward/Skip`、模型与金币 | `TakeReward` / `SkipReward` |
-| R2c | 选牌、药水满槽 | 牌/药水 `Kind=Card/Potion`，下标即原版界面下标 | `ChooseCard` / `ChoosePotion` |
+| R2c | 战后奖励、离开 | 每条奖励 `Kind=Reward/Skip`、模型与金币 | `TakeReward` / `LeaveRewards` |
+| R2c | 选牌、药水满槽 | 牌/药水 `Kind=Card/Potion`，下标即原版界面下标；Driftwood 时 `Kind=Reroll` | `ChooseCard` / `ChoosePotion` / `SkipReward` / `RerollCardReward` |
 | R2d | 商店、删牌 | `Kind=ShopEntry/CardRemoval`，`Amount` 放价格 | `BuyShopEntry` / `RemoveCard` |
 | R2d | 宝箱、遗物选择 | `Kind=Relic` | `ChooseRelic` |
 | R2e | 事件页、多页 | `Kind=EventOption`，`Index` 是当前页选项下标 | `ChooseEventOption` |

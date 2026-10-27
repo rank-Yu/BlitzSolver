@@ -24,7 +24,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | 目录 | 内容 |
 | --- | --- |
 | `src/Core/Simulation/Combat/` | `BlitzSolver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
-| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、决策请求与 `RunKernel`、局外随机数、编码与状态校验（R1b/R2b-2）；进程内内容表与 `RulesBuilder`（R2a-1）；战斗边界建局与写回、共享进点（R2a-2/R2a-3/R2b-2）；新局与各幕地图生成（R2b-1） |
+| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、决策请求与 `RunKernel`、局外随机数、编码与状态校验（R1b/R2b-2）；进程内内容表与 `RulesBuilder`（R2a-1）；战斗边界建局与写回、共享进点（R2a-2/R2a-3/R2b-2）；新局与各幕地图生成（R2b-1）；战后奖励生成与领取（R2c-1） |
 | `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
 | `src/Core/Ai/Combat/` | `BlitzSolver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
 | `src/Core/Ai/Combat/Quality/` | `BlitzSolver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
@@ -54,6 +54,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | [内容表与 RulesBuilder](content-table.md) | 进程内内容表的范围与导出、`Rules` 30 项来源分类、根事实缺口与逐字节对照方法 |
 | [新局生成与地图](run-generation.md) | 原版新局流程与随机数、Core 新局入口、各幕 `StandardActMap`、池子与解锁、内容表新部分与推断、对照方法 |
 | [局外决策协议与地图进点](run-decisions.md) | `RunKernel.Step` 的请求/动作/结果、地图合法点、未知点掷骰、非战斗房间边界、拒绝码与后续决策接法 |
+| [战后奖励](run-rewards.md) | 战后奖励的生成顺序与随机数、卡牌/药水/遗物/金币、奖励决策与动作、拒绝码与对照方法 |
 | [战斗边界](run-combat-boundary.md) | 从地图选点进入战斗点、遭遇生成、开战 Hook、第一回合、`RulesRootFacts` 与建局对照 |
 | [战斗内核语义](combat-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
 | [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
@@ -96,6 +97,13 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
   遭遇/精英/Boss/先古、A10 第二 Boss、教学重排）与各幕 `StandardActMap`。5 角色 × 进阶 0..10 ×
   6 种解锁状态 × 教学重排开/关 × 30 种子 = 19,800 个新局，每个都对照第 1、2、3 幕，逐字段相同。
   见 [新局生成与地图](run-generation.md)。
+- R2c-1 新增：战后奖励生成与领取。`RunRewardGenerator` 按原版 `RewardsSet` 顺序生成金币/
+  药水/卡牌/遗物/额外奖励，`RunKernel` 用 `CombatReward`/`CardReward`/`PotionDiscard` 三阶段
+  表示奖励界面；`RunState.Rewards` 进入编码（格式版本 2，48,104 字节）。自然 800/800、D1
+  410 个根中 167 相同/0 不同/243 有原因拒绝；改用 Low 档 `CombatPilot` 的 D1 410 个根中
+  244 相同/0 不同/166 有原因拒绝（含 1 次 SpecialCard 归还）；自然精英/Boss 强制遭遇 288 例中
+  33 精英相同、Boss 全败；多步 pilot 40/40 相同。六种模式合计 17,003 次比较，0 不同。
+  奖励 Hook 用反射三态导出，监听者含未实现 Hook 时显式拒绝。见 [战后奖励](run-rewards.md)。
 - **未验证**：界面、397 根/120 根质量语料的整场全量、语料外的多段准备阶段与未捕获前缀、
   非选牌模态、第三方 Mod 内容、Windows 启动脚本。
 

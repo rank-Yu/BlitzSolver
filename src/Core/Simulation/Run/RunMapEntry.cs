@@ -45,6 +45,7 @@ internal static class RunMapEntry
 
         RunState next = run;
         next.Rooms = default;
+        next.ClearRewards();
         next.Decision = RunDecision.None;
         next.DecisionOptionCount = 0;
         next.ActFloor = actFloor ?? coord.Row + 1;
@@ -95,6 +96,7 @@ internal static class RunMapEntry
                 RoomType = roomType,
                 Model = model,
                 ParentEvent = RunRef.None,
+                GoldProportion = 1f,
             });
             // Native marks the room visited after EnterRoom returns; the counter is only read when
             // the next encounter/event is pulled, so setting it before the battle result is built

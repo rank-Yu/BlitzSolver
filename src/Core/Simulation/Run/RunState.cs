@@ -18,7 +18,7 @@ namespace BlitzSolver.Simulation.Run;
 public struct RunState
 {
     // Update after a layout change; RunCodec rejects a mismatch instead of writing a stale image.
-    public const int ExpectedSize = 45512;
+    public const int ExpectedSize = 48104;
 
     public int Ascension;
     public int ActIndex;
@@ -35,6 +35,7 @@ public struct RunState
     public RunExtraFields Extra;
     public RunExtraPlayerFields ExtraPlayer;
     public RunPlayer Player;
+    public RunRewards Rewards;
     public RunDeck Deck;
     public RunRelics Relics;
     public RunRelicBag SharedBag;
@@ -63,6 +64,49 @@ public struct RunState
         if (Relics.Count >= RunLimits.Relics)
             throw new CapacityException("RunState.Relics", RunLimits.Relics);
         Relics.Items[Relics.Count++] = relic;
+    }
+
+    public void AddReward(in RunReward reward)
+    {
+        if (Rewards.Count >= RunLimits.Rewards)
+            throw new CapacityException("RunState.Rewards", RunLimits.Rewards);
+        Rewards.Items[Rewards.Count++] = reward;
+    }
+
+    /// <summary>
+    /// Reserves <paramref name="count"/> consecutive card-option slots at the end of the current
+    /// reward set and returns the first index. The caller writes the options with
+    /// <see cref="SetRewardCard"/> before adding the owning reward.
+    /// </summary>
+    public byte ReserveRewardCards(int count)
+    {
+        int start = 0;
+        for (int index = 0; index < Rewards.Count; index++)
+        {
+            RunReward item = Rewards.Items[index];
+            start = Math.Max(start, item.OptionStart + item.OptionCount);
+        }
+        if (count < 0 || start + count > RunLimits.RewardCardOptions)
+            throw new CapacityException("RunState.RewardCardOptions", RunLimits.RewardCardOptions);
+        return checked((byte)start);
+    }
+
+    public void SetRewardCard(int index, in RunCard card)
+    {
+        if ((uint)index >= (uint)RunLimits.RewardCardOptions)
+            throw new CapacityException("RunState.RewardCardOptions", RunLimits.RewardCardOptions);
+        Rewards.Choices[index] = card;
+    }
+
+    public void ClearRewards()
+    {
+        Rewards.Stage = RunRewardStage.None;
+        Rewards.Count = 0;
+        Rewards.Generated = 0;
+        Rewards.ChoiceIndex = 0;
+        Rewards.ChoiceCount = 0;
+        Rewards.Items = default;
+        Rewards.Choices = default;
     }
 
     public void SetPotion(int slot, ushort id)
@@ -189,6 +233,24 @@ public struct RunState
     {
         for (int index = Math.Min((int)Deck.Count, RunLimits.DeckCards); index < RunLimits.DeckCards; index++)
             Deck.Cards[index] = default;
+        int rewardCount = Math.Min((int)Rewards.Count, RunLimits.Rewards);
+        for (int index = rewardCount; index < RunLimits.Rewards; index++)
+            Rewards.Items[index] = default;
+        int usedRewardCards = 0;
+        for (int index = 0; index < rewardCount; index++)
+        {
+            RunReward item = Rewards.Items[index];
+            usedRewardCards = Math.Max(usedRewardCards, item.OptionStart + item.OptionCount);
+        }
+        for (int index = Math.Min(usedRewardCards, RunLimits.RewardCardOptions);
+             index < RunLimits.RewardCardOptions; index++)
+        {
+            Rewards.Choices[index] = default;
+        }
+        if (Rewards.Stage != RunRewardStage.Card)
+            Rewards.ChoiceCount = 0;
+        if (Rewards.Stage is RunRewardStage.None or RunRewardStage.List)
+            Rewards.ChoiceIndex = 0;
         for (int index = Math.Min((int)Relics.Count, RunLimits.Relics); index < RunLimits.Relics; index++)
             Relics.Items[index] = default;
         for (int index = Math.Min((int)Player.Potions.Count, RunLimits.PotionSlots); index < RunLimits.PotionSlots; index++)

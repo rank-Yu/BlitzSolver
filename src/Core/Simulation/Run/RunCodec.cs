@@ -14,7 +14,7 @@ namespace BlitzSolver.Simulation.Run;
 public static class RunCodec
 {
     internal const uint Magic = 0x534E5552; // "RUNS"
-    internal const ushort FormatVersion = 1;
+    internal const ushort FormatVersion = 2;
 
     public const int HeaderSize = 4 + 2 + 4;
 
@@ -81,6 +81,9 @@ public static class RunStateValidator
                 $"RunState 药水槽 {state.Player.Potions.Count} 超出 {RunLimits.PotionSlots}。");
         if (state.Acts.Count > RunLimits.Acts)
             throw new InvalidDataException($"RunState.Acts.Count {state.Acts.Count} 超出。");
+        if (state.Rewards.Count > RunLimits.Rewards
+            || state.Rewards.ChoiceCount > RunLimits.RewardCardOptions)
+            throw new InvalidDataException("RunState 奖励计数超出容量。");
         if (state.Map.NodeCount > RunLimits.MapPoints
             || state.Map.StartCount > RunLimits.MapStarts
             || state.Visited.CoordCount > RunLimits.VisitedCoords
@@ -155,6 +158,7 @@ public static class RunStateValidator
         ValidateHistory(state.History, state.Acts.Count);
         for (int index = 0; index < state.Rooms.Count; index++)
             ValidateRoom(state.Rooms.Items[index], $"room[{index}]");
+        ValidateRewards(state.Rewards);
         for (int index = 0; index < state.Rng.EventCount; index++)
         {
             RunEventRng eventRng = state.Rng.Events[index];
@@ -194,7 +198,84 @@ public static class RunStateValidator
             throw new InvalidDataException($"{what} 第 {index} 字有超出内容的位。");
     }
 
-    private static void ValidateCard(in RunCard card, string what)
+    private static void ValidateRewards(in RunRewards rewards)
+    {
+        if (rewards.Stage is < RunRewardStage.None or > RunRewardStage.PotionDiscard)
+            throw new InvalidDataException($"RunState.Rewards.Stage {(byte)rewards.Stage} 非法。");
+        if (rewards.Generated > 1)
+            throw new InvalidDataException($"RunState.Rewards.Generated {rewards.Generated} 非法。");
+        int usedCards = 0;
+        for (int index = 0; index < rewards.Count; index++)
+        {
+            RunReward item = rewards.Items[index];
+            if (item.Type is < RunRewardType.None or > RunRewardType.CardRemoval)
+                throw new InvalidDataException($"reward[{index}] 类型 {(byte)item.Type} 非法。");
+            if ((item.Flags & ~(RunRewardFlags.GoldStolenBack | RunRewardFlags.CardCanReroll | RunRewardFlags.Populated | RunRewardFlags.ManualCards | RunRewardFlags.CardFromCombat)) != 0)
+                throw new InvalidDataException($"reward[{index}] Flags {item.Flags} 非法。");
+            if (item.OptionStart + item.OptionCount > RunLimits.RewardCardOptions)
+                throw new InvalidDataException($"reward[{index}] 卡牌选项越界。");
+            usedCards = Math.Max(usedCards, item.OptionStart + item.OptionCount);
+            if (item.RaritySource > (byte)RoomRarityOdds.Boss)
+                throw new InvalidDataException($"reward[{index}] RaritySource {item.RaritySource} 非法。");
+            switch (item.Type)
+            {
+                case RunRewardType.Gold:
+                    if (item.OptionCount != 0)
+                        throw new InvalidDataException($"reward[{index}] 金币不应有选项。");
+                    break;
+                case RunRewardType.Potion:
+                    if (item.ModelId >= Registry.PotionCount || item.OptionCount != 0)
+                        throw new InvalidDataException($"reward[{index}] 药水 id 非法。");
+                    break;
+                case RunRewardType.Relic:
+                    if (item.ModelId >= Registry.RelicCount || item.OptionCount != 0)
+                        throw new InvalidDataException($"reward[{index}] 遗物 id 非法。");
+                    break;
+                case RunRewardType.Card:
+                case RunRewardType.SpecialCard:
+                {
+                    bool populated = (item.Flags & RunRewardFlags.Populated) != 0;
+                    if (item.CardCount == 0)
+                        throw new InvalidDataException($"reward[{index}] 卡牌奖励 CardCount 为 0。");
+                    if (populated && (item.OptionCount == 0
+                        || item.OptionStart + item.OptionCount > RunLimits.RewardCardOptions))
+                        throw new InvalidDataException($"reward[{index}] 卡牌奖励没有选项或越界。");
+                    if (!populated && item.OptionCount != 0
+                        && (item.Flags & RunRewardFlags.ManualCards) == 0)
+                        throw new InvalidDataException($"reward[{index}] 未生成卡牌奖励却有选项。");
+                    break;
+                }
+                case RunRewardType.CardRemoval:
+                    if (item.OptionCount != 0)
+                        throw new InvalidDataException($"reward[{index}] 删牌不应有选项。");
+                    break;
+                default:
+                    throw new InvalidDataException($"reward[{index}] 类型未使用。");
+            }
+        }
+        for (int index = 0; index < usedCards; index++)
+            ValidateCard(rewards.Choices[index], $"reward.card[{index}]");
+        if (rewards.ChoiceCount > 0)
+        {
+            if (rewards.Stage != RunRewardStage.Card)
+                throw new InvalidDataException("RunState.Rewards 非卡牌阶段却有选项计数。");
+            if (rewards.ChoiceIndex >= rewards.Count)
+                throw new InvalidDataException("RunState.Rewards.ChoiceIndex 越界。");
+            RunReward choice = rewards.Items[rewards.ChoiceIndex];
+            if (choice.Type != RunRewardType.Card)
+                throw new InvalidDataException("RunState.Rewards 卡牌阶段指向非卡牌奖励。");
+            if (rewards.ChoiceCount > choice.OptionCount)
+                throw new InvalidDataException("RunState.Rewards 卡牌选项数超出奖励。");
+        }
+        if (rewards.Stage == RunRewardStage.PotionDiscard
+            && (rewards.ChoiceIndex >= rewards.Count
+                || rewards.Items[rewards.ChoiceIndex].Type != RunRewardType.Potion))
+        {
+            throw new InvalidDataException("RunState.Rewards 药水丢弃阶段指向非药水奖励。");
+        }
+    }
+
+    internal static void ValidateCard(in RunCard card, string what)
     {
         if (card.Id >= Registry.CardCount)
             throw new InvalidDataException($"{what} 卡牌 id={card.Id} 未知。");

@@ -370,6 +370,11 @@ public struct RunRoom
     public byte IsPreFinished;
     private byte _padding0;
     private ushort _padding1;
+    /// <summary>
+    /// Native <c>CombatRoom.GoldProportion</c> after <c>OnCombatEnded</c>; 1 outside combat rooms.
+    /// Post-combat gold rewards scale by it.
+    /// </summary>
+    public float GoldProportion;
 }
 
 [InlineArray(RunLimits.RoomStack)]
@@ -532,6 +537,113 @@ public struct RunVisitedCoords
 public struct RunVisitedEventWords
 {
     private ulong _first;
+}
+
+/// <summary>One native post-combat reward type.</summary>
+public enum RunRewardType : byte
+{
+    None = 0,
+    Gold = 1,
+    Potion = 2,
+    Card = 3,
+    Relic = 4,
+    SpecialCard = 5,
+    CardRemoval = 6,
+}
+
+/// <summary>What the reward screen is currently asking for.</summary>
+public enum RunRewardStage : byte
+{
+    /// <summary>No reward screen is open.</summary>
+    None = 0,
+    /// <summary>The reward list is shown; every remaining reward plus "leave" is legal.</summary>
+    List = 1,
+    /// <summary>A card reward's options are shown.</summary>
+    Card = 2,
+    /// <summary>A potion reward cannot be held because the belt is full; discard or skip it.</summary>
+    PotionDiscard = 3,
+}
+
+[Flags]
+public enum RunRewardFlags : byte
+{
+    None = 0,
+    /// <summary>Native <c>GoldReward</c> constructed with <c>wasGoldStolenBack</c>.</summary>
+    GoldStolenBack = 1 << 0,
+    /// <summary>Native <c>CardReward.CanReroll</c> (Driftwood).</summary>
+    CardCanReroll = 1 << 1,
+    /// <summary>The reward has been populated (gold amount rolled, model/options chosen).</summary>
+    Populated = 1 << 2,
+    /// <summary>Card options were fixed by native code (tutorial) rather than rolled.</summary>
+    ManualCards = 1 << 3,
+    /// <summary>The card reward was created by <c>CardCreationOptions.ForRoom</c> for a combat
+    /// room (native <c>IsFromCombat</c>); Lasting Candy only applies to these.</summary>
+    CardFromCombat = 1 << 4,
+}
+
+/// <summary>
+/// One pending reward. Card and special-card options live in <see cref="RunRewards.Choices"/> at
+/// <see cref="OptionStart"/>..<see cref="OptionCount"/>; a potion/relic names its model in
+/// <see cref="ModelId"/>; gold carries its amount.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunReward
+{
+    public RunRewardType Type;
+    public byte OptionStart;
+    public byte OptionCount;
+    public RunRewardFlags Flags;
+    public ushort ModelId;
+    /// <summary>Options a card reward requests when it is generated (<c>CardReward.OptionCount</c>).</summary>
+    public byte CardCount;
+    /// <summary>Native <c>RoomRarityOdds</c> used by the card reward's creation options.</summary>
+    public byte RaritySource;
+    public int Amount;
+    /// <summary>Unpopulated gold maximum; equal to <see cref="Amount"/> once populated.</summary>
+    public int AmountMax;
+}
+
+[InlineArray(RunLimits.Rewards)]
+public struct RunRewardArray
+{
+    private RunReward _first;
+}
+
+[InlineArray(RunLimits.RewardCardOptions)]
+public struct RunRewardCardArray
+{
+    private RunCard _first;
+}
+
+/// <summary>
+/// The pending post-combat reward set and the current reward-screen stage. Before generation the
+/// same item list holds the combat room's <c>ExtraRewards</c> (<see cref="Generated"/> 0); after
+/// <c>RunRewards.GenerateForCombat</c> it holds the sorted default+extra set and
+/// <see cref="Generated"/> is 1. The native reward screen lives in the UI, so its visible content
+/// has to be part of the branchable run state for the decision protocol.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunRewards
+{
+    public RunRewardStage Stage;
+    public byte Count;
+    /// <summary>1 once default rewards have been generated; 0 while only combat extras exist.</summary>
+    public byte Generated;
+    /// <summary>Reward item index whose card options or potion slot choice is open.</summary>
+    public byte ChoiceIndex;
+    /// <summary>Card option count while <see cref="Stage"/> is <see cref="RunRewardStage.Card"/>.</summary>
+    public byte ChoiceCount;
+    private byte _padding0;
+    private ushort _padding1;
+    public RunRewardArray Items;
+    public RunRewardCardArray Choices;
+
+    public readonly RunReward Item(int index)
+    {
+        if ((uint)index >= Count)
+            throw new InvalidDataException($"奖励下标 {index} 超出 {Count}。");
+        return Items[index];
+    }
 }
 
 /// <summary>The player's persistent run-scoped numbers.</summary>

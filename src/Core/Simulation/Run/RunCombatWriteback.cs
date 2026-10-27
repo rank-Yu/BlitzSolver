@@ -29,6 +29,7 @@ public static class RunCombatWriteback
         RunState run = source;
         RunRoomType roomType = CurrentRoomType(in run);
         bool victory = battle.Outcome == Outcome.Victory && !battle.Player.IsDead;
+        int sourceGold = run.Player.Gold;
 
         run.Player.CurrentHp = battle.Player.CurrentHp;
         run.Player.MaxHp = battle.Player.MaxHp;
@@ -47,6 +48,11 @@ public static class RunCombatWriteback
         // Theft removed run-deck cards during combat; the detached values still carry DeckCard.
         // A card still referenced by SwipePower is still held; an unreferenced detached deck card
         // was returned by SwipePower.BeforeDeath and native appends it to the deck end.
+        // Capture the returned-card reward while the deck card is still present; the theft
+        // removal below represents native CardPileCmd.RemoveFromDeck. SwipePower.BeforeDeath
+        // adds the card to the run card scope, not the player's deck, so the deck entry still
+        // leaves now and the special-card reward re-adds it when claimed.
+        ApplyCombatRewards(ref run, in battle, table, roomType, sourceGold);
         ApplyStolenDeckCards(ref run, in battle);
         ApplyPersistentGrowth(ref run, in battle, table);
         if (victory)
@@ -84,6 +90,14 @@ public static class RunCombatWriteback
         }
         if (finished)
         {
+            if (run.Rooms.Count != 0)
+            {
+                RunRoom finishedRoom = run.Rooms.Items[run.Rooms.Count - 1];
+                run.Rooms.Items[run.Rooms.Count - 1].GoldProportion =
+                    battle.Outcome == Outcome.Victory
+                        ? GoldProportion(in battle, table.Encounter(finishedRoom.Model.Id))
+                        : 0f;
+            }
             if (run.History.Count != 0)
             {
                 ref RunHistoryEntry entry = ref run.History.Entries[run.History.Count - 1];
@@ -108,6 +122,150 @@ public static class RunCombatWriteback
         }
         run.Canonicalize();
         return run;
+    }
+
+    private static void ApplyCombatRewards(ref RunState run, in Battle battle, ContentTable table,
+        RunRoomType roomType, int sourceGold)
+    {
+        // SwipePower.BeforeDeath appends the returned card and one SpecialCardReward per return.
+        for (int slot = 0; slot < DetachedCardCapacity; slot++)
+        {
+            Card detached = battle.DetachedCards[slot];
+            if (detached.Id == 0 || (detached.Flags & CardFlags.DeckCard) == 0)
+                continue;
+            if (IsDetachedCardHeld(in battle, slot)
+                || (detached.Flags & CardFlags.RemovedFromState) != 0)
+            {
+                continue;
+            }
+            int match = FindDeckCard(run, detached.Id, detached.Upgrade);
+            if (match < 0)
+                continue;
+            RunCard card = run.Deck.Cards[match];
+            RunReward reward = default;
+            reward.Type = RunRewardType.SpecialCard;
+            reward.OptionStart = run.ReserveRewardCards(1);
+            reward.OptionCount = 1;
+            reward.CardCount = 1;
+            reward.Flags = RunRewardFlags.Populated;
+            run.SetRewardCard(reward.OptionStart, card);
+            run.AddReward(reward);
+        }
+        // HeistPower.BeforeDeath adds one GoldReward(amount, wasGoldStolenBack) on the fat
+        // gremlin's death. Its owner is the enemy, so it is handled before the player-power pass.
+        bool heistPower = false;
+        if (battle.Outcome == Outcome.Victory)
+        {
+            for (int index = 0; index < battle.PowerCount; index++)
+            {
+                Power power = battle.Powers[index];
+                if (Registry.Power(power.Id).NativeId != "HEIST_POWER")
+                    continue;
+                heistPower = true;
+                RunReward reward = default;
+                reward.Type = RunRewardType.Gold;
+                reward.Amount = power.Amount;
+                reward.AmountMax = power.Amount;
+                reward.Flags = RunRewardFlags.Populated | RunRewardFlags.GoldStolenBack;
+                run.AddReward(reward);
+            }
+        }
+        if (!heistPower && battle.Outcome == Outcome.Victory
+            && battle.Counter(Counter.OutstandingStolenGold) == 0
+            && sourceGold > battle.Gold && run.Rooms.Count != 0)
+        {
+            RunRef model = run.Rooms.Items[run.Rooms.Count - 1].Model;
+            if (model.Kind == RunRefKind.Encounter
+                && table.Encounter(model.Id).NativeId.Contains("GREMLIN_MERC", StringComparison.Ordinal))
+            {
+                // HeistPower.BeforeDeath adds GoldReward(stolen, wasGoldStolenBack) when the fat
+                // gremlin dies. The terminal Battle may already have dropped the power; the
+                // source-vs-final gold delta is the stolen amount for this encounter.
+                RunReward reward = default;
+                reward.Type = RunRewardType.Gold;
+                reward.Amount = sourceGold - battle.Gold;
+                reward.AmountMax = reward.Amount;
+                reward.Flags = RunRewardFlags.Populated | RunRewardFlags.GoldStolenBack;
+                run.AddReward(reward);
+            }
+        }
+        // Powers that append extra rewards in AfterCombatEnd / after a successful Hunt.
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            Power power = battle.Powers[index];
+            if (power.Amount <= 0 || power.Owner != Limits.PlayerOwner)
+                continue;
+            string nativeId = Registry.Power(power.Id).NativeId;
+            switch (nativeId)
+            {
+                case "ROYALTIES_POWER":
+                {
+                    RunReward reward = default;
+                    reward.Type = RunRewardType.Gold;
+                    reward.Amount = power.Amount;
+                    reward.AmountMax = power.Amount;
+                    reward.Flags = RunRewardFlags.Populated;
+                    run.AddReward(reward);
+                    break;
+                }
+                case "THE_HUNT_POWER":
+                {
+                    for (int count = 0; count < power.Amount; count++)
+                    {
+                        RunReward reward = default;
+                        reward.Type = RunRewardType.Card;
+                        reward.CardCount = 3;
+                        reward.RaritySource = (byte)RoomRarity(roomType);
+                        run.AddReward(reward);
+                    }
+                    break;
+                }
+                case "FORBIDDEN_GRIMOIRE_POWER":
+                {
+                    for (int count = 0; count < power.Amount; count++)
+                    {
+                        RunReward reward = default;
+                        reward.Type = RunRewardType.CardRemoval;
+                        reward.Flags = RunRewardFlags.Populated;
+                        run.AddReward(reward);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    private static RoomRarityOdds RoomRarity(RunRoomType roomType) => roomType switch
+    {
+        RunRoomType.Elite => RoomRarityOdds.Elite,
+        RunRoomType.Boss => RoomRarityOdds.Boss,
+        _ => RoomRarityOdds.Regular,
+    };
+
+    private static float GoldProportion(in Battle battle, ContentEncounter encounter)
+    {
+        if (!encounter.CustomGoldProportion)
+        {
+            int escaped = 0;
+            for (int index = 0; index < battle.EnemyCount; index++)
+            {
+                if ((battle.Enemies[index].Flags & EnemyFlags.Escaped) != 0)
+                    escaped++;
+            }
+            return battle.EnemyCount == 0 ? 1f : 1f - (float)escaped / battle.EnemyCount;
+        }
+        int escapedFat = 0;
+        for (int index = 0; index < battle.EnemyCount; index++)
+        {
+            if ((battle.Enemies[index].Flags & EnemyFlags.Escaped) != 0
+                && Registry.Monster(battle.Enemies[index].MonsterId).NativeId == "FAT_GREMLIN")
+            {
+                escapedFat++;
+            }
+        }
+        if (escapedFat == 0)
+            return 1f;
+        return battle.Counter(Counter.OutstandingStolenGold) > 0 ? 0f : 0.5f;
     }
 
     private static RunRoomType CurrentRoomType(in RunState run)
@@ -154,15 +312,12 @@ public static class RunCombatWriteback
             // A referenced card is still held. An unreferenced card that never lost its
             // RemovedFromState marker belonged to an escaped thief and is lost; a returned card
             // has the marker cleared by the death removal and native appended it to the deck end.
-            if (IsDetachedCardHeld(in battle, slot)
-                || (detached.Flags & CardFlags.RemovedFromState) != 0)
-            {
-                RemoveDeckCardAt(ref run, match);
-            }
-            else
-            {
-                MoveDeckCardToEnd(ref run, match);
-            }
+            // SwipePower.BeforeDeath adds the returned DeckVersion to the run card scope, not to
+            // the player's deck; the card only re-enters the deck when the SpecialCardReward is
+            // claimed. A still-held (escaped) card is likewise gone from the deck. Either way the
+            // write-back must remove it here.
+            _ = IsDetachedCardHeld(in battle, slot);
+            RemoveDeckCardAt(ref run, match);
         }
     }
 
@@ -175,14 +330,6 @@ public static class RunCombatWriteback
                 return true;
         }
         return false;
-    }
-
-    private static void MoveDeckCardToEnd(ref RunState run, int index)
-    {
-        RunCard card = run.Deck.Cards[index];
-        for (int move = index; move + 1 < run.Deck.Count; move++)
-            run.Deck.Cards[move] = run.Deck.Cards[move + 1];
-        run.Deck.Cards[run.Deck.Count - 1] = card;
     }
 
     private static void ApplyPersistentGrowth(ref RunState run, in Battle battle, ContentTable table)

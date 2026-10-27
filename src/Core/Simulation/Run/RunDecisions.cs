@@ -19,7 +19,11 @@ public struct RunDecisionOption
     public RunDecisionOptionKind Kind;
     public byte Index;
     public RunMapPointType PointType;
-    public byte _padding;
+    public RunRewardType RewardType;
+    public byte Upgrade;
+    public byte HasEnchantment;
+    public ushort EnchantmentId;
+    public short EnchantmentAmount;
     public RunCoord Coord;
     /// <summary>Card/relic/potion/event target when the option names a model.</summary>
     public RunRef Model;
@@ -42,6 +46,7 @@ public enum RunDecisionOptionKind : byte
     CardRemoval = 9,
     RestSiteOption = 10,
     BossRelic = 11,
+    Reroll = 12,
 }
 
 [InlineArray(RunLimits.DecisionOptions)]
@@ -79,6 +84,20 @@ public struct RunDecisionRequest
             request.Kind = RunDecision.GameOver;
             return request;
         }
+        switch (state.Rewards.Stage)
+        {
+            case RunRewardStage.List:
+                return CaptureRewardList(in state);
+            case RunRewardStage.Card:
+                return CaptureCardReward(in state);
+            case RunRewardStage.PotionDiscard:
+                return CapturePotionDiscard(in state);
+        }
+        if (state.Rewards.Generated == 0 && HasPendingCombatRewards(in state))
+        {
+            request.Kind = RunDecision.CombatReward;
+            return request;
+        }
         if (!RunTravel.CanTravel(in state))
         {
             // The importer reports MapPoint for a MapRoom; with no legal point the run is between
@@ -103,6 +122,114 @@ public struct RunDecisionRequest
         request.OptionCount = checked((byte)count);
         return request;
     }
+
+    private static bool HasPendingCombatRewards(in RunState state)
+    {
+        if (state.Rooms.Count == 0)
+            return false;
+        RunRoom room = state.Rooms.Items[state.Rooms.Count - 1];
+        return room.IsPreFinished != 0
+            && room.RoomType is RunRoomType.Monster or RunRoomType.Elite or RunRoomType.Boss;
+    }
+
+    private static RunDecisionRequest CaptureRewardList(in RunState state)
+    {
+        RunDecisionRequest request = default;
+        request.Kind = RunDecision.CombatReward;
+        int count = 0;
+        for (int index = 0; index < state.Rewards.Count; index++)
+        {
+            RunReward reward = state.Rewards.Items[index];
+            RunDecisionOption option = default;
+            option.Kind = RunDecisionOptionKind.Reward;
+            option.Index = checked((byte)index);
+            option.RewardType = reward.Type;
+            option.Amount = reward.Amount;
+            switch (reward.Type)
+            {
+                case RunRewardType.Potion:
+                    option.Model = new RunRef(RunRefKind.Potion, reward.ModelId);
+                    break;
+                case RunRewardType.Relic:
+                    option.Model = new RunRef(RunRefKind.Relic, reward.ModelId);
+                    break;
+                case RunRewardType.Card:
+                case RunRewardType.SpecialCard when reward.OptionCount != 0:
+                    RunCard card = state.Rewards.Choices[reward.OptionStart];
+                    option.Model = new RunRef(RunRefKind.Card, card.Id);
+                    option.Upgrade = card.Upgrade;
+                    option.HasEnchantment = card.HasEnchantment;
+                    option.EnchantmentId = card.EnchantmentId;
+                    option.EnchantmentAmount = card.EnchantmentAmount;
+                    break;
+            }
+            request.Options[count++] = option;
+        }
+        RunDecisionOption leave = default;
+        leave.Kind = RunDecisionOptionKind.Skip;
+        leave.Index = checked((byte)count);
+        request.Options[count++] = leave;
+        request.OptionCount = checked((byte)count);
+        return request;
+    }
+
+    private static RunDecisionRequest CaptureCardReward(in RunState state)
+    {
+        RunDecisionRequest request = default;
+        request.Kind = RunDecision.CardReward;
+        RunReward reward = state.Rewards.Items[state.Rewards.ChoiceIndex];
+        int count = 0;
+        for (int index = 0; index < state.Rewards.ChoiceCount; index++)
+        {
+            RunCard card = state.Rewards.Choices[reward.OptionStart + index];
+            RunDecisionOption option = default;
+            option.Kind = RunDecisionOptionKind.Card;
+            option.Index = checked((byte)index);
+            option.Model = new RunRef(RunRefKind.Card, card.Id);
+            option.Upgrade = card.Upgrade;
+            option.HasEnchantment = card.HasEnchantment;
+            option.EnchantmentId = card.EnchantmentId;
+            option.EnchantmentAmount = card.EnchantmentAmount;
+            request.Options[count++] = option;
+        }
+        RunDecisionOption skip = default;
+        skip.Kind = RunDecisionOptionKind.Skip;
+        skip.Index = checked((byte)count);
+        request.Options[count++] = skip;
+        if ((reward.Flags & RunRewardFlags.CardCanReroll) != 0)
+        {
+            RunDecisionOption reroll = default;
+            reroll.Kind = RunDecisionOptionKind.Reroll;
+            reroll.Index = checked((byte)count);
+            request.Options[count++] = reroll;
+        }
+        request.OptionCount = checked((byte)count);
+        return request;
+    }
+
+    private static RunDecisionRequest CapturePotionDiscard(in RunState state)
+    {
+        RunDecisionRequest request = default;
+        request.Kind = RunDecision.PotionDiscard;
+        int count = 0;
+        for (int slot = 0; slot < state.Player.Potions.Count; slot++)
+        {
+            RunPotion potion = state.Player.Potions.Items[slot];
+            if (potion.Present == 0)
+                continue;
+            RunDecisionOption option = default;
+            option.Kind = RunDecisionOptionKind.Potion;
+            option.Index = checked((byte)slot);
+            option.Model = new RunRef(RunRefKind.Potion, potion.Id);
+            request.Options[count++] = option;
+        }
+        RunDecisionOption skip = default;
+        skip.Kind = RunDecisionOptionKind.Skip;
+        skip.Index = checked((byte)count);
+        request.Options[count++] = skip;
+        request.OptionCount = checked((byte)count);
+        return request;
+    }
 }
 
 /// <summary>An action the run host asks the kernel to take.</summary>
@@ -119,6 +246,8 @@ public enum RunActionKind : byte
     RemoveCard = 9,
     RestSiteOption = 10,
     ChooseBossRelic = 11,
+    LeaveRewards = 12,
+    RerollCardReward = 13,
 }
 
 /// <summary>
@@ -175,6 +304,7 @@ public enum RunStepReject : byte
     RoomStackActive = 9,
     CombatUnsupported = 10,
     CorruptMap = 11,
+    NotRewardDecision = 12,
 }
 
 /// <summary>Stable reason code of an advancing but incomplete <see cref="RunStepStatus.UnsupportedRoom"/>.</summary>
@@ -197,6 +327,7 @@ public static class RunStepReason
     public const string RoomStackActive = "room-stack-active";
     public const string CombatUnsupported = "combat-unsupported";
     public const string CorruptMap = "corrupt-map";
+    public const string NotRewardDecision = "not-reward-decision";
 }
 
 /// <summary>Result of one run step. The state itself is updated through <c>ref</c> on success.</summary>

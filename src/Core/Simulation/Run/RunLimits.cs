@@ -103,4 +103,16 @@ public static class RunLimits
     /// or deck page); 32 is above the observed single-player maximum.
     /// </summary>
     public const int DecisionOptions = 32;
+
+    /// <summary>
+    /// Rewards in one post-combat set. Native has no hard cap (The Hunt can append one card reward
+    /// per successful kill); 16 is the explicit overflow guard for this boundary.
+    /// </summary>
+    public const int Rewards = 16;
+
+    /// <summary>
+    /// Card options stored for all pending card/special-card rewards. Two combat card rewards with
+    /// Lasting Candy's fourth option, plus The Hunt extras, fit well below 16.
+    /// </summary>
+    public const int RewardCardOptions = 16;
 }

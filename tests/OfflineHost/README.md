@@ -339,6 +339,33 @@ done
 `[scenario] scenario.validate` 之类的最后阶段误记为错误原因。逐场与实机比较的口径见
 [`docs/testing.md`](../../docs/testing.md) 6.7 节，内存预算与计时见 6.8 节。
 
+## 战后奖励与多步整局对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --reward-compare --reward-kind natural --reward-seeds 40 --reward-jobs 8 --reward-shard 0 2
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --reward-compare --reward-kind d1 --reward-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --reward-compare --reward-kind run --reward-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --reward-compare --reward-kind pilot --reward-jobs 8 --reward-shard 0 4
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --reward-compare --reward-kind encounter-pilot --reward-jobs 8 --reward-shard 0 2
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --reward-compare --reward-kind run-pilot --reward-jobs 8
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --reward-compare --reward-kind thief --reward-jobs 8
+```
+
+`natural` 从新局第一场普通战出发；`d1` 复用 R2a-3 的 410 个冻结战斗根；`pilot` 用 Low 档
+`CombatPilot` 打完 D1；`encounter-pilot` 用自然新局强制精英/Boss 遭遇；`run`/`run-pilot` 串起地图选点、
+战斗、写回、奖励、回地图，遇到商店/事件等未实现房间停止；`thief` 专项尝试盗贼归还卡。每个合法奖励选项从同一份
+`SerializableRun` 快照恢复后单步比较；原版动作用 `RewardsCmd`/`RewardsSetSynchronizer`/
+测试 `ICardSelector`/`PotionCmd`，不读界面。`--reward-root <root>` 与
+`--reward-character <name> --reward-ascension <n> --reward-seed <seed> --reward-preset
+empty|all` 跑单个用例。详细结果见 [测试与验证](../../docs/testing.md) 6.17。
+
 ## 与参考转储对照
 
 ```bash

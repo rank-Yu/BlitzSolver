@@ -4,6 +4,7 @@
 // compilation reuse the helpers of RulesCompiler so the native compiler and the run-layer builder
 // share one content interpretation.
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
@@ -11,13 +12,20 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Ascension;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.Relics;
+using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.CardPools;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
+using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Models.Enchantments;
+using MegaCrit.Sts2.Core.Odds;
+using MegaCrit.Sts2.Core.Models.Potions;
+using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.PotionPools;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Unlocks;
@@ -80,6 +88,21 @@ public static class ContentTableExporter
             MapRules = NewRunContentExporter.ExportMapRules(ascension),
             BaseOdds = NewRunContentExporter.ExportOdds(),
             AscensionRules = NewRunContentExporter.ExportAscensionRules(),
+            RewardRules = ExportRewardRules(ascension),
+            TutorialRewards = ExportTutorialRewards(),
+            RelicRewardFacts = ExportRelicRewardFacts(),
+            CardRewardHooks = ExportHookMasks(Registry.CardCount, static id =>
+                RulesCompiler.CanonicalCardModels.TryGetValue(Registry.Card(id).NativeId,
+                    out CardModel? model) ? model.GetType() : null,
+                static id => Registry.Card(id).NativeId),
+            EnchantmentRewardHooks = ExportHookMasks(Registry.EnchantmentCount, static id =>
+                CanonicalEnchantmentModels.TryGetValue(Registry.Enchantment(id).NativeId,
+                    out EnchantmentModel? model) ? model.GetType() : null,
+                static id => Registry.Enchantment(id).NativeId),
+            PotionRewardHooks = ExportHookMasks(Registry.PotionCount, static id =>
+                RulesCompiler.CanonicalPotionModels.TryGetValue(Registry.Potion(id).NativeId,
+                    out PotionModel? model) ? model.GetType() : null,
+                static id => Registry.Potion(id).NativeId),
             NeowEpoch = NewRunContentExporter.ExportNeowEpoch(),
             MapHookRelics = NewRunContentExporter.ExportMapHookRelics(),
             MapHookCards = NewRunContentExporter.ExportMapHookCards(),
@@ -134,11 +157,22 @@ public static class ContentTableExporter
             }
             int maxUpgrade = canonical.MaxUpgradeLevel;
             CardStats[] levels = new CardStats[maxUpgrade + 1];
+            RunPropertyBag[] defaultProperties = new RunPropertyBag[maxUpgrade + 1];
             int upgrade = 0;
             try
             {
                 for (; upgrade <= maxUpgrade; upgrade++)
+                {
                     levels[upgrade] = RulesCompiler.CanonicalStats(canonical, upgrade, scratch);
+                    CardModel mutable = canonical.ToMutable();
+                    for (int level = 0; level < upgrade; level++)
+                    {
+                        mutable.UpgradeInternal();
+                        mutable.FinalizeUpgradeInternal();
+                    }
+                    defaultProperties[upgrade] = RunStateImporter.EncodeProperties(
+                        mutable.ToSerializable().Props, RunLimits.CardPropertyBytes, def.NativeId);
+                }
             }
             catch (UnsupportedImportException error)
             {
@@ -149,7 +183,11 @@ public static class ContentTableExporter
                 };
                 continue;
             }
-            cards[id] = new ContentCard { Levels = levels };
+            cards[id] = new ContentCard
+            {
+                Levels = levels,
+                DefaultProperties = defaultProperties,
+            };
         }
         return cards;
     }
@@ -660,6 +698,10 @@ public static class ContentTableExporter
                     RoomType = (RunRoomType)(int)encounter.RoomType,
                     IsWeak = encounter.IsWeak,
                     TagMask = ExportEncounterTags(encounter),
+                    ShouldGiveRewards = encounter.ShouldGiveRewards,
+                    MinGoldByAscension = ExportEncounterGold(encounter, ascension, minimum: true),
+                    MaxGoldByAscension = ExportEncounterGold(encounter, ascension, minimum: false),
+                    CustomGoldProportion = HasCustomGoldProportion(encounter),
                     UnsupportedReason = unsupportedReason,
                     UnsupportedDetail = unsupportedDetail,
                 };
@@ -671,6 +713,28 @@ public static class ContentTableExporter
         }
         return encounters;
     }
+
+    private static int[] ExportEncounterGold(EncounterModel encounter, ScratchAscension? ascension,
+        bool minimum)
+    {
+        int[] values = new int[ContentTable.AscensionCount];
+        for (int level = 0; level < values.Length; level++)
+        {
+            if (ascension == null)
+            {
+                values[level] = minimum ? encounter.MinGoldReward : encounter.MaxGoldReward;
+                continue;
+            }
+            ascension.Set(level);
+            values[level] = minimum ? encounter.MinGoldReward : encounter.MaxGoldReward;
+        }
+        ascension?.Set(0);
+        return values;
+    }
+
+    private static bool HasCustomGoldProportion(EncounterModel encounter)
+        => encounter.GetType().GetMethod(nameof(EncounterModel.CalculateGoldProportion),
+            BindingFlags.Instance | BindingFlags.Public)?.DeclaringType != typeof(EncounterModel);
 
     private static ulong ExportEncounterTags(EncounterModel encounter)
     {
@@ -713,6 +777,14 @@ public static class ContentTableExporter
             RoomType = canonical == null ? RunRoomType.Unassigned : (RunRoomType)(int)canonical.RoomType,
             IsWeak = canonical?.IsWeak ?? false,
             TagMask = canonical == null ? 0UL : ExportEncounterTags(canonical),
+            ShouldGiveRewards = canonical?.ShouldGiveRewards ?? true,
+            MinGoldByAscension = canonical == null
+                ? new int[ContentTable.AscensionCount]
+                : ExportEncounterGold(canonical, null, minimum: true),
+            MaxGoldByAscension = canonical == null
+                ? new int[ContentTable.AscensionCount]
+                : ExportEncounterGold(canonical, null, minimum: false),
+            CustomGoldProportion = canonical != null && HasCustomGoldProportion(canonical),
             UnsupportedReason = reason,
             UnsupportedDetail = detail,
         };
@@ -878,4 +950,465 @@ public static class ContentTableExporter
                    BindingFlags.Instance | BindingFlags.NonPublic)
                 ?? throw new MissingFieldException(typeof(RunManager).FullName, property);
     }
+
+    // ---------------------------------------------------------------- reward content
+
+    private static ContentRewardRules ExportRewardRules(ScratchAscension ascension)
+    {
+        ascension.Set(0);
+        ContentCardRarityOdds normal = new()
+        {
+            Rare = (float)InvokeBaseOdds(CardRarityOddsType.RegularEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare),
+            Uncommon = (float)InvokeBaseOdds(CardRarityOddsType.RegularEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon),
+        };
+        ContentCardRarityOdds elite = new()
+        {
+            Rare = (float)InvokeBaseOdds(CardRarityOddsType.EliteEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare),
+            Uncommon = (float)InvokeBaseOdds(CardRarityOddsType.EliteEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon),
+        };
+        ContentCardRarityOdds boss = new()
+        {
+            Rare = (float)InvokeBaseOdds(CardRarityOddsType.BossEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare),
+            Uncommon = (float)InvokeBaseOdds(CardRarityOddsType.BossEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon),
+        };
+        float rarityGrowth = new CardRarityOdds(new MegaCrit.Sts2.Core.Random.Rng(0UL)).RarityGrowth;
+        float upgradeScaling = (float)ReadStaticProperty<decimal>(typeof(CardFactory),
+            "UpgradedCardOddScaling");
+        ascension.Set((int)AscensionLevel.Scarcity);
+        ContentCardRarityOdds scarcityNormal = new()
+        {
+            Rare = (float)InvokeBaseOdds(CardRarityOddsType.RegularEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare),
+            Uncommon = (float)InvokeBaseOdds(CardRarityOddsType.RegularEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon),
+        };
+        ContentCardRarityOdds scarcityElite = new()
+        {
+            Rare = (float)InvokeBaseOdds(CardRarityOddsType.EliteEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare),
+            Uncommon = (float)InvokeBaseOdds(CardRarityOddsType.EliteEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon),
+        };
+        ContentCardRarityOdds scarcityBoss = new()
+        {
+            Rare = (float)InvokeBaseOdds(CardRarityOddsType.BossEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare),
+            Uncommon = (float)InvokeBaseOdds(CardRarityOddsType.BossEncounter,
+                MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon),
+        };
+        float scarcityGrowth = new CardRarityOdds(new MegaCrit.Sts2.Core.Random.Rng(0UL)).RarityGrowth;
+        float scarcityUpgrade = (float)ReadStaticProperty<decimal>(typeof(CardFactory),
+            "UpgradedCardOddScaling");
+
+        PotionRewardOdds potion = new(new MegaCrit.Sts2.Core.Random.Rng(0UL));
+        float[] potionRoll = [.. FloatConstants(typeof(PotionRewardOdds).GetMethod(
+            nameof(PotionRewardOdds.Roll))!).Where(static value => value > 0f)];
+        float[] relicRoll = [.. FloatConstants(typeof(RelicFactory).GetMethod(
+            nameof(RelicFactory.RollRarity), [typeof(MegaCrit.Sts2.Core.Random.Rng)])!)
+            .Where(static value => value < 1f)];
+        float[] potionCreate = [.. FloatConstants(typeof(PotionFactory).GetMethod(
+            "CreateRandomPotions", BindingFlags.NonPublic | BindingFlags.Static)!)
+            .Where(static value => value < 1f)];
+        RequireConstantCount(nameof(PotionRewardOdds.Roll), potionRoll, 5);
+        if (potionRoll[0] != PotionRewardOdds.eliteBonus
+            || potionRoll[2] != 1f
+            || potionRoll[^2] != potionRoll[^1])
+        {
+            throw new InvalidDataException(
+                $"PotionRewardOdds.Roll 的常量结构不符：{string.Join(',', potionRoll)}");
+        }
+        RequireThresholds(nameof(RelicFactory.RollRarity), relicRoll);
+        RequireThresholds("PotionFactory.CreateRandomPotions", potionCreate);
+        return new ContentRewardRules
+        {
+            PotionBaseOdds = potion.CurrentValue,
+            PotionPityStep = potionRoll[^1],
+            PotionEliteBonus = PotionRewardOdds.eliteBonus,
+            PotionEliteBonusScale = potionRoll[1],
+            RarityOffsetBase = ConstField(typeof(CardRarityOdds), "_baseRarityOffset"),
+            RarityOffsetMax = ConstField(typeof(CardRarityOdds), "_maxRarityOffset"),
+            Regular = normal,
+            Elite = elite,
+            Boss = boss,
+            ScarcityRegular = scarcityNormal,
+            ScarcityElite = scarcityElite,
+            ScarcityBoss = scarcityBoss,
+            RarityGrowth = rarityGrowth,
+            ScarcityRarityGrowth = scarcityGrowth,
+            UpgradeScaling = upgradeScaling,
+            ScarcityUpgradeScaling = scarcityUpgrade,
+            RelicCommonThreshold = relicRoll[0],
+            RelicUncommonThreshold = relicRoll[1],
+            PotionRareThreshold = potionCreate[0],
+            PotionUncommonThreshold = potionCreate[1],
+        };
+    }
+
+    private static void RequireConstantCount(string method, float[] values, int expected)
+    {
+        if (values.Length != expected)
+        {
+            throw new InvalidDataException(
+                $"{method} 过滤后的常量个数是 {values.Length}，预期 {expected}：" +
+                string.Join(',', values));
+        }
+    }
+
+    private static void RequireThresholds(string method, float[] values)
+    {
+        RequireConstantCount(method, values, 2);
+        if (!(values[0] > 0f && values[0] < values[1] && values[1] < 1f))
+        {
+            throw new InvalidDataException(
+                $"{method} 的稀有度阈值不是 (0,1) 内的严格递增序列：" +
+                string.Join(',', values));
+        }
+    }
+
+    private static object InvokeBaseOdds(CardRarityOddsType type,
+        MegaCrit.Sts2.Core.Entities.Cards.CardRarity rarity)
+    {
+        MethodInfo method = typeof(CardRarityOdds).GetMethod("GetBaseOdds",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(typeof(CardRarityOdds).FullName, "GetBaseOdds");
+        return method.Invoke(null, [type, rarity])
+            ?? throw new InvalidDataException("CardRarityOdds.GetBaseOdds 返回空。");
+    }
+
+    private static T ReadStaticProperty<T>(Type type, string name)
+    {
+        PropertyInfo property = type.GetProperty(name, BindingFlags.NonPublic | BindingFlags.Public
+            | BindingFlags.Static)
+            ?? throw new MissingMemberException(type.FullName, name);
+        return (T)(property.GetValue(null)
+            ?? throw new InvalidDataException($"{type.Name}.{name} 返回空。"));
+    }
+
+    private static float ConstField(Type type, string name)
+    {
+        FieldInfo field = type.GetField(name, BindingFlags.NonPublic | BindingFlags.Static
+            | BindingFlags.Public)
+            ?? throw new MissingFieldException(type.FullName, name);
+        return (float)(field.GetRawConstantValue()
+            ?? throw new InvalidDataException($"{type.Name}.{name} 不是常量。"));
+    }
+
+    /// <summary>
+    /// Reads every <c>ldc.r4</c>/<c>ldc.r8</c> literal of a method body in execution order. The
+    /// reward odds contain a few inline method-body constants that no field exposes; the content
+    /// table still has to carry the exact values rather than a Core literal.
+    /// </summary>
+    private static float[] FloatConstants(MethodBase method)
+    {
+        byte[] il = method.GetMethodBody()?.GetILAsByteArray()
+            ?? throw new InvalidDataException($"{method.DeclaringType?.Name}.{method.Name} 没有 IL。");
+        Dictionary<ushort, OpCode> opcodes = [];
+        foreach (FieldInfo field in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
+        {
+            if (field.GetValue(null) is OpCode opcode)
+                opcodes[(ushort)opcode.Value] = opcode;
+        }
+        List<float> values = [];
+        int offset = 0;
+        while (offset < il.Length)
+        {
+            ushort code = il[offset++];
+            if (code == 0xFE)
+                code = (ushort)(0xFE00 | il[offset++]);
+            OpCode opcode = opcodes.TryGetValue(code, out OpCode found)
+                ? found
+                : throw new InvalidDataException(
+                    $"{method.Name} 的 IL 含未知操作码 0x{code:X4}。");
+            if (opcode == OpCodes.Ldc_R4)
+            {
+                values.Add(BitConverter.ToSingle(il, offset));
+                offset += 4;
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_R8)
+            {
+                values.Add((float)BitConverter.ToDouble(il, offset));
+                offset += 8;
+                continue;
+            }
+            offset += OperandSize(opcode.OperandType, il, offset);
+        }
+        return [.. values];
+    }
+
+    private static int OperandSize(OperandType type, byte[] il, int offset) => type switch
+    {
+        OperandType.InlineNone => 0,
+        OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar => 1,
+        OperandType.InlineVar => 2,
+        OperandType.InlineBrTarget or OperandType.InlineField or OperandType.InlineI
+            or OperandType.InlineMethod or OperandType.InlineSig or OperandType.InlineString
+            or OperandType.InlineTok or OperandType.InlineType or OperandType.ShortInlineR => 4,
+        OperandType.InlineI8 or OperandType.InlineR => 8,
+        OperandType.InlineSwitch => 4 + 4 * BitConverter.ToInt32(il, offset),
+        _ => throw new InvalidDataException($"未知 IL 操作数类型 {type}。"),
+    };
+
+    private static ContentTutorialRewards ExportTutorialRewards()
+    {
+        static ContentTutorialCardOffer Offer(ushort[] cards, ushort potion = ContentTutorialCardOffer.NoPotion)
+            => new() { Cards = cards, Potion = potion };
+        ushort[] Cards<T1, T2, T3>() where T1 : CardModel where T2 : CardModel where T3 : CardModel
+            => [RequireCard(ModelDb.Card<T1>()), RequireCard(ModelDb.Card<T2>()),
+                RequireCard(ModelDb.Card<T3>())];
+        ushort Potion<T>() where T : PotionModel => RequirePotion(ModelDb.Potion<T>());
+        ushort Relic<T>() where T : RelicModel => RequireRelic(ModelDb.Relic<T>());
+        return new ContentTutorialRewards
+        {
+            MonsterGoldMin = GoldReward.defaultMinGoldAmount,
+            MonsterGoldMax = GoldReward.defaultMaxGoldAmount,
+            Monsters =
+            [
+                Offer(Cards<SetupStrike, Tremble, BloodWall>()),
+                Offer(Cards<Breakthrough, Inflame, Anger>()),
+                Offer(Cards<IronWave, Dismantle, Cinder>(), Potion<FirePotion>()),
+                Offer(Cards<Stomp, ShrugItOff, Armaments>()),
+                Offer(Cards<Thunderclap, SetupStrike, Rage>(), Potion<StrengthPotion>()),
+                Offer(Cards<BattleTrance, TrueGrit, Uppercut>()),
+                Offer(Cards<Bloodletting, Whirlwind, Tremble>(), Potion<EnergyPotion>()),
+            ],
+            EliteFirst = Offer(Cards<Bludgeon, Pyre, EvilEye>(), Potion<BlockPotion>()),
+            EliteSecond = Offer(Cards<Pillage, Rampage, FlameBarrier>()),
+            BossFirst = Offer(Cards<PrimalForce, DemonForm, Thrash>()),
+            EliteFirstRelic = Relic<Vajra>(),
+            EliteSecondRelic = Relic<OrnamentalFan>(),
+        };
+    }
+
+    private static ContentRelicRewardFacts?[] ExportRelicRewardFacts()
+    {
+        ContentRelicRewardFacts?[] facts = new ContentRelicRewardFacts?[Registry.RelicCount];
+        for (ushort id = 0; id < Registry.RelicCount; id++)
+        {
+            RelicDef def = Registry.Relic(id);
+            if (!RulesCompiler.CanonicalRelicModels.TryGetValue(def.NativeId, out RelicModel? canonical))
+                continue;
+            RelicModel mutable = canonical.ToMutable();
+            bool rollable = canonical.Rarity is RelicRarity.Common or RelicRarity.Uncommon
+                or RelicRarity.Rare or RelicRarity.Shop;
+            facts[id] = new ContentRelicRewardFacts
+            {
+                Allowed = RelicAllowed(canonical, def.NativeId),
+                Stackable = canonical.IsStackable,
+                InitialDisplayAmount = rollable ? mutable.DisplayAmount : 0,
+                DefaultProperties = RunStateImporter.EncodeProperties(
+                    mutable.ToSerializable().Props, RunLimits.RelicPropertyBytes, def.NativeId),
+                Obtain = RelicObtain(canonical),
+                RewardHooks = BuildRewardHookMask(canonical.GetType(), def.NativeId),
+            };
+        }
+        return facts;
+    }
+
+    private static ContentRelicAllowedKind RelicAllowed(RelicModel canonical, string nativeId)
+    {
+        bool overridden = Overrides(canonical.GetType(), typeof(RelicModel), "IsAllowed");
+        bool listed = RelicAllowedKinds.TryGetValue(nativeId, out ContentRelicAllowedKind kind);
+        if (overridden && !listed)
+            return ContentRelicAllowedKind.Unsupported;
+        if (!overridden && listed)
+            throw new InvalidDataException(
+                $"RelicAllowed 名单过期：{nativeId} 没有重写 IsAllowed。");
+        return overridden ? kind : ContentRelicAllowedKind.Always;
+    }
+
+    private static readonly Dictionary<string, ContentRelicAllowedKind> RelicAllowedKinds =
+        new(StringComparer.Ordinal)
+        {
+            ["MASSIVE_SCROLL"] = ContentRelicAllowedKind.Never,
+            ["LASTING_CANDY"] = ContentRelicAllowedKind.NotFirstRunIroncladBeforeAct3,
+            ["AMETHYST_AUBERGINE"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["BOOK_OF_FIVE_RINGS"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["BOWLER_HAT"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["DRAGON_FRUIT"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["FROZEN_EGG"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["GIRYA"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["JUZU_BRACELET"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["LUCKY_FYSH"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["MEAL_TICKET"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["MOLTEN_EGG"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["OLD_COIN"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["PLANISPHERE"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["SHOVEL"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["TOXIC_EGG"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["WHITE_BEAST_STATUE"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["WHITE_STAR"] = ContentRelicAllowedKind.BeforeAct3TreasureChest,
+            ["SILVER_CRUCIBLE"] = ContentRelicAllowedKind.Always,
+            ["WINGED_BOOTS"] = ContentRelicAllowedKind.Always,
+        };
+
+    private static ContentRelicObtainKind RelicObtain(RelicModel canonical)
+    {
+        bool overridden = Overrides(canonical.GetType(), typeof(RelicModel), "AfterObtained");
+        bool listed = ImplementedRelicObtains.Contains(canonical.Id.Entry);
+        if (overridden && !listed)
+            return ContentRelicObtainKind.Unsupported;
+        if (!overridden && listed)
+            throw new InvalidDataException(
+                $"RelicObtain 名单过期：{canonical.Id.Entry} 没有重写 AfterObtained。");
+        return overridden ? ContentRelicObtainKind.Implemented : ContentRelicObtainKind.SimpleAdd;
+    }
+
+    private static readonly HashSet<string> ImplementedRelicObtains = new(StringComparer.Ordinal)
+    {
+        "POTION_BELT", "STRAWBERRY", "MANGO", "PEAR", "LEES_WAFFLE", "OLD_COIN",
+        "BELT_BUCKLE", "WAR_PAINT", "WHETSTONE", "FAKE_MANGO", "FAKE_LEES_WAFFLE",
+        "GOLDEN_PEARL", "NUTRITIOUS_OYSTER", "LOOMING_FRUIT",
+    };
+
+    private static ContentRewardHookMask[] ExportHookMasks(int count,
+        Func<ushort, Type?> modelType, Func<ushort, string> nativeId)
+    {
+        ContentRewardHookMask[] masks = new ContentRewardHookMask[count];
+        for (ushort id = 0; id < count; id++)
+        {
+            Type? type = modelType(id);
+            masks[id] = type == null
+                ? new ContentRewardHookMask { Overridden = AllRewardHooks, Implemented = 0 }
+                : BuildRewardHookMask(type, nativeId(id));
+        }
+        return masks;
+    }
+
+    private static ContentRewardHookMask BuildRewardHookMask(Type modelType, string nativeId)
+    {
+        List<(ContentRewardHook Hook, bool Overridden, bool Implemented)> values = [];
+        foreach ((ContentRewardHook hook, string method, HashSet<string> implemented) in HookSpecs)
+        {
+            bool overridden = Overrides(modelType, typeof(AbstractModel), method);
+            bool listed = implemented.Contains(nativeId);
+            if (listed && !overridden)
+                throw new InvalidDataException(
+                    $"奖励 Hook 名单过期：{nativeId} 没有重写 {method}。");
+            values.Add((hook, overridden, listed));
+        }
+        return ContentRewardHookMask.From(values);
+    }
+
+    private static bool Overrides(Type modelType, Type baseType, string methodName)
+    {
+        MethodInfo? baseMethod = baseType.GetMethod(methodName,
+            BindingFlags.Instance | BindingFlags.Public)
+            ?? throw new MissingMethodException(baseType.FullName, methodName);
+        MethodInfo? method = modelType.GetMethod(methodName,
+            BindingFlags.Instance | BindingFlags.Public);
+        return method != null && method.DeclaringType != baseMethod.DeclaringType;
+    }
+
+    private static readonly uint AllRewardHooks =
+        (uint)(ContentRewardHook.TryModifyRewards | ContentRewardHook.TryModifyRewardsLate
+            | ContentRewardHook.AfterModifyingRewards
+            | ContentRewardHook.BeforeCombatRewardOffered
+            | ContentRewardHook.ModifyCardRewardCreationOptions
+            | ContentRewardHook.ModifyCardRewardCreationOptionsLate
+            | ContentRewardHook.TryModifyCardRewardOptions
+            | ContentRewardHook.TryModifyCardRewardOptionsLate
+            | ContentRewardHook.AfterModifyingCardRewardOptions
+            | ContentRewardHook.ModifyCardRewardUpgradeOdds
+            | ContentRewardHook.TryModifyCardRewardAlternatives
+            | ContentRewardHook.ShouldAllowSelectingMoreCardRewards
+            | ContentRewardHook.ShouldForcePotionReward
+            | ContentRewardHook.ShouldProcurePotion
+            | ContentRewardHook.AfterPotionProcured
+            | ContentRewardHook.AfterPotionDiscarded
+            | ContentRewardHook.AfterRewardTaken
+            | ContentRewardHook.ModifyGoldGained
+            | ContentRewardHook.AfterModifyingGoldGained
+            | ContentRewardHook.AfterGoldGained
+            | ContentRewardHook.ShouldAddToDeck
+            | ContentRewardHook.TryModifyCardBeingAddedToDeck
+            | ContentRewardHook.TryModifyCardBeingAddedToDeckLate
+            | ContentRewardHook.AfterCardChangedPiles
+            | ContentRewardHook.AfterCardChangedPilesLate
+            | ContentRewardHook.AfterCurrentHpChanged
+            | ContentRewardHook.ShouldProceedToNextMapPoint);
+
+    private static readonly HashSet<string> NoHooks = new(StringComparer.Ordinal);
+
+    private static readonly (ContentRewardHook Hook, string Method, HashSet<string> Implemented)[]
+        HookSpecs =
+        [
+            (ContentRewardHook.TryModifyRewards, "TryModifyRewards", Set(
+                "AMETHYST_AUBERGINE", "BLACK_STAR", "LAVA_ROCK", "PRAYER_WHEEL", "WHITE_STAR",
+                "WONGOS_MYSTERY_TICKET")),
+            (ContentRewardHook.TryModifyRewardsLate, "TryModifyRewardsLate", Set("DRIFTWOOD")),
+            (ContentRewardHook.AfterModifyingRewards, "AfterModifyingRewards", Set(
+                "AMETHYST_AUBERGINE", "WONGOS_MYSTERY_TICKET")),
+            (ContentRewardHook.BeforeCombatRewardOffered, "BeforeCombatRewardOffered",
+                Set("LASTING_CANDY")),
+            (ContentRewardHook.ModifyCardRewardCreationOptions,
+                "ModifyCardRewardCreationOptions", Set("DINGY_RUG", "PRISMATIC_GEM")),
+            (ContentRewardHook.ModifyCardRewardCreationOptionsLate,
+                "ModifyCardRewardCreationOptionsLate", NoHooks),
+            (ContentRewardHook.TryModifyCardRewardOptions, "TryModifyCardRewardOptions",
+                Set("LASTING_CANDY")),
+            (ContentRewardHook.TryModifyCardRewardOptionsLate, "TryModifyCardRewardOptionsLate",
+                Set("FROZEN_EGG", "MOLTEN_EGG", "TOXIC_EGG", "LAVA_LAMP")),
+            (ContentRewardHook.AfterModifyingCardRewardOptions,
+                "AfterModifyingCardRewardOptions", NoHooks),
+            (ContentRewardHook.ModifyCardRewardUpgradeOdds, "ModifyCardRewardUpgradeOdds",
+                NoHooks),
+            (ContentRewardHook.TryModifyCardRewardAlternatives,
+                "TryModifyCardRewardAlternatives", NoHooks),
+            (ContentRewardHook.ShouldAllowSelectingMoreCardRewards,
+                "ShouldAllowSelectingMoreCardRewards", NoHooks),
+            (ContentRewardHook.ShouldForcePotionReward, "ShouldForcePotionReward",
+                Set("WHITE_BEAST_STATUE")),
+            (ContentRewardHook.ShouldProcurePotion, "ShouldProcurePotion", Set("SOZU")),
+            (ContentRewardHook.AfterPotionProcured, "AfterPotionProcured", Set("BELT_BUCKLE")),
+            (ContentRewardHook.AfterPotionDiscarded, "AfterPotionDiscarded", Set("BELT_BUCKLE")),
+            (ContentRewardHook.AfterRewardTaken, "AfterRewardTaken", NoHooks),
+            (ContentRewardHook.ModifyGoldGained, "ModifyGoldGained",
+                Set("BOWLER_HAT", "ECTOPLASM")),
+            (ContentRewardHook.AfterModifyingGoldGained, "AfterModifyingGoldGained",
+                Set("BOWLER_HAT", "ECTOPLASM")),
+            (ContentRewardHook.AfterGoldGained, "AfterGoldGained", Set("DRAGON_FRUIT")),
+            (ContentRewardHook.ShouldAddToDeck, "ShouldAddToDeck", NoHooks),
+            (ContentRewardHook.TryModifyCardBeingAddedToDeck, "TryModifyCardBeingAddedToDeck",
+                Set("FROZEN_EGG", "MOLTEN_EGG", "TOXIC_EGG")),
+            (ContentRewardHook.TryModifyCardBeingAddedToDeckLate,
+                "TryModifyCardBeingAddedToDeckLate", NoHooks),
+            (ContentRewardHook.AfterCardChangedPiles, "AfterCardChangedPiles",
+                Set("BOOK_OF_FIVE_RINGS", "DARKSTONE_PERIAPT", "LUCKY_FYSH",
+                    "SOVEREIGN_BLADE")),
+            (ContentRewardHook.AfterCardChangedPilesLate, "AfterCardChangedPilesLate", NoHooks),
+            (ContentRewardHook.AfterCurrentHpChanged, "AfterCurrentHpChanged",
+                Set("MEAT_ON_THE_BONE", "RED_SKULL")),
+            (ContentRewardHook.ShouldProceedToNextMapPoint, "ShouldProceedToNextMapPoint",
+                NoHooks),
+        ];
+
+    private static HashSet<string> Set(params string[] values) => new(values, StringComparer.Ordinal);
+
+    private static readonly Dictionary<string, EnchantmentModel> CanonicalEnchantmentModels =
+        ModelDb.All.OfType<EnchantmentModel>()
+            .GroupBy(enchantment => enchantment.Id.Entry, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+    private static ushort RequireCard(CardModel card)
+        => Registry.TryCard(card.Id.Entry, out ushort id)
+            ? id
+            : throw new InvalidDataException($"教程奖励卡 {card.Id.Entry} 没有 Blitz 定义。");
+
+    private static ushort RequirePotion(PotionModel potion)
+        => Registry.TryPotion(potion.Id.Entry, out ushort id)
+            ? id
+            : throw new InvalidDataException($"教程奖励药水 {potion.Id.Entry} 没有 Blitz 定义。");
+
+    private static ushort RequireRelic(RelicModel relic)
+        => Registry.TryRelic(relic.Id.Entry, out ushort id)
+            ? id
+            : throw new InvalidDataException($"教程奖励遗物 {relic.Id.Entry} 没有 Blitz 定义。");
+
 }

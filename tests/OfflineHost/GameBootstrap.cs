@@ -2,6 +2,7 @@
 // at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors).
 // Adapted for OfflineHost: no CombatSolver assembly, no search-policy injection.
 using System.Reflection;
+using BlitzSolver.Simulation.Run;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -59,6 +60,11 @@ internal static class GameBootstrap
             args: [typeof(bool)]);
         Patch(typeof(MegaCrit.Sts2.Core.Nodes.HoverTips.NHoverTipSet), nameof(MegaCrit.Sts2.Core.Nodes.HoverTips.NHoverTipSet.Clear),
             prefix: nameof(SkipPrefix));
+        // CardRewardAlternative's constructor builds Godot StringName hotkeys; TestMode never
+        // shows the alternative buttons, so the offline host has no alternatives.
+        Patch(typeof(MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative),
+            nameof(MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative.Generate),
+            prefix: nameof(NoCardRewardAlternativesPrefix));
         Patch(typeof(Godot.ResourceLoader), nameof(Godot.ResourceLoader.Load),
             prefix: nameof(NullResourcePrefix),
             args: [typeof(string), typeof(string), typeof(Godot.ResourceLoader.CacheMode)],
@@ -188,6 +194,32 @@ internal static class GameBootstrap
             3000uL => "Test Client 3",
             _ => playerId.ToString(),
         };
+        return false;
+    }
+
+    private static bool NoCardRewardAlternativesPrefix(
+        MegaCrit.Sts2.Core.Rewards.CardReward cardReward,
+        ref IReadOnlyList<MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative> __result)
+    {
+        // The bypass must not hide a listener that would have added alternatives. PaelsWing and
+        // future models override TryModifyCardRewardAlternatives; the offline host cannot build
+        // the Godot hotkey objects those alternatives need, so fail loudly instead.
+        Type baseType = typeof(MegaCrit.Sts2.Core.Models.AbstractModel);
+        MethodInfo? baseMethod = baseType.GetMethod("TryModifyCardRewardAlternatives",
+            BindingFlags.Instance | BindingFlags.Public);
+        foreach (MegaCrit.Sts2.Core.Models.AbstractModel model in
+                 cardReward.Player.RunState.IterateHookListeners(null))
+        {
+            MethodInfo? method = model.GetType().GetMethod("TryModifyCardRewardAlternatives",
+                BindingFlags.Instance | BindingFlags.Public);
+            if (method != null && method.DeclaringType != baseMethod?.DeclaringType)
+            {
+                throw new ContentUnavailableException("alternative-hidden",
+                    $"离线宿主禁止隐藏卡牌奖励 alternatives：{model.Id} 重写了 " +
+                    "TryModifyCardRewardAlternatives。");
+            }
+        }
+        __result = [];
         return false;
     }
 

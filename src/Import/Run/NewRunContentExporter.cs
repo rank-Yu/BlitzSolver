@@ -448,6 +448,8 @@ internal static class NewRunContentExporter
             AscendersBaneLevel = (int)AscensionLevel.AscendersBane,
             AscendersBaneCardId = bane,
             DoubleBossLevel = (int)AscensionLevel.DoubleBoss,
+            PovertyLevel = (int)AscensionLevel.Poverty,
+            ScarcityLevel = (int)AscensionLevel.Scarcity,
         };
     }
 

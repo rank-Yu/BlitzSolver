@@ -3,6 +3,7 @@
 // not call RunStateImporter, so a natural-start comparison exercises the importer against a second
 // reader rather than against itself.
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
@@ -13,6 +14,7 @@ using MegaCrit.Sts2.Core.Entities.Rngs;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
+using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Runs.History;
@@ -24,7 +26,10 @@ namespace BlitzSolver.TestHost;
 
 internal static class NativeRunDump
 {
-    public static string Capture(NativeRunState native, Player player)
+    public static string Capture(NativeRunState native, Player player, RewardsSet? rewards = null,
+        IReadOnlyList<Reward>? rewardList = null, RunRewardStage rewardStage = RunRewardStage.List,
+        int rewardChoiceIndex = 0, int rewardChoiceCount = 0,
+        IReadOnlyDictionary<int, int>? relicDisplayOverrides = null)
     {
         StringBuilder text = new(16 * 1024);
         void Line(string key, string value)
@@ -84,12 +89,30 @@ internal static class NativeRunDump
             Line($"deck.{index}", FormatCard(card.ToSerializable()));
         }
         for (int index = 0; index < player.Relics.Count; index++)
-            Line($"relic.{index}", FormatRelic(player.Relics[index]));
+        {
+            int display = relicDisplayOverrides != null
+                && relicDisplayOverrides.TryGetValue(index, out int overrideDisplay)
+                    ? overrideDisplay
+                    : player.Relics[index].DisplayAmount;
+            Line($"relic.{index}", FormatRelic(player.Relics[index], display));
+        }
         for (int index = 0; index < player.MaxPotionCount; index++)
         {
             PotionModel? potion = player.GetPotionAtSlotIndex(index);
             Line($"potion.{index}", potion?.Id.Entry ?? "-");
         }
+        IReadOnlyList<Reward> rewardItems = rewardList ?? rewards?.Rewards
+            ?? (native.CurrentRoom is CombatRoom rewardRoom &&
+                rewardRoom.ExtraRewards.TryGetValue(player, out List<Reward>? extras)
+                    ? extras
+                    : []);
+        Line("rewards.stage", rewards != null ? rewardStage.ToString() : "None");
+        Int("rewards.generated", rewards != null ? 1 : 0);
+        Int("rewards.count", rewardItems.Count);
+        Int("rewards.choiceIndex", rewardChoiceIndex);
+        Int("rewards.choiceCount", rewardChoiceCount);
+        for (int index = 0; index < rewardItems.Count; index++)
+            Line($"rewards.{index}", FormatReward(rewardItems[index]));
         DumpBag(text, "sharedBag", native.SharedRelicGrabBag);
         DumpBag(text, "playerBag", player.RelicGrabBag);
 
@@ -184,7 +207,7 @@ internal static class NativeRunDump
                 ? parentId.Entry
                 : "-";
             Line($"room.{index}",
-                $"{room.RoomType},{model},{parent},pre={(room.IsPreFinished ? 1 : 0)}");
+                $"{room.RoomType},{model},{parent},pre={(room.IsPreFinished ? 1 : 0)},gold={F(room is CombatRoom combatRoom ? combatRoom.GoldProportion : 1f)}");
         }
 
         RngState[] streams = new RngState[RunLimits.RngStreams];
@@ -225,6 +248,97 @@ internal static class NativeRunDump
                 $"{localEvent!.Id.Entry},{RunDump.Rng(Rng(localEvent.Rng!))}");
         }
         return text.ToString();
+    }
+
+    private static string FormatReward(Reward reward)
+    {
+        StringBuilder text = new();
+        int flags = 0;
+        if (reward.IsPopulated)
+            flags |= (int)RunRewardFlags.Populated;
+        switch (reward)
+        {
+            case GoldReward gold:
+            {
+                if (ReadPrivateField<bool>(gold, "_wasGoldStolenBack"))
+                    flags |= (int)RunRewardFlags.GoldStolenBack;
+                text.Append("Gold,flags=").Append(flags);
+                text.Append(",amount=").Append(gold.Amount);
+                text.Append(",amountMax=").Append(gold.Amount);
+                return text.ToString();
+            }
+            case PotionReward potion:
+                text.Append("Potion,flags=").Append(flags).Append(',')
+                    .Append(potion.Potion?.Id.Entry ?? "-");
+                return text.ToString();
+            case RelicReward relic:
+                text.Append("Relic,flags=").Append(flags).Append(',')
+                    .Append(relic.Relic?.Id.Entry ?? "-");
+                return text.ToString();
+            case CardReward cards:
+            {
+                CardCreationOptions options = ReadPrivateProperty<CardCreationOptions>(cards,
+                    "Options");
+                int desired = ReadPrivateProperty<int>(cards, "OptionCount");
+                if (cards.CanReroll)
+                    flags |= (int)RunRewardFlags.CardCanReroll;
+                if ((options.Flags & CardCreationFlags.IsFromCombat) != 0)
+                    flags |= (int)RunRewardFlags.CardFromCombat;
+                if (ReadPrivateField<bool>(cards, "_cardsWereManuallySet"))
+                    flags |= (int)RunRewardFlags.ManualCards;
+                text.Append("Card,flags=").Append(flags);
+                text.Append(",cardCount=").Append(desired);
+                text.Append(",rarity=").Append(options.RarityOdds switch
+                {
+                    CardRarityOddsType.EliteEncounter => "Elite",
+                    CardRarityOddsType.BossEncounter => "Boss",
+                    _ => "Regular",
+                });
+                List<CardModel> models = [.. cards.Cards];
+                text.Append(",options=").Append(models.Count);
+                text.Append(",cards=[");
+                for (int index = 0; index < models.Count; index++)
+                {
+                    if (index != 0)
+                        text.Append(';');
+                    text.Append(FormatCard(models[index].ToSerializable()));
+                }
+                return text.Append(']').ToString();
+            }
+            case SpecialCardReward special:
+            {
+                SerializableCard save = special.ToSerializable().SpecialCard
+                    ?? throw new InvalidDataException("SpecialCardReward 没有卡牌。");
+                text.Append("SpecialCard,flags=").Append(flags);
+                text.Append(",cardCount=1,rarity=Regular,options=1,cards=[");
+                text.Append(FormatCard(save)).Append(']');
+                return text.ToString();
+            }
+            case CardRemovalReward:
+                return $"CardRemoval,flags={flags}";
+            default:
+                throw new InvalidDataException($"未知奖励类型 {reward.GetType().Name}。");
+        }
+    }
+
+    private static T ReadPrivateProperty<T>(object target, string name)
+    {
+        PropertyInfo property = target.GetType().GetProperty(name,
+            System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new MissingMemberException(target.GetType().FullName, name);
+        return (T)(property.GetValue(target)
+            ?? throw new InvalidDataException($"{target.GetType().Name}.{name} 返回空。"));
+    }
+
+    private static T ReadPrivateField<T>(object target, string name)
+    {
+        FieldInfo field = target.GetType().GetField(name,
+            System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new MissingFieldException(target.GetType().FullName, name);
+        return (T)(field.GetValue(target)
+            ?? throw new InvalidDataException($"{target.GetType().Name}.{name} 返回空。"));
     }
 
     private static RunDecision DecisionFor(AbstractRoom? room) => room?.RoomType switch
@@ -271,14 +385,14 @@ internal static class NativeRunDump
         return text.ToString();
     }
 
-    private static string FormatRelic(RelicModel relic)
+    private static string FormatRelic(RelicModel relic, int display)
     {
         SerializableRelic save = relic.ToSerializable();
         int flags = (relic.IsWax ? 1 : 0) | (relic.IsMelted ? 2 : 0);
         StringBuilder text = new();
         text.Append(save.Id?.Entry ?? throw new InvalidDataException("遗物 id 为空。")).Append(',');
         text.Append((int)relic.Status).Append(',').Append(flags).Append(',');
-        text.Append(relic.StackCount).Append(',').Append(relic.DisplayAmount).Append(',');
+        text.Append(relic.StackCount).Append(',').Append(display).Append(',');
         text.Append(save.FloorAddedToDeck ?? 0).Append(",props=")
             .Append(FormatPropertyText(save.Props));
         return text.ToString();

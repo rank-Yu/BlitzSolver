@@ -37,9 +37,12 @@ public struct RunView
     public int TotalFloor;
     public RunDecision Decision;
     public byte DecisionOptionCount;
-    private byte _padding0;
+    /// <summary>Current reward-screen stage (None when no reward screen is open).</summary>
+    public RunRewardStage RewardStage;
+    /// <summary>Remaining rewards shown on the reward list (0 outside a reward list).</summary>
+    public byte RewardCount;
     private ushort _padding1;
-    /// <summary>Complete request, including every legal option (R2b-2: map points).</summary>
+    /// <summary>Complete request, including every legal option (map points and reward screens).</summary>
     public RunDecisionRequest Request;
     public PlayerView Player;
     public DeckView Deck;
@@ -69,6 +72,8 @@ public struct RunView
         view.TotalFloor = state.History.Count;
         view.Request = RunDecisionRequest.Capture(in state);
         view.Decision = view.Request.Kind;
+        view.RewardStage = state.Rewards.Stage;
+        view.RewardCount = state.Rewards.Count;
         view.DecisionOptionCount = view.Request.OptionCount;
         view.Player.Character = state.Player.Character;
         view.Player.CurrentHp = state.Player.CurrentHp;

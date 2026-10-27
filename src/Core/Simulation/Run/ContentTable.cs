@@ -49,6 +49,12 @@ public sealed class ContentUnavailableException(string reason, string detail)
 public sealed class ContentCard
 {
     public required CardStats[] Levels { get; init; }
+
+    /// <summary>
+    /// Saved properties of a freshly created mutable card at each upgrade level (native defaults
+    /// such as Genetic Algorithm's growth counters).
+    /// </summary>
+    public required RunPropertyBag[] DefaultProperties { get; init; }
 }
 
 /// <summary>
@@ -186,6 +192,27 @@ public sealed class ContentEncounter
     /// <summary>Native <c>EncounterModel.Tags</c> as a bit per <c>EncounterTag</c> value.</summary>
     public required ulong TagMask { get; init; }
 
+    /// <summary>Native <c>EncounterModel.ShouldGiveRewards</c>.</summary>
+    public required bool ShouldGiveRewards { get; init; }
+
+    /// <summary>Native <c>MinGoldReward</c> at each ascension level.</summary>
+    public required int[] MinGoldByAscension { get; init; }
+
+    /// <summary>Native <c>MaxGoldReward</c> at each ascension level.</summary>
+    public required int[] MaxGoldByAscension { get; init; }
+
+    /// <summary>
+    /// True when the encounter overrides <c>CalculateGoldProportion</c> with state the terminal
+    /// battle does not expose (GremlinMerc). Post-combat reward generation rejects these.
+    /// </summary>
+    public required bool CustomGoldProportion { get; init; }
+
+    public int MinGold(int ascension)
+        => MinGoldByAscension[Math.Clamp(ascension, 0, ContentTable.AscensionCount - 1)];
+
+    public int MaxGold(int ascension)
+        => MaxGoldByAscension[Math.Clamp(ascension, 0, ContentTable.AscensionCount - 1)];
+
     /// <summary>Stable reason when the encounter cannot be represented, otherwise null.</summary>
     public string? UnsupportedReason { get; init; }
 
@@ -288,6 +315,22 @@ public sealed class ContentTable : ICombatStartContent
     public required ContentOdds BaseOdds { get; init; }
 
     public required ContentAscensionRules AscensionRules { get; init; }
+
+    public required ContentRewardRules RewardRules { get; init; }
+
+    public required ContentTutorialRewards TutorialRewards { get; init; }
+
+    /// <summary>Reward-layer facts indexed by relic id.</summary>
+    public required ContentRelicRewardFacts?[] RelicRewardFacts { get; init; }
+
+    /// <summary>Reward-hook overrides of every card id.</summary>
+    public required ContentRewardHookMask[] CardRewardHooks { get; init; }
+
+    /// <summary>Reward-hook overrides of every enchantment id.</summary>
+    public required ContentRewardHookMask[] EnchantmentRewardHooks { get; init; }
+
+    /// <summary>Reward-hook overrides of every potion id.</summary>
+    public required ContentRewardHookMask[] PotionRewardHooks { get; init; }
 
     /// <summary>Epoch whose reveal sets <c>ExtraRunFields.StartedWithNeow</c>.</summary>
     public required ushort NeowEpoch { get; init; }

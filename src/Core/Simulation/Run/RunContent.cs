@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using BlitzSolver.Simulation.Combat;
 
 namespace BlitzSolver.Simulation.Run;
@@ -251,5 +252,228 @@ public sealed class ContentAscensionRules
 
     public required int DoubleBossLevel { get; init; }
 
+    public required int PovertyLevel { get; init; }
+
+    public required int ScarcityLevel { get; init; }
+
     public bool AtLeast(in RunState state, int level) => state.Ascension >= level;
+}
+
+/// <summary>Native base rare/uncommon odds of one <c>CardRarityOddsType</c>.</summary>
+public sealed class ContentCardRarityOdds
+{
+    public required float Rare { get; init; }
+
+    public required float Uncommon { get; init; }
+}
+
+/// <summary>
+/// Post-combat reward constants read from the native odds/factory code. The two ascension branches
+/// are exported separately because <c>Scarcity</c> changes the card rarity and upgrade numbers.
+/// </summary>
+public sealed class ContentRewardRules
+{
+    public required float PotionBaseOdds { get; init; }
+
+    public required float PotionPityStep { get; init; }
+
+    public required float PotionEliteBonus { get; init; }
+
+    public required float PotionEliteBonusScale { get; init; }
+
+    public required float RarityOffsetBase { get; init; }
+
+    public required float RarityOffsetMax { get; init; }
+
+    public required ContentCardRarityOdds Regular { get; init; }
+
+    public required ContentCardRarityOdds Elite { get; init; }
+
+    public required ContentCardRarityOdds Boss { get; init; }
+
+    public required ContentCardRarityOdds ScarcityRegular { get; init; }
+
+    public required ContentCardRarityOdds ScarcityElite { get; init; }
+
+    public required ContentCardRarityOdds ScarcityBoss { get; init; }
+
+    public required float RarityGrowth { get; init; }
+
+    public required float ScarcityRarityGrowth { get; init; }
+
+    public required float UpgradeScaling { get; init; }
+
+    public required float ScarcityUpgradeScaling { get; init; }
+
+    /// <summary><c>RelicFactory.RollRarity</c>: roll &lt; this is Common.</summary>
+    public required float RelicCommonThreshold { get; init; }
+
+    /// <summary><c>RelicFactory.RollRarity</c>: roll &lt; this is Uncommon, otherwise Rare.</summary>
+    public required float RelicUncommonThreshold { get; init; }
+
+    /// <summary><c>PotionFactory</c>: roll &lt;= this is Rare.</summary>
+    public required float PotionRareThreshold { get; init; }
+
+    /// <summary><c>PotionFactory</c>: roll &lt;= this is Uncommon, otherwise Common.</summary>
+    public required float PotionUncommonThreshold { get; init; }
+
+    public ContentCardRarityOdds Odds(RoomRarityOdds kind, bool scarcity) => kind switch
+    {
+        RoomRarityOdds.Regular => scarcity ? ScarcityRegular : Regular,
+        RoomRarityOdds.Elite => scarcity ? ScarcityElite : Elite,
+        RoomRarityOdds.Boss => scarcity ? ScarcityBoss : Boss,
+        _ => throw new UnsupportedException($"未知的卡牌稀有度来源 {(byte)kind}。"),
+    };
+}
+
+/// <summary>Which native <c>CardRarityOddsType</c> a combat room uses.</summary>
+public enum RoomRarityOdds : byte
+{
+    Regular = 0,
+    Elite = 1,
+    Boss = 2,
+}
+
+/// <summary>One tutorial monster/elite/boss card offer, with its fixed potion (if any).</summary>
+public sealed class ContentTutorialCardOffer
+{
+    public const ushort NoPotion = ushort.MaxValue;
+
+    public required ushort[] Cards { get; init; }
+
+    public required ushort Potion { get; init; }
+}
+
+/// <summary>
+/// First-run Ironclad tutorial rewards (<c>RewardsSet.TryGenerateTutorialRewards</c>). The fixed
+/// gold range is the native <c>GoldReward</c> default; elite/boss gold uses the encounter values.
+/// </summary>
+public sealed class ContentTutorialRewards
+{
+    public required int MonsterGoldMin { get; init; }
+
+    public required int MonsterGoldMax { get; init; }
+
+    /// <summary>Monster-room offers indexed by the monster-room count minus one (0..6).</summary>
+    public required ContentTutorialCardOffer[] Monsters { get; init; }
+
+    public required ContentTutorialCardOffer EliteFirst { get; init; }
+
+    public required ContentTutorialCardOffer EliteSecond { get; init; }
+
+    public required ContentTutorialCardOffer BossFirst { get; init; }
+
+    public required ushort EliteFirstRelic { get; init; }
+
+    public required ushort EliteSecondRelic { get; init; }
+}
+
+/// <summary>Native <c>RelicModel.IsAllowed</c> variants that affect the grab bag.</summary>
+public enum ContentRelicAllowedKind : byte
+{
+    Always = 0,
+    BeforeAct3TreasureChest = 1,
+    SinglePlayerOnly = 2,
+    NotFirstRunIroncladBeforeAct3 = 3,
+    Never = 4,
+    /// <summary>The relic overrides <c>IsAllowed</c> but is not in the exporter's mapping.</summary>
+    Unsupported = 5,
+}
+
+/// <summary>Whether a relic can be added by a reward without running native <c>AfterObtained</c>.</summary>
+public enum ContentRelicObtainKind : byte
+{
+    /// <summary>No <c>AfterObtained</c> override; the reward only adds the relic.</summary>
+    SimpleAdd = 0,
+    /// <summary>An <c>AfterObtained</c> override the run simulator implements explicitly.</summary>
+    Implemented = 1,
+    /// <summary>An <c>AfterObtained</c> override that is not represented; taking it is rejected.</summary>
+    Unsupported = 2,
+}
+
+/// <summary>
+/// Per-relic facts the reward layer needs. <see cref="InitialDisplayAmount"/> is the native
+/// <c>DisplayAmount</c> of a freshly created mutable relic.
+/// </summary>
+public sealed class ContentRelicRewardFacts
+{
+    public required ContentRelicAllowedKind Allowed { get; init; }
+
+    public required bool Stackable { get; init; }
+
+    public required int InitialDisplayAmount { get; init; }
+
+    public required ContentRelicObtainKind Obtain { get; init; }
+
+    /// <summary>Reward-hook overrides of this relic type.</summary>
+    public required ContentRewardHookMask RewardHooks { get; init; }
+
+    /// <summary>
+    /// Saved properties of a freshly created mutable relic (native default values, including
+    /// <c>false</c>/<c>0</c> entries the serializer always writes).
+    /// </summary>
+    public required RunPropertyBag DefaultProperties { get; init; }
+}
+
+/// <summary>
+/// Reward-flow <c>AbstractModel</c> hook bits. The content table records, per listener model,
+/// which bits the canonical type overrides (<see cref="Overridden"/>) and which of those the Core
+/// reward layer implements (<see cref="Implemented"/>). Any other override is unsupported and must
+/// reject instead of silently skipping.
+/// </summary>
+[Flags]
+public enum ContentRewardHook : uint
+{
+    None = 0,
+    TryModifyRewards = 1u << 0,
+    TryModifyRewardsLate = 1u << 1,
+    AfterModifyingRewards = 1u << 2,
+    BeforeCombatRewardOffered = 1u << 3,
+    ModifyCardRewardCreationOptions = 1u << 4,
+    ModifyCardRewardCreationOptionsLate = 1u << 5,
+    TryModifyCardRewardOptions = 1u << 6,
+    TryModifyCardRewardOptionsLate = 1u << 7,
+    AfterModifyingCardRewardOptions = 1u << 8,
+    ModifyCardRewardUpgradeOdds = 1u << 9,
+    TryModifyCardRewardAlternatives = 1u << 10,
+    ShouldAllowSelectingMoreCardRewards = 1u << 11,
+    ShouldForcePotionReward = 1u << 12,
+    ShouldProcurePotion = 1u << 13,
+    AfterPotionProcured = 1u << 14,
+    AfterPotionDiscarded = 1u << 15,
+    AfterRewardTaken = 1u << 16,
+    ModifyGoldGained = 1u << 17,
+    AfterModifyingGoldGained = 1u << 18,
+    AfterGoldGained = 1u << 19,
+    ShouldAddToDeck = 1u << 20,
+    TryModifyCardBeingAddedToDeck = 1u << 21,
+    TryModifyCardBeingAddedToDeckLate = 1u << 22,
+    AfterCardChangedPiles = 1u << 23,
+    AfterCardChangedPilesLate = 1u << 24,
+    AfterCurrentHpChanged = 1u << 25,
+    ShouldProceedToNextMapPoint = 1u << 26,
+}
+
+/// <summary>Overridden and implemented reward-hook bits of one listener model.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct ContentRewardHookMask
+{
+    public uint Overridden;
+    public uint Implemented;
+
+    public readonly uint Unsupported => Overridden & ~Implemented;
+
+    public static ContentRewardHookMask From(
+        IEnumerable<(ContentRewardHook Hook, bool Overridden, bool Implemented)> values)
+    {
+        ContentRewardHookMask mask = default;
+        foreach ((ContentRewardHook hook, bool overridden, bool implemented) in values)
+        {
+            if (overridden)
+                mask.Overridden |= (uint)hook;
+            if (implemented)
+                mask.Implemented |= (uint)hook;
+        }
+        return mask;
+    }
 }

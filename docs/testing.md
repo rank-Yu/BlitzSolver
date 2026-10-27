@@ -982,6 +982,76 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --
   不会出现；休息处不是 Unknown 的候选。
 - 按幕：第 1 幕 6,642、第 2 幕 6,439、第 3 幕 6,139。按楼层见 R2b-2 报告。
 
+### 6.17 战后奖励对照（R2c-1）
+
+```bash
+# 自然开局；40 种子 × 5 角色 × A0/A10 × empty/all = 800 个普通战
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
+  --reward-kind natural --reward-seeds 40 --reward-jobs 8 --reward-shard 0 2
+
+# D1；410 个冻结战斗根，2 片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
+  --reward-kind d1 --reward-jobs 8 --reward-shard 0 2
+
+# D1 改用 Low 档 CombatPilot；4 片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
+  --reward-kind pilot --reward-jobs 8 --reward-shard 0 4
+
+# 自然开局强制精英/Boss 遭遇；24 个战斗遭遇 × 2 进阶 × 6 种子，2 片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
+  --reward-kind encounter-pilot --reward-jobs 8 --reward-shard 0 2
+
+# 多步整局改用 pilot
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
+  --reward-kind run-pilot --reward-jobs 8
+
+# 盗贼遭遇专项（尝试 SpecialCard）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
+  --reward-kind thief --reward-jobs 8
+```
+
+`pilot` 对 D1 根调用 `CombatPilot`（`SearchPerformanceTier.Low`）打完战斗，之后的写回、生成、
+逐选项领取与 `d1` 完全相同。`encounter-pilot` 用自然新局（`all` 解锁）经 `SetActInternal`
+切到包含目标遭遇的幕、`ForceNextEncounter` 后同样用 pilot；只跑精英/Boss。`run-pilot` 把
+R2b-2 地图选点、战斗、写回、奖励串起来，战斗改用 pilot。`thief` 强制 `THIEVING_HOPPER_WEAK`，
+先结束回合让盗贼偷牌，再随机打完，专门尝试 `SpecialCard`。
+
+2026-10 结果（第 2 轮修正后）：
+
+| 模式 | 用例 | same | diff | reject | 选项比较 | 说明 |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| natural | 800 | 800 | 0 | 0 | 8,823 | 全 Monster；Gold 800、Card 800、Potion 273 |
+| d1 | 410 | 167 | 0 | 243 | 2,097 | Monster 153/Elite 12/Boss 2 相同 |
+| pilot | 410 | 244 | 0 | 166 | 2,879 | Monster 209/Elite 25/Boss 10 相同；SpecialCard 1 |
+| encounter-pilot | 288 | 33 | 0 | 255 | 674 | 全 Elite；Boss 0（pilot 全败） |
+| run-pilot | 40 | 40 | 0 | 0 | 374 | 平均 3.10 点、3.08 战、8.35 奖励动作 |
+| thief | 20 | 20 | 0 | 0 | 188 | 该随机路线未触发 SpecialCard；pilot 的盗贼根触发 1 次 |
+| **合计** | **1,968** | 1,304 | **0** | 664 | **15,035** | 生成列表 + 选项 = **17,003 次比较** |
+
+- 最终保留的拒绝原因：`combat-defeat`（无可比较终点）、`unsupported-relic` /
+  `unsupported-relic-state` / `reward-hook-listener` / `gold-proportion-encounter`
+  （Blitz 显式不支持）、`pilot-event-end`（事件脚本结束，没有可领取奖励）。`writeback-diff`、
+  `pilot-failed`、`action-limit` 在最终结果中均为 0；任何链上字段差异现在记 diff。
+- D1 拒绝：`combat-defeat` 203、`unsupported-relic` 32、`unsupported-relic-state` 5、
+  `gold-proportion-encounter` 1、`reward-hook-listener` 2。
+- pilot 拒绝：`combat-defeat` 122、`unsupported-relic` 32、`unsupported-relic-state` 5、
+  `reward-hook-listener` 3、`gold-proportion-encounter` 1、`pilot-event-end` 3。
+- encounter-pilot 的 255 个拒绝全是 `combat-defeat`；精英合计 70 个（D1 12 + pilot 25 +
+  encounter 33），Boss 合计 12 个（D1 2 + pilot 10）。Boss 少于 20 的原因：24 个战斗遭遇里
+  14 个 Boss 在 A0/A10 × 6 自然种子（168 次）下全部被 Low 档 pilot 打败，D1 的 Boss 根也只有
+  10 个胜利；没有用更高档位或额外 HP 掩盖。
+- 奖励类型总覆盖（各模式相加）：Gold 1,247、Potion 387、Card 1,268、Relic 70、
+  SpecialCard 1、CardRemoval 0；均 diff=0。SpecialCard 来自 pilot 的
+  `tw-thieving-hopper-recover`。
+- `REWARD-DISPLAY-MISMATCH` 按遗物统计：`ORNAMENTAL_FAN` 5 次、`KUSARIGAMA` 5 次、
+  `LETTER_OPENER` 2 次，全部属于 `TransientDisplayRelics` 且实际不一致，已在 native dump
+  投影记录值；名单外 0 次。只有“名单内 **且** 实际不一致”才覆盖；名单外不一致会打印
+  `REWARD-DISPLAY-MISMATCH` 并记 diff（本轮没有出现）。`Status` 写回，`KUSARIGAMA` 的
+  Active/Normal 差异由此消失。
+- `--combat-writeback-compare` 四类基线全部保持：自然 500/500、遭遇 880/0/10、D1 373/0/37、
+  低档 pilot 101/0/19。
+- 全量拒绝都有稳定原因码，0 子进程崩溃、0 `CapacityException`。
+
 ## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |
@@ -991,7 +1061,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同 | 实机部署、任意 Mod、语料外前缀/准备阶段、奖励/商店/事件负载 |
+| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同 | 实机部署、任意 Mod、语料外前缀/准备阶段、商店/事件/休息/宝箱负载 |
 | Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
 | 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
 | 实机整场（手动） | 20 个固定根在无头游戏里自动打完（16 胜 4 负），逐动作核对与回合对账均为 0 偏差/0 部署失败；至少一个根实际走过选牌、抽牌堆/弃牌堆选择与药水目标；取消测试无残留 | 120 根全量、界面、未捕获前缀/准备根、第三方 Mod |

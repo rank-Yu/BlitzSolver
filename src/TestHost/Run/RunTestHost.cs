@@ -3,6 +3,7 @@
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Runs.History;
 using MegaCrit.Sts2.Core.Saves;
@@ -137,6 +138,22 @@ internal static class RunTestHost
             .SetValue(RunManager.Instance, false);
         RunManager.Instance.Launch();
         await RunManager.Instance.GenerateMap();
+        return state;
+    }
+
+    /// <summary>
+    /// Restores a reward-screen snapshot: the normal save restore followed by the saved
+    /// <c>PreFinishedRoom</c>, which the run save carries separately from the room stack. The room
+    /// is pushed without entering it, so no reward screen is generated and no state changes.
+    /// </summary>
+    public static async Task<RunState> RestoreRewardSnapshotAsync(SerializableRun save)
+    {
+        RunState state = await RestoreSnapshotAsync(save);
+        if (save.PreFinishedRoom is { } preFinished)
+        {
+            CombatRoom room = CombatRoom.FromSerializable(preFinished, state);
+            state.PushRoom(room);
+        }
         return state;
     }
 }

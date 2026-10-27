@@ -184,6 +184,9 @@ public static partial class Kernel
         int enemyIndex = owner - Limits.FirstEnemyOwner;
         if ((uint)enemyIndex >= (uint)x.B.EnemyCount || !InRoster(x.B, owner))
             throw new InvalidOperationException("逃跑的生物不在当前模拟战斗中。");
+        // Mark before dropping powers: RemovePowerAt distinguishes a death return (clear the
+        // detached card's RemovedFromState marker) from an escape loss (keep it).
+        x.B.Enemies[enemyIndex].Flags |= EnemyFlags.Escaped;
         RemovePowersOf(ref x.B, owner);
         for (int index = 0; index < x.B.PowerCount; index++)
         {

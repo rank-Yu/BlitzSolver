@@ -79,6 +79,27 @@ internal static class RandomCombatPolicy
         return ReplayedRoute.Build(root, rules, [action], after.Outcome == Outcome.Victory).Actions[0];
     }
 
+    /// <summary>Ends the turn when that action is legal; used to let a theft enemy act.</summary>
+    internal static ReplayedAction? ChooseEndTurn(in Battle root, Rules rules,
+        CombatActionCoverage coverage)
+    {
+        if (root.Outcome != Outcome.None)
+            return null;
+        PlayerAction[] legal = new PlayerAction[Kernel.MaxLegalActions];
+        int count = Kernel.LegalActions(root, rules, legal);
+        for (int index = 0; index < count; index++)
+        {
+            if (legal[index].Kind != PlayerActionKind.EndTurn)
+                continue;
+            PlayerAction action = CompleteChoices(root, rules, legal[index],
+                new Random(0), coverage);
+            Battle after = Replay(root, rules, action);
+            return ReplayedRoute.Build(root, rules, [action],
+                after.Outcome == Outcome.Victory).Actions[0];
+        }
+        return null;
+    }
+
     private static PlayerAction CompleteChoices(in Battle root, Rules rules, PlayerAction action,
         Random random, CombatActionCoverage coverage)
     {
