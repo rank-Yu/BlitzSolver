@@ -285,8 +285,6 @@ public sealed partial class Pantograph : RelicDef
 
 public sealed partial class StoneCracker : RelicDef
 {
-    public override IReadOnlyList<string> VarNames => ["Cards"];
-
     public override void AfterRoomEntered(ref Exec x, Listener self, bool elite, bool boss)
     {
         int start = Piles.Start(x.B, Pile.Draw);
@@ -413,8 +411,6 @@ public sealed partial class TwistedFunnel : RelicDef
 
 public sealed partial class EmberTea : RelicDef
 {
-    public override IReadOnlyList<string> VarNames => ["Combats", "StrengthPower"];
-
     public override void AfterRoomEntered(ref Exec x, Listener self, bool elite, bool boss)
         => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.StrengthPower>(),
             StartVars.Int(ref x, self, "StrengthPower"), Limits.NoOwner);
