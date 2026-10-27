@@ -8,7 +8,8 @@
 地图生成。状态字段、随机数派生和导入见[整局状态布局](run-state-layout.md)，内容表其余部分见
 [内容表与 RulesBuilder](content-table.md)，对照命令见[测试与验证](testing.md)第 6.15 节。
 
-本批不做决策协议、先古之民事件与地图选点，这些是 R2b-2。
+本批不做决策协议、先古之民事件与地图选点；这些在 R2b-2 的
+[局外决策协议与地图进点](run-decisions.md) 里落地，本文只保留新局入口与地图生成。
 
 ## 1. 原版新局流程
 
@@ -40,9 +41,10 @@
 | 21 | `SetActInternal(0)`：切换幕、清 visited、`ResetToBase` | `ActIndex=0`、`ActFloor=0`、`Visited`、`Odds` | 无 |
 | 22 | `GenerateMap` → `StandardActMap` | `Map` | `act_1_map`，见第 3 节 |
 | 23 | `!StartedWithNeow && 幕 0` | 起点 `PointType = Monster` | 无 |
-| 24 | `EnterAct` 的房间入口 | `Rooms`、`Visited`、历史、（有 Neow 时）事件 RNG | R2b-2 |
+| 24 | `EnterAct` 的房间入口 | `Rooms`、`Visited`、历史、事件 RNG | 见[局外决策协议与地图进点](run-decisions.md) |
 
 R2b-1 的对照边界是第 22 步之后、第 24 步之前：第一幕地图已经生成，还没有进入任何房间。
+第 24 步之后的进点边界由 R2b-2 实现并对照。
 R1b 的 `RunTestHost.StartNewRunAsync` 包含第 24 步的 `EnterAct(0)`，因此它要求
 `VisitedMapCoords == 0`，只适用于没有 Neow 的存档；有 Neow 时第 24 步会进入先古事件。新入口
 `RunTestHost.StartNewRunBeforeChoicesAsync` 在 `Launch` 后直接调用 `GenerateMap`，与

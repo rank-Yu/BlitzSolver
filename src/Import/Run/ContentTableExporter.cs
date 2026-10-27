@@ -83,6 +83,11 @@ public static class ContentTableExporter
             NeowEpoch = NewRunContentExporter.ExportNeowEpoch(),
             MapHookRelics = NewRunContentExporter.ExportMapHookRelics(),
             MapHookCards = NewRunContentExporter.ExportMapHookCards(),
+            FreeTravelRelics = NewRunContentExporter.ExportFreeTravelRelics(),
+            UnknownPointHookRelics = NewRunContentExporter.ExportUnknownPointHookRelics(),
+            UnknownPointHookCards = NewRunContentExporter.ExportUnknownPointHookCards(),
+            NextEventHookCards = NewRunContentExporter.ExportNextEventHookCards(),
+            EventAllowedOverride = NewRunContentExporter.ExportEventAllowedOverrides(),
         };
     }
 

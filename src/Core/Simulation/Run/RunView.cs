@@ -39,6 +39,8 @@ public struct RunView
     public byte DecisionOptionCount;
     private byte _padding0;
     private ushort _padding1;
+    /// <summary>Complete request, including every legal option (R2b-2: map points).</summary>
+    public RunDecisionRequest Request;
     public PlayerView Player;
     public DeckView Deck;
     public RelicViewSet Relics;
@@ -65,8 +67,9 @@ public struct RunView
         view.ActIndex = state.ActIndex;
         view.ActFloor = state.ActFloor;
         view.TotalFloor = state.History.Count;
-        view.Decision = state.Decision;
-        view.DecisionOptionCount = state.DecisionOptionCount;
+        view.Request = RunDecisionRequest.Capture(in state);
+        view.Decision = view.Request.Kind;
+        view.DecisionOptionCount = view.Request.OptionCount;
         view.Player.Character = state.Player.Character;
         view.Player.CurrentHp = state.Player.CurrentHp;
         view.Player.MaxHp = state.Player.MaxHp;

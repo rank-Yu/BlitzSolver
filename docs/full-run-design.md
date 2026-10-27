@@ -136,8 +136,12 @@ Core 以外按"战斗 / 整局"对称分子目录，项目名、程序集名、�
 和战斗内核的"动作 + 选择"同一种模式：
 
 ```
-RunKernel.Step(ref RunState state, in RunAction action) → RunStepResult（完成 / 需要决策 / 进入战斗 / 本局结束）
+RunKernel.Step(ref RunState state, in RunAction action) → RunStepResult
 ```
+
+`RunStepResult` 的类别是完成并等待下一个决策、进入战斗（带 R2a-2 的 `CombatSetupResult`）、
+本局结束、本批尚不支持的房间内容，以及动作被显式拒绝。不支持的房间内容是结果，不是异常，
+也不是默认值。
 
 决策类型：
 
@@ -152,6 +156,11 @@ RunKernel.Step(ref RunState state, in RunAction action) → RunStepResult（完�
 - 幕末的 Boss 遗物。
 
 每个决策请求都列出原版界面给出的全部合法选项。原版界面会自动完成的选择也按原版规则自动完成，规则和战斗里的隐式选择一致。
+
+R2b-2 已落地地图选点这一种决策：`RunDecisionRequest` 携带种类与完整选项，`RunAction`
+按 `RunActionKind` 回答，`RunView.Request` 是决策层看到的同一份请求。请求只含玩家可见信息，
+不含随机数或未来序列；`Ai.Run` 可见的类型由 `tests/Architecture` 登记。选项与后
+续阶段的接法见[局外决策协议与地图进点](run-decisions.md)。
 
 ## 7. 局外决策层
 

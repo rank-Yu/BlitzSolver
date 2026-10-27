@@ -169,7 +169,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `RunOdds`/`RunPlayerOdds` | 概率当前值 |
 | `RunExtraFields`/`RunExtraPlayerFields` | `StartedWithNeow`、`TestSubjectKills`、删牌次数、Wongo 点数 |
 
-`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 144 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 4760`（R2a-1 加入两份保底计数）。
+`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 144 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 5276`（R2b-2 加入完整决策请求）。
 
 ### 3.1 容量
 
@@ -204,6 +204,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `PropertyStringBytes` | 32 | 原版字符串属性（皮肤名） |
 | `PropertyInts` | 12 | `FurCoat` 坐标数组 |
 | `PropertyCards` | 4 | 卡牌数组属性（`PaelsTooth`） |
+| `DecisionOptions` | 32 | 单个决策请求的选项上限；地图最多 7 个，选牌/商店留余量 |
 
 ## 4. 局外随机数
 
@@ -270,7 +271,7 @@ payload byte[]  RunState 的规范字节镜像
 | 遗物：id、状态、Wax/Melted、显示计数 | 是 | `RunRelic` 的可见子集 |
 | 地图：节点、连线、类型、已走、起始/Boss/第二 Boss | 是（未知点显示为未知） | `Map`、`Visited` |
 | 当前房间类型/模型 | 是 | `Rooms` |
-| 当前决策种类与选项数 | 是 | `Decision`/`DecisionOptionCount` |
+| 当前决策请求：种类、完整选项与每个选项的坐标/模型/数量 | 是 | `RunDecisionRequest.Capture`（R2b-2 为地图点） |
 | 未知点房间概率、卡牌稀有度保底、药水掉落保底 | 界面隐藏，但可由玩家见过的历史推导 | `Odds`/`PlayerOdds` 的当前值 |
 | 随机数状态、RNG 计数 | 否 | 不进入 |
 | 预生成事件/遭遇序列、后续幕的 Boss/先古与未来内容 | 否（地图上不可见） | 不进入 |
@@ -278,10 +279,14 @@ payload byte[]  RunState 的规范字节镜像
 | 解锁位图、已见遭遇位图、跑局数 | 否（界面只显示已解锁内容，不显示内部集合） | 不进入 |
 | 模型私有 `SavedProperties` | 否（卡面只显示派生数字；内部属性不可见） | 不进入 |
 | `FreedRepy`、成就、图鉴统计 | 部分可见但只影响界面 | 不进入 |
-| 房间内部奖励/商店/事件页/选牌页 | 是 | R2 决策请求；本批未实现 |
+| 房间内部奖励/商店/事件页/选牌页 | 是 | R2c–R2f 的同一请求类型；本批只填地图点 |
 
 `RunView` 只带当前幕的 `Act/Boss/SecondBoss/Ancient`，不带后续幕的对应值；`CardView` 不含
-`Private`/属性包；`RelicView` 不含属性包；`MapView` 不含 `CanBeModified`（内部规则）；`RunView` 不含任何 `RunRng*`、`RunRelicBag`、`RunAct`、`RunUnlockState`、`RunHistory`、`RunPropertyBag` 字段。`tests/Architecture` 同时用正例（`VisibleRunReferenceFixture`）和反例（`UnregisteredRunReferenceFixture`）锁定。
+`Private`/属性包；`RelicView` 不含属性包；`MapView` 不含 `CanBeModified`（内部规则）；`RunView` 不含任何 `RunRng*`、`RunRelicBag`、`RunAct`、`RunUnlockState`、`RunHistory`、`RunPropertyBag` 字段。
+`RunDecisionRequest`/`RunDecisionOption`/`RunDecisionOptionKind`/`RunAction`/`RunActionKind`
+与 `RunView` 一起登记为 `Ai.Run` 可见类型；请求里只有可见的坐标、点类型、模型 id 与数量，
+没有随机数或未来序列。`tests/Architecture` 同时用正例（`VisibleRunReferenceFixture`）和反例
+（`UnregisteredRunReferenceFixture`）锁定。
 
 ## 7. 原版导入
 

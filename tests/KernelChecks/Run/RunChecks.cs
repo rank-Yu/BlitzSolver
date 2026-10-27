@@ -40,6 +40,8 @@ internal static class RunChecks
         CheckCodec();
         CheckCapacity();
         CheckView();
+        CheckTravel();
+        CheckTutorialUnknown();
     }
 
     private static void CheckRng()
@@ -168,6 +170,8 @@ internal static class RunChecks
 
     private static void CheckView()
     {
+        Check(Unsafe.SizeOf<RunView>() == 5276,
+            $"RunView 应为 5276 字节，实际 {Unsafe.SizeOf<RunView>()}");
         RunState state = SampleState();
         RunView view = RunView.From(state);
         Check(view.Player.CurrentHp == state.Player.CurrentHp, "RunView HP 不一致。");
@@ -204,6 +208,98 @@ internal static class RunChecks
             Check(!forbidden.Contains(field.FieldType),
                 $"RunView 暴露了不可见类型 {field.FieldType}。");
         }
+    }
+
+    private static void CheckTravel()
+    {
+        RunState state = TravelState();
+        RunDecisionRequest request = RunDecisionRequest.Capture(in state);
+        Check(request.Kind == RunDecision.MapPoint && request.OptionCount == 1,
+            "空白地图的决策请求应为起点。");
+        Check(request.Options[0].Coord.Equals(new RunCoord(3, 0)),
+            "空白地图的合法点应为起点。");
+
+        state.AddVisitedCoord(new RunCoord(3, 0));
+        Check(Collect(state) == "1,1;5,1", "起点后的合法点应为两个子点，按坐标排序。");
+        request = RunDecisionRequest.Capture(in state);
+        Check(request.OptionCount == 2
+            && request.Options[0].PointType == RunMapPointType.Shop
+            && request.Options[1].PointType == RunMapPointType.Unknown,
+            "RunView 决策请求没有保留点类型。");
+
+        state.AddVisitedCoord(new RunCoord(1, 1));
+        Check(Collect(state) == "2,2", "普通点的合法点应为其子点。");
+
+        state.AddVisitedCoord(new RunCoord(2, 2));
+        Check(Collect(state) == "3,3", "最后一行之后应只有 Boss。");
+
+        state.AddVisitedCoord(new RunCoord(3, 3));
+        Check(Collect(state) == "3,4", "A10 的 Boss 之后应只有第二 Boss。");
+
+        state.AddVisitedCoord(new RunCoord(3, 4));
+        Check(Collect(state) == "", "第二 Boss 之后没有合法点。");
+        Check(RunDecisionRequest.Capture(in state).Kind == RunDecision.None,
+            "没有合法点时不应报告地图决策。");
+    }
+
+    private static string Collect(in RunState state)
+    {
+        Span<RunCoord> points = stackalloc RunCoord[RunLimits.DecisionOptions];
+        int count = RunTravel.Collect(in state, points);
+        return string.Join(';', points[..count].ToArray().Select(static point => point.ToString()));
+    }
+
+    private static RunState TravelState()
+    {
+        RunState state = default;
+        state.GameMode = RunGameMode.Standard;
+        state.Player.CurrentHp = 70;
+        state.Map.Width = 7;
+        state.Map.Height = 3;
+        state.Map.Starting = new RunCoord(3, 0);
+        state.Map.Boss = new RunCoord(3, 3);
+        state.Map.HasSecondBoss = 1;
+        state.Map.SecondBoss = new RunCoord(3, 4);
+        AddMap(ref state, new RunCoord(3, 0), RunMapPointType.Ancient, [new(1, 1), new(5, 1)]);
+        AddMap(ref state, new RunCoord(1, 1), RunMapPointType.Shop, [new(2, 2)]);
+        AddMap(ref state, new RunCoord(5, 1), RunMapPointType.Unknown, []);
+        AddMap(ref state, new RunCoord(2, 2), RunMapPointType.Monster, []);
+        AddMap(ref state, new RunCoord(3, 3), RunMapPointType.Boss, []);
+        AddMap(ref state, new RunCoord(3, 4), RunMapPointType.Boss, []);
+        return state;
+    }
+
+    private static void AddMap(ref RunState state, RunCoord coord, RunMapPointType type,
+        RunCoord[] children)
+    {
+        RunMapPoint point = default;
+        point.Coord = coord;
+        point.Type = type;
+        point.ChildCount = checked((byte)children.Length);
+        for (int index = 0; index < children.Length; index++)
+            point.Children[index] = children[index];
+        state.AddMapPoint(point);
+    }
+
+    private static void CheckTutorialUnknown()
+    {
+        RunState state = default;
+        state.Unlock.NumberOfRuns = 0;
+        Check(RunUnknownPoint.TryGetRoomTypeForTutorial(in state, RunMapPointType.Unassigned,
+            out RunRoomType roomType) && roomType == RunRoomType.Event,
+            "首次跑局的教学未知点应为事件。");
+        RunHistoryEntry history = default;
+        history.MapPointType = RunMapPointType.Unassigned;
+        state.AddHistory(history);
+        Check(!RunUnknownPoint.TryGetRoomTypeForTutorial(in state, RunMapPointType.Unassigned,
+            out _), "历史里已有 Unassigned 时教学未知点不应再生效。");
+        state = default;
+        state.Unlock.NumberOfRuns = 1;
+        Check(!RunUnknownPoint.TryGetRoomTypeForTutorial(in state, RunMapPointType.Unassigned,
+            out _), "非首次跑局不应触发教学未知点。");
+        state.Unlock.NumberOfRuns = 0;
+        Check(!RunUnknownPoint.TryGetRoomTypeForTutorial(in state, RunMapPointType.Unknown,
+            out _), "普通 Unknown 点不应走教学分支。");
     }
 
     private static RunState SampleState()

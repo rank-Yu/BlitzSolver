@@ -28,69 +28,37 @@ public static class RunCombatSetup
 
     public static CombatSetupResult EnterMapCoord(in RunState run, ContentTable table, RunCoord coord)
     {
-        if (!TryFindPoint(in run, coord, out RunMapPoint point))
-            throw new ContentUnavailableException(ContentReason.UnsupportedRoom, $"地图没有坐标 {coord}。");
-        return EnterMapPoint(in run, table, coord.Row + 1, point.Type, coord);
+        RunMapEntryResult entry = RunMapEntry.Enter(in run, table, coord);
+        return entry.Combat ?? throw new ContentUnavailableException(ContentReason.UnsupportedRoom,
+            $"坐标 {coord} 生成了 {entry.RoomType} 房间，不是战斗房间。");
     }
 
     /// <summary>
-    /// Native <c>EnterMapPointInternal</c> without a room-stack base. Only combat point types are
-    /// supported; unknown/shop/treasure/rest/event points are left to R2b.
+    /// Native <c>EnterMapPointInternal</c> without a room-stack base, addressed by point type.
+    /// Kept for the R2a-2 callers; the shared implementation is <see cref="RunMapEntry"/>.
     /// </summary>
     public static CombatSetupResult EnterMapPoint(in RunState run, ContentTable table, int actFloor,
         RunMapPointType pointType)
-        => EnterMapPoint(in run, table, actFloor, pointType, FindPointCoord(in run, pointType));
-
-    private static CombatSetupResult EnterMapPoint(in RunState run, ContentTable table, int actFloor,
-        RunMapPointType pointType, RunCoord coord)
     {
-        RunRoomType roomType = pointType switch
-        {
-            RunMapPointType.Monster => RunRoomType.Monster,
-            RunMapPointType.Elite => RunRoomType.Elite,
-            RunMapPointType.Boss => RunRoomType.Boss,
-            _ => throw new ContentUnavailableException(ContentReason.UnsupportedRoom,
-                $"进点只支持战斗房间，{pointType} 属于 R2b。"),
-        };
-        for (int index = 0; index < run.Rooms.Count; index++)
-        {
-            if (run.Rooms.Items[index].RoomType != RunRoomType.Map)
-                throw new ContentUnavailableException(ContentReason.UnsupportedRoom,
-                    $"进入战斗点时房间栈含 {run.Rooms.Items[index].RoomType}；R2a-2 只处理地图进点。");
-        }
-        RejectUnsupportedRelics(in run);
-        RunState next = run;
-        next.Rooms = default;
-        next.Decision = RunDecision.None;
-        next.DecisionOptionCount = 0;
-        next.ActFloor = actFloor;
-        next.AddVisitedCoord(coord);
+        RunMapEntryResult entry = RunMapEntry.Enter(in run, table,
+            FindPointCoord(in run, pointType), actFloor);
+        return entry.Combat ?? throw new ContentUnavailableException(ContentReason.UnsupportedRoom,
+            $"{pointType} 生成了 {entry.RoomType} 房间，不是战斗房间。");
+    }
 
-        ref RunAct act = ref next.Acts.Items[next.ActIndex];
-        ushort encounterId = NextEncounter(ref act, roomType);
+    /// <summary>
+    /// Battle half of the combat boundary. The caller (<see cref="RunMapEntry"/>) has already
+    /// appended the map-point history and pushed the combat room, matching the native order where
+    /// the room is created and recorded before <c>EnterRoomInternal</c>.
+    /// </summary>
+    internal static CombatSetupResult BuildCombat(ref RunState next, ContentTable table,
+        RunRoomType roomType, ushort encounterId)
+    {
+        RejectUnsupportedRelics(in next);
         string nativeId = RunCatalog.EncounterName(encounterId);
         if (!Registry.TryEncounter(nativeId, out ushort defId))
             throw new ContentUnavailableException(ContentReason.UnsupportedEncounter, $"没有遭遇生成定义 {nativeId}。");
         EncounterDef def = Registry.Encounter(defId);
-
-        RunHistoryEntry history = new()
-        {
-            ActIndex = checked((byte)next.ActIndex),
-            MapPointType = pointType,
-            RoomCount = 1,
-        };
-        history.Rooms[0] = new RunHistoryRoom
-        {
-            RoomType = roomType,
-            Model = new RunRef(RunRefKind.Encounter, encounterId),
-        };
-        next.AddHistory(history);
-        next.AddRoom(new RunRoom
-        {
-            RoomType = roomType,
-            Model = new RunRef(RunRefKind.Encounter, encounterId),
-            ParentEvent = RunRef.None,
-        });
 
         EncounterRng encounterRng = new(
             RunRng.Encounter(next.Rng.Seed, next.History.Count, encounterId));
@@ -237,8 +205,6 @@ public static class RunCombatSetup
             encounterId, spawns, spawnCount, initialNodes, initialMoveLogged, ascension);
         for (int stream = 0; stream < Limits.RngStreams; stream++)
             next.Rng.Streams[(int)RunRngStream.Shuffle + stream] = battle.Rng[stream];
-        MarkVisited(ref next.Acts.Items[next.ActIndex], roomType);
-        next.Canonicalize();
         return new CombatSetupResult
         {
             Run = next,
@@ -573,52 +539,6 @@ public static class RunCombatSetup
         };
         Rules rules = RulesBuilder.Build(table, in run, in battle, encounterId, facts);
         return (rules, facts);
-    }
-
-    private static ushort NextEncounter(ref RunAct act, RunRoomType roomType)
-    {
-        switch (roomType)
-        {
-            case RunRoomType.Monster:
-                if (act.NormalCount == 0)
-                    throw new ContentUnavailableException(ContentReason.UnsupportedEncounter, "本幕没有普通遭遇序列。");
-                return act.Normal[act.NormalVisited % act.NormalCount];
-            case RunRoomType.Elite:
-                if (act.EliteCount == 0)
-                    throw new ContentUnavailableException(ContentReason.UnsupportedEncounter, "本幕没有精英遭遇序列。");
-                return act.Elite[act.EliteVisited % act.EliteCount];
-            case RunRoomType.Boss:
-                if (act.BossVisited != 0 && act.HasSecondBoss != 0)
-                    return act.SecondBossId;
-                return act.BossId;
-            default:
-                throw new ContentUnavailableException(ContentReason.UnsupportedRoom, $"不是战斗房间：{roomType}。");
-        }
-    }
-
-    private static void MarkVisited(ref RunAct act, RunRoomType roomType)
-    {
-        switch (roomType)
-        {
-            case RunRoomType.Monster: act.NormalVisited++; break;
-            case RunRoomType.Elite: act.EliteVisited++; break;
-            case RunRoomType.Boss: act.BossVisited++; break;
-            default: throw new ContentUnavailableException(ContentReason.UnsupportedRoom, $"不是战斗房间：{roomType}。");
-        }
-    }
-
-    private static bool TryFindPoint(in RunState run, RunCoord coord, out RunMapPoint point)
-    {
-        for (int index = 0; index < run.Map.NodeCount; index++)
-        {
-            if (run.Map.Nodes[index].Coord.Equals(coord))
-            {
-                point = run.Map.Nodes[index];
-                return true;
-            }
-        }
-        point = default;
-        return false;
     }
 
     private static RunCoord FindPointCoord(in RunState run, RunMapPointType type)

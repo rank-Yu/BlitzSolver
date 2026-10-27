@@ -945,6 +945,43 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --new-run-compare \
 2026-10 结果：`same=19800 diff=0 reject=0 error=0`，`mapDiff=0 rngDiff=0`；分片
 `6600/6600`、`6600/6600`、`6600/6600`。新局内容导出约 1.3 秒/进程。
 
+### 6.16 地图选点与进房间对照（R2b-2）
+
+```bash
+# 单个用例：角色|进阶|存档|教学重排|种子，走一至三幕
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --map-step-case "Ironclad|0|empty|0|R2B2-PROBE-1" --map-step-acts 3
+
+# 默认全量：5 角色 × 进阶 0/10 × empty/all × 教学重排开/关 × 8 种子 × 3 幕 = 320 局
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --map-step-seeds 8 --map-step-jobs 4 --map-step-acts 3
+```
+
+每个子进程先建新局，用原版自己推进：地图点由确定性随机策略选择；战斗用
+`CreatureCmd.Kill` + `CheckWinCondition` 直接打完；奖励、商店货架、宝箱遗物、休息处与事件页
+全部跳过；换幕用 `RunManager.EnterNextAct`。每到一个地图选点，导入一次 `RunState`，比较
+`RunTravel.Collect`/`RunDecisionRequest.Capture` 与原版
+`RunTestHost.GetTravelablePoints`（起点、Boss、第二 Boss 与 `MapTravel.GetTravelablePointsFrom`
+的并集，按集合比较）。随后对**每一个**合法选项：用同一份 `SerializableRun` 快照
+（`SetUpSavedSingleplayer` + `GenerateMap`）恢复原版，各自执行一次 `EnterMapCoord` 与
+`RunKernel.Step`；战斗比较 `Battle`/`Rules`/`RunState`，非战斗比较"房间已建好、历史已追加、
+尚未进入"的 `RunState`。非战斗房间在测试补丁里截在 `RunManager.EnterRoomInternal` 之前，
+补丁只在该模式启用，不改 Mod。
+
+捷径不影响比较：每个选项的 `RunState` 导入发生在捷径之后，捷径只决定走到哪些选点。
+`sharedBag.refresh`、`ActFloor`、`Rooms` 与事件 RNG 是原版存档不保存/延后创建的字段：
+恢复后的导入以恢复后的原版状态为准；事件 RNG 用原生 `new Rng(seed + hash(event id))`
+单独比较。每局最后一幕的 Boss 之后停止；A10 的最后一幕会走第二 Boss。
+
+2026-10 结果（320 局、15,360 个地图决策、19,220 次单步比较）：
+
+- 合法选项：`same=15360 diff=0`；单步 `same=19220 diff=0`，`reject=1853 error=0`。
+- 拒绝只有一种：`event-allowed-check`（未知点拉到的候选事件其原版 `IsAllowed` 依赖跑局状态，
+  R2e 接管前显式拒绝），全部发生在 `Unknown` 点。
+- 按点类型：Monster 8,970、RestSite 2,769、Elite 1,964、Unknown 1,702、Treasure 1,143、
+  Boss 1,120、Shop 912、Ancient 640。
+- Unknown 的结果：Monster 753、Event 673、Shop 150、Treasure 126；标准模式 Elite 基础概率为负，
+  不会出现；休息处不是 Unknown 的候选。
+- 按幕：第 1 幕 6,642、第 2 幕 6,439、第 3 幕 6,139。按楼层见 R2b-2 报告。
+
 ## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |

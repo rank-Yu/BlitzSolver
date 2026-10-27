@@ -1,8 +1,11 @@
 // Shared entry point for building a brand-new native run before the player makes the first
 // choice. Hosts decide how the run is driven; this layer only owns the test-only setup contract.
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Runs.History;
+using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Unlocks;
 
 namespace BlitzSolver.TestHost;
@@ -64,4 +67,76 @@ internal static class RunTestHost
 
     /// <summary>Native <c>RunManager.SetActInternal</c>: switch act and regenerate its map.</summary>
     public static Task SetActAsync(int actIndex) => RunManager.Instance.SetActInternal(actIndex);
+
+    /// <summary>
+    /// Native legal map points at the current decision, mirroring
+    /// <c>NMapScreen.RecalculateTravelability</c>: the starting point before any travel, the second
+    /// boss after the boss, the boss after the last normal row, and otherwise
+    /// <c>MapTravel.GetTravelablePointsFrom</c>. The UI is never read.
+    /// </summary>
+    public static IReadOnlyList<MapPoint> GetTravelablePoints(RunState run)
+    {
+        List<MapPoint> points = [];
+        if (run.VisitedMapCoords.Count == 0)
+        {
+            points.Add(run.Map.StartingMapPoint);
+            return points;
+        }
+        MapCoord last = run.VisitedMapCoords[^1];
+        MapPoint current = run.Map.GetPoint(last)
+            ?? throw new InvalidDataException($"visited coord {last} 不在当前地图。");
+        if (run.Map.SecondBossMapPoint != null && last.Equals(run.Map.BossMapPoint.coord))
+        {
+            points.Add(run.Map.SecondBossMapPoint);
+            return points;
+        }
+        if (last.row == run.Map.GetRowCount() - 1)
+        {
+            points.Add(run.Map.BossMapPoint);
+            return points;
+        }
+        points.AddRange(MapTravel.GetTravelablePointsFrom(run, current));
+        return points;
+    }
+
+    /// <summary>Native <c>RunManager.EnterMapCoord</c>.</summary>
+    public static Task EnterMapCoordAsync(MapCoord coord) => RunManager.Instance.EnterMapCoord(coord);
+
+    /// <summary>
+    /// Restores a run snapshot into a fresh <c>RunManager</c> and regenerates the current act's map
+    /// from the saved map, without entering the last map point's room. Used to replay each legal
+    /// option from the same map decision.
+    /// <para>
+    /// <c>RunState.FromSerializable</c> keeps the save's inner history lists, so each restore gets
+    /// fresh lists; otherwise appending a map point would mutate the snapshot and the next option
+    /// would see the previous option's history. Saves are disabled because the snapshot's
+    /// non-serialized fields (the shared grab bag's <c>refreshAllowed</c>) are not part of the
+    /// native save format.
+    /// </para>
+    /// </summary>
+    public static async Task<RunState> RestoreSnapshotAsync(SerializableRun save)
+    {
+        if (RunManager.Instance.IsInProgress)
+            RunManager.Instance.CleanUp(graceful: false);
+        // RunState.FromSerializable keeps the save's inner history list objects. Swap in fresh
+        // copies for the restore and put the snapshot's own lists back afterwards, so appending
+        // the entered map point cannot grow the snapshot shared by the next option.
+        List<List<MapPointHistoryEntry>> history = save.MapPointHistory;
+        save.MapPointHistory = [.. history.Select(static entries => entries.ToList())];
+        RunState state;
+        try
+        {
+            state = RunState.FromSerializable(save);
+        }
+        finally
+        {
+            save.MapPointHistory = history;
+        }
+        await RunManager.Instance.SetUpSavedSingleplayer(state, save);
+        typeof(RunManager).GetProperty(nameof(RunManager.ShouldSave))!
+            .SetValue(RunManager.Instance, false);
+        RunManager.Instance.Launch();
+        await RunManager.Instance.GenerateMap();
+        return state;
+    }
 }

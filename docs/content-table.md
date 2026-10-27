@@ -200,6 +200,10 @@ R2b-1 在同一个 `ContentTable` 里加入新局与地图需要的静态数据�
 | `MapRules` | 网格宽度、起始路径数、精英上限、宝箱/限制行、轮数、五组点类型限制集合、每进阶精英数、商店数 | — |
 | `BaseOdds` / `AscensionRules` / `NeowEpoch` | 概率初值；SwarmingElites/TightBelt/AscendersBane/DoubleBoss 等级、进阶之灾卡、最高进阶；Neow epoch | — |
 | `MapHookRelics` / `MapHookCards` | 覆写地图 Hook 的模型（FurCoat/GoldenCompass、SpoilsMap），用于显式拒绝 | 2 / 1 |
+| `FreeTravelRelics` | 覆写 `ShouldAllowFreeTravel` 的遗物（WingedBoots） | 1 |
+| `UnknownPointHookRelics` / `UnknownPointHookCards` | 覆写未知点候选或概率成长的模型（GoldenCompass/JuzuBracelet、LanternKey） | 2 / 1 |
+| `NextEventHookCards` | 覆写 `ModifyNextEvent` 的卡牌（LanternKey） | 1 |
+| `EventAllowedOverride` | 按事件 id 标记覆写 `IsAllowed` 的事件，R2b-2 遇到时显式拒绝 | 36 / 66 |
 
 池子按原版枚举顺序保存，不排序；解锁过滤按 epoch 掩码。两处原版方法只能“探测”得到：
 

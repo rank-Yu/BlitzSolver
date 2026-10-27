@@ -4,7 +4,9 @@
 
 本文记录战斗边界的两半：R2a-2 的建局从停在地图选点的 `RunState` 进入战斗地图点，生成
 遭遇，建立第一个玩家出牌阶段的 `Battle`；R2a-3 的写回在战斗结束 Hook 之后、奖励生成之前
-把终局 `Battle` 写回 `RunState`。战后奖励、事件与地图选择不在本文范围。
+把终局 `Battle` 写回 `RunState`。R2b-2 把"进点、掷房间类型、建房间、追加历史"抽成共享的
+`RunMapEntry`，战斗房间从这里接入建局，非战斗房间停在"已建好、尚未进入"边界；决策协议与
+地图选点见[局外决策协议与地图进点](run-decisions.md)。战后奖励、事件页与地图选择仍不在本文范围。
 
 ## 1. 原版路径
 
@@ -42,12 +44,25 @@
 
 ## 2. Blitz 入口
 
-`src/Core/Simulation/Run/RunCombatSetup.cs`：
+`src/Core/Simulation/Run/RunMapEntry.cs`（`RunKernel.Step` 与 R2a-2 共用）：
+
+```csharp
+RunState next = runState;
+RunStepResult step = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
+// step.Status == Combat 时 step.Combat 是 CombatSetupResult
+```
+
+R2a-2 的兼容入口仍在 `src/Core/Simulation/Run/RunCombatSetup.cs`：
 
 ```csharp
 CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coord);
 // 或测试路径：RunCombatSetup.EnterMapPoint(in runState, table, actFloor, pointType)
 ```
+
+`RunMapEntry.Enter` 先完成原版 `EnterMapCoord`/`EnterMapPointInternal` 的前半段：清房间栈、
+`ActFloor`、已走坐标、`RollRoomTypeFor`、取遭遇/事件、追加历史。战斗房间随后把房间压栈并
+调用 `RunCombatSetup.BuildCombat`；非战斗房间在压栈与 `EnterRoomInternal` 之前返回，状态是
+"房间已建好、历史已追加、尚未进入房间"。
 
 `CombatSetupResult` 包含：
 
@@ -57,8 +72,9 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 - `Facts`：初始节点、条件分支目标、节点攻击、根 Power 基线、`InitialMoveLogged`；
 - `EncounterId`：本次遭遇的 `RunCatalog` id。
 
-入口只接受 `Monster` / `Elite` / `Boss` 点。未知点、商店、宝箱、休息处、事件与先古之民
-显式抛 `ContentUnavailableException(ContentReason.UnsupportedRoom, ...)`，留给 R2b。
+`RunCombatSetup.EnterMapCoord` 只接受战斗房间；未知点掷出的商店/宝箱/休息处/事件与先古点
+由 `RunKernel.Step` 返回 `UnsupportedRoom`，内容阶段分别留给 R2c/R2d/R2e/R2f。未知点掷骰、
+事件拉取和非战斗边界的细节见[局外决策协议与地图进点](run-decisions.md)。
 
 ## 3. 遭遇生成
 
@@ -129,7 +145,9 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 
 | 原因码 | 场景 |
 | --- | --- |
-| `unsupported-room` | 非战斗点、房间栈含非地图房间、地图缺坐标 |
+| `unsupported-room` | 非战斗点、地图缺坐标 |
+| `room-stack-active` | 房间栈里有未完成的非地图房间 |
+| `unknown-point-hook` / `event-hook` / `event-allowed-check` | 未知点掷骰或事件拉取遇到未实现的 Hook（见[局外决策协议](run-decisions.md)） |
 | `unsupported-encounter` | 没有遭遇生成定义、遭遇槽位不一致 |
 | `unsupported-monster` | 遭遇生成或怪物规则缺内容 |
 | `unsupported-relic` | 遗物的开战/第一回合效果未实现（Toolbox、DelicateFrond、MysticLighter、BigHat 等） |

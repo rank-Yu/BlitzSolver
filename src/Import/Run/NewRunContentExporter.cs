@@ -350,27 +350,79 @@ internal static class NewRunContentExporter
     /// </summary>
     public static ushort[] ExportMapHookRelics()
         => [.. ModelDb.All.OfType<RelicModel>()
-            .Where(OverridesMapHook)
+            .Where(model => OverridesHook(model, "ModifyGeneratedMap", "ModifyGeneratedMapLate",
+                "AfterMapGenerated"))
             .Select(RequireRelic)
             .Distinct()];
 
     public static ushort[] ExportMapHookCards()
         => [.. ModelDb.All.OfType<CardModel>()
-            .Where(OverridesMapHook)
+            .Where(model => OverridesHook(model, "ModifyGeneratedMap", "ModifyGeneratedMapLate",
+                "AfterMapGenerated"))
             .Select(RequireCard)
             .Distinct()];
 
-    private static bool OverridesMapHook(AbstractModel model)
+    /// <summary>Relics that change the map travel rule (<c>WingedBoots</c>).</summary>
+    public static ushort[] ExportFreeTravelRelics()
+        => [.. ModelDb.All.OfType<RelicModel>()
+            .Where(model => OverridesHook(model, "ShouldAllowFreeTravel"))
+            .Select(RequireRelic)
+            .Distinct()];
+
+    /// <summary>
+    /// Relics that change the unknown-map-point room set or its odds growth (GoldenCompass,
+    /// JuzuBracelet). R2b-2 rejects an unknown roll while one is held.
+    /// </summary>
+    public static ushort[] ExportUnknownPointHookRelics()
+        => [.. ModelDb.All.OfType<RelicModel>()
+            .Where(model => OverridesHook(model, "ModifyUnknownMapPointRoomTypes",
+                "ModifyOddsIncreaseForUnrolledRoomType"))
+            .Select(RequireRelic)
+            .Distinct()];
+
+    public static ushort[] ExportUnknownPointHookCards()
+        => [.. ModelDb.All.OfType<CardModel>()
+            .Where(model => OverridesHook(model, "ModifyUnknownMapPointRoomTypes",
+                "ModifyOddsIncreaseForUnrolledRoomType"))
+            .Select(RequireCard)
+            .Distinct()];
+
+    /// <summary>Cards that replace the next pulled event (<c>LanternKey</c>).</summary>
+    public static ushort[] ExportNextEventHookCards()
+        => [.. ModelDb.All.OfType<CardModel>()
+            .Where(model => OverridesHook(model, "ModifyNextEvent"))
+            .Select(RequireCard)
+            .Distinct()];
+
+    /// <summary>
+    /// Events whose <c>IsAllowed</c> depends on run state. R2b-2 only pulls an event when this
+    /// check is the native base implementation; an overridden check is an explicit rejection until
+    /// the event phase (R2e) owns that rule.
+    /// </summary>
+    public static bool[] ExportEventAllowedOverrides()
     {
-        foreach (string name in new[]
-                 {
-                     "ModifyGeneratedMap", "ModifyGeneratedMapLate", "AfterMapGenerated",
-                 })
+        bool[] overrides = new bool[RunCatalog.EventCount];
+        for (int eventId = 0; eventId < RunCatalog.EventCount; eventId++)
+        {
+            string name = RunCatalog.EventName((ushort)eventId);
+            EventModel? model = ModelDb.All.OfType<EventModel>()
+                .FirstOrDefault(candidate => candidate.Id.Entry == name);
+            if (model == null)
+                throw new InvalidDataException($"原版没有事件 {name}。");
+            overrides[eventId] = OverridesHook(model, "IsAllowed");
+        }
+        return overrides;
+    }
+
+    private static bool OverridesHook(AbstractModel model, params string[] names)
+    {
+        foreach (string name in names)
         {
             MethodInfo? method = model.GetType().GetMethod(name,
                 BindingFlags.Instance | BindingFlags.Public);
             if (method?.DeclaringType is { } declaring && declaring != typeof(AbstractModel)
-                && declaring != typeof(RelicModel) && declaring != typeof(CardModel))
+                && declaring != typeof(RelicModel) && declaring != typeof(CardModel)
+                && declaring != typeof(EventModel))
                 return true;
         }
         return false;

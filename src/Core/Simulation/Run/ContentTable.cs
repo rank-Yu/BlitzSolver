@@ -16,6 +16,7 @@ public static class ContentReason
     public const string UnsupportedMonster = "unsupported-monster";
     public const string UnsupportedEnchantment = "unsupported-enchantment";
     public const string UnsupportedEncounter = "unsupported-encounter";
+    public const string UnsupportedEvent = "unsupported-event";
     public const string UnsupportedRoom = "unsupported-room";
     public const string UnsupportedClosure = "unsupported-closure";
     public const string Capacity = "capacity";
@@ -296,6 +297,21 @@ public sealed class ContentTable : ICombatStartContent
 
     /// <summary>Cards that override a map-generation hook (SpoilsMap).</summary>
     public required ushort[] MapHookCards { get; init; }
+
+    /// <summary>Relics that override <c>ShouldAllowFreeTravel</c> (WingedBoots).</summary>
+    public required ushort[] FreeTravelRelics { get; init; }
+
+    /// <summary>Relics that override an unknown-map-point hook (GoldenCompass, JuzuBracelet).</summary>
+    public required ushort[] UnknownPointHookRelics { get; init; }
+
+    /// <summary>Cards that override an unknown-map-point hook (LanternKey).</summary>
+    public required ushort[] UnknownPointHookCards { get; init; }
+
+    /// <summary>Cards that override <c>ModifyNextEvent</c> (LanternKey).</summary>
+    public required ushort[] NextEventHookCards { get; init; }
+
+    /// <summary>Events that override <c>EventModel.IsAllowed</c>, indexed by event id.</summary>
+    public required bool[] EventAllowedOverride { get; init; }
 
     /// <summary>The act's boss encounters in <c>AllBossEncounters</c> order.</summary>
     public ushort[] BossEncounters(ContentAct act)

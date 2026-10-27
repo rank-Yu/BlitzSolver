@@ -117,6 +117,24 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 [`docs/run-generation.md`](../../docs/run-generation.md) 与
 [`docs/testing.md`](../../docs/testing.md) 6.15 节。
 
+## 地图选点与进房间对照
+
+```bash
+# 单个用例：角色|进阶|存档|教学重排|种子；走一至三幕
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --map-step-compare --map-step-case "Ironclad|0|empty|0|R2B2-PROBE-1" --map-step-acts 3
+
+# 默认全量：5 角色 × 进阶 0/10 × empty/all × 教学重排开/关 × 8 种子 × 3 幕
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --map-step-compare --map-step-seeds 8 --map-step-jobs 4 --map-step-acts 3
+```
+
+原版从新局自己推进到每个地图选点；每到一个选点导出一次 `SerializableRun` 快照，对每个合法
+选项恢复同一快照并分别执行 `RunManager.EnterMapCoord` 与 `RunKernel.Step`。战斗比较
+`Battle`/`Rules`/`RunState`；非战斗房间用测试补丁截在 `RunManager.EnterRoomInternal` 之前，
+比较"房间已建好、历史已追加、尚未进入"的 `RunState`（事件 RNG 用原生 `Rng` 单独比较）。
+战斗用杀敌捷径、奖励与房间内容全部跳过，捷径在每次导入之前，不进入比较。细节见
+[`docs/run-decisions.md`](../../docs/run-decisions.md) 与
+[`docs/testing.md`](../../docs/testing.md) 6.16 节。
+
 ## 规则编译对照
 
 ```bash

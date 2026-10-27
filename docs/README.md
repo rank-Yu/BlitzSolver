@@ -24,7 +24,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | 目录 | 内容 |
 | --- | --- |
 | `src/Core/Simulation/Combat/` | `BlitzSolver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
-| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、局外随机数、编码与状态校验（R1b）；进程内内容表与 `RulesBuilder`（R2a-1）；战斗边界建局与写回（R2a-2/R2a-3）；新局与各幕地图生成（R2b-1） |
+| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、决策请求与 `RunKernel`、局外随机数、编码与状态校验（R1b/R2b-2）；进程内内容表与 `RulesBuilder`（R2a-1）；战斗边界建局与写回、共享进点（R2a-2/R2a-3/R2b-2）；新局与各幕地图生成（R2b-1） |
 | `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
 | `src/Core/Ai/Combat/` | `BlitzSolver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
 | `src/Core/Ai/Combat/Quality/` | `BlitzSolver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
@@ -39,7 +39,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`）；战斗合同在 `Combat/` |
 | `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/`；战斗校验器在 `Combat/` |
 | `tests/Architecture/` | 编译后的 `BlitzSolver.Core` 层依赖检查（程序集 `BlitzSolver.Architecture`），加入 `BlitzSolver.sln` |
-| [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState`/`RunState` 并转储；战斗对照、进程内原版动作执行与离线整场在 `Combat/`，整局导入、建局/写回对照与遗物矩阵在 `Run/`；需要游戏文件，不在 CI 中运行 |
+| [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState`/`RunState` 并转储；战斗对照、进程内原版动作执行与离线整场在 `Combat/`，整局导入、建局/写回、新局生成与地图选点对照在 `Run/`；需要游戏文件，不在 CI 中运行 |
 | `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
 
 依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层，`Ai.Combat` 不引用 `Content`（内容通过注册表挂到模拟上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁。`Import` 与 `Mod` 都不加入 `BlitzSolver.sln`，依赖规则由 `tests/Architecture` 检查。
@@ -53,6 +53,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | [整局状态布局](run-state-layout.md) | `RunState` 字段盘点、容量、局外随机数、编码、`RunView` 可见性与导入拒绝码 |
 | [内容表与 RulesBuilder](content-table.md) | 进程内内容表的范围与导出、`Rules` 30 项来源分类、根事实缺口与逐字节对照方法 |
 | [新局生成与地图](run-generation.md) | 原版新局流程与随机数、Core 新局入口、各幕 `StandardActMap`、池子与解锁、内容表新部分与推断、对照方法 |
+| [局外决策协议与地图进点](run-decisions.md) | `RunKernel.Step` 的请求/动作/结果、地图合法点、未知点掷骰、非战斗房间边界、拒绝码与后续决策接法 |
 | [战斗边界](run-combat-boundary.md) | 从地图选点进入战斗点、遭遇生成、开战 Hook、第一回合、`RulesRootFacts` 与建局对照 |
 | [战斗内核语义](combat-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
 | [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |

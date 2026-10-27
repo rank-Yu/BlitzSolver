@@ -97,4 +97,10 @@ public static class RunLimits
 
     /// <summary>Maximum cards in one <c>List&lt;SerializableCard&gt;</c> saved property.</summary>
     public const int PropertyCards = 4;
+
+    /// <summary>
+    /// Options in one decision request. The largest native screens are card selection (a full hand
+    /// or deck page); 32 is above the observed single-player maximum.
+    /// </summary>
+    public const int DecisionOptions = 32;
 }
