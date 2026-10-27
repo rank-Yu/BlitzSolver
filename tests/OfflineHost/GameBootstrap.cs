@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Nodes;
+using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.TestSupport;
 
@@ -50,6 +51,27 @@ internal static class GameBootstrap
             nameof(MegaCrit.Sts2.Core.Saves.Migrations.MigrationRegistry.RegisterAllMigrations),
             prefix: nameof(SkipPrefix));
         Patch(typeof(NGame), nameof(NGame.GetGameVersion), prefix: nameof(GameVersionPrefix));
+        Patch(typeof(Godot.Time), nameof(Godot.Time.GetTicksMsec), prefix: nameof(TicksMsecPrefix));
+        Patch(typeof(RunManager), nameof(RunManager.WriteReplay), prefix: nameof(SkipPrefix),
+            args: [typeof(bool)]);
+        Patch(typeof(MegaCrit.Sts2.Core.Nodes.HoverTips.NHoverTipSet), nameof(MegaCrit.Sts2.Core.Nodes.HoverTips.NHoverTipSet.Clear),
+            prefix: nameof(SkipPrefix));
+        Patch(typeof(Godot.ResourceLoader), nameof(Godot.ResourceLoader.Load),
+            prefix: nameof(NullResourcePrefix),
+            args: [typeof(string), typeof(string), typeof(Godot.ResourceLoader.CacheMode)],
+            generics: Type.EmptyTypes);
+        Patch(typeof(MegaCrit.Sts2.Core.Models.Monsters.SoulNexus), "AfterDeath",
+            prefix: nameof(SkipPrefix),
+            args: [typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature)]);
+        foreach (Type monster in new[]
+                 {
+                     typeof(MegaCrit.Sts2.Core.Models.Monsters.Rocket),
+                     typeof(MegaCrit.Sts2.Core.Models.Monsters.Crusher),
+                 })
+        {
+            Patch(monster, "BeforeDeath", prefix: nameof(CompletedTaskPrefix),
+                args: [typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature)]);
+        }
         Patch(typeof(MegaCrit.Sts2.Core.Platform.PlatformUtil),
             nameof(MegaCrit.Sts2.Core.Platform.PlatformUtil.GetPlatformBranch), prefix: nameof(PlatformBranchPrefix));
         Patch(typeof(MegaCrit.Sts2.Core.Platform.PlatformUtil),
@@ -122,15 +144,33 @@ internal static class GameBootstrap
 
     private static bool SkipNodeStaticConstructorPrefix() => false;
 
-    private static void Patch(Type type, string method, string prefix, Type[]? args = null)
+    private static void Patch(Type type, string method, string prefix, Type[]? args = null,
+        Type[]? generics = null)
     {
-        MethodInfo target = (args == null
+        MethodInfo target = args == null
             ? AccessTools.Method(type, method)
-            : AccessTools.Method(type, method, args))
+            : type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static
+                    | BindingFlags.Instance)
+                .FirstOrDefault(candidate => candidate.Name == method
+                    && !candidate.IsGenericMethodDefinition
+                    && ParametersMatch(candidate, args))
             ?? throw new MissingMethodException(type.FullName, method);
         MethodInfo replacement = typeof(GameBootstrap).GetMethod(prefix, BindingFlags.Static | BindingFlags.NonPublic)!;
         Harmony.Patch(target, prefix: new HarmonyMethod(replacement));
         _bypasses.Add($"{type.Name}.{method}");
+    }
+
+    private static bool ParametersMatch(MethodInfo method, Type[] args)
+    {
+        ParameterInfo[] parameters = method.GetParameters();
+        if (parameters.Length != args.Length)
+            return false;
+        for (int index = 0; index < args.Length; index++)
+        {
+            if (parameters[index].ParameterType != args[index])
+                return false;
+        }
+        return true;
     }
 
     private static bool SkipPrefix() => false;
@@ -145,6 +185,18 @@ internal static class GameBootstrap
             3000uL => "Test Client 3",
             _ => playerId.ToString(),
         };
+        return false;
+    }
+
+    private static bool NullResourcePrefix(ref Godot.Resource __result)
+    {
+        __result = null!;
+        return false;
+    }
+
+    private static bool TicksMsecPrefix(ref ulong __result)
+    {
+        __result = (ulong)Environment.TickCount64;
         return false;
     }
 

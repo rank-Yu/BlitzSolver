@@ -37,7 +37,8 @@ internal static class NativeRunDump
         Int("run.act.index", native.CurrentActIndex);
         Int("run.act.floor", native.ActFloor);
         Line("run.gameMode", native.GameMode.ToString());
-        Line("run.decision", DecisionFor(native.CurrentRoom).ToString());
+        Line("run.decision",
+            (native.IsGameOver ? RunDecision.GameOver : DecisionFor(native.CurrentRoom)).ToString());
         Int("run.decision.options", 0);
         Line("run.character", player.Character.Id.Entry);
         Int("run.hp", player.Creature.CurrentHp);

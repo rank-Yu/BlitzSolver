@@ -598,7 +598,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 - 原生可观测字段（HP、护甲、牌堆、卡值、9 条 RNG、Powers、Relics、Orbs、药水、回合/侧/
   阶段、结局）由同一 `BattleImporter` 投影；预测正确时离线根与实机根逐字节相同，逐动作
-  `BattleReconciler` 已经在前一回合验证过这一点。
+  `BattleReconciler`（`src/Import/Combat/BattleReconciler.cs`）已经在前一回合验证过这一点。
 - `ShuffleEventCount`、`ShufflesCrossed`、`HasRisk` 与
   `LiveCombatTracker.CarriedCounters` 中的求解器账本在实机不可观测，`ImportRoot` 从最近预测
   边界携带；离线根本来就带着这些值，因此相同。
@@ -807,6 +807,83 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
 D1 请求给遗物注入了不进入 `RunState` 的整数字段；没有对比差异。`--setup-cover` 在 D1 一次运行
 中覆盖 378 个可建局根，记录每个使用的遗物/Power/附魔；完整数量见 `R2a2-report.md`。
 内容表导出约 0.82 秒、保留约 17 MB，encounter 级 unsupported 为 0。
+
+### 6.13 战斗写回对照（R2a-3）
+
+```bash
+# 自然开局：5 角色 × A0/A10 × 50 种子 = 500；可分片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-kind natural --writeback-seeds 50 --writeback-jobs 8
+
+# 全部 89 个遭遇 × A0/A10 × 5 种子 = 890；分片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 8 --writeback-shard 0 2
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 8 --writeback-shard 1 2
+
+# D1 的 410 个输入各 1 个种子
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-kind d1 --writeback-jobs 8
+
+# 120 个质量牌组 × 1 个种子，CombatPilot 低档
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-kind pilot --writeback-jobs 8
+
+# 单例：自然开局/遭遇/D1/低档
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-character Ironclad --writeback-ascension 10 \
+  --writeback-seed R2A3-Ironclad-A10-000
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-encounter 30 --writeback-ascension 0 \
+  --writeback-seed R2A3-ENC-0-030
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-root quality-DEFECT-000
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-writeback-compare --writeback-kind pilot --writeback-root quality-IRONCLAD-001
+```
+
+每个用例在独立子进程里：原版 `EnterMapCoord` 到可出牌，Core `RunCombatSetup.EnterMapCoord`
+建同一开局；随机策略在 Blitz 侧每步选一个合法动作（种子固定），先由 `Kernel.Step` 得到
+预测和完整选择集，再交给 `NativeActionExecutor` 用原版公开入口执行，逐动作导入 `Battle` 与
+预测逐字节比较。终局写回 `RunState` 后与原生终点（所有战斗结束 Hook 之后、奖励生成之前）的
+`NativeRunDump` 逐字段比较。低档子集用 `CombatPilot` + `BeamSolver` 生成路线，执行器仍逐动作
+核对。
+
+`status=same` 表示动作边界、写回和原生终点全部相同；`status=executor-diff` 是内核预测与
+原版动作边界不同（可能是内核语义、执行器或导入问题，报告逐条分类）；`status=diff` 是动作
+边界相同但写回终点不同；`status=reject` 带稳定原因码。R2a-3 的结果与内核缺口清单见
+`.local/tool-tasks/blitz/R2a3-report.md`。
+
+2026-10 结果（比较使用 `src/Import/Combat/BattleReconciler.cs`，与 Mod 完全相同的
+`Same`/`Diff`）：自然 `same=500 diff=0 reject=0`；遭遇 `same=830 diff=40 reject=20`
+（拒绝为 `action-limit=10` 与 `boundary_timeout=10`）；D1 `same=362 diff=11 reject=37`
+（拒绝为 `unsupported-relic=32`、`unsupported-relic-state=5`）；低档 120 根
+`same=100 diff=1 reject=19`（拒绝为 `unsupported-relic=19`，剩余 1 个是写回终点
+`LavaLamp`，动作边界 0 差异）。写回终点差异共 16 个：12 个是「偷走又归还的牌组顺序」
+（`SwipePower` 的归还值没有进入 `Battle`），3 个是 `LavaLamp.TookDamageThisCombat`，
+1 个是 `Kusarigama` 的终局计数/状态。比较前的旧结果（未归一化）为自然 384/116、遭遇
+625/245、D1 195/178、低档 68/33；差异大部分来自 `BattleReconciler` 已归一化的墓碑/不可
+观测字段，而不是语义缺口。动作覆盖 `PlayCard=33730`、`EndTurn=11127`、`UsePotion=149`，
+选择效果覆盖 15 种（含 Discard、Exhaust、Transform、Nightmare 等）。
+
+### 6.14 遗物开战矩阵（R2a-3）
+
+```bash
+# 50 个有开战/首回合效果的遗物，每个按触发条件选择房间与玩家 HP
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-relic-matrix --setup-jobs 8
+```
+
+每个遗物先清空起始遗物，再按条件注入原生整局；同时跑一个不注入目标遗物的基线，比较两条
+路径的建局结果。`SETUP-RELQ` 行给出房间、玩家状态、目标遗物状态与是否触发；
+`SETUP-RELIC-SUMMARY` 汇总 `same/diff/triggered/missing`。触发判据：非状态型遗物比较
+（清零遗物表后的）`Battle` 签名是否与基线不同；状态型遗物比较目标遗物 status/display。
+覆盖 Anchor、FakeAnchor、Pantograph、RedSkull、SlingOfCourage、BeltBuckle、SneckoEye/Osty、
+BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、FurCoat、GhostSeed、
+StoneCracker、Bellows、PetrifiedToad、FuneraryMask、FencingManual、Akabeko、FestivePopper、
+CrackedCore、RingOfTheSnake，以及首回合状态遗物与 MeatOnTheBone。2026-10 结果：
+`cases=50 same=50 diff=0 triggered=50 missing=0`。矩阵发现并修正了 SwordOfJade 的 Applier、
+RedSkull 的 `StrengthApplied` 计数和 Pantograph/BloodVial 的战后 HP/`RecoveredHp`。
 
 ## 7. 每层证明什么
 

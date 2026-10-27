@@ -49,6 +49,8 @@ internal static class Program
             return RulesBuildCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--combat-setup-compare")
             return CombatSetupCompare.Run(args[1..]);
+        if (args.Length > 0 && args[0] == "--combat-writeback-compare")
+            return CombatWritebackCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-compare")
             return RunImportCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-negative")
@@ -981,6 +983,11 @@ internal static class Program
                   | --build-root <name> | --build-character <name> --build-ascension N --build-seed <text>
                   | --build-encounter <id> [--build-seed <text>]
               dotnet OfflineHost.dll --import-negative [--root <name>]
+              dotnet OfflineHost.dll --combat-setup-compare --setup-kind natural|encounter|d1
+                  [--setup-seeds N] [--setup-jobs 1..8] [--setup-shard i/n]
+              dotnet OfflineHost.dll --combat-setup-compare --setup-relic-matrix [--setup-jobs 1..8]
+              dotnet OfflineHost.dll --combat-writeback-compare --writeback-kind natural|encounter|d1|pilot
+                  [--writeback-seeds N] [--writeback-jobs 1..8] [--writeback-shard i/n]
               dotnet OfflineHost.dll --compare-only <newDir> <referenceDir>
               dotnet OfflineHost.dll --all --compare <referenceDir>
               dotnet OfflineHost.dll --live-compare <resultDir>

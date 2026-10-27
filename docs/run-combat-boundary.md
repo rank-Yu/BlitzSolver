@@ -2,9 +2,9 @@
 
 [返回文档索引](README.md)
 
-本文记录 R2a-2 的战斗边界建局：从停在地图选点的 `RunState` 进入战斗地图点，生成遭遇，
-建立第一个玩家出牌阶段的 `Battle`，以及同一时刻的 `Rules` 与进点后的 `RunState`。写回、
-战后奖励、事件与地图选择不在本文范围。
+本文记录战斗边界的两半：R2a-2 的建局从停在地图选点的 `RunState` 进入战斗地图点，生成
+遭遇，建立第一个玩家出牌阶段的 `Battle`；R2a-3 的写回在战斗结束 Hook 之后、奖励生成之前
+把终局 `Battle` 写回 `RunState`。战后奖励、事件与地图选择不在本文范围。
 
 ## 1. 原版路径
 
@@ -163,3 +163,85 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 
 结果与复跑命令见 [测试与验证](testing.md) 第 6.12 节；本批的数量与拒绝分布见
 `R2a2-report.md`。
+
+## 7. 战后写回
+
+写回入口在 `src/Core/Simulation/Run/RunCombatWriteback.cs`：
+
+```csharp
+RunState next = RunCombatWriteback.Apply(in runAfterEntry, in terminalBattle, table);
+```
+
+终点与 R2c 的奖励生成对齐：原版已经跑完 `EndCombatInternal` 的
+`Hook.AfterCombatEnd`、`CombatRoom.OnCombatEnded`、`Player.AfterCombatEnd`、
+`Hook.AfterCombatVictory`、历史回合数、`MarkPreFinished`，但还没有调用
+`RewardsCmd.GenerateForRoomEnd`。玩家死亡走原版的 `LoseCombat` 终点：不执行战斗结束
+Hook，`RunState.IsGameOver` 由玩家死亡推导，`Decision = GameOver`。
+
+写回顺序：
+
+1. 复制 `Battle.Player` 的 HP/最大 HP、`Battle.Gold`、药水槽和 9 条战斗流；
+2. 移除仍被 `SwipePower` 扣住的牌组牌（`Battle.DetachedCards` 中带 `DeckCard` 的行）；
+3. 应用牌组长期变化：`GeneticAlgorithm`/`TheScythe` 的成长、`Goopy` 附魔层数；
+4. 胜利/事件结束的结束 Hook：按原生监听顺序处理牌组牌（`Guilty`）、玩家 Power
+   （`ImprovementPower`）、遗物 `AfterCombatEnd` 和两轮 `AfterCombatVictory`；
+5. 同步最终遗物状态、显示计数和 `SavedProperties`；
+6. 同步历史房间的怪物列表与回合数、当前房间 `IsPreFinished`、`Decision`。
+
+遗物与 Power 数值全部来自内容表（`ContentTable.RelicVar`/`Card`）。目前覆盖的开战/首回合
+效果与结束效果包括 Anchor、FakeAnchor、Pantograph、RedSkull、BeltBuckle、SneckoEye、Osty、
+BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、FurCoat、GhostSeed、
+StoneCracker、Bellows、PetrifiedToad、FuneraryMask、FencingManual、Akabeko、FestivePopper、
+CrackedCore、RingOfTheSnake，以及 FishingRod、ToyBox、PaelsTooth、PumpkinCandle、
+WongosMysteryTicket、ChosenCheese、BurningBlood/BlackBlood、MeatOnTheBone、SwordOfStone、
+WarHammer 等结束 Hook。
+
+### 7.1 原版结束流程
+
+| # | 原版步骤 | 对 `RunState`/`Player` 的写入 |
+| ---: | --- | --- |
+| 1 | `EndCombatInternal` | `TurnNumber` 先保存为 `turnsTaken`；`IsInProgress=false` |
+| 2 | `Hook.AfterCombatEnd` | 牌组牌先于 Power、遗物：`Guilty` 计数/移除，`ImprovementPower` 升级，`FishingRod`/`ToyBox`/`PaelsTooth`/`PumpkinCandle`/`WongosMysteryTicket`/`ChosenCheese` 修改牌组、最大 HP、属性 |
+| 3 | `room.OnCombatEnded` | 只写 `GoldProportion`（不在 `RunState`） |
+| 4 | `RunManager.WriteReplay` | 离线宿主跳过；不影响 `RunState` |
+| 5 | `player.AfterCombatEnd` | 清空战斗牌堆和 Power；不写持久字段 |
+| 6 | `Hook.AfterCombatVictory` | 先 `AfterCombatVictoryEarly`（MeatOnTheBone 回血），再普通 pass（BurningBlood/BlackBlood 回血、SwordOfStone 替换、WarHammer 升级、BeltBuckle 状态） |
+| 7 | 历史与房间 | `Rooms.Last().TurnsTaken`、`room.MarkPreFinished()` |
+| 8 | 保存/成就/进度 | 存档与进度文件；不改 `RunState` 的可比较字段 |
+| 9 | `CombatEnded` 事件 | `CombatRoom.OfferRoomEndRewards` 在 UI 侧触发；R2c 从生成奖励开始 |
+
+战斗结束只把 `RecoveredHp` 等搜索台账保持为零：开战回血（Pantograph、BloodVial）属于
+`RunState.Player.CurrentHp`，不是战斗内恢复。
+
+## 8. 进程内整场执行器
+
+`tests/OfflineHost/Combat/NativeActionExecutor.cs` 不开 Godot，用原版公开入口逐个执行内核
+动作：
+
+- `PlayCard`：`CardModel.TryManualPlay`；
+- `UsePotion`：`PotionModel.EnqueueManualUse`；
+- `EndTurn`：`CombatManager.OnEndedTurnLocally` + `EndPlayerTurnAction`。
+
+动作入队/完成沿用 Mod 的 `ActionExecutor.BeforeActionExecuted` 捕获方式；选牌由
+`tests/OfflineHost/Combat/NativeChoiceSelector.cs` 按路线冻结的 `ChoiceRequest` 回答，未支持
+或对不上的请求抛 `choice_mismatch`。每个动作完成后用
+`LiveCombatTracker.ImportForComparison` 按整场托管的导入选项读回 `Battle`，与内核预测逐字节
+比较；终局动作不再导入，交给写回对照。动作等待超时为 `boundary_timeout`，未入队为
+`action_not_enqueued`，原版取消/异常分别为 `action_canceled`/`action_failed`。
+
+离线宿主为原版执行补充的 Godot 绕过都在 `tests/OfflineHost/GameBootstrap.cs`：`Time.GetTicksMsec`、
+`RunManager.WriteReplay`、`NHoverTipSet.Clear` 等。它们只影响离线进程，不改变 Mod 行为。
+
+## 9. 遗物开战矩阵
+
+`--combat-setup-compare --setup-relic-matrix` 对每个有开战/首回合或首回合结束状态的遗物
+做一次定向建局：清空起始遗物后注入目标遗物，按触发条件选择普通/精英/Boss 与满血/受伤，
+分别跑原版与 Blitz 两条路径。`SETUP-RELQ` 输出每个遗物的房间、玩家状态、两边状态与触发
+计数；`SETUP-RELQ-MISSING` 列出没有触发或没有对齐的项。
+
+矩阵覆盖 50 个遗物，包括 Anchor/FakeAnchor、Pantograph、RedSkull、SlingOfCourage、BeltBuckle、
+SneckoEye、Osty 两件套、BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、
+FurCoat、GhostSeed、StoneCracker、Bellows、PetrifiedToad、FuneraryMask、FencingManual、Akabeko、
+FestivePopper、CrackedCore、RingOfTheSnake，以及首回合状态的 HappyFlower/Pendulum/ArtOfWar/
+StoneCalendar/RippleBasin/Pocketwatch/Metronome/BurningSticks/ThrowingAxe/UnsettlingLamp/Vambrace/
+MeatOnTheBone。

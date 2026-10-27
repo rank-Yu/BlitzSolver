@@ -24,7 +24,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | 目录 | 内容 |
 | --- | --- |
 | `src/Core/Simulation/Combat/` | `BlitzSolver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
-| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、局外随机数、编码与状态校验（R1b）；进程内内容表与 `RulesBuilder`（R2a-1） |
+| `src/Core/Simulation/Run/` | 整局模拟：`RunState`、`RunView`、局外随机数、编码与状态校验（R1b）；进程内内容表与 `RulesBuilder`（R2a-1）；战斗边界建局与写回（R2a-2/R2a-3） |
 | `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
 | `src/Core/Ai/Combat/` | `BlitzSolver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
 | `src/Core/Ai/Combat/Quality/` | `BlitzSolver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
@@ -39,7 +39,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`）；战斗合同在 `Combat/` |
 | `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/`；战斗校验器在 `Combat/` |
 | `tests/Architecture/` | 编译后的 `BlitzSolver.Core` 层依赖检查（程序集 `BlitzSolver.Architecture`），加入 `BlitzSolver.sln` |
-| [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState`/`RunState` 并转储；战斗对照与离线整场在 `Combat/`，整局导入对照在 `Run/`；需要游戏文件，不在 CI 中运行 |
+| [`tests/OfflineHost/`](../tests/OfflineHost/README.md) | 离线宿主：不启动 Godot，建出原生 `CombatState`/`RunState` 并转储；战斗对照、进程内原版动作执行与离线整场在 `Combat/`，整局导入、建局/写回对照与遗物矩阵在 `Run/`；需要游戏文件，不在 CI 中运行 |
 | `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
 
 依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层，`Ai.Combat` 不引用 `Content`（内容通过注册表挂到模拟上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁。`Import` 与 `Mod` 都不加入 `BlitzSolver.sln`，依赖规则由 `tests/Architecture` 检查。

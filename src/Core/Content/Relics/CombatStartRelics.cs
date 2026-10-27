@@ -62,7 +62,7 @@ public sealed partial class SwordOfJade : RelicDef
 {
     public override void AfterRoomEntered(ref Exec x, Listener self, bool elite, bool boss)
         => Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.StrengthPower>(), StartVars.Int(ref x, self, "StrengthPower"),
-            Limits.PlayerOwner);
+            Limits.NoOwner);
 }
 
 public sealed partial class SlingOfCourage : RelicDef
@@ -106,8 +106,13 @@ public sealed partial class RedSkull : RelicDef
     {
         decimal threshold = CombatStartValues.RelicVar(ref x, self, "HpThreshold") / 100m;
         if (x.B.Player.CurrentHp <= x.B.Player.MaxHp * threshold)
+        {
             Kernel.ApplyPower(ref x, Limits.PlayerOwner, Registry.PowerId<Powers.StrengthPower>(), StartVars.Int(ref x, self, "StrengthPower"),
                 Limits.PlayerOwner);
+            // Native RedSkull sets StrengthApplied=true after the apply; the importer projects that
+            // private flag into Relic.Counter (BattleProjections.ProjectRelic).
+            x.B.Relics[self.Index].Counter = 1;
+        }
     }
 }
 

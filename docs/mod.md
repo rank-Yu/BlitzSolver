@@ -25,7 +25,7 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 | `src/Mod/Combat/SearchSession.cs` | 主线程捕获→后台 `BeamSolver.Solve`→主线程收结果；取消、让帧与内存采样 |
 | `src/Mod/Combat/ActionDeployer.cs` | 主线程动作部署；出牌/药水/结束回合；动作队列捕获与边界等待 |
 | `src/Mod/Combat/PlannedNativeSelector.cs` | 原版 `ICardSelector` 驱动；选项身份与所在牌堆核对 |
-| `src/Mod/Combat/BattleReconciler.cs` | `Battle` 编码的严格比较与墓碑/搜索账本归一化 |
+| `src/Import/Combat/BattleReconciler.cs` | `Battle` 编码的严格比较与墓碑/搜索账本归一化；Mod 与 OfflineHost 共用 |
 | `src/Mod/UI/SearchHotkeyNode.cs` | 普通玩家的 `F8` 全自动开关 |
 | `src/Mod/Testing/TestSession.cs` | 无头测试循环：请求、建局、捕获、单次求解或整场自动战斗、写结果、返回主菜单 |
 | `src/Mod/Combat/GodotCombatWaiter.cs` | 主线程建局与 Play 阶段等待 |
@@ -41,7 +41,7 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 整场循环的决策部分在 `src/Core/Autoplay/CombatPilot.cs`，只依赖 `Simulation.Combat`，因此离线工具
 与 Mod 跑同一份搜索时机、路线使用和失败约定。`src/Mod/Combat/CombatPilotHost.cs` 提供原生 I/O：
 等待 Play 阶段、`LiveCombatTracker.ImportRoot`、`SearchSession`、`ActionDeployer` 与
-`BattleReconciler`。`src/Import/Combat/LiveCombatTracker.cs` 放在 `Import.Combat`，是因为它只做实时根导入；
+`BattleReconciler`。`BattleReconciler` 与 `src/Import/Combat/LiveCombatTracker.cs` 放在 `Import.Combat`，因为前者是纯 `Battle` 比较、后者只做实时根导入，均不依赖 Mod；
 `src/Core/Simulation/Combat/RouteReplay.cs` 放在 `Simulation.Combat`，是因为它只回放内核动作，不读搜索配置。
 
 Core 仍然只依赖 BCL。`Mod` 引用游戏程序集、Godot、Harmony 与 RitsuLib；只读导入/规则编译

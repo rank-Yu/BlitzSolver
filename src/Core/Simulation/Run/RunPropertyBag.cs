@@ -136,6 +136,143 @@ public static class RunProperties
     }
 
     /// <summary>Appends an already encoded entry, preserving the target's capacity.</summary>
+    /// <summary>Reads one int saved property by its canonical name hash.</summary>
+    public static bool TryGetInt(in RunPropertyBag bag, ulong nameHash, out int value)
+    {
+        Reader reader = new(bag);
+        while (reader.TryNext(out ulong hash, out byte kind))
+        {
+            if (kind == KindInt)
+            {
+                int read = reader.ReadInt();
+                if (hash == nameHash)
+                {
+                    value = read;
+                    return true;
+                }
+                continue;
+            }
+            reader.Skip(kind);
+        }
+        value = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// Replaces one int saved property, keeping every other entry. A new key is appended; callers
+    /// that need canonical order should sort at the R2 layer that owns the name set.
+    /// </summary>
+    public static void SetInt(ref RunPropertyBag bag, ulong nameHash, int value, int capacity)
+    {
+        RunPropertyBag rebuilt = default;
+        Reader reader = new(bag);
+        bool replaced = false;
+        while (reader.TryNext(out ulong hash, out byte kind))
+        {
+            if (hash == nameHash && kind == KindInt)
+            {
+                _ = reader.ReadInt();
+                AddInt(ref rebuilt, nameHash, value, capacity);
+                replaced = true;
+                continue;
+            }
+            reader.CopyEntry(ref rebuilt, hash, kind, capacity);
+        }
+        if (!replaced)
+            AddInt(ref rebuilt, nameHash, value, capacity);
+        bag = rebuilt;
+    }
+
+    /// <summary>Removes one saved property, keeping every other entry.</summary>
+    public static void Remove(ref RunPropertyBag bag, ulong nameHash, int capacity)
+    {
+        RunPropertyBag rebuilt = default;
+        Reader reader = new(bag);
+        while (reader.TryNext(out ulong hash, out byte kind))
+        {
+            if (hash == nameHash)
+            {
+                reader.Skip(kind);
+                continue;
+            }
+            reader.CopyEntry(ref rebuilt, hash, kind, capacity);
+        }
+        bag = rebuilt;
+    }
+
+    /// <summary>Replaces one bool saved property, keeping every other entry.</summary>
+    public static void SetBool(ref RunPropertyBag bag, ulong nameHash, bool value, int capacity)
+    {
+        RunPropertyBag rebuilt = default;
+        Reader reader = new(bag);
+        bool replaced = false;
+        while (reader.TryNext(out ulong hash, out byte kind))
+        {
+            if (hash == nameHash && kind == KindBool)
+            {
+                _ = reader.ReadBool();
+                AddBool(ref rebuilt, nameHash, value, capacity);
+                replaced = true;
+                continue;
+            }
+            reader.CopyEntry(ref rebuilt, hash, kind, capacity);
+        }
+        if (!replaced)
+            AddBool(ref rebuilt, nameHash, value, capacity);
+        bag = rebuilt;
+    }
+
+    /// <summary>Reads one card-array saved property into a caller buffer; returns the entry count.</summary>
+    public static int GetCardArray(in RunPropertyBag bag, ulong nameHash, Span<RunCard> output)
+    {
+        Reader reader = new(bag);
+        while (reader.TryNext(out ulong hash, out byte kind))
+        {
+            if (kind == KindCardArray)
+            {
+                int count = reader.ReadByte();
+                if (hash != nameHash)
+                {
+                    for (int index = 0; index < count; index++)
+                        _ = reader.ReadCard();
+                    continue;
+                }
+                if (count > output.Length)
+                    throw new CapacityException("RunProperties.CardArrayRead", output.Length);
+                for (int index = 0; index < count; index++)
+                    output[index] = reader.ReadCard();
+                return count;
+            }
+            reader.Skip(kind);
+        }
+        return 0;
+    }
+
+    /// <summary>Replaces one card-array saved property, keeping every other entry.</summary>
+    public static void SetCardArray(ref RunPropertyBag bag, ulong nameHash,
+        scoped ReadOnlySpan<RunCard> cards, int capacity)
+    {
+        RunPropertyBag rebuilt = default;
+        Reader reader = new(bag);
+        bool replaced = false;
+        while (reader.TryNext(out ulong hash, out byte kind))
+        {
+            if (hash == nameHash && kind == KindCardArray)
+            {
+                int count = reader.ReadByte();
+                for (int index = 0; index < count; index++)
+                    _ = reader.ReadCard();
+                AddCardArray(ref rebuilt, nameHash, cards, capacity);
+                replaced = true;
+                continue;
+            }
+            reader.CopyEntry(ref rebuilt, hash, kind, capacity);
+        }
+        if (!replaced)
+            AddCardArray(ref rebuilt, nameHash, cards, capacity);
+        bag = rebuilt;
+    }
+
     public static void Append(ref RunPropertyBag target, in RunPropertyBag entry,
         int capacity = RunLimits.CardPropertyBytes)
     {
@@ -294,6 +431,88 @@ public static class RunProperties
             _position += 8;
             kind = _buffer[_position++];
             return true;
+        }
+
+        /// <summary>Skips one already-read entry payload.</summary>
+        public void Skip(byte kind)
+        {
+            switch (kind)
+            {
+                case KindInt:
+                    _ = ReadInt();
+                    break;
+                case KindBool:
+                    _ = ReadBool();
+                    break;
+                case KindString:
+                    _ = ReadString();
+                    break;
+                case KindIntArray:
+                {
+                    int length = ReadByte();
+                    for (int index = 0; index < length; index++)
+                        _ = ReadInt();
+                    break;
+                }
+                case KindModel:
+                    _ = ReadModel();
+                    break;
+                case KindCard:
+                    _ = ReadCard();
+                    break;
+                case KindCardArray:
+                {
+                    int length = ReadByte();
+                    for (int index = 0; index < length; index++)
+                        _ = ReadCard();
+                    break;
+                }
+                default:
+                    throw new InvalidDataException($"属性种类 {kind} 未知。");
+            }
+        }
+
+        /// <summary>Copies one entry (header already consumed) into another bag.</summary>
+        public void CopyEntry(ref RunPropertyBag target, ulong nameHash, byte kind, int capacity)
+        {
+            switch (kind)
+            {
+                case KindInt:
+                    AddInt(ref target, nameHash, ReadInt(), capacity);
+                    break;
+                case KindBool:
+                    AddBool(ref target, nameHash, ReadBool(), capacity);
+                    break;
+                case KindString:
+                    AddString(ref target, nameHash, Encoding.UTF8.GetBytes(ReadString()), capacity);
+                    break;
+                case KindIntArray:
+                {
+                    int length = ReadByte();
+                    Span<int> values = stackalloc int[length];
+                    for (int index = 0; index < length; index++)
+                        values[index] = ReadInt();
+                    AddIntArray(ref target, nameHash, values, capacity);
+                    break;
+                }
+                case KindModel:
+                    AddModel(ref target, nameHash, ReadModel(), capacity);
+                    break;
+                case KindCard:
+                    AddCard(ref target, nameHash, ReadCard(), capacity);
+                    break;
+                case KindCardArray:
+                {
+                    int length = ReadByte();
+                    RunCard[] cards = new RunCard[length];
+                    for (int index = 0; index < length; index++)
+                        cards[index] = ReadCard();
+                    AddCardArray(ref target, nameHash, cards, capacity);
+                    break;
+                }
+                default:
+                    throw new InvalidDataException($"属性种类 {kind} 未知。");
+            }
         }
 
         public int ReadInt() => ReadInt32();

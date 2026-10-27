@@ -4,7 +4,7 @@
 // state-surface normalization, not a tolerance: every other byte must match.
 using BlitzSolver.Simulation.Combat;
 
-namespace BlitzSolver;
+namespace BlitzSolver.Import;
 
 internal static class BattleReconciler
 {

@@ -9,7 +9,7 @@ BlitzSolver（极速求解器）是《杀戮尖塔 2》的单人自动游玩 Mod
 | 目录 | 命名空间 | 职责 |
 | --- | --- | --- |
 | `src/Core/Simulation/Combat` | `BlitzSolver.Simulation.Combat` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
-| `src/Core/Simulation/Run` | `BlitzSolver.Simulation.Run` | 整局模拟：定长整局状态 `RunState`、局外随机数、编码 `RunCodec`、玩家可见投影 `RunView`（R1b）、进程内内容表 `ContentTable` 与 `RulesBuilder`（R2a-1）、地图进点到首个出牌阶段的战斗边界 `RunCombatSetup`（R2a-2）；局外模拟器随 R2 落地 |
+| `src/Core/Simulation/Run` | `BlitzSolver.Simulation.Run` | 整局模拟：定长整局状态 `RunState`、局外随机数、编码 `RunCodec`、玩家可见投影 `RunView`（R1b）、进程内内容表 `ContentTable` 与 `RulesBuilder`（R2a-1）、地图进点到首个出牌阶段的战斗边界 `RunCombatSetup`（R2a-2）、战后写回 `RunCombatWriteback`（R2a-3）；局外模拟器随 R2 落地 |
 | `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔、怪物与遭遇生成定义 |
 | `src/Core/Ai/Combat` | `BlitzSolver.Ai.Combat`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
 | `src/Core/Ai/Run` | `BlitzSolver.Ai.Run` | 局外决策；R1a 只有目录说明，规则与估值随 R4 落地 |
@@ -20,7 +20,7 @@ BlitzSolver（极速求解器）是《杀戮尖塔 2》的单人自动游玩 Mod
 | `tests/KernelChecks` | | 内核合同（K0）；战斗合同在 `Combat/`，整局合同在 `Run/` |
 | `tests/Golden` | | 冻结快照校验器与数据；战斗校验器在 `Combat/` |
 | `tests/Architecture` | | 编译后的 `BlitzSolver.Core` 层依赖检查；加入 `BlitzSolver.sln` |
-| [`tests/OfflineHost`](tests/OfflineHost/README.md) | | 离线宿主；战斗对照与离线整场在 `Combat/`，整局导入、内容表/`RulesBuilder` 与战斗边界建局对照在 `Run/`，入口与引导留根目录 |
+| [`tests/OfflineHost`](tests/OfflineHost/README.md) | | 离线宿主；战斗对照、进程内原版动作执行器与离线整场在 `Combat/`，整局导入、内容表/`RulesBuilder`、战斗边界建局/写回对照与遗物矩阵在 `Run/`，入口与引导留根目录 |
 
 依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层；`Ai.Combat` 不引用 `Content`；内容通过 `Registry` 挂到模拟上。`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁，但不直接读私有字段。`Import` 与 `Mod` 都不加入 `BlitzSolver.sln`，依赖规则由 `tests/Architecture` 检查。
 

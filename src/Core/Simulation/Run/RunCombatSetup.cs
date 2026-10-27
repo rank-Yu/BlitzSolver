@@ -210,6 +210,13 @@ public static class RunCombatSetup
             battle.SetCounter(Counter.VitalSparkNormalizedAmount, int.MinValue);
         for (int index = 0; index < battle.CardCount; index++)
             battle.Cards[index].Keywords &= ~Keywords.CreatedAfterRoot;
+        // Opening heals (Pantograph, BloodVial) are not combat recovery: the native live importer
+        // starts the search ledger at zero. Kernel.Heal would otherwise add them to RecoveredHp.
+        battle.SetCounter(Counter.RecoveredHp, 0);
+        // The post-entry RunState sees the same vitals the opening Battle has (first-turn heals and
+        // any combat-start max-HP change included).
+        next.Player.CurrentHp = battle.Player.CurrentHp;
+        next.Player.MaxHp = battle.Player.MaxHp;
         for (int slot = 0; slot < battle.PotionSlotCount; slot++)
         {
             if (battle.Potions[slot] != 0)

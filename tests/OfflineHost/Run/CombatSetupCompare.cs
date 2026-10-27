@@ -6,13 +6,16 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using BlitzSolver.Import;
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
 using BlitzSolver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Rooms;
@@ -43,6 +46,13 @@ internal static class CombatSetupCompare
         string? seed = null;
         int? encounter = null;
         bool cover = false;
+        bool relicMatrix = false;
+        string? relic = null;
+        string room = "monster";
+        string hp = "full";
+        bool baseline = false;
+        bool signature = false;
+        string? extra = null;
         for (int index = 0; index < args.Length; index++)
         {
             switch (args[index])
@@ -84,6 +94,27 @@ internal static class CombatSetupCompare
                 case "--setup-cover":
                     cover = true;
                     break;
+                case "--setup-relic-matrix":
+                    relicMatrix = true;
+                    break;
+                case "--setup-relic" when index + 1 < args.Length:
+                    relic = args[++index];
+                    break;
+                case "--setup-room" when index + 1 < args.Length:
+                    room = args[++index];
+                    break;
+                case "--setup-hp" when index + 1 < args.Length:
+                    hp = args[++index];
+                    break;
+                case "--setup-baseline":
+                    baseline = true;
+                    break;
+                case "--setup-sig":
+                    signature = true;
+                    break;
+                case "--setup-extra" when index + 1 < args.Length:
+                    extra = args[++index];
+                    break;
                 default:
                     Console.Error.WriteLine($"未知参数：{args[index]}");
                     return 2;
@@ -94,8 +125,11 @@ internal static class CombatSetupCompare
             Console.Error.WriteLine("--setup-jobs 必须在 1 到 8 之间，分片参数必须合法。");
             return 2;
         }
-        if (root != null || character != null || encounter != null)
-            return RunChild(data, corpora, root, character, ascension, seed, encounter, cover);
+        if (relicMatrix)
+            return RunRelicMatrix(data, corpora, jobs, shard, shards);
+        if (root != null || character != null || encounter != null || relic != null)
+            return RunChild(data, corpora, root, character, ascension, seed, encounter, cover,
+                relic, room, hp, baseline, signature, extra);
         if (kind.Length == 0)
         {
             Console.Error.WriteLine("需要 --setup-kind natural|encounter|d1，或单例模式参数。");
@@ -107,7 +141,9 @@ internal static class CombatSetupCompare
     }
 
     private static int RunChild(string data, string corpora, string? root, string? character,
-        int ascension, string? seed, int? encounter, bool cover = false)
+        int ascension, string? seed, int? encounter, bool cover = false,
+        string? relic = null, string room = "monster", string hp = "full",
+        bool baseline = false, bool signature = false, string? extra = null)
     {
         MainLoopContext loop = new();
         SynchronizationContext.SetSynchronizationContext(loop);
@@ -117,6 +153,9 @@ internal static class CombatSetupCompare
         _table = ContentTableExporter.Export();
         if (root != null)
             return CompareD1(loop, data, corpora, root, seed ?? "", cover);
+        if (relic != null)
+            return CompareRelicSetup(loop, relic, character ?? "Ironclad", ascension,
+                seed ?? $"R2A3-REL-{relic}", room, hp, baseline, signature, extra);
         if (character != null)
             return CompareNatural(loop, character, ascension, seed ?? "");
         if (encounter is { } encounterId)
@@ -304,6 +343,309 @@ internal static class CombatSetupCompare
             return;
         foreach (string id in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
             counts[id] = counts.GetValueOrDefault(id) + 1;
+    }
+
+    private static int CompareRelicSetup(MainLoopContext loop, string relicId, string characterName,
+        int ascension, string seed, string room, string hp, bool baseline, bool signature,
+        string? extra)
+    {
+        CharacterModel character = ModelDb.AllCharacters.FirstOrDefault(
+            candidate => candidate.GetType().Name == characterName)
+            ?? throw new InvalidDataException($"未知角色 {characterName}。");
+        OfflineCombatWaiter waiter = new(loop);
+        Task<(NativeRunState Run, Player Player)> start = RunTestHost.StartNewRunAsync(
+            waiter, character, ascension, seed);
+        loop.RunUntilCompleted(start, TimeSpan.FromSeconds(120), "遗物矩阵开局");
+        (NativeRunState native, Player player) = start.GetAwaiter().GetResult();
+        RoomType roomType = room switch
+        {
+            "monster" => RoomType.Monster,
+            "elite" => RoomType.Elite,
+            "boss" => RoomType.Boss,
+            _ => throw new InvalidDataException($"未知房间类型 {room}。"),
+        };
+        MapPoint point = FindPoint(native, roomType);
+        RunCoord coord = new((byte)point.coord.col, (byte)point.coord.row);
+        RemoveAllRelics(player);
+        if (extra != null)
+            ObtainRelic(loop, player, extra);
+        if (!baseline)
+        {
+            ObtainRelic(loop, player, relicId);
+            if (relicId == "FUR_COAT")
+                SetFurCoatCoord(player, coord, native.CurrentActIndex);
+        }
+        if (hp == "wounded")
+            player.Creature.SetCurrentHpInternal(1);
+        else if (hp != "full")
+            throw new InvalidDataException($"未知玩家状态 {hp}。");
+        NativeRunState afterStart = native;
+        RunState before = RunStateImporter.Import(afterStart, player);
+        Task enter = RunManager.Instance.EnterMapCoord(point.coord);
+        loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "遗物矩阵进点");
+        Task<CombatState> playable = waiter.WaitForPlayableCombatAsync();
+        loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "遗物矩阵可出牌");
+        CombatState combat = playable.GetAwaiter().GetResult();
+        Player combatPlayer = LocalContext.GetMe(combat)
+            ?? throw new InvalidDataException("遗物矩阵找不到玩家。");
+        NativeRunState after = combat.RunState as NativeRunState
+            ?? throw new InvalidDataException("遗物矩阵 RunState 类型不对。");
+        Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
+        LiveCombatTracker tracker = new(combat);
+        Battle expected = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+        string expectedRun = NativeRunDump.Capture(after, combatPlayer);
+        CombatSetupResult actual = RunCombatSetup.EnterMapCoord(before, _table!, coord);
+        List<string> battleDiff = BattleDump.Diff(expected, actual.Battle, "native", "blitz");
+        byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
+        byte[] blitzRuleBytes = RulesCodec.Encode(actual.Rules);
+        string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
+            ? null
+            : string.Join(" | ", RulesDiff.Compare(nativeRules, actual.Rules).Take(4));
+        string blitzRun = RunDump.Capture(actual.Run);
+        string? runDiff = FirstDifference(expectedRun, blitzRun);
+        string status = battleDiff.Count == 0 && rulesDiff == null && runDiff == null
+            ? "same" : "diff";
+        Console.WriteLine(
+            $"SETUP kind=relic label={relicId} status={status} encounter={(baseline ? "baseline" : "relic")}");
+        if (battleDiff.Count != 0)
+        {
+            foreach (string line in battleDiff.Take(12))
+                Console.WriteLine("  BATL " + line);
+        }
+        if (rulesDiff != null)
+            Console.WriteLine("  RULE " + rulesDiff);
+        if (runDiff != null)
+            Console.WriteLine("  RUN  " + runDiff);
+        if (signature)
+        {
+            // The relic table itself differs between the baseline and the injected case; zero it so
+            // the signature measures the opening effect rather than the relic's presence.
+            Battle signatureBattle = actual.Battle;
+            signatureBattle.Relics = default;
+            signatureBattle.RelicCount = 0;
+            string battleHash = Convert.ToHexString(
+                SHA256.HashData(BattleCodec.Encode(signatureBattle)))[..16];
+            Console.WriteLine($"SETUP-SIG battle={battleHash}");
+            if (!baseline)
+            {
+                RelicModel? target = combatPlayer.Relics.FirstOrDefault(
+                    relic => string.Equals(relic.Id.Entry, relicId, StringComparison.Ordinal));
+                if (target != null)
+                {
+                    Console.WriteLine(
+                        $"SETUP-RELQ id={relicId} status={(int)target.Status} " +
+                        $"display={target.DisplayAmount}");
+                }
+            }
+        }
+        return 0;
+    }
+
+    private static void ObtainRelic(MainLoopContext loop, Player player, string relicId)
+    {
+        RelicModel canonical = NativeLookup.ResolveUnique(ModelDb.AllRelics, relicId, "遗物");
+        Task<RelicModel> obtain = RelicCmd.Obtain(canonical.ToMutable(), player);
+        loop.RunUntilCompleted(obtain, TimeSpan.FromSeconds(120), $"注入遗物 {relicId}");
+    }
+
+    private static void RemoveAllRelics(Player player)
+    {
+        foreach (RelicModel relic in player.Relics.ToArray())
+            player.RemoveRelicInternal(relic, silent: true);
+    }
+
+    private static void SetFurCoatCoord(Player player, RunCoord coord, int actIndex)
+    {
+        RelicModel relic = player.Relics.FirstOrDefault(
+            candidate => string.Equals(candidate.Id.Entry, "FUR_COAT", StringComparison.Ordinal))
+            ?? throw new InvalidDataException("注入 FUR_COAT 后找不到遗物。");
+        SetRelicMember(relic, "FurCoatActIndex", actIndex);
+        SetRelicMember(relic, "FurCoatCoordCols", new[] { (int)coord.Col });
+        SetRelicMember(relic, "FurCoatCoordRows", new[] { (int)coord.Row });
+        SetRelicMember(relic, "FurCoatCoordsSet", true);
+    }
+
+    private static void SetRelicMember<T>(RelicModel relic, string name, T value)
+    {
+        for (Type? type = relic.GetType(); type != null; type = type.BaseType)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public
+                | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            if (type.GetProperty(name, flags) is { } property)
+            {
+                if (property.PropertyType != typeof(T) || property.SetMethod == null)
+                    throw new InvalidDataException($"遗物成员 {name} 不是可写的 {typeof(T).Name}。");
+                property.SetValue(relic, value);
+                return;
+            }
+            if (type.GetField(name, flags) is { } field)
+            {
+                if (field.FieldType != typeof(T) || field.IsInitOnly)
+                    throw new InvalidDataException($"遗物字段 {name} 不是可写的 {typeof(T).Name}。");
+                field.SetValue(relic, value);
+                return;
+            }
+        }
+        throw new InvalidDataException($"遗物 {relic.Id.Entry} 没有成员 {name}。");
+    }
+
+    private sealed record RelicCase(string Id, string Character, string Room, string Hp,
+        bool StatusOnly, string? Extra = null);
+
+    private static int RunRelicMatrix(string data, string corpora, int jobs, int shard, int shards)
+    {
+        RelicCase[] cases =
+        [
+            new("ANCHOR", "Ironclad", "monster", "full", false),
+            new("FAKE_ANCHOR", "Ironclad", "monster", "full", false),
+            new("BRONZE_SCALES", "Ironclad", "monster", "full", false),
+            new("DATA_DISK", "Defect", "monster", "full", false),
+            new("GORGET", "Ironclad", "monster", "full", false),
+            new("ODDLY_SMOOTH_STONE", "Ironclad", "monster", "full", false),
+            new("VAJRA", "Ironclad", "monster", "full", false),
+            new("SWORD_OF_JADE", "Regent", "monster", "full", false),
+            new("SLING_OF_COURAGE", "Ironclad", "elite", "full", false),
+            new("DIVINE_RIGHT", "Regent", "monster", "full", false),
+            new("PHILOSOPHERS_STONE", "Ironclad", "monster", "full", false),
+            new("RED_SKULL", "Ironclad", "monster", "wounded", false),
+            new("BELT_BUCKLE", "Ironclad", "monster", "full", false),
+            new("SNECKO_EYE", "Ironclad", "monster", "full", false),
+            new("FAKE_SNECKO_EYE", "Ironclad", "monster", "full", false),
+            new("BOUND_PHYLACTERY", "Necrobinder", "monster", "full", false),
+            new("PHYLACTERY_UNBOUND", "Necrobinder", "monster", "full", false),
+            new("BAG_OF_MARBLES", "Ironclad", "monster", "full", false),
+            new("RED_MASK", "Ironclad", "monster", "full", false),
+            new("BAG_OF_PREPARATION", "Ironclad", "monster", "full", false),
+            new("BLOOD_VIAL", "Ironclad", "monster", "wounded", false),
+            new("LANTERN", "Ironclad", "monster", "full", false),
+            new("VERY_HOT_COCOA", "Ironclad", "monster", "full", false),
+            new("FUR_COAT", "Ironclad", "monster", "full", false),
+            new("GHOST_SEED", "Ironclad", "monster", "full", false),
+            new("PANTOGRAPH", "Ironclad", "boss", "wounded", false),
+            new("STONE_CRACKER", "Ironclad", "monster", "full", false),
+            new("BELLOWS", "Ironclad", "monster", "full", false),
+            new("PETRIFIED_TOAD", "Ironclad", "monster", "full", false),
+            new("METRONOME", "Defect", "monster", "full", true, "CRACKED_CORE"),
+            new("BREAD", "Ironclad", "monster", "full", false),
+            new("TWISTED_FUNNEL", "Ironclad", "monster", "full", false),
+            new("EMBER_TEA", "Ironclad", "monster", "full", false),
+            new("FUNERARY_MASK", "Ironclad", "monster", "full", false),
+            new("FENCING_MANUAL", "Regent", "monster", "full", false),
+            new("AKABEKO", "Ironclad", "monster", "full", false),
+            new("FESTIVE_POPPER", "Ironclad", "monster", "full", false),
+            new("CRACKED_CORE", "Defect", "monster", "full", false),
+            new("RING_OF_THE_SNAKE", "Silent", "monster", "full", false),
+            new("HAPPY_FLOWER", "Ironclad", "monster", "full", true),
+            new("PENDULUM", "Ironclad", "monster", "full", true),
+            new("ART_OF_WAR", "Ironclad", "monster", "full", true),
+            new("STONE_CALENDAR", "Ironclad", "monster", "full", true),
+            new("RIPPLE_BASIN", "Ironclad", "monster", "full", true),
+            new("POCKETWATCH", "Ironclad", "monster", "full", true),
+            new("BURNING_STICKS", "Ironclad", "monster", "full", true),
+            new("THROWING_AXE", "Ironclad", "monster", "full", true),
+            new("UNSETTLING_LAMP", "Ironclad", "monster", "full", true),
+            new("VAMBRACE", "Ironclad", "monster", "full", true),
+            new("MEAT_ON_THE_BONE", "Ironclad", "monster", "wounded", true),
+        ];
+        if (shards > 1)
+            cases = cases.Where((_, index) => index % shards == shard).ToArray();
+        object gate = new();
+        int same = 0, diff = 0, triggered = 0;
+        List<string> missing = [];
+        Console.WriteLine($"SETUP-RELIC-MATRIX cases={cases.Length} jobs={jobs} shard={shard}/{shards}");
+        Parallel.ForEach(cases, new ParallelOptions { MaxDegreeOfParallelism = jobs }, item =>
+        {
+            string seed = $"R2A3-REL-{item.Id}";
+            string[] common =
+            [
+                "--setup-character", item.Character, "--setup-ascension", "0",
+                "--setup-seed", seed, "--setup-room", item.Room, "--setup-hp", item.Hp,
+                "--setup-sig",
+            ];
+            if (item.Extra != null)
+                common = [.. common, "--setup-extra", item.Extra];
+            (int code, string stdout, string stderr) = RunChildProcess(data, corpora,
+                ["--setup-relic", item.Id, .. common]);
+            (int baseCode, string baseOut, string baseErr) = RunChildProcess(data, corpora,
+                ["--setup-relic", item.Id, "--setup-baseline", .. common]);
+            lock (gate)
+            {
+                string relicStatus = StatusLine(stdout);
+                string baselineStatus = StatusLine(baseOut);
+                string? sigLine = stdout.Split('\n')
+                    .FirstOrDefault(static line => line.StartsWith("SETUP-SIG ", StringComparison.Ordinal));
+                string? baseSigLine = baseOut.Split('\n')
+                    .FirstOrDefault(static line => line.StartsWith("SETUP-SIG ", StringComparison.Ordinal));
+                string? relq = stdout.Split('\n')
+                    .FirstOrDefault(static line => line.StartsWith("SETUP-RELQ ", StringComparison.Ordinal));
+                bool ok = relicStatus == "same" && baselineStatus == "same"
+                    && sigLine != null && baseSigLine != null;
+                bool fire = false;
+                if (ok)
+                {
+                    if (item.StatusOnly)
+                    {
+                        int state = relq is null ? 0 : IntField(relq, "status", 0);
+                        int display = relq is null ? 0 : IntField(relq, "display", 0);
+                        fire = state != 0 || display != 0;
+                    }
+                    else
+                    {
+                        fire = !string.Equals(sigLine, baseSigLine, StringComparison.Ordinal);
+                    }
+                }
+                if (ok)
+                    same++;
+                else
+                    diff++;
+                if (fire)
+                    triggered++;
+                else
+                    missing.Add(item.Id);
+                Console.WriteLine(
+                    $"SETUP-RELQ relic={item.Id} character={item.Character} room={item.Room} " +
+                    $"hp={item.Hp} relic_status={relicStatus} baseline_status={baselineStatus} " +
+                    $"trigger={(fire ? "yes" : "no")} code={code}/{baseCode}");
+                if (!ok)
+                {
+                    string firstError = stderr.Split('\n').FirstOrDefault(static line => line.Length != 0)
+                        ?? baseErr.Split('\n').FirstOrDefault(static line => line.Length != 0) ?? "";
+                    Console.WriteLine("  " + firstError);
+                }
+            }
+        });
+        Console.WriteLine(
+            $"SETUP-RELIC-SUMMARY cases={cases.Length} same={same} diff={diff} " +
+            $"triggered={triggered} missing={missing.Count}");
+        foreach (string id in missing.OrderBy(static name => name, StringComparer.Ordinal))
+            Console.WriteLine($"SETUP-RELQ-MISSING {id}");
+        return diff == 0 && missing.Count == 0 ? 0 : 1;
+    }
+
+    private static string StatusLine(string output)
+    {
+        string? line = output.Split('\n')
+            .FirstOrDefault(static text => text.StartsWith("SETUP ", StringComparison.Ordinal));
+        if (line == null)
+            return "missing";
+        int start = line.IndexOf(" status=", StringComparison.Ordinal);
+        if (start < 0)
+            return "missing";
+        start += " status=".Length;
+        int end = line.IndexOf(' ', start);
+        return end < 0 ? line[start..] : line[start..end];
+    }
+
+    private static int IntField(string line, string name, int fallback)
+    {
+        string marker = name + "=";
+        int start = line.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+            return fallback;
+        start += marker.Length;
+        int end = line.IndexOf(' ', start);
+        string text = end < 0 ? line[start..] : line[start..end];
+        return int.TryParse(text, out int value) ? value : fallback;
     }
 
     private static int CompareNatural(MainLoopContext loop, string characterName, int ascension, string seed)
