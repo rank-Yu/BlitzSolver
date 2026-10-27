@@ -326,6 +326,142 @@ public sealed class ContentRewardRules
     };
 }
 
+/// <summary>
+/// The normal merchant's generation, price and hook parameters, read from the native inventory,
+/// entries and factories. Costs are stored per native rarity because the native helpers are
+/// private method bodies; <see cref="CardCosts"/> and <see cref="ColorlessCardCosts"/> are indexed
+/// by <see cref="CardRarity"/> and already include the colorless multiplier.
+/// </summary>
+public sealed class ContentShopRules
+{
+    /// <summary>Native <c>MerchantInventory._coloredCardTypes</c>.</summary>
+    public required CardType[] CharacterCardTypes { get; init; }
+
+    /// <summary>Native <c>MerchantInventory._colorlessCardRarities</c>.</summary>
+    public required CardRarity[] ColorlessCardRarities { get; init; }
+
+    /// <summary>Relic slots created by <c>PopulateRelicEntries</c>.</summary>
+    public required int RelicSlots { get; init; }
+
+    /// <summary>Leading relic slots whose rarity is rolled; the rest use <see cref="FixedRelicRarity"/>.</summary>
+    public required int RandomRelicRaritySlots { get; init; }
+
+    public required RunRelicRarity FixedRelicRarity { get; init; }
+
+    /// <summary>Potions created by <c>PopulatePotionEntries</c>.</summary>
+    public required int PotionSlots { get; init; }
+
+    /// <summary><c>MerchantCardEntry.GetCost</c> for a character-pool card, by rarity.</summary>
+    public required int[] CardCosts { get; init; }
+
+    /// <summary><c>MerchantCardEntry.GetCost</c> for a colorless-pool card, by rarity.</summary>
+    public required int[] ColorlessCardCosts { get; init; }
+
+    /// <summary><c>MerchantCardEntry.CalcCost</c> random multiplier bounds.</summary>
+    public required float CardPriceMin { get; init; }
+
+    public required float CardPriceMax { get; init; }
+
+    /// <summary><c>MerchantCardEntry.SetOnSale</c> integer divisor.</summary>
+    public required int SaleDivisor { get; init; }
+
+    /// <summary><c>MerchantRelicEntry.CalcCost</c> random multiplier bounds.</summary>
+    public required float RelicPriceMin { get; init; }
+
+    public required float RelicPriceMax { get; init; }
+
+    /// <summary><c>PotionEntry.GetCost</c>, by rarity.</summary>
+    public required int[] PotionCosts { get; init; }
+
+    /// <summary><c>MerchantPotionEntry.CalcCost</c> random multiplier bounds.</summary>
+    public required float PotionPriceMin { get; init; }
+
+    public required float PotionPriceMax { get; init; }
+
+    /// <summary>
+    /// True when the native <c>CalcCost</c> applies the random potion multiplier. It is false in
+    /// the default offline test session (<c>TestMode.IsOn</c>); the live-prices comparison forces
+    /// it true to exercise the real-game branch.
+    /// </summary>
+    public required bool PotionPriceVaries { get; init; }
+
+    /// <summary><c>WingedBoots</c> <c>Rooms</c> dynamic var (the shop counter resets it).</summary>
+    public required int WingedBootsRooms { get; init; }
+
+    /// <summary><c>MerchantCardRemovalEntry.BaseCost</c> at ascension 0.</summary>
+    public required int RemovalBaseCost { get; init; }
+
+    /// <summary><c>MerchantCardRemovalEntry.BaseCost</c> at <see cref="InflationLevel"/>.</summary>
+    public required int RemovalBaseCostInflation { get; init; }
+
+    /// <summary><c>MerchantCardRemovalEntry.PriceIncrease</c> at ascension 0.</summary>
+    public required int RemovalPriceIncrease { get; init; }
+
+    /// <summary><c>MerchantCardRemovalEntry.PriceIncrease</c> at <see cref="InflationLevel"/>.</summary>
+    public required int RemovalPriceIncreaseInflation { get; init; }
+
+    /// <summary>Native <c>AscensionLevel.Inflation</c>.</summary>
+    public required int InflationLevel { get; init; }
+
+    /// <summary><c>CardRarityOdds.GetBaseOdds(Shop, Rare)</c> at ascension 0.</summary>
+    public required float ShopRareOdds { get; init; }
+
+    /// <summary><c>CardRarityOdds.GetBaseOdds(Shop, Uncommon)</c> at ascension 0.</summary>
+    public required float ShopUncommonOdds { get; init; }
+
+    public required float ScarcityShopRareOdds { get; init; }
+
+    public required float ScarcityShopUncommonOdds { get; init; }
+}
+
+/// <summary>
+/// Merchant-flow <c>AbstractModel</c> hook bits that the reward mask does not carry. The content
+/// table records per listener which bits the canonical type overrides and which of those the Core
+/// shop layer implements; any other override is unsupported and rejects instead of being treated
+/// as a no-op. Hooks shared with the reward flow (potion procurement, card-added, gold gained,
+/// upgrade odds) are read from <see cref="ContentRewardHookMask"/>.
+/// </summary>
+[Flags]
+public enum ContentShopHook : uint
+{
+    None = 0,
+    ModifyMerchantPrice = 1u << 0,
+    ModifyMerchantCardPool = 1u << 1,
+    ModifyMerchantCardRarity = 1u << 2,
+    ModifyMerchantCardCreationResults = 1u << 3,
+    ShouldRefillMerchantEntry = 1u << 4,
+    AfterItemPurchased = 1u << 5,
+    BeforeCardRemoved = 1u << 6,
+    /// <summary>Native <c>BeforeRoomEntered</c>, implemented only for a merchant room.</summary>
+    BeforeShopRoomEntered = 1u << 7,
+    /// <summary>Native <c>AfterRoomEntered</c>, implemented only for a merchant room.</summary>
+    AfterShopRoomEntered = 1u << 8,
+}
+
+/// <summary>Overridden and implemented merchant-hook bits of one listener model.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct ContentShopHookMask
+{
+    public uint Overridden;
+    public uint Implemented;
+
+    public readonly uint Unsupported => Overridden & ~Implemented;
+
+    public static ContentShopHookMask From(
+        IEnumerable<(ContentShopHook Hook, bool Overridden, bool Implemented)> values)
+    {
+        ContentShopHookMask mask = default;
+        foreach ((ContentShopHook hook, bool overridden, bool implemented) in values)
+        {
+            if (overridden)
+                mask.Overridden |= (uint)hook;
+            if (implemented)
+                mask.Implemented |= (uint)hook;
+        }
+        return mask;
+    }
+}
+
 /// <summary>Which native <c>CardRarityOddsType</c> a combat room uses.</summary>
 public enum RoomRarityOdds : byte
 {
@@ -407,6 +543,15 @@ public sealed class ContentRelicRewardFacts
 
     /// <summary>Reward-hook overrides of this relic type.</summary>
     public required ContentRewardHookMask RewardHooks { get; init; }
+
+    /// <summary>Merchant-hook overrides of this relic type.</summary>
+    public required ContentShopHookMask ShopHooks { get; init; }
+
+    /// <summary>Native <c>RelicModel.MerchantCost</c> of this relic.</summary>
+    public required int MerchantCost { get; init; }
+
+    /// <summary>Native <c>RelicModel.IsAllowedInShops</c>.</summary>
+    public required bool AllowedInShops { get; init; }
 
     /// <summary>
     /// Saved properties of a freshly created mutable relic (native default values, including

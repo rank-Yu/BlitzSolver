@@ -65,6 +65,17 @@ public static class RunDump
         Int("rewards.choiceCount", state.Rewards.ChoiceCount);
         for (int index = 0; index < state.Rewards.Count; index++)
             Line($"rewards.{index}", Reward(state.Rewards, index));
+        Line("shop.stage", state.Shop.Stage.ToString());
+        Line("shop.removal",
+            $"{state.Shop.Removal.Used},{state.Shop.Removal.Cost},{state.Shop.Removal.Price}");
+        for (int index = 0; index < RunLimits.ShopCharacterCards; index++)
+            Line($"shop.character.{index}", ShopCard(state.Shop.CharacterCards[index]));
+        for (int index = 0; index < RunLimits.ShopColorlessCards; index++)
+            Line($"shop.colorless.{index}", ShopCard(state.Shop.ColorlessCards[index]));
+        for (int index = 0; index < RunLimits.ShopRelics; index++)
+            Line($"shop.relic.{index}", ShopModel(state.Shop.Relics[index], relic: true));
+        for (int index = 0; index < RunLimits.ShopPotions; index++)
+            Line($"shop.potion.{index}", ShopModel(state.Shop.Potions[index], relic: false));
         DumpBag(text, "sharedBag", state.SharedBag);
         DumpBag(text, "playerBag", state.PlayerBag);
 
@@ -186,6 +197,23 @@ public static class RunDump
         text.Append(",props=").Append(PropertyText(card.Properties));
         text.Append(",enchantProps=").Append(PropertyText(card.EnchantmentProperties));
         return text.ToString();
+    }
+
+    private static string ShopCard(in RunShopCard entry)
+    {
+        if ((entry.Flags & RunShopEntryFlags.Stocked) == 0)
+            return $"{(int)entry.Flags}";
+        return $"{(int)entry.Flags},{entry.Cost},{entry.Price},{Card(entry.Card)}";
+    }
+
+    private static string ShopModel(in RunShopModel entry, bool relic)
+    {
+        if ((entry.Flags & RunShopEntryFlags.Stocked) == 0)
+            return $"{(int)entry.Flags}";
+        string name = relic
+            ? Registry.Relic(entry.ModelId).NativeId
+            : Registry.Potion(entry.ModelId).NativeId;
+        return $"{(int)entry.Flags},{name},{entry.Cost},{entry.Price}";
     }
 
     public static string Reward(in RunRewards rewards, int index)

@@ -559,7 +559,7 @@ public static class RunRewardGenerator
         return id;
     }
 
-    private static void RemoveDisallowedRelics(ref RunState state, ContentTable table)
+    internal static void RemoveDisallowedRelics(ref RunState state, ContentTable table)
     {
         for (int rarity = 0; rarity < RunLimits.RelicRarities; rarity++)
         {
@@ -598,7 +598,7 @@ public static class RunRewardGenerator
         _ => false,
     };
 
-    private static void RemoveFromSharedBag(ref RunState state, ushort id)
+    internal static void RemoveFromSharedBag(ref RunState state, ushort id)
     {
         for (int rarity = 0; rarity < RunLimits.RelicRarities; rarity++)
         {
@@ -1136,7 +1136,7 @@ public static class RunRewardGenerator
         }
     }
 
-    private static bool EpochsRevealed(in RunState state, ulong mask)
+    internal static bool EpochsRevealed(in RunState state, ulong mask)
     {
         for (int epoch = 0; epoch < RunCatalog.EpochCount; epoch++)
         {
@@ -1182,22 +1182,22 @@ public static class RunRewardGenerator
         return 0;
     }
 
-    private static int IntVar(ContentTable table, ushort relicId, string name)
+    internal static int IntVar(ContentTable table, ushort relicId, string name)
         => checked((int)table.RelicVar(relicId, name));
 
-    private static int ReadRelicInt(in RunRelic relic, string name)
+    internal static int ReadRelicInt(in RunRelic relic, string name)
         => RunProperties.TryGetInt(relic.Properties, RunProperties.NameHash(name), out int value)
             ? value : 0;
 
-    private static bool ReadRelicBool(in RunRelic relic, string name)
+    internal static bool ReadRelicBool(in RunRelic relic, string name)
         => RunProperties.TryGetBool(relic.Properties, RunProperties.NameHash(name), out bool value)
             && value;
 
-    private static void SetRelicInt(ref RunRelic relic, string name, int value)
+    internal static void SetRelicInt(ref RunRelic relic, string name, int value)
         => RunProperties.SetInt(ref relic.Properties, RunProperties.NameHash(name), value,
             RunLimits.RelicPropertyBytes);
 
-    private static void SetRelicBool(ref RunRelic relic, string name, bool value)
+    internal static void SetRelicBool(ref RunRelic relic, string name, bool value)
         => RunProperties.SetBool(ref relic.Properties, RunProperties.NameHash(name), value,
             RunLimits.RelicPropertyBytes);
 
@@ -1399,8 +1399,13 @@ public static class RunRewardGenerator
         AddCardToDeck(ref state, table, card);
     }
 
-    private static void AddCardToDeck(ref RunState state, ContentTable table, RunCard card)
+    internal static void AddCardToDeck(ref RunState state, ContentTable table, RunCard card)
     {
+        CardStats facts = table.Card(card.Id, card.Upgrade);
+        card.Flags = (facts.Keywords & Keywords.Eternal) == 0
+            ? RunCardFlags.Removable : RunCardFlags.None;
+        if (facts.Type == CardType.Curse)
+            card.Flags |= RunCardFlags.Curse;
         RequireSupportedMask(table.CardRewardHooks[card.Id],
             $"卡牌 {Registry.Card(card.Id).NativeId}");
         if (card.HasEnchantment != 0)
@@ -1463,7 +1468,7 @@ public static class RunRewardGenerator
         }
     }
 
-    private static void GainGold(ref RunState state, ContentTable table, int amount, bool stolenBack)
+    internal static void GainGold(ref RunState state, ContentTable table, int amount, bool stolenBack)
     {
         decimal value = amount;
         for (int index = 0; index < state.Relics.Count; index++)
@@ -1495,7 +1500,7 @@ public static class RunRewardGenerator
         _ = stolenBack;
     }
 
-    private static void GainMaxHp(ref RunState state, int amount)
+    internal static void GainMaxHp(ref RunState state, int amount)
     {
         if (amount <= 0)
             return;
@@ -1504,7 +1509,7 @@ public static class RunRewardGenerator
             state.Player.CurrentHp + amount);
     }
 
-    private static void Heal(ref RunState state, int amount)
+    internal static void Heal(ref RunState state, int amount)
     {
         if (amount <= 0)
             return;
@@ -1512,7 +1517,7 @@ public static class RunRewardGenerator
             state.Player.CurrentHp + amount);
     }
 
-    private static void CheckRelicObtainable(ref RunState state, ContentTable table, ushort relicId)
+    internal static void CheckRelicObtainable(ref RunState state, ContentTable table, ushort relicId)
     {
         ContentRelicRewardFacts facts = table.RelicRewardFacts[relicId]
             ?? throw new ContentUnavailableException(ContentReason.UnsupportedRelic,
@@ -1531,7 +1536,7 @@ public static class RunRewardGenerator
         }
     }
 
-    private static void ObtainRelic(ref RunState state, ContentTable table, ushort relicId)
+    internal static void ObtainRelic(ref RunState state, ContentTable table, ushort relicId)
     {
         ContentRelicRewardFacts facts = table.RelicRewardFacts[relicId]
             ?? throw new ContentUnavailableException(ContentReason.UnsupportedRelic,
@@ -1553,7 +1558,7 @@ public static class RunRewardGenerator
         ApplyRelicObtainedCardHooks(ref state, table, relicId);
     }
 
-    private static void RemoveFromPlayerBag(ref RunState state, ushort id)
+    internal static void RemoveFromPlayerBag(ref RunState state, ushort id)
     {
         for (int rarity = 0; rarity < RunLimits.RelicRarities; rarity++)
         {

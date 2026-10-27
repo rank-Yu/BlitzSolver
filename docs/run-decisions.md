@@ -20,9 +20,9 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 
 | 类型 | 内容 |
 | --- | --- |
-| `RunDecisionRequest` | 当前决策种类 `Kind`、选项数 `OptionCount`、固定容量 32 的 `RunDecisionOptionArray Options` |
+| `RunDecisionRequest` | 当前决策种类 `Kind`、选项数 `OptionCount`、固定容量 129 的 `RunDecisionOptionArray Options` |
 | `RunDecisionOption` | `Kind`（`MapPoint` / `EventOption` / `Reward` / `Skip` / `Card` / `Potion` / `Relic` / `ShopEntry` / `CardRemoval` / `RestSiteOption` / `BossRelic` / `Reroll`）、`Index`、`Coord`、点类型、`RewardType`、卡牌的 `Upgrade`/附魔字段、`Model`（`RunRef`）、`Amount` |
-| `RunAction` | `Kind`（与决策种类对应）、`Option`（请求里的下标）、`Coord`（地图点） |
+| `RunAction` | `Kind`（与决策种类对应）、`Option`（请求里的下标）、`Coord`（地图点）；商店用 `BuyShopEntry` / `RemoveCard` / `LeaveShop` / `CancelCardSelection` |
 | `RunStepResult` | `Status`（`Decision` / `Combat` / `Ended` / `UnsupportedRoom` / `Rejected`）、`Reject`、稳定原因码 `Reason`、`Detail`、当前请求、房间与点类型、`CombatSetupResult` |
 
 `RunDecisionRequest.Capture(in RunState)` 是唯一的请求构造入口，`RunView.Request` 直接使用它。
@@ -34,8 +34,11 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 `Capture` 的规则是：
 
 1. HP 为 0：`GameOver`；
-2. 房间栈里没有未完成的非地图房间，且 `RunTravel.Collect` 至少有一个点：`MapPoint`；
-3. 否则沿用 `RunState.Decision`（例如商店、事件页；本批这些请求还没有选项）。
+2. `Shop.Stage=CardRemoval`：`CardSelect`（删牌选卡）；
+3. `Shop.Stage=Shop`：`Shop`；
+4. 奖励阶段（`Rewards.Stage`）非空：奖励请求；
+5. 房间栈里没有未完成的非地图房间，且 `RunTravel.Collect` 至少有一个点：`MapPoint`；
+6. 否则沿用 `RunState.Decision`（例如事件页；本批这些请求还没有选项）。
 
 `RunDecisionRequest` 只含玩家界面上能看到的东西：地图坐标、点类型、模型 id 与数量。没有随机数
 状态、未生成序列、遗物袋顺序或解锁位图；`tests/Architecture` 把请求类型与 `RunView` 一起登记为
@@ -132,9 +135,10 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 - `Odds` 已按未知点掷骰更新；
 - `Decision` 与 `DecisionOptionCount` 清零，等待房间内容阶段设置新请求。
 
-商店货架、宝箱遗物、休息处选项、事件页与先古之民选项都不在本批：结果里的 `Reason` 分别是
-`room-content-shop`、`room-content-treasure`、`room-content-rest-site`、
-`room-content-event`、`room-content-ancient`。这不是异常，也不是默认值；调用方必须显式处理。
+宝箱遗物、休息处选项、事件页与先古之民选项都不在本批：结果里的 `Reason` 分别是
+`room-content-treasure`、`room-content-rest-site`、`room-content-event`、
+`room-content-ancient`。商店已改为返回 `Decision`（见 5.2），不再返回 `room-content-shop`。
+这不是异常，也不是默认值；调用方必须显式处理。
 `UnsupportedRoom` 是终态：该状态不是"等待决策"，调用方在内容阶段落地前不应再调用 `Step`，
 也不应使用 `RunView.Request`（它按地图规则仍会列出后续点，因为房间栈为空且历史已追加）。
 
@@ -165,6 +169,34 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 - 写回后必须先调用 `RunRewardGenerator.GenerateForCombat`；未生成时奖励动作返回
   `rewards-not-generated`，奖励界面未离开时地图选点返回 `reward-open`。
 
+### 5.2 商店与删牌选卡（R2c-2）
+
+商店在同一个 `Step` 里完成“地图点 → 压入 `MerchantRoom` → `BeforeRoomEntered` → 生成货架 →
+`AfterRoomEntered` → 返回 `Decision`”。原版步骤与 Hook 见[商店](run-shop.md)。
+
+**商店界面**：`RunDecisionRequest.Kind=Shop`，选项按固定顺序：
+
+1. 角色卡 5 格、无色卡 2 格、遗物 3 格、药水 3 格中**有库存且买得起**的条目，`Kind=ShopEntry`，
+   `Index` 是全局条目号（0–4 角色卡、5–6 无色卡、7–9 遗物、10–12 药水），`Model`/`Amount`
+   是模型与 Hook 后价格；卡牌还带升级/附魔字段；
+2. 删牌服务 `Kind=CardRemoval`，`Index=13`，`Amount=价格`，仅在未用过、买得起且牌组有可删卡时出现；
+3. 离开 `Kind=Skip`。
+
+药水在满槽、或 `Sozu` 禁止获得时不是合法选项；遗物/卡牌的获得效果或 Hook 不支持时，购买动作
+`Rejected`（`relic-obtain-effect`、`shop-hook-listener` 等），状态不变。`BuyShopEntry.Option`
+是**请求下标**；内核对 `RunDecisionOption.Index` 的条目执行购买、补货/售罄、`AfterItemPurchased`、
+`UpdateEntries`，并重算价格。删牌服务购买后切到 `CardSelect`，此时不扣金币。
+
+**从牌组选卡**：`RunDecisionRequest.Kind=CardSelect`，选项是满足条件的牌组卡（本批条件为
+`RunCardFlags.Removable`，即非 Eternal），按原版 `FromDeckForRemoval` 的顺序：诅咒在前、
+其余按牌组顺序；最后是取消 `Kind=Skip`。`RemoveCard.Option` 是请求下标，选中后扣金币、删牌、
+`CardShopRemovalsUsed++`、标记删牌服务已用，再回到 `Shop`；`CancelCardSelection` 或选取消
+不扣金币、不消耗服务，直接回到 `Shop`。同一 id/升级的重复牌按原版从牌组中取第一张。
+
+**离开**：`LeaveShop` 清空货架、弹出商店房间并把 `Decision` 置回无；下一个请求是 `MapPoint`。
+商店房间的 `Exit` 只写玩家历史里的未买条目（`wasPicked=false`），这些玩家统计不在 `RunState`；
+离线 TestMode 下原版 `Exit` 直接返回。
+
 ## 6. 结果与拒绝码
 
 | 结果 | 含义 |
@@ -193,6 +225,9 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 | `not-reward-decision` / `reward-index` / `card-option` / `potion-slot` | 奖励阶段下标或动作不符 |
 | `rewards-not-generated` / `reward-open` | 奖励尚未生成 / 奖励界面未离开 |
 | `reward-hook-relic` / `relic-obtain-effect` / `gold-proportion-encounter` | 奖励 Hook、遗物获得效果或金币比例未实现 |
+| `not-shop-decision` / `shop-option` / `shop-state` | 商店阶段动作或下标不符 |
+| `shop-hook-listener` | 当前监听者重写了未实现的商店 Hook |
+| `shop-removal-card` / `shop-potion` | 选中的卡不可删 / 药水不能获得 |
 
 ## 7. 后续决策的接法
 
@@ -202,7 +237,7 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 | --- | --- | --- | --- |
 | R2c | 战后奖励、离开 | 每条奖励 `Kind=Reward/Skip`、模型与金币 | `TakeReward` / `LeaveRewards` |
 | R2c | 选牌、药水满槽 | 牌/药水 `Kind=Card/Potion`，下标即原版界面下标；Driftwood 时 `Kind=Reroll` | `ChooseCard` / `ChoosePotion` / `SkipReward` / `RerollCardReward` |
-| R2d | 商店、删牌 | `Kind=ShopEntry/CardRemoval`，`Amount` 放价格 | `BuyShopEntry` / `RemoveCard` |
+| R2c-2 | 商店、删牌 | `Kind=ShopEntry/CardRemoval`，`Amount` 放价格；删牌选卡 `Kind=Card/Cancel` | `BuyShopEntry` / `RemoveCard` / `CancelCardSelection` / `LeaveShop` |
 | R2d | 宝箱、遗物选择 | `Kind=Relic` | `ChooseRelic` |
 | R2e | 事件页、多页 | `Kind=EventOption`，`Index` 是当前页选项下标 | `ChooseEventOption` |
 | R2e | 休息处 | `Kind=RestSiteOption` | `RestSiteOption` |
@@ -217,5 +252,6 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 
 `tests/OfflineHost` 的 `--map-step-compare` 从新局出发，用原版推进到每个地图选点；对每个合法
 选项先从同一份 `SerializableRun` 快照恢复，再分别执行原版与 `RunKernel.Step`。战斗比较
-`Battle`/`Rules`/`RunState`，非战斗比较 `RunState`（事件 RNG 单独验证）。规模与结果见
-[测试与验证](testing.md) 6.16 与 R2b-2 报告。
+`Battle`/`Rules`/`RunState`，非战斗比较 `RunState`（事件 RNG 单独验证）。商店决策与购买由
+`--shop-compare` 单独比较；`--map-step-compare` 只确认商店点返回 `Shop` 决策。规模与结果见
+[测试与验证](testing.md) 6.18、R2b-2 与 R2c-2 报告。

@@ -130,6 +130,17 @@ public struct RunCoord : IEquatable<RunCoord>
     public readonly override string ToString() => $"{Col},{Row}";
 }
 
+/// <summary>Deck-card facts the native mutable card exposes but <c>SerializableCard</c> does not.</summary>
+[Flags]
+public enum RunCardFlags : byte
+{
+    None = 0,
+    /// <summary>Native <c>IsRemovable</c> (not Eternal); the merchant removal filter.</summary>
+    Removable = 1 << 0,
+    /// <summary>Native <c>Type == CardType.Curse</c>; removal selection puts curses first.</summary>
+    Curse = 1 << 1,
+}
+
 /// <summary>
 /// A card held by the run (deck, or a card carried by a relic/event saved property). Only the
 /// fields persisted by <c>SerializableCard</c> are stored. Saved properties whose value is a model
@@ -141,6 +152,7 @@ public struct RunCard
     public ushort Id;
     public byte Upgrade;
     public byte HasEnchantment;
+    public RunCardFlags Flags;
     public ushort EnchantmentId;
     public short EnchantmentAmount;
     public int FloorAddedToDeck;
@@ -644,6 +656,106 @@ public struct RunRewards
             throw new InvalidDataException($"奖励下标 {index} 超出 {Count}。");
         return Items[index];
     }
+}
+
+/// <summary>What the merchant inventory is currently asking for.</summary>
+public enum RunShopStage : byte
+{
+    /// <summary>No merchant inventory is open.</summary>
+    None = 0,
+    /// <summary>The shelf is shown; every stocked, affordable entry and "leave" are legal.</summary>
+    Shop = 1,
+    /// <summary>The card-removal service opened the removable-card selection.</summary>
+    CardRemoval = 2,
+}
+
+[Flags]
+public enum RunShopEntryFlags : byte
+{
+    None = 0,
+    /// <summary>Native <c>MerchantEntry.IsStocked</c>.</summary>
+    Stocked = 1 << 0,
+    /// <summary>Native <c>MerchantCardEntry.IsOnSale</c>; the stored cost is already halved.</summary>
+    OnSale = 1 << 1,
+}
+
+/// <summary>
+/// One merchant card slot. <see cref="Cost"/> is the native private <c>_cost</c>
+/// (already randomized, sale-halved); <see cref="Price"/> is <c>Cost</c> after the merchant-price
+/// hooks, i.e. the number the shelf shows.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunShopCard
+{
+    public RunCard Card;
+    public int Cost;
+    public int Price;
+    public RunShopEntryFlags Flags;
+}
+
+/// <summary>One merchant relic or potion slot; <see cref="Cost"/> and <see cref="Price"/> as in
+/// <see cref="RunShopCard"/>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunShopModel
+{
+    public ushort ModelId;
+    private ushort _padding;
+    public int Cost;
+    public int Price;
+    public RunShopEntryFlags Flags;
+}
+
+/// <summary>Native <c>MerchantCardRemovalEntry</c>: cost and the one-shot used flag.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunShopRemoval
+{
+    public int Cost;
+    public int Price;
+    public byte Used;
+    private byte _padding0;
+    private ushort _padding1;
+}
+
+[InlineArray(RunLimits.ShopCharacterCards)]
+public struct RunShopCharacterCardArray
+{
+    private RunShopCard _first;
+}
+
+[InlineArray(RunLimits.ShopColorlessCards)]
+public struct RunShopColorlessCardArray
+{
+    private RunShopCard _first;
+}
+
+[InlineArray(RunLimits.ShopRelics)]
+public struct RunShopRelicArray
+{
+    private RunShopModel _first;
+}
+
+[InlineArray(RunLimits.ShopPotions)]
+public struct RunShopPotionArray
+{
+    private RunShopModel _first;
+}
+
+/// <summary>
+/// The normal merchant's fixed shelf plus the open decision stage. The inventory exists only while
+/// <see cref="Stage"/> is not <see cref="RunShopStage.None"/>; the native card/relic/potion lists
+/// have fixed upper bounds (5 + 2 cards, 3 relics, 3 potions, one removal service).
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct RunShop
+{
+    public RunShopStage Stage;
+    private byte _padding0;
+    private ushort _padding1;
+    public RunShopRemoval Removal;
+    public RunShopCharacterCardArray CharacterCards;
+    public RunShopColorlessCardArray ColorlessCards;
+    public RunShopRelicArray Relics;
+    public RunShopPotionArray Potions;
 }
 
 /// <summary>The player's persistent run-scoped numbers.</summary>

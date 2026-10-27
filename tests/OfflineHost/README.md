@@ -360,11 +360,26 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 `natural` 从新局第一场普通战出发；`d1` 复用 R2a-3 的 410 个冻结战斗根；`pilot` 用 Low 档
 `CombatPilot` 打完 D1；`encounter-pilot` 用自然新局强制精英/Boss 遭遇；`run`/`run-pilot` 串起地图选点、
-战斗、写回、奖励、回地图，遇到商店/事件等未实现房间停止；`thief` 专项尝试盗贼归还卡。每个合法奖励选项从同一份
+战斗、写回、奖励、商店（R2c-2 起只比较进店/离开并继续）、回地图，遇到事件/休息/宝箱等未实现房间停止；`thief` 专项尝试盗贼归还卡。每个合法奖励选项从同一份
 `SerializableRun` 快照恢复后单步比较；原版动作用 `RewardsCmd`/`RewardsSetSynchronizer`/
 测试 `ICardSelector`/`PotionCmd`，不读界面。`--reward-root <root>` 与
 `--reward-character <name> --reward-ascension <n> --reward-seed <seed> --reward-preset
 empty|all` 跑单个用例。详细结果见 [测试与验证](../../docs/testing.md) 6.17。
+
+## 商店对照
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --shop-compare --shop-kind natural --shop-seeds 10 --shop-jobs 6
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --shop-compare --shop-kind d1 --shop-jobs 6 --shop-shard 0 4
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --shop-compare --shop-character Ironclad --shop-ascension 0 --shop-preset all   --shop-seed shop-test-0
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --shop-compare --shop-root quality-IRONCLAD-007
+```
+
+自然局沿地图走到可达商店点；D1 把起点改成商店点。两边把金币设为同一值（自然 500、
+D1 2000），从同一份进店前快照重新进店，比较货架/价格/选项，再对每类购买、删牌首张/末张/
+取消、离开、随机多步与贪心买空做单步差分。贪心序列金币 5000，Courier 最多 16 次购买。
+`*-live-prices` 强制走原版药水随机价分支；`natural-courier` 注入 TheCourier 覆盖连续补货。
+详细结果见 [测试与验证](../../docs/testing.md) 6.18。
 
 ## 与参考转储对照
 

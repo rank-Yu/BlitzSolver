@@ -1093,6 +1093,17 @@ internal static class RewardCompare
                 stop = $"reject:{predicted.Reason}";
                 break;
             }
+            if (predicted.Status == RunStepStatus.Decision
+                && predicted.Request.Kind == RunDecision.Shop)
+            {
+                _loop.RunUntilCompleted(RunManager.Instance.EnterMapCoord(chosen.coord),
+                    TimeSpan.FromSeconds(120), "进商店");
+                mapSteps++;
+                if (!LeaveNativeShop(ref probe, kernel, seed))
+                    return RunDiff(seed);
+                blitz = probe;
+                continue;
+            }
             if (predicted.Status != RunStepStatus.Combat || predicted.Combat is null)
             {
                 Console.WriteLine($"DIFF run {seed} step-status {predicted.Status}/{predicted.Reason}");
@@ -1225,6 +1236,112 @@ internal static class RewardCompare
             $"REWARD-CASE status=same group=run steps={mapSteps} combats={combats} " +
             $"rewards={rewardActions} stop={stop} label={seed}");
         return 0;
+    }
+
+    private static bool LeaveNativeShop(ref RunState blitz, RunKernel kernel, string seed)
+    {
+        NativeRunState native = RunManager.Instance.State
+            ?? throw new InvalidDataException("进商店后没有跑局状态。");
+        Player player = LocalContext.GetMe(native)
+            ?? throw new InvalidDataException("进商店后没有玩家。");
+        NativeShopSession session = NativeShopSession.TryCreate(native, player)
+            ?? throw new InvalidDataException("原生没有进入商人房间。");
+        string? entryDiff = FirstDifference(NativeRunDump.Capture(native, player),
+            RunDump.Capture(blitz));
+        if (entryDiff != null)
+        {
+            Console.WriteLine($"DIFF run {seed} shop-entry {entryDiff}");
+            return false;
+        }
+        RunDecisionRequest request = RunDecisionRequest.Capture(in blitz);
+        if (!SameShopChoices(session.Choices(), in request))
+        {
+            Console.WriteLine($"DIFF run {seed} shop-request");
+            return false;
+        }
+        session.Leave();
+        RunStepResult step = kernel.Step(ref blitz, new RunAction
+        {
+            Kind = RunActionKind.LeaveShop,
+        });
+        if (step.Status == RunStepStatus.Rejected)
+        {
+            Console.WriteLine($"DIFF run {seed} shop-leave {step.Reason}");
+            return false;
+        }
+        native = RunManager.Instance.State
+            ?? throw new InvalidDataException("离开商店后没有跑局状态。");
+        player = LocalContext.GetMe(native)
+            ?? throw new InvalidDataException("离开商店后没有玩家。");
+        string? leaveDiff = FirstDifference(NativeRunDump.Capture(native, player),
+            RunDump.Capture(blitz));
+        if (leaveDiff != null)
+        {
+            Console.WriteLine($"DIFF run {seed} shop-left {leaveDiff}");
+            return false;
+        }
+        List<MapPoint> points = [.. RunTestHost.GetTravelablePoints(native)
+            .OrderBy(point => point.coord.col).ThenBy(point => point.coord.row)];
+        request = RunDecisionRequest.Capture(in blitz);
+        if (request.Kind != RunDecision.MapPoint || request.OptionCount != points.Count)
+        {
+            Console.WriteLine($"DIFF run {seed} shop-map");
+            return false;
+        }
+        for (int index = 0; index < points.Count; index++)
+        {
+            if (!request.Options[index].Coord.Equals(Coord(points[index].coord)))
+            {
+                Console.WriteLine($"DIFF run {seed} shop-map-option");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool SameShopChoices(IReadOnlyList<NativeShopChoice> choices,
+        in RunDecisionRequest request)
+    {
+        if (request.Kind != RunDecision.Shop || request.OptionCount != choices.Count)
+            return false;
+        for (int index = 0; index < choices.Count; index++)
+        {
+            NativeShopChoice choice = choices[index];
+            RunDecisionOption option = request.Options[index];
+            if (choice.Kind == NativeShopChoiceKind.Leave)
+            {
+                if (option.Kind != RunDecisionOptionKind.Skip)
+                    return false;
+                continue;
+            }
+            RunDecisionOptionKind expected = choice.Kind == NativeShopChoiceKind.CardRemoval
+                ? RunDecisionOptionKind.CardRemoval : RunDecisionOptionKind.ShopEntry;
+            if (option.Kind != expected || option.Index != choice.Index
+                || option.Amount != choice.Price)
+            {
+                return false;
+            }
+            if (choice.Kind == NativeShopChoiceKind.Card
+                && (option.Model.Kind != RunRefKind.Card
+                    || Registry.Card(option.Model.Id).NativeId != choice.Card!.Id.Entry
+                    || option.Upgrade != choice.Card.CurrentUpgradeLevel))
+            {
+                return false;
+            }
+            if (choice.Kind == NativeShopChoiceKind.Relic
+                && (option.Model.Kind != RunRefKind.Relic
+                    || Registry.Relic(option.Model.Id).NativeId != choice.Relic!.Id.Entry))
+            {
+                return false;
+            }
+            if (choice.Kind == NativeShopChoiceKind.Potion
+                && (option.Model.Kind != RunRefKind.Potion
+                    || Registry.Potion(option.Model.Id).NativeId != choice.Potion!.Id.Entry))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static int RunDiff(string seed)

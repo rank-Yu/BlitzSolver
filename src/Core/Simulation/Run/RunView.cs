@@ -42,8 +42,9 @@ public struct RunView
     /// <summary>Remaining rewards shown on the reward list (0 outside a reward list).</summary>
     public byte RewardCount;
     private ushort _padding1;
-    /// <summary>Complete request, including every legal option (map points and reward screens).</summary>
+    /// <summary>Complete request, including every legal option (map points, rewards and shops).</summary>
     public RunDecisionRequest Request;
+    public ShopView Shop;
     public PlayerView Player;
     public DeckView Deck;
     public RelicViewSet Relics;
@@ -138,6 +139,17 @@ public struct RunView
             viewPoint.Visited = IsVisited(state, point.Coord) ? (byte)1 : (byte)0;
             view.Map.Nodes[index] = viewPoint;
         }
+        view.Shop.Stage = state.Shop.Stage;
+        view.Shop.RemovalUsed = state.Shop.Removal.Used;
+        view.Shop.RemovalPrice = state.Shop.Removal.Price;
+        for (int index = 0; index < RunLimits.ShopCharacterCards; index++)
+            view.Shop.CharacterCards[index] = ToShopCardView(state.Shop.CharacterCards[index]);
+        for (int index = 0; index < RunLimits.ShopColorlessCards; index++)
+            view.Shop.ColorlessCards[index] = ToShopCardView(state.Shop.ColorlessCards[index]);
+        for (int index = 0; index < RunLimits.ShopRelics; index++)
+            view.Shop.Relics[index] = ToShopModelView(state.Shop.Relics[index]);
+        for (int index = 0; index < RunLimits.ShopPotions; index++)
+            view.Shop.Potions[index] = ToShopModelView(state.Shop.Potions[index]);
         view.Rooms.Count = state.Rooms.Count;
         for (int index = 0; index < state.Rooms.Count; index++)
         {
@@ -151,6 +163,32 @@ public struct RunView
         return view;
     }
 
+    private static ShopCardView ToShopCardView(in RunShopCard entry)
+    {
+        ShopCardView view = default;
+        view.Flags = entry.Flags;
+        view.Price = entry.Price;
+        if ((entry.Flags & RunShopEntryFlags.Stocked) == 0)
+            return view;
+        view.Card = new CardView
+        {
+            Id = entry.Card.Id,
+            Upgrade = entry.Card.Upgrade,
+            HasEnchantment = entry.Card.HasEnchantment,
+            EnchantmentId = entry.Card.EnchantmentId,
+            EnchantmentAmount = entry.Card.EnchantmentAmount,
+        };
+        return view;
+    }
+
+    private static ShopModelView ToShopModelView(in RunShopModel entry)
+        => new()
+        {
+            ModelId = entry.ModelId,
+            Price = entry.Price,
+            Flags = entry.Flags,
+        };
+
     private static bool IsVisited(in RunState state, RunCoord coord)
     {
         for (int index = 0; index < state.Visited.CoordCount; index++)
@@ -159,6 +197,60 @@ public struct RunView
                 return true;
         }
         return false;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ShopCardView
+    {
+        public CardView Card;
+        public int Price;
+        public RunShopEntryFlags Flags;
+    }
+
+    [InlineArray(RunLimits.ShopCharacterCards)]
+    public struct ShopCardViewArray
+    {
+        private ShopCardView _first;
+    }
+
+    [InlineArray(RunLimits.ShopColorlessCards)]
+    public struct ShopColorlessCardViewArray
+    {
+        private ShopCardView _first;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ShopModelView
+    {
+        public ushort ModelId;
+        private ushort _padding;
+        public int Price;
+        public RunShopEntryFlags Flags;
+    }
+
+    [InlineArray(RunLimits.ShopRelics)]
+    public struct ShopRelicViewArray
+    {
+        private ShopModelView _first;
+    }
+
+    [InlineArray(RunLimits.ShopPotions)]
+    public struct ShopPotionViewArray
+    {
+        private ShopModelView _first;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ShopView
+    {
+        public RunShopStage Stage;
+        public byte RemovalUsed;
+        private ushort _padding;
+        public int RemovalPrice;
+        public ShopCardViewArray CharacterCards;
+        public ShopColorlessCardViewArray ColorlessCards;
+        public ShopRelicViewArray Relics;
+        public ShopPotionViewArray Potions;
     }
 
     [StructLayout(LayoutKind.Sequential)]

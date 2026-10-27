@@ -318,6 +318,8 @@ public sealed class ContentTable : ICombatStartContent
 
     public required ContentRewardRules RewardRules { get; init; }
 
+    public required ContentShopRules ShopRules { get; init; }
+
     public required ContentTutorialRewards TutorialRewards { get; init; }
 
     /// <summary>Reward-layer facts indexed by relic id.</summary>
@@ -331,6 +333,15 @@ public sealed class ContentTable : ICombatStartContent
 
     /// <summary>Reward-hook overrides of every potion id.</summary>
     public required ContentRewardHookMask[] PotionRewardHooks { get; init; }
+
+    /// <summary>Merchant-flow hook overrides of every card id.</summary>
+    public required ContentShopHookMask[] CardShopHooks { get; init; }
+
+    /// <summary>Merchant-flow hook overrides of every enchantment id.</summary>
+    public required ContentShopHookMask[] EnchantmentShopHooks { get; init; }
+
+    /// <summary>Merchant-flow hook overrides of every potion id.</summary>
+    public required ContentShopHookMask[] PotionShopHooks { get; init; }
 
     /// <summary>Epoch whose reveal sets <c>ExtraRunFields.StartedWithNeow</c>.</summary>
     public required ushort NeowEpoch { get; init; }

@@ -18,7 +18,7 @@ namespace BlitzSolver.Simulation.Run;
 public struct RunState
 {
     // Update after a layout change; RunCodec rejects a mismatch instead of writing a stale image.
-    public const int ExpectedSize = 48104;
+    public const int ExpectedSize = 49912;
 
     public int Ascension;
     public int ActIndex;
@@ -36,6 +36,7 @@ public struct RunState
     public RunExtraPlayerFields ExtraPlayer;
     public RunPlayer Player;
     public RunRewards Rewards;
+    public RunShop Shop;
     public RunDeck Deck;
     public RunRelics Relics;
     public RunRelicBag SharedBag;
@@ -107,6 +108,11 @@ public struct RunState
         Rewards.ChoiceCount = 0;
         Rewards.Items = default;
         Rewards.Choices = default;
+    }
+
+    public void ClearShop()
+    {
+        Shop = default;
     }
 
     public void SetPotion(int slot, ushort id)
@@ -251,6 +257,25 @@ public struct RunState
             Rewards.ChoiceCount = 0;
         if (Rewards.Stage is RunRewardStage.None or RunRewardStage.List)
             Rewards.ChoiceIndex = 0;
+        if (Shop.Stage == RunShopStage.None)
+        {
+            Shop = default;
+        }
+        else
+        {
+            for (int index = 0; index < RunLimits.ShopCharacterCards; index++)
+                CanonicalizeShopCard(ref Shop.CharacterCards[index]);
+            for (int index = 0; index < RunLimits.ShopColorlessCards; index++)
+                CanonicalizeShopCard(ref Shop.ColorlessCards[index]);
+            for (int index = 0; index < RunLimits.ShopRelics; index++)
+                CanonicalizeShopModel(ref Shop.Relics[index]);
+            for (int index = 0; index < RunLimits.ShopPotions; index++)
+                CanonicalizeShopModel(ref Shop.Potions[index]);
+            if ((Shop.Removal.Used & 1) == 0 && Shop.Removal.Cost == 0 && Shop.Removal.Price == 0)
+                Shop.Removal = default;
+            else
+                Shop.Removal.Used = (byte)(Shop.Removal.Used != 0 ? 1 : 0);
+        }
         for (int index = Math.Min((int)Relics.Count, RunLimits.Relics); index < RunLimits.Relics; index++)
             Relics.Items[index] = default;
         for (int index = Math.Min((int)Player.Potions.Count, RunLimits.PotionSlots); index < RunLimits.PotionSlots; index++)
@@ -333,6 +358,28 @@ public struct RunState
 
         SortMap();
         SortEventRngs();
+    }
+
+    private static void CanonicalizeShopCard(ref RunShopCard entry)
+    {
+        RunShopEntryFlags onSale = entry.Flags & RunShopEntryFlags.OnSale;
+        if ((entry.Flags & RunShopEntryFlags.Stocked) == 0)
+        {
+            entry = default;
+            entry.Flags = onSale;
+            return;
+        }
+        entry.Flags = RunShopEntryFlags.Stocked | onSale;
+    }
+
+    private static void CanonicalizeShopModel(ref RunShopModel entry)
+    {
+        if ((entry.Flags & RunShopEntryFlags.Stocked) == 0)
+        {
+            entry = default;
+            return;
+        }
+        entry.Flags &= RunShopEntryFlags.Stocked;
     }
 
     private static void ClearUnusedBits<T>(ref T words, int count) where T : unmanaged

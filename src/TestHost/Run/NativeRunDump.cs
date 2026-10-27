@@ -8,6 +8,7 @@ using System.Text;
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Entities.Rngs;
@@ -29,7 +30,8 @@ internal static class NativeRunDump
     public static string Capture(NativeRunState native, Player player, RewardsSet? rewards = null,
         IReadOnlyList<Reward>? rewardList = null, RunRewardStage rewardStage = RunRewardStage.List,
         int rewardChoiceIndex = 0, int rewardChoiceCount = 0,
-        IReadOnlyDictionary<int, int>? relicDisplayOverrides = null)
+        IReadOnlyDictionary<int, int>? relicDisplayOverrides = null,
+        RunShopStage shopStage = RunShopStage.None)
     {
         StringBuilder text = new(16 * 1024);
         void Line(string key, string value)
@@ -43,7 +45,9 @@ internal static class NativeRunDump
         Int("run.act.floor", native.ActFloor);
         Line("run.gameMode", native.GameMode.ToString());
         Line("run.decision",
-            (native.IsGameOver ? RunDecision.GameOver : DecisionFor(native.CurrentRoom)).ToString());
+            (native.IsGameOver ? RunDecision.GameOver
+                : shopStage == RunShopStage.CardRemoval ? RunDecision.CardSelect
+                : DecisionFor(native.CurrentRoom)).ToString());
         Int("run.decision.options", 0);
         Line("run.character", player.Character.Id.Entry);
         Int("run.hp", player.Creature.CurrentHp);
@@ -113,6 +117,8 @@ internal static class NativeRunDump
         Int("rewards.choiceCount", rewardChoiceCount);
         for (int index = 0; index < rewardItems.Count; index++)
             Line($"rewards.{index}", FormatReward(rewardItems[index]));
+
+        DumpShop(Line, native, shopStage);
         DumpBag(text, "sharedBag", native.SharedRelicGrabBag);
         DumpBag(text, "playerBag", player.RelicGrabBag);
 
@@ -249,6 +255,70 @@ internal static class NativeRunDump
         }
         return text.ToString();
     }
+
+    private static void DumpShop(Action<string, string> line, NativeRunState native,
+        RunShopStage shopStage)
+    {
+        MerchantRoom? room = native.CurrentRoom as MerchantRoom;
+        MerchantInventory? inventory = room?.Inventories.Count > 0 ? room.Inventories[0] : null;
+        if (inventory == null)
+        {
+            line("shop.stage", RunShopStage.None.ToString());
+            line("shop.removal", "0,0,0");
+            for (int index = 0; index < RunLimits.ShopCharacterCards; index++)
+                line($"shop.character.{index}", "0");
+            for (int index = 0; index < RunLimits.ShopColorlessCards; index++)
+                line($"shop.colorless.{index}", "0");
+            for (int index = 0; index < RunLimits.ShopRelics; index++)
+                line($"shop.relic.{index}", "0");
+            for (int index = 0; index < RunLimits.ShopPotions; index++)
+                line($"shop.potion.{index}", "0");
+            return;
+        }
+        line("shop.stage",
+            (shopStage == RunShopStage.None ? RunShopStage.Shop : shopStage).ToString());
+        MerchantCardRemovalEntry removal = inventory.CardRemovalEntry
+            ?? throw new InvalidDataException("商人库存没有删牌条目。");
+        line("shop.removal", $"{(removal.Used ? 1 : 0)},{BaseCost(removal)},{removal.Cost}");
+        for (int index = 0; index < RunLimits.ShopCharacterCards; index++)
+            line($"shop.character.{index}", CardEntry(inventory.CharacterCardEntries[index]));
+        for (int index = 0; index < RunLimits.ShopColorlessCards; index++)
+            line($"shop.colorless.{index}", CardEntry(inventory.ColorlessCardEntries[index]));
+        for (int index = 0; index < RunLimits.ShopRelics; index++)
+            line($"shop.relic.{index}", ModelEntry(inventory.RelicEntries[index], relic: true));
+        for (int index = 0; index < RunLimits.ShopPotions; index++)
+            line($"shop.potion.{index}", ModelEntry(inventory.PotionEntries[index], relic: false));
+    }
+
+    private static string CardEntry(MerchantCardEntry entry)
+    {
+        int flags = (entry.IsStocked ? (int)RunShopEntryFlags.Stocked : 0)
+            | (entry.IsOnSale ? (int)RunShopEntryFlags.OnSale : 0);
+        if (!entry.IsStocked)
+            return flags.ToString(CultureInfo.InvariantCulture);
+        CardCreationResult result = entry.CreationResult
+            ?? throw new InvalidDataException("商人卡牌条目没有 CreationResult。");
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{flags},{BaseCost(entry)},{entry.Cost},{FormatCard(result.Card.ToSerializable())}");
+    }
+
+    private static string ModelEntry(MerchantEntry entry, bool relic)
+    {
+        int flags = entry.IsStocked ? (int)RunShopEntryFlags.Stocked : 0;
+        if (!entry.IsStocked)
+            return flags.ToString(CultureInfo.InvariantCulture);
+        string name = relic
+            ? ((MerchantRelicEntry)entry).Model!.Id.Entry
+            : ((MerchantPotionEntry)entry).Model!.Id.Entry;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{flags},{name},{BaseCost(entry)},{entry.Cost}");
+    }
+
+    private static readonly System.Reflection.FieldInfo CostField =
+        typeof(MerchantEntry).GetField("_cost", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(MerchantEntry).FullName, "_cost");
+
+    private static int BaseCost(MerchantEntry entry) => (int)CostField.GetValue(entry)!;
 
     private static string FormatReward(Reward reward)
     {

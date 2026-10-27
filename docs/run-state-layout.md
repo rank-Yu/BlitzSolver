@@ -150,13 +150,13 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 
 ## 3. `RunState` 布局
 
-`RunState` 是 `[StructLayout(LayoutKind.Sequential)]` 的无引用结构体，`Unsafe.SizeOf<RunState>() == 48104`。子结构：
+`RunState` 是 `[StructLayout(LayoutKind.Sequential)]` 的无引用结构体，`Unsafe.SizeOf<RunState>() == 49912`。子结构：
 
 | 结构 | 内容 |
 | --- | --- |
 | `RunPlayer` | 角色 id、HP/最大 HP、MaxEnergy、金币、基础球槽、药水槽 |
 | `RunDeck` | 牌组顺序 + `RunCard` 数组 |
-| `RunCard` | 卡牌 id、升级、附魔 id/层数、FloorAdded、卡牌/附魔属性包（各 32 字节） |
+| `RunCard` | 卡牌 id、升级、附魔 id/层数、`RunCardFlags`（可删/诅咒）、FloorAdded、卡牌/附魔属性包（各 32 字节） |
 | `RunRelics` / `RunRelic` | 遗物顺序、id、状态、Wax/Melted、StackCount、DisplayAmount、FloorAdded、属性包（64 字节） |
 | `RunRelicBag` | 8 个稀有度的剩余顺序（每段 160）+ `RefreshAllowed` |
 | `RunActs` / `RunAct` | 每幕预生成序列与访问计数 |
@@ -164,13 +164,14 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `RunHistory` | 地图点历史（类型 + 房间 + 怪物 + 回合数） |
 | `RunRooms` | 当前房间栈（类型、模型、父事件、`IsPreFinished`、`GoldProportion`） |
 | `RunRewards` | 战后奖励列表（类型、模型、金额、选项位置）与当前奖励阶段；卡牌选项在同一结构的 `Choices` |
+| `RunShop` | 商店阶段、删牌服务状态，以及角色卡 5、无色卡 2、遗物 3、药水 3 的货架；每格保存基础价 `Cost`、Hook 后价格 `Price`、库存/打折标记 |
 | `RunVisited` | 已走坐标、已访问事件位图 |
 | `RunRngState` | 15 条流、4 条地图流、当前事件流、种子 |
 | `RunUnlockState` | 2+2 个 64 位字 + 跑局数 |
 | `RunOdds`/`RunPlayerOdds` | 概率当前值 |
 | `RunExtraFields`/`RunExtraPlayerFields` | `StartedWithNeow`、`TestSubjectKills`、删牌次数、Wongo 点数 |
 
-`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 144 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 5404`（R2b-2 加入完整决策请求，R2c-1 加入奖励阶段与卡牌选项字段）。
+`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 144 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 7536`（R2b-2 加入完整决策请求，R2c-1 加入奖励阶段与卡牌选项字段，R2c-2 扩大选牌选项容量并加入商店投影）。
 
 ### 3.1 容量
 
@@ -205,7 +206,11 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `PropertyStringBytes` | 32 | 原版字符串属性（皮肤名） |
 | `PropertyInts` | 12 | `FurCoat` 坐标数组 |
 | `PropertyCards` | 4 | 卡牌数组属性（`PaelsTooth`） |
-| `DecisionOptions` | 32 | 单个决策请求的选项上限；地图最多 7 个，选牌/商店留余量 |
+| `DecisionOptions` | 129 | 单个决策请求的选项上限；牌组选卡最多 128 张可删卡加取消 |
+| `ShopCharacterCards` | 5 | 原版 `_coloredCardTypes.Length` |
+| `ShopColorlessCards` | 2 | 原版 `_colorlessCardRarities.Length` |
+| `ShopRelics` | 3 | 原版 `PopulateRelicEntries` 固定 3 格 |
+| `ShopPotions` | 3 | 原版 `CreateRandomPotionsOutOfCombat(..., 3, ...)` |
 | `Rewards` | 16 | 单个战后奖励集合的项数上限；原版无硬上限，本批超限显式 `CapacityException` |
 | `RewardCardOptions` | 16 | 所有待处理卡牌/特殊卡奖励的选项总数；单个卡牌奖励通常 3，LastingCandy 4 |
 
@@ -249,15 +254,15 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 
 ```text
 magic   uint32  0x534E5552 ("RUNS")
-version uint16  2
-size    int32   Unsafe.SizeOf<RunState>() = 48104
+version uint16  3
+size    int32   Unsafe.SizeOf<RunState>() = 49912
 payload byte[]  RunState 的规范字节镜像
 ```
 
 - `Encode` 先复制状态、`Canonicalize()`、`Validate()`；`Canonicalize` 清零所有超出计数的槽位，排序地图节点/子节点/起始点/事件 RNG，并清掉解锁/已访问位图中超出内容表的位。
 - 同一语义只有一种字节表示：顺序无关集合被排序，未使用槽位为零。
 - `Decode` 校验魔数、版本、长度、结构计数、内容 id、属性包结构与 `ExpectedSize`；任何不一致抛 `InvalidDataException`。
-- 内容目录顺序变化（新增原版内容）会改变 id，必须同时递增 `RunCodec.FormatVersion`；`RunState.ExpectedSize` 变化也必须递增版本。R2c-1 因 `RunRewards`/`RunRoom.GoldProportion` 升到 2。
+- 内容目录顺序变化（新增原版内容）会改变 id，必须同时递增 `RunCodec.FormatVersion`；`RunState.ExpectedSize` 变化也必须递增版本。R2c-1 因 `RunRewards`/`RunRoom.GoldProportion` 升到 2；R2c-2 因 `RunShop`/`RunCard.Flags`/`DecisionOptions` 升到 3。
 - 不写时间戳、非确定性字典遍历或运行时相关值。
 
 ## 6. 可见投影 `RunView`
@@ -277,6 +282,7 @@ payload byte[]  RunState 的规范字节镜像
 | 当前决策请求：种类、完整选项与每个选项的坐标/模型/数量 | 是 | `RunDecisionRequest.Capture`（R2b-2 地图点；R2c-1 奖励列表、卡牌三/四选一、药水满槽） |
 | 奖励界面阶段与剩余奖励数 | 是 | `RunRewards.Stage/Count` |
 | 卡牌奖励的 id、升级、附魔 | 是（卡面） | `RunRewards.Choices` 投影到请求选项 |
+| 商店货架：每格 id/升级/附魔、价格、打折、库存，删牌价格与是否已用 | 是 | `RunShop` 投影到 `ShopView` 与请求选项 |
 | 未知点房间概率、卡牌稀有度保底、药水掉落保底 | 界面隐藏，但可由玩家见过的历史推导 | `Odds`/`PlayerOdds` 的当前值 |
 | 随机数状态、RNG 计数 | 否 | 不进入 |
 | 预生成事件/遭遇序列、后续幕的 Boss/先古与未来内容 | 否（地图上不可见） | 不进入 |
@@ -284,12 +290,12 @@ payload byte[]  RunState 的规范字节镜像
 | 解锁位图、已见遭遇位图、跑局数 | 否（界面只显示已解锁内容，不显示内部集合） | 不进入 |
 | 模型私有 `SavedProperties` | 否（卡面只显示派生数字；内部属性不可见） | 不进入 |
 | `FreedRepy`、成就、图鉴统计 | 部分可见但只影响界面 | 不进入 |
-| 房间内部奖励/商店/事件页/选牌页 | 是 | R2c–R2f 的同一请求类型；本批只填地图点 |
+| 房间内部奖励/事件页/选牌页 | 是 | R2c–R2f 的同一请求类型；本批填奖励、商店与删牌选卡 |
 
 `RunView` 只带当前幕的 `Act/Boss/SecondBoss/Ancient`，不带后续幕的对应值；`CardView` 不含
 `Private`/属性包；`RelicView` 不含属性包；`MapView` 不含 `CanBeModified`（内部规则）；`RunView` 不含任何 `RunRng*`、`RunRelicBag`、`RunAct`、`RunUnlockState`、`RunHistory`、`RunPropertyBag` 字段。
 `RunDecisionRequest`/`RunDecisionOption`/`RunDecisionOptionKind`/`RunAction`/`RunActionKind`
-与 `RunView` 一起登记为 `Ai.Run` 可见类型；请求里只有可见的坐标、点类型、模型 id 与数量，
+`RunShopStage`/`RunShopEntryFlags`/`RunView+Shop*` 也登记为 `Ai.Run` 可见类型；请求里只有可见的坐标、点类型、模型 id 与数量，
 没有随机数或未来序列。`tests/Architecture` 同时用正例（`VisibleRunReferenceFixture`）和反例
 （`UnregisteredRunReferenceFixture`）锁定。
 
@@ -327,8 +333,10 @@ payload byte[]  RunState 的规范字节镜像
 - 药水：5 个战斗槽与 `RunState` 槽位逐一对应（`Battle` 用 id+1，0 为空）。
 
 `RunStateImporter.Import` 的可选 `RewardsSet` 参数把当前奖励界面导入 `RunState.Rewards`；
-不传时读取 `CombatRoom.ExtraRewards`，`Generated=0`。`NativeRunDump` 同时支持传入剩余奖励
-列表与阶段，供奖励对照使用。
+不传时读取 `CombatRoom.ExtraRewards`，`Generated=0`。当前房间是 `MerchantRoom` 时，导入器
+把 `MerchantInventory` 的货架、基础价、Hook 后价格与打折标记写入 `RunState.Shop`；
+`shopStage=CardRemoval` 只用于把原生 UI 正在选卡这一事实投影到 `RunState`（原生状态本身没有
+该阶段）。`NativeRunDump` 同时支持传入剩余奖励列表、阶段与商店阶段，供奖励/商店对照使用。
 
 私有属性不参与“导入器对照导入器”：`NativeRunDump` 直接遍历原生 `SavedProperties`，按
 `名字哈希:类型:值` 输出（数组逐项、字符串原样、按名字哈希排序）；`RunDump` 则从
@@ -339,15 +347,17 @@ payload byte[]  RunState 的规范字节镜像
 
 - `tests/KernelChecks`：`RunState` 尺寸、15 条流派生固定值、编码往返、全部容量溢出、`RunView` 可见性合同。
 - 自然开局：5 角色 × A0/A10 × 20 个种子 = **200/200** 逐字段相同；每局 15 条流 × 64 次抽取 = 0 偏差；第一幕地图节点/连线/类型 = **200/200** 相同。
+- 商店：自然 187 局 + D1 401 局逐字段与逐动作相同，0 diff；拒绝 9 例均有原因码（R2c-2 报告）。
 - D1：**410/410** 输入逐字段相同（含 120 个质量根）；战斗一致性 **410/410** 相同；15 条流 × 64 次抽取 0 偏差；地图 **410/410** 相同。
 - 负例：多人、非标准模式、Modifier、未知事件、未知解锁、无地图、牌组容量共 7 类均返回稳定拒绝码。
-- 复跑命令见[测试与验证](testing.md)第 6.10 节；本批报告在 `.local/tool-tasks/blitz/R1b-report.md`。
+- 复跑命令见[测试与验证](testing.md)第 6.10 节；本批报告在 `.local/tool-tasks/blitz/R1b-report.md`；商店对照在 `.local/tool-tasks/blitz/R2c2-report.md`。
 
 ## 9. 未完成与未验证
 
-- 当前待处理决策的负载（奖励列表、商店货架、事件当前页/选项、休息处选项、宝箱内容、选牌页面）不在本批；`RunState.Decision` 只记录种类与选项数，R2 补齐。
+- 事件当前页/选项、休息处选项、宝箱内容与通用选牌页面仍不在本批；奖励与商店货架已进入 `RunState`。
 - 房间 `EncounterState` 与 Heist 金币来源未表示；依赖它们的奖励生成显式拒绝。
 - 玩家地图点历史统计（金币、卡牌增减、选择记录）未表示；`FakeMerchant` 等事件需要的当前历史属 R2 事件状态。
-- `MapPoint.Quests` 未显式存储，计划由 `FurCoat`/`SpoilsMap` 私有属性在 R2 重建。
+- `MapPoint.Quests` 未显式存储，计划由 `FurCoat`/`SpoilsMap` 私有属性在 R2 重建；持有 `SpoilsMap` 时商人删牌/商店 Hook 会以 `shop-hook-listener` 拒绝。
+- 商店房间的 `BeforeRoomEntered`/`AfterRoomEntered` 只有 32 个已验证的遗物效果实现；`LordsParasol`、`FRESNEL_LENS`、`BING_BONG` 等名单外监听者以 `shop-hook-listener` 拒绝。
 - 未合成第三方模型做负例；第三方路径由 `NativeAccess.RequireOriginal` 统一覆盖，与战斗导入同一实现。
 - 未跑无头游戏；本批不影响 Mod 行为。

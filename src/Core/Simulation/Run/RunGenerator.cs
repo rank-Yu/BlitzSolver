@@ -171,6 +171,11 @@ public static class RunGenerator
         {
             RunCard card = default;
             card.Id = starting.Deck[index];
+            CardStats stats = content.Card(card.Id, 0);
+            card.Flags = (stats.Keywords & Keywords.Eternal) == 0
+                ? RunCardFlags.Removable : RunCardFlags.None;
+            if (stats.Type == CardType.Curse)
+                card.Flags |= RunCardFlags.Curse;
             card.FloorAddedToDeck = 1;
             state.AddCard(card);
         }

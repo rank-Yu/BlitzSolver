@@ -4,6 +4,7 @@ using System.Reflection;
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Entities.Rngs;
@@ -31,7 +32,8 @@ namespace BlitzSolver.Import;
 public static class RunStateImporter
 {
     public static RunState Import(NativeRunState native, Player localPlayer,
-        RewardsSet? rewards = null, IReadOnlyList<Reward>? rewardList = null)
+        RewardsSet? rewards = null, IReadOnlyList<Reward>? rewardList = null,
+        RunShopStage shopStage = RunShopStage.None)
     {
         ArgumentNullException.ThrowIfNull(native);
         ArgumentNullException.ThrowIfNull(localPlayer);
@@ -89,6 +91,12 @@ public static class RunStateImporter
         ImportMap(ref state, native.Map);
         ImportHistory(ref state, native);
         ImportRooms(ref state, native);
+        ImportShop(ref state, native);
+        if (shopStage == RunShopStage.CardRemoval && state.Shop.Stage == RunShopStage.Shop)
+        {
+            state.Shop.Stage = RunShopStage.CardRemoval;
+            state.Decision = RunDecision.CardSelect;
+        }
         ImportRewardPayload(ref state, native, localPlayer, rewards, rewardList);
         ImportVisited(ref state, native);
         ImportRng(ref state, native, localPlayer);
@@ -139,7 +147,7 @@ public static class RunStateImporter
         foreach (CardModel card in player.Deck.Cards)
         {
             NativeAccess.RequireOriginal(card);
-            state.AddCard(ConvertCard(card.ToSerializable()));
+            state.AddCard(ConvertCardModel(card));
         }
     }
 
@@ -456,6 +464,90 @@ public static class RunStateImporter
         return new RunRef(RunRefKind.Event, value);
     }
 
+    private static readonly FieldInfo MerchantCostField =
+        typeof(MerchantEntry).GetField("_cost",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(MerchantEntry).FullName, "_cost");
+
+    private static void ImportShop(ref RunState state, NativeRunState native)
+    {
+        if (native.CurrentRoom is not MerchantRoom room)
+            return;
+        if (room.Inventories.Count != 1)
+            throw new UnsupportedImportException(ImportReason.UnsupportedRoom,
+                $"商人房间有 {room.Inventories.Count} 份库存。");
+        MerchantInventory inventory = room.Inventories[0];
+        state.Shop.Stage = RunShopStage.Shop;
+        for (int index = 0; index < RunLimits.ShopCharacterCards; index++)
+        {
+            state.Shop.CharacterCards[index] = ImportShopCard(
+                inventory.CharacterCardEntries[index]);
+        }
+        for (int index = 0; index < RunLimits.ShopColorlessCards; index++)
+        {
+            state.Shop.ColorlessCards[index] = ImportShopCard(
+                inventory.ColorlessCardEntries[index]);
+        }
+        for (int index = 0; index < RunLimits.ShopRelics; index++)
+            state.Shop.Relics[index] = ImportShopRelic(inventory.RelicEntries[index]);
+        for (int index = 0; index < RunLimits.ShopPotions; index++)
+            state.Shop.Potions[index] = ImportShopPotion(inventory.PotionEntries[index]);
+        MerchantCardRemovalEntry removal = inventory.CardRemovalEntry
+            ?? throw new UnsupportedImportException(ImportReason.UnsupportedRoom,
+                "商人库存没有删牌条目。");
+        state.Shop.Removal = new RunShopRemoval
+        {
+            Cost = (int)MerchantCostField.GetValue(removal)!,
+            Price = removal.Cost,
+            Used = removal.Used ? (byte)1 : (byte)0,
+        };
+    }
+
+    private static RunShopCard ImportShopCard(MerchantCardEntry entry)
+    {
+        RunShopCard target = default;
+        target.Flags = (entry.IsStocked ? RunShopEntryFlags.Stocked : RunShopEntryFlags.None)
+            | (entry.IsOnSale ? RunShopEntryFlags.OnSale : RunShopEntryFlags.None);
+        if (!entry.IsStocked)
+            return target;
+        target.Cost = (int)MerchantCostField.GetValue(entry)!;
+        target.Price = entry.Cost;
+        if (entry.CreationResult is not { } result)
+            throw new InvalidDataException("商人卡牌条目没有 CreationResult。");
+        target.Card = ConvertCardModel(result.Card);
+        return target;
+    }
+
+    private static RunShopModel ImportShopRelic(MerchantRelicEntry entry)
+    {
+        RunShopModel target = default;
+        if (!entry.IsStocked)
+            return target;
+        if (entry.Model?.Id is not { } id || !Registry.TryRelic(id.Entry, out ushort relic))
+            throw new UnsupportedImportException(ImportReason.UnsupportedRelic,
+                entry.Model?.Id.Entry ?? "<null>");
+        target.Flags = RunShopEntryFlags.Stocked;
+        target.ModelId = relic;
+        target.Cost = (int)MerchantCostField.GetValue(entry)!;
+        target.Price = entry.Cost;
+        return target;
+    }
+
+    private static RunShopModel ImportShopPotion(MerchantPotionEntry entry)
+    {
+        RunShopModel target = default;
+        if (!entry.IsStocked)
+            return target;
+        if (entry.Model?.Id is not { } id || !Registry.TryPotion(id.Entry, out ushort potion))
+            throw new UnsupportedImportException(ImportReason.UnsupportedPotion,
+                entry.Model?.Id.Entry ?? "<null>");
+        target.Flags = RunShopEntryFlags.Stocked;
+        target.ModelId = potion;
+        target.Cost = (int)MerchantCostField.GetValue(entry)!;
+        target.Price = entry.Cost;
+        return target;
+    }
+
     private static void ImportRooms(ref RunState state, NativeRunState native)
     {
         foreach (AbstractRoom room in native._currentRooms)
@@ -613,7 +705,15 @@ public static class RunStateImporter
         state.AddReward(target);
     }
 
-    internal static RunCard ConvertCardModel(CardModel card) => ConvertCard(card.ToSerializable());
+    internal static RunCard ConvertCardModel(CardModel card)
+    {
+        RunCard target = ConvertCard(card.ToSerializable());
+        if (card.IsRemovable)
+            target.Flags |= RunCardFlags.Removable;
+        if (card.Type == MegaCrit.Sts2.Core.Entities.Cards.CardType.Curse)
+            target.Flags |= RunCardFlags.Curse;
+        return target;
+    }
 
     private static T ReadPrivateProperty<T>(object target, string name)
     {

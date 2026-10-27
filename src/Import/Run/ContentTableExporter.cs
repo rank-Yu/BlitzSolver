@@ -11,6 +11,7 @@ using BlitzSolver.Simulation.Run;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Ascension;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Factories;
@@ -27,6 +28,7 @@ using MegaCrit.Sts2.Core.Models.PotionPools;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Unlocks;
 
@@ -46,7 +48,7 @@ public static class ContentTableExporter
     private static readonly Dictionary<string, ulong> CardEpochMasks = BuildCardEpochMasks();
     private static readonly Dictionary<string, ulong> PotionEpochMasks = BuildPotionEpochMasks();
 
-    public static ContentTable Export()
+    public static ContentTable Export(bool forcePotionPriceVaries = false)
     {
         Player scratch = Player.CreateForNewRun(
             ModelDb.AllCharacters.First(), UnlockState.all, 1UL);
@@ -89,6 +91,7 @@ public static class ContentTableExporter
             BaseOdds = NewRunContentExporter.ExportOdds(),
             AscensionRules = NewRunContentExporter.ExportAscensionRules(),
             RewardRules = ExportRewardRules(ascension),
+            ShopRules = ExportShopRules(ascension, forcePotionPriceVaries),
             TutorialRewards = ExportTutorialRewards(),
             RelicRewardFacts = ExportRelicRewardFacts(),
             CardRewardHooks = ExportHookMasks(Registry.CardCount, static id =>
@@ -100,6 +103,18 @@ public static class ContentTableExporter
                     out EnchantmentModel? model) ? model.GetType() : null,
                 static id => Registry.Enchantment(id).NativeId),
             PotionRewardHooks = ExportHookMasks(Registry.PotionCount, static id =>
+                RulesCompiler.CanonicalPotionModels.TryGetValue(Registry.Potion(id).NativeId,
+                    out PotionModel? model) ? model.GetType() : null,
+                static id => Registry.Potion(id).NativeId),
+            CardShopHooks = ExportShopHookMasks(Registry.CardCount, static id =>
+                RulesCompiler.CanonicalCardModels.TryGetValue(Registry.Card(id).NativeId,
+                    out CardModel? model) ? model.GetType() : null,
+                static id => Registry.Card(id).NativeId),
+            EnchantmentShopHooks = ExportShopHookMasks(Registry.EnchantmentCount, static id =>
+                CanonicalEnchantmentModels.TryGetValue(Registry.Enchantment(id).NativeId,
+                    out EnchantmentModel? model) ? model.GetType() : null,
+                static id => Registry.Enchantment(id).NativeId),
+            PotionShopHooks = ExportShopHookMasks(Registry.PotionCount, static id =>
                 RulesCompiler.CanonicalPotionModels.TryGetValue(Registry.Potion(id).NativeId,
                     out PotionModel? model) ? model.GetType() : null,
                 static id => Registry.Potion(id).NativeId),
@@ -1060,6 +1075,16 @@ public static class ContentTableExporter
         }
     }
 
+    private static void RequireConstantCount(string method, int[] values, int expected)
+    {
+        if (values.Length != expected)
+        {
+            throw new InvalidDataException(
+                $"{method} 过滤后的常量个数是 {values.Length}，预期 {expected}：" +
+                string.Join(',', values));
+        }
+    }
+
     private static void RequireThresholds(string method, float[] values)
     {
         RequireConstantCount(method, values, 2);
@@ -1155,6 +1180,321 @@ public static class ContentTableExporter
         _ => throw new InvalidDataException($"未知 IL 操作数类型 {type}。"),
     };
 
+    // ---------------------------------------------------------------- merchant content
+
+    private static ContentShopRules ExportShopRules(ScratchAscension ascension,
+        bool forcePotionPriceVaries)
+    {
+        MegaCrit.Sts2.Core.Entities.Cards.CardType[] cardTypes =
+            ReadStaticField<MegaCrit.Sts2.Core.Entities.Cards.CardType[]>(
+                typeof(MerchantInventory), "_coloredCardTypes");
+        MegaCrit.Sts2.Core.Entities.Cards.CardRarity[] colorlessRarities =
+            ReadStaticField<MegaCrit.Sts2.Core.Entities.Cards.CardRarity[]>(
+                typeof(MerchantInventory), "_colorlessCardRarities");
+        if (cardTypes.Length != RunLimits.ShopCharacterCards
+            || colorlessRarities.Length != RunLimits.ShopColorlessCards)
+        {
+            throw new InvalidDataException(
+                $"MerchantInventory 的卡槽数量变了：colored={cardTypes.Length} colorless={colorlessRarities.Length}");
+        }
+
+        int costSlots = (int)EngineCardRarity.Quest + 1;
+        int[] cardCosts = new int[costSlots];
+        int[] colorlessCosts = new int[costSlots];
+        MethodInfo getCardCost = typeof(MerchantCardEntry).GetMethod("GetCost",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(typeof(MerchantCardEntry).FullName, "GetCost");
+        foreach (EngineCardRarity rarity in new[]
+                 {
+                     EngineCardRarity.Common, EngineCardRarity.Uncommon, EngineCardRarity.Rare,
+                 })
+        {
+            CardModel character = FindCanonicalCard(rarity, colorless: false)
+                ?? throw new InvalidDataException(
+                    $"找不到稀有度 {rarity} 的角色卡来读取商人价格。");
+            cardCosts[(int)rarity] = (int)(getCardCost.Invoke(null, [character])
+                ?? throw new InvalidDataException("MerchantCardEntry.GetCost 返回空。"));
+            CardModel? colorless = FindCanonicalCard(rarity, colorless: true);
+            if (colorless != null)
+            {
+                colorlessCosts[(int)rarity] = (int)(getCardCost.Invoke(null, [colorless])
+                    ?? throw new InvalidDataException("MerchantCardEntry.GetCost 返回空。"));
+            }
+        }
+
+        int[] potionCosts = new int[(int)MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Token + 1];
+        MethodInfo getPotionCost = typeof(MerchantPotionEntry).GetMethod("GetCost",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(typeof(MerchantPotionEntry).FullName, "GetCost");
+        foreach (MegaCrit.Sts2.Core.Entities.Potions.PotionRarity rarity in new[]
+                 {
+                     MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Common,
+                     MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Uncommon,
+                     MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Rare,
+                 })
+        {
+            potionCosts[(int)rarity] = (int)(getPotionCost.Invoke(null, [rarity])
+                ?? throw new InvalidDataException("MerchantPotionEntry.GetCost 返回空。"));
+        }
+
+        float[] cardRoll = [.. FloatConstants(typeof(MerchantCardEntry).GetMethod(
+            nameof(MerchantCardEntry.CalcCost))!).Where(static value => value is > 0f and < 10f)];
+        float[] relicRoll = [.. FloatConstants(typeof(MerchantRelicEntry).GetMethod(
+            nameof(MerchantRelicEntry.CalcCost))!).Where(static value => value is > 0f and < 10f)];
+        float[] potionRoll = [.. FloatConstants(typeof(MerchantPotionEntry).GetMethod(
+            nameof(MerchantPotionEntry.CalcCost))!).Where(static value => value is > 0f and < 10f)];
+        RequireFactorPair("MerchantCardEntry.CalcCost", cardRoll);
+        RequireFactorPair("MerchantRelicEntry.CalcCost", relicRoll);
+        RequireFactorPair("MerchantPotionEntry.CalcCost", potionRoll);
+        int[] sale = [.. IntConstants(typeof(MerchantCardEntry).GetMethod(
+            nameof(MerchantCardEntry.CalcCost))!).Where(static value => value > 1)];
+        RequireConstantCount(nameof(MerchantCardEntry.CalcCost), sale, 1);
+        if (sale[0] < 2)
+            throw new InvalidDataException($"商人打折除数不是大于 1 的整数：{sale[0]}");
+
+        int inflation = (int)AscensionLevel.Inflation;
+        ascension.Set(0);
+        int removalBase = ReadStaticProperty<int>(typeof(MerchantCardRemovalEntry), "BaseCost");
+        int removalIncrease = ReadStaticProperty<int>(typeof(MerchantCardRemovalEntry),
+            "PriceIncrease");
+        float shopRare = (float)InvokeBaseOdds(CardRarityOddsType.Shop,
+            MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare);
+        float shopUncommon = (float)InvokeBaseOdds(CardRarityOddsType.Shop,
+            MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon);
+        ascension.Set((int)AscensionLevel.Scarcity);
+        float scarcityShopRare = (float)InvokeBaseOdds(CardRarityOddsType.Shop,
+            MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Rare);
+        float scarcityShopUncommon = (float)InvokeBaseOdds(CardRarityOddsType.Shop,
+            MegaCrit.Sts2.Core.Entities.Cards.CardRarity.Uncommon);
+        ascension.Set(inflation);
+        int removalBaseInflation = ReadStaticProperty<int>(typeof(MerchantCardRemovalEntry),
+            "BaseCost");
+        int removalIncreaseInflation = ReadStaticProperty<int>(typeof(MerchantCardRemovalEntry),
+            "PriceIncrease");
+        return new ContentShopRules
+        {
+            CharacterCardTypes = [.. cardTypes.Select(static type => (EngineCardType)(int)type)],
+            ColorlessCardRarities =
+                [.. colorlessRarities.Select(static rarity => (EngineCardRarity)(int)rarity)],
+            RelicSlots = RunLimits.ShopRelics,
+            RandomRelicRaritySlots = 2,
+            FixedRelicRarity = RunRelicRarity.Shop,
+            PotionSlots = RunLimits.ShopPotions,
+            CardCosts = cardCosts,
+            ColorlessCardCosts = colorlessCosts,
+            CardPriceMin = cardRoll[0],
+            CardPriceMax = cardRoll[1],
+            SaleDivisor = sale[0],
+            RelicPriceMin = relicRoll[0],
+            RelicPriceMax = relicRoll[1],
+            PotionCosts = potionCosts,
+            PotionPriceMin = potionRoll[0],
+            PotionPriceMax = potionRoll[1],
+            PotionPriceVaries = forcePotionPriceVaries || TestMode.IsOff,
+            WingedBootsRooms = ModelDb.Relic<WingedBoots>().DynamicVars["Rooms"].IntValue,
+            RemovalBaseCost = removalBase,
+            RemovalBaseCostInflation = removalBaseInflation,
+            RemovalPriceIncrease = removalIncrease,
+            RemovalPriceIncreaseInflation = removalIncreaseInflation,
+            InflationLevel = inflation,
+            ShopRareOdds = shopRare,
+            ShopUncommonOdds = shopUncommon,
+            ScarcityShopRareOdds = scarcityShopRare,
+            ScarcityShopUncommonOdds = scarcityShopUncommon,
+        };
+    }
+
+    private static CardModel? FindCanonicalCard(EngineCardRarity rarity, bool colorless)
+    {
+        IEnumerable<CardModel> cards = colorless
+            ? ModelDb.CardPool<ColorlessCardPool>().AllCards
+            : ModelDb.AllCharacters.SelectMany(static character => character.CardPool.AllCards);
+        return cards.FirstOrDefault(card => card.Rarity
+                == (MegaCrit.Sts2.Core.Entities.Cards.CardRarity)(int)rarity
+            && (card.Pool is ColorlessCardPool) == colorless);
+    }
+
+    private static T ReadStaticField<T>(Type type, string name)
+    {
+        FieldInfo field = type.GetField(name, BindingFlags.NonPublic | BindingFlags.Static
+            | BindingFlags.Public)
+            ?? throw new MissingFieldException(type.FullName, name);
+        return (T)(field.GetValue(null)
+            ?? throw new InvalidDataException($"{type.Name}.{name} 返回空。"));
+    }
+
+    private static void RequireFactorPair(string method, float[] values)
+    {
+        RequireConstantCount(method, values, 2);
+        if (!(values[0] < 1f && values[1] > 1f && values[1] - values[0] < 1f))
+        {
+            throw new InvalidDataException(
+                $"{method} 的价格倍率不是 1 两侧的一对常量：{string.Join(',', values)}");
+        }
+    }
+
+    private static ContentShopHookMask[] ExportShopHookMasks(int count,
+        Func<ushort, Type?> modelType, Func<ushort, string> nativeId)
+    {
+        ContentShopHookMask[] masks = new ContentShopHookMask[count];
+        for (ushort id = 0; id < count; id++)
+        {
+            Type? type = modelType(id);
+            masks[id] = type == null
+                ? new ContentShopHookMask { Overridden = AllShopHooks, Implemented = 0 }
+                : BuildShopHookMask(type, nativeId(id));
+        }
+        return masks;
+    }
+
+    private static ContentShopHookMask BuildShopHookMask(Type modelType, string nativeId)
+    {
+        List<(ContentShopHook Hook, bool Overridden, bool Implemented)> values = [];
+        foreach ((ContentShopHook hook, string method, HashSet<string> implemented) in ShopHookSpecs)
+        {
+            bool overridden = Overrides(modelType, typeof(AbstractModel), method);
+            bool listed = implemented.Contains(nativeId);
+            if (listed && !overridden)
+                throw new InvalidDataException(
+                    $"商店 Hook 名单过期：{nativeId} 没有重写 {method}。");
+            values.Add((hook, overridden, listed));
+        }
+        return ContentShopHookMask.From(values);
+    }
+
+    private static readonly uint AllShopHooks =
+        (uint)(ContentShopHook.ModifyMerchantPrice
+            | ContentShopHook.ModifyMerchantCardPool
+            | ContentShopHook.ModifyMerchantCardRarity
+            | ContentShopHook.ModifyMerchantCardCreationResults
+            | ContentShopHook.ShouldRefillMerchantEntry
+            | ContentShopHook.AfterItemPurchased
+            | ContentShopHook.BeforeCardRemoved
+            | ContentShopHook.BeforeShopRoomEntered
+            | ContentShopHook.AfterShopRoomEntered);
+
+    /// <summary>
+    /// Every native <c>AfterRoomEntered</c> override except LordsParasol. The switch in
+    /// <c>RunShopGenerator</c> models the shop-room effect of each; combat/rest-site/treasure-only
+    /// branches are no-ops for a merchant room. Achievements/badges are not run-state listeners.
+    /// </summary>
+    private static readonly HashSet<string> ShopAfterRoomEntered = new(StringComparer.Ordinal)
+    {
+        "BIG_MUSHROOM", "BRONZE_SCALES", "BURNING_STICKS", "DATA_DISK", "DIVINE_RIGHT",
+        "EMBER_TEA", "ETERNAL_FEATHER", "FAKE_VENERABLE_TEA_SET", "GHOST_SEED", "GIRYA",
+        "GORGET", "LAVA_LAMP", "MAW_BANK", "MEAL_TICKET", "METRONOME", "ODDLY_SMOOTH_STONE",
+        "PANTOGRAPH", "PERMAFROST", "PHILOSOPHERS_STONE", "PLANISPHERE", "RED_SKULL",
+        "REGAL_PILLOW", "SILVER_CRUCIBLE", "SLING_OF_COURAGE", "STONE_CALENDAR",
+        "STONE_CRACKER", "SWORD_OF_JADE", "THROWING_AXE", "VAJRA", "VELVET_CHOKER",
+        "VENERABLE_TEA_SET", "WINGED_BOOTS",
+    };
+
+    private static readonly (ContentShopHook Hook, string Method, HashSet<string> Implemented)[]
+        ShopHookSpecs =
+        [
+            (ContentShopHook.ModifyMerchantPrice, "ModifyMerchantPrice",
+                Set("MEMBERSHIP_CARD", "THE_COURIER")),
+            (ContentShopHook.ModifyMerchantCardPool, "ModifyMerchantCardPool", Set()),
+            (ContentShopHook.ModifyMerchantCardRarity, "ModifyMerchantCardRarity", Set()),
+            (ContentShopHook.ModifyMerchantCardCreationResults,
+                "ModifyMerchantCardCreationResults", Set("FROZEN_EGG", "MOLTEN_EGG", "TOXIC_EGG")),
+            (ContentShopHook.ShouldRefillMerchantEntry, "ShouldRefillMerchantEntry",
+                Set("THE_COURIER")),
+            (ContentShopHook.AfterItemPurchased, "AfterItemPurchased", Set("MAW_BANK")),
+            (ContentShopHook.BeforeCardRemoved, "BeforeCardRemoved", Set()),
+            (ContentShopHook.BeforeShopRoomEntered, "BeforeRoomEntered", Set()),
+            (ContentShopHook.AfterShopRoomEntered, "AfterRoomEntered", ShopAfterRoomEntered),
+        ];
+
+    /// <summary>Reads every <c>ldc.i4</c> literal of a method body in execution order.</summary>
+    private static int[] IntConstants(MethodBase method)
+    {
+        byte[] il = method.GetMethodBody()?.GetILAsByteArray()
+            ?? throw new InvalidDataException($"{method.DeclaringType?.Name}.{method.Name} 没有 IL。");
+        Dictionary<ushort, OpCode> opcodes = [];
+        foreach (FieldInfo field in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
+        {
+            if (field.GetValue(null) is OpCode opcode)
+                opcodes[(ushort)opcode.Value] = opcode;
+        }
+        List<int> values = [];
+        int offset = 0;
+        while (offset < il.Length)
+        {
+            ushort code = il[offset++];
+            if (code == 0xFE)
+                code = (ushort)(0xFE00 | il[offset++]);
+            OpCode opcode = opcodes.TryGetValue(code, out OpCode found)
+                ? found
+                : throw new InvalidDataException(
+                    $"{method.Name} 的 IL 含未知操作码 0x{code:X4}。");
+            if (opcode == OpCodes.Ldc_I4_M1)
+            {
+                values.Add(-1);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_0)
+            {
+                values.Add(0);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_1)
+            {
+                values.Add(1);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_2)
+            {
+                values.Add(2);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_3)
+            {
+                values.Add(3);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_4)
+            {
+                values.Add(4);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_5)
+            {
+                values.Add(5);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_6)
+            {
+                values.Add(6);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_7)
+            {
+                values.Add(7);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_8)
+            {
+                values.Add(8);
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4_S)
+            {
+                values.Add((sbyte)il[offset]);
+                offset += 1;
+                continue;
+            }
+            if (opcode == OpCodes.Ldc_I4)
+            {
+                values.Add(BitConverter.ToInt32(il, offset));
+                offset += 4;
+                continue;
+            }
+            offset += OperandSize(opcode.OperandType, il, offset);
+        }
+        return [.. values];
+    }
+
     private static ContentTutorialRewards ExportTutorialRewards()
     {
         static ContentTutorialCardOffer Offer(ushort[] cards, ushort potion = ContentTutorialCardOffer.NoPotion)
@@ -1206,6 +1546,9 @@ public static class ContentTableExporter
                     mutable.ToSerializable().Props, RunLimits.RelicPropertyBytes, def.NativeId),
                 Obtain = RelicObtain(canonical),
                 RewardHooks = BuildRewardHookMask(canonical.GetType(), def.NativeId),
+                ShopHooks = BuildShopHookMask(canonical.GetType(), def.NativeId),
+                MerchantCost = canonical.MerchantCost,
+                AllowedInShops = canonical.IsAllowedInShops,
             };
         }
         return facts;

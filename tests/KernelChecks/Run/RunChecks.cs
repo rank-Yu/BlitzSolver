@@ -40,6 +40,7 @@ internal static class RunChecks
         CheckCodec();
         CheckCapacity();
         CheckView();
+        CheckShop();
         CheckTravel();
         CheckTutorialUnknown();
     }
@@ -206,8 +207,8 @@ internal static class RunChecks
 
     private static void CheckView()
     {
-        Check(Unsafe.SizeOf<RunView>() == 5404,
-            $"RunView 应为 5404 字节，实际 {Unsafe.SizeOf<RunView>()}");
+        Check(Unsafe.SizeOf<RunView>() == 7536,
+            $"RunView 应为 7536 字节，实际 {Unsafe.SizeOf<RunView>()}");
         RunState state = SampleState();
         RunView view = RunView.From(state);
         Check(view.Player.CurrentHp == state.Player.CurrentHp, "RunView HP 不一致。");
@@ -270,6 +271,83 @@ internal static class RunChecks
             Check(!forbidden.Contains(field.FieldType),
                 $"RunView 暴露了不可见类型 {field.FieldType}。");
         }
+    }
+
+    private static void CheckShop()
+    {
+        RunState state = SampleState();
+        state.Decision = RunDecision.Shop;
+        state.Player.Gold = 1000;
+        state.Deck.Cards[0].Flags = RunCardFlags.Removable;
+        state.AddRoom(new RunRoom
+        {
+            RoomType = RunRoomType.Shop,
+            Model = RunRef.None,
+            GoldProportion = 1f,
+        });
+        state.Shop.Stage = RunShopStage.Shop;
+        RunShopCard first = default;
+        first.Card = state.Deck.Cards[0];
+        first.Card.Flags = RunCardFlags.Removable;
+        first.Cost = 50;
+        first.Price = 40;
+        first.Flags = RunShopEntryFlags.Stocked | RunShopEntryFlags.OnSale;
+        state.Shop.CharacterCards[0] = first;
+        RunShopCard second = first;
+        second.Flags = RunShopEntryFlags.Stocked;
+        second.Price = 2000;
+        state.Shop.CharacterCards[1] = second;
+        RunShopModel relic = default;
+        relic.ModelId = 0;
+        relic.Cost = 100;
+        relic.Price = 100;
+        relic.Flags = RunShopEntryFlags.Stocked;
+        state.Shop.Relics[0] = relic;
+        RunShopModel potion = default;
+        potion.ModelId = 0;
+        potion.Cost = 75;
+        potion.Price = 75;
+        potion.Flags = RunShopEntryFlags.Stocked;
+        state.Shop.Potions[0] = potion;
+        state.Shop.Removal = new RunShopRemoval { Cost = 75, Price = 75 };
+
+        RunDecisionRequest request = RunDecisionRequest.Capture(in state);
+        Check(request.Kind == RunDecision.Shop, "商店决策种类不对。");
+        Check(request.OptionCount == 5, $"商店可买选项应为 5，实际 {request.OptionCount}。");
+        Check(request.Options[0].Kind == RunDecisionOptionKind.ShopEntry
+            && request.Options[0].Index == 0 && request.Options[0].Amount == 40,
+            "商店卡牌选项或价格不对。");
+        Check(request.Options[1].Index == 7 && request.Options[1].Amount == 100,
+            "商店遗物选项或价格不对。");
+        Check(request.Options[2].Index == 10 && request.Options[2].Amount == 75,
+            "商店药水选项或价格不对。");
+        Check(request.Options[3].Kind == RunDecisionOptionKind.CardRemoval
+            && request.Options[3].Amount == 75, "删牌服务选项不对。");
+        Check(request.Options[4].Kind == RunDecisionOptionKind.Skip, "商店缺少离开选项。");
+        RunView view = RunView.From(state);
+        Check((view.Shop.CharacterCards[0].Flags & RunShopEntryFlags.OnSale) != 0,
+            "RunView 没有保留打折标记。");
+        Check(view.Shop.RemovalPrice == 75, "RunView 删牌价格不对。");
+
+        state.Shop.Stage = RunShopStage.CardRemoval;
+        state.Decision = RunDecision.CardSelect;
+        RunCard extra = state.Deck.Cards[0];
+        state.AddCard(extra);
+        state.AddCard(extra);
+        state.Deck.Cards[0].Flags = RunCardFlags.Removable;
+        state.Deck.Cards[1].Flags = RunCardFlags.Removable | RunCardFlags.Curse;
+        state.Deck.Cards[2].Flags = RunCardFlags.Curse;
+        request = RunDecisionRequest.Capture(in state);
+        Check(request.Kind == RunDecision.CardSelect && request.OptionCount == 3,
+            "删牌选卡应有两个可删卡加取消。");
+        Check(request.Options[0].Index == 1 && request.Options[1].Index == 0,
+            "删牌选卡应先诅咒后牌组顺序。");
+        Check(request.Options[2].Kind == RunDecisionOptionKind.Skip, "删牌选卡缺少取消。");
+
+        byte[] encoded = RunCodec.Encode(state);
+        RunState decoded = RunCodec.Decode(encoded);
+        Check(encoded.AsSpan().SequenceEqual(RunCodec.Encode(decoded)),
+            "商店 RunState 编码往返不是逐字节相同。");
     }
 
     private static void CheckTravel()

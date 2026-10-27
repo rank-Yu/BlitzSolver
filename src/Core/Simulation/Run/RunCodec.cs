@@ -14,7 +14,7 @@ namespace BlitzSolver.Simulation.Run;
 public static class RunCodec
 {
     internal const uint Magic = 0x534E5552; // "RUNS"
-    internal const ushort FormatVersion = 2;
+    internal const ushort FormatVersion = 3;
 
     public const int HeaderSize = 4 + 2 + 4;
 
@@ -69,6 +69,18 @@ public static class RunCodec
 /// <summary>Structural checks shared by the codec, importer and tests.</summary>
 public static class RunStateValidator
 {
+    private static void ValidateShopCard(in RunShopCard entry)
+    {
+        if ((entry.Flags & ~(RunShopEntryFlags.Stocked | RunShopEntryFlags.OnSale)) != 0)
+            throw new InvalidDataException($"商店卡槽标志 {(int)entry.Flags} 非法。");
+    }
+
+    private static void ValidateShopModel(in RunShopModel entry)
+    {
+        if ((entry.Flags & ~RunShopEntryFlags.Stocked) != 0)
+            throw new InvalidDataException($"商店模型槽标志 {(int)entry.Flags} 非法。");
+    }
+
     /// <summary>Count bounds only; used before canonicalization can index the fixed arrays.</summary>
     public static void ValidateCounts(in RunState state)
     {
@@ -117,6 +129,24 @@ public static class RunStateValidator
         ValidateCounts(state);
         if (state.GameMode is < RunGameMode.None or > RunGameMode.Custom)
             throw new InvalidDataException($"RunState.GameMode {state.GameMode} 非法。");
+        if (state.Shop.Stage is < RunShopStage.None or > RunShopStage.CardRemoval)
+            throw new InvalidDataException($"RunState.Shop.Stage {state.Shop.Stage} 非法。");
+        if (state.Shop.Removal.Used is > 1)
+            throw new InvalidDataException($"RunState.Shop.Removal.Used {state.Shop.Removal.Used} 非法。");
+        for (int index = 0; index < RunLimits.ShopCharacterCards; index++)
+            ValidateShopCard(state.Shop.CharacterCards[index]);
+        for (int index = 0; index < RunLimits.ShopColorlessCards; index++)
+            ValidateShopCard(state.Shop.ColorlessCards[index]);
+        for (int index = 0; index < RunLimits.ShopRelics; index++)
+            ValidateShopModel(state.Shop.Relics[index]);
+        for (int index = 0; index < RunLimits.ShopPotions; index++)
+            ValidateShopModel(state.Shop.Potions[index]);
+        for (int index = 0; index < state.Deck.Count; index++)
+        {
+            RunCardFlags flags = state.Deck.Cards[index].Flags;
+            if ((flags & ~(RunCardFlags.Removable | RunCardFlags.Curse)) != 0)
+                throw new InvalidDataException($"deck.{index} 的卡牌标志 {(int)flags} 非法。");
+        }
         if (state.Decision is < RunDecision.None or > RunDecision.GameOver)
             throw new InvalidDataException($"RunState.Decision {state.Decision} 非法。");
         if (state.Acts.Count is 0 or > RunLimits.Acts)

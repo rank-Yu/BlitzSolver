@@ -99,10 +99,22 @@ public static class RunLimits
     public const int PropertyCards = 4;
 
     /// <summary>
-    /// Options in one decision request. The largest native screens are card selection (a full hand
-    /// or deck page); 32 is above the observed single-player maximum.
+    /// Options in one decision request. The largest native screen is deck card selection, which
+    /// lists every removable deck card; one more slot is reserved for cancel.
     /// </summary>
-    public const int DecisionOptions = 32;
+    public const int DecisionOptions = DeckCards + 1;
+
+    /// <summary>Character cards offered by the normal merchant (<c>_coloredCardTypes.Length</c>).</summary>
+    public const int ShopCharacterCards = 5;
+
+    /// <summary>Colorless cards offered by the normal merchant (<c>_colorlessCardRarities.Length</c>).</summary>
+    public const int ShopColorlessCards = 2;
+
+    /// <summary>Relic slots offered by the normal merchant.</summary>
+    public const int ShopRelics = 3;
+
+    /// <summary>Potion slots offered by the normal merchant.</summary>
+    public const int ShopPotions = 3;
 
     /// <summary>
     /// Rewards in one post-combat set. Native has no hard cap (The Hunt can append one card reward

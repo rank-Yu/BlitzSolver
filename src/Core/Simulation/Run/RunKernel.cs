@@ -4,11 +4,12 @@ namespace BlitzSolver.Simulation.Run;
 
 /// <summary>
 /// The run kernel: one action in, one result out, mirroring the combat kernel's "action + choice"
-/// shape. R2b-2 implements the map-point action; R2c adds post-combat reward generation/selection
-/// (the caller generates rewards after <see cref="RunCombatWriteback"/>) and leaving the reward
-/// screen. A rejected action leaves the state untouched, and a room whose content belongs to a
-/// later phase returns <see cref="RunStepStatus.UnsupportedRoom"/> after advancing to the native
-/// "room built, not entered" state.
+/// shape. R2b-2 implements the map-point action; R2c adds post-combat rewards (the caller
+/// generates rewards after <see cref="RunCombatWriteback"/>), the shop shelf, buying, card
+/// removal and leaving, and the reward screen exit. A rejected action leaves the state untouched,
+/// and a room whose content belongs to a later phase returns
+/// <see cref="RunStepStatus.UnsupportedRoom"/> after advancing to the native "room built, not
+/// entered" state.
 /// </summary>
 public sealed class RunKernel
 {
@@ -25,6 +26,16 @@ public sealed class RunKernel
         RunDecisionRequest request = RunDecisionRequest.Capture(in state);
         if (state.Player.CurrentHp <= 0 || request.Kind == RunDecision.GameOver)
             return new RunStepResult { Status = RunStepStatus.Ended };
+
+        if (state.Shop.Stage != RunShopStage.None)
+            return StepShop(ref state, action, request);
+
+        if (action.Kind is RunActionKind.BuyShopEntry or RunActionKind.RemoveCard
+            or RunActionKind.LeaveShop or RunActionKind.CancelCardSelection)
+        {
+            return Reject(request, RunStepReject.NotShopDecision, RunStepReason.NotShopDecision,
+                $"当前决策是 {request.Kind}，不是商店。");
+        }
 
         if (state.Rewards.Stage != RunRewardStage.None)
             return StepReward(ref state, action, request);
@@ -70,6 +81,45 @@ public sealed class RunKernel
                 exception.Detail);
         }
 
+        if (entry.RoomType == RunRoomType.Shop)
+        {
+            RunState shop = entry.Run;
+            shop.AddRoom(new RunRoom
+            {
+                RoomType = RunRoomType.Shop,
+                Model = RunRef.None,
+                ParentEvent = RunRef.None,
+                GoldProportion = 1f,
+            });
+            try
+            {
+                RunShopGenerator.RequireSupportedListeners(in shop, _content);
+                RunShopGenerator.BeforeRoomEntered(ref shop, _content);
+                RunShopGenerator.Generate(ref shop, _content);
+                RunShopGenerator.AfterRoomEntered(ref shop, _content);
+                RunShopGenerator.RefreshPrices(ref shop, _content);
+                shop.Canonicalize();
+            }
+            catch (ContentUnavailableException exception)
+            {
+                return Reject(request, RunStepReject.ShopContent, exception.Reason,
+                    exception.Detail);
+            }
+            catch (CapacityException exception)
+            {
+                return Reject(request, RunStepReject.ShopContent, ContentReason.Capacity,
+                    exception.Message);
+            }
+            state = shop;
+            return new RunStepResult
+            {
+                Status = RunStepStatus.Decision,
+                Request = RunDecisionRequest.Capture(in state),
+                RoomType = RunRoomType.Shop,
+                PointType = entry.PointType,
+            };
+        }
+
         state = entry.Run;
         if (entry.Combat != null)
         {
@@ -98,6 +148,103 @@ public sealed class RunKernel
             Detail = $"{entry.RoomType} 的内容生成属于后续阶段。",
             RoomType = entry.RoomType,
             PointType = entry.PointType,
+        };
+    }
+
+    private RunStepResult StepShop(ref RunState state, in RunAction action,
+        in RunDecisionRequest request)
+    {
+        RunState next = state;
+        try
+        {
+            switch (action.Kind)
+            {
+                case RunActionKind.BuyShopEntry:
+                {
+                    if (request.Kind != RunDecision.Shop)
+                    {
+                        return Reject(request, RunStepReject.NotShopDecision,
+                            RunStepReason.NotShopDecision, "当前不是商店界面。");
+                    }
+                    if ((uint)action.Option >= request.OptionCount)
+                    {
+                        return Reject(request, RunStepReject.NotShopDecision,
+                            RunStepReason.ShopOption, $"商店选项 {action.Option} 非法。");
+                    }
+                    RunDecisionOption option = request.Options[action.Option];
+                    if (option.Kind is not (RunDecisionOptionKind.ShopEntry
+                        or RunDecisionOptionKind.CardRemoval))
+                    {
+                        return Reject(request, RunStepReject.NotShopDecision,
+                            RunStepReason.ShopOption, $"选项 {action.Option} 不是商店条目。");
+                    }
+                    RunShopGenerator.BuyShopEntry(ref next, _content, option);
+                    break;
+                }
+                case RunActionKind.RemoveCard:
+                case RunActionKind.CancelCardSelection:
+                {
+                    if (request.Kind != RunDecision.CardSelect)
+                    {
+                        return Reject(request, RunStepReject.NotShopDecision,
+                            RunStepReason.NotShopDecision, "当前不是删牌选卡。");
+                    }
+                    if (action.Kind == RunActionKind.CancelCardSelection)
+                    {
+                        RunShopGenerator.CancelCardRemoval(ref next);
+                        break;
+                    }
+                    if ((uint)action.Option >= request.OptionCount)
+                    {
+                        return Reject(request, RunStepReject.NotShopDecision,
+                            RunStepReason.ShopOption, $"选卡选项 {action.Option} 非法。");
+                    }
+                    RunDecisionOption option = request.Options[action.Option];
+                    if (option.Kind == RunDecisionOptionKind.Skip)
+                        RunShopGenerator.CancelCardRemoval(ref next);
+                    else if (option.Kind == RunDecisionOptionKind.Card)
+                        RunShopGenerator.RemoveCard(ref next, _content, option.Index);
+                    else
+                    {
+                        return Reject(request, RunStepReject.NotShopDecision,
+                            RunStepReason.ShopOption, $"选项 {action.Option} 不是卡牌。");
+                    }
+                    break;
+                }
+                case RunActionKind.LeaveShop:
+                    if (request.Kind != RunDecision.Shop)
+                    {
+                        return Reject(request, RunStepReject.NotShopDecision,
+                            RunStepReason.NotShopDecision, "当前不是商店界面。");
+                    }
+                    RunShopGenerator.Leave(ref next);
+                    break;
+                default:
+                    return Reject(request, RunStepReject.WrongActionKind,
+                        RunStepReason.WrongActionKind,
+                        $"商店阶段不接受动作 {action.Kind}。");
+            }
+        }
+        catch (ContentUnavailableException exception)
+        {
+            return Reject(request, RunStepReject.ShopContent, exception.Reason,
+                exception.Detail);
+        }
+        catch (CapacityException exception)
+        {
+            return Reject(request, RunStepReject.ShopContent, ContentReason.Capacity,
+                exception.Message);
+        }
+
+        state = next;
+        RunDecisionRequest follow = RunDecisionRequest.Capture(in state);
+        return new RunStepResult
+        {
+            Status = RunStepStatus.Decision,
+            Request = follow,
+            RoomType = state.Rooms.Count == 0
+                ? RunRoomType.Unassigned
+                : state.Rooms.Items[state.Rooms.Count - 1].RoomType,
         };
     }
 

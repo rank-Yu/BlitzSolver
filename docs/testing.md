@@ -1052,6 +1052,81 @@ R2b-2 地图选点、战斗、写回、奖励串起来，战斗改用 pilot。`t
   低档 pilot 101/0/19。
 - 全量拒绝都有稳定原因码，0 子进程崩溃、0 `CapacityException`。
 
+### 6.18 商店对照（R2c-2）
+
+```bash
+# 自然开局：5 角色 × A0/A10 × empty/all × 10 种子 = 200 局
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
+  --shop-kind natural --shop-seeds 10 --shop-jobs 6
+
+# D1：410 个冻结根，4 片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
+  --shop-kind d1 --shop-jobs 6 --shop-shard 0 4
+
+# 真实游戏药水价分支：自然 3 种子、D1 第 0/4 片
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
+  --shop-kind natural-live-prices --shop-seeds 3 --shop-jobs 6
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
+  --shop-kind d1-live-prices --shop-jobs 6 --shop-shard 0 4
+
+# 强制 TheCourier 的自然长序列
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
+  --shop-kind natural-courier --shop-seeds 3 --shop-jobs 6
+
+# 单例调试
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
+  --shop-character Ironclad --shop-ascension 0 --shop-preset all --shop-seed shop-test-0
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
+  --shop-root quality-IRONCLAD-007
+```
+
+自然局走上地图找可达的商店点；D1 用 `ScenarioBuilder.PrepareRunAsync` 建出牌组/遗物后把起点改成
+商店点。两边同时把金币设为同一值（自然 500、D1 2000）。恢复进店前快照后重新进入，比较：
+
+- 进店后的 `RunState`（`NativeRunDump` 独立读原版，`RunDump` 读 Core）与导入器二次读取；
+- 商店请求的每个选项（条目下标、模型、卡牌升级/附魔、价格）与 `RunView.Shop`（打折/删牌价）；
+- 每个合法购买类别的单步序列、删牌的首张/末张/取消、离开、随机多步序列、贪心买空序列；
+  每步后比较 `RunState` 与下一个请求；离开后比较地图合法点。
+- 贪心序列两边金币设为 5000；按槽位轮转买当前第一个合法且有支持的购买条目。非 Courier
+  商店买空后只剩删牌/离开；Courier 会立即补货，序列在 16 次购买后停止，每一步仍做单步比较。
+- `*-live-prices` 用 `ContentTableExporter.Export(forcePotionPriceVaries: true)`，原生侧只在
+  `MerchantPotionEntry.CalcCost` 内临时 `TestMode.IsOn=false`（prefix/postfix），覆盖货架生成
+  和补货的同一分支，不触碰 Godot/UI。
+
+2026-10 最终结果：
+
+| 模式 | 用例 | same | diff | reject | skip | 状态比较 | 选项元素 | 动作步骤 | 贪心购买 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| natural | 200 | 187 | 0 | 0 | 13 | 7,872 | 74,507 | 6,189 | 2,277 |
+| d1 | 410 | 401 | 0 | 9 | 0 | 16,322 | 162,285 | 12,867 | 4,877 |
+| **普通合计** | **610** | **588** | **0** | **9** | **13** | **24,194** | **236,792** | **19,056** | **7,154** |
+| natural-live-prices | 60 | 58 | 0 | 0 | 2 | 2,443 | 23,090 | 1,921 | 708 |
+| d1-live-prices（0/4） | 103 | 103 | 0 | 0 | 0 | 4,199 | 41,648 | 3,312 | 1,259 |
+| natural-courier | 60 | 58 | 0 | 0 | 2 | 2,608 | 30,287 | 2,086 | 870 |
+
+普通模式按动作（已完成步骤）：角色卡购买 4,381、无色卡购买 1,516、遗物购买 2,588、
+药水购买 2,151、打删除牌服务 1,641、确认删牌 1,094、取消删牌 547、离开 5,138；合计
+19,056 个动作步骤，贪心购买 7,154 次。普通 + 新模式的合计为 33,444 次状态比较、
+331,817 个选项元素、26,375 个动作步骤。
+
+`natural-live-prices` 的 1,740 次与 `d1-live-prices` 的 2,978 次原生 `CalcCost` 调用都实际
+走了 `TestMode.IsOff` 分支；`natural-courier` 的 58 个进店用例全部带 TheCourier，D1 普通
+全量有 5 个实际带 Courier 的根。
+
+- D1 拒绝：`shop-hook-listener` 3（`FRESNEL_LENS` 的
+  `ModifyMerchantCardCreationResults`、`BING_BONG` 的 `AfterCardChangedPiles`、`LORDS_PARASOL`
+  的 `AfterRoomEntered`（商店位 `AfterShopRoomEntered`）、`unsupported-relic-state` 5、`free-travel-hook` 1（`WingedBoots`，
+  在 R2b-2 的地图选点边界就拒绝）。
+- 自然 13 个 `skip` 是 12 步内没有可达商店点，不是拒绝。
+- 自然覆盖 5 角色 × A0/A10 × empty/all；D1 覆盖 410 个根的牌组/遗物组合，价格改价
+  （MembershipCard/TheCourier）与补货（TheCourier）在 D1/自然中实际命中。
+- 对照工具不做规范化：`shop.character.N`/`shop.relic.N`/`shop.potion.N`/`shop.removal` 逐字段
+  比较；从快照恢复丢掉的非保存字段按 R2b-2 的同一记录值写回；反射找 `_cost` 失败直接抛异常。
+
+`run-pilot` 已接上商店：进店后比较货架/选项，再走 `LeaveShop` 继续地图。40/40 相同，平均
+3.725 个地图点、3.375 场战斗、9.275 个奖励动作；停在 `event-allowed-check` 25、
+`RestSite` 7、`Event` 5、`combat-defeat` 2、`Treasure` 1。
+
 ## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |
@@ -1061,7 +1136,7 @@ R2b-2 地图选点、战斗、写回、奖励串起来，战斗改用 pilot。`t
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同 | 实机部署、任意 Mod、语料外前缀/准备阶段、商店/事件/休息/宝箱负载 |
+| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同；R2c-2 的自然 187 + D1 401 个商店逐字段、逐选项、逐动作相同；live-prices 与 Courier 长序列也 0 diff | 实机部署、任意 Mod、语料外前缀/准备阶段、事件/休息/宝箱负载 |
 | Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
 | 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
 | 实机整场（手动） | 20 个固定根在无头游戏里自动打完（16 胜 4 负），逐动作核对与回合对账均为 0 偏差/0 部署失败；至少一个根实际走过选牌、抽牌堆/弃牌堆选择与药水目标；取消测试无残留 | 120 根全量、界面、未捕获前缀/准备根、第三方 Mod |

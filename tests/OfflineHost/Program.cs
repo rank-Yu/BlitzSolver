@@ -59,6 +59,8 @@ internal static class Program
             return MapStepCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--reward-compare")
             return RewardCompare.Run(args[1..]);
+        if (args.Length > 0 && args[0] == "--shop-compare")
+            return ShopCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-negative")
             return RunImportNegative.Run();
         string data = DefaultData;

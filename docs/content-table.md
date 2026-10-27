@@ -248,3 +248,34 @@ R2c-1 在同一个 `ContentTable` 里加入战后奖励需要的静态数据；C
 `CardRarityOdds.GetBaseOdds` 与 `CardRarityOdds.RarityGrowth` 在 A0/A10 两种
 `ScratchAscension` 下读取；升级概率通过 `CardFactory.UpgradedCardOddScaling` 读取。
 枚举与表结构见 `src/Core/Simulation/Run/RunContent.cs`。
+
+## 10. 商店区块（R2c-2）
+
+商店复用 `RewardRules` 的遗物/药水稀有度阈值，并增加以下静态数据：
+
+| 区块 | 内容 | 覆盖数量（0.111.0） |
+| --- | --- | --- |
+| `ShopRules.CharacterCardTypes` | 反射 `MerchantInventory._coloredCardTypes` | 5 |
+| `ShopRules.ColorlessCardRarities` | 反射 `MerchantInventory._colorlessCardRarities` | 2 |
+| `ShopRules.CardCosts` / `ColorlessCardCosts` | 反射调用原版私有 `MerchantCardEntry.GetCost` 得到每个稀有度的整数价（无色已含 1.15 倍） | 各 11 槽 |
+| `ShopRules.PotionCosts` | 反射调用 `MerchantPotionEntry.GetCost` | 6 槽 |
+| `ShopRules.CardPriceMin/Max`、`RelicPriceMin/Max`、`PotionPriceMin/Max` | 方法体 `ldc.r4` 价格倍率 | 3 对 |
+| `ShopRules.SaleDivisor` | `MerchantCardEntry.CalcCost` 的整数常量 | 1 |
+| `ShopRules.PotionPriceVaries` | 导出进程的 `TestMode.IsOff`；live-prices 对照可强制 true | 1 |
+| `ShopRules.WingedBootsRooms` | `WingedBoots` 的 `Rooms` 动态变量（最大次数/`DisplayAmount` 基准；自由移动时 `TimesUsed` 递增） | 1 |
+| `ShopRules.RemovalBaseCost*` / `RemovalPriceIncrease*` / `InflationLevel` | 反射 `MerchantCardRemovalEntry.BaseCost`/`PriceIncrease` 在 A0 与 Inflation 的值 | 4 + 1 |
+| `ShopRules.ShopRareOdds` / `ShopUncommonOdds` / `ScarcityShop*` | 反射 `CardRarityOdds.GetBaseOdds(Shop, …)` 在 A0/Scarcity 的值 | 4 |
+| `RelicRewardFacts[].MerchantCost` | 反射 canonical 遗物的 `MerchantCost`（假遗物可覆盖） | 297 |
+| `RelicRewardFacts[].AllowedInShops` | 反射 `IsAllowedInShops` | 297 |
+| `RelicRewardFacts[].ShopHooks` | 商店 Flow 的 `Overridden`/`Implemented` 位集 | 297 |
+| `ContentTable.CardShopHooks` / `EnchantmentShopHooks` / `PotionShopHooks` | 按 id 索引的同类位集 | 558 / 22 / 65 |
+
+Hook 清单与三态规则见[商店](run-shop.md)第 6 节。导出器对名单内有但未重写、重写但不在名单内
+都显式失败/标记 `Unsupported`；`IntConstants` 读取整数常量，`FloatConstants` 读取浮点常量。
+
+**房间 Hook 的位规则**：`BeforeRoomEntered`/`AfterRoomEntered` 在原版是通用方法，但
+`ContentShopHookMask` 只记录 Core 已实现的那一支。当前只有商店位
+`BeforeShopRoomEntered`/`AfterShopRoomEntered`；以后新增休息处、宝箱、事件等房间时，必须
+为每种房间各加一对位，并在 Core 里单独实现/判定，不能复用商店位，也不能因为模型重写了
+通用方法就默认其他房间已实现。战斗房间的 `AfterRoomEntered` 走
+`CombatStart.AfterRoomEntered` 的独立战斗规则。

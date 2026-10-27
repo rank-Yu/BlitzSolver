@@ -72,6 +72,7 @@ internal static class ContentTableReport
         }
         PrintNewRun(table);
         PrintRewardHooks(table);
+        PrintShopHooks(table);
         PrintUnsupported(table);
         for (int id = 0; id < table.Encounters.Length; id++)
         {
@@ -122,6 +123,57 @@ internal static class ContentTableReport
         }
         Console.WriteLine($"CONTENT-REWARD-HOOK relic overridden={relicOverridden} " +
             $"unsupported={relicUnsupported} total={table.RelicRewardFacts.Length}");
+    }
+
+    private static void PrintShopHooks(ContentTable table)
+    {
+        PrintShopHookCategory("card", table.CardShopHooks,
+            id => Registry.Card((ushort)id).NativeId);
+        PrintShopHookCategory("enchantment", table.EnchantmentShopHooks,
+            id => Registry.Enchantment((ushort)id).NativeId);
+        PrintShopHookCategory("potion", table.PotionShopHooks,
+            id => Registry.Potion((ushort)id).NativeId);
+        int relicOverridden = 0, relicUnsupported = 0;
+        for (int id = 0; id < table.RelicRewardFacts.Length; id++)
+        {
+            if (table.RelicRewardFacts[id] is not { } facts
+                || facts.ShopHooks.Overridden == 0)
+            {
+                continue;
+            }
+            relicOverridden++;
+            if (facts.ShopHooks.Unsupported != 0)
+                relicUnsupported++;
+            Console.WriteLine(
+                $"CONTENT-SHOP-HOOK relic={Registry.Relic((ushort)id).NativeId} " +
+                $"overridden={(ContentShopHook)facts.ShopHooks.Overridden} " +
+                $"implemented={(ContentShopHook)facts.ShopHooks.Implemented} " +
+                $"unsupported={(ContentShopHook)facts.ShopHooks.Unsupported}");
+        }
+        Console.WriteLine($"CONTENT-SHOP-HOOK relic overridden={relicOverridden} " +
+            $"unsupported={relicUnsupported} total={table.RelicRewardFacts.Length}");
+    }
+
+    private static void PrintShopHookCategory(string kind, ContentShopHookMask[] masks,
+        Func<int, string> name)
+    {
+        int overridden = 0, unsupported = 0;
+        for (int id = 0; id < masks.Length; id++)
+        {
+            if (masks[id].Overridden == 0)
+                continue;
+            overridden++;
+            if (masks[id].Unsupported == 0)
+                continue;
+            unsupported++;
+            Console.WriteLine(
+                $"CONTENT-SHOP-HOOK {kind}={name(id)} " +
+                $"overridden={(ContentShopHook)masks[id].Overridden} " +
+                $"implemented={(ContentShopHook)masks[id].Implemented} " +
+                $"unsupported={(ContentShopHook)masks[id].Unsupported}");
+        }
+        Console.WriteLine($"CONTENT-SHOP-HOOK {kind} overridden={overridden} " +
+            $"unsupported={unsupported} total={masks.Length}");
     }
 
     private static void PrintHookCategory(string kind, ContentRewardHookMask[] masks,

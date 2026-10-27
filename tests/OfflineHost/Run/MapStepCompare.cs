@@ -664,6 +664,16 @@ internal static class MapStepCompare
                 step.Reason ?? step.Reject.ToString());
             return;
         }
+        // R2c-2 turns the shop from UnsupportedRoom into a real decision. MapStepCompare's
+        // native capture stops before EnterRoomInternal, so it has no shelf to compare; the shop
+        // state and every purchase are covered by --shop-compare instead.
+        if (step.Status == RunStepStatus.Decision
+            && step.Request.Kind == RunDecision.Shop
+            && captured.RoomType == RunRoomType.Shop)
+        {
+            state.Step(act, floor, pointType, captured.RoomType, "same");
+            return;
+        }
         if (step.Status != RunStepStatus.UnsupportedRoom)
         {
             state.Step(act, floor, pointType, captured.RoomType, "diff", "status");

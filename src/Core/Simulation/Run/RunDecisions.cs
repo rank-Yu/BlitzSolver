@@ -84,6 +84,10 @@ public struct RunDecisionRequest
             request.Kind = RunDecision.GameOver;
             return request;
         }
+        if (state.Shop.Stage == RunShopStage.CardRemoval)
+            return RunShopGenerator.CaptureCardRemoval(in state);
+        if (state.Shop.Stage == RunShopStage.Shop)
+            return RunShopGenerator.CaptureShop(in state);
         switch (state.Rewards.Stage)
         {
             case RunRewardStage.List:
@@ -244,6 +248,8 @@ public enum RunActionKind : byte
     ChooseRelic = 7,
     BuyShopEntry = 8,
     RemoveCard = 9,
+    LeaveShop = 14,
+    CancelCardSelection = 15,
     RestSiteOption = 10,
     ChooseBossRelic = 11,
     LeaveRewards = 12,
@@ -305,6 +311,8 @@ public enum RunStepReject : byte
     CombatUnsupported = 10,
     CorruptMap = 11,
     NotRewardDecision = 12,
+    NotShopDecision = 13,
+    ShopContent = 14,
 }
 
 /// <summary>Stable reason code of an advancing but incomplete <see cref="RunStepStatus.UnsupportedRoom"/>.</summary>
@@ -328,6 +336,9 @@ public static class RunStepReason
     public const string CombatUnsupported = "combat-unsupported";
     public const string CorruptMap = "corrupt-map";
     public const string NotRewardDecision = "not-reward-decision";
+    public const string NotShopDecision = "not-shop-decision";
+    public const string ShopOption = "shop-option";
+    public const string ShopState = "shop-state";
 }
 
 /// <summary>Result of one run step. The state itself is updated through <c>ref</c> on success.</summary>
