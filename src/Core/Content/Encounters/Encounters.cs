@@ -901,6 +901,10 @@ public sealed class TestSubjectBossEncounter : EncounterDef
 [ContentId("THE_ARCHITECT_EVENT_ENCOUNTER")]
 public sealed class TheArchitectEventEncounter : EncounterDef
 {
+    // The native event dialogue ends the room before the player's first action; the Architect's
+    // 9999-HP NOTHING_MOVE loop is never a searchable combat.
+    public override bool EndsByEventScript => true;
+
     public override void Generate(ref EncounterRng rng, Span<EncounterSpawn> spawns, out int count)
     {
         count = 0;

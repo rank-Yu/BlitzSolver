@@ -23,6 +23,8 @@
 
 **HISTORY_COURSE 与 Pen Nib。** HISTORY_COURSE 只读取上一玩家回合最后一张攻击牌的完整卡值：`SimulatedCombatState._lastAttackThisTurn` 投影为 `Battle.HistoryCourseCard`（唯一的跨回合卡值槽，`Battle` 当前 12,696 字节），`AutoPrePlay` 在 Mayhem 之后复制并自动打出；dupe 的结果去向是移出战斗，不写回本回合最后攻击。Pen Nib 的锁存保存触发它的 `Exec.PlayIdentity`（`Relic.Aux`），嵌套自动打出的 Sly 牌不会继承加倍；`Rules.PenNibRelicIndex` 在稳定边界清除未完成出牌留下的锁存。两者的投影与 K4 规则见[准入](archive/admission-and-verification.md)与[状态布局](combat-state-layout.md#28-结局与跨回合卡值槽)。
 
+**LavaLamp 与 Kusarigama。** LavaLamp 的 `AfterDamageReceived` 只记录本场是否受到可格挡的未格挡伤害（`TookDamageThisCombat`），Blitz 用 `Relic.Counter` 携带并在写回时写回该布尔。Kusarigama 的 `AfterSideTurnEnd` 在原生战斗进入 ending（含 `PendingLoss`）时不会派发；Blitz 在 `PlayerTurnEndPhaseTwo` 的 `RelicPass(AfterSideTurnEnd)` 前检查 `IsPendingLoss`，避免玩家在玩家回合结束阶段死亡时错误清零 `Relic.Counter`，终局写回再按计数设置 `DisplayAmount`/`Status`。
+
 **FurCoat。** 命中地图坐标在战斗外固定，Bridge 把它冻结为 `Rules.FurCoatSpawnHpOne`；`Kernel.AddCreatedMonster` 在入场 Power 之后、`PreparePredictedMonster` 之前把新敌人的当前生命设为 1（`MonsterSpawnSupport.ApplyCreatureAddedRelics`）。
 
 **ChoicesParadox / ToastyMittens 的开局选择。** 两者的原版钩子在玩家第 1 回合开始、根捕获之前；搜索根里的结果是已选中的牌与已弃的牌。Blitz 在后续回合（`AfterPlayerTurnStart`）按同一 `TurnStartChoiceSupport` 协议发出 `GenerateToHand` / `Exhaust` 请求，由结束回合动作携带选择。

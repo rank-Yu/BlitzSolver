@@ -346,9 +346,9 @@ static void CheckTwKernel()
     Check(Unsafe.SizeOf<Battle>() == Battle.ExpectedSize, "Battle 尺寸应与 ExpectedSize 一致");
 
     // Detached table: three live slots (two Nightmare instances plus one stolen card), no eviction;
-    // removing the referencing power frees its slot.
+    // a removed SwipePower keeps its value for the write-back, while Nightmare releases its slot.
     Battle detached = TwBattle(rules);
-    Card value = new() { Id = 1, BaseCost = 1 };
+    Card value = new() { Id = 1, BaseCost = 1, Flags = CardFlags.RemovedFromState };
     int firstSlot = -1;
     for (int index = 0; index < Limits.DetachedCards; index++)
     {
@@ -371,7 +371,9 @@ static void CheckTwKernel()
     int swipeRow = Kernel.FindPower(detached, Kernel.EnemyOwner(0), Registry.PowerId<SwipePower>());
     detached.Powers[swipeRow].Aux0 = firstSlot + 1;
     Kernel.SetPowerAmount(ref detached, Kernel.EnemyOwner(0), Registry.PowerId<SwipePower>(), 0);
-    Check(detached.DetachedCards[firstSlot].Id == 0, "移除 SwipePower 应释放 detached 槽位");
+    Check(detached.DetachedCards[firstSlot].Id == value.Id
+        && (detached.DetachedCards[firstSlot].Flags & CardFlags.RemovedFromState) != 0,
+        "未回收的 SwipePower 应保留被偷牌值并保留 RemovedFromState");
 
     // GremlinMerc: min(power amount, gold), the private gold ledger and the outstanding counter.
     Battle thievery = TwBattle(rules);
@@ -413,7 +415,9 @@ static void CheckTwKernel()
     Kernel.ApplyEnemyDeathPowers(ref recoverExec);
     Check(recovered.Counter(Counter.OutstandingStolenCards) == 0
         && recovered.Counter(Counter.OutstandingStolenGold) == 0, "击杀飞贼应追回被偷卡与金币");
-    Check(recovered.DetachedCards[stolenSlot].Id == 0, "追回后 detached 槽位应清空");
+    Check(recovered.DetachedCards[stolenSlot].Id == value.Id
+        && (recovered.DetachedCards[stolenSlot].Flags & CardFlags.RemovedFromState) == 0,
+        "追回后应保留归还卡值并清除 RemovedFromState");
     Check(Kernel.FindPower(recovered, Kernel.EnemyOwner(0), Registry.PowerId<SwipePower>()) < 0,
         "死亡清理应移除 SwipePower");
 
@@ -453,9 +457,14 @@ static void CheckTwKernel()
     Kernel.ApplyPower(ref escapeExec, Kernel.EnemyOwner(1), Registry.PowerId<StrengthPower>(), 2,
         Kernel.EnemyOwner(1));
     Kernel.EscapeEnemy(ref escapeExec, Kernel.EnemyOwner(0));
-    Check(escaped.EnemyCount == 1 && escaped.RosterCount == 1 && escaped.Roster[0] == 0,
-        "逃跑应压实已知敌人与名单");
-    Check(escaped.DetachedCards[escapeSlot].Id == 0, "逃跑移除 SwipePower 应释放槽位");
+    Check(escaped.EnemyCount == 2 && escaped.RosterCount == 1 && escaped.Roster[0] == 0,
+        "逃跑应压实名单并在已知敌人末尾留下逃跑墓碑");
+    Check(escaped.Enemies[1].Flags == EnemyFlags.Escaped
+        && escaped.Enemies[1].DeathPhase == DeathPhase.PermanentlyDead,
+        "逃跑墓碑应带 Escaped 标记且为永久死亡");
+    Check(escaped.DetachedCards[escapeSlot].Id == value.Id
+        && (escaped.DetachedCards[escapeSlot].Flags & CardFlags.RemovedFromState) != 0,
+        "逃跑移除 SwipePower 应保留丢失牌值并保留 RemovedFromState");
     Check(escaped.Counter(Counter.OutstandingStolenCards) == 1, "逃跑后未追回卡数应保持不变");
     int shifted = Kernel.FindPower(escaped, Kernel.EnemyOwner(0), Registry.PowerId<StrengthPower>());
     Check(shifted >= 0 && escaped.Powers[shifted].Owner == Kernel.EnemyOwner(0),

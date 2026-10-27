@@ -7,7 +7,7 @@
     "d1Config": "66a43838d89e7a03b05c0f04d5e4941ff555baec",
     "formatMigration": "v1\u2192v2 \u53EA\u6539\u4E86\u6570\u636E\u683C\u5F0F\u91CC\u7684\u540D\u5B57\uFF08\u9B54\u6570\u3001\u7248\u672C\u3001\u5BB9\u91CF\u952E\u4E0E\u6839\u540D\uFF09\uFF0C\u5B57\u6BB5\u503C\u4E0D\u53D8\u3002",
     "refreeze": "M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6",
-    "d1Rerecord": "roots=hs3-regent13-rolling,id-a-monologue-swordsage,id-b-nightmare-phantom,id-c-instanced-powers,quality-REGENT-001,quality-REGENT-012,quality-REGENT-016,quality-SILENT-018 reason=M2d Power target corrections sha256=44896b5053256fb70184c69d081769d2ea5ce9b2e254de6fee82f19bd1201613"
+    "d1Rerecord": "roots=p7-class1-a,quality-DEFECT-019,quality-DEFECT-023,quality-IRONCLAD-006,quality-NECROBINDER-005,tw-gremlin-merc,tw-thieving-hopper,tw-thieving-hopper-recover reason=R2a-4 combat semantics: LavaLamp damage flag, Kusarigama pending-loss, escape tombstones, stolen-card return/loss sha256=097f5aeab74ad4e3cd7e215acbbb973aec736a37f14a549ae316a7b0fab48882"
   },
   "compression": "brotli",
   "counts": {
@@ -29,7 +29,7 @@
       "timeAffected": 0
     }
   },
-  "totalBytes": 23692393,
+  "totalBytes": 23692391,
   "targetBytes": 52428800,
   "files": [
     {
@@ -3114,8 +3114,8 @@
     },
     {
       "path": "d1/p7-class1-a/golden.br",
-      "bytes": 20026,
-      "sha256": "e3877cb9d8476af85b83c1efc5a5c8ee5927faa5b153e34ee299144ede1329b9"
+      "bytes": 19987,
+      "sha256": "05d61a73163afa1c794d4a84cce99f6f0d49faa96b77606b589b084bf9630197"
     },
     {
       "path": "d1/p7-class1-a/meta.json",
@@ -4239,8 +4239,8 @@
     },
     {
       "path": "d1/quality-DEFECT-019/golden.br",
-      "bytes": 14398,
-      "sha256": "29acba5b6e00425efab05ee38b358f63dbe54a25bbfa6fa801d1cecb12cc2832"
+      "bytes": 14376,
+      "sha256": "03be2ac47cd456d64040bcbcfaa1ee5ed75de2914eb8668fd7f3a00c12c2253e"
     },
     {
       "path": "d1/quality-DEFECT-019/meta.json",
@@ -4299,8 +4299,8 @@
     },
     {
       "path": "d1/quality-DEFECT-023/golden.br",
-      "bytes": 14558,
-      "sha256": "fba5bb792cd575847f5d2272163e3f635385ba2273fbbc39bdba03debec6092f"
+      "bytes": 14563,
+      "sha256": "ccb66525a927b9a38830752b67ee4a61bba18dcda83bc1eb1550f626179b362a"
     },
     {
       "path": "d1/quality-DEFECT-023/meta.json",
@@ -4404,8 +4404,8 @@
     },
     {
       "path": "d1/quality-IRONCLAD-006/golden.br",
-      "bytes": 25836,
-      "sha256": "c663e467aa787f3d04d12b35c22db577c8d0dc3c06dff5c7d242b221193068a7"
+      "bytes": 25847,
+      "sha256": "3cab17441a7ce8fb30ef80fda559a209bc8fb7d166df7444ac63afc76eb5afa1"
     },
     {
       "path": "d1/quality-IRONCLAD-006/meta.json",
@@ -4749,8 +4749,8 @@
     },
     {
       "path": "d1/quality-NECROBINDER-005/golden.br",
-      "bytes": 41005,
-      "sha256": "6139f1d35939efea0464e235aa7382642f352caca3068ef3d75b3f841409125d"
+      "bytes": 41004,
+      "sha256": "269eb66abc7d52b8aa9398de349bf72446338a1d5a4c7106e88d8d8230512576"
     },
     {
       "path": "d1/quality-NECROBINDER-005/meta.json",
@@ -6129,8 +6129,8 @@
     },
     {
       "path": "d1/tw-gremlin-merc/golden.br",
-      "bytes": 17344,
-      "sha256": "a19173782bd25f9f927afc5554ec3715fb0502f9ba57526e1e66f49f7f308c99"
+      "bytes": 17360,
+      "sha256": "4a9e633c3c954c6f7642740e5224da75fbd48c672a191f841050eaa9092c6cf8"
     },
     {
       "path": "d1/tw-gremlin-merc/meta.json",
@@ -6144,8 +6144,8 @@
     },
     {
       "path": "d1/tw-thieving-hopper-recover/golden.br",
-      "bytes": 1907,
-      "sha256": "b4d6e26ee120e3f089db35f8f4f6f63038c9b123f270ad10c1b74ddaf84a0191"
+      "bytes": 1904,
+      "sha256": "d29e06713be35f14b3bcdb904a9ab3ed177ab2a61be0507c05a0439f861a04f9"
     },
     {
       "path": "d1/tw-thieving-hopper-recover/meta.json",
@@ -6159,8 +6159,8 @@
     },
     {
       "path": "d1/tw-thieving-hopper/golden.br",
-      "bytes": 12603,
-      "sha256": "cfb963554636e63da94806104c0b16658a3837dfd170e1772d64ed32d992de1c"
+      "bytes": 12634,
+      "sha256": "769958fafcbb3ee4c49ea0dad6e2770e0c731c37a8d4a88a0977fff047365973"
     },
     {
       "path": "d1/tw-thieving-hopper/meta.json",

@@ -1776,6 +1776,13 @@ public abstract class EncounterDef : ContentDef
 {
     public virtual IReadOnlyList<string> Slots => [];
 
+    /// <summary>
+    /// The native event script ends the room before the player ever acts; the encounter exists for
+    /// presentation only and has no combat end condition. The executor must reject it explicitly
+    /// instead of driving a combat that cannot finish.
+    /// </summary>
+    public virtual bool EndsByEventScript => false;
+
     public abstract void Generate(ref EncounterRng rng, Span<EncounterSpawn> spawns, out int count);
 
     protected static ushort Monster(string nativeId)

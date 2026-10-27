@@ -100,13 +100,13 @@ D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 # 1. 在未改语义的代码上证明工具可复现旧录制：全部 410 个根逐字节相同
 dotnet run --project tests/Golden -c Release --no-build -- \
   rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-fidelity \
-  --roots .local/tool-tasks/blitz/rerecord-roots-all.txt --jobs 6
+  --roots .local/tool-tasks/blitz/rerecord-roots-all.txt --reason "fidelity check" --jobs 6
 diff -r tests/Golden/data/d1 .local/tool-tasks/blitz/rerecord-fidelity/d1
 
 # 2. 语义修正后只重录失配可归因的根
 dotnet run --project tests/Golden -c Release --no-build -- \
   rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-d1 \
-  --roots .local/tool-tasks/blitz/rerecord-roots.txt --jobs 6
+  --roots .local/tool-tasks/blitz/rerecord-roots.txt --reason "<批次与语义修正>" --jobs 6
 dotnet run --project tests/Golden -c Release --no-build -- \
   verify .local/tool-tasks/blitz/rerecord-d1 --only d1 --jobs 6
 ```
@@ -774,23 +774,23 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare
 ```bash
 # 自然开局：5 角色 × A0/A10 × 100 种子 = 1000
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-kind natural --setup-seeds 100 --setup-jobs 8
+  --combat-setup-compare --setup-kind natural --setup-seeds 100 --setup-jobs 4
 
 # 全部 89 个遭遇 × A0/A10 × 20 种子 = 3560；可分片
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 8 --setup-shard 0 2
+  --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 4 --setup-shard 0 2
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 8 --setup-shard 1 2
+  --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 4 --setup-shard 1 2
 
 # D1 的 410 个输入 × 4 种子 = 1640；分片
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 8 --setup-shard 0 2
+  --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 4 --setup-shard 0 2
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 8 --setup-shard 1 2
+  --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 4 --setup-shard 1 2
 
 # 覆盖统计（只跑 Blitz 建局，不跑原版路径）
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-kind d1 --setup-seeds 1 --setup-jobs 8 --setup-cover
+  --combat-setup-compare --setup-kind d1 --setup-seeds 1 --setup-jobs 4 --setup-cover
 
 # 内容表（含逐（怪物、槽位、进阶）的原版 AfterAddedToRoom 记录）
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
@@ -813,21 +813,21 @@ D1 请求给遗物注入了不进入 `RunState` 的整数字段；没有对比�
 ```bash
 # 自然开局：5 角色 × A0/A10 × 50 种子 = 500；可分片
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind natural --writeback-seeds 50 --writeback-jobs 8
+  --combat-writeback-compare --writeback-kind natural --writeback-seeds 50 --writeback-jobs 4
 
 # 全部 89 个遭遇 × A0/A10 × 5 种子 = 890；分片
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 8 --writeback-shard 0 2
+  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 4 --writeback-shard 0 2
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 8 --writeback-shard 1 2
+  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 4 --writeback-shard 1 2
 
 # D1 的 410 个输入各 1 个种子
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind d1 --writeback-jobs 8
+  --combat-writeback-compare --writeback-kind d1 --writeback-jobs 4
 
 # 120 个质量牌组 × 1 个种子，CombatPilot 低档
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind pilot --writeback-jobs 8
+  --combat-writeback-compare --writeback-kind pilot --writeback-jobs 4
 
 # 单例：自然开局/遭遇/D1/低档
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
@@ -851,27 +851,26 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 
 `status=same` 表示动作边界、写回和原生终点全部相同；`status=executor-diff` 是内核预测与
 原版动作边界不同（可能是内核语义、执行器或导入问题，报告逐条分类）；`status=diff` 是动作
-边界相同但写回终点不同；`status=reject` 带稳定原因码。R2a-3 的结果与内核缺口清单见
-`.local/tool-tasks/blitz/R2a3-report.md`。
+边界相同但写回终点不同；`status=reject` 带稳定原因码。R2a-3 的旧结果与内核缺口清单见
+`.local/tool-tasks/blitz/R2a3-report.md`，R2a-4 的修复与新旧对比见
+`.local/tool-tasks/blitz/R2a4-report.md`。
 
-2026-10 结果（比较使用 `src/Import/Combat/BattleReconciler.cs`，与 Mod 完全相同的
-`Same`/`Diff`）：自然 `same=500 diff=0 reject=0`；遭遇 `same=830 diff=40 reject=20`
-（拒绝为 `action-limit=10` 与 `boundary_timeout=10`）；D1 `same=362 diff=11 reject=37`
-（拒绝为 `unsupported-relic=32`、`unsupported-relic-state=5`）；低档 120 根
-`same=100 diff=1 reject=19`（拒绝为 `unsupported-relic=19`，剩余 1 个是写回终点
-`LavaLamp`，动作边界 0 差异）。写回终点差异共 16 个：12 个是「偷走又归还的牌组顺序」
-（`SwipePower` 的归还值没有进入 `Battle`），3 个是 `LavaLamp.TookDamageThisCombat`，
-1 个是 `Kusarigama` 的终局计数/状态。比较前的旧结果（未归一化）为自然 384/116、遭遇
-625/245、D1 195/178、低档 68/33；差异大部分来自 `BattleReconciler` 已归一化的墓碑/不可
-观测字段，而不是语义缺口。动作覆盖 `PlayCard=33730`、`EndTurn=11127`、`UsePotion=149`，
-选择效果覆盖 15 种（含 Discard、Exhaust、Transform、Nightmare 等）。
+2026-10 R2a-4 结果（比较使用 `src/Import/Combat/BattleReconciler.cs`，与 Mod 完全相同的
+`Same`/`Diff`）：自然 500 根 `same=500 diff=0 reject=0`；遭遇 890 根 `same=880 diff=0
+reject=10`（全部是 `THE_ARCHITECT_EVENT_ENCOUNTER` 的 `event-script-end`：原版事件脚本在
+玩家行动前结束房间，没有可执行战斗终点）；D1 410 根 `same=373 diff=0 reject=37`（拒绝为
+`unsupported-relic=32`、`unsupported-relic-state=5`）；低档 120 根 `same=101 diff=0
+reject=19`（拒绝为 `unsupported-relic=19`）。四类动作边界与写回终点差异均为 0；R2a-3 的
+36 个动作差异、16 个写回差异全部消失。Golden D1 因此有 8 个根的 K1/walk 子哈希变化
+（LavaLamp 计数、Kusarigama pending-loss 重置、逃跑墓碑、偷牌归还的 detached 值），尚未
+重录/重冻，逐根清单见 R2a-4 报告；D2 1983 个请求仍全部相同。
 
 ### 6.14 遗物开战矩阵（R2a-3）
 
 ```bash
 # 50 个有开战/首回合效果的遗物，每个按触发条件选择房间与玩家 HP
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-relic-matrix --setup-jobs 8
+  --combat-setup-compare --setup-relic-matrix --setup-jobs 4
 ```
 
 每个遗物先清空起始遗物，再按条件注入原生整局；同时跑一个不注入目标遗物的基线，比较两条

@@ -518,9 +518,14 @@ public static partial class Kernel
         // ArtOfWar/Kusarigama resets and JossPaper/LunarPastry/ParryingShield effects, even when the
         // last primary enemy died during this phase. Only the late listener pass uses
         // HookMirrors.IterateCombatHookListeners, which is empty once IsOverOrEnding (DEFECT-011).
-        RelicPass(ref x, RelicPhase.AfterSideTurnEnd, Side.Player);
-        if (x.NeedsChoice)
-            return;
+        // A pending loss is different: the native Hook.AfterSideTurnEnd is dropped once the combat is
+        // ending, so a player death during this phase must not reset the turn-end relic counters.
+        if (!IsPendingLoss(x.B))
+        {
+            RelicPass(ref x, RelicPhase.AfterSideTurnEnd, Side.Player);
+            if (x.NeedsChoice)
+                return;
+        }
         if (IsOverOrEnding(x.B))
             return;
         AfterSideTurnEndLatePass(ref x, Side.Player, participants);

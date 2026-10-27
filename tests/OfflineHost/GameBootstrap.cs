@@ -27,6 +27,7 @@ internal static class GameBootstrap
     public const string HarmonyId = "blitzsolver.offline.host";
     private static Harmony? _harmony;
     private static readonly List<string> _bypasses = [];
+    private static readonly LocTable EmptyLocTable = new("offline", []);
 
     public static IReadOnlyList<string> Bypasses => _bypasses;
     public static Harmony Harmony => _harmony ?? throw new InvalidOperationException("Harmony 未初始化。");
@@ -40,6 +41,8 @@ internal static class GameBootstrap
         Patch(typeof(ConsoleLogPrinter), nameof(ConsoleLogPrinter.Print), prefix: nameof(ConsolePrintPrefix));
         Patch(typeof(LocString), nameof(LocString.GetRawText), prefix: nameof(LocRawTextPrefix));
         Patch(typeof(LocString), nameof(LocString.GetFormattedText), prefix: nameof(LocFormattedTextPrefix));
+        Patch(typeof(LocManager), nameof(LocManager.GetTable), prefix: nameof(EmptyLocTablePrefix),
+            args: [typeof(string)]);
         Patch(typeof(LocString), nameof(LocString.Exists), prefix: nameof(LocExistsPrefix),
             args: [typeof(string), typeof(string)]);
         foreach (string loader in new[] { "LoadRunAssets", "LoadActAssets", "LoadRoomCombatAssets" })
@@ -234,6 +237,12 @@ internal static class GameBootstrap
     private static bool LocFormattedTextPrefix(LocString __instance, ref string __result)
     {
         __result = __instance.LocEntryKey ?? string.Empty;
+        return false;
+    }
+
+    private static bool EmptyLocTablePrefix(ref LocTable __result)
+    {
+        __result = EmptyLocTable;
         return false;
     }
 

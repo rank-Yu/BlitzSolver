@@ -140,7 +140,15 @@ internal static class NativeAccess
     public static int MonsterInt(MonsterModel monster, string name)
     {
         if (monster.GetType().Name == "WaterfallGiant" && name is "PressureGunBonus" or "SteamEruptionDamage")
-            return 0;
+        {
+            // The native model does not keep the old simulator's branch dictionaries: the current
+            // pressure-gun damage starts at BasePressureGunDamage and grows by PressureGunIncrease;
+            // the explosion damage is recorded when ABOUT_TO_BLOW resolves.
+            if (name == "SteamEruptionDamage")
+                return ReadInt(monster, "_steamEruptionDamage");
+            return ReadInt(monster, "_currentPressureGunDamage")
+                - ReadInt(monster, "BasePressureGunDamage");
+        }
         if (monster.GetType().Name == "Fabricator" && name == "fabricator_last_spawn")
         {
             object? spawned = ReadMember(monster, "_lastSpawned");
@@ -241,6 +249,44 @@ internal static class NativeAccess
         IReadOnlyList<Creature> Creatures,
         IReadOnlyList<Creature> Enemies,
         IReadOnlyList<Creature> Allies);
+
+    /// <summary>Reads one native integer field/property, rejecting a missing or non-integer value.</summary>
+    public static int ReadInt(object target, string name)
+    {
+        object? value = ReadMember(target, name)
+            ?? throw new UnsupportedImportException(ImportReason.MissingPrivateField,
+                $"{target.GetType().Name}.{name} 不存在");
+        return value switch
+        {
+            bool boolean => boolean ? 1 : 0,
+            int integer => integer,
+            IConvertible convertible => convertible.ToInt32(null),
+            _ => throw new UnsupportedImportException(ImportReason.MissingPrivateField,
+                $"{target.GetType().Name}.{name} 不是整数"),
+        };
+    }
+
+    /// <summary>
+    /// A possession ledger (<c>PossessStrengthPower.Data.stolenStrength</c> or the Dexterity
+    /// counterpart) entry for the player. Native keeps a per-target dictionary and records the
+    /// signed delta, so the live amount is negative after a stat steal.
+    /// </summary>
+    public static int PossessedAmount(PowerModel power, Creature target, string field)
+    {
+        object data = PowerData<object>(power, "_internalData");
+        object? ledger = ReadMember(data, field)
+            ?? throw new UnsupportedImportException(ImportReason.MissingPrivateField,
+                $"{power.GetType().Name}.{field} 缺失");
+        if (ledger is not Dictionary<Creature, decimal> entries)
+            throw new UnsupportedImportException(ImportReason.MissingPrivateField,
+                $"{power.GetType().Name}.{field} 类型不符");
+        if (!entries.TryGetValue(target, out decimal amount))
+            return 0;
+        if (amount != decimal.Truncate(amount) || amount < int.MinValue || amount > int.MaxValue)
+            throw new UnsupportedImportException(ImportReason.Unrepresentable,
+                $"{power.GetType().Name}.{field}[player]={amount} 不可表示");
+        return (int)amount;
+    }
 
     private static object? ReadMember(object target, string name)
         => target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(target)

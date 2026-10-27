@@ -68,7 +68,7 @@
 - `OblivionPower` 的“本张牌打出时的层数”只存在栈上的 `Exec.CardPlayPairs`（`CardPlayPairKind.OblivionDoom`）；稳定边界为空，不进入布局。
 - `SandpitPower` 的原生实例型目标存在 `Power.Target`（`byte` owner，`NoOwner` 表示无目标）；每个原生 `ApplyTargeted` 实例一行。`Kernel.SetPowerAmountAt` 按行精确减层，避免同 (owner, id) 的实例互相覆盖。
 - Knowledge Demon 的固定选项选择（两张诅咒卡）不进入牌堆：候选值只存在栈上的 `ChoiceRequest.GeneratedOptions`，选择后从父状态重执行。选择种类为 `ChoiceKind.SelectOption`，`ChoiceEffect.ApplyKnowledgeCurse`。
-- 逃跑（`CreatureEscaped`）会从已知敌人数组与名单中移除该敌人；Blitz 同步左移两个数组、递减后续 owner 的 `Power.Owner`/`Applier`/`Target` 下标，并移除该敌人的全部 Power（从而释放其 detached 槽位）。被偷金币/卡牌计数不因逃跑变化。
+- 逃跑（`CreatureEscaped`）会从名单中移除该敌人；Blitz 同步左移名单并递减后续 owner 的 `Power.Owner`/`Applier`/`Target` 下标，并移除该敌人的全部 Power。已知敌人数组在左移后把该怪物作为 `Escaped | PermanentlyDead` 墓碑追加到末尾（保留 `MonsterId`/`CombatId`/`Slot`/`Rules`），这样写回历史时仍能补上原生 `CreatureCmd.Add` 已经加入的怪物 Id；墓碑不进入名单，也没有 Power 引用它。被偷金币/卡牌计数不因逃跑变化。
 - `Enemy.Rules` 是 `Rules` 怪物规则表的下标。根已知敌人按 `KnownEnemies` 下标占据表的前 `RootEnemyCount` 项，之后每个可生成怪物类型一项；已知敌人数组只追加，所以新敌人的规则编号由怪物 Id 查可生成表（`Rules.SpawnRulesId`）。
 - `Enemy.Slot` 是遭遇槽下标（`Rules.EncounterSlots` 的顺序），没有槽名时为 255。名单（`Roster`）按槽下标稳定升序，255 视作 -1 排在有名字的槽位之前；名单顺序就是 Hook 监听与敌方行动顺序。
 - `EnemyFlags.PerformedMoveThisRound`、`ForcedMustPerformAfterMove` 与 `ActingThisRound` 只在敌方回合内部使用，任何稳定边界上都为 0。
@@ -98,7 +98,7 @@
 | `_unsettlingLampTriggeringCards` / `_unsettlingLampInternalPowerTypes` | 不进入状态；`Exec` 保存触发卡的 source serial 与本次已翻倍的临时 Power 内部 Id 集合 | `CompleteCardPowerApplication` 时清除；锁存位（`RelicStatus`/`_isFinishedTriggering` 的引擎状态）持久化为 `Relic.Counter` |
 | Fetch 的 `_fetchCardsPlayedThisTurn` | `Card.Private` 的 bit 0 | 随卡值移动；`RecordCardPlayed` 置位，玩家回合开始清零；生成的卡/克隆不清位复制 |
 | `_nightmareSelections`（`Dictionary<NightmarePower,PredictedCard>`） | `Battle.DetachedCards` 的小数组：`Power.Aux0 = 槽位 + 1`，槽位存选定卡的完整 `Card` 值 | Power 移除时清空槽位；每个 `NightmarePower` 实例一行，按获得顺序 |
-| `SwipePower.StolenCard`（被 THIEVERY 移除的卡） | `Battle.DetachedCards` 的同一小数组：`Power.Aux0 = 槽位 + 1`，槽位存被偷卡的完整 `Card` 值（含 `DeckCard`/`RemovedFromState`） | THIEVERY 从抽牌/弃牌堆移出时分配；击杀飞贼时 `RecoverStolenResources` 回收并清槽；逃跑移除 Power 时只清槽、不回收 |
+| `SwipePower.StolenCard`（被 THIEVERY 移除的卡） | `Battle.DetachedCards` 的同一小数组：`Power.Aux0 = 槽位 + 1`，槽位存被偷卡的完整 `Card` 值（含 `DeckCard`/`RemovedFromState`） | THIEVERY 从抽牌/弃牌堆移出时分配；击杀飞贼时保留槽位并清除 `RemovedFromState`（写回把牌组卡移到末尾）；逃跑时保留槽位和 `RemovedFromState`（写回按丢失移除）；仍被 `SwipePower` 引用的槽位是仍被扣住的卡。 |
 
 **瞬态值不进入指纹。** `Exec.FirstRoomIsBoss`、`Exec.CombatStart` 与 `Exec.SetupContent` 只在
 建局的开战 Hook/首回合内使用，分别让 Pantograph/BagOfPreparation 等只执行一次、并提供内容表
@@ -140,7 +140,7 @@ Monologue/Vambrace/UnsettlingLamp 数据在每次动作结束前排空，稳定�
 - Orbit/PaleBlueDot 的现有键是无序集合（owner + 剩余/锁存）；Blitz 的 Power 行顺序是获得顺序，同一 `(owner,id)` 多实例的交换在 Blitz 中会少合并。Nightmare 选定卡在现有键里按 `ChoiceCardKey` 归一化，Blitz 用完整卡值（更保守）。这些都只会减少合并、不会把不同局面误合并。
 - Monologue/Vambrace/UnsettlingLamp 的瞬态数据不进入字节，稳定边界与现有键一致；`AmountOnTurnStart` 等既有归一化规则不变。
 
-**容量与回落。** `DetachedCards` 容量 3（Nightmare 的两个实例与被偷卡共用；同一场战斗里 ThievingHopper 只有一个且 THIEVERY 只发生一次，逃跑/死亡后槽位释放）；第 4 个并存卡片按 `CapacityException` 丢弃该子状态（不覆盖、不逐出），由搜索边界计数。`Exec.MonologuePending` 容量 8；更多同时等候结算的 Monologue 实例按同一异常回落。`Rules.HasIdentityContent` 为假（根牌组/Power/遗物与可生成内容都不涉及身份）时，整批身份扫描跳过；它只是优化前提，为真时仍按上述语义逐项结算。`Private` 是 `short`：SwordSage 已应用层数或 `ReplayCount` 增量超出 `short` 范围时按 `CapacityException`；`ReplayCount` 本身仍按 `byte` 容量（现有 `Card` 字段）。Fetch 只用 bit 0，其余位保持 0。所有退役条目只按惰性放行，不写回、不清理活实例。
+**容量与回落。** `DetachedCards` 容量 3（Nightmare 的两个实例与被偷卡共用；同一场战斗里 ThievingHopper 只有一个且 THIEVERY 只发生一次，归还/丢失的卡值保留到写回，槽位不再在移除 `SwipePower` 时立即释放）；第 4 个并存卡片按 `CapacityException` 丢弃该子状态（不覆盖、不逐出），由搜索边界计数。`Exec.MonologuePending` 容量 8；更多同时等候结算的 Monologue 实例按同一异常回落。`Rules.HasIdentityContent` 为假（根牌组/Power/遗物与可生成内容都不涉及身份）时，整批身份扫描跳过；它只是优化前提，为真时仍按上述语义逐项结算。`Private` 是 `short`：SwordSage 已应用层数或 `ReplayCount` 增量超出 `short` 范围时按 `CapacityException`；`ReplayCount` 本身仍按 `byte` 容量（现有 `Card` 字段）。Fetch 只用 bit 0，其余位保持 0。所有退役条目只按惰性放行，不写回、不清理活实例。
 
 ### 2.6 瞬态标志与规则字段
 

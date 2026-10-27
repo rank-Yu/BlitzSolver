@@ -338,6 +338,14 @@ internal static class CombatWritebackCompare
             return 2;
         }
         string nativeId = RunCatalog.EncounterName((ushort)encounterId);
+        if (Registry.Encounter((ushort)encounterId).EndsByEventScript)
+        {
+            Console.WriteLine(
+                $"WRITEBACK kind=encounter label={nativeId} status=reject reason=event-script-end " +
+                $"outcome=reject actions=0 encounter={nativeId}");
+            Console.WriteLine("  原版事件脚本在玩家行动前结束房间；该遭遇没有可执行的战斗终点。");
+            return 0;
+        }
         EncounterModel canonical = ModelDb.All.OfType<EncounterModel>()
             .FirstOrDefault(encounter => encounter.Id.Entry == nativeId)
             ?? throw new InvalidDataException($"原版没有遭遇 {nativeId}。");

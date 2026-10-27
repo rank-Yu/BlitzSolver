@@ -76,8 +76,9 @@ public static partial class Kernel
     /// The THIEVERY move's card theft (<c>MonsterMoveEffects.ApplyBeforeAttack</c>): draws one card
     /// from the draw pile then discard pile, preferring the native rarity order, removes it from
     /// combat and stores its complete value in <see cref="Battle.DetachedCards"/> behind a new
-    /// <c>SwipePower</c> row (<see cref="Power.Aux0"/> = slot + 1). The card is recovered from
-    /// the detached table when the thief dies; escape drops the power without returning it.
+    /// <c>SwipePower</c> row (<see cref="Power.Aux0"/> = slot + 1). The value stays in the detached
+    /// table when the power is removed: death clears <see cref="CardFlags.RemovedFromState"/> and
+    /// the write-back appends the card to the deck end; escape keeps the marker and the card is lost.
     /// </summary>
     public static void StealCardForThievery(ref Exec x, byte owner)
     {
@@ -171,10 +172,12 @@ public static partial class Kernel
 
     /// <summary>
     /// Mirrors <c>SimulatedCombatState.CreatureEscaped</c>: drop every power of the escaped creature,
-    /// then remove it from the roster and the known-enemy array. Known enemies are stored as a compact
-    /// array, so later rows and every owner reference shift down by one, matching the existing engine's
-    /// <c>_knownEnemies.Remove</c>. The escaped list itself is not part of the prediction state (only
-    /// the encounter's post-combat gold proportion reads it).
+    /// remove it from the roster, and compact the known-enemy array so later rows and every owner
+    /// reference shift down by one. The escaped monster is then appended at the end as an
+    /// <see cref="EnemyFlags.Escaped"/> permanent tombstone; the native run history already added its
+    /// monster id, and the write-back needs the row to append that id exactly once. The tombstone is
+    /// not in the roster. The escaped list itself is not part of the prediction state (only the
+    /// encounter's post-combat gold proportion reads it).
     /// </summary>
     public static void EscapeEnemy(ref Exec x, byte owner)
     {
@@ -199,6 +202,7 @@ public static partial class Kernel
         for (int index = roster; index < x.B.RosterCount; index++)
             x.B.Roster[index] = 0;
         x.B.RosterCount = checked((byte)roster);
+        Enemy escaped = x.B.Enemies[enemyIndex];
         for (int index = enemyIndex; index + 1 < x.B.EnemyCount; index++)
             x.B.Enemies[index] = x.B.Enemies[index + 1];
         x.B.Enemies[x.B.EnemyCount - 1] = default;
@@ -213,6 +217,26 @@ public static partial class Kernel
             if (power.Target > owner && power.Target != Limits.NoOwner)
                 power.Target--;
         }
+        // Preserve the escaped monster as a tombstone at the end of the known table. Native removes
+        // it from CombatState.Enemies, but the run history keeps the monster id added at spawn time;
+        // the write-back needs that row to append it exactly once. The tombstone is not in the
+        // roster and no power references it.
+        if (x.B.EnemyCount >= Limits.Enemies)
+            throw new CapacityException("Enemies", Limits.Enemies);
+        escaped.Flags = (escaped.Flags & ~(EnemyFlags.InCombat | EnemyFlags.NeedsInitialRoll
+            | EnemyFlags.SkipNextMove | EnemyFlags.PerformedMoveThisRound
+            | EnemyFlags.ForcedMustPerformAfterMove | EnemyFlags.ActingThisRound))
+            | EnemyFlags.Escaped;
+        escaped.DeathPhase = DeathPhase.PermanentlyDead;
+        escaped.Move = 0;
+        escaped.ForcedMove = byte.MaxValue;
+        escaped.LoggedMoves = 0;
+        escaped.EverUsedMoves = 0;
+        escaped.PoweredAttackHitsThisTurn = 0;
+        escaped.SteamPhase = SteamPhase.None;
+        escaped.RecentMoves = default;
+        escaped.Ai = default;
+        x.B.Enemies[x.B.EnemyCount++] = escaped;
     }
 
     /// <summary>

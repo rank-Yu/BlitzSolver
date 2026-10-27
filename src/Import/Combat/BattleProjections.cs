@@ -36,7 +36,7 @@ internal sealed class BattleProjections(NativeHistory history, PrivateStateLedge
             _claimedMonsterInts.Add((creature, name));
     }
 
-    public void ProjectPower(PowerModel power, ref Power target)
+    public void ProjectPower(PowerModel power, Creature player, ref Power target)
     {
         bool privateStateClaimed = true;
         switch (power)
@@ -104,10 +104,11 @@ internal sealed class BattleProjections(NativeHistory history, PrivateStateLedge
             case WitheringPresencePower withering:
                 target.Aux0 = withering.DynamicVars["CardsLeft"].IntValue;
                 break;
-            // Possession ledgers start empty at the root; the old bridge reads zero.
             case PossessStrengthPower:
+                target.Aux0 = NativeAccess.PossessedAmount(power, player, "stolenStrength");
+                break;
             case PossessSpeedPower:
-                target.Aux0 = 0;
+                target.Aux0 = NativeAccess.PossessedAmount(power, player, "stolenDexterity");
                 break;
             case NemesisPower nemesis:
                 target.Aux0 = NativeAccess.NemesisShouldApplyIntangible(nemesis) ? 1 : 0;
@@ -193,6 +194,9 @@ internal sealed class BattleProjections(NativeHistory history, PrivateStateLedge
                 break;
             case CentennialPuzzle puzzle:
                 target.Counter = puzzle.UsedThisCombat ? 1 : 0;
+                break;
+            case LavaLamp lavaLamp:
+                target.Counter = lavaLamp.TookDamageThisCombat ? 1 : 0;
                 break;
             case DemonTongue tongue:
                 target.Counter = tongue._triggeredThisTurn ? 1 : 0;

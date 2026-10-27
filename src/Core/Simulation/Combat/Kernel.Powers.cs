@@ -572,12 +572,25 @@ public static partial class Kernel
         if ((uint)index >= (uint)battle.PowerCount)
             throw new ArgumentOutOfRangeException(nameof(index), index, "Power 行越界。");
         ref Power removed = ref battle.Powers[index];
-        if (Registry.Power(removed.Id).UsesDetachedCard && removed.Aux0 != 0)
+        PowerDef definition = Registry.Power(removed.Id);
+        if (definition.UsesDetachedCard && removed.Aux0 != 0)
         {
             int slot = removed.Aux0 - 1;
             if ((uint)slot >= (uint)Limits.DetachedCards)
                 throw new UnsupportedException($"Power 行 {removed.Id} 的 detached 槽位 {removed.Aux0} 越界。");
-            battle.DetachedCards[slot] = default;
+            // SwipePower keeps the stolen card value in the detached slot after its removal:
+            // BeforeDeath returns it to the run deck, while an escape loses it. RemovedFromState
+            // (set when the card left combat) distinguishes the two at write-back. Every other
+            // detached power (Nightmare) drops its selection.
+            if (definition.NativeId == "SWIPE_POWER")
+            {
+                if (battle.Creature(removed.Owner).IsDead)
+                    battle.DetachedCards[slot].Flags &= ~CardFlags.RemovedFromState;
+            }
+            else
+            {
+                battle.DetachedCards[slot] = default;
+            }
         }
         int count = battle.PowerCount;
         for (int next = index + 1; next < count; next++)

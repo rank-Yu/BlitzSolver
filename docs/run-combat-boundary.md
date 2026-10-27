@@ -181,7 +181,9 @@ Hook，`RunState.IsGameOver` 由玩家死亡推导，`Decision = GameOver`。
 写回顺序：
 
 1. 复制 `Battle.Player` 的 HP/最大 HP、`Battle.Gold`、药水槽和 9 条战斗流；
-2. 移除仍被 `SwipePower` 扣住的牌组牌（`Battle.DetachedCards` 中带 `DeckCard` 的行）；
+2. 处理偷窃的牌组牌：仍被 `SwipePower` 引用的行从牌组移除；已归还的行（无 Power 引用且
+   `RemovedFromState` 已清除）移到牌组末尾；逃跑丢失的行（无 Power 引用且标记仍在）从牌组
+   移除；
 3. 应用牌组长期变化：`GeneticAlgorithm`/`TheScythe` 的成长、`Goopy` 附魔层数；
 4. 胜利/事件结束的结束 Hook：按原生监听顺序处理牌组牌（`Guilty`）、玩家 Power
    （`ImprovementPower`）、遗物 `AfterCombatEnd` 和两轮 `AfterCombatVictory`；
@@ -212,6 +214,18 @@ WarHammer 等结束 Hook。
 
 战斗结束只把 `RecoveredHp` 等搜索台账保持为零：开战回血（Pantograph、BloodVial）属于
 `RunState.Player.CurrentHp`，不是战斗内恢复。
+
+### 7.2 差分现状（R2a-4）
+
+`--combat-writeback-compare` 四类在最终代码上均为动作边界与写回终点 0 差异：自然 500、
+遭遇 880（另 10 个 `THE_ARCHITECT_EVENT_ENCOUNTER` 以 `event-script-end` 显式拒绝）、D1
+373（另 37 个未支持遗物拒绝）、低档 101（另 19 个未支持遗物拒绝）。R2a-3 的 36 个动作差异
+（Possess 账本、WaterfallGiant 压力枪寄存器、GremlinMerc 召唤顺序）已由导入投影与
+`CreaturesChanged` 加入顺序修复；16 个写回差异（偷牌归还顺序、`LavaLamp`、`Kusarigama`）
+已由 detached 卡值、`Relic.Counter` 与 pending-loss 回合末闸门修复。逃跑生物现在在已知敌人
+表末尾保留墓碑，写回历史能补上原生已加入的召唤物。`FAKE_MERCHANT_EVENT_ENCOUNTER` 的
+`boundary_timeout` 是离线本地化缺表导致敌方回合任务死亡，不是战斗语义；离线宿主已用空
+`LocTable` 补丁修复。
 
 ## 8. 进程内整场执行器
 

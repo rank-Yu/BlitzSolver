@@ -49,7 +49,7 @@ public static class BattleImporter
         }
         if (!player.Creature.IsAlive)
             throw new UnsupportedImportException(ImportReason.Unrepresentable, "玩家已死亡");
-        if (state.EscapedCreatures.Count != 0)
+        if (state.EscapedCreatures.Count != 0 && !options.AllowEscapedEnemies)
             throw new UnsupportedImportException(ImportReason.KnownEnemyHistory,
                 $"有 {state.EscapedCreatures.Count} 个已逃离生物；原生 Enemies 已不是 KnownEnemies");
         IReadOnlyList<Creature> known = options.KnownEnemies ?? state.Enemies;
@@ -71,12 +71,15 @@ public static class BattleImporter
                 NativeAccess.RequireOriginal(enemy.Monster);
                 continue;
             }
-            if (!ContainsCreature(state.Enemies, enemy))
+            if (!ContainsCreature(state.Enemies, enemy)
+                && !(options.AllowEscapedEnemies && ContainsCreature(state.EscapedCreatures, enemy)))
+            {
                 throw new UnsupportedImportException(ImportReason.KnownEnemyHistory,
                     $"敌人 {enemy.Monster.Id.Entry} 还活着但不在原生 Enemies 中");
+            }
             NativeAccess.RequireOriginal(enemy.Monster);
         }
-        if (known.Count < rootEnemyCount)
+        if (known.Count < rootEnemyCount && !options.AllowEscapedEnemies)
             throw new UnsupportedImportException(ImportReason.RulesMismatch,
                 $"已知敌人数 {known.Count} 少于规则根敌人数 {rootEnemyCount}");
         if (options.KnownEnemies == null && known.Count != rootEnemyCount)
@@ -273,25 +276,32 @@ public static class BattleImporter
         int gold = 0, cards = 0;
         foreach (Creature creature in known)
         {
-            if (!creature.IsAlive || !ReferenceEquals(creature.CombatState, state))
-                continue;
-            foreach (PowerModel power in creature.Powers)
+            if (creature.IsAlive && ReferenceEquals(creature.CombatState, state))
+                ScanHeldLoot(creature, ref gold, ref cards);
+        }
+        // CreatureCmd.Escape removes the escaped creature's powers before it leaves
+        // CombatState.Enemies, so escaped loot is not visible here. LiveCombatTracker carries what
+        // it observed before the removal and adds it to the imported counter.
+        return (gold, cards);
+    }
+
+    private static void ScanHeldLoot(Creature creature, ref int gold, ref int cards)
+    {
+        foreach (PowerModel power in creature.Powers)
+        {
+            switch (power)
             {
-                switch (power)
-                {
-                    case SwipePower { StolenCard: not null }:
-                        cards++;
-                        break;
-                    case ThieveryPower thievery:
-                        gold += Math.Max(0, thievery.DynamicVars.Gold.IntValue);
-                        break;
-                    case HeistPower heist:
-                        gold += Math.Max(0, heist.Amount);
-                        break;
-                }
+                case SwipePower { StolenCard: not null }:
+                    cards++;
+                    break;
+                case ThieveryPower thievery:
+                    gold += Math.Max(0, thievery.DynamicVars.Gold.IntValue);
+                    break;
+                case HeistPower heist:
+                    gold += Math.Max(0, heist.Amount);
+                    break;
             }
         }
-        return (gold, cards);
     }
 
     private static void ImportRng(ref Battle battle, MegaCrit.Sts2.Core.Runs.RunRngSet rng)
@@ -326,12 +336,18 @@ public static class BattleImporter
                 ?? throw new UnsupportedImportException(ImportReason.UnsupportedMonster, "敌人没有怪物模型");
             if (!Registry.TryMonster(monster.Id.Entry, out ushort monsterId))
                 throw UnsupportedContent.Monster(monster);
-            int rulesId = index < rules.RootEnemyCount
-                ? index
-                : rules.TrySpawnRulesId(monsterId, out int spawnRulesId)
-                    ? spawnRulesId
-                    : throw new UnsupportedImportException(ImportReason.Unrepresentable,
-                        $"{monster.Id.Entry} 不在根的可生成怪物闭包中");
+            int rulesId = options.KnownEnemyRules is { } knownRules && index < knownRules.Count
+                ? knownRules[index]
+                : -1;
+            if (rulesId < 0)
+            {
+                rulesId = options.KnownEnemies == null && index < rules.RootEnemyCount
+                    ? index
+                    : rules.TrySpawnRulesId(monsterId, out int spawnRulesId)
+                        ? spawnRulesId
+                        : throw new UnsupportedImportException(ImportReason.Unrepresentable,
+                            $"{monster.Id.Entry} 不在根的可生成怪物闭包中");
+            }
             MonsterRules machine = rules.MonsterRule(checked((byte)rulesId));
             if (machine.MonsterId != monsterId)
                 throw new UnsupportedImportException(ImportReason.RulesMismatch,
@@ -343,13 +359,14 @@ public static class BattleImporter
             enemy.Slot = SlotFor(rules, creature);
             enemy.CombatId = creature.CombatId
                 ?? throw new UnsupportedImportException(ImportReason.Unrepresentable, "敌人没有 CombatId");
-            if (!creature.IsAlive && options.RevivingEnemies?.Contains(index) != true)
+            bool escaped = ContainsCreature(state.EscapedCreatures, creature);
+            if (escaped || (!creature.IsAlive && options.RevivingEnemies?.Contains(index) != true))
             {
                 // CombatManager.RemoveCreature resets the move state machine when a monster dies.
-                // Its tombstone is no longer readable and no longer participates in resolution;
-                // write the same canonical permanent-death row the reconciliation view expects.
+                // An escaped creature left CombatState.Enemies the same way; both are canonical
+                // tombstones. Only the escaped flag distinguishes them for the history write-back.
                 enemy.DeathPhase = DeathPhase.PermanentlyDead;
-                enemy.Flags = EnemyFlags.DeathProcessed;
+                enemy.Flags = escaped ? EnemyFlags.Escaped : EnemyFlags.DeathProcessed;
                 enemy.Move = 0;
                 enemy.ForcedMove = byte.MaxValue;
                 enemy.LoggedMoves = 0;
@@ -528,7 +545,7 @@ public static class BattleImporter
                 Amount = power.Amount,
                 AmountOnTurnStart = def.UsesAmountOnTurnStart ? power.AmountOnTurnStart : 0,
             };
-            projections.ProjectPower(power, ref battle.Powers[index]);
+            projections.ProjectPower(power, player.Creature, ref battle.Powers[index]);
             if (power is NightmarePower nightmare)
                 ImportNightmareSelection(ref battle, nightmare, rules, index);
             if (power is SwipePower swipe)

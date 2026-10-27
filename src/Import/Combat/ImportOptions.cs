@@ -63,6 +63,21 @@ public sealed record ImportOptions
     public int RootEnemyCount { get; init; }
 
     /// <summary>
+    /// Rules row of each <see cref="KnownEnemies"/> entry, or -1 for a summon. A mid-combat import
+    /// needs this after an escape: the native known list is compacted, so a row's rules id no longer
+    /// equals its current index.
+    /// </summary>
+    public IReadOnlyList<int>? KnownEnemyRules { get; init; }
+
+    /// <summary>
+    /// Allows escaped creatures to be absent from <c>CombatState.Enemies</c>. The caller must have
+    /// already applied the kernel's escape representation: shift later owner indexes down and
+    /// append the escaped creature as an <c>Escaped | PermanentlyDead</c> row at the end of
+    /// <see cref="KnownEnemies"/>.
+    /// </summary>
+    public bool AllowEscapedEnemies { get; init; }
+
+    /// <summary>
     /// Stable enemy indexes whose predicted death phase is <c>Reviving</c>. They are dead in the
     /// native state but must stay in the roster and keep their move/AI row; a plain dead enemy is a
     /// permanent-death tombstone.

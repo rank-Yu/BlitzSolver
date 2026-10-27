@@ -215,12 +215,26 @@ public sealed class GnarledHammer : RelicDef;
 public sealed class Kifuda : RelicDef;
 
 /// <summary>
-/// <c>LavaLamp</c>: <c>AfterDamageReceived</c> only records <c>TookDamageThisCombat</c>, consumed by
-/// <c>TryModifyCardRewardOptionsLate</c> after combat. The existing engine registers it with
-/// <c>AfterDamageReceivedMirrors.RegisterIgnored&lt;LavaLamp&gt;()</c>, so it has no combat effect.
+/// <c>LavaLamp</c>: <c>AfterDamageReceived</c> records whether the player took unblocked,
+/// blockable damage this combat (<c>TookDamageThisCombat</c>), consumed by
+/// <c>TryModifyCardRewardOptionsLate</c> after combat. The flag does not change combat resolution;
+/// <c>Relic.Counter</c> carries it to the write-back. <c>AfterRoomEntered</c> resets the native flag,
+/// which the fresh combat's zero counter represents.
 /// </summary>
 [ContentId("LAVA_LAMP")]
-public sealed class LavaLamp : RelicDef;
+public sealed class LavaLamp : RelicDef
+{
+    public override void AfterDamageReceived(ref Exec x, Listener self, in DamageResult result, byte dealer)
+    {
+        if (result.Receiver != Limits.PlayerOwner
+            || result.UnblockedDamage <= 0
+            || (result.Props & ValueProps.Unblockable) != 0)
+        {
+            return;
+        }
+        x.B.Relics[self.Index].Counter = 1;
+    }
+}
 
 /// <summary><c>LeesWaffle</c>: <c>AfterObtained</c> max-HP gain only.</summary>
 [ContentId("LEES_WAFFLE")]

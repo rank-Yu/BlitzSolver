@@ -20,21 +20,20 @@ internal static class RerecordCommand
 {
     private const int WalkStepLimit = 60;
     private const int OneStepChoiceCap = 64;
-    private const string DefaultReason = "M2c semantic corrections";
 
     internal static int Run(string[] args)
     {
         if (args.Length < 3)
         {
             Console.Error.WriteLine(
-                "用法：Golden rerecord <source-dir> <target-dir> --roots <file> [--jobs N] [--reason text]");
+                "用法：Golden rerecord <source-dir> <target-dir> --roots <file> --reason <text> [--jobs N]");
             return 2;
         }
         string source = Path.GetFullPath(args[0]);
         string target = Path.GetFullPath(args[1]);
         string? rootsPath = null;
         int jobs = Environment.ProcessorCount;
-        string reason = DefaultReason;
+        string? reason = null;
         for (int index = 2; index < args.Length; index++)
         {
             switch (args[index])
@@ -57,6 +56,8 @@ internal static class RerecordCommand
         }
         if (rootsPath == null)
             throw new InvalidDataException("rerecord 需要 --roots <file>。");
+        if (reason == null)
+            throw new InvalidDataException("rerecord 需要 --reason <text>，写明这次重录对应的语义修正。");
         string sourcePrefix = source + Path.DirectorySeparatorChar;
         string targetPrefix = target + Path.DirectorySeparatorChar;
         if (string.Equals(source, target, StringComparison.Ordinal)

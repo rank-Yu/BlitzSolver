@@ -45,7 +45,9 @@ public static class RunCombatWriteback
             run.Rng.Streams[(int)RunRngStream.Shuffle + stream] = battle.Rng[stream];
 
         // Theft removed run-deck cards during combat; the detached values still carry DeckCard.
-        RemoveStolenDeckCards(ref run, in battle);
+        // A card still referenced by SwipePower is still held; an unreferenced detached deck card
+        // was returned by SwipePower.BeforeDeath and native appends it to the deck end.
+        ApplyStolenDeckCards(ref run, in battle);
         ApplyPersistentGrowth(ref run, in battle, table);
         if (victory)
         {
@@ -139,7 +141,7 @@ public static class RunCombatWriteback
         }
     }
 
-    private static void RemoveStolenDeckCards(ref RunState run, in Battle battle)
+    private static void ApplyStolenDeckCards(ref RunState run, in Battle battle)
     {
         for (int slot = 0; slot < DetachedCardCapacity; slot++)
         {
@@ -147,9 +149,40 @@ public static class RunCombatWriteback
             if (detached.Id == 0 || (detached.Flags & CardFlags.DeckCard) == 0)
                 continue;
             int match = FindDeckCard(run, detached.Id, detached.Upgrade);
-            if (match >= 0)
+            if (match < 0)
+                continue;
+            // A referenced card is still held. An unreferenced card that never lost its
+            // RemovedFromState marker belonged to an escaped thief and is lost; a returned card
+            // has the marker cleared by the death removal and native appended it to the deck end.
+            if (IsDetachedCardHeld(in battle, slot)
+                || (detached.Flags & CardFlags.RemovedFromState) != 0)
+            {
                 RemoveDeckCardAt(ref run, match);
+            }
+            else
+            {
+                MoveDeckCardToEnd(ref run, match);
+            }
         }
+    }
+
+    private static bool IsDetachedCardHeld(in Battle battle, int slot)
+    {
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            Power power = battle.Powers[index];
+            if (power.Aux0 == slot + 1 && Registry.Power(power.Id).UsesDetachedCard)
+                return true;
+        }
+        return false;
+    }
+
+    private static void MoveDeckCardToEnd(ref RunState run, int index)
+    {
+        RunCard card = run.Deck.Cards[index];
+        for (int move = index; move + 1 < run.Deck.Count; move++)
+            run.Deck.Cards[move] = run.Deck.Cards[move + 1];
+        run.Deck.Cards[run.Deck.Count - 1] = card;
     }
 
     private static void ApplyPersistentGrowth(ref RunState run, in Battle battle, ContentTable table)
@@ -454,6 +487,9 @@ public static class RunCombatWriteback
                 case "LIZARD_TAIL":
                     SetRelicBool(ref relic, "WasUsed", counter != 0);
                     relic.Status = counter != 0 ? RunRelicStatus.Disabled : RunRelicStatus.Normal;
+                    break;
+                case "LAVA_LAMP":
+                    SetRelicBool(ref relic, "TookDamageThisCombat", counter != 0);
                     break;
                 case "JOSS_PAPER":
                     if (counter == 0)
