@@ -7,7 +7,7 @@
     "d1Config": "66a43838d89e7a03b05c0f04d5e4941ff555baec",
     "formatMigration": "v1\u2192v2 \u53EA\u6539\u4E86\u6570\u636E\u683C\u5F0F\u91CC\u7684\u540D\u5B57\uFF08\u9B54\u6570\u3001\u7248\u672C\u3001\u5BB9\u91CF\u952E\u4E0E\u6839\u540D\uFF09\uFF0C\u5B57\u6BB5\u503C\u4E0D\u53D8\u3002",
     "refreeze": "M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6",
-    "d1Rerecord": "roots=p7-class1-a,quality-DEFECT-019,quality-DEFECT-023,quality-IRONCLAD-006,quality-NECROBINDER-005,tw-gremlin-merc,tw-thieving-hopper,tw-thieving-hopper-recover reason=R2a-4 combat semantics: LavaLamp damage flag, Kusarigama pending-loss, escape tombstones, stolen-card return/loss sha256=097f5aeab74ad4e3cd7e215acbbb973aec736a37f14a549ae316a7b0fab48882"
+    "d1Rerecord": "roots=qf-nightmare-detached recaptureRoots=qf-nightmare-detached reason=M2d Nightmare power target: native PowerCmd.Apply leaves Power.Target null, import maps it to NoOwner (255); the frozen root was replayed by the pre-M2d kernel with Target=PlayerOwner (0) sha256=c027cf28a86fe36129c4109d7fc66013188b72a3f7be93d1a55962bb4b1f3c3f"
   },
   "compression": "brotli",
   "counts": {
@@ -29,7 +29,7 @@
       "timeAffected": 0
     }
   },
-  "totalBytes": 23692391,
+  "totalBytes": 23692422,
   "targetBytes": 52428800,
   "files": [
     {
@@ -3649,13 +3649,13 @@
     },
     {
       "path": "d1/qf-nightmare-detached/config.br",
-      "bytes": 3885,
-      "sha256": "f70edede84c83b2281a7fbcc794ae092c372297dd71f39b389a3b392cb5e8a81"
+      "bytes": 3883,
+      "sha256": "99618d0b5c2bb1481b6dba6947aa8af0a27035a5063bd3f6b7af4e3600acde59"
     },
     {
       "path": "d1/qf-nightmare-detached/golden.br",
-      "bytes": 37554,
-      "sha256": "d8ee517c50487b8f36ac65285b48922e711646ee6d6309fd755bbba2c97e97e7"
+      "bytes": 37587,
+      "sha256": "4799b5d611d98f69ebb36a2260f303a31fc2079e4573bb92aea268ab6cfbf10f"
     },
     {
       "path": "d1/qf-nightmare-detached/meta.json",

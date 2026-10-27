@@ -61,7 +61,8 @@ static void PrintUsage()
         + "compare <data-dir> [--jobs N] [--config none|play|choice|all|choice-fill|all-fill] "
         + "[--out csv] [--shard i/n] "
         + "[--only hash-prefix] [--verify] | refreeze <source-dir> <target-dir> [--jobs N] | "
-        + "rerecord <source-dir> <target-dir> --roots <file> [--jobs N] [--reason text] | "
+        + "rerecord <source-dir> <target-dir> --roots <file> --reason text "
+        + "[--recapture-root <dir>] [--jobs N] | "
         + "manifest <data-dir> | k0");
 
 internal static class VerifyCommand

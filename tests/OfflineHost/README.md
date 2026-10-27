@@ -188,6 +188,21 @@ config same=410 diff=0 reject=0 full=410 subparts=0
 `continuousThreatRankingForTest`、`beamWeightTermForTest`/`beamWeightScaleForTest`。冻结
 fixture 都没有使用它们；未知字段仍显式失败。
 
+## 根重新捕获
+
+```bash
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --root qf-nightmare-detached --recapture-root --out .local/recapture
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --all --jobs 4 --recapture-root --out .local/recapture-all
+```
+
+每个根按与 `--config-compare` 相同的导入/前缀回放/回合准备枚举路径重建根和 `config.br`，
+写出 `<out>/<root>/roots.gold`（只含根段的 `GOLD`）与 `<out>/<root>/config.br`（`SREQ`），
+并打印 `RECAPTURE ... rootBytes=same|changed configBytes=same|changed`。未改语义时全部根应为
+`same`；载荷交给 `Golden rerecord --recapture-root` 替换根段并重算 K1/K2。命令与适用条件见
+[`docs/testing.md`](../../docs/testing.md) 的 4.1.1。
+
 负例模式：
 
 ```bash

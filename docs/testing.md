@@ -121,6 +121,37 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 失配位置（K1 下标或 seed/状态下标）、该步动作与卡牌/药水原生 id、变化的 K1 数、游走状态
 数与游走长度。摘要与归因表写进任务报告。重录后的清单写入 `provenance.d1Rerecord`。
 
+#### 重新捕获根
+
+`rerecord` 把根状态当作输入，只重算 K1/K2；当语义修正改的是“从原版状态导入/回放出的根”
+本身时，旧冻结根仍是旧行为，必须先用 `OfflineHost --recapture-root` 重新捕获根和
+`config.br`。适用条件是：`--config-compare` 或 `--import-compare` 的差异落在根状态，
+且差异能归因到一次已确认的原版语义修正；不要用它掩盖 K1/K2 或搜索结果的偏差。
+
+```bash
+# 1. OfflineHost 从原生状态重新导入/回放，写出载荷（roots.gold + config.br）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --root qf-nightmare-detached --recapture-root \
+  --data tests/Golden/data --corpora tests/corpora --out .local/recapture
+
+# 2. 保真检查：全部 410 个根重新捕获，除已归因的根外必须 rootBytes=same configBytes=same
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --all --jobs 4 --recapture-root \
+  --data tests/Golden/data --corpora tests/corpora --out .local/recapture-all
+
+# 3. Golden 用载荷替换根与 config.br，再按 M0 策略重算 K1/K2 与派生哈希
+dotnet run --project tests/Golden -c Release --no-build -- \
+  rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-root \
+  --roots .local/tool-tasks/blitz/rerecord-root.txt \
+  --recapture-root .local/recapture --reason "<批次与语义修正>" --jobs 4
+```
+
+`--recapture-root` 必须同时给 `--roots` 和 `--reason`；载荷目录按根名分目录，`roots.gold` 是
+只含根段的 `GOLD`，`config.br` 是重新编译的 `SREQ`。Golden 不引用游戏程序集：它只读取
+OfflineHost 产出的载荷，替换 `golden.br` 的根段与 `config.br`，其余输入映射、`rulesSha256`
+和 K1/K2 规则保持不变。重新捕获只应对已定位的根执行，并在清单的
+`provenance.d1Rerecord` 写入 `recaptureRoots=<根名>`；`tests/Golden/data` 仍由协调者决定是否替换。
+
 ### 4.2 D2
 
 `tests/Golden/data` 的 D2 期望结果已在 M3b 合并时按正式默认 `all-fill`（完全等价出牌 + 类优先补位选牌）用 `refreeze` 重算，清单带 `provenance.refreeze`；M3b 时 D1 没有变。之后再有会改变搜索结果的改动，先按 4.3 运行 `compare`，经用户同意后在副本上 `refreeze`，再替换仓库数据；不要手改数据。M2c 合并时按 4.1.1 重录了 23 个 D1 根，再在重录副本上 `refreeze`，D2 结果不变。

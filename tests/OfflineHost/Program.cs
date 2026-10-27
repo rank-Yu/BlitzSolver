@@ -70,6 +70,7 @@ internal static class Program
         bool rulesCompare = false;
         bool rulesTableCheck = false;
         bool configCompare = false;
+        bool recaptureRoot = false;
         bool compiledRules = false;
         string? liveCompareDir = null;
         string? searchCompareDir = null;
@@ -107,6 +108,9 @@ internal static class Program
                     break;
                 case "--config-compare":
                     configCompare = true;
+                    break;
+                case "--recapture-root":
+                    recaptureRoot = true;
                     break;
                 case "--rules-table-check":
                     rulesTableCheck = true;
@@ -197,7 +201,7 @@ internal static class Program
         if (offlineCombat)
         {
             if (all || importCompare || importNegative || rulesCompare || rulesTableCheck
-                || configCompare || compiledRules || compareDir != null
+                || configCompare || recaptureRoot || compiledRules || compareDir != null
                 || emitLiveRequestsDir != null || liveCompareDir != null
                 || searchCompareDir != null || searchNormal
                 || searchCancelAfterMilliseconds != null || compareOnlyNew != null)
@@ -222,6 +226,11 @@ internal static class Program
 
         if (emitLiveRequestsDir != null)
         {
+            if (recaptureRoot)
+            {
+                Console.Error.WriteLine("--emit-live-requests 不能与 --recapture-root 同时使用。");
+                return 2;
+            }
             if (searchTier != null || searchNormal || searchCancelAfterMilliseconds != null || fullCombat)
                 return EmitLiveRequests(data, corpora, emitLiveRequestsDir, liveRootsFile, all, root,
                     searchTier, searchNormal, searchCancelAfterMilliseconds, fullCombat);
@@ -230,7 +239,7 @@ internal static class Program
         if (searchCompareDir != null)
         {
             if (all || root != null || importCompare || rulesCompare || configCompare
-                || emitLiveRequestsDir != null || liveCompareDir != null)
+                || recaptureRoot || emitLiveRequestsDir != null || liveCompareDir != null)
             {
                 Console.Error.WriteLine("--search-compare 不能与 --root/--all 或其它对照模式同时使用。");
                 return 2;
@@ -239,7 +248,8 @@ internal static class Program
         }
         if (liveCompareDir != null)
         {
-            if (all || root != null || importCompare || rulesCompare || configCompare || emitLiveRequestsDir != null)
+            if (all || root != null || importCompare || rulesCompare || configCompare
+                || recaptureRoot || emitLiveRequestsDir != null)
             {
                 Console.Error.WriteLine("--live-compare 不能与 --root/--all 或其它对照模式同时使用。");
                 return 2;
@@ -277,6 +287,21 @@ internal static class Program
             Console.Error.WriteLine("--config-compare 不能与 --import-compare/--rules-compare 同时使用。");
             return 2;
         }
+        if (recaptureRoot)
+        {
+            if (importCompare || importNegative || rulesCompare || rulesTableCheck || configCompare
+                || compiledRules || compareDir != null)
+            {
+                Console.Error.WriteLine(
+                    "--recapture-root 只能与 --root/--all、--out、--data、--corpora 一起使用。");
+                return 2;
+            }
+            if (!all && root == null)
+            {
+                Console.Error.WriteLine("--recapture-root 需要 --root <name> 或 --all。");
+                return 2;
+            }
+        }
         if (!all && root == null)
         {
             Console.Error.WriteLine("需要 --root <name>、--all、--rules-table-check，或 --compare-only <new> <ref>。");
@@ -288,6 +313,30 @@ internal static class Program
             return 2;
         }
         Directory.CreateDirectory(output);
+
+        if (recaptureRoot)
+        {
+            if (root != null)
+            {
+                RecaptureRoot.Run(data, corpora, output, root);
+                return 0;
+            }
+            string[] recaptureRoots = EnumerateRoots(data);
+            Console.WriteLine($"recapture roots={recaptureRoots.Length} jobs={jobs} out={output}");
+            int recaptureFailures = 0;
+            Parallel.ForEach(recaptureRoots,
+                new ParallelOptions { MaxDegreeOfParallelism = jobs },
+                name =>
+                {
+                    (int code, _) = BuildChild(data, corpora, output, name, false, false, false,
+                        false, recaptureRoot: true);
+                    if (code != 0)
+                        Interlocked.Increment(ref recaptureFailures);
+                });
+            Console.WriteLine($"recapture done roots={recaptureRoots.Length} "
+                + $"failures={recaptureFailures}");
+            return recaptureFailures == 0 ? 0 : 1;
+        }
 
         if (root != null)
         {
@@ -443,7 +492,8 @@ internal static class Program
     }
 
     private static (int Code, string Stdout) BuildChild(string data, string corpora, string output,
-        string root, bool importCompare, bool rulesCompare, bool configCompare, bool compiledRules)
+        string root, bool importCompare, bool rulesCompare, bool configCompare, bool compiledRules,
+        bool recaptureRoot = false)
     {
         ProcessStartInfo start = new("dotnet")
         {
@@ -460,6 +510,8 @@ internal static class Program
         start.ArgumentList.Add(corpora);
         start.ArgumentList.Add("--out");
         start.ArgumentList.Add(output);
+        if (recaptureRoot)
+            start.ArgumentList.Add("--recapture-root");
         if (importCompare)
             start.ArgumentList.Add("--import-compare");
         if (rulesCompare)
@@ -978,6 +1030,8 @@ internal static class Program
               dotnet OfflineHost.dll --all --jobs 1..8 --rules-compare
               dotnet OfflineHost.dll --root <name> --config-compare
               dotnet OfflineHost.dll --all --jobs 1..8 --config-compare
+              dotnet OfflineHost.dll --root <name> --recapture-root [--out <dir>]
+              dotnet OfflineHost.dll --all --jobs 1..8 --recapture-root [--out <dir>]
               dotnet OfflineHost.dll --rules-table-check
               dotnet OfflineHost.dll --new-run-compare [--new-run-seeds N] [--new-run-jobs 1..4]
                   [--new-run-shard i/n] [--new-run-acts 1..3] [--new-run-saves a,b,c]

@@ -26,12 +26,14 @@ internal static class RerecordCommand
         if (args.Length < 3)
         {
             Console.Error.WriteLine(
-                "用法：Golden rerecord <source-dir> <target-dir> --roots <file> --reason <text> [--jobs N]");
+                "用法：Golden rerecord <source-dir> <target-dir> --roots <file> --reason <text> "
+                + "[--recapture-root <dir>] [--jobs N]");
             return 2;
         }
         string source = Path.GetFullPath(args[0]);
         string target = Path.GetFullPath(args[1]);
         string? rootsPath = null;
+        string? recapturePath = null;
         int jobs = Environment.ProcessorCount;
         string? reason = null;
         for (int index = 2; index < args.Length; index++)
@@ -40,6 +42,9 @@ internal static class RerecordCommand
             {
                 case "--roots":
                     rootsPath = Next(args, ref index, "--roots");
+                    break;
+                case "--recapture-root":
+                    recapturePath = Path.GetFullPath(Next(args, ref index, "--recapture-root"));
                     break;
                 case "--jobs":
                     if (!int.TryParse(Next(args, ref index, "--jobs"), out jobs) || jobs <= 0)
@@ -73,20 +78,24 @@ internal static class RerecordCommand
             throw new InvalidDataException($"源数据目录缺少 d1：{source}");
 
         string[] roots = ReadRoots(Path.GetFullPath(rootsPath), sourceD1);
+        if (recapturePath != null && !Directory.Exists(recapturePath))
+            throw new InvalidDataException($"重新捕获载荷目录不存在：{recapturePath}");
         GoldenFiles.CopyDirectory(source, target);
 
         string targetD1 = Path.Combine(target, "d1");
         RerecordSummary[] summaries = new RerecordSummary[roots.Length];
         Parallel.For(0, roots.Length, new ParallelOptions { MaxDegreeOfParallelism = jobs }, index =>
         {
-            summaries[index] = RerecordRoot(source, targetD1, roots[index]);
+            summaries[index] = RerecordRoot(source, targetD1, roots[index], recapturePath);
         });
 
         foreach (RerecordSummary summary in summaries)
             Console.WriteLine(summary.Line);
 
         string hash = RerecordHash(target, roots);
-        ManifestProvenance.D1Rerecord = $"roots={string.Join(',', roots.Order(StringComparer.Ordinal))} "
+        string rootList = string.Join(',', roots.Order(StringComparer.Ordinal));
+        ManifestProvenance.D1Rerecord = $"roots={rootList} "
+            + (recapturePath == null ? "" : $"recaptureRoots={rootList} ")
             + $"reason={reason} sha256={hash}";
         ManifestBuilder.Write(target);
         int changed = summaries.Count(static summary => summary.Changed);
@@ -119,21 +128,44 @@ internal static class RerecordCommand
         return [.. roots];
     }
 
-    private static RerecordSummary RerecordRoot(string source, string targetD1, string rootName)
+    private static RerecordSummary RerecordRoot(string source, string targetD1, string rootName,
+        string? recapturePath)
     {
         string sourceDirectory = Path.Combine(source, "d1", rootName);
         string targetDirectory = Path.Combine(targetD1, rootName);
         GoldenRootRecord oldRecord = GoldenData.Decode(
             GoldenFiles.ReadCompressed(Path.Combine(sourceDirectory, "golden.br")));
+        List<GoldenBattleRoot> recordedRoots = oldRecord.Roots;
+        string configDirectory = sourceDirectory;
+        if (recapturePath != null)
+        {
+            string payloadDirectory = Path.Combine(recapturePath, rootName);
+            string payloadRoots = Path.Combine(payloadDirectory, "roots.gold");
+            string payloadConfig = Path.Combine(payloadDirectory, "config.br");
+            if (!File.Exists(payloadRoots) || !File.Exists(payloadConfig))
+                throw new InvalidDataException($"根 {rootName} 缺少重新捕获载荷：{payloadDirectory}");
+            GoldenRootRecord recaptured = GoldenData.Decode(File.ReadAllBytes(payloadRoots));
+            if (!string.Equals(recaptured.InputJson, oldRecord.InputJson, StringComparison.Ordinal)
+                || !string.Equals(recaptured.RulesSha256, oldRecord.RulesSha256, StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    $"根 {rootName} 的重新捕获载荷与冻结记录的输入/规则哈希不符。");
+            if (recaptured.Roots.Count != oldRecord.Roots.Count)
+                throw new InvalidDataException(
+                    $"根 {rootName} 的重新捕获载荷有 {recaptured.Roots.Count} 个根，"
+                    + $"冻结记录有 {oldRecord.Roots.Count} 个。");
+            recordedRoots = recaptured.Roots;
+            File.Copy(payloadConfig, Path.Combine(targetDirectory, "config.br"), overwrite: true);
+            configDirectory = targetDirectory;
+        }
         Rules rules = D1Verifier.LoadRules(source, oldRecord.RulesSha256);
-        SearchCase config = D1Verifier.LoadConfig(sourceDirectory, rootName, oldRecord.RulesSha256);
+        SearchCase config = D1Verifier.LoadConfig(configDirectory, rootName, oldRecord.RulesSha256);
         Scorer scorer = config.Options.Scorer
             ?? throw new InvalidDataException($"根 {rootName} 的特征配置没有 Scorer。");
         BoundFeatures? bound = config.Options.Bound;
         int rootActionCount = config.Options.InitialActionCount;
 
-        List<GoldenBattleRoot> roots = new(oldRecord.Roots.Count);
-        foreach (GoldenBattleRoot root in oldRecord.Roots)
+        List<GoldenBattleRoot> roots = new(recordedRoots.Count);
+        foreach (GoldenBattleRoot root in recordedRoots)
         {
             (_, ulong scoreHash, byte boundStatus, ulong boundHash) =
                 D1Verifier.ComputeFeatures(root.Battle, rootActionCount, scorer, bound);
