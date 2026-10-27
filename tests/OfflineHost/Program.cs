@@ -53,6 +53,8 @@ internal static class Program
             return CombatWritebackCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-compare")
             return RunImportCompare.Run(args[1..]);
+        if (args.Length > 0 && args[0] == "--new-run-compare")
+            return NewRunCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-negative")
             return RunImportNegative.Run();
         string data = DefaultData;
@@ -977,6 +979,9 @@ internal static class Program
               dotnet OfflineHost.dll --root <name> --config-compare
               dotnet OfflineHost.dll --all --jobs 1..8 --config-compare
               dotnet OfflineHost.dll --rules-table-check
+              dotnet OfflineHost.dll --new-run-compare [--new-run-seeds N] [--new-run-jobs 1..4]
+                  [--new-run-shard i/n] [--new-run-acts 1..3] [--new-run-saves a,b,c]
+                  [--new-run-tutorial both|on|off]
               dotnet OfflineHost.dll --content-table-report
               dotnet OfflineHost.dll --rules-build-compare (--build-kind d1|natural|encounter [--build-seeds N]
                   [--build-jobs 1..8] [--build-shard i/n] [--build-content])

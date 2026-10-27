@@ -153,6 +153,32 @@ public static class RunRng
     public static RngState ActMap(ulong seed, int actIndex)
         => Named(seed, $"act_{actIndex + 1}_map");
 
+    /// <summary>
+    /// Native seed-string hashing: <c>RunRngSet(seed)</c> uses the legacy 32-bit hash when the
+    /// string starts with <c>old</c>, otherwise <c>XxHash64(UTF8(seed))</c>.
+    /// </summary>
+    public static ulong SeedFromString(string seed)
+    {
+        if (!seed.StartsWith("old", StringComparison.Ordinal))
+            return RunHash.XxHash64(System.Text.Encoding.UTF8.GetBytes(seed));
+        return (uint)LegacyHash(seed[3..]);
+    }
+
+    /// <summary>Native <c>StringHelper.GetDeterministicHashCodeOld</c>.</summary>
+    private static int LegacyHash(string text)
+    {
+        int first = 352654597;
+        int second = first;
+        for (int index = 0; index < text.Length; index += 2)
+        {
+            first = ((first << 5) + first) ^ text[index];
+            if (index == text.Length - 1)
+                break;
+            second = ((second << 5) + second) ^ text[index + 1];
+        }
+        return first + second * 1566083941;
+    }
+
     public static ref RngState StreamRef(ref RunRngState rng, RunRngStream stream)
         => ref rng.Streams[(int)stream];
 

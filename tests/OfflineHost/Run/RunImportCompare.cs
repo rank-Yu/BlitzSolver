@@ -344,7 +344,7 @@ internal static class RunImportCompare
         return mismatches;
     }
 
-    private static MegaCrit.Sts2.Core.Random.Rng NativeStream(NativeRunState native, Player player,
+    internal static MegaCrit.Sts2.Core.Random.Rng NativeStream(NativeRunState native, Player player,
         RunRngStream stream) => stream switch
     {
         RunRngStream.UpFront => native.Rng.UpFront,
@@ -365,7 +365,7 @@ internal static class RunImportCompare
         _ => throw new ArgumentOutOfRangeException(nameof(stream)),
     };
 
-    private static int CompareDraws(MegaCrit.Sts2.Core.Random.Rng native, RngState core,
+    internal static int CompareDraws(MegaCrit.Sts2.Core.Random.Rng native, RngState core,
         string stream)
     {
         MegaCrit.Sts2.Core.Random.Rng nativeCopy = new(native.ToSerializable());
@@ -558,7 +558,7 @@ internal static class RunImportCompare
         => left.Counter == right.Counter && left.S0 == right.S0 && left.S1 == right.S1
             && left.S2 == right.S2 && left.S3 == right.S3;
 
-    private static List<string> DiffDumps(string native, string core)
+    internal static List<string> DiffDumps(string native, string core)
     {
         string[] nativeLines = native.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         string[] coreLines = core.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -580,7 +580,7 @@ internal static class RunImportCompare
         return differences;
     }
 
-    private static Dictionary<string, string> Parse(string[] lines)
+    internal static Dictionary<string, string> Parse(string[] lines)
     {
         Dictionary<string, string> values = new(StringComparer.Ordinal);
         foreach (string line in lines)

@@ -68,6 +68,7 @@ internal static class ContentTableReport
                 Console.WriteLine($"CONTENT-MONSTER id={id} name={Registry.Monster((ushort)id).NativeId}");
             }
         }
+        PrintNewRun(table);
         PrintUnsupported(table);
         for (int id = 0; id < table.Encounters.Length; id++)
         {
@@ -79,6 +80,50 @@ internal static class ContentTableReport
             $"retainedBytes={after - before} before={before} after={after}");
         return 0;
     }
+
+    private static void PrintNewRun(ContentTable table)
+    {
+        int startingRows = 0;
+        for (int id = 0; id < table.Characters.Length; id++)
+        {
+            if (table.Characters[id] is { } character)
+            {
+                startingRows++;
+                Console.WriteLine(
+                    $"CONTENT-STARTING character={character.NativeId} " +
+                    $"deck={character.Starting.Deck.Length} relics={character.Starting.Relics.Length} " +
+                    $"hp={character.Starting.Hp} gold={character.Starting.Gold} " +
+                    $"energy={character.Starting.MaxEnergy} orbs={character.Starting.OrbSlots} " +
+                    $"relicPool={character.RelicPool.Length}");
+            }
+        }
+        for (int id = 0; id < table.Acts.Length; id++)
+        {
+            if (table.Acts[id] is not { } act)
+                continue;
+            Console.WriteLine(
+                $"CONTENT-ACT id={id} name={act.NativeId} rooms={act.BaseRooms} " +
+                $"weak={act.WeakEncounters} events={act.Events.Length} " +
+                $"encounters={act.Encounters.Length} ancients={act.Ancients.Length} " +
+                $"swaps={act.TutorialSwaps.Length} firstRun={act.TutorialSwapsFirstRunOnly} " +
+                $"rest=[{Describe(act.RestDraw)}] unknown=[{Describe(act.UnknownDraw)}]");
+        }
+        Console.WriteLine(
+            $"CONTENT-NEWRUN sharedRelics={table.SharedRelicPool.Length} " +
+            $"sharedEvents={table.SharedEvents.Length} sharedAncients={table.SharedAncients.Length} " +
+            $"defaultActs={table.DefaultActs.Length} startingRows={startingRows} " +
+            $"mapWidth={table.MapRules.Width} starts={table.MapRules.StartPaths} " +
+            $"elitesA0={table.MapRules.ElitesByAscension[0]} " +
+            $"elitesA10={table.MapRules.ElitesByAscension[10]} " +
+            $"neowEpoch={RunCatalog.EpochName(table.NeowEpoch)} " +
+            $"doubleBossLevel={table.AscensionRules.DoubleBossLevel} " +
+            $"mapHookRelics={string.Join(',', table.MapHookRelics.Select(id => Registry.Relic(id).NativeId))} " +
+            $"mapHookCards={string.Join(',', table.MapHookCards.Select(id => Registry.Card(id).NativeId))}");
+    }
+
+    private static string Describe(in ContentCountDraw draw)
+        => $"{draw.Kind},mean={draw.Mean},std={draw.StdDev},min={draw.Min},max={draw.Max}," +
+            $"offset={draw.Offset}";
 
     private static void PrintUnsupported(ContentTable table)
     {

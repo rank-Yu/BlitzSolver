@@ -93,6 +93,30 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
 字段与命令细节见[整局状态布局](../../docs/run-state-layout.md)与
 [测试与验证](../../docs/testing.md)第 6.10 节。
 
+## 新局生成与地图对照
+
+```bash
+# 单个用例：角色|进阶|存档|教学重排|种子；对照第 1、2、3 幕
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --new-run-compare --new-run-case "Ironclad|0|empty|0|R2B1-PROBE-1" --new-run-acts 3
+
+# 全量：5 角色 × 进阶 0..10 × 6 种解锁状态 × 教学重排开/关 × 30 种子 = 19,800
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --new-run-compare --new-run-seeds 30 --new-run-jobs 4 \
+  --new-run-saves empty,all,real-360,real-375,early-6,early-12 \
+  --new-run-tutorial both --new-run-shard 0/3
+```
+
+每个子进程导出一份内容表后顺序处理一批用例（`--new-run-batch <file>`，子进程内部用；局间用
+`RunManager.CleanUp`）。同一用例里先走原版 `RunTestHost.StartNewRunBeforeChoicesAsync`
+（新局生成 + 第一幕地图，未进房间），再用 Core `RunGenerator.CreateNewRun` 生成，导入原版后
+用 `RunDump`/`NativeRunDump` 逐字段比较（15 条流、`MapConsumed`、遗物袋、三幕房间、地图）。
+随后对第 2、3 幕调用原生 `SetActInternal` 与 Core `RunGenerator.SetAct`，比较地图与
+`act_N_map` 消耗后的 `Counter`/状态字。教学重排只对
+`RunManager.ShouldApplyTutorialModifications()` 打会话补丁。细节见
+[`docs/run-generation.md`](../../docs/run-generation.md) 与
+[`docs/testing.md`](../../docs/testing.md) 6.15 节。
+
 ## 规则编译对照
 
 ```bash

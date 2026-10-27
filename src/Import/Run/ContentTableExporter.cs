@@ -47,6 +47,12 @@ public static class ContentTableExporter
         {
             Cards = ExportCards(scratch, out ContentUnsupported?[] cardUnsupported),
             CardUnsupported = cardUnsupported,
+            Encounters = ExportEncounters(ascension),
+            Characters = ExportCharacters(out ushort[] characterOrder),
+            CharacterOrder = characterOrder,
+            Acts = NewRunContentExporter.ExportActs(out ushort[] defaultActs),
+            DefaultActs = defaultActs,
+
             PowerVars = ExportPowerVars(out ContentUnsupported?[] powerUnsupported),
             PowerUnsupported = powerUnsupported,
             PowerDeathHistoryRisk = ExportPowerDeathRisk(),
@@ -61,13 +67,22 @@ public static class ContentTableExporter
             SpawnMonsters = ExportSpawnMonsters(ascension,
                 out ContentUnsupported?[] monsterUnsupported),
             MonsterUnsupported = monsterUnsupported,
-            Encounters = ExportEncounters(ascension),
-            Characters = ExportCharacters(out ushort[] characterOrder),
-            CharacterOrder = characterOrder,
             ColorlessPool = ExportCardPool(ModelDb.CardPool<ColorlessCardPool>()),
             StatusPool = ExportCardPool(ModelDb.CardPool<StatusCardPool>()),
             CursePool = ExportCardPool(ModelDb.CardPool<CurseCardPool>()),
             SharedPotionPool = ExportPotionPool(ModelDb.PotionPool<SharedPotionPool>(), 0),
+            SharedRelicPool = NewRunContentExporter.ExportSharedRelicPool(),
+            SharedEvents = NewRunContentExporter.ExportSharedEvents(
+                out ulong[] eventRequiredEpochs),
+            EventRequiredEpochs = eventRequiredEpochs,
+            SharedAncients = NewRunContentExporter.ExportSharedAncients(),
+
+            MapRules = NewRunContentExporter.ExportMapRules(ascension),
+            BaseOdds = NewRunContentExporter.ExportOdds(),
+            AscensionRules = NewRunContentExporter.ExportAscensionRules(),
+            NeowEpoch = NewRunContentExporter.ExportNeowEpoch(),
+            MapHookRelics = NewRunContentExporter.ExportMapHookRelics(),
+            MapHookCards = NewRunContentExporter.ExportMapHookCards(),
         };
     }
 
@@ -637,6 +652,9 @@ public static class ContentTableExporter
                     NativeId = nativeId,
                     Slots = [.. slots],
                     Monsters = [.. monsters],
+                    RoomType = (RunRoomType)(int)encounter.RoomType,
+                    IsWeak = encounter.IsWeak,
+                    TagMask = ExportEncounterTags(encounter),
                     UnsupportedReason = unsupportedReason,
                     UnsupportedDetail = unsupportedDetail,
                 };
@@ -647,6 +665,14 @@ public static class ContentTableExporter
             }
         }
         return encounters;
+    }
+
+    private static ulong ExportEncounterTags(EncounterModel encounter)
+    {
+        ulong mask = 0;
+        foreach (MegaCrit.Sts2.Core.Entities.Encounters.EncounterTag tag in encounter.Tags)
+            mask |= 1UL << (int)tag;
+        return mask;
     }
 
     private static IReadOnlyList<string?> SlotCandidates(MonsterModel monster, List<string> slots)
@@ -671,14 +697,21 @@ public static class ContentTableExporter
     }
 
     private static ContentEncounter UnsupportedEncounter(string nativeId, string reason, string detail)
-        => new()
+    {
+        EncounterModel? canonical = ModelDb.All.OfType<EncounterModel>()
+            .FirstOrDefault(model => model.Id.Entry == nativeId);
+        return new ContentEncounter
         {
             NativeId = nativeId,
             Slots = [],
             Monsters = [],
+            RoomType = canonical == null ? RunRoomType.Unassigned : (RunRoomType)(int)canonical.RoomType,
+            IsWeak = canonical?.IsWeak ?? false,
+            TagMask = canonical == null ? 0UL : ExportEncounterTags(canonical),
             UnsupportedReason = reason,
             UnsupportedDetail = detail,
         };
+    }
 
     private static ContentCharacter?[] ExportCharacters(out ushort[] order)
     {
@@ -699,6 +732,8 @@ public static class ContentTableExporter
                 CardPool = ExportCardPool(character.CardPool),
                 PotionPool = ExportPotionPool(character.PotionPool, potionUnlockMask),
                 PotionUnlockEpochs = potionUnlockMask,
+                Starting = NewRunContentExporter.ExportStarting(character),
+                RelicPool = NewRunContentExporter.ExportCharacterRelicPool(character),
             };
             ids.Add(id);
         }
@@ -802,7 +837,7 @@ public static class ContentTableExporter
     /// placeholder (only the non-null test is read) and an <see cref="AscensionManager"/> for each
     /// level, then restores both. It refuses to run while a real run is in progress.
     /// </summary>
-    private sealed class ScratchAscension : IDisposable
+    internal sealed class ScratchAscension : IDisposable
     {
         private readonly RunManager _manager;
         private readonly FieldInfo _stateField;

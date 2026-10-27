@@ -184,3 +184,32 @@ Wriggler、Myte、PhantasmalGardener 等）在导出时按真实槽位解析；�
 当前结果：D1 `same=420 diff=0 reject=0 skip=0`，自然 `same=200`，遭遇 `same=90`；没有任何拒绝。内容覆盖：1078/1078 个卡牌升级等级、108/108 个 `Registry` 怪物（含 `EXOSKELETON` 的遭遇变体）、12 个有变量的 Power、100 个有变量的遗物、65 个药水；未用到项为 0。
 
 复跑命令见 [测试与验证](testing.md) 第 6.11 节。
+## 8. 新局相关区块（R2b-1）
+
+R2b-1 在同一个 `ContentTable` 里加入新局与地图需要的静态数据，全部由
+`src/Import/Run/NewRunContentExporter.cs` 从本机游戏导出：
+
+| 区块 | 内容 | 覆盖数量（0.111.0） |
+| --- | --- | --- |
+| `Characters[].Starting` | 起始牌组顺序、起始遗物（含默认 `DisplayAmount`）、起始药水、HP、金币、MaxEnergy、球槽、药水槽 | 5 个角色 |
+| `Characters[].RelicPool` / `SharedRelicPool` | 遗物池原始顺序；每项稀有度与所需 epoch 掩码 | 共享 118 / 角色各 8 |
+| `SharedEvents` / `EventRequiredEpochs` | `ModelDb.AllSharedEvents` 顺序与每个事件的 Event1/2/3 epoch 掩码 | 18 / 66 |
+| `SharedAncients` | 共享先古（Darv）顺序与 epoch | 1 |
+| `Acts[]` | `BaseRooms`、弱遭遇数、事件顺序、遭遇顺序、先古池、Boss 发现顺序、教学重排交换、两次地图点数量抽取 | 4 幕 |
+| `Encounters[].RoomType/IsWeak/TagMask` | 遭遇类型、弱标记、`EncounterTag` 位图 | 89 |
+| `MapRules` | 网格宽度、起始路径数、精英上限、宝箱/限制行、轮数、五组点类型限制集合、每进阶精英数、商店数 | — |
+| `BaseOdds` / `AscensionRules` / `NeowEpoch` | 概率初值；SwarmingElites/TightBelt/AscendersBane/DoubleBoss 等级、进阶之灾卡、最高进阶；Neow epoch | — |
+| `MapHookRelics` / `MapHookCards` | 覆写地图 Hook 的模型（FurCoat/GoldenCompass、SpoilsMap），用于显式拒绝 | 2 / 1 |
+
+池子按原版枚举顺序保存，不排序；解锁过滤按 epoch 掩码。两处原版方法只能“探测”得到：
+
+- `ActModel.GetMapPointTypes` 的两次抽取：用受控 `Rng` 状态探测，记录返回值、`Counter` 增量与
+  原始 `NextDouble` 序列，在均匀/高斯候选空间里重放；`round(mean+z)+offset` 与
+  `round((mean+offset)+z)`、上下界同移等价，所以候选取 `offset=0` 的规范代表。远尾探针让
+  拒绝区间可见，唯一候选对才导出。
+- `ActModel.ApplyActDiscoveryOrderModifications`：在构造的 `RoomSet` 上调用原生方法得到交换
+  集合，再枚举每个列表的交换顺序与 48 个随机排列比对；`NumberOfRuns=1/2` 探测得到
+  “只在首次跑局生效”标记。
+
+导出器对目录外事件、幕外交换模型、非法稀有度显式失败。单次导出（Release）约 1.3 秒，其中新局
+推断约 0.45 秒；仍然只在进程内保留一次，不写盘、不缓存。详见[新局生成与地图](run-generation.md)。

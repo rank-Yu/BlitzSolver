@@ -884,6 +884,36 @@ CrackedCore、RingOfTheSnake，以及首回合状态遗物与 MeatOnTheBone。20
 `cases=50 same=50 diff=0 triggered=50 missing=0`。矩阵发现并修正了 SwordOfJade 的 Applier、
 RedSkull 的 `StrengthApplied` 计数和 Pantograph/BloodVial 的战后 HP/`RecoveredHp`。
 
+### 6.15 新局生成与地图对照（R2b-1）
+
+```bash
+# 单个用例：角色|进阶|存档|教学重排|种子，对照第 1、2、3 幕
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --new-run-compare \
+  --new-run-case "Ironclad|0|empty|0|R2B1-PROBE-1" --new-run-acts 3
+
+# 全量：5 角色 × 进阶 0..10 × 6 种解锁状态 × 教学重排开/关 × 30 种子 = 19,800；
+# 每个用例对照三幕。按 3 片运行，每片约 5.5 分钟（jobs=4）。
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --new-run-compare \
+  --new-run-seeds 30 --new-run-jobs 4 \
+  --new-run-saves empty,all,real-360,real-375,early-6,early-12 \
+  --new-run-tutorial both --new-run-shard 0/3
+```
+
+每个子进程先导出一次内容表，再顺序处理一批用例（用 `RunManager.CleanUp` 释放上一局）；同一进程
+内同时跑原版 `RunTestHost.StartNewRunBeforeChoicesAsync` 与 Core `RunGenerator.CreateNewRun`，
+用 `RunDump`/`NativeRunDump` 逐字段比较（含 15 条流状态与计数、`MapConsumed`、遗物袋、三幕房间
+序列、地图）；再对第 2、3 幕调用原生 `SetActInternal` 与 Core `RunGenerator.SetAct`，比较地图与
+`act_N_map` 消耗后的 `Counter` 与四个状态字。教学重排只对
+`RunManager.ShouldApplyTutorialModifications()` 打测试补丁，不改全局 `TestMode`。
+
+存档预设：`empty`（R1b 离线宿主默认存档）、`all`（全部 epoch 与遭遇、跑局数极大）、
+`real-360`/`real-375`（CombatSolver 实机 run 快照的 11/54 个已见遭遇、跑局数 6/15，epoch 全解锁）、
+`early-6`/`early-12`（按游戏真实解锁顺序截断的部分 epoch）。本仓库的 D1 根是合成战斗 fixture，
+都从默认存档建局，不带部分解锁状态，所以“真实部分解锁”取实机快照。
+
+2026-10 结果：`same=19800 diff=0 reject=0 error=0`，`mapDiff=0 rngDiff=0`；分片
+`6600/6600`、`6600/6600`、`6600/6600`。新局内容导出约 1.3 秒/进程。
+
 ## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |
