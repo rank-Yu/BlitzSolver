@@ -257,3 +257,27 @@ v2 只改数据格式和对外标识里的名字，不改任何字段值：
 - 为了让当前代码通过而改数据格式键、魔数或根名。
 
 更新后应运行完整 `Golden verify`，确认 D1 `mismatched=0`、D2 全量相等，并重写 manifest 后确认 `git diff` 只包含有意变更。
+
+2026-10-28 R2a-5 重录：`quality-REGENT-001`（walk 21/state 11）、
+`qf-turn-start-choice-forge`（K1 root 0）、`qf2-gradient-failure`（walk 3/state 29）与
+`ts-a-toasty`（walk 2/state 26）受“回合开始选择统一按全局选择器、不暂停”和
+`FromHand`/`FromSimpleGrid` 全回合短路径影响。原版证据用
+`--combat-writeback-compare --writeback-root <根>` 在全局
+`FirstChoiceCombatSetupSelector`/`NativeChoiceSelector` 下逐动作比较，四根均为 `same`；
+重录命令为（分两批写入同一目标）：
+
+```bash
+dotnet run --project tests/Golden -c Release -- \
+  rerecord tests/Golden/data .local/golden-rerecord \
+  --roots .local/r2a5-rerecord-roots.txt \
+  --reason "R2a-5 no-pause turn-start choices" --jobs 6
+dotnet run --project tests/Golden -c Release -- \
+  refreeze .local/golden-rerecord .local/golden-final --jobs 8
+```
+
+重录后 `d1WalkStates=482209`、`d1Transitions=469334`，D1 410 文件/418 根 `mismatched=0`；
+重录后的数据已复制到 `tests/Golden/data`。
+D2 `refreeze` 后 1983/1983；`compare --config all-fill` 记录 1 个请求更好
+（`06d36716…`，newScore 高于 oldScore）、1982 个相同、0 个更差；实际改写 3 个
+`d2/expected`，另两个（`a198281c…`、`7c4b346b…`）质量相同、展开/转移计数变化。`provenance.d1Rerecord`
+与 `provenance.refreeze` 由工具写入，未手改。

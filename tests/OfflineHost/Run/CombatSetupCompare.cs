@@ -14,6 +14,7 @@ using BlitzSolver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
+using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Map;
@@ -31,6 +32,23 @@ internal static class CombatSetupCompare
         ["Ironclad", "Silent", "Regent", "Necrobinder", "Defect"];
     private static ContentTable? _table;
 
+    private sealed class NativeSetup : IDisposable
+    {
+        public required NativeRunState Run { get; init; }
+        public required Player Player { get; init; }
+        public required MapCoord Coord { get; init; }
+        public IDisposable? Scope { get; init; }
+
+        public void Dispose() => Scope?.Dispose();
+    }
+
+    private sealed class D1Setup
+    {
+        public required NativeSetup Setup { get; init; }
+        public required EncounterModel Target { get; init; }
+        public required int ActIndex { get; init; }
+    }
+
     public static int Run(string[] args)
     {
         string data = "tests/Golden/data";
@@ -47,12 +65,18 @@ internal static class CombatSetupCompare
         int? encounter = null;
         bool cover = false;
         bool relicMatrix = false;
+        int matrixSeeds = 20;
         string? relic = null;
         string room = "monster";
         string hp = "full";
         bool baseline = false;
         bool signature = false;
         string? extra = null;
+        string? setupCard = null;
+        string? setupEnchant = null;
+        string? forceEncounter = null;
+        bool choicesOnly = false;
+    bool matrixList = false;
         for (int index = 0; index < args.Length; index++)
         {
             switch (args[index])
@@ -97,6 +121,9 @@ internal static class CombatSetupCompare
                 case "--setup-relic-matrix":
                     relicMatrix = true;
                     break;
+                case "--setup-matrix-seeds" when index + 1 < args.Length:
+                    matrixSeeds = int.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
                 case "--setup-relic" when index + 1 < args.Length:
                     relic = args[++index];
                     break;
@@ -115,6 +142,21 @@ internal static class CombatSetupCompare
                 case "--setup-extra" when index + 1 < args.Length:
                     extra = args[++index];
                     break;
+                case "--setup-card" when index + 1 < args.Length:
+                    setupCard = args[++index];
+                    break;
+                case "--setup-enchant" when index + 1 < args.Length:
+                    setupEnchant = args[++index];
+                    break;
+                case "--setup-choices":
+                    choicesOnly = true;
+                    break;
+                case "--setup-force-encounter" when index + 1 < args.Length:
+                    forceEncounter = args[++index];
+                    break;
+                case "--setup-matrix-list":
+                    matrixList = true;
+                    break;
                 default:
                     Console.Error.WriteLine($"未知参数：{args[index]}");
                     return 2;
@@ -125,11 +167,14 @@ internal static class CombatSetupCompare
             Console.Error.WriteLine("--setup-jobs 必须在 1 到 8 之间，分片参数必须合法。");
             return 2;
         }
+        if (matrixList)
+            return RunChild(data, corpora, null, null, 0, null, null, matrixList: true);
         if (relicMatrix)
-            return RunRelicMatrix(data, corpora, jobs, shard, shards);
+            return RunRelicMatrix(data, corpora, jobs, shard, shards, matrixSeeds);
         if (root != null || character != null || encounter != null || relic != null)
             return RunChild(data, corpora, root, character, ascension, seed, encounter, cover,
-                relic, room, hp, baseline, signature, extra);
+                relic, room, hp, baseline, signature, extra, setupCard, choicesOnly,
+                forceEncounter: forceEncounter, enchant: setupEnchant);
         if (kind.Length == 0)
         {
             Console.Error.WriteLine("需要 --setup-kind natural|encounter|d1，或单例模式参数。");
@@ -143,7 +188,9 @@ internal static class CombatSetupCompare
     private static int RunChild(string data, string corpora, string? root, string? character,
         int ascension, string? seed, int? encounter, bool cover = false,
         string? relic = null, string room = "monster", string hp = "full",
-        bool baseline = false, bool signature = false, string? extra = null)
+        bool baseline = false, bool signature = false, string? extra = null,
+        string? card = null, bool choicesOnly = false, bool matrixList = false,
+        string? forceEncounter = null, string? enchant = null)
     {
         MainLoopContext loop = new();
         SynchronizationContext.SetSynchronizationContext(loop);
@@ -151,11 +198,21 @@ internal static class CombatSetupCompare
         GameBootstrap.SkipGodotNodeStaticConstructors();
         GameBootstrap.InitializeStaticState();
         _table = ContentTableExporter.Export();
+        if (matrixList)
+        {
+            PrintSetupMatrixList(_table);
+            return 0;
+        }
         if (root != null)
+        {
+            if (choicesOnly)
+                return PrintChoices(loop, data, corpora, root, seed ?? "");
             return CompareD1(loop, data, corpora, root, seed ?? "", cover);
+        }
         if (relic != null)
             return CompareRelicSetup(loop, relic, character ?? "Ironclad", ascension,
-                seed ?? $"R2A3-REL-{relic}", room, hp, baseline, signature, extra);
+                seed ?? $"R2A3-REL-{relic}", room, hp, baseline, signature, extra, card,
+                forceEncounter, enchant);
         if (character != null)
             return CompareNatural(loop, character, ascension, seed ?? "");
         if (encounter is { } encounterId)
@@ -264,6 +321,10 @@ internal static class CombatSetupCompare
                     string reason = status.Split("reason=", 2).ElementAtOrDefault(1)?.Split(' ')[0] ?? "?";
                     rejects[reason] = rejects.GetValueOrDefault(reason) + 1;
                     Console.WriteLine($"SETUP-REJECT-CASE {item.Label} {reason}");
+                    string detail = lines.FirstOrDefault(line =>
+                        line.StartsWith("  ", StringComparison.Ordinal))?.Trim() ?? "";
+                    if (detail.Length != 0)
+                        Console.WriteLine($"SETUP-REJECT-DETAIL {item.Label} {detail}");
                 }
                 else
                 {
@@ -345,18 +406,175 @@ internal static class CombatSetupCompare
             counts[id] = counts.GetValueOrDefault(id) + 1;
     }
 
+    private static void PrintSetupMatrixList(ContentTable table)
+    {
+        int relicOverridden = 0, relicImplemented = 0, relicUnsupported = 0;
+        for (ushort id = 0; id < Registry.RelicCount; id++)
+        {
+            ContentSetupHookMask mask = table.RelicSetupHooks[id];
+            if (mask.Overridden != 0) relicOverridden++;
+            if (mask.Implemented != 0) relicImplemented++;
+            if (mask.Unsupported != 0) relicUnsupported++;
+            if (mask.Implemented != 0 && mask.Unsupported == 0)
+                Console.WriteLine($"SETUP-HOOK-RELIC id={Registry.Relic(id).NativeId} overridden=0x{mask.Overridden:X} implemented=0x{mask.Implemented:X}");
+        }
+        int cardOverridden = 0, cardImplemented = 0, cardUnsupported = 0;
+        for (ushort id = 0; id < Registry.CardCount; id++)
+        {
+            ContentSetupHookMask mask = table.CardSetupHooks[id];
+            if (mask.Overridden != 0) cardOverridden++;
+            if (mask.Implemented != 0) cardImplemented++;
+            if (mask.Unsupported != 0) cardUnsupported++;
+            if (mask.Implemented != 0 && mask.Unsupported == 0)
+                Console.WriteLine($"SETUP-HOOK-CARD id={Registry.Card(id).NativeId} overridden=0x{mask.Overridden:X} implemented=0x{mask.Implemented:X}");
+        }
+        int powerOverridden = 0, powerImplemented = 0, powerUnsupported = 0;
+        for (ushort id = 0; id < Registry.PowerCount; id++)
+        {
+            ContentSetupHookMask mask = table.PowerSetupHooks[id];
+            if (mask.Overridden != 0) powerOverridden++;
+            if (mask.Implemented != 0) powerImplemented++;
+            if (mask.Unsupported != 0) powerUnsupported++;
+            if (mask.Implemented != 0 && mask.Unsupported == 0)
+                Console.WriteLine($"SETUP-HOOK-POWER id={Registry.Power(id).NativeId} overridden=0x{mask.Overridden:X} implemented=0x{mask.Implemented:X}");
+        }
+        int enchantmentOverridden = 0, enchantmentImplemented = 0, enchantmentUnsupported = 0;
+        for (ushort id = 0; id < Registry.EnchantmentCount; id++)
+        {
+            ContentSetupHookMask mask = table.EnchantmentSetupHooks[id];
+            if (mask.Overridden != 0) enchantmentOverridden++;
+            if (mask.Implemented != 0) enchantmentImplemented++;
+            if (mask.Unsupported != 0) enchantmentUnsupported++;
+            if (mask.Implemented != 0 && mask.Unsupported == 0)
+                Console.WriteLine($"SETUP-HOOK-ENCHANT id={Registry.Enchantment(id).NativeId} overridden=0x{mask.Overridden:X} implemented=0x{mask.Implemented:X}");
+        }
+        Console.WriteLine($"SETUP-HOOK-COUNT kind=relic overridden={relicOverridden} implemented={relicImplemented} unsupported={relicUnsupported}");
+        Console.WriteLine($"SETUP-HOOK-COUNT kind=card overridden={cardOverridden} implemented={cardImplemented} unsupported={cardUnsupported}");
+        Console.WriteLine($"SETUP-HOOK-COUNT kind=power overridden={powerOverridden} implemented={powerImplemented} unsupported={powerUnsupported}");
+        Console.WriteLine($"SETUP-HOOK-COUNT kind=enchantment overridden={enchantmentOverridden} implemented={enchantmentImplemented} unsupported={enchantmentUnsupported}");
+    }
+
     private static int CompareRelicSetup(MainLoopContext loop, string relicId, string characterName,
         int ascension, string seed, string room, string hp, bool baseline, bool signature,
-        string? extra)
+        string? extra, string? card, string? forceEncounter = null, string? enchant = null)
     {
         CharacterModel character = ModelDb.AllCharacters.FirstOrDefault(
             candidate => candidate.GetType().Name == characterName)
             ?? throw new InvalidDataException($"未知角色 {characterName}。");
         OfflineCombatWaiter waiter = new(loop);
+        NativeSetup? first = PrepareRelicSetup(loop, waiter, character, ascension, seed, room, hp,
+            baseline, relicId, extra, card, forceEncounter, enchant);
+        try
+        {
+            RunState before = RunStateImporter.Import(first.Run, first.Player);
+            RunCoord coord = new((byte)first.Coord.col, (byte)first.Coord.row);
+            CombatSetupResult actual = CombatSetupChoices.ResolveFirst(before, _table!, coord,
+                emptyGambling: false, out ulong[] masks, out ChoiceRequest[] requests);
+            NativeSetup native;
+            if (masks.Length == 0)
+            {
+                native = first;
+                first = null;
+            }
+            else
+            {
+                first.Dispose();
+                first = null;
+                RunManager.Instance.CleanUp(true);
+                native = PrepareRelicSetup(loop, waiter, character, ascension, seed, room,
+                    hp, baseline, relicId, extra, card, forceEncounter, enchant);
+            }
+            string expectedRun;
+            Player combatPlayer;
+            NativeRunState after;
+            Rules nativeRules;
+            Battle expected;
+            CombatSetupChoiceSelector selector = new(masks);
+            using (CardSelectCmd.PushSelector(selector))
+            {
+                Task enter = RunManager.Instance.EnterMapCoord(native.Coord);
+                loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "遗物矩阵进点");
+                Task<CombatState> playable = waiter.WaitForPlayableCombatAsync();
+                loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "遗物矩阵可出牌");
+                CombatState combat = playable.GetAwaiter().GetResult();
+                combatPlayer = LocalContext.GetMe(combat)
+                    ?? throw new InvalidDataException("遗物矩阵找不到玩家。");
+                after = combat.RunState as NativeRunState
+                    ?? throw new InvalidDataException("遗物矩阵 RunState 类型不对。");
+                nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
+                LiveCombatTracker tracker = new(combat);
+                expected = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+                expectedRun = NativeRunDump.Capture(after, combatPlayer);
+            }
+            native.Dispose();
+            List<string> battleDiff = BattleDump.Diff(expected, actual.Battle, "native", "blitz");
+            byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
+            byte[] blitzRuleBytes = RulesCodec.Encode(actual.Rules);
+            string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
+                ? null
+                : string.Join(" | ", RulesDiff.Compare(nativeRules, actual.Rules).Take(4));
+            string? runDiff = FirstDifference(expectedRun, RunDump.Capture(actual.Run));
+            string? requestError = CompareRequests(requests, selector);
+            string status = battleDiff.Count == 0 && rulesDiff == null && runDiff == null
+                && requestError == null ? "same" : "diff";
+            Console.WriteLine(
+                $"SETUP kind=relic label={relicId} status={status} choices={masks.Length} " +
+                $"encounter={(baseline ? "baseline" : "relic")}");
+            if (battleDiff.Count != 0)
+            {
+                foreach (string line in battleDiff.Take(12))
+                    Console.WriteLine("  BATL " + line);
+            }
+            if (rulesDiff != null)
+                Console.WriteLine("  RULE " + rulesDiff);
+            if (runDiff != null)
+                Console.WriteLine("  RUN  " + runDiff);
+            if (signature)
+            {
+                // The relic table itself differs between the baseline and the injected case; zero it
+                // so the signature measures the opening effect rather than the relic's presence.
+                Battle signatureBattle = actual.Battle;
+                signatureBattle.Relics = default;
+                signatureBattle.RelicCount = 0;
+                string battleHash = Convert.ToHexString(
+                    SHA256.HashData(BattleCodec.Encode(signatureBattle)))[..16];
+                Console.WriteLine($"SETUP-SIG battle={battleHash}");
+                if (!baseline)
+                {
+                    RelicModel? target = combatPlayer.Relics.FirstOrDefault(
+                        relic => string.Equals(relic.Id.Entry, relicId, StringComparison.Ordinal));
+                    if (target != null)
+                    {
+                        Console.WriteLine(
+                            $"SETUP-RELQ id={relicId} status={(int)target.Status} " +
+                            $"display={target.DisplayAmount}");
+                    }
+                }
+            }
+            return 0;
+        }
+        finally
+        {
+            first?.Dispose();
+            RunManager.Instance.CleanUp(true);
+        }
+    }
+
+    private static NativeSetup PrepareRelicSetup(MainLoopContext loop, OfflineCombatWaiter waiter,
+        CharacterModel character, int ascension, string seed, string room, string hp, bool baseline,
+        string relicId, string? extra, string? card, string? forceEncounter = null,
+        string? enchant = null)
+    {
         Task<(NativeRunState Run, Player Player)> start = RunTestHost.StartNewRunAsync(
             waiter, character, ascension, seed);
         loop.RunUntilCompleted(start, TimeSpan.FromSeconds(120), "遗物矩阵开局");
         (NativeRunState native, Player player) = start.GetAwaiter().GetResult();
+        if (forceEncounter != null)
+        {
+            EncounterModel encounter = NativeLookup.ResolveUnique(ModelDb.AllEncounters,
+                forceEncounter, "遭遇");
+            ForceNextEncounter(native, encounter, native.CurrentActIndex);
+        }
         RoomType roomType = room switch
         {
             "monster" => RoomType.Monster,
@@ -379,66 +597,31 @@ internal static class CombatSetupCompare
             player.Creature.SetCurrentHpInternal(1);
         else if (hp != "full")
             throw new InvalidDataException($"未知玩家状态 {hp}。");
-        NativeRunState afterStart = native;
-        RunState before = RunStateImporter.Import(afterStart, player);
-        Task enter = RunManager.Instance.EnterMapCoord(point.coord);
-        loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "遗物矩阵进点");
-        Task<CombatState> playable = waiter.WaitForPlayableCombatAsync();
-        loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "遗物矩阵可出牌");
-        CombatState combat = playable.GetAwaiter().GetResult();
-        Player combatPlayer = LocalContext.GetMe(combat)
-            ?? throw new InvalidDataException("遗物矩阵找不到玩家。");
-        NativeRunState after = combat.RunState as NativeRunState
-            ?? throw new InvalidDataException("遗物矩阵 RunState 类型不对。");
-        Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
-        LiveCombatTracker tracker = new(combat);
-        Battle expected = tracker.ImportRoot(combat, combatPlayer, nativeRules);
-        string expectedRun = NativeRunDump.Capture(after, combatPlayer);
-        CombatSetupResult actual = RunCombatSetup.EnterMapCoord(before, _table!, coord);
-        List<string> battleDiff = BattleDump.Diff(expected, actual.Battle, "native", "blitz");
-        byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
-        byte[] blitzRuleBytes = RulesCodec.Encode(actual.Rules);
-        string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
-            ? null
-            : string.Join(" | ", RulesDiff.Compare(nativeRules, actual.Rules).Take(4));
-        string blitzRun = RunDump.Capture(actual.Run);
-        string? runDiff = FirstDifference(expectedRun, blitzRun);
-        string status = battleDiff.Count == 0 && rulesDiff == null && runDiff == null
-            ? "same" : "diff";
-        Console.WriteLine(
-            $"SETUP kind=relic label={relicId} status={status} encounter={(baseline ? "baseline" : "relic")}");
-        if (battleDiff.Count != 0)
+        if (card != null)
         {
-            foreach (string line in battleDiff.Take(12))
-                Console.WriteLine("  BATL " + line);
-        }
-        if (rulesDiff != null)
-            Console.WriteLine("  RULE " + rulesDiff);
-        if (runDiff != null)
-            Console.WriteLine("  RUN  " + runDiff);
-        if (signature)
-        {
-            // The relic table itself differs between the baseline and the injected case; zero it so
-            // the signature measures the opening effect rather than the relic's presence.
-            Battle signatureBattle = actual.Battle;
-            signatureBattle.Relics = default;
-            signatureBattle.RelicCount = 0;
-            string battleHash = Convert.ToHexString(
-                SHA256.HashData(BattleCodec.Encode(signatureBattle)))[..16];
-            Console.WriteLine($"SETUP-SIG battle={battleHash}");
-            if (!baseline)
+            InjectDeckCard(loop, native, player, card);
+            if (enchant != null)
             {
-                RelicModel? target = combatPlayer.Relics.FirstOrDefault(
-                    relic => string.Equals(relic.Id.Entry, relicId, StringComparison.Ordinal));
-                if (target != null)
-                {
-                    Console.WriteLine(
-                        $"SETUP-RELQ id={relicId} status={(int)target.Status} " +
-                        $"display={target.DisplayAmount}");
-                }
+                CardModel enchanted = CardPile.GetCards(player, PileType.Deck).Last();
+                EnchantmentModel enchantment = NativeLookup.ResolveUnique(
+                    ModelDb.DebugEnchantments, enchant, "附魔").ToMutable();
+                if (!enchantment.CanEnchant(enchanted))
+                    throw new InvalidDataException($"附魔 {enchant} 不能施加到 {card}。");
+                CardCmd.Enchant(enchantment, enchanted, 1);
             }
         }
-        return 0;
+        return new NativeSetup { Run = native, Player = player, Coord = point.coord };
+    }
+
+    private static void InjectDeckCard(MainLoopContext loop, NativeRunState run, Player player,
+        string cardId)
+    {
+        CardModel canonical = NativeLookup.ResolveUnique(ModelDb.AllCards, cardId, "卡牌");
+        CardModel card = run.CreateCard(canonical, player);
+        Task<CardPileAddResult> add = CardPileCmd.Add(card, PileType.Deck);
+        loop.RunUntilCompleted(add, TimeSpan.FromSeconds(120), $"注入牌组卡 {cardId}");
+        if (!add.GetAwaiter().GetResult().success)
+            throw new InvalidDataException($"游戏拒绝把 {cardId} 注入牌组。");
     }
 
     private static void ObtainRelic(MainLoopContext loop, Player player, string relicId)
@@ -490,11 +673,32 @@ internal static class CombatSetupCompare
     }
 
     private sealed record RelicCase(string Id, string Character, string Room, string Hp,
-        bool StatusOnly, string? Extra = null);
+        bool StatusOnly, string? Extra = null, bool Trigger = true, string? Card = null,
+        string? ForceEncounter = null, bool NewBatch = false);
 
-    private static int RunRelicMatrix(string data, string corpora, int jobs, int shard, int shards)
+    private static List<string> LoadSetupMatrixRelics(string data, string corpora)
     {
-        RelicCase[] cases =
+        (int code, string stdout, string stderr) = RunChildProcess(data, corpora,
+            ["--setup-matrix-list"]);
+        if (code != 0)
+            throw new InvalidDataException(
+                $"读取建局 Hook 名单失败（{code}）：{stderr.Split('\n').FirstOrDefault() ?? ""}");
+        List<string> ids = [];
+        foreach (string line in stdout.Split('\n'))
+        {
+            if (!line.StartsWith("SETUP-HOOK-RELIC id=", StringComparison.Ordinal))
+                continue;
+            string id = line["SETUP-HOOK-RELIC id=".Length..].Split(' ')[0];
+            if (id.Length != 0)
+                ids.Add(id);
+        }
+        return ids;
+    }
+
+    private static int RunRelicMatrix(string data, string corpora, int jobs, int shard, int shards,
+        int seeds)
+    {
+        RelicCase[] metadata =
         [
             new("ANCHOR", "Ironclad", "monster", "full", false),
             new("FAKE_ANCHOR", "Ironclad", "monster", "full", false),
@@ -532,7 +736,8 @@ internal static class CombatSetupCompare
             new("FUNERARY_MASK", "Ironclad", "monster", "full", false),
             new("FENCING_MANUAL", "Regent", "monster", "full", false),
             new("AKABEKO", "Ironclad", "monster", "full", false),
-            new("FESTIVE_POPPER", "Ironclad", "monster", "full", false),
+            new("FESTIVE_POPPER", "Ironclad", "monster", "full", false, null, true, null,
+                "NIBBITS_NORMAL"),
             new("CRACKED_CORE", "Defect", "monster", "full", false),
             new("RING_OF_THE_SNAKE", "Silent", "monster", "full", false),
             new("HAPPY_FLOWER", "Ironclad", "monster", "full", true),
@@ -546,16 +751,58 @@ internal static class CombatSetupCompare
             new("UNSETTLING_LAMP", "Ironclad", "monster", "full", true),
             new("VAMBRACE", "Ironclad", "monster", "full", true),
             new("MEAT_ON_THE_BONE", "Ironclad", "monster", "wounded", true),
+            new("TOOLBOX", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("GAMBLING_CHIP", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("TOASTY_MITTENS", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("CHOICES_PARADOX", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("DELICATE_FROND", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("VEXING_PUZZLEBOX", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("JEWELED_MASK", "Ironclad", "monster", "full", false, null, true, "INFLAME",
+                NewBatch: true),
+            new("BIG_HAT", "Necrobinder", "monster", "full", false, NewBatch: true),
+            new("ORANGE_DOUGH", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("TEA_OF_DISCOURTESY", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("ROYAL_POISON", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("FAKE_BLOOD_VIAL", "Ironclad", "monster", "wounded", false, NewBatch: true),
+            new("BOOMING_CONCH", "Ironclad", "elite", "full", false, NewBatch: true),
+            new("INFUSED_CORE", "Defect", "monster", "full", false, NewBatch: true),
+            new("MAW_BANK", "Ironclad", "monster", "full", false, NewBatch: true),
+            new("MYSTIC_LIGHTER", "Ironclad", "monster", "full", false, null, false, null,
+                NewBatch: true),
+            new("TINY_MAILBOX", "Ironclad", "monster", "full", false, null, false, null,
+                NewBatch: true),
+            new("PAELS_LEGION", "Ironclad", "monster", "full", false, null, false, null,
+                NewBatch: true),
         ];
-        if (shards > 1)
-            cases = cases.Where((_, index) => index % shards == shard).ToArray();
-        object gate = new();
-        int same = 0, diff = 0, triggered = 0;
-        List<string> missing = [];
-        Console.WriteLine($"SETUP-RELIC-MATRIX cases={cases.Length} jobs={jobs} shard={shard}/{shards}");
-        Parallel.ForEach(cases, new ParallelOptions { MaxDegreeOfParallelism = jobs }, item =>
+        Dictionary<string, RelicCase> byId = metadata.ToDictionary(static item => item.Id,
+            StringComparer.Ordinal);
+        List<RelicCase> cases = [.. metadata];
+        foreach (string id in LoadSetupMatrixRelics(data, corpora))
         {
-            string seed = $"R2A3-REL-{item.Id}";
+            if (byId.ContainsKey(id))
+                continue;
+            RelicCase auto = new(id, "Ironclad", "monster", "full", false, Trigger: false);
+            byId[id] = auto;
+            cases.Add(auto);
+        }
+        List<(RelicCase Case, int Seed)> runs = [];
+        foreach (RelicCase item in cases)
+        {
+            for (int seedIndex = 0; seedIndex < seeds; seedIndex++)
+                runs.Add((item, seedIndex));
+        }
+        if (shards > 1)
+            runs = runs.Where((_, index) => index % shards == shard).ToList();
+        object gate = new();
+        Dictionary<string, (int Runs, int Same, int Triggered, List<string> Errors)> aggregate =
+            new(StringComparer.Ordinal);
+        Console.WriteLine(
+            $"SETUP-RELIC-MATRIX cases={cases.Count} seeds={seeds} runs={runs.Count} " +
+            $"jobs={jobs} shard={shard}/{shards}");
+        Parallel.ForEach(runs, new ParallelOptions { MaxDegreeOfParallelism = jobs }, run =>
+        {
+            RelicCase item = run.Case;
+            string seed = $"R2A5-REL-{item.Id}-{run.Seed:D2}";
             string[] common =
             [
                 "--setup-character", item.Character, "--setup-ascension", "0",
@@ -564,6 +811,10 @@ internal static class CombatSetupCompare
             ];
             if (item.Extra != null)
                 common = [.. common, "--setup-extra", item.Extra];
+            if (item.Card != null)
+                common = [.. common, "--setup-card", item.Card];
+            if (item.ForceEncounter != null)
+                common = [.. common, "--setup-force-encounter", item.ForceEncounter];
             (int code, string stdout, string stderr) = RunChildProcess(data, corpora,
                 ["--setup-relic", item.Id, .. common]);
             (int baseCode, string baseOut, string baseErr) = RunChildProcess(data, corpora,
@@ -594,28 +845,51 @@ internal static class CombatSetupCompare
                         fire = !string.Equals(sigLine, baseSigLine, StringComparison.Ordinal);
                     }
                 }
+                aggregate.TryGetValue(item.Id, out var entry);
+                entry.Runs++;
                 if (ok)
-                    same++;
-                else
-                    diff++;
+                    entry.Same++;
                 if (fire)
-                    triggered++;
-                else
-                    missing.Add(item.Id);
-                Console.WriteLine(
-                    $"SETUP-RELQ relic={item.Id} character={item.Character} room={item.Room} " +
-                    $"hp={item.Hp} relic_status={relicStatus} baseline_status={baselineStatus} " +
-                    $"trigger={(fire ? "yes" : "no")} code={code}/{baseCode}");
+                    entry.Triggered++;
+                entry.Errors ??= [];
                 if (!ok)
                 {
                     string firstError = stderr.Split('\n').FirstOrDefault(static line => line.Length != 0)
                         ?? baseErr.Split('\n').FirstOrDefault(static line => line.Length != 0) ?? "";
-                    Console.WriteLine("  " + firstError);
+                    if (entry.Errors.Count < 4)
+                        entry.Errors.Add($"seed={run.Seed} status={relicStatus}/{baselineStatus} {firstError}");
                 }
+                aggregate[item.Id] = entry;
             }
         });
+        int same = 0, diff = 0, triggered = 0;
+        List<string> missing = [];
+        foreach (RelicCase item in cases)
+        {
+            if (!aggregate.TryGetValue(item.Id, out var entry))
+                continue;
+            bool ok = entry.Same == entry.Runs;
+            bool fire = item.Trigger && entry.Triggered != 0;
+            if (ok)
+                same++;
+            else
+                diff++;
+            if (item.Trigger)
+            {
+                if (fire)
+                    triggered++;
+                else
+                    missing.Add(item.Id);
+            }
+            Console.WriteLine(
+                $"SETUP-RELQ relic={item.Id} character={item.Character} room={item.Room} " +
+                $"hp={item.Hp} seeds={entry.Runs} same={entry.Same} " +
+                $"triggered={entry.Triggered} expected={(item.Trigger ? "yes" : "no")}");
+            foreach (string error in entry.Errors ?? [])
+                Console.WriteLine("  " + error);
+        }
         Console.WriteLine(
-            $"SETUP-RELIC-SUMMARY cases={cases.Length} same={same} diff={diff} " +
+            $"SETUP-RELIC-SUMMARY cases={cases.Count} seeds={seeds} same={same} diff={diff} " +
             $"triggered={triggered} missing={missing.Count}");
         foreach (string id in missing.OrderBy(static name => name, StringComparer.Ordinal))
             Console.WriteLine($"SETUP-RELQ-MISSING {id}");
@@ -654,6 +928,15 @@ internal static class CombatSetupCompare
             candidate => candidate.GetType().Name == characterName)
             ?? throw new InvalidDataException($"未知角色 {characterName}。");
         OfflineCombatWaiter waiter = new(loop);
+        NativeSetup first = PrepareNatural(loop, waiter, character, ascension, seed);
+        return CompareEntryWithChoices(loop, waiter,
+            () => PrepareNatural(loop, waiter, character, ascension, seed),
+            first, "natural", seed, null);
+    }
+
+    private static NativeSetup PrepareNatural(MainLoopContext loop, OfflineCombatWaiter waiter,
+        CharacterModel character, int ascension, string seed)
+    {
         Task<(NativeRunState Run, Player Player)> start = RunTestHost.StartNewRunAsync(
             waiter, character, ascension, seed);
         loop.RunUntilCompleted(start, TimeSpan.FromSeconds(120), "自然开局");
@@ -661,7 +944,7 @@ internal static class CombatSetupCompare
         MapPoint first = native.Map.StartingMapPoint.Children
             .FirstOrDefault(static point => point.PointType == MapPointType.Monster)
             ?? throw new InvalidDataException("第一排没有战斗点。");
-        return CompareEntry(loop, waiter, native, player, first.coord, "natural", seed, null);
+        return new NativeSetup { Run = native, Player = player, Coord = first.coord };
     }
 
     private static int CompareEncounter(MainLoopContext loop, int encounterId, int ascension, string seed)
@@ -678,27 +961,103 @@ internal static class CombatSetupCompare
         CharacterModel character = ModelDb.AllCharacters.First(
             candidate => candidate.GetType().Name == "Ironclad");
         OfflineCombatWaiter waiter = new(loop);
+        int actIndex = FindEncounterAct(loop, waiter, character, ascension, seed, canonical);
+        RunManager.Instance.CleanUp(true);
+        NativeSetup first = PrepareEncounter(loop, waiter, character, ascension, seed, canonical,
+            actIndex);
+        return CompareEntryWithChoices(loop, waiter,
+            () => PrepareEncounter(loop, waiter, character, ascension, seed, canonical, actIndex),
+            first, "encounter", nativeId, nativeId);
+    }
+
+    private static int FindEncounterAct(MainLoopContext loop, OfflineCombatWaiter waiter,
+        CharacterModel character, int ascension, string seed, EncounterModel canonical)
+    {
+        Task<(NativeRunState Run, Player Player)> start = RunTestHost.StartNewRunAsync(
+            waiter, character, ascension, seed);
+        loop.RunUntilCompleted(start, TimeSpan.FromSeconds(120), "遭遇开局");
+        (NativeRunState native, Player _) = start.GetAwaiter().GetResult();
+        for (int index = 0; index < native.Acts.Count; index++)
+        {
+            if (native.Acts[index].AllEncounters.Any(encounter => encounter.Id == canonical.Id))
+                return index;
+        }
+        return 0;
+    }
+
+    private static NativeSetup PrepareEncounter(MainLoopContext loop, OfflineCombatWaiter waiter,
+        CharacterModel character, int ascension, string seed, EncounterModel canonical, int actIndex)
+    {
         Task<(NativeRunState Run, Player Player)> start = RunTestHost.StartNewRunAsync(
             waiter, character, ascension, seed);
         loop.RunUntilCompleted(start, TimeSpan.FromSeconds(120), "遭遇开局");
         (NativeRunState native, Player player) = start.GetAwaiter().GetResult();
-        int actIndex = 0;
-        for (int index = 0; index < native.Acts.Count; index++)
-        {
-            if (native.Acts[index].AllEncounters.Any(encounter => encounter.Id == canonical.Id))
-            {
-                actIndex = index;
-                break;
-            }
-        }
         if (actIndex != 0)
         {
             Task setAct = RunManager.Instance.SetActInternal(actIndex);
             loop.RunUntilCompleted(setAct, TimeSpan.FromSeconds(120), "设置测试幕");
+            native = RunManager.Instance.State
+                ?? throw new InvalidDataException("设置测试幕后跑局状态丢失。");
+            player = LocalContext.GetMe(native)
+                ?? throw new InvalidDataException("设置测试幕后找不到本地玩家。");
         }
         ForceNextEncounter(native, canonical, actIndex);
         MapPoint point = FindPoint(native, canonical.RoomType);
-        return CompareEntry(loop, waiter, native, player, point.coord, "encounter", nativeId, nativeId);
+        return new NativeSetup { Run = native, Player = player, Coord = point.coord };
+    }
+
+    private static int PrintChoices(MainLoopContext loop, string data, string corpora, string root,
+        string seedOverride)
+    {
+        OfflineRequest request = Program.LoadRequest(data, corpora, root);
+        OfflineCombatWaiter waiter = new(loop);
+        D1Setup first = PrepareD1(loop, waiter, request, seedOverride, null, -1);
+        RunState before = RunStateImporter.Import(first.Setup.Run, first.Setup.Player);
+        RunCoord coord = new((byte)first.Setup.Coord.col, (byte)first.Setup.Coord.row);
+        List<CombatSetupSequence> sequences = CombatSetupChoices.Enumerate(before, _table!, coord,
+            root);
+        Console.WriteLine($"SETUP-CHOICES root={root} sequences={sequences.Count}");
+        for (int index = 0; index < sequences.Count; index++)
+        {
+            CombatSetupSequence sequence = sequences[index];
+            Console.WriteLine(
+                $"SETUP-CHOICE index={index} masks={string.Join(",", sequence.Masks)} " +
+                $"requests={DescribeChoices(sequence.Requests)} " +
+                $"hand={PileIds(sequence.Result.Battle, Pile.Hand)} " +
+                $"draw={PileIds(sequence.Result.Battle, Pile.Draw)} " +
+                $"exhaust={PileIds(sequence.Result.Battle, Pile.Exhaust)}");
+        }
+        first.Setup.Dispose();
+        return 0;
+    }
+
+    private static string DescribeChoices(IReadOnlyList<ChoiceRequest> requests)
+    {
+        List<string> parts = [];
+        foreach (ChoiceRequest request in requests)
+        {
+            string options = request.OptionsAreGenerated
+                ? string.Join("|", Enumerable.Range(0, request.OptionCount).Select(i =>
+                    Registry.Card(request.GeneratedOptions[i].Id).NativeId + "+" +
+                    request.GeneratedOptions[i].Upgrade))
+                : string.Join("|", Enumerable.Range(0, request.OptionCount).Select(i =>
+                    request.Options[i].ToString(CultureInfo.InvariantCulture)));
+            parts.Add(
+                $"{request.Kind}/{request.Effect}/{request.MinCount}..{request.MaxCount}:" +
+                $"{(request.OptionsAreGenerated ? "gen" : request.Source.ToString())}[{options}]");
+        }
+        return string.Join(" ; ", parts);
+    }
+
+    private static string PileIds(Battle battle, Pile pile)
+    {
+        int start = Piles.Start(battle, pile);
+        int count = Piles.Count(battle, pile);
+        return string.Join(",", Enumerable.Range(0, count).Select(index =>
+        {
+            Card card = battle.Cards[start + index];
+            return Registry.Card(card.Id).NativeId + "+" + card.Upgrade;
+        }));
     }
 
     private static int CompareD1(MainLoopContext loop, string data, string corpora, string root,
@@ -713,28 +1072,16 @@ internal static class CombatSetupCompare
             Console.WriteLine("  D1 请求给遗物注入了不进入 RunState 的整数字段。");
             return 0;
         }
-        GeneratedScenarioSetup setup = GeneratedScenarioSetup.Prepare(request);
-        OfflineRequest applied = setup.Request;
-        if (seedOverride.Length != 0)
-            applied = applied with { Seed = seedOverride };
         OfflineCombatWaiter waiter = new(loop);
-        Task<ScenarioBuilder.PreparedRun> prepare = ScenarioBuilder.PrepareRunAsync(
-            waiter, applied, preparedSetup: setup);
-        loop.RunUntilCompleted(prepare, TimeSpan.FromSeconds(120), "D1 建局");
-        using ScenarioBuilder.PreparedRun prepared = prepare.GetAwaiter().GetResult();
-        if (!RunCatalog.TryEncounter(prepared.Encounter.Id.Entry, out ushort encounterId))
-            throw new InvalidDataException($"D1 遭遇不在目录：{prepared.Encounter.Id.Entry}");
-        EncounterModel target = prepared.Encounter;
-        int actIndex = prepared.Run.CurrentActIndex;
-        ForceNextEncounter(prepared.Run, target, actIndex);
-        MapPoint point = FindPoint(prepared.Run, target.RoomType);
+        D1Setup first = PrepareD1(loop, waiter, request, seedOverride, null, -1);
         if (cover)
         {
-            RunState before = RunStateImporter.Import(prepared.Run, prepared.Player);
             try
             {
-                CombatSetupResult result = RunCombatSetup.EnterMapCoord(before, _table!,
-                    new RunCoord((byte)point.coord.col, (byte)point.coord.row));
+                RunState before = RunStateImporter.Import(first.Setup.Run, first.Setup.Player);
+                CombatSetupResult result = CombatSetupChoices.ResolveFirst(before, _table!,
+                    new RunCoord((byte)first.Setup.Coord.col, (byte)first.Setup.Coord.row),
+                    emptyGambling: true, out _, out _);
                 Console.WriteLine("SETUP-COVER relics=" + string.Join(",",
                     Enumerable.Range(0, before.Relics.Count)
                         .Select(index => Registry.Relic(before.Relics.Items[index].Id).NativeId))
@@ -745,68 +1092,161 @@ internal static class CombatSetupCompare
                         Enumerable.Range(0, result.Battle.CardCount)
                             .Where(index => result.Battle.Cards[index].EnchantmentId != 0)
                             .Select(index => Registry.Enchantment((ushort)(result.Battle.Cards[index].EnchantmentId - 1)).NativeId)));
+                first.Setup.Dispose();
                 return 0;
             }
             catch (ContentUnavailableException error)
             {
+                first.Setup.Dispose();
                 Console.WriteLine($"SETUP-COVER-REJECT reason={error.Reason}");
                 return 0;
             }
             catch (BlitzSolver.Simulation.Combat.UnsupportedException)
             {
+                first.Setup.Dispose();
                 Console.WriteLine("SETUP-COVER-REJECT reason=core-unsupported");
                 return 0;
             }
         }
-        return CompareEntry(loop, waiter, prepared.Run, prepared.Player, point.coord, "d1",
-            root + (seedOverride.Length == 0 ? "" : "#" + seedOverride), target.Id.Entry);
+        EncounterModel target = first.Target;
+        int actIndex = first.ActIndex;
+        return CompareEntryWithChoices(loop, waiter,
+            () => PrepareD1(loop, waiter, request, seedOverride, target, actIndex).Setup,
+            first.Setup, "d1", root + (seedOverride.Length == 0 ? "" : "#" + seedOverride),
+            target.Id.Entry);
     }
 
-    private static int CompareEntry(MainLoopContext loop, OfflineCombatWaiter waiter,
-        NativeRunState native, Player player, MapCoord mapCoord, string kind, string label,
+    private static D1Setup PrepareD1(MainLoopContext loop, OfflineCombatWaiter waiter,
+        OfflineRequest request, string seedOverride, EncounterModel? target, int actIndex)
+    {
+        GeneratedScenarioSetup setup = GeneratedScenarioSetup.Prepare(request);
+        OfflineRequest applied = setup.Request;
+        if (seedOverride.Length != 0)
+            applied = applied with { Seed = seedOverride };
+        Task<ScenarioBuilder.PreparedRun> prepare = ScenarioBuilder.PrepareRunAsync(
+            waiter, applied, preparedSetup: setup);
+        loop.RunUntilCompleted(prepare, TimeSpan.FromSeconds(120), "D1 建局");
+        ScenarioBuilder.PreparedRun prepared = prepare.GetAwaiter().GetResult();
+        if (!RunCatalog.TryEncounter(prepared.Encounter.Id.Entry, out _))
+            throw new InvalidDataException($"D1 遭遇不在目录：{prepared.Encounter.Id.Entry}");
+        target ??= prepared.Encounter;
+        int index = actIndex < 0 ? prepared.Run.CurrentActIndex : actIndex;
+        ForceNextEncounter(prepared.Run, target, index);
+        MapPoint point = FindPoint(prepared.Run, target.RoomType);
+        return new D1Setup
+        {
+            Setup = new NativeSetup
+            {
+                Run = prepared.Run,
+                Player = prepared.Player,
+                Coord = point.coord,
+                Scope = prepared,
+            },
+            Target = target,
+            ActIndex = index,
+        };
+    }
+
+    private static int CompareEntryWithChoices(MainLoopContext loop, OfflineCombatWaiter waiter,
+        Func<NativeSetup> prepare, NativeSetup first, string kind, string label,
         string? encounterName)
     {
-        RunCoord coord = new((byte)mapCoord.col, (byte)mapCoord.row);
+        NativeSetup? pending = first;
         try
         {
-            RunState before = RunStateImporter.Import(native, player);
-            Task enter = RunManager.Instance.EnterMapCoord(mapCoord);
-            loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "原生进点");
-            Task<CombatState> playable = waiter.WaitForPlayableCombatAsync();
-            loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "原生等待可出牌");
-            CombatState combat = playable.GetAwaiter().GetResult();
-            Player combatPlayer = LocalContext.GetMe(combat)
-                ?? throw new InvalidDataException("原生战斗找不到玩家。");
-            NativeRunState after = combat.RunState as NativeRunState
-                ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
-            Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
-            LiveCombatTracker tracker = new(combat);
-            Battle expected = tracker.ImportRoot(combat, combatPlayer, nativeRules);
-            string expectedRun = NativeRunDump.Capture(after, combatPlayer);
-
-            CombatSetupResult actual = RunCombatSetup.EnterMapCoord(before, _table!, coord);
-            List<string> battleDiff = BattleDump.Diff(expected, actual.Battle, "native", "blitz");
-            byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
-            byte[] blitzRuleBytes = RulesCodec.Encode(actual.Rules);
-            string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
-                ? null
-                : string.Join(" | ", RulesDiff.Compare(nativeRules, actual.Rules).Take(4));
-            string blitzRun = RunDump.Capture(actual.Run);
-            string? runDiff = FirstDifference(expectedRun, blitzRun);
-            if (battleDiff.Count == 0 && rulesDiff == null && runDiff == null)
+            RunState before = RunStateImporter.Import(first.Run, first.Player);
+            string beforeDump = RunDump.Capture(before);
+            RunCoord coord = new((byte)first.Coord.col, (byte)first.Coord.row);
+            List<CombatSetupSequence> sequences = CombatSetupChoices.Enumerate(before, _table!, coord,
+                label);
+            if (sequences.Count == 0)
             {
                 Console.WriteLine(
-                    $"SETUP kind={kind} label={label} status=same encounter={encounterName ?? "-"}");
+                    $"SETUP kind={kind} label={label} status=diff stage=no-sequences encounter={encounterName ?? "-"}");
                 return 0;
             }
+            int diffs = 0;
+            for (int index = 0; index < sequences.Count; index++)
+            {
+                CombatSetupSequence sequence = sequences[index];
+                NativeSetup current;
+                if (pending != null && sequences.Count == 1 && sequence.Requests.Length == 0)
+                {
+                    current = pending;
+                    pending = null;
+                }
+                else
+                {
+                    pending?.Dispose();
+                    pending = null;
+                    RunManager.Instance.CleanUp(true);
+                    current = prepare();
+                }
+                try
+                {
+                    RunState reimport = RunStateImporter.Import(current.Run, current.Player);
+                    string? preDiff = FirstDifference(beforeDump, RunDump.Capture(reimport));
+                    if (preDiff != null)
+                    {
+                        diffs++;
+                        Console.WriteLine(
+                            $"SETUP-SEQ label={label} index={index} status=diff stage=reprepare {preDiff}");
+                        continue;
+                    }
+                    CombatSetupChoiceSelector selector = new(sequence.Masks);
+                    using (CardSelectCmd.PushSelector(selector))
+                    {
+                        Task enter = RunManager.Instance.EnterMapCoord(current.Coord);
+                        loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "原生进点");
+                        Task<CombatState> playable = waiter.WaitForPlayableCombatAsync();
+                        loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "原生等待可出牌");
+                        CombatState combat = playable.GetAwaiter().GetResult();
+                        Player combatPlayer = LocalContext.GetMe(combat)
+                            ?? throw new InvalidDataException("原生战斗找不到玩家。");
+                        NativeRunState after = combat.RunState as NativeRunState
+                            ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
+                        Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
+                        LiveCombatTracker tracker = new(combat);
+                        Battle expected = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+                        string expectedRun = NativeRunDump.Capture(after, combatPlayer);
+                        CombatSetupResult actual = sequence.Result;
+                        List<string> battleDiff = BattleDump.Diff(expected, actual.Battle,
+                            "native", "blitz");
+                        byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
+                        byte[] blitzRuleBytes = RulesCodec.Encode(actual.Rules);
+                        string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
+                            ? null
+                            : string.Join(" | ", RulesDiff.Compare(nativeRules, actual.Rules).Take(4));
+                        string? runDiff = FirstDifference(expectedRun, RunDump.Capture(actual.Run));
+                        string? requestDiff = CompareRequests(sequence.Requests, selector);
+                        bool same = battleDiff.Count == 0 && rulesDiff == null && runDiff == null
+                            && requestDiff == null;
+                        if (!same)
+                        {
+                            diffs++;
+                            Console.WriteLine(
+                                $"SETUP-SEQ label={label} index={index} masks={string.Join(",", sequence.Masks)} " +
+                                $"status=diff battle={battleDiff.Count} rules={rulesDiff != null} " +
+                                $"run={runDiff != null} request={requestDiff ?? "-"}");
+                            foreach (string line in battleDiff.Take(12))
+                                Console.WriteLine("  BATL " + line);
+                            if (rulesDiff != null)
+                                Console.WriteLine("  RULE " + rulesDiff);
+                            if (runDiff != null)
+                                Console.WriteLine("  RUN  " + runDiff);
+                            if (requestDiff != null)
+                                Console.WriteLine("  REQ  " + requestDiff);
+                        }
+                    }
+                }
+                finally
+                {
+                    current.Dispose();
+                }
+            }
             Console.WriteLine(
-                $"SETUP kind={kind} label={label} status=diff battle={battleDiff.Count} rules={rulesDiff != null} run={runDiff != null} encounter={encounterName ?? "-"}");
-            foreach (string line in battleDiff.Take(12))
-                Console.WriteLine("  BATL " + line);
-            if (rulesDiff != null)
-                Console.WriteLine("  RULE " + rulesDiff);
-            if (runDiff != null)
-                Console.WriteLine("  RUN  " + runDiff);
+                $"SETUP kind={kind} label={label} status={(diffs == 0 ? "same" : "diff")} " +
+                $"sequences={sequences.Count} encounter={encounterName ?? "-"}");
             return 0;
         }
         catch (ContentUnavailableException error)
@@ -833,6 +1273,78 @@ internal static class CombatSetupCompare
             Console.WriteLine("  " + error.Message);
             return 0;
         }
+        finally
+        {
+            pending?.Dispose();
+        }
+    }
+
+    private static string? CompareRequests(IReadOnlyList<ChoiceRequest> requests,
+        CombatSetupChoiceSelector selector)
+    {
+        if (selector.Calls != requests.Count)
+            return $"native={selector.Calls} blitz={requests.Count}";
+        for (int index = 0; index < requests.Count; index++)
+        {
+            ChoiceRequest request = requests[index];
+            string? diff = CompareRequest(in request, selector.Records[index]);
+            if (diff != null)
+                return $"choice {index}: {diff}";
+        }
+        return null;
+    }
+
+    private static string? CompareRequest(in ChoiceRequest request, NativeSetupChoiceRecord native)
+    {
+        int count = native.CardIds.Length;
+        if (request.OptionCount != count)
+            return $"options native={count} blitz={request.OptionCount}";
+        if (request.MinCount != native.MinCount || request.MaxCount != native.MaxCount)
+        {
+            return $"bounds native={native.MinCount}..{native.MaxCount} " +
+                $"blitz={request.MinCount}..{request.MaxCount}";
+        }
+        if (request.OptionsAreGenerated != native.Generated)
+            return $"generated native={native.Generated} blitz={request.OptionsAreGenerated}";
+        if (native.Generated)
+        {
+            for (int index = 0; index < count; index++)
+            {
+                Card card = request.GeneratedOptions[index];
+                if (Registry.Card(card.Id).NativeId != native.CardIds[index]
+                    || card.Upgrade != native.Upgrades[index])
+                {
+                    return $"option {index} native={native.CardIds[index]}+{native.Upgrades[index]} " +
+                        $"blitz={Registry.Card(card.Id).NativeId}+{card.Upgrade}";
+                }
+            }
+        }
+        else
+        {
+            if (request.Source != Pile.Hand)
+                return $"source native=hand blitz={request.Source}";
+            for (int index = 0; index < count; index++)
+            {
+                if (request.Options[index] != index)
+                    return $"hand index {index} blitz={request.Options[index]}";
+            }
+        }
+        (ChoiceKind kind, ChoiceEffect effect) = ExpectedChoice(native);
+        if (request.Kind != kind)
+            return $"kind native={kind} blitz={request.Kind}";
+        if (request.Effect != effect)
+            return $"effect native={effect} blitz={request.Effect}";
+        return null;
+    }
+
+    private static (ChoiceKind Kind, ChoiceEffect Effect) ExpectedChoice(
+        NativeSetupChoiceRecord native)
+    {
+        if (native.Generated)
+            return (ChoiceKind.SelectOption, ChoiceEffect.GenerateToHand);
+        if (native.MinCount == 0)
+            return (ChoiceKind.SelectCards, ChoiceEffect.DiscardAndDraw);
+        return (ChoiceKind.SelectCards, ChoiceEffect.Exhaust);
     }
 
     private static void ForceNextEncounter(NativeRunState run, EncounterModel encounter, int actIndex)

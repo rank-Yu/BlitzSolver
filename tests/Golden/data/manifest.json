@@ -6,8 +6,8 @@
     "d2": "75217006903195bc94654680423bb9ca580ec48a",
     "d1Config": "66a43838d89e7a03b05c0f04d5e4941ff555baec",
     "formatMigration": "v1\u2192v2 \u53EA\u6539\u4E86\u6570\u636E\u683C\u5F0F\u91CC\u7684\u540D\u5B57\uFF08\u9B54\u6570\u3001\u7248\u672C\u3001\u5BB9\u91CF\u952E\u4E0E\u6839\u540D\uFF09\uFF0C\u5B57\u6BB5\u503C\u4E0D\u53D8\u3002",
-    "refreeze": "M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6",
-    "d1Rerecord": "roots=qf-nightmare-detached recaptureRoots=qf-nightmare-detached reason=M2d Nightmare power target: native PowerCmd.Apply leaves Power.Target null, import maps it to NoOwner (255); the frozen root was replayed by the pre-M2d kernel with Target=PlayerOwner (0) sha256=c027cf28a86fe36129c4109d7fc66013188b72a3f7be93d1a55962bb4b1f3c3f"
+    "refreeze": "M3b current-code results sha256=cb997d98483ed02142457abf2a15d0836fc540d411335efa5680fb657052456a",
+    "d1Rerecord": "roots=qf2-gradient-failure,ts-a-toasty reason=R2a-5 no-pause turn-start choices sha256=08600f3c873ed53d2966d3d3f6239cc9b1fa82c0f8bec736880fa41ef221c1d3"
   },
   "compression": "brotli",
   "counts": {
@@ -15,8 +15,8 @@
       "roots": 418,
       "k1": 5062,
       "walks": 15296,
-      "walkStates": 482227,
-      "transitions": 469352,
+      "walkStates": 482209,
+      "transitions": 469334,
       "files": 410
     },
     "d2": {
@@ -29,7 +29,7 @@
       "timeAffected": 0
     }
   },
-  "totalBytes": 23692422,
+  "totalBytes": 23691211,
   "targetBytes": 52428800,
   "files": [
     {
@@ -3684,8 +3684,8 @@
     },
     {
       "path": "d1/qf-turn-start-choice-forge/golden.br",
-      "bytes": 39664,
-      "sha256": "9d04ac8d99a9ee8382392f17f724de97d8c5eb6de23e2e320380f58d2bf831d8"
+      "bytes": 39007,
+      "sha256": "74f362c5d0466e923a4161415e1db1b8b9f8963d804f49aaacaa03e65502224d"
     },
     {
       "path": "d1/qf-turn-start-choice-forge/meta.json",
@@ -3699,8 +3699,8 @@
     },
     {
       "path": "d1/qf2-gradient-failure/golden.br",
-      "bytes": 44022,
-      "sha256": "8ce193ade7b5510b141f9e598163237c0abc0dcb337ddb41118956c56bf2b77c"
+      "bytes": 43967,
+      "sha256": "2bb85cce0d23e9297a1b83582302177667b72e0c57088b7061c32a371737dee5"
     },
     {
       "path": "d1/qf2-gradient-failure/meta.json",
@@ -5049,13 +5049,13 @@
     },
     {
       "path": "d1/quality-REGENT-001/golden.br",
-      "bytes": 37866,
-      "sha256": "c8259a9f68c73895717a7a7bf9d300da9b86768068e16073f77ac7a272554abc"
+      "bytes": 37433,
+      "sha256": "7617383cfaf541a89246aa50e9233fd26ecaae7617a45bfeddb0512f22921471"
     },
     {
       "path": "d1/quality-REGENT-001/meta.json",
       "bytes": 499,
-      "sha256": "77d2300dc050b084cd9d47141542c36e97528eb6fb8f61ca6da2cfa8fb770ad5"
+      "sha256": "087e0143524d3454bb31582fa93af7d2466bad853f177c96d9b1b1dc13b2e1c3"
     },
     {
       "path": "d1/quality-REGENT-002/config.br",
@@ -6099,8 +6099,8 @@
     },
     {
       "path": "d1/ts-a-toasty/golden.br",
-      "bytes": 46357,
-      "sha256": "bd4c121bcd93ce93014b7951e7842269fea1a4ccad9beb414600e91bc1408e90"
+      "bytes": 46289,
+      "sha256": "dbe9b5dba56eb2213105f059b4fc649e1d8b4f0e2b6468d62ccfe3fdf0b30ec6"
     },
     {
       "path": "d1/ts-a-toasty/meta.json",
@@ -6439,8 +6439,8 @@
     },
     {
       "path": "d2/expected/06d36716e4616f07569bf78bb86b6f92947c793d7a81d6b41353b177279cca1a.result.br",
-      "bytes": 108,
-      "sha256": "9b08b06d9981ee5f728cd314546caf94fa1cc2053cc016661a4506023269537f"
+      "bytes": 109,
+      "sha256": "3dc0bf3f92b04f2f328d42a046b965f977f2971f362e63fd3885c307faaf8ca1"
     },
     {
       "path": "d2/expected/06eb36d5df44d964a77a7a9d10b45648f3ba8eb20ffecbaee9aae9e35a895de9.result.br",
@@ -10985,7 +10985,7 @@
     {
       "path": "d2/expected/7c4b346b57fa513786bad4d13b546467ee88b81d8de7bbc5c158b498b6745872.result.br",
       "bytes": 98,
-      "sha256": "aa977d57c91fffdfb0ca05f16b534f51ee1f09ae4bb65dbd48a38cf4a534b871"
+      "sha256": "0ad10042bc795aa6d5882dffd6b5049bf0c3f693a425b0cdff124a4dccd128b9"
     },
     {
       "path": "d2/expected/7c6f89110df329c1c9a7f835df766dd5f54084262e05d11e938b2e01f8cb9aea.result.br",
@@ -12474,8 +12474,8 @@
     },
     {
       "path": "d2/expected/a198281c8cce417a072694083db4aac62d639feb00da4534b12b8360041fc7cf.result.br",
-      "bytes": 103,
-      "sha256": "75a1e4bc880cdc123abe3f9bb27f92d28fcaa41fac576fbbf40b19f664a966ef"
+      "bytes": 104,
+      "sha256": "e70b50264877cc6103e4cf372e1fc873645eeb602ef8c1db4cb95551df5eed8b"
     },
     {
       "path": "d2/expected/a19ff9c3742ab57faf25b838cefab18a89a65a540cc5d5d3b0842c9299c01136.result.br",

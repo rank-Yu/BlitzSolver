@@ -213,7 +213,7 @@ public sealed class PrismaticGem : RelicDef
 }
 
 /// <summary>
-/// <c>Sozu</c>: <c>ModifyMaxEnergy</c> adds Energy; the potion-procurement refusal is out of combat.
+/// <c>Sozu</c>: <c>ModifyMaxEnergy</c> adds Energy and <c>ShouldProcurePotion</c> refuses every potion.
 /// </summary>
 [ContentId("SOZU")]
 public sealed class Sozu : RelicDef
@@ -223,6 +223,9 @@ public sealed class Sozu : RelicDef
 
     public override decimal ModifyMaxEnergy(ref Exec x, Listener self, decimal amount)
         => amount + x.R.RelicVar(Id, 0);
+
+    public override bool ShouldProcurePotion(in Battle battle, ushort relicId, ushort potionId)
+        => false;
 }
 
 /// <summary>
@@ -306,8 +309,16 @@ public sealed class ChoicesParadox : RelicDef
             return;
         for (int index = 0; index < sampled; index++)
             options[index].Keywords |= Keywords.Retain;
-        if (!Kernel.ChooseOption(ref x, ChoiceEffect.GenerateToHand, options[..sampled], out int selected))
-            return;
+        int selected = 0;
+        if (sampled > 1)
+        {
+            // CardSelectCmd.FromSimpleGrid auto-selects when cards.Count <= MinSelect.
+            if (!Kernel.ChooseOption(ref x, ChoiceEffect.GenerateToHand, options[..sampled],
+                    out selected))
+            {
+                return;
+            }
+        }
         Kernel.AddGeneratedCard(ref x, options[selected], Pile.Hand, PilePosition.Bottom);
     }
 }
@@ -459,6 +470,14 @@ public sealed class PaelsLegion : RelicDef
 
     public override IReadOnlyList<string> VarNames => ["Turns"];
 
+    public override void BeforeCombatStart(ref Exec x, Listener self)
+    {
+        // Native BeforeCombatStart summons the PaelsLegion pet (PlayerCmd.AddPet). The pet has
+        // 9999 HP and only a no-op move, so Blitz does not model a creature row, but native
+        // CreateCreature consumes one CombatId and later summons must continue from it.
+        x.B.NextCombatId++;
+    }
+
     public override decimal ModifyBlockMultiplicative(ref Exec x, Listener self, in BlockContext block,
         decimal amount)
     {
@@ -546,21 +565,30 @@ public sealed class ToastyMittens : RelicDef
     {
         if (x.B.HandCount > 0)
         {
-            Span<int> options = stackalloc int[x.B.HandCount];
-            for (int index = 0; index < options.Length; index++)
-                options[index] = index;
-            Span<int> selected = stackalloc int[1];
-            if (!Kernel.ChooseCards(ref x, ChoiceEffect.Exhaust, Pile.Hand, options, 1, selected,
-                    out int chosen))
+            if (x.B.HandCount == 1)
             {
-                return;
+                // CardSelectCmd.FromHand auto-selects when the hand has at most MinSelect cards
+                // (RequireManualConfirmation is false for the 1-of-1 prompt).
+                Span<int> only = stackalloc int[1];
+                Kernel.ExhaustSelected(ref x, Pile.Hand, only);
+                if (x.NeedsChoice)
+                    return;
             }
-            Kernel.StartPlayerSideTurnIfNeeded(ref x);
-            if (x.NeedsChoice)
-                return;
-            Kernel.ExhaustSelected(ref x, Pile.Hand, selected[..chosen]);
-            if (x.NeedsChoice)
-                return;
+            else
+            {
+                Span<int> options = stackalloc int[x.B.HandCount];
+                for (int index = 0; index < options.Length; index++)
+                    options[index] = index;
+                Span<int> selected = stackalloc int[1];
+                if (!Kernel.ChooseCards(ref x, ChoiceEffect.Exhaust, Pile.Hand, options, 1,
+                        selected, out int chosen))
+                {
+                    return;
+                }
+                Kernel.ExhaustSelected(ref x, Pile.Hand, selected[..chosen]);
+                if (x.NeedsChoice)
+                    return;
+            }
         }
         Kernel.ApplyPower(ref x, Limits.PlayerOwner,
             Registry.PowerId<Powers.StrengthPower>(), (int)x.R.RelicVar(Id, 0), Limits.PlayerOwner);
@@ -626,6 +654,27 @@ public sealed class WhisperingEarring : RelicDef
 [ContentId("DELICATE_FROND")]
 public sealed class DelicateFrond : RelicDef
 {
+    public override bool SetupOnlyOutOfCombatPotionPool => true;
+
+    public override void BeforeCombatStart(ref Exec x, Listener self)
+    {
+        while (HasOpenPotionSlot(in x.B))
+        {
+            ushort potion = Kernel.GenerateRandomPotionOutOfCombat(ref x.B, x.R);
+            if (!Kernel.TryProcurePotion(ref x.B, potion))
+                return;
+        }
+    }
+
+    private static bool HasOpenPotionSlot(in Battle battle)
+    {
+        for (int slot = 0; slot < battle.PotionSlotCount; slot++)
+        {
+            if (battle.Potions[slot] == 0)
+                return true;
+        }
+        return false;
+    }
 }
 
 /// <summary>
@@ -635,6 +684,15 @@ public sealed class DelicateFrond : RelicDef
 [ContentId("DIAMOND_DIADEM")]
 public sealed class DiamondDiadem : RelicDef
 {
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
+    {
+        if (side != Side.Player || x.B.PlayerTurn > 1)
+            return;
+        Kernel.GainBlock(ref x, Limits.PlayerOwner, StartVars.Int(ref x, self, "Block"),
+            ValueProps.Unpowered, fromCard: false);
+        Kernel.ApplyPower(ref x, Limits.PlayerOwner,
+            Registry.PowerId<Powers.BlurPower>(), 1, Limits.PlayerOwner);
+    }
 }
 
 /// <summary>
@@ -645,6 +703,20 @@ public sealed class DiamondDiadem : RelicDef
 public sealed class RadiantPearl : RelicDef
 {
     public override IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [("LUMINESCE", 0), ("LUMINESCE", 1)];
+
+    public override void BeforeHandDraw(ref Exec x, Listener self)
+    {
+        if (x.B.PlayerTurn != 1)
+            return;
+        int count = StartVars.Int(ref x, self, "Cards");
+        for (int index = 0; index < count; index++)
+        {
+            Card card = Kernel.CreateCard(x.R, Registry.CardId<Cards.Colorless.Luminesce>());
+            Kernel.AddGeneratedCard(ref x, card, Pile.Hand, PilePosition.Bottom);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
 }
 
 // --- rewards, shops, rest sites, map and pickup effects --------------------------------
@@ -780,6 +852,67 @@ public sealed class RadiantPearl : RelicDef
 
 [ContentId("YUMMY_COOKIE")] public sealed class YummyCookie : RelicDef; // AfterObtained
 
-[ContentId("BOOMING_CONCH")] public sealed class BoomingConch : RelicDef; // turn 1 elite draw / energy
+/// <summary>
+/// <c>BoomingConch</c>: on turn 1 in an elite room, add its <c>Cards</c> to the hand draw and gain its
+/// <c>Energy</c> at the player side turn start. The room type is carried by the opening
+/// <see cref="Exec"/>; later turns and rooms leave the base draw alone.
+/// </summary>
+[ContentId("BOOMING_CONCH")]
+public sealed class BoomingConch : RelicDef
+{
+    public override decimal ModifyHandDraw(ref Exec x, Listener self, decimal amount)
+    {
+        if (!x.CombatStart || x.B.PlayerTurn > 1 || !x.FirstRoomIsElite)
+            return amount;
+        return amount + StartVars.Int(ref x, self, "Cards");
+    }
 
-[ContentId("JEWELED_MASK")] public sealed class JeweledMask : RelicDef; // turn 1 BeforeHandDraw
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
+    {
+        if (side != Side.Player || !x.CombatStart || x.B.PlayerTurn > 1 || !x.FirstRoomIsElite)
+            return;
+        Kernel.GainEnergy(ref x, StartVars.Int(ref x, self, "Energy"));
+    }
+}
+
+/// <summary>
+/// <c>JeweledMask</c>: on turn 1, before the hand draw, move one random Power card from the draw pile
+/// to the hand, preferring Power cards without Innate, and make it free this turn.
+/// </summary>
+[ContentId("JEWELED_MASK")]
+public sealed class JeweledMask : RelicDef
+{
+    public override void BeforeHandDraw(ref Exec x, Listener self)
+    {
+        if (x.B.PlayerTurn > 1)
+            return;
+        int drawStart = Piles.Start(x.B, Pile.Draw);
+        int drawCount = x.B.DrawCount;
+        if (drawCount == 0)
+            return;
+        Span<int> candidates = stackalloc int[drawCount];
+        int count = 0;
+        for (int index = 0; index < drawCount; index++)
+        {
+            ref readonly Card card = ref x.B.Cards[drawStart + index];
+            if (x.R.Card(card.Id, card.Upgrade).Type == CardType.Power)
+                candidates[count++] = index;
+        }
+        if (count == 0)
+            return;
+        int preferred = 0;
+        for (int index = 0; index < count; index++)
+        {
+            ref readonly Card card = ref x.B.Cards[drawStart + candidates[index]];
+            if ((card.Keywords & Keywords.Innate) == 0)
+                candidates[preferred++] = candidates[index];
+        }
+        if (preferred > 0)
+            count = preferred;
+        int pick = x.B.RngStream(RngStream.CombatCardSelection).NextInt(0, count);
+        int position = candidates[pick];
+        ref Card selected = ref x.B.Cards[drawStart + position];
+        Kernel.MakeFreeThisTurn(x.R, ref selected);
+        Kernel.MoveCard(ref x.B, Pile.Draw, position, Pile.Hand, PilePosition.Bottom);
+    }
+}

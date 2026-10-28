@@ -629,8 +629,8 @@ public static partial class Kernel
         if (x.NeedsChoice)
             return;
 
-        // ContinuePlayerStart. A turn-start choice taken before the side starts starts it on the take
-        // (TurnStartChoiceCursor.BeforeNextTake); the choice hooks call StartPlayerSideTurnIfNeeded.
+        // ContinuePlayerStart. The full AfterPlayerTurnStart pass runs to completion (including any
+        // turn-start choice); the automatic-selector order starts the player side exactly here.
         x.TakingExtraTurn = takingExtraTurn;
         int beforeHandShuffles = x.B.ShuffleEventCount;
         x.B.Phase = PlayerPhase.Start;

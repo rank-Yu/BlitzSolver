@@ -813,6 +813,9 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 4 --setup-shard 1 2
 
+# 开战选择：只打印 Blitz 请求树（不跑原版）
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --combat-setup-compare --setup-root pr-c-relics --setup-choices
+
 # D1 的 410 个输入 × 4 种子 = 1640；分片
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 4 --setup-shard 0 2
@@ -826,6 +829,11 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 # 内容表（含逐（怪物、槽位、进阶）的原版 AfterAddedToRoom 记录）
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
 ```
+
+原版侧的选择器用 `CardSelectCmd.PushSelector`（不带 `localOnly`），和 Mod
+`ActionDeployer` 的 `PlannedNativeSelector.Activate` 一样走全局选择器、不暂停；`ScenarioBuilder`
+给 Golden 回合准备 fixture 的 `localOnly` 选择器保持不变，`--import-compare`/`--config-compare`
+仍 410/410。
 
 每个用例在独立子进程里跑两条路径：原版 `RunManager.EnterMapCoord` 到可出牌，导入 `Battle`、
 编译 `Rules`、转储进点后 `RunState`；Blitz 侧导入同一进点前 `RunState`，调用
@@ -873,6 +881,9 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
   --combat-writeback-compare --writeback-kind pilot --writeback-root quality-IRONCLAD-001
 ```
 
+原版侧的开战和战斗内选择器同样用全局 `PushSelector`（不带 `localOnly`），和 Mod 部署一致；
+手动界面的暂停顺序只作为已知差异记录，不用于对照。
+
 每个用例在独立子进程里：原版 `EnterMapCoord` 到可出牌，Core `RunCombatSetup.EnterMapCoord`
 建同一开局；随机策略在 Blitz 侧每步选一个合法动作（种子固定），先由 `Kernel.Step` 得到
 预测和完整选择集，再交给 `NativeActionExecutor` 用原版公开入口执行，逐动作导入 `Battle` 与
@@ -886,22 +897,25 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `.local/tool-tasks/blitz/R2a3-report.md`，R2a-4 的修复与新旧对比见
 `.local/tool-tasks/blitz/R2a4-report.md`。
 
-2026-10 R2a-4 结果（比较使用 `src/Import/Combat/BattleReconciler.cs`，与 Mod 完全相同的
+2026-10-27 R2a-5 第 1 轮结果（第 2 轮改为所有回合不暂停后没有重跑；写回对照将在 R3-0 删除。比较使用 `src/Import/Combat/BattleReconciler.cs`，与 Mod 完全相同的
 `Same`/`Diff`）：自然 500 根 `same=500 diff=0 reject=0`；遭遇 890 根 `same=880 diff=0
-reject=10`（全部是 `THE_ARCHITECT_EVENT_ENCOUNTER` 的 `event-script-end`：原版事件脚本在
-玩家行动前结束房间，没有可执行战斗终点）；D1 410 根 `same=373 diff=0 reject=37`（拒绝为
-`unsupported-relic=32`、`unsupported-relic-state=5`）；低档 120 根 `same=101 diff=0
-reject=19`（拒绝为 `unsupported-relic=19`）。四类动作边界与写回终点差异均为 0；R2a-3 的
-36 个动作差异、16 个写回差异全部消失。Golden D1 因此有 8 个根的 K1/walk 子哈希变化
-（LavaLamp 计数、Kusarigama pending-loss 重置、逃跑墓碑、偷牌归还的 detached 值），尚未
-重录/重冻，逐根清单见 R2a-4 报告；D2 1983 个请求仍全部相同。
+reject=10`（全部是 `THE_ARCHITECT_EVENT_ENCOUNTER` 的 `event-script-end`）；D1 410 根
+`same=404 diff=0 reject=6`（`setup-hook-listener=1`：`WHISPERING_EARRING` 的
+`AfterAutoPrePlayPhaseEnteredLate` 未实现；`unsupported-relic-state=5`）；低档 120 根
+`same=119 diff=1 reject=0`（`quality-DEFECT-023` 的 pilot 终局敌人回合路线差异，
+`LAVA_LAMP.TookDamageThisCombat` native=false、Blitz=true；同一根的普通写回是 same）。
+动作边界差异 0。
 
 ### 6.14 遗物开战矩阵（R2a-3）
 
 ```bash
-# 50 个有开战/首回合效果的遗物，每个按触发条件选择房间与玩家 HP
+# 从建局 Hook 掩码自动生成：126 个 Implemented 遗物
+# 126 个 Implemented 遗物各 20 种子（无效果的也跑）
 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-setup-compare --setup-relic-matrix --setup-jobs 4
+  --combat-setup-compare --setup-relic-matrix --setup-matrix-seeds 20 --setup-jobs 8
+# 只打印名单与计数
+dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  --combat-setup-compare --setup-matrix-list
 ```
 
 每个遗物先清空起始遗物，再按条件注入原生整局；同时跑一个不注入目标遗物的基线，比较两条
@@ -911,8 +925,19 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 覆盖 Anchor、FakeAnchor、Pantograph、RedSkull、SlingOfCourage、BeltBuckle、SneckoEye/Osty、
 BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、FurCoat、GhostSeed、
 StoneCracker、Bellows、PetrifiedToad、FuneraryMask、FencingManual、Akabeko、FestivePopper、
-CrackedCore、RingOfTheSnake，以及首回合状态遗物与 MeatOnTheBone。2026-10 结果：
-`cases=50 same=50 diff=0 triggered=50 missing=0`。矩阵发现并修正了 SwordOfJade 的 Applier、
+CrackedCore、RingOfTheSnake，首回合状态遗物与 MeatOnTheBone，以及本批的 Toolbox、
+GamblingChip、ToastyMittens、ChoicesParadox、DelicateFrond、VexingPuzzlebox、JeweledMask、
+BigHat、OrangeDough、TeaOfDiscourtesy、RoyalPoison、FakeBloodVial、BoomingConch、
+InfusedCore、MawBank、MysticLighter、TinyMailbox、PaelsLegion。2026-10 结果：
+`cases=126 seeds=20 runs=2520 diff=0 missing=0`（8 片各 `diff=0`；126 个 Implemented 遗物
+各 20 种子，无效果的也跑；MysticLighter/TinyMailbox 为预期不触发，PaelsLegion 的
+`NextCombatId` 账本会改变签名）。8 张 Implemented 卡（BANSHEES_CRY、FLATTEN、
+KINGLY_KICK、KINGLY_PUNCH、PINPOINT、ROCKET_PUNCH、STOMP、VOID）用
+`--setup-card` 各 20 种子，2 个附魔（PERFECT_FIT、SLITHER）用
+`--setup-card STRIKE_IRONCLAD --setup-enchant <id>` 各 20 种子，全部 same。Power 掩码
+当前 50 个 fully implemented + 2 个部分不支持；建局可达的 Plating/Galvanic/Rampart/
+Slow/VitalSpark/Focus 等由遗物矩阵/D1 覆盖，其余是出牌/抽牌后才有来源的 Power。
+矩阵发现并修正了 SwordOfJade 的 Applier、
 RedSkull 的 `StrengthApplied` 计数和 Pantograph/BloodVial 的战后 HP/`RecoveredHp`。
 
 ### 6.15 新局生成与地图对照（R2b-1）
@@ -1048,8 +1073,8 @@ R2b-2 地图选点、战斗、写回、奖励串起来，战斗改用 pilot。`t
   投影记录值；名单外 0 次。只有“名单内 **且** 实际不一致”才覆盖；名单外不一致会打印
   `REWARD-DISPLAY-MISMATCH` 并记 diff（本轮没有出现）。`Status` 写回，`KUSARIGAMA` 的
   Active/Normal 差异由此消失。
-- `--combat-writeback-compare` 四类基线全部保持：自然 500/500、遭遇 880/0/10、D1 373/0/37、
-  低档 pilot 101/0/19。
+- `--combat-writeback-compare` 四类：自然 500/500、遭遇 880/0/10、D1 404/0/6、低档 pilot
+  119/1/0（唯一 diff 的原因见 6.13）。
 - 全量拒绝都有稳定原因码，0 子进程崩溃、0 `CapacityException`。
 
 ### 6.18 商店对照（R2c-2）
@@ -1081,7 +1106,9 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
 ```
 
 自然局走上地图找可达的商店点；D1 用 `ScenarioBuilder.PrepareRunAsync` 建出牌组/遗物后把起点改成
-商店点。两边同时把金币设为同一值（自然 500、D1 2000）。恢复进店前快照后重新进入，比较：
+商店点。两边同时把金币设为同一值（自然 500、D1 2000）。选购买序列时被 `WouldAccept`
+跳过的 Blitz 显式不支持条目按原因计数：`SHOP-CASE` 行有 `skips=`，汇总行有
+`SHOP-SUMMARY ... skips=`，并按原因输出 `SHOP-SKIP reason=... count=...`。恢复进店前快照后重新进入，比较：
 
 - 进店后的 `RunState`（`NativeRunDump` 独立读原版，`RunDump` 读 Core）与导入器二次读取；
 - 商店请求的每个选项（条目下标、模型、卡牌升级/附魔、价格）与 `RunView.Shop`（打折/删牌价）；
@@ -1117,13 +1144,17 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
   `ModifyMerchantCardCreationResults`、`BING_BONG` 的 `AfterCardChangedPiles`、`LORDS_PARASOL`
   的 `AfterRoomEntered`（商店位 `AfterShopRoomEntered`）、`unsupported-relic-state` 5、`free-travel-hook` 1（`WingedBoots`，
   在 R2b-2 的地图选点边界就拒绝）。
-- 自然 13 个 `skip` 是 12 步内没有可达商店点，不是拒绝。
+- 自然 13 个 `skip` 是 12 步内没有可达商店点，不是拒绝。R2a-5 的 F 尾统计：natural
+  200 个用例 `same=187 skip=13`，`skips=900`（`relic-obtain-effect=785`、
+  `reward-hook-listener=115`）；D1 410 个用例 `same=401 reject=9`，`skips=1894`
+  （`relic-obtain-effect=1643`、`reward-hook-listener=251`）。
 - 自然覆盖 5 角色 × A0/A10 × empty/all；D1 覆盖 410 个根的牌组/遗物组合，价格改价
   （MembershipCard/TheCourier）与补货（TheCourier）在 D1/自然中实际命中。
 - 对照工具不做规范化：`shop.character.N`/`shop.relic.N`/`shop.potion.N`/`shop.removal` 逐字段
   比较；从快照恢复丢掉的非保存字段按 R2b-2 的同一记录值写回；反射找 `_cost` 失败直接抛异常。
 
-`run-pilot` 已接上商店：进店后比较货架/选项，再走 `LeaveShop` 继续地图。40/40 相同，平均
+R2a-5 复跑：`--reward-kind natural --reward-seeds 10` 为 200/200 相同、0 拒绝；
+`run-pilot` 40/40 相同。`run-pilot` 已接上商店：进店后比较货架/选项，再走 `LeaveShop` 继续地图，平均
 3.725 个地图点、3.375 场战斗、9.275 个奖励动作；停在 `event-allowed-check` 25、
 `RestSite` 7、`Event` 5、`combat-defeat` 2、`Treasure` 1。
 

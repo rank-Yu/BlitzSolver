@@ -435,6 +435,10 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
 `golden.br` 的根顺序（其 `Choices` 与之一致）把独立重建出的根逐一对齐；只借用 GOLD 的顺序
 做请求根列表排序，根内容仍由原生重建。三个 fixture 的普通根同时是上述准备根之一（GOLD 下标 1/0/1）。
 
+R2a-5 的建局开战选择不改变这个导入合同：Core 侧用 `ChoiceRequest` 位掩码从进点前
+`RunState` 重放，原版侧对照工具按完整序列各自重新进点；3 个回合准备 fixture 仍按原生准备页
+的每个选项重建整场战斗，用于冻结的导入/配置对照。
+
 ## 7. 当前结果与限制
 
 `--all --jobs 8 --rules-compare` 当前：

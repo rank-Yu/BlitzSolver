@@ -596,19 +596,29 @@ internal static class RewardCompare
         try
         {
             RunState before = RunStateImporter.Import(native, player);
-            Task enter = RunManager.Instance.EnterMapCoord(mapCoord);
-            _loop!.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "原生进点");
-            Task<CombatState> playable = _waiter!.WaitForPlayableCombatAsync();
-            _loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "等待可出牌");
-            CombatState combat = playable.GetAwaiter().GetResult();
-            Player combatPlayer = LocalContext.GetMe(combat)
-                ?? throw new InvalidDataException("原生战斗找不到玩家。");
-            NativeRunState after = combat.RunState as NativeRunState
-                ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
-            Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
-            LiveCombatTracker tracker = new(combat);
-            Battle opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
-            CombatSetupResult setup = RunCombatSetup.EnterMapCoord(before, _table!, coord);
+            CombatSetupResult setup = CombatSetupChoices.ResolveFirst(before, _table!, coord,
+                emptyGambling: true, out _, out _);
+            CombatState combat;
+            Player combatPlayer;
+            NativeRunState after;
+            Rules nativeRules;
+            Battle opening;
+            LiveCombatTracker tracker;
+            using (CardSelectCmd.PushSelector(new FirstChoiceCombatSetupSelector()))
+            {
+                Task enter = RunManager.Instance.EnterMapCoord(mapCoord);
+                _loop!.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "原生进点");
+                Task<CombatState> playable = _waiter!.WaitForPlayableCombatAsync();
+                _loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "等待可出牌");
+                combat = playable.GetAwaiter().GetResult();
+                combatPlayer = LocalContext.GetMe(combat)
+                    ?? throw new InvalidDataException("原生战斗找不到玩家。");
+                after = combat.RunState as NativeRunState
+                    ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
+                nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
+                tracker = new LiveCombatTracker(combat);
+                opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+            }
             if (setup.Run.Rooms.Count != 0)
                 kind = $"{kind}/{setup.Run.Rooms.Items[setup.Run.Rooms.Count - 1].RoomType}";
             List<string> setupDiff = BattleDump.Diff(opening, setup.Battle, "native", "blitz");
@@ -1082,6 +1092,18 @@ internal static class RewardCompare
             RunState probe = blitz;
             RunStepResult predicted = kernel.Step(ref probe,
                 RunAction.SelectMapPoint(Coord(chosen.coord)));
+            ulong[] setupMasks = [];
+            if (predicted.Status == RunStepStatus.CombatChoice)
+            {
+                CombatSetupResult resolved = CombatSetupChoices.ResolveFirst(blitz, _table!,
+                    Coord(chosen.coord), emptyGambling: true, out setupMasks, out _);
+                probe = resolved.Run;
+                predicted = new RunStepResult
+                {
+                    Status = RunStepStatus.Combat,
+                    Combat = resolved,
+                };
+            }
             if (predicted.Status == RunStepStatus.UnsupportedRoom)
             {
                 stop = $"room:{predicted.RoomType}";
@@ -1109,19 +1131,28 @@ internal static class RewardCompare
                 Console.WriteLine($"DIFF run {seed} step-status {predicted.Status}/{predicted.Reason}");
                 return RunDiff(seed);
             }
-            _loop.RunUntilCompleted(RunManager.Instance.EnterMapCoord(chosen.coord),
-                TimeSpan.FromSeconds(120), "进点");
-            mapSteps++;
-            Task<CombatState> playable = _waiter!.WaitForPlayableCombatAsync();
-            _loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "等待可出牌");
-            CombatState combat = playable.GetAwaiter().GetResult();
-            Player combatPlayer = LocalContext.GetMe(combat)
-                ?? throw new InvalidDataException("战斗找不到玩家。");
-            NativeRunState after = combat.RunState as NativeRunState
-                ?? throw new InvalidDataException("战斗 RunState 类型不对。");
-            Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
-            LiveCombatTracker tracker = new(combat);
-            Battle opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+            CombatState combat;
+            Player combatPlayer;
+            NativeRunState after;
+            Rules nativeRules;
+            Battle opening;
+            LiveCombatTracker tracker;
+            using (CardSelectCmd.PushSelector(new FirstChoiceCombatSetupSelector()))
+            {
+                _loop.RunUntilCompleted(RunManager.Instance.EnterMapCoord(chosen.coord),
+                    TimeSpan.FromSeconds(120), "进点");
+                mapSteps++;
+                Task<CombatState> playable = _waiter!.WaitForPlayableCombatAsync();
+                _loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "等待可出牌");
+                combat = playable.GetAwaiter().GetResult();
+                combatPlayer = LocalContext.GetMe(combat)
+                    ?? throw new InvalidDataException("战斗找不到玩家。");
+                after = combat.RunState as NativeRunState
+                    ?? throw new InvalidDataException("战斗 RunState 类型不对。");
+                nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
+                tracker = new LiveCombatTracker(combat);
+                opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+            }
             List<string> setupDiff = BattleDump.Diff(opening, predicted.Combat.Battle,
                 "native", "blitz");
             if (setupDiff.Count != 0)

@@ -5,9 +5,11 @@ using BlitzSolver.Ai.Combat;
 using BlitzSolver.Autoplay;
 using BlitzSolver.Import;
 using BlitzSolver.Simulation.Combat;
+using BlitzSolver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
+using NativeRunState = MegaCrit.Sts2.Core.Runs.RunState;
 
 namespace OfflineHost;
 
@@ -27,6 +29,12 @@ internal sealed class NativePilotHost(
     private Battle _current = opening;
 
     internal Battle Current => _current;
+
+    /// <summary>Native run dump captured when the pilot observes the terminal outcome, before the
+    /// run leaves the combat room (LavaLamp's AfterRoomEntered reset would otherwise run first).</summary>
+    internal string? TerminalRun { get; private set; }
+
+    internal bool? TerminalDead { get; private set; }
 
     internal CombatActionCoverage Coverage { get; } = new();
 
@@ -117,6 +125,16 @@ internal sealed class NativePilotHost(
         try
         {
             Battle live = _executor.Execute(action);
+            if (live.Outcome != Outcome.None && TerminalRun == null)
+            {
+                CombatState? nativeLive = CombatManager.Instance.DebugOnlyGetState();
+                Player? nativePlayer = nativeLive == null ? null : LocalContext.GetMe(nativeLive);
+                if (nativeLive?.RunState is NativeRunState terminalRun && nativePlayer != null)
+                {
+                    TerminalRun = NativeRunDump.Capture(terminalRun, nativePlayer);
+                    TerminalDead = live.Player.IsDead;
+                }
+            }
             if (!BattleReconciler.Same(action.After, live))
             {
                 string[] diff = BattleReconciler.Diff(action.After, live);
@@ -181,4 +199,5 @@ internal sealed class NativePilotHost(
     private static CombatPilotSearch Failed(string status, string error, string reason,
         string detail)
         => new(null, status, 0, 0, 0, false, error, reason, detail, 0, 0);
+
 }

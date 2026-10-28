@@ -279,3 +279,32 @@ Hook 清单与三态规则见[商店](run-shop.md)第 6 节。导出器对名单
 为每种房间各加一对位，并在 Core 里单独实现/判定，不能复用商店位，也不能因为模型重写了
 通用方法就默认其他房间已实现。战斗房间的 `AfterRoomEntered` 走
 `CombatStart.AfterRoomEntered` 的独立战斗规则。
+
+## 11. 建局专用闭包（R2a-5）
+
+`ContentDef` 的三个虚属性只影响 `RunCombatSetup` 的 provisional `Rules`，不进入
+`CombatSetupResult.Rules`，也不进入冻结规则表：
+
+| 属性 | 用途 | 使用者 |
+| --- | --- | --- |
+| `SetupOnlyCardPools` | 第一回合从池里采样生成卡 | Toolbox（无色）、ChoicesParadox（角色）、VexingPuzzlebox（角色）、BigHat（角色 Ethereal）、OrangeDough（无色） |
+| `SetupOnlyGeneratedCards` | 第一回合按 id 生成固定卡 | TeaOfDiscourtesy（Dazed）、NinjaScroll（Shiv） |
+| `SetupOnlyOutOfCombatPotionPool` | `BeforeCombatStart` 用局外药水池补槽 | DelicateFrond |
+
+`RulesBuilder.Build` 的 `includeSetupContent` 只在 provisional 调用时为 true；`RulesCompiler`
+（原版侧规则对照）不读取这三个属性。BigHat 的 `GeneratedCardPools` 保留旧的
+`CharacterAll` 闭包以保持冻结规则字节不变，`SetupOnlyCardPools` 才提供原版
+`CharacterEthereal` 采样池。最终 `Rules` 只按 `Battle.Cards`/`Battle.Potions` 里实际留下的
+生成内容补统计。
+
+### 11.1 建局 Hook 掩码
+
+`ContentTable` 另有 `CardSetupHooks`/`RelicSetupHooks`/`PowerSetupHooks`/`EnchantmentSetupHooks`
+四个 `ContentSetupHookMask[]`。导出器对每个原生模型反射判断是否重写了建局调用链上的 Hook
+（`AfterRoomEntered`、`BeforeCombatStart(Late)`、`BeforeSideTurnStart`、`AfterEnergyReset(Late)`、
+`BeforeHandDraw(Late)`、`ModifyHandDraw(Late)`、`AfterPlayerTurnStart(Early/regular/Late)`、
+`AfterSideTurnStart(Late)`、`ModifyMaxEnergy`、`ModifyOrbValue`、`ShouldProcurePotion`、
+`AfterCardDrawn(Early)`、`AfterCardEnteredCombat`、`AfterCardGeneratedForCombat`、
+`ModifyShuffleOrder`、`AfterAutoPrePlayPhaseEntered(Late)`）；`Implemented` 来自 Core 定义的同名
+重写、显式别名或逐项 no-effect 名单，剩余位由 `RunCombatSetup` 以 `setup-hook-listener`
+拒绝。遗物矩阵从 `Implemented` 名单自动生成，`--setup-matrix-list` 打印计数和名单。

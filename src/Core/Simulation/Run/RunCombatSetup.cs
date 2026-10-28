@@ -17,6 +17,30 @@ public sealed class CombatSetupResult
 }
 
 /// <summary>
+/// One unanswered opening choice. <see cref="Request"/> is the kernel's request against the partial
+/// battle (which is discarded); <see cref="Index"/> is the number of choices already consumed, so the
+/// caller appends the next bit set and replays from the pre-entry state.
+/// </summary>
+public sealed class CombatSetupChoice
+{
+    public required ChoiceRequest Request { get; init; }
+
+    public required int Index { get; init; }
+
+    public required ushort EncounterId { get; init; }
+}
+
+/// <summary>Either the complete opening build or the next choice it needs.</summary>
+public sealed class CombatSetupAttempt
+{
+    public CombatSetupResult? Result { get; init; }
+
+    public CombatSetupChoice? Pending { get; init; }
+
+    public bool IsPending => Result == null;
+}
+
+/// <summary>
 /// The run-side half of the combat boundary: enter a combat map point, advance the run state,
 /// generate the encounter and build the opening <see cref="Battle"/>. The battle-start semantics
 /// live in <see cref="CombatStart"/> and the content definitions; this class only maps the run state
@@ -27,10 +51,85 @@ public static class RunCombatSetup
     private const int EncounterSpawnCapacity = 16;
 
     public static CombatSetupResult EnterMapCoord(in RunState run, ContentTable table, RunCoord coord)
+        => EnterMapCoord(in run, table, coord, default);
+
+    /// <summary>
+    /// Replays the opening build from the pre-entry run state with a complete choice sequence. A
+    /// pending request throws instead of returning a half-built battle; callers that enumerate
+    /// choices use <see cref="TryEnterMapCoord"/>.
+    /// </summary>
+    public static CombatSetupResult EnterMapCoord(in RunState run, ContentTable table, RunCoord coord,
+        scoped ReadOnlySpan<ulong> choices)
     {
-        RunMapEntryResult entry = RunMapEntry.Enter(in run, table, coord);
-        return entry.Combat ?? throw new ContentUnavailableException(ContentReason.UnsupportedRoom,
-            $"坐标 {coord} 生成了 {entry.RoomType} 房间，不是战斗房间。");
+        CombatSetupAttempt attempt = TryEnterMapCoord(in run, table, coord, choices);
+        if (attempt.Pending is { } pending)
+        {
+            throw new UnsupportedException(
+                $"坐标 {coord} 的开战选择 {pending.Index} 尚未回答（{pending.Request.Kind}，" +
+                $"{pending.Request.MinCount}..{pending.Request.MaxCount} 个选项）。");
+        }
+        return attempt.Result!;
+    }
+
+    /// <summary>One replay attempt; <see cref="CombatSetupAttempt.Pending"/> carries the next request.</summary>
+    private static void RequireRunSetupHooks(in RunState run, ContentTable table)
+    {
+        for (int index = 0; index < run.Relics.Count; index++)
+        {
+            RunRelic relic = run.Relics.Items[index];
+            uint unsupported = table.RelicSetupHooks[relic.Id].Unsupported;
+            if (unsupported != 0)
+                throw SetupHookFailure("遗物", relic.Id, unsupported);
+        }
+        for (int index = 0; index < run.Deck.Count; index++)
+        {
+            RunCard card = run.Deck.Cards[index];
+            uint unsupported = table.CardSetupHooks[card.Id].Unsupported;
+            if (card.HasEnchantment != 0)
+                unsupported |= table.EnchantmentSetupHooks[card.EnchantmentId].Unsupported;
+            if (unsupported != 0)
+                throw SetupHookFailure("卡牌", card.Id, unsupported);
+        }
+    }
+
+    private static void RequirePowerSetupHooks(in Battle battle, ContentTable table)
+    {
+        for (int index = 0; index < battle.PowerCount; index++)
+        {
+            uint unsupported = table.PowerSetupHooks[battle.Powers[index].Id].Unsupported;
+            if (unsupported != 0)
+                throw SetupHookFailure("Power", battle.Powers[index].Id, unsupported);
+        }
+    }
+
+    private static ContentUnavailableException SetupHookFailure(string kind, ushort id,
+        uint unsupported)
+    {
+        string name = kind switch
+        {
+            "遗物" => id < Registry.RelicCount ? Registry.Relic(id).NativeId : id.ToString(),
+            "卡牌" => id < Registry.CardCount ? Registry.Card(id).NativeId : id.ToString(),
+            "Power" => id < Registry.PowerCount ? Registry.Power(id).NativeId : id.ToString(),
+            _ => id.ToString(),
+        };
+        string hooks = string.Join(",", Enum.GetValues<ContentSetupHook>()
+            .Where(hook => hook != ContentSetupHook.None && (unsupported & (uint)hook) != 0));
+        return new ContentUnavailableException(ContentReason.SetupHookListener,
+            $"{kind} {name} 重写了未实现的建局 Hook：{hooks}。");
+    }
+
+    public static CombatSetupAttempt TryEnterMapCoord(in RunState run, ContentTable table,
+        RunCoord coord, scoped ReadOnlySpan<ulong> choices)
+    {
+        RunMapEntryResult entry = RunMapEntry.Enter(in run, table, coord, null, choices);
+        if (entry.CombatChoice is { } pending)
+            return new CombatSetupAttempt { Pending = pending };
+        return new CombatSetupAttempt
+        {
+            Result = entry.Combat ?? throw new ContentUnavailableException(
+                ContentReason.UnsupportedRoom,
+                $"坐标 {coord} 生成了 {entry.RoomType} 房间，不是战斗房间。"),
+        };
     }
 
     /// <summary>
@@ -39,9 +138,18 @@ public static class RunCombatSetup
     /// </summary>
     public static CombatSetupResult EnterMapPoint(in RunState run, ContentTable table, int actFloor,
         RunMapPointType pointType)
+        => EnterMapPoint(in run, table, actFloor, pointType, default);
+
+    public static CombatSetupResult EnterMapPoint(in RunState run, ContentTable table, int actFloor,
+        RunMapPointType pointType, scoped ReadOnlySpan<ulong> choices)
     {
         RunMapEntryResult entry = RunMapEntry.Enter(in run, table,
-            FindPointCoord(in run, pointType), actFloor);
+            FindPointCoord(in run, pointType), actFloor, choices);
+        if (entry.CombatChoice is { } pending)
+        {
+            throw new UnsupportedException(
+                $"{pointType} 的开战选择 {pending.Index} 尚未回答（{pending.Request.Kind}）。");
+        }
         return entry.Combat ?? throw new ContentUnavailableException(ContentReason.UnsupportedRoom,
             $"{pointType} 生成了 {entry.RoomType} 房间，不是战斗房间。");
     }
@@ -51,10 +159,14 @@ public static class RunCombatSetup
     /// appended the map-point history and pushed the combat room, matching the native order where
     /// the room is created and recorded before <c>EnterRoomInternal</c>.
     /// </summary>
-    internal static CombatSetupResult BuildCombat(ref RunState next, ContentTable table,
-        RunRoomType roomType, ushort encounterId)
+    internal static CombatSetupAttempt BuildCombat(ref RunState next, ContentTable table,
+        RunRoomType roomType, ushort encounterId, scoped ReadOnlySpan<ulong> choices)
     {
-        RejectUnsupportedRelics(in next);
+        if (choices.Length > RunLimits.CombatSetupChoices)
+            throw new CapacityException("Run.CombatSetupChoices", RunLimits.CombatSetupChoices);
+        PlayerAction startupAction = default;
+        for (int index = 0; index < choices.Length; index++)
+            startupAction = startupAction.WithChoice(choices[index]);
         string nativeId = RunCatalog.EncounterName(encounterId);
         if (!Registry.TryEncounter(nativeId, out ushort defId))
             throw new ContentUnavailableException(ContentReason.UnsupportedEncounter, $"没有遭遇生成定义 {nativeId}。");
@@ -75,6 +187,10 @@ public static class RunCombatSetup
             throw new ContentUnavailableException(ContentReason.UnsupportedEncounter, $"遭遇 {nativeId} 的槽位定义与内容表不一致。");
 
         int ascension = Math.Clamp(next.Ascension, 0, ContentTable.AscensionCount - 1);
+        RequireRunSetupHooks(in next, table);
+        // Native Hook.AfterRoomEntered gains MawBank's gold for the base room before combat start;
+        // ApplyRelicCounterState later copies battle.Gold back, so the opening Battle must carry it.
+        RunRewardGenerator.GainMawBankGold(ref next, table);
         Battle battle = CreateBattleShell(in next, table);
         for (int index = 0; index < spawnCount; index++)
         {
@@ -113,7 +229,8 @@ public static class RunCombatSetup
             EnemyInitialMoveLogged = initialMoveLogged,
             ExtraCards = SetupExtraCards(in next),
         };
-        Rules provisional = RulesBuilder.Build(table, in next, in battle, encounterId, provisionalFacts);
+        Rules provisional = RulesBuilder.Build(table, in next, in battle, encounterId,
+            provisionalFacts, includeSetupContent: true);
 
         // The rules table rows are in enemy order; now create the real rows (HP roll + AI registers)
         // and give each the matching rule index.
@@ -137,8 +254,21 @@ public static class RunCombatSetup
             }
         }
 
-        CombatStart.AfterRoomEntered(ref battle, provisional, table,
-            roomType == RunRoomType.Elite, roomType == RunRoomType.Boss);
+        // One execution context spans the room-entry, combat-start and first-turn passes so the
+        // choice sequence is consumed in native order; a pending choice discards the partial battle
+        // and the caller replays from the pre-entry RunState with one more bit set appended.
+        bool elite = roomType == RunRoomType.Elite;
+        bool boss = roomType == RunRoomType.Boss;
+        Exec startup = new(ref battle, provisional, in startupAction)
+        {
+            CombatStart = true,
+            SetupContent = table,
+            FirstRoomIsElite = elite,
+            FirstRoomIsBoss = boss,
+        };
+        CombatStart.AfterRoomEntered(ref startup, elite, boss);
+        if (startup.NeedsChoice)
+            return Pending(in startup, encounterId);
         for (int index = 0; index < spawnCount; index++)
         {
             string? slot = spawns[index].Slot == Kernel.NoSlot
@@ -149,21 +279,30 @@ public static class RunCombatSetup
                 x.R.MonsterRule(x.B.Enemies[index].Rules),
                 monsterEntry.CombatStart(ascension));
         }
+        RequirePowerSetupHooks(in battle, table);
         for (int index = 0; index < next.Relics.Count; index++)
         {
             RunRelic relic = next.Relics.Items[index];
             sbyte status = Registry.Relic(relic.Id)
-                .RoomEnteredStatus(in battle, relic.Id, table,
-                    roomType == RunRoomType.Elite, roomType == RunRoomType.Boss);
+                .RoomEnteredStatus(in battle, relic.Id, table, elite, boss);
             if (status >= 0)
                 next.Relics.Items[index].Status = (RunRelicStatus)status;
         }
-        CombatStart.BeforeCombatStart(ref battle, provisional, table, roomType == RunRoomType.Boss);
-        CombatStart.BeforeCombatStartLate(ref battle, provisional, table, roomType == RunRoomType.Boss);
-        CombatStart.StartFirstTurn(ref battle, provisional, table);
+        CombatStart.BeforeCombatStart(ref startup, boss);
+        if (startup.NeedsChoice)
+            return Pending(in startup, encounterId);
+        CombatStart.BeforeCombatStartLate(ref startup, boss);
+        if (startup.NeedsChoice)
+            return Pending(in startup, encounterId);
+        CombatStart.StartFirstTurn(ref startup);
+        if (startup.NeedsChoice)
+            return Pending(in startup, encounterId);
+        if (!startup.AllChoicesConsumed)
+            throw new InvalidOperationException("开战选择序列有未消费的选项。");
         if ((battle.Flags & BattleFlags.OstyPresent) != 0)
             battle.Flags |= BattleFlags.OstyWasRootPet;
-        ApplyTurnStartRelicState(ref next, in battle);
+        PruneSetupDeadExtras(ref battle, spawnCount);
+        ApplyTurnStartRelicState(ref next, in battle, table);
         bool hasVitalSpark = false;
         for (int index = 0; index < battle.PowerCount; index++)
         {
@@ -185,6 +324,7 @@ public static class RunCombatSetup
         // any combat-start max-HP change included).
         next.Player.CurrentHp = battle.Player.CurrentHp;
         next.Player.MaxHp = battle.Player.MaxHp;
+        next.Player.Gold = battle.Gold;
         for (int slot = 0; slot < battle.PotionSlotCount; slot++)
         {
             if (battle.Potions[slot] != 0)
@@ -205,15 +345,29 @@ public static class RunCombatSetup
             encounterId, spawns, spawnCount, initialNodes, initialMoveLogged, ascension);
         for (int stream = 0; stream < Limits.RngStreams; stream++)
             next.Rng.Streams[(int)RunRngStream.Shuffle + stream] = battle.Rng[stream];
-        return new CombatSetupResult
+        return new CombatSetupAttempt
         {
-            Run = next,
-            Battle = battle,
-            Rules = finalRules,
-            Facts = finalFacts,
-            EncounterId = encounterId,
+            Result = new CombatSetupResult
+            {
+                Run = next,
+                Battle = battle,
+                Rules = finalRules,
+                Facts = finalFacts,
+                EncounterId = encounterId,
+            },
         };
     }
+
+    private static CombatSetupAttempt Pending(in Exec x, ushort encounterId)
+        => new()
+        {
+            Pending = new CombatSetupChoice
+            {
+                Request = x.Request,
+                Index = x.ChoicesTaken,
+                EncounterId = encounterId,
+            },
+        };
 
     private static (string NativeId, int Upgrade)[] SetupExtraCards(in RunState run)
     {
@@ -229,25 +383,27 @@ public static class RunCombatSetup
         return [.. cards];
     }
 
-    private static void RejectUnsupportedRelics(in RunState run)
+    /// <summary>
+    /// Monsters spawned during BeforeCombatStart can die before the first play phase. Native
+    /// CombatState.Enemies is the live roster and does not retain such a setup-spawned corpse;
+    /// Blitz keeps known enemies for writeback history, so trim trailing dead extras before
+    /// building the root rules/battle.
+    /// </summary>
+    private static void PruneSetupDeadExtras(ref Battle battle, int spawnCount)
     {
-        for (int index = 0; index < run.Relics.Count; index++)
+        while (battle.EnemyCount > spawnCount)
         {
-            string nativeId = Registry.Relic(run.Relics.Items[index].Id).NativeId;
-            if (nativeId is "TOOLBOX" or "DELICATE_FROND" or "VEXING_PUZZLEBOX"
-                or "GAMBLING_CHIP" or "TINY_MAILBOX" or "GNARLED_HAMMER" or "MYSTIC_LIGHTER"
-                or "BIG_HAT" or "MAW_BANK" or "ORANGE_DOUGH" or "INFUSED_CORE"
-                or "TOY_BOX" or "TEA_OF_DISCOURTESY" or "FAKE_BLOOD_VIAL"
-                or "JEWELED_MASK" or "ROYAL_POISON" or "BOOMING_CONCH"
-                or "TOASTY_MITTENS" or "CHOICES_PARADOX" or "PAELS_LEGION" or "BIIIG_HUG")
-            {
-                throw new ContentUnavailableException(ContentReason.UnsupportedRelic,
-                    $"遗物 {nativeId} 的开战/第一回合效果尚未实现。");
-            }
+            int last = battle.EnemyCount - 1;
+            if (battle.Enemies[last].DeathPhase != DeathPhase.PermanentlyDead)
+                break;
+            Kernel.RemoveFromRoster(ref battle, checked((byte)(Limits.FirstEnemyOwner + last)));
+            battle.EnemyCount--;
+            battle.Enemies[last] = default;
         }
     }
 
-    private static void ApplyTurnStartRelicState(ref RunState run, in Battle battle)
+    private static void ApplyTurnStartRelicState(ref RunState run, in Battle battle,
+        ContentTable table)
     {
         for (int index = 0; index < run.Relics.Count; index++)
         {
@@ -255,7 +411,8 @@ public static class RunCombatSetup
             string nativeId = Registry.Relic(relic.Id).NativeId;
             if (nativeId == "METRONOME")
             {
-                relic.DisplayAmount = battle.OrbCount;
+                // Native DisplayAmount is the total channels (_orbsChanneled), not the queue size.
+                relic.DisplayAmount = battle.Counter(Counter.OrbChannels);
                 relic.Status = RunRelicStatus.Normal;
                 continue;
             }
@@ -272,6 +429,18 @@ public static class RunCombatSetup
                     RunProperties.AddInt(ref relic.Properties,
                         RunProperties.NameHash("TurnsSeen"), value, RunLimits.RelicPropertyBytes);
                     relic.Status = value == 2 ? RunRelicStatus.Active : RunRelicStatus.Normal;
+                    break;
+                }
+                case "FAKE_HAPPY_FLOWER":
+                {
+                    int value = battle.Relics[index].Counter;
+                    relic.DisplayAmount = value;
+                    relic.Properties = default;
+                    RunProperties.Init(ref relic.Properties);
+                    RunProperties.AddInt(ref relic.Properties,
+                        RunProperties.NameHash("TurnsSeen"), value, RunLimits.RelicPropertyBytes);
+                    relic.Status = value == (int)table.RelicVar(relic.Id, "Turns") - 1
+                        ? RunRelicStatus.Active : RunRelicStatus.Normal;
                     break;
                 }
                 case "PENDULUM":
@@ -309,6 +478,39 @@ public static class RunCombatSetup
                     relic.Status = value > 0 ? RunRelicStatus.Normal : RunRelicStatus.Disabled;
                     break;
                 }
+                case "TEA_OF_DISCOURTESY":
+                {
+                    // BeforeCombatStart spent one combat and decremented Battle.Relics.Counter.
+                    int value = Math.Max(0, battle.Relics[index].Counter);
+                    relic.DisplayAmount = 0;
+                    relic.Properties = default;
+                    RunProperties.Init(ref relic.Properties);
+                    RunProperties.AddInt(ref relic.Properties,
+                        RunProperties.NameHash("CombatsLeft"), value, RunLimits.RelicPropertyBytes);
+                    relic.Status = value > 0 ? RunRelicStatus.Normal : RunRelicStatus.Disabled;
+                    break;
+                }
+                case "BONE_TEA":
+                {
+                    int value = Math.Max(0, battle.Relics[index].Counter);
+                    relic.DisplayAmount = value;
+                    relic.Properties = default;
+                    RunProperties.Init(ref relic.Properties);
+                    RunProperties.AddInt(ref relic.Properties,
+                        RunProperties.NameHash("CombatsLeft"), value, RunLimits.RelicPropertyBytes);
+                    relic.Status = value > 0 ? RunRelicStatus.Normal : RunRelicStatus.Disabled;
+                    break;
+                }
+                case "PAELS_LEGION":
+                    // AfterSideTurnStart decremented the cooldown; the native status follows it.
+                    relic.Status = battle.Relics[index].Counter <= 0
+                        ? RunRelicStatus.Active : RunRelicStatus.Normal;
+                    break;
+                case "PAELS_EYE":
+                    // Native AfterSideTurnStart marks the eye Active unless it was already spent.
+                    relic.Status = battle.Relics[index].Counter == 0
+                        ? RunRelicStatus.Active : RunRelicStatus.Normal;
+                    break;
             }
         }
     }
@@ -353,6 +555,15 @@ public static class RunCombatSetup
                 Id = relic.Id,
                 Flags = (relic.Flags & RunRelicFlags.Melted) != 0 ? RelicFlags.Melted : RelicFlags.None,
             };
+            if (Registry.Relic(relic.Id).NativeId == "PUMPKIN_CANDLE")
+                battle.Relics[index].Counter = relic.DisplayAmount;
+            if (Registry.Relic(relic.Id).NativeId is "TEA_OF_DISCOURTESY" or "BONE_TEA")
+            {
+                // The run-side CombatsLeft decides whether the first-turn effect fires and is
+                // decremented there; the native battle relic has no counter of its own.
+                battle.Relics[index].Counter =
+                    RunRewardGenerator.ReadRelicInt(in relic, "CombatsLeft");
+            }
         }
         battle.RelicCount = run.Relics.Count;
         if (run.Deck.Count > Limits.Cards)

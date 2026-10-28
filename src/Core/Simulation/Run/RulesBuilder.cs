@@ -94,7 +94,8 @@ public sealed class RulesRootFacts
 public static class RulesBuilder
 {
     public static Rules Build(ContentTable table, in RunState run, in Battle battle,
-        ushort encounterId = ContentTable.NoEncounter, RulesRootFacts? facts = null)
+        ushort encounterId = ContentTable.NoEncounter, RulesRootFacts? facts = null,
+        bool includeSetupContent = false)
     {
         ArgumentNullException.ThrowIfNull(table);
         facts ??= RulesRootFacts.Empty;
@@ -198,7 +199,7 @@ public static class RulesBuilder
                 detached.Add((card.Id, card.Upgrade));
         }
         AddGeneratedCardClosure(draft, table, in run, in battle, character,
-            spawnClosure, detached, facts.ExtraCards);
+            spawnClosure, detached, facts.ExtraCards, includeSetupContent);
         draft.HasInfiniteHpDisplayMonster = HasInfiniteHpDisplayMonster(in battle, spawnClosure);
 
         List<MonsterRules> rows = BuildMonsterRows(table, encounter, in battle, facts, ascension);
@@ -398,7 +399,7 @@ public static class RulesBuilder
     private static void AddGeneratedCardClosure(RulesDraft draft, ContentTable table,
         in RunState run, in Battle battle, ContentCharacter character,
         IReadOnlyList<ushort> spawnClosure, IReadOnlyList<(ushort CardId, int Upgrade)> detached,
-        IReadOnlyList<(string NativeId, int Upgrade)> extraCards)
+        IReadOnlyList<(string NativeId, int Upgrade)> extraCards, bool includeSetupContent)
     {
         Queue<(ushort CardId, int Upgrade)> pendingCards = new();
         Queue<string> pendingPools = new();
@@ -425,24 +426,38 @@ public static class RulesBuilder
         ushort[]? outOfCombatPotionPool = null;
         bool needsPotionPool = false;
         bool needsOutOfCombatPotionPool = false;
+        void DeclareCard((string NativeId, int Upgrade) card)
+        {
+            if (!Registry.TryCard(card.NativeId, out ushort cardId))
+                throw new ContentUnavailableException(ContentReason.UnsupportedClosure,
+                    $"生成卡 {card.NativeId} 没有 Blitz 定义");
+            if (seenCards.Add((cardId, card.Upgrade)))
+                pendingCards.Enqueue((cardId, card.Upgrade));
+        }
+
+        void DeclarePool(string pool)
+        {
+            if (seenPools.Add(pool))
+                pendingPools.Enqueue(pool);
+        }
+
         void Declare(ContentDef def)
         {
             needsPotionPool |= def.GeneratesRandomPotion;
-            needsOutOfCombatPotionPool |= def is PotionDef { GeneratesOutOfCombatPotion: true };
+            needsOutOfCombatPotionPool |= def.GeneratesOutOfCombatPotion
+                || (includeSetupContent && def.SetupOnlyOutOfCombatPotionPool);
             if (def is PotionDef && !seenPotionDefs.Add(def.Id))
                 return;
             foreach ((string nativeId, int upgrade) in def.GeneratedCards)
-            {
-                if (!Registry.TryCard(nativeId, out ushort cardId))
-                    throw new ContentUnavailableException(ContentReason.UnsupportedClosure,
-                        $"生成卡 {nativeId} 没有 Blitz 定义");
-                if (seenCards.Add((cardId, upgrade)))
-                    pendingCards.Enqueue((cardId, upgrade));
-            }
+                DeclareCard((nativeId, upgrade));
             foreach (string pool in def.GeneratedCardPools)
+                DeclarePool(pool);
+            if (includeSetupContent)
             {
-                if (seenPools.Add(pool))
-                    pendingPools.Enqueue(pool);
+                foreach ((string nativeId, int upgrade) in def.SetupOnlyGeneratedCards)
+                    DeclareCard((nativeId, upgrade));
+                foreach (string pool in def.SetupOnlyCardPools)
+                    DeclarePool(pool);
             }
             foreach (string power in def.AppliedPowers)
                 pendingPowers.Enqueue(power);

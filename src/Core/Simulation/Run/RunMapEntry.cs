@@ -18,6 +18,9 @@ internal sealed class RunMapEntryResult
     public ushort EventId { get; init; }
 
     public CombatSetupResult? Combat { get; init; }
+
+    /// <summary>The next opening choice when the battle build stopped before the play phase.</summary>
+    public CombatSetupChoice? CombatChoice { get; init; }
 }
 
 /// <summary>
@@ -31,6 +34,10 @@ internal static class RunMapEntry
 {
     public static RunMapEntryResult Enter(in RunState run, ContentTable table, RunCoord coord,
         int? actFloor = null)
+        => Enter(in run, table, coord, actFloor, default);
+
+    public static RunMapEntryResult Enter(in RunState run, ContentTable table, RunCoord coord,
+        int? actFloor, scoped ReadOnlySpan<ulong> combatChoices)
     {
         if (!RunTravel.TryFindPoint(in run, coord, out RunMapPoint point))
             throw new ContentUnavailableException(ContentReason.UnsupportedRoom,
@@ -102,8 +109,20 @@ internal static class RunMapEntry
             // the next encounter/event is pulled, so setting it before the battle result is built
             // keeps the returned CombatSetupResult.Run complete.
             MarkVisited(ref next.Acts.Items[next.ActIndex], roomType);
-            CombatSetupResult combat = RunCombatSetup.BuildCombat(ref next, table, roomType,
-                encounterId);
+            CombatSetupAttempt attempt = RunCombatSetup.BuildCombat(ref next, table, roomType,
+                encounterId, combatChoices);
+            if (attempt.Pending is { } pending)
+            {
+                return new RunMapEntryResult
+                {
+                    Run = next,
+                    PointType = point.Type,
+                    RoomType = roomType,
+                    Model = model,
+                    EncounterId = encounterId,
+                    CombatChoice = pending,
+                };
+            }
             next.Canonicalize();
             return new RunMapEntryResult
             {
@@ -112,7 +131,7 @@ internal static class RunMapEntry
                 RoomType = roomType,
                 Model = model,
                 EncounterId = encounterId,
-                Combat = combat,
+                Combat = attempt.Result,
             };
         }
 

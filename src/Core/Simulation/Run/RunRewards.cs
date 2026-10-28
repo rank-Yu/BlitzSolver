@@ -1468,6 +1468,28 @@ public static class RunRewardGenerator
         }
     }
 
+    /// <summary>
+    /// Native <c>MawBank.AfterRoomEntered</c>: the first room of a map point, before the relic has
+    /// paid for anything. Shared by the shop and combat room-entry paths.
+    /// </summary>
+    internal static void GainMawBankGold(ref RunState state, ContentTable table)
+    {
+        if (state.Rooms.Count != 1)
+            return;
+        for (int index = 0; index < state.Relics.Count; index++)
+        {
+            ref RunRelic relic = ref state.Relics.Items[index];
+            if ((relic.Flags & RunRelicFlags.Melted) != 0)
+                continue;
+            if (Registry.Relic(relic.Id).NativeId != "MAW_BANK"
+                || ReadRelicBool(in relic, "HasItemBeenBought"))
+            {
+                continue;
+            }
+            GainGold(ref state, table, IntVar(table, relic.Id, "Gold"), false);
+        }
+    }
+
     internal static void GainGold(ref RunState state, ContentTable table, int amount, bool stolenBack)
     {
         decimal value = amount;

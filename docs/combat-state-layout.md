@@ -182,6 +182,10 @@ Monologue/Vambrace/UnsettlingLamp 数据在每次动作结束前排空，稳定�
 
 回合准备根不改变 `Battle`/`Card` 布局，也不新增 `Counter`。根捕获时是 `Player/Start`：原生 `SetupPlayerTurn` 尚未作答；Bridge 用现有引擎的 `BuildTurnSetupRoots` 按同一选择预算把每个准备分支回放到稳定 `Play` 状态，只把该 `Play` 状态导入为 `Battle`。准备选择向量（`PlanCardChoice` 列表、来源/效果/牌堆/时机/卡牌令牌）与根动作数（固定前缀长度）只存在于 `TurnSetupRootCandidate`/`BeamOptions.InitialActionCount`；它们不进入状态字节、指纹或续用文本。搜索根之间的差异全部已经在导入后的 `Battle` 里（手牌、弃牌堆、Power、能量、HP 等）。
 
+建局侧的开战选择复用同一套 `ChoiceRequest`：`ChoiceKind.SelectOption` 携带 `GeneratedOptions`（生成卡按值），`SelectCards` 携带牌堆绝对位置；Tab 里的 `MinCount`/`MaxCount` 支持范围（Toolbox 0..1、GamblingChip 0..手牌数、ChoicesParadox/ToastyMittens 1..1）。待定请求只活在 `CombatSetupChoice`/`RunStepResult.CombatChoice` 里，不进入 `Battle`；建局从进点前 `RunState` 重放，不保存部分 `Battle`。
+
+`Exec.FirstRoomIsElite`/`FirstRoomIsBoss` 只用于建局或 `RunCombatSetup` 的瞬时上下文，不进入 `Battle`（BoomingConch/Pantograph）。所有模拟回合按全局自动选择器的不暂停顺序建模：`SetupPlayerTurn` 的 `AfterPlayerTurnStart` 完整跑完后，才跑 `AfterSideTurnStart` 与回合开始球；手动界面/`localOnly` 选择器会暂停并先跑侧回合开始，这是已知差异。停在选择上的冻结/导入根按根状态延续，不重跑侧回合。`Exec` 没有延迟字段，搜索的稳定边界不读这些瞬时值。
+
 物化时选中的选择向量作为 `rootTurnSetupChoices` 固定回现有求解器；现有求解器从同一根重新枚举准备根，只保留该向量再回放固定前缀，结果的 `TurnSetupChoices`/`TurnSetupPlayState` 与关闭 Blitz 时完全同形。若某个准备选择把状态推出 Blitz 容量或内容闭包，按准入/边界原因整次作废，On 模式显式失败，不部分提交。
 
 ### 2.11 出牌期瞬态与回手

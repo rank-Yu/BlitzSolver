@@ -22,6 +22,15 @@ public sealed class RunKernel
     }
 
     public RunStepResult Step(ref RunState state, in RunAction action)
+        => Step(ref state, action, default);
+
+    /// <summary>
+    /// As <see cref="Step(ref RunState, in RunAction)"/>, with the opening combat's choice sequence.
+    /// A combat that asks for another choice returns <see cref="RunStepStatus.CombatChoice"/> and
+    /// leaves <paramref name="state"/> unchanged; retry the same action with one more selection.
+    /// </summary>
+    public RunStepResult Step(ref RunState state, in RunAction action,
+        scoped ReadOnlySpan<ulong> combatChoices)
     {
         RunDecisionRequest request = RunDecisionRequest.Capture(in state);
         if (state.Player.CurrentHp <= 0 || request.Kind == RunDecision.GameOver)
@@ -73,12 +82,24 @@ public sealed class RunKernel
         RunMapEntryResult entry;
         try
         {
-            entry = RunMapEntry.Enter(in next, _content, action.Coord);
+            entry = RunMapEntry.Enter(in next, _content, action.Coord, null, combatChoices);
         }
         catch (ContentUnavailableException exception)
         {
             return Reject(request, RejectFor(exception.Reason), exception.Reason,
                 exception.Detail);
+        }
+
+        if (entry.CombatChoice is { } pending)
+        {
+            return new RunStepResult
+            {
+                Status = RunStepStatus.CombatChoice,
+                CombatChoice = pending,
+                Request = request,
+                RoomType = entry.RoomType,
+                PointType = entry.PointType,
+            };
         }
 
         if (entry.RoomType == RunRoomType.Shop)

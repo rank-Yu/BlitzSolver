@@ -80,6 +80,12 @@ public static class RunLimits
     /// <summary>Visited event ids at 0.111.0: 66. Two words leave headroom.</summary>
     public const int VisitedEventWords = 2;
 
+    /// <summary>
+    /// Choices one opening build may ask. Toolbox, GamblingChip, ToastyMittens and ChoicesParadox
+    /// each ask at most once (4); the bound is the kernel's per-action choice capacity.
+    /// </summary>
+    public const int CombatSetupChoices = 8;
+
     /// <summary>Per-relic serialized private-property bag.</summary>
     public const int RelicPropertyBytes = 64;
 

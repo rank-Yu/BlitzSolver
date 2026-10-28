@@ -30,7 +30,7 @@ internal sealed class NativeChoiceSelector(
     internal int PendingCount => choices.Count - _index;
 
     internal static IDisposable Activate(NativeChoiceSelector selector)
-        => CardSelectCmd.PushSelector(selector, localOnly: true);
+        => CardSelectCmd.PushSelector(selector);
 
     internal void AssertConsumed()
     {

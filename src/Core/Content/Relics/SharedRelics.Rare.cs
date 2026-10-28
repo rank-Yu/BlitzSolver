@@ -470,7 +470,26 @@ public sealed partial class Bellows : RelicDef;
 /// The choice belongs to the player turn start, before the play-phase root.
 /// </summary>
 [ContentId("GAMBLING_CHIP")]
-public sealed class GamblingChip : RelicDef;
+public sealed class GamblingChip : RelicDef
+{
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
+    {
+        if (x.B.PlayerTurn > 1 || x.B.HandCount == 0)
+            return;
+        Span<int> options = stackalloc int[x.B.HandCount];
+        for (int index = 0; index < options.Length; index++)
+            options[index] = index;
+        Span<int> selected = stackalloc int[x.B.HandCount];
+        if (!Kernel.ChooseCardsInRange(ref x, ChoiceEffect.DiscardAndDraw, Pile.Hand, options,
+                0, options.Length, selected, out int chosen))
+        {
+            return;
+        }
+        if (chosen == 0)
+            return;
+        Kernel.DiscardAndDraw(ref x, Pile.Hand, selected[..chosen], chosen);
+    }
+}
 
 /// <summary>
 /// <c>VexingPuzzlebox</c>: <c>AfterPlayerTurnStart</c> generates one free card only when the turn number is
@@ -479,9 +498,23 @@ public sealed class GamblingChip : RelicDef;
 [ContentId("VEXING_PUZZLEBOX")]
 public sealed class VexingPuzzlebox : RelicDef
 {
-    // Turn-start generation samples the character pool; the turn-setup root is captured before
-    // this hook fires, so the rules table must carry the generated card stats.
+    // Turn-start generation samples the character pool; the pool is part of the play-phase rules
+    // closure (the generated card itself also carries its stats in the captured root).
     public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAll];
+
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
+    {
+        if (x.B.PlayerTurn > 1)
+            return;
+        Span<Card> options = stackalloc Card[1];
+        int sampled = Kernel.SampleCardPool(ref x.B, x.R, CardPools.CharacterAll, 1,
+            distinct: true, RngStream.CombatCardGeneration, options);
+        if (sampled == 0)
+            return;
+        Card card = options[0];
+        Kernel.MakeFreeThisTurn(x.R, ref card);
+        Kernel.AddGeneratedCard(ref x, card, Pile.Hand, PilePosition.Bottom);
+    }
 }
 
 /// <summary><c>FrozenEgg</c>: merchant/card-reward upgrade hooks and <c>IsAllowed</c> only.</summary>

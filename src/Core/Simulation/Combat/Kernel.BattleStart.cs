@@ -13,6 +13,7 @@ public static partial class Kernel
         x.B.Round = 1;
         x.B.PlayerTurn = 1;
         x.B.Phase = PlayerPhase.Start;
+        x.ChoiceTiming = ChoiceTiming.PlayerTurnStart;
         // The native first turn does not run BeginSideTurn's per-turn counter reset; room-entry
         // gains (DivineRight's StarsGainedThisTurn) are part of the captured root.
         SnapshotPowerAmountsAtTurnStart(ref x.B, ParticipantMask(Limits.PlayerOwner));

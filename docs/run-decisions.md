@@ -13,6 +13,8 @@
 RunKernel kernel = new(contentTable);
 RunState next = state;
 RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
+// 带开战选择时：
+RunStepResult selected = kernel.Step(ref next, RunAction.SelectMapPoint(coord), combatChoices);
 ```
 
 `RunKernel` 持有进程内的 `ContentTable`，本身无可变状态；一次 `Step` 只读写传入的
@@ -23,11 +25,27 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 | `RunDecisionRequest` | 当前决策种类 `Kind`、选项数 `OptionCount`、固定容量 129 的 `RunDecisionOptionArray Options` |
 | `RunDecisionOption` | `Kind`（`MapPoint` / `EventOption` / `Reward` / `Skip` / `Card` / `Potion` / `Relic` / `ShopEntry` / `CardRemoval` / `RestSiteOption` / `BossRelic` / `Reroll`）、`Index`、`Coord`、点类型、`RewardType`、卡牌的 `Upgrade`/附魔字段、`Model`（`RunRef`）、`Amount` |
 | `RunAction` | `Kind`（与决策种类对应）、`Option`（请求里的下标）、`Coord`（地图点）；商店用 `BuyShopEntry` / `RemoveCard` / `LeaveShop` / `CancelCardSelection` |
-| `RunStepResult` | `Status`（`Decision` / `Combat` / `Ended` / `UnsupportedRoom` / `Rejected`）、`Reject`、稳定原因码 `Reason`、`Detail`、当前请求、房间与点类型、`CombatSetupResult` |
+| `RunStepResult` | `Status`（`Decision` / `Combat` / `Ended` / `UnsupportedRoom` / `Rejected` / `CombatChoice`）、`Reject`、稳定原因码 `Reason`、`Detail`、当前请求、房间与点类型、`CombatSetupResult`、待定 `CombatSetupChoice` |
 
 `RunDecisionRequest.Capture(in RunState)` 是唯一的请求构造入口，`RunView.Request` 直接使用它。
 选项按坐标排序：原版地图点的子点是 `HashSet<MapPoint>`，枚举顺序不是语义；协议只承诺集合，
 不承诺原版哈希顺序。
+
+### 1.1 开战选择经过 RunKernel
+
+战斗地图点可能在 `AfterRoomEntered` / `BeforeCombatStart(Late)` / 第一回合准备请求玩家选择。
+`RunKernel.Step(ref state, action, combatChoices)` 把这串位掩码交给 `RunCombatSetup`：
+
+- `combatChoices` 是 `ReadOnlySpan<ulong>`，第 i 个元素回答第 i 个 `ChoiceRequest`；
+- 如果序列用完了还需要选择，返回 `CombatChoice`，`state` 保持不变；调用方在序列末尾追加
+  一个合法位掩码，用**同一个进点前 `RunState`** 重试同一个选点动作；
+- 序列完整时返回 `Combat`，`state` 才推进到进点后的 `RunState`。
+
+`RunKernel` 不枚举、不去重、不限额，也不保存建局中途快照；哪个选择好由调用方（R3）决定。
+Core 只限制序列长度 `RunLimits.CombatSetupChoices`，超出抛 `CapacityException`。
+`RunCombatSetup.TryEnterMapCoord` 是对应的直接入口，返回 `CombatSetupAttempt`（`Result` 或
+`Pending`）；`EnterMapCoord` 在仍有待定请求时显式抛 `UnsupportedException`。
+
 
 地图决策的判定不只看 `RunState.Decision`。该字段是导入层按"当前房间"给出的提示；战斗结束后
 地图界面打开时，原版房间栈里仍可能是已完成（`IsPreFinished`）的战斗房间，因此
@@ -203,6 +221,7 @@ RunStepResult result = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
 | --- | --- |
 | `Decision` | 动作完成，`RunStepResult.Request` 是下一个请求 |
 | `Combat` | 战斗已建好，`RunStepResult.Combat` 是 R2a-2 的 `CombatSetupResult` |
+| `CombatChoice` | 战斗点已接受，但还需要开战选择；`RunState` 不变，`RunStepResult.CombatChoice` 带 `ChoiceRequest` 与已消费数量 |
 | `Ended` | 玩家 HP 为 0，或状态已是 `GameOver` |
 | `UnsupportedRoom` | 房间已建、历史已追加、尚未进入；`Reason` 标明内容阶段 |
 | `Rejected` | 动作非法或当前不支持；`RunState` 不变 |

@@ -362,9 +362,6 @@ public sealed class EntropyPower : PowerDef
         if (!Kernel.ChooseCardsInRange(ref x, ChoiceEffect.Transform, Pile.Hand, options,
                 count, count, selected, out int selectedCount))
             return;
-        Kernel.StartPlayerSideTurnIfNeeded(ref x);
-        if (x.NeedsChoice)
-            return;
         for (int index = 0; index < selectedCount; index++)
         {
             ref Card original = ref Piles.At(ref x.B, Pile.Hand, selected[index]);

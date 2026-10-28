@@ -14,6 +14,7 @@ using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Simulation.Run;
 using BlitzSolver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Map;
@@ -414,19 +415,29 @@ internal static class CombatWritebackCompare
         try
         {
             RunState before = RunStateImporter.Import(native, player);
-            Task enter = RunManager.Instance.EnterMapCoord(mapCoord);
-            loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "原生进点");
-            Task<CombatState> playable = waiter.WaitForPlayableCombatAsync();
-            loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "原生等待可出牌");
-            CombatState combat = playable.GetAwaiter().GetResult();
-            Player combatPlayer = LocalContext.GetMe(combat)
-                ?? throw new InvalidDataException("原生战斗找不到玩家。");
-            NativeRunState after = combat.RunState as NativeRunState
-                ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
-            Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
-            LiveCombatTracker tracker = new(combat);
-            Battle opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
-            CombatSetupResult setup = RunCombatSetup.EnterMapCoord(before, _table!, coord);
+            CombatSetupResult setup = CombatSetupChoices.ResolveFirst(before, _table!, coord,
+                emptyGambling: true, out _, out _);
+            CombatState combat;
+            Player combatPlayer;
+            NativeRunState after;
+            Rules nativeRules;
+            Battle opening;
+            LiveCombatTracker tracker;
+            using (CardSelectCmd.PushSelector(new FirstChoiceCombatSetupSelector()))
+            {
+                Task enter = RunManager.Instance.EnterMapCoord(mapCoord);
+                loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "原生进点");
+                Task<CombatState> playable = waiter.WaitForPlayableCombatAsync();
+                loop.RunUntilCompleted(playable, TimeSpan.FromSeconds(120), "原生等待可出牌");
+                combat = playable.GetAwaiter().GetResult();
+                combatPlayer = LocalContext.GetMe(combat)
+                    ?? throw new InvalidDataException("原生战斗找不到玩家。");
+                after = combat.RunState as NativeRunState
+                    ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
+                nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
+                tracker = new LiveCombatTracker(combat);
+                opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+            }
             List<string> setupDiff = BattleDump.Diff(opening, setup.Battle, "native", "blitz");
             if (setupDiff.Count != 0)
                 return Diff(kind, label, -1, "setup", setupDiff, encounterName);
@@ -522,33 +533,46 @@ internal static class CombatWritebackCompare
 
     private static int CompareFinalRun(string kind, string label, Battle current,
         CombatSetupResult setup, string? encounterName, CombatActionCoverage coverage,
-        int actionIndex)
+        int actionIndex, string? terminalRun = null, bool? terminalDead = null)
     {
         CombatState? liveState = CombatManager.Instance.DebugOnlyGetState();
-        if (liveState == null)
+        Player? finalPlayer = liveState == null ? null : LocalContext.GetMe(liveState);
+        string expected;
+        bool nativeDead;
+        int nativeHp;
+        if (terminalRun != null)
         {
-            Console.WriteLine(
-                $"WRITEBACK kind={kind} label={label} status=reject reason=live-missing " +
-                $"outcome=unknown actions={actionIndex} encounter={encounterName ?? "-"}");
-            return 0;
+            expected = terminalRun;
+            nativeDead = terminalDead ?? current.Player.IsDead;
+            nativeHp = current.Player.CurrentHp;
         }
-        Player finalPlayer = LocalContext.GetMe(liveState)
-            ?? throw new InvalidDataException("战斗结束找不到玩家。");
-        NativeRunState finalRun = liveState.RunState as NativeRunState
-            ?? throw new InvalidDataException("战斗结束的 RunState 类型不对。");
-        if (finalPlayer.Creature.IsDead != current.Player.IsDead)
+        else
+        {
+            if (liveState == null || finalPlayer == null)
+            {
+                Console.WriteLine(
+                    $"WRITEBACK kind={kind} label={label} status=reject reason=live-missing " +
+                    $"outcome=unknown actions={actionIndex} encounter={encounterName ?? "-"}");
+                return 0;
+            }
+            NativeRunState finalRun = liveState.RunState as NativeRunState
+                ?? throw new InvalidDataException("战斗结束的 RunState 类型不对。");
+            expected = NativeRunDump.Capture(finalRun, finalPlayer);
+            nativeDead = finalPlayer.Creature.IsDead;
+            nativeHp = finalPlayer.Creature.CurrentHp;
+        }
+        if (nativeDead != current.Player.IsDead)
         {
             Console.WriteLine(
                 $"WRITEBACK kind={kind} label={label} status=executor-diff action={actionIndex} " +
                 $"outcome={OutcomeName(current.Outcome)} actions={actionIndex} " +
                 $"turns={current.PlayerTurn} encounter={encounterName ?? "-"}");
             Console.WriteLine(
-                $"  TERMINAL kernel_dead={current.Player.IsDead} native_dead={finalPlayer.Creature.IsDead} " +
-                $"kernel_hp={current.Player.CurrentHp} native_hp={finalPlayer.Creature.CurrentHp}");
+                $"  TERMINAL kernel_dead={current.Player.IsDead} native_dead={nativeDead} " +
+                $"kernel_hp={current.Player.CurrentHp} native_hp={nativeHp}");
             WriteCoverage(coverage);
             return 0;
         }
-        string expected = NativeRunDump.Capture(finalRun, finalPlayer);
         RunState written;
         try
         {
@@ -609,18 +633,28 @@ internal static class CombatWritebackCompare
         try
         {
             RunState before = RunStateImporter.Import(prepared.Run, prepared.Player);
-            Task enter = RunManager.Instance.EnterMapCoord(point.coord);
-            loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "pilot 原生进点");
-            CombatState combat = waiter.WaitForPlayableCombatAsync()
-                .GetAwaiter().GetResult();
-            Player combatPlayer = LocalContext.GetMe(combat)
-                ?? throw new InvalidDataException("原生战斗找不到玩家。");
-            NativeRunState after = combat.RunState as NativeRunState
-                ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
-            Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
-            LiveCombatTracker tracker = new(combat);
-            Battle opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
-            CombatSetupResult setupEntry = RunCombatSetup.EnterMapCoord(before, _table!, coord);
+            CombatSetupResult setupEntry = CombatSetupChoices.ResolveFirst(before, _table!, coord,
+                emptyGambling: true, out _, out _);
+            CombatState combat;
+            Player combatPlayer;
+            NativeRunState after;
+            Rules nativeRules;
+            Battle opening;
+            LiveCombatTracker tracker;
+            using (CardSelectCmd.PushSelector(new FirstChoiceCombatSetupSelector()))
+            {
+                Task enter = RunManager.Instance.EnterMapCoord(point.coord);
+                loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "pilot 原生进点");
+                combat = waiter.WaitForPlayableCombatAsync()
+                    .GetAwaiter().GetResult();
+                combatPlayer = LocalContext.GetMe(combat)
+                    ?? throw new InvalidDataException("原生战斗找不到玩家。");
+                after = combat.RunState as NativeRunState
+                    ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
+                nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
+                tracker = new LiveCombatTracker(combat);
+                opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
+            }
             List<string> setupDiff = BattleDump.Diff(opening, setupEntry.Battle, "native", "blitz");
             if (setupDiff.Count != 0)
                 return Diff("pilot", root, -1, "setup", setupDiff, target.Id.Entry);
@@ -649,7 +683,7 @@ internal static class CombatWritebackCompare
                 return 0;
             }
             return CompareFinalRun("pilot", root, host.Current, setupEntry, target.Id.Entry,
-                host.Coverage, result.Turns);
+                host.Coverage, result.Turns, host.TerminalRun, host.TerminalDead);
         }
         catch (ContentUnavailableException error)
         {

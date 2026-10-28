@@ -59,12 +59,14 @@ public static partial class Kernel
     }
 
     /// <summary>
-    /// A fixed option list (Knowledge Demon's curse cards): exactly one option is selected. Options are
-    /// carried by value in <see cref="ChoiceRequest.GeneratedOptions"/> because they never enter a
-    /// pile. Returns false when the action carried no choice for it.
+    /// A fixed option list (Knowledge Demon's curse cards, Toolbox/ChoicesParadox): one of the
+    /// options is selected. Options are carried by value in
+    /// <see cref="ChoiceRequest.GeneratedOptions"/> because they never enter a pile. Returns false
+    /// when the action carried no choice for it; selected indexes are written in option order.
     /// </summary>
-    public static bool ChooseOption(ref Exec x, ChoiceEffect effect, scoped ReadOnlySpan<Card> options,
-        out int selected)
+    public static bool ChooseOptionsInRange(ref Exec x, ChoiceEffect effect,
+        scoped ReadOnlySpan<Card> options, int minCount, int maxCount, scoped Span<int> selected,
+        out int selectedCount)
     {
         if (options.IsEmpty)
             throw new UnsupportedException("固定选项选择没有候选。");
@@ -78,15 +80,35 @@ public static partial class Kernel
             SourceIsNone = true,
             OptionsAreGenerated = true,
             OptionCount = checked((byte)options.Length),
-            MinCount = 1,
-            MaxCount = 1,
+            MinCount = (byte)Math.Min(minCount, options.Length),
+            MaxCount = (byte)Math.Min(maxCount, options.Length),
         };
         for (int index = 0; index < options.Length; index++)
             request.GeneratedOptions[index] = options[index];
-        selected = 0;
+        selectedCount = 0;
         if (!x.TryTakeChoice(request, out ulong selection))
             return false;
-        selected = System.Numerics.BitOperations.TrailingZeroCount(selection);
+        for (int index = 0; index < options.Length; index++)
+        {
+            if ((selection & (1UL << index)) != 0)
+                selected[selectedCount++] = index;
+        }
+        return true;
+    }
+
+    /// <summary>Exactly one option from a fixed generated list.</summary>
+    public static bool ChooseOption(ref Exec x, ChoiceEffect effect, scoped ReadOnlySpan<Card> options,
+        out int selected)
+    {
+        Span<int> selectedIndexes = stackalloc int[1];
+        if (!ChooseOptionsInRange(ref x, effect, options, 1, 1, selectedIndexes, out int count))
+        {
+            selected = 0;
+            return false;
+        }
+        if (count != 1)
+            throw new InvalidOperationException("固定选项选择没有选中一张。");
+        selected = selectedIndexes[0];
         return true;
     }
 

@@ -292,6 +292,12 @@ public ref struct Exec
     public bool FirstRoomIsBoss;
 
     /// <summary>
+    /// The room being entered is an elite room. Set only while the opening build runs; BoomingConch
+    /// reads it.
+    /// </summary>
+    public bool FirstRoomIsElite;
+
+    /// <summary>
     /// The opening build is running its battle-start hooks. First-turn-only relic/room effects
     /// check this so a search root captured at turn 1 does not replay them.
     /// </summary>
@@ -299,6 +305,9 @@ public ref struct Exec
 
     /// <summary>Opening-content values supplied only while the battle is being built.</summary>
     public ICombatStartContent? SetupContent;
+
+    /// <summary>Number of carried choices already consumed (the pending request's index).</summary>
+    public readonly int ChoicesTaken => _choicesTaken;
 
     /// <summary>
     /// The step reached the enemy-side turn-end pass. The native turn counter advances after that pass

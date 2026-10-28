@@ -77,6 +77,7 @@ internal static class ExecCoverage
     [
         nameof(Exec.EnemySideTurnEndReached),
         nameof(Exec.FirstRoomIsBoss),
+        nameof(Exec.FirstRoomIsElite),
         nameof(Exec.CombatStart),
         nameof(Exec.SetupContent),
     ];

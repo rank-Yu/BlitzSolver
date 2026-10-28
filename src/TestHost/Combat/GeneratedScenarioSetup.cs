@@ -11,7 +11,8 @@ internal sealed record GeneratedScenarioSetup(
     ResolvedGeneratedCombatScenario? Resolved,
     GeneratedScenarioCardSelector? Selector)
 {
-    internal static GeneratedScenarioSetup Prepare(OfflineRequest request)
+    internal static GeneratedScenarioSetup Prepare(OfflineRequest request,
+        bool applyRelicObtainEffects = false)
     {
         if (string.IsNullOrWhiteSpace(request.GeneratedScenarioPath))
             return new(request, null, null);
@@ -22,6 +23,13 @@ internal sealed record GeneratedScenarioSetup(
             File.ReadAllText(specPath), GeneratedCombatScenario.JsonOptions)
             ?? throw new InvalidDataException("生成场景配置为空。");
         ResolvedGeneratedCombatScenario resolved = GeneratedCombatScenario.Resolve(options);
+        if (applyRelicObtainEffects && !resolved.Options.ApplyRelicObtainEffects)
+        {
+            resolved = resolved with
+            {
+                Options = resolved.Options with { ApplyRelicObtainEffects = true },
+            };
+        }
         OfflineRequest applied = GeneratedCombatScenario.Apply(request, resolved);
         return new(applied, resolved, new GeneratedScenarioCardSelector(resolved.Options.SetupChoices));
     }

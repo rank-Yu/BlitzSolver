@@ -741,6 +741,8 @@ public static class RunCombatWriteback
             switch (nativeId)
             {
                 case "EMBER_TEA":
+                case "TEA_OF_DISCOURTESY":
+                case "BONE_TEA":
                     // Status was decided from CombatsLeft when the room was entered and does not
                     // change at combat end.
                     break;

@@ -4,16 +4,34 @@ namespace BlitzSolver.Content.Relics;
 
 /// <summary>
 /// <c>BigHat</c>: on <c>AfterSideTurnStart</c> while the player's turn number is at most 1, generate
-/// two distinct Ethereal character cards into the hand. That hook only fires during player turn 1's
-/// start, which happens before the captured root (the root is taken later in the turn after the
-/// side-turn-start batch), so the imported root already contains those cards. The existing engine has
-/// no mirror for it and the Blitz root never observes turn 1 side start; the definition is empty and
-/// the evaluation reads the cards from the root.
+/// its <c>Cards</c> distinct Ethereal character cards into the hand.
 /// </summary>
 [ContentId("BIG_HAT")]
 public sealed class BigHat : RelicDef
 {
-    // Turn-start generation samples the character pool; the turn-setup root is captured before
-    // this hook fires, so the rules table must carry the generated card stats.
+    // The old play-phase closure froze the whole character pool; keep it for rule parity.
     public override IReadOnlyList<string> GeneratedCardPools => [CardPools.CharacterAll];
+
+    // Only the Ethereal subset participates while the opening battle is built.
+    public override IReadOnlyList<string> SetupOnlyCardPools => [CardPools.CharacterEthereal];
+
+    public override void AfterSideTurnStart(ref Exec x, Listener self, Side side)
+    {
+        if (side != Side.Player || x.B.PlayerTurn > 1)
+            return;
+        int count = StartVars.Int(ref x, self, "Cards");
+        if (count <= 0)
+            return;
+        if (count > Limits.Cards)
+            throw new CapacityException("GeneratedCards", Limits.Cards);
+        Span<Card> cards = stackalloc Card[count];
+        int sampled = Kernel.SampleCardPool(ref x.B, x.R, CardPools.CharacterEthereal, count,
+            distinct: true, RngStream.CombatCardGeneration, cards);
+        for (int index = 0; index < sampled; index++)
+        {
+            Kernel.AddGeneratedCard(ref x, cards[index], Pile.Hand, PilePosition.Bottom);
+            if (x.NeedsChoice)
+                return;
+        }
+    }
 }

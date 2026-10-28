@@ -304,17 +304,70 @@ public sealed partial class FakeSneckoEye : RelicDef
 // --- combat-start / player turn-1 effects imported with the root ------------------------
 // The native hook fires before the play-phase root; the resulting block, power, hand or
 // counter is part of the imported Battle.
-[ContentId("BIG_MUSHROOM")] public sealed class BigMushroom : RelicDef; // ModifyHandDraw turn 1 only
+[ContentId("BIG_MUSHROOM")]
+public sealed class BigMushroom : RelicDef
+{
+    public override decimal ModifyHandDraw(ref Exec x, Listener self, decimal amount)
+        => x.B.PlayerTurn == 1 ? amount - StartVars.Int(ref x, self, "Cards") : amount;
+}
 
 [ContentId("FAKE_ANCHOR")] public sealed partial class FakeAnchor : RelicDef; // BeforeCombatStart block
 
-[ContentId("FAKE_BLOOD_VIAL")] public sealed class FakeBloodVial : RelicDef; // turn <= 1 AfterPlayerTurnStartLate heal
+[ContentId("FAKE_BLOOD_VIAL")]
+public sealed class FakeBloodVial : RelicDef
+{
+    public override void AfterPlayerTurnStartLate(ref Exec x, Listener self)
+    {
+        if (x.B.PlayerTurn > 1)
+            return;
+        Kernel.Heal(ref x, Limits.PlayerOwner, StartVars.Int(ref x, self, "Heal"));
+    }
+}
 
-[ContentId("ROYAL_POISON")] public sealed class RoyalPoison : RelicDef; // turn <= 1 AfterPlayerTurnStart damage
+[ContentId("ROYAL_POISON")]
+public sealed class RoyalPoison : RelicDef
+{
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
+    {
+        if (x.B.PlayerTurn > 1)
+            return;
+        Span<byte> targets = stackalloc byte[1];
+        targets[0] = Limits.PlayerOwner;
+        Kernel.Damage(ref x, targets, StartVars.Int(ref x, self, "Damage"),
+            ValueProps.Unblockable | ValueProps.Unpowered, Limits.NoOwner, hasCardSource: false,
+            default);
+    }
+}
 
 [ContentId("SWORD_OF_JADE")] public sealed partial class SwordOfJade : RelicDef; // AfterRoomEntered Strength
 
-[ContentId("TEA_OF_DISCOURTESY")] public sealed class TeaOfDiscourtesy : RelicDef; // BeforeCombatStart Dazed
+/// <summary>
+/// <c>TeaOfDiscourtesy</c>: at <c>BeforeCombatStart</c>, while the run-side <c>CombatsLeft</c> is
+/// positive, add its <c>DazedCount</c> Dazed cards to random draw-pile positions and spend one
+/// combat. The run layer seeds <see cref="Relic.Counter"/> with <c>CombatsLeft</c> before the build
+/// and copies the decremented value back.
+/// </summary>
+[ContentId("TEA_OF_DISCOURTESY")]
+public sealed class TeaOfDiscourtesy : RelicDef
+{
+    public override IReadOnlyList<(string CardId, int Upgrade)> SetupOnlyGeneratedCards => [("DAZED", 0)];
+
+    public override void BeforeCombatStart(ref Exec x, Listener self)
+    {
+        ref Relic relic = ref x.B.Relics[self.Index];
+        if (relic.Counter <= 0)
+            return;
+        int count = StartVars.Int(ref x, self, "DazedCount");
+        for (int index = 0; index < count; index++)
+        {
+            Card dazed = Kernel.CreateCard(x.R, Registry.CardId<Cards.Status.Dazed>());
+            Kernel.AddGeneratedCard(ref x, dazed, Pile.Draw, PilePosition.Random);
+            if (x.NeedsChoice)
+                return;
+        }
+        relic.Counter--;
+    }
+}
 
 // --- state projected without a later combat effect --------------------------------------
 /// <summary>
@@ -323,4 +376,15 @@ public sealed partial class FakeSneckoEye : RelicDef
 /// <c>StatefulRelicState.Current</c>.
 /// </summary>
 [ContentId("BONE_TEA")]
-public sealed class BoneTea : RelicDef;
+public sealed class BoneTea : RelicDef
+{
+    public override void AfterPlayerTurnStart(ref Exec x, Listener self)
+    {
+        ref Relic relic = ref x.B.Relics[self.Index];
+        if (relic.Counter <= 0 || x.B.PlayerTurn > 1)
+            return;
+        for (int index = 0; index < x.B.HandCount; index++)
+            Kernel.UpgradeCard(x.R, ref x.B.Cards[index]);
+        relic.Counter--;
+    }
+}

@@ -19,6 +19,7 @@ public static class ContentReason
     public const string UnsupportedEvent = "unsupported-event";
     public const string UnsupportedRoom = "unsupported-room";
     public const string UnsupportedClosure = "unsupported-closure";
+    public const string SetupHookListener = "setup-hook-listener";
     public const string Capacity = "capacity";
 }
 
@@ -342,6 +343,17 @@ public sealed class ContentTable : ICombatStartContent
 
     /// <summary>Merchant-flow hook overrides of every potion id.</summary>
     public required ContentShopHookMask[] PotionShopHooks { get; init; }
+    /// <summary>Opening setup-hook overrides of every card id.</summary>
+    public required ContentSetupHookMask[] CardSetupHooks { get; init; }
+
+    /// <summary>Opening setup-hook overrides of every relic id.</summary>
+    public required ContentSetupHookMask[] RelicSetupHooks { get; init; }
+
+    /// <summary>Opening setup-hook overrides of every power id.</summary>
+    public required ContentSetupHookMask[] PowerSetupHooks { get; init; }
+
+    /// <summary>Opening setup-hook overrides of every enchantment id.</summary>
+    public required ContentSetupHookMask[] EnchantmentSetupHooks { get; init; }
 
     /// <summary>Epoch whose reveal sets <c>ExtraRunFields.StartedWithNeow</c>.</summary>
     public required ushort NeowEpoch { get; init; }

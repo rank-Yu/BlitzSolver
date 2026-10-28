@@ -370,7 +370,7 @@ public static partial class RulesCompiler
         void Declare(ContentDef def)
         {
             needsPotionPool |= def.GeneratesRandomPotion;
-            needsOutOfCombatPotionPool |= def is PotionDef { GeneratesOutOfCombatPotion: true };
+            needsOutOfCombatPotionPool |= def.GeneratesOutOfCombatPotion;
             if (def is PotionDef && !seenPotionDefs.Add(def.Id))
                 return;
             foreach ((string cardId, int upgrade) in def.GeneratedCards)

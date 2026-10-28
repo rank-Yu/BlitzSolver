@@ -275,6 +275,7 @@ public static partial class Kernel
         AfterEnergyReset,
         AfterEnergyResetLate,
         AfterPlayerTurnStart,
+        AfterPlayerTurnStartLate,
         AfterSideTurnStart,
         PrepareBeforeSideTurnEnd,
         AfterSideTurnEnd,
@@ -297,6 +298,7 @@ public static partial class Kernel
                 case RelicPhase.AfterEnergyReset: def.AfterEnergyReset(ref x, self); break;
                 case RelicPhase.AfterEnergyResetLate: def.AfterEnergyResetLate(ref x, self); break;
                 case RelicPhase.AfterPlayerTurnStart: def.AfterPlayerTurnStart(ref x, self); break;
+                case RelicPhase.AfterPlayerTurnStartLate: def.AfterPlayerTurnStartLate(ref x, self); break;
                 case RelicPhase.AfterSideTurnStart: def.AfterSideTurnStart(ref x, self, side); break;
                 case RelicPhase.PrepareBeforeSideTurnEnd: def.PrepareBeforeSideTurnEnd(ref x, self, side); break;
                 case RelicPhase.AfterSideTurnEnd: def.AfterSideTurnEnd(ref x, self, side); break;
@@ -726,13 +728,19 @@ public static partial class Kernel
         return false;
     }
 
-    /// <summary><c>HookMirrors.AfterPlayerTurnStart</c> on the vanilla path: powers, then relics.</summary>
+    /// <summary>
+    /// <c>Hook.AfterPlayerTurnStart</c> on the vanilla path: powers, then relics, each in the regular
+    /// and late passes (native iterates the same listener list once per pass).
+    /// </summary>
     internal static void AfterPlayerTurnStart(ref Exec x)
     {
         PowerListenerPass(ref x, PowerPhase.AfterPlayerTurnStart, Side.Player, default, Limits.PlayerOwner, ushort.MaxValue, ushort.MaxValue, ushort.MaxValue);
         if (x.NeedsChoice)
             return;
         RelicPass(ref x, RelicPhase.AfterPlayerTurnStart, Side.Player);
+        if (x.NeedsChoice)
+            return;
+        RelicPass(ref x, RelicPhase.AfterPlayerTurnStartLate, Side.Player);
     }
 
     /// <summary><c>PersistentPowerSupport.GetModifiedMaxEnergy</c>: every combat listener's modifier.</summary>

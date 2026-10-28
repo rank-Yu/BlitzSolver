@@ -388,6 +388,25 @@ public abstract class ContentDef
     /// The Bridge then freezes the potion option pool and admission rejects an undefined candidate.
     /// </summary>
     public virtual bool GeneratesRandomPotion => false;
+
+    /// <summary>
+    /// True when this content can create a random potion with
+    /// <c>PotionFactory.CreateRandomPotionOutOfCombat</c> (EntropicBrew, DelicateFrond): the rule
+    /// compiler freezes the unfiltered character + shared potion pool, including potions that cannot
+    /// be generated in combat.
+    /// </summary>
+    public virtual bool GeneratesOutOfCombatPotion => false;
+
+    /// <summary>
+    /// Card stats and pools used only while the opening battle is built. They are frozen into the
+    /// provisional rules so first-turn generation can sample them, but not into the play-phase
+    /// rules (the generated cards themselves are part of the battle and keep their stats there).
+    /// </summary>
+    public virtual IReadOnlyList<string> SetupOnlyCardPools => [];
+
+    public virtual IReadOnlyList<(string CardId, int Upgrade)> SetupOnlyGeneratedCards => [];
+
+    public virtual bool SetupOnlyOutOfCombatPotionPool => false;
 }
 
 /// <summary>
@@ -1382,6 +1401,11 @@ public abstract class RelicDef : ListenerDef
     {
     }
 
+    /// <summary>Native <c>AfterPlayerTurnStartLate</c>, the third pass over the same listeners.</summary>
+    public virtual void AfterPlayerTurnStartLate(ref Exec x, Listener self)
+    {
+    }
+
     public virtual void AfterSideTurnStart(ref Exec x, Listener self, Side side)
     {
     }
@@ -1423,6 +1447,11 @@ public abstract class RelicDef : ListenerDef
     }
 
     /// <summary>
+    /// Native <c>ShouldProcurePotion</c> (Sozu): returns false to refuse a potion entering the belt.
+    /// </summary>
+    public virtual bool ShouldProcurePotion(in Battle battle, ushort relicId, ushort potionId) => true;
+
+    /// <summary>
     /// Native relic-bar status after the room-entry/combat-start passes: 0 Normal, 1 Active,
     /// 2 Disabled, or -1 to keep the imported status.
     /// </summary>
@@ -1441,13 +1470,6 @@ public abstract class PotionDef : ListenerDef
     /// offer still needs a definition to be held in a slot, but produces no action.
     /// </summary>
     public virtual bool Searchable => true;
-
-    /// <summary>
-    /// True when this potion can create a random potion with
-    /// <c>PotionFactory.CreateRandomPotionOutOfCombat</c> (EntropicBrew): the rule compiler freezes the
-    /// unfiltered character + shared potion pool, including potions that cannot be generated in combat.
-    /// </summary>
-    public virtual bool GeneratesOutOfCombatPotion => false;
 
     /// <summary>
     /// The potion's case in <c>PotionOnUseSupport.Use</c>. <see cref="Exec.Target"/> holds the chosen

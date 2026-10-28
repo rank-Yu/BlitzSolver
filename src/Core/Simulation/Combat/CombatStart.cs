@@ -11,7 +11,9 @@ public static class CombatStart
     /// <summary>
     /// Native <c>CardPile.RandomizeOrderInternal</c> for the initial draw pile: an unstable
     /// Fisher-Yates shuffle over the cloned deck order. Initial-shuffle <c>ModifyShuffleOrder</c>
-    /// listeners are not implemented; an enchantment that needs one is rejected.
+    /// listeners are not implemented; an enchantment that needs one is rejected. The initial
+    /// shuffle does not fire <c>AfterShuffle</c> (native calls only <c>ModifyShuffleOrder</c>), so
+    /// BiiigHug is unaffected.
     /// </summary>
     public static void ShuffleInitialDrawPile(ref Battle battle)
     {
@@ -23,9 +25,15 @@ public static class CombatStart
             if (card.EnchantmentId == 0)
                 continue;
             EnchantmentDef enchantment = Registry.Enchantment((ushort)(card.EnchantmentId - 1));
-            if ((enchantment.HooksExt & HookMaskExt.ModifyShuffleOrder) != 0)
-                throw new UnsupportedException(
-                    $"开战洗牌的 ModifyShuffleOrder 尚未实现：{enchantment.NativeId}。");
+            if ((enchantment.HooksExt & HookMaskExt.ModifyShuffleOrder) == 0)
+                continue;
+            // PerfectFit.ModifyShuffleOrder starts with `if (isInitialShuffle) return;`; the
+            // initial shuffle is exactly the no-op branch. Every other ModifyShuffleOrder
+            // enchantment is still rejected until the initial-shuffle dispatch is implemented.
+            if (enchantment.NativeId == "PERFECT_FIT")
+                continue;
+            throw new UnsupportedException(
+                $"开战洗牌的 ModifyShuffleOrder 尚未实现：{enchantment.NativeId}。");
         }
         ref RngState rng = ref battle.RngStream(RngStream.Shuffle);
         for (int index = count - 1; index > 0; index--)
@@ -36,52 +44,42 @@ public static class CombatStart
         }
     }
 
-    /// <summary><c>Hook.AfterRoomEntered</c> for the combat room, over the player's relics.</summary>
-    public static void AfterRoomEntered(ref Battle battle, Rules rules, ICombatStartContent content,
-        bool elite, bool boss)
+    /// <summary>
+    /// <c>Hook.AfterRoomEntered</c> for the combat room, over the player's relics. The caller owns
+    /// the opening <see cref="Exec"/> so a choice requested here consumes the same sequence as the
+    /// later combat-start and first-turn passes.
+    /// </summary>
+    public static void AfterRoomEntered(ref Exec x, bool elite, bool boss)
     {
-        PlayerAction action = default;
-        Exec x = new(ref battle, rules, in action)
+        x.FirstRoomIsElite = elite;
+        x.FirstRoomIsBoss = boss;
+        for (int index = 0; index < x.B.RelicCount; index++)
         {
-            CombatStart = true,
-            SetupContent = content,
-        };
-        for (int index = 0; index < battle.RelicCount; index++)
-        {
-            ref readonly Relic relic = ref battle.Relics[index];
+            ref readonly Relic relic = ref x.B.Relics[index];
             if ((relic.Flags & RelicFlags.Melted) != 0)
                 continue;
             RelicDef def = Registry.Relic(relic.Id);
             Listener self = new(ListenerKind.Relic, checked((byte)index), Limits.PlayerOwner);
             def.AfterRoomEntered(ref x, self, elite, boss);
             if (x.NeedsChoice)
-                throw new UnsupportedException($"遗物 {def.NativeId} 的房间进入效果请求了选择。");
+                return;
         }
     }
 
     /// <summary><c>Hook.BeforeCombatStart</c> over relics then powers, in native listener order.</summary>
-    public static void BeforeCombatStart(ref Battle battle, Rules rules, ICombatStartContent content,
-        bool boss)
-        => ListenerCombatStart(ref battle, rules, content, late: false, boss);
+    public static void BeforeCombatStart(ref Exec x, bool boss)
+        => ListenerCombatStart(ref x, late: false, boss);
 
     /// <summary><c>Hook.BeforeCombatStartLate</c> over the same listeners.</summary>
-    public static void BeforeCombatStartLate(ref Battle battle, Rules rules,
-        ICombatStartContent content, bool boss)
-        => ListenerCombatStart(ref battle, rules, content, late: true, boss);
+    public static void BeforeCombatStartLate(ref Exec x, bool boss)
+        => ListenerCombatStart(ref x, late: true, boss);
 
-    private static void ListenerCombatStart(ref Battle battle, Rules rules,
-        ICombatStartContent content, bool late, bool boss)
+    private static void ListenerCombatStart(ref Exec x, bool late, bool boss)
     {
-        PlayerAction action = default;
-        Exec x = new(ref battle, rules, in action)
+        x.FirstRoomIsBoss = boss;
+        for (int index = 0; index < x.B.RelicCount; index++)
         {
-            CombatStart = true,
-            SetupContent = content,
-            FirstRoomIsBoss = boss,
-        };
-        for (int index = 0; index < battle.RelicCount; index++)
-        {
-            ref readonly Relic relic = ref battle.Relics[index];
+            ref readonly Relic relic = ref x.B.Relics[index];
             if ((relic.Flags & RelicFlags.Melted) != 0)
                 continue;
             RelicDef def = Registry.Relic(relic.Id);
@@ -91,34 +89,21 @@ public static class CombatStart
             else
                 def.BeforeCombatStart(ref x, self);
             if (x.NeedsChoice)
-                throw new UnsupportedException($"遗物 {def.NativeId} 的开战效果请求了选择。");
+                return;
         }
-        for (int index = 0; index < battle.PowerCount; index++)
+        for (int index = 0; index < x.B.PowerCount; index++)
         {
-            PowerDef def = Registry.Power(battle.Powers[index].Id);
-            Listener self = new(ListenerKind.Power, checked((byte)index), battle.Powers[index].Owner);
+            PowerDef def = Registry.Power(x.B.Powers[index].Id);
+            Listener self = new(ListenerKind.Power, checked((byte)index), x.B.Powers[index].Owner);
             if (late)
                 def.BeforeCombatStartLate(ref x, self);
             else
                 def.BeforeCombatStart(ref x, self);
             if (x.NeedsChoice)
-                throw new UnsupportedException($"Power {def.NativeId} 的开战效果请求了选择。");
+                return;
         }
     }
 
-    /// <summary>
-    /// Runs the native first player turn and requires it to reach the play phase without a choice.
-    /// </summary>
-    public static void StartFirstTurn(ref Battle battle, Rules rules, ICombatStartContent content)
-    {
-        PlayerAction action = default;
-        Exec x = new(ref battle, rules, in action)
-        {
-            CombatStart = true,
-            SetupContent = content,
-        };
-        Kernel.StartFirstPlayerTurn(ref x);
-        if (x.NeedsChoice)
-            throw new UnsupportedException("第一回合的起手效果请求了选择。");
-    }
+    /// <summary>Runs the native first player turn on the caller's opening execution context.</summary>
+    public static void StartFirstTurn(ref Exec x) => Kernel.StartFirstPlayerTurn(ref x);
 }

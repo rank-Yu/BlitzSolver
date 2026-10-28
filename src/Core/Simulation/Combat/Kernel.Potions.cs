@@ -166,8 +166,8 @@ public static partial class Kernel
 
     /// <summary>
     /// Mirrors <c>SimulatedCombatState.TryProcurePotion</c> for a supported root: the first empty slot
-    /// receives the potion. <c>ShouldProcurePotion</c> (Sozu) and <c>AfterPotionProcured</c> relic
-    /// reactions have no Blitz definitions, so roots holding them are rejected at admission.
+    /// receives the potion. <c>ShouldProcurePotion</c> listeners (Sozu) are consulted first;
+    /// <c>AfterPotionProcured</c> reactions are outside this effect's scope.
     /// </summary>
     public static bool TryProcurePotion(ref Battle battle, ushort potionId)
         => TryProcurePotion(ref battle, potionId, freeFromEntropic: false);
@@ -179,6 +179,14 @@ public static partial class Kernel
     /// </summary>
     public static bool TryProcurePotion(ref Battle battle, ushort potionId, bool freeFromEntropic)
     {
+        for (int index = 0; index < battle.RelicCount; index++)
+        {
+            ref readonly Relic relic = ref battle.Relics[index];
+            if ((relic.Flags & RelicFlags.Melted) != 0)
+                continue;
+            if (!Registry.Relic(relic.Id).ShouldProcurePotion(in battle, relic.Id, potionId))
+                return false;
+        }
         for (int slot = 0; slot < battle.PotionSlotCount; slot++)
         {
             if (battle.Potions[slot] != 0)

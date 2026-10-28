@@ -72,6 +72,46 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 - `Facts`：初始节点、条件分支目标、节点攻击、根 Power 基线、`InitialMoveLogged`；
 - `EncounterId`：本次遭遇的 `RunCatalog` id。
 
+### 2.1 开战选择
+
+开战的前三段（`AfterRoomEntered`、`BeforeCombatStart(Late)`）和第一回合准备都可能需要玩家选择。
+Blitz 用战斗内核已有的 `ChoiceRequest` + 选择序列表示，不另建局外选择类型：
+
+```csharp
+CombatSetupAttempt attempt = RunCombatSetup.TryEnterMapCoord(in run, table, coord, choices);
+// attempt.Pending 非空：choice 序列还不够，RunState 不变
+// attempt.Result  非空：完整建局结果
+```
+
+`choices` 是 `ReadOnlySpan<ulong>`，每个元素是一次 `ChoiceRequest` 的位掩码；建局每次都从同一个
+进点前 `RunState` 从头重放，不保存中途快照。序列上限是 `RunLimits.CombatSetupChoices`（8），
+超出抛 `CapacityException`。当前 21 种遗物在一场战斗开局最多产生 4 个选择点：Toolbox、
+GamblingChip、ToastyMittens、ChoicesParadox 各一个；第 2 回合以后的选择仍走 `Kernel.Step` 的
+普通动作选择机制。
+
+`ChoiceKind.SelectOption` 现在也支持范围选择（Toolbox 的 0..1、ChoicesParadox 的 1..1），
+选项卡值放在 `ChoiceRequest.GeneratedOptions`；手牌选择仍是 `SelectCards` + 牌堆位置位掩码。
+GamblingChip 用 `MinCount=0`、`MaxCount=手牌数`，一次位掩码表示任意子集。
+
+所有模拟出来的回合开始都按**自动选择器、不暂停**的顺序建模：`SetupPlayerTurn` 先完整跑完
+`AfterPlayerTurnStart`（包括三趟和其中的选择），再跑 `Hook.AfterSideTurnStart`、死亡结算和
+回合开始球效果。第一回合和后续回合走同一套顺序。原先冻结的 4 个 D1 根
+（`quality-REGENT-001`、`qf-turn-start-choice-forge`、`qf2-gradient-failure`、`ts-a-toasty`）
+已用原版全局选择器逐动作 same 的证据重录，见 [Golden 数据](golden-data.md) 8.1。原版
+`CardSelectCmd.FromHand`/`FromChooseACardScreen`/`FromSimpleGrid` 只有在
+`CardSelectCmd.Selector == null` 时才 `SignalPlayerChoiceBegun`；全局
+`PushSelector(selector)`（Mod 部署的 `PlannedNativeSelector.Activate` 用法）会让
+`Selector != null`，因此不暂停。`Exec` 不再有 `DeferSideTurnStartForChoice` 等延迟字段。
+
+手动界面或 `localOnly: true` 的 `LocalSelector` 走 `Selector == null` 分支，会暂停
+`SetupPlayerTurn` 先跑侧回合开始；持有 ToastyMittens 这类回合开始选择、又有 Crossbow 等
+`AfterSideTurnStart` 加牌效果时，界面上看到的选项可能和自动/Mod 路径不同。这是已知差异，
+不影响搜索；R3 的 Mod 部署回答开战选择时必须使用不带 `localOnly` 的全局选择器。
+
+ToastyMittens 在手牌只有 1 张时按原生
+`FromHand` 的 `!RequireManualConfirmation && list.Count <= MinSelect` 自动选唯一一张，
+不产生 `ChoiceRequest`；ChoicesParadox 只有 1 张生成卡时同理。
+
 `RunCombatSetup.EnterMapCoord` 只接受战斗房间；未知点掷出的商店/宝箱/休息处/事件与先古点
 由 `RunKernel.Step` 返回 `UnsupportedRoom`，内容阶段分别留给 R2c/R2d/R2e/R2f。未知点掷骰、
 事件拉取和非战斗边界的细节见[局外决策协议与地图进点](run-decisions.md)。
@@ -112,7 +152,8 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
   负责 `AfterAddedToRoom` 与第一次行动掷骰。
 
 新加的 Hook 都直接由建局入口调用，不占用 `HookMask` / `HookMaskExt` 的位；现有 64 位 Hook 表
-不变。`Exec.FirstRoomIsBoss` 是只在这一段有效的瞬时标志（Pantograph），不进入 `Battle` 布局。
+不变。`Exec.FirstRoomIsBoss` / `FirstRoomIsElite` 是只在这一段有效的瞬时标志（Pantograph、
+BoomingConch），不进入 `Battle` 布局。
 
 `RulesRootFacts` 由建局过程产生：每个敌人的构造初始节点、条件分支实际目标、节点攻击表、
 `InitialMoveLogged`。`RulesBuilder` 用它覆盖内容表里的通用行；这样 `Rules` 对照覆盖了
@@ -124,7 +165,15 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 
 - **遗物**：导出器把规范 `RelicModel.DynamicVars` 全量放进 `ContentTable.RelicStartVars`。
   建局时遗物按变量名读取，例如 Anchor 的 `Block`、BronzeScales 的 `ThornsPower`、
-  DivineRight 的 `Stars`。`RelicDef.VarNames` 没有增加，`Rules` 字节不变。
+  DivineRight 的 `Stars`。`RelicDef.VarNames` 没有为建局效果增加，`Rules` 字节不变。
+- **只在建局期使用的闭包**：Toolbox/ChoicesParadox/VexingPuzzlebox 的生成池、BigHat 的
+  Ethereal 池、OrangeDough 的无色池、TeaOfDiscourtesy 的 Dazed、NinjaScroll 的 Shiv、
+  DelicateFrond 的局外药水池，用 `ContentDef.SetupOnlyCardPools` /
+  `SetupOnlyGeneratedCards` / `SetupOnlyOutOfCombatPotionPool` 声明。它们只冻结进
+  `RunCombatSetup` 的 provisional `Rules`，不进入 `CombatSetupResult.Rules`，因此不会改变
+  冻结规则表；真正留下的生成卡/药水仍按 `Battle.Cards`/`Battle.Potions` 进入最终 `Rules`。
+  BigHat 的 `GeneratedCardPools` 保留旧的 `CharacterAll` 闭包（与冻结规则一致），
+  `SetupOnlyCardPools` 才提供原版的 `CharacterEthereal` 采样池。
 - **怪物**：导出器对每个遭遇的每个进阶真正执行一次原版 `MonsterModel.AfterAddedToRoom`，
   按（怪物、槽位、进阶）记录：施加的 Power（目标、Applier、层数、`Power.Target`、
   WitheringPresence 的 `CardsLeft`）以及 HP 模式。建局由 `Kernel.PrepareMonsterForCombatStart`
@@ -150,14 +199,16 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 | `unknown-point-hook` / `event-hook` / `event-allowed-check` | 未知点掷骰或事件拉取遇到未实现的 Hook（见[局外决策协议](run-decisions.md)） |
 | `unsupported-encounter` | 没有遭遇生成定义、遭遇槽位不一致 |
 | `unsupported-monster` | 遭遇生成或怪物规则缺内容 |
-| `unsupported-relic` | 遗物的开战/第一回合效果未实现（Toolbox、DelicateFrond、MysticLighter、BigHat 等） |
+| `unsupported-relic` | 内容表缺遗物定义或遗物变量；21 种开战/第一回合遗物已实现，不再在建局开头整批拒绝 |
 | `unsupported-card` | 牌组卡牌的升级等级超出内容表 |
 | `unsupported-potion` | 药水 id 超出内容表 |
 | `unsupported-enchantment` | 附魔 id 超出内容表 |
 | `capacity` | 容量溢出 |
 
 对照程序另把 D1 请求中给遗物注入 `IntegerMembers`/`BooleanMembers` 的根标为
-`unsupported-relic-state`：这些值不进入 `RunState`，建局无法从导入状态恢复。
+`unsupported-relic-state`：这些值不进入 `RunState`，建局无法从导入状态恢复。D1 的
+`--combat-setup-compare` 不做开战后的测试注入；带 `ClearPlayerHand`/`ClearPlayerPiles` 等
+请求的根只比较“进点前 RunState 能唯一决定的自然开局”，注入本身不参与建局。
 
 ## 6. 对照方法
 
@@ -171,6 +222,14 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 
 比较 `Battle` 逐字节、`RulesCodec` 编码逐字节、`RunState` 逐字段。失败时打印第一处差异的
 字段路径和两边值；`--setup-cover` 只统计覆盖，不跑原版路径。
+
+带开战选择时，对照按完整选择序列枚举：每遇到待定 `ChoiceRequest`，就按 `GenerateToHand`
+（Toolbox 0..1、ChoicesParadox 1..1）、`Exhaust`（ToastyMittens 1..1）或
+`DiscardAndDraw`（GamblingChip 0..手牌数）枚举可行位掩码；GamblingChip 在手牌超过 7 张时取
+空集、每个单张、全选和 16 个确定性随机子集，其余选择全枚举。每个序列都从同一进点前
+`RunState` 重放 Blitz，并让原版用同一序列重新进点；比较请求（种类、生成卡 id/升级或手牌
+下标、min/max）、`Battle`、`Rules` 和进点后 `RunState`。`--setup-choices --setup-root <root>`
+只打印 Blitz 的请求树，不跑原版。
 
 三类用例：
 
@@ -208,6 +267,13 @@ Hook，`RunState.IsGameOver` 由玩家死亡推导，`Decision = GameOver`。
 5. 同步最终遗物状态、显示计数和 `SavedProperties`；
 6. 同步历史房间的怪物列表与回合数、当前房间 `IsPreFinished`、`Decision`。
 
+DelicateFrond 在 `BeforeCombatStart` 补满的药水已经写回进点后 `RunState.Player.Potions`，
+战斗结束后继续留在药水槽；TeaOfDiscourtesy 的 `CombatsLeft` 在进点时扣减并写
+`RunRelic.Properties`，用尽后 `Status=Disabled`；MawBank 的战斗房间 `AfterRoomEntered` 金币
+在 `RunCombatSetup` 里走与商店相同的 `GainGold`；ToyBox 的 `CombatsSeen`/熔化与
+PaelsLegion 的结束重置仍在写回段。ToastyMittens 的后续回合选择走普通 `Kernel.Step`，写回
+对照按第一选项回答原版。
+
 遗物与 Power 数值全部来自内容表（`ContentTable.RelicVar`/`Card`）。目前覆盖的开战/首回合
 效果与结束效果包括 Anchor、FakeAnchor、Pantograph、RedSkull、BeltBuckle、SneckoEye、Osty、
 BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、FurCoat、GhostSeed、
@@ -233,17 +299,13 @@ WarHammer 等结束 Hook。
 战斗结束只把 `RecoveredHp` 等搜索台账保持为零：开战回血（Pantograph、BloodVial）属于
 `RunState.Player.CurrentHp`，不是战斗内恢复。
 
-### 7.2 差分现状（R2a-4）
+### 7.2 差分现状（R2a-5）
 
-`--combat-writeback-compare` 四类在最终代码上均为动作边界与写回终点 0 差异：自然 500、
-遭遇 880（另 10 个 `THE_ARCHITECT_EVENT_ENCOUNTER` 以 `event-script-end` 显式拒绝）、D1
-373（另 37 个未支持遗物拒绝）、低档 101（另 19 个未支持遗物拒绝）。R2a-3 的 36 个动作差异
-（Possess 账本、WaterfallGiant 压力枪寄存器、GremlinMerc 召唤顺序）已由导入投影与
-`CreaturesChanged` 加入顺序修复；16 个写回差异（偷牌归还顺序、`LavaLamp`、`Kusarigama`）
-已由 detached 卡值、`Relic.Counter` 与 pending-loss 回合末闸门修复。逃跑生物现在在已知敌人
-表末尾保留墓碑，写回历史能补上原生已加入的召唤物。`FAKE_MERCHANT_EVENT_ENCOUNTER` 的
-`boundary_timeout` 是离线本地化缺表导致敌方回合任务死亡，不是战斗语义；离线宿主已用空
-`LocTable` 补丁修复。
+`--combat-writeback-compare` 四类：自然 500、遭遇 880（另 10 个
+`THE_ARCHITECT_EVENT_ENCOUNTER` 的 `event-script-end`）、D1 404（另 1 个
+`setup-hook-listener`：`WHISPERING_EARRING` 的自动出牌 Hook 未实现；另 5 个
+`unsupported-relic-state`）、低档 pilot 119（另 1 个 `quality-DEFECT-023` 的终局敌人回合
+路线差异）。动作边界差异为 0；pilot 的 LavaLamp 差异是终局路线差异，不是通用终点缺口。
 
 ## 8. 进程内整场执行器
 
@@ -267,13 +329,14 @@ WarHammer 等结束 Hook。
 ## 9. 遗物开战矩阵
 
 `--combat-setup-compare --setup-relic-matrix` 对每个有开战/首回合或首回合结束状态的遗物
-做一次定向建局：清空起始遗物后注入目标遗物，按触发条件选择普通/精英/Boss 与满血/受伤，
-分别跑原版与 Blitz 两条路径。`SETUP-RELQ` 输出每个遗物的房间、玩家状态、两边状态与触发
-计数；`SETUP-RELQ-MISSING` 列出没有触发或没有对齐的项。
+做定向建局：清空起始遗物后注入目标遗物，按触发条件选择普通/精英/Boss 与满血/受伤，
+分别跑原版与 Blitz 两条路径。`--setup-matrix-seeds`（默认 20）控制有触发用例的种子数；自动发现的无效果/默认项用 1 个
+smoke 种子；`--setup-matrix-list` 打印 Implemented 名单与计数。
+`SETUP-RELQ` 按遗物汇总 `same/seeds` 与 `triggered`，`SETUP-RELQ-MISSING` 列出预期触发但
+没有触发的遗物。矩阵使用 run-pilot 序列（GamblingChip 例外地取第一张单卡，保证触发可见）。
 
-矩阵覆盖 50 个遗物，包括 Anchor/FakeAnchor、Pantograph、RedSkull、SlingOfCourage、BeltBuckle、
-SneckoEye、Osty 两件套、BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、
-FurCoat、GhostSeed、StoneCracker、Bellows、PetrifiedToad、FuneraryMask、FencingManual、Akabeko、
-FestivePopper、CrackedCore、RingOfTheSnake，以及首回合状态的 HappyFlower/Pendulum/ArtOfWar/
-StoneCalendar/RippleBasin/Pocketwatch/Metronome/BurningSticks/ThrowingAxe/UnsettlingLamp/Vambrace/
-MeatOnTheBone。
+矩阵从 `ContentSetupHookMask` 的 Implemented 名单自动生成，当前 126 个遗物，全部各 20 个种子（无效果的也跑），共
+2520 个 run。`SETUP-RELQ` 按遗物汇总 `same/seeds` 与 `triggered`，`SETUP-RELQ-MISSING`
+列出预期触发但没有触发的遗物。矩阵使用 run-pilot 序列（GamblingChip 例外地取第一张单卡，
+保证触发可见）。BiiigHug/ToyBox/GnarledHammer 的 `AfterObtained` 需要原版选牌/奖励界面，
+矩阵不注入；BiiigHug/ToyBox 在 D1 覆盖，GnarledHammer 的获得路径仍显式拒绝。

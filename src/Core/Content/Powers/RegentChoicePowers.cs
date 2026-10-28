@@ -33,10 +33,6 @@ public sealed class TyrannyPower : PowerDef
         {
             return;
         }
-        // TurnStartChoiceCursor.BeforeNextTake starts the side before the choice's effect.
-        Kernel.StartPlayerSideTurnIfNeeded(ref x);
-        if (x.NeedsChoice)
-            return;
         Kernel.ExhaustSelected(ref x, Pile.Hand, selected[..chosen]);
     }
 }
@@ -75,10 +71,6 @@ public sealed class ForegoneConclusionPower : PowerDef
             {
                 return;
             }
-            // The choice is taken before the side starts; StartSide runs before the cards move.
-            Kernel.StartPlayerSideTurnIfNeeded(ref x);
-            if (x.NeedsChoice)
-                return;
             Kernel.MoveSelected(ref x.B, Pile.Draw, selected[..chosen], Pile.Hand,
                 PilePosition.Bottom);
             if (x.NeedsChoice)

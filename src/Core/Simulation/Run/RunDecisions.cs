@@ -293,6 +293,12 @@ public enum RunStepStatus : byte
     UnsupportedRoom = 3,
     /// <summary>The action was illegal or not supported; the state is unchanged.</summary>
     Rejected = 4,
+    /// <summary>
+    /// The map point was accepted but its opening battle asked for a choice. The state is unchanged;
+    /// retry the same action with the choice sequence plus one bit set for
+    /// <see cref="RunStepResult.CombatChoice"/>.
+    /// </summary>
+    CombatChoice = 5,
 }
 
 /// <summary>Stable reason code of a rejected action.</summary>
@@ -361,4 +367,10 @@ public sealed class RunStepResult
     public RunMapPointType PointType { get; init; }
 
     public CombatSetupResult? Combat { get; init; }
+
+    /// <summary>
+    /// Set for <see cref="RunStepStatus.CombatChoice"/>: the next opening choice. The run state was
+    /// not advanced; retry the same action with this request's answer appended.
+    /// </summary>
+    public CombatSetupChoice? CombatChoice { get; init; }
 }

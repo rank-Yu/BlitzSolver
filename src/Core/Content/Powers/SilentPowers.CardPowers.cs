@@ -96,9 +96,6 @@ public sealed class ToolsOfTheTradePower : PowerDef
         {
             return;
         }
-        Kernel.StartPlayerSideTurnIfNeeded(ref x);
-        if (x.NeedsChoice)
-            return;
         // TurnStartChoiceSupport.Resolve(Discard) calls simulator.Discard(selected), which is the same
         // path as DiscardAndDraw with no draw: counter, AfterCardDiscarded and Sly auto-play.
         Kernel.DiscardAndDraw(ref x, Pile.Hand, selected[..chosen], 0);

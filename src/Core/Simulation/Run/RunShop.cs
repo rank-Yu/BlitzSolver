@@ -538,12 +538,7 @@ public static class RunShopGenerator
             switch (Registry.Relic(relic.Id).NativeId)
             {
                 case "MAW_BANK":
-                    if (state.Rooms.Count == 1
-                        && !RunRewardGenerator.ReadRelicBool(in relic, "HasItemBeenBought"))
-                    {
-                        RunRewardGenerator.GainGold(ref state, table,
-                            RunRewardGenerator.IntVar(table, relic.Id, "Gold"), false);
-                    }
+                    RunRewardGenerator.GainMawBankGold(ref state, table);
                     break;
                 case "MEAL_TICKET":
                     RunRewardGenerator.Heal(ref state,

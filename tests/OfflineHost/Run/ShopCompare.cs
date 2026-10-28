@@ -227,6 +227,8 @@ internal static class ShopCompare
         int diff = 0;
         int reject = 0;
         int skip = 0;
+        int skips = 0;
+        Dictionary<string, int> skipReasons = new(StringComparer.Ordinal);
         long compares = 0;
         long optionElements = 0;
         long steps = 0;
@@ -283,6 +285,12 @@ internal static class ShopCompare
                     }
                     if (line.StartsWith("SHOP-LIVE-PRICES calls=", StringComparison.Ordinal))
                         livePriceCalls += ParseLong(line["SHOP-LIVE-PRICES calls=".Length..]);
+                    if (line.StartsWith("SHOP-SKIP ", StringComparison.Ordinal))
+                    {
+                        string reason = Field(line, "reason");
+                        skipReasons[reason] = skipReasons.GetValueOrDefault(reason) +
+                            (int)ParseLong(Field(line, "count"));
+                    }
                     continue;
                 }
                 string status = Field(line, "status");
@@ -298,6 +306,7 @@ internal static class ShopCompare
                     case "skip": skip++; break;
                 }
                 compares += ParseLong(Field(line, "compares"));
+                skips += (int)ParseLong(Field(line, "skips"));
                 greedyPurchases += ParseLong(Field(line, "greedy"));
                 if (Field(line, "courier") == "1")
                     courierCases++;
@@ -317,9 +326,11 @@ internal static class ShopCompare
         }
         Console.WriteLine(
             $"SHOP-SUMMARY cases={cases.Count} same={same} diff={diff} reject={reject} skip={skip} " +
-            $"compares={compares} optionElements={optionElements} steps={steps}");
+            $"skips={skips} compares={compares} optionElements={optionElements} steps={steps}");
         foreach ((string reason, int count) in rejects.OrderByDescending(static pair => pair.Value))
             Console.WriteLine($"SHOP-REJECT reason={reason} count={count}");
+        foreach ((string reason, int count) in skipReasons.OrderByDescending(static pair => pair.Value))
+            Console.WriteLine($"SHOP-SKIP reason={reason} count={count}");
         Console.WriteLine("SHOP-ACTIONS " + string.Join(' ',
             actions.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
                 .Select(static pair => $"{pair.Key}={pair.Value}")));
@@ -520,7 +531,7 @@ internal static class ShopCompare
 
         // Sequence definitions are derived from the entry state; each sequence re-enters the
         // shop from the same pre-entry snapshot.
-        List<Intent> buys = BuildBuyIntents(entry.Session!, entry.Blitz);
+        List<Intent> buys = BuildBuyIntents(entry.Session!, entry.Blitz, stats);
         foreach (Intent intent in buys)
         {
             if (intent.Kind == IntentKind.OpenRemoval)
@@ -551,7 +562,7 @@ internal static class ShopCompare
         if (stats.Rejected || stats.Failed)
             return stats.Failed ? 1 : 0;
         RunSequence(stats, snapshot, shopCoord, gold,
-            BuildRandomSequence(entry.Session, entry.Blitz, label, gold));
+            BuildRandomSequence(entry.Session, entry.Blitz, stats, label, gold));
         if (stats.Rejected || stats.Failed)
             return stats.Failed ? 1 : 0;
         stats.Courier = entry.Player != null && entry.Player.Relics.Any(static relic =>
@@ -565,11 +576,18 @@ internal static class ShopCompare
             $"actions=card{stats.CharacterBuys},colorless{stats.ColorlessBuys}," +
             $"relic{stats.RelicBuys},potion{stats.PotionBuys},removal{stats.RemovalBuys}," +
             $"remove{stats.Removals},cancel{stats.Cancels},leave{stats.Leaves} " +
-            $"greedy={stats.GreedyPurchases} courier={(stats.Courier ? 1 : 0)}");
+            $"greedy={stats.GreedyPurchases} courier={(stats.Courier ? 1 : 0)} " +
+            $"skips={stats.Skips.Values.Sum()}");
+        foreach ((string reason, int count) in stats.Skips.OrderBy(static pair => pair.Key,
+                     StringComparer.Ordinal))
+        {
+            Console.WriteLine($"SHOP-SKIP case={label} reason={reason} count={count}");
+        }
         return 0;
     }
 
-    private static List<Intent> BuildBuyIntents(NativeShopSession session, RunState blitz)
+    private static List<Intent> BuildBuyIntents(NativeShopSession session, RunState blitz,
+        CaseStats stats)
     {
         List<Intent> intents = [];
         NativeShopChoice[] choices = [.. session.Choices()];
@@ -581,7 +599,7 @@ internal static class ShopCompare
         {
             NativeShopChoice? choice = choices.FirstOrDefault(candidate => candidate.Kind == kind
                 && (kind == NativeShopChoiceKind.CardRemoval
-                    || WouldAccept(blitz, Intent.Buy(candidate.Index))));
+                    || WouldAccept(stats, blitz, Intent.Buy(candidate.Index))));
             if (choice == null)
                 continue;
             intents.Add(kind == NativeShopChoiceKind.CardRemoval
@@ -590,22 +608,28 @@ internal static class ShopCompare
         return intents;
     }
 
-    private static bool WouldAccept(RunState blitz, Intent intent)
+    private static bool WouldAccept(CaseStats stats, RunState blitz, Intent intent)
     {
         RunState probe = blitz;
         RunStepResult step = ExecuteBlitz(intent, ref probe);
-        return step.Status != RunStepStatus.Rejected || !IsUnsupportedReason(step.Reason);
+        if (step.Status == RunStepStatus.Rejected && IsUnsupportedReason(step.Reason))
+        {
+            string reason = step.Reason ?? "unknown";
+            stats.Skips[reason] = stats.Skips.GetValueOrDefault(reason) + 1;
+            return false;
+        }
+        return true;
     }
 
     private static Intent[] BuildRandomSequence(NativeShopSession session, RunState blitz,
-        string label, int gold)
+        CaseStats stats, string label, int gold)
     {
         Random random = new(unchecked((int)SeedFor(label + "/random")));
         List<Intent> intents = [];
         List<NativeShopChoice> pool = [.. session.Choices().Where(choice =>
             choice.Kind is NativeShopChoiceKind.Card or NativeShopChoiceKind.Relic
                 or NativeShopChoiceKind.Potion
-            && WouldAccept(blitz, Intent.Buy(choice.Index)))];
+            && WouldAccept(stats, blitz, Intent.Buy(choice.Index)))];
         int spent = 0;
         for (int step = 0; step < 3 && pool.Count != 0; step++)
         {
@@ -663,7 +687,7 @@ internal static class ShopCompare
             NativeShopChoice[] legal = [.. session.Choices().Where(candidate =>
                 candidate.Kind is NativeShopChoiceKind.Card or NativeShopChoiceKind.Relic
                     or NativeShopChoiceKind.Potion
-                && WouldAccept(blitz, Intent.Buy(candidate.Index)))];
+                && WouldAccept(stats, blitz, Intent.Buy(candidate.Index)))];
             NativeShopChoice? choice = legal.FirstOrDefault(candidate =>
                 !attempted.Contains(candidate.Index));
             if (choice == null)
@@ -1322,6 +1346,8 @@ internal static class ShopCompare
         public int GreedyPurchases { get; set; }
 
         public bool Courier { get; set; }
+
+        public Dictionary<string, int> Skips { get; } = new(StringComparer.Ordinal);
 
         public void Count(Intent intent)
         {

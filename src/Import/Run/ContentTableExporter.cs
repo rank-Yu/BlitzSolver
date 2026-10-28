@@ -118,6 +118,26 @@ public static class ContentTableExporter
                 RulesCompiler.CanonicalPotionModels.TryGetValue(Registry.Potion(id).NativeId,
                     out PotionModel? model) ? model.GetType() : null,
                 static id => Registry.Potion(id).NativeId),
+            CardSetupHooks = ExportSetupHookMasks(Registry.CardCount, static id =>
+                RulesCompiler.CanonicalCardModels.TryGetValue(Registry.Card(id).NativeId,
+                    out CardModel? model) ? model.GetType() : null,
+                static id => Registry.Card(id).GetType(), typeof(CardDef),
+                static id => Registry.Card(id).NativeId, CardSetupHookSpecs),
+            RelicSetupHooks = ExportSetupHookMasks(Registry.RelicCount, static id =>
+                RulesCompiler.CanonicalRelicModels.TryGetValue(Registry.Relic(id).NativeId,
+                    out RelicModel? model) ? model.GetType() : null,
+                static id => Registry.Relic(id).GetType(), typeof(RelicDef),
+                static id => Registry.Relic(id).NativeId, RelicSetupHookSpecs),
+            PowerSetupHooks = ExportSetupHookMasks(Registry.PowerCount, static id =>
+                RulesCompiler.CanonicalPowerModels.TryGetValue(Registry.Power(id).NativeId,
+                    out PowerModel? model) ? model.GetType() : null,
+                static id => Registry.Power(id).GetType(), typeof(PowerDef),
+                static id => Registry.Power(id).NativeId, PowerSetupHookSpecs),
+            EnchantmentSetupHooks = ExportSetupHookMasks(Registry.EnchantmentCount, static id =>
+                CanonicalEnchantmentModels.TryGetValue(Registry.Enchantment(id).NativeId,
+                    out EnchantmentModel? model) ? model.GetType() : null,
+                static id => Registry.Enchantment(id).GetType(), typeof(EnchantmentDef),
+                static id => Registry.Enchantment(id).NativeId, EnchantmentSetupHookSpecs),
             NeowEpoch = NewRunContentExporter.ExportNeowEpoch(),
             MapHookRelics = NewRunContentExporter.ExportMapHookRelics(),
             MapHookCards = NewRunContentExporter.ExportMapHookCards(),
@@ -1609,6 +1629,198 @@ public static class ContentTableExporter
         "BELT_BUCKLE", "WAR_PAINT", "WHETSTONE", "FAKE_MANGO", "FAKE_LEES_WAFFLE",
         "GOLDEN_PEARL", "NUTRITIOUS_OYSTER", "LOOMING_FRUIT",
     };
+
+    private static readonly (ContentSetupHook Hook, string Method)[] RelicSetupHookSpecs =
+    [
+        (ContentSetupHook.AfterRoomEntered, "AfterRoomEntered"),
+        (ContentSetupHook.BeforeCombatStart, "BeforeCombatStart"),
+        (ContentSetupHook.BeforeCombatStartLate, "BeforeCombatStartLate"),
+        (ContentSetupHook.BeforeSideTurnStart, "BeforeSideTurnStart"),
+        (ContentSetupHook.AfterEnergyReset, "AfterEnergyReset"),
+        (ContentSetupHook.AfterEnergyResetLate, "AfterEnergyResetLate"),
+        (ContentSetupHook.BeforeHandDraw, "BeforeHandDraw"),
+        (ContentSetupHook.BeforeHandDrawLate, "BeforeHandDrawLate"),
+        (ContentSetupHook.ModifyHandDraw, "ModifyHandDraw"),
+        (ContentSetupHook.ModifyHandDrawLate, "ModifyHandDrawLate"),
+        (ContentSetupHook.AfterPlayerTurnStartEarly, "AfterPlayerTurnStartEarly"),
+        (ContentSetupHook.AfterPlayerTurnStart, "AfterPlayerTurnStart"),
+        (ContentSetupHook.AfterPlayerTurnStartLate, "AfterPlayerTurnStartLate"),
+        (ContentSetupHook.AfterSideTurnStart, "AfterSideTurnStart"),
+        (ContentSetupHook.AfterSideTurnStartLate, "AfterSideTurnStartLate"),
+        (ContentSetupHook.ModifyMaxEnergy, "ModifyMaxEnergy"),
+        (ContentSetupHook.ModifyOrbValue, "ModifyOrbValue"),
+        (ContentSetupHook.ShouldProcurePotion, "ShouldProcurePotion"),
+        (ContentSetupHook.AfterCardDrawnEarly, "AfterCardDrawnEarly"),
+        (ContentSetupHook.AfterCardDrawn, "AfterCardDrawn"),
+        (ContentSetupHook.AfterCardEnteredCombat, "AfterCardEnteredCombat"),
+        (ContentSetupHook.AfterCardGeneratedForCombat, "AfterCardGeneratedForCombat"),
+        (ContentSetupHook.ModifyShuffleOrder, "ModifyShuffleOrder"),
+        (ContentSetupHook.AfterAutoPrePlayPhaseEntered, "AfterAutoPrePlayPhaseEntered"),
+        (ContentSetupHook.AfterAutoPrePlayPhaseEnteredLate, "AfterAutoPrePlayPhaseEnteredLate"),
+    ];
+
+    private static readonly (ContentSetupHook Hook, string Method)[] CardSetupHookSpecs =
+    [
+        (ContentSetupHook.AfterCardDrawnEarly, "AfterCardDrawnEarly"),
+        (ContentSetupHook.AfterCardDrawn, "AfterCardDrawn"),
+        (ContentSetupHook.AfterCardEnteredCombat, "AfterCardEnteredCombat"),
+        (ContentSetupHook.AfterCardGeneratedForCombat, "AfterCardGeneratedForCombat"),
+        (ContentSetupHook.ModifyShuffleOrder, "ModifyShuffleOrder"),
+    ];
+
+    private static readonly (ContentSetupHook Hook, string Method)[] PowerSetupHookSpecs =
+    [
+        (ContentSetupHook.BeforeCombatStart, "BeforeCombatStart"),
+        (ContentSetupHook.BeforeCombatStartLate, "BeforeCombatStartLate"),
+        (ContentSetupHook.BeforeSideTurnStart, "BeforeSideTurnStart"),
+        (ContentSetupHook.AfterEnergyReset, "AfterEnergyReset"),
+        (ContentSetupHook.AfterEnergyResetLate, "AfterEnergyResetLate"),
+        (ContentSetupHook.BeforeHandDraw, "BeforeHandDraw"),
+        (ContentSetupHook.BeforeHandDrawLate, "BeforeHandDrawLate"),
+        (ContentSetupHook.ModifyHandDraw, "ModifyHandDraw"),
+        (ContentSetupHook.ModifyHandDrawLate, "ModifyHandDrawLate"),
+        (ContentSetupHook.AfterPlayerTurnStartEarly, "AfterPlayerTurnStartEarly"),
+        (ContentSetupHook.AfterPlayerTurnStart, "AfterPlayerTurnStart"),
+        (ContentSetupHook.AfterPlayerTurnStartLate, "AfterPlayerTurnStartLate"),
+        (ContentSetupHook.AfterSideTurnStart, "AfterSideTurnStart"),
+        (ContentSetupHook.AfterSideTurnStartLate, "AfterSideTurnStartLate"),
+        (ContentSetupHook.ModifyMaxEnergy, "ModifyMaxEnergy"),
+        (ContentSetupHook.ModifyOrbValue, "ModifyOrbValue"),
+        (ContentSetupHook.ShouldProcurePotion, "ShouldProcurePotion"),
+        (ContentSetupHook.AfterCardDrawnEarly, "AfterCardDrawnEarly"),
+        (ContentSetupHook.AfterCardDrawn, "AfterCardDrawn"),
+        (ContentSetupHook.AfterCardEnteredCombat, "AfterCardEnteredCombat"),
+        (ContentSetupHook.AfterCardGeneratedForCombat, "AfterCardGeneratedForCombat"),
+        (ContentSetupHook.ModifyShuffleOrder, "ModifyShuffleOrder"),
+        (ContentSetupHook.AfterAutoPrePlayPhaseEntered, "AfterAutoPrePlayPhaseEntered"),
+        (ContentSetupHook.AfterAutoPrePlayPhaseEnteredLate, "AfterAutoPrePlayPhaseEnteredLate"),
+    ];
+
+    private static readonly (ContentSetupHook Hook, string Method)[] EnchantmentSetupHookSpecs =
+    [
+        (ContentSetupHook.AfterCardDrawnEarly, "AfterCardDrawnEarly"),
+        (ContentSetupHook.AfterCardDrawn, "AfterCardDrawn"),
+        (ContentSetupHook.AfterCardEnteredCombat, "AfterCardEnteredCombat"),
+        (ContentSetupHook.AfterCardGeneratedForCombat, "AfterCardGeneratedForCombat"),
+        (ContentSetupHook.ModifyShuffleOrder, "ModifyShuffleOrder"),
+    ];
+
+    /// <summary>
+    /// AfterRoomEntered relics whose combat-room branch is a no-op or handled by RunCombatSetup.
+    /// The list is the R2c-2 shop-room list plus the combat-room reset/routed relics; each one is
+    /// explicitly reviewed there. ModifyShuffleOrder is intentionally unsupported until the kernel
+    /// dispatches it (initial shuffle currently only rejects enchantments).
+    /// </summary>
+    private static readonly HashSet<string> SetupAfterRoomEnteredNoEffect =
+        new(ShopAfterRoomEntered, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Native (id, hook) pairs whose Core implementation deliberately uses a different method name.
+    /// BloodVial's native hook is AfterPlayerTurnStartLate; the kernel's opening pass is the regular
+    /// AfterPlayerTurnStart, so the implementation is registered under the native Late bit.
+    /// </summary>
+    private static readonly Dictionary<(string Id, ContentSetupHook Hook), string> SetupHookAliases =
+        new()
+        {
+            [("BLOOD_VIAL", ContentSetupHook.AfterPlayerTurnStartLate)] = "AfterPlayerTurnStart",
+            [("PAELS_EYE", ContentSetupHook.AfterSideTurnStart)] = "AfterPlayerTurnStart",
+        };
+
+    /// <summary>
+    /// Native setup hooks that have no first-turn effect in single-player, or whose effect is
+    /// implemented by a different kernel path. Each entry is the reason it is safe to admit; the
+    /// corresponding model still gets a matrix case. This is the reviewed no-effect half of the
+    /// per-(model, hook) list, not a blanket "has any override" shortcut.
+    /// </summary>
+    private static readonly Dictionary<(string Id, ContentSetupHook Hook), string> SetupHookNoEffect =
+        new()
+        {
+            [("PLATING_POWER", ContentSetupHook.BeforeSideTurnStart)] = "Kernel.TurnPhases applies Plating",
+            [("PLATING_POWER", ContentSetupHook.AfterSideTurnStart)] = "Kernel.TurnPhases applies Plating",
+            [("SLOW_POWER", ContentSetupHook.AfterSideTurnStart)] = "Kernel damage calculation reads Slow",
+            [("RAMPART_POWER", ContentSetupHook.AfterSideTurnStart)] = "no opening-turn branch",
+            [("GALVANIC_POWER", ContentSetupHook.AfterCardEnteredCombat)] = "initial deck does not fire this hook",
+            [("VITAL_SPARK_POWER", ContentSetupHook.AfterCardEnteredCombat)] = "initial deck does not fire this hook",
+            [("KUSARIGAMA", ContentSetupHook.BeforeCombatStart)] = "counter is reset by RunCombatSetup",
+            [("STONE_CALENDAR", ContentSetupHook.AfterSideTurnStart)] = "turn counter is not due on turn 1",
+            [("RIPPLE_BASIN", ContentSetupHook.BeforeSideTurnStart)] = "block branch is not active on turn 1",
+            [("VAMBRACE", ContentSetupHook.BeforeCombatStart)] = "counter is reset by RunCombatSetup",
+            [("LETTER_OPENER", ContentSetupHook.BeforeCombatStart)] = "cards-played counter starts at zero",
+            [("UNSETTLING_LAMP", ContentSetupHook.BeforeCombatStart)] = "room status is handled by RunCombatSetup",
+            [("POCKETWATCH", ContentSetupHook.AfterSideTurnStart)] = "turn counter is not due on turn 1",
+            [("PENDULUM", ContentSetupHook.BeforeHandDraw)] = "ModifyHandDraw owns the turn counter",
+            [("POWER_CELL", ContentSetupHook.BeforeSideTurnStart)] = "no combat effect",
+            [("LORDS_PARASOL", ContentSetupHook.AfterRoomEntered)] = "merchant-room only",
+            [("PINPOINT", ContentSetupHook.AfterCardEnteredCombat)] = "initial deck does not fire this hook",
+            [("FLATTEN", ContentSetupHook.AfterCardEnteredCombat)] = "initial deck does not fire this hook",
+            [("STOMP", ContentSetupHook.AfterCardEnteredCombat)] = "initial deck does not fire this hook",
+            [("BANSHEES_CRY", ContentSetupHook.AfterCardEnteredCombat)] = "initial deck does not fire this hook",
+            [("HISTORY_COURSE", ContentSetupHook.AfterAutoPrePlayPhaseEntered)] = "kernel HistoryCourse replay handles the first turn",
+        };
+
+    private static ContentSetupHookMask[] ExportSetupHookMasks(int count,
+        Func<ushort, Type?> nativeType, Func<ushort, Type> coreType, Type coreBase,
+        Func<ushort, string> nativeId, (ContentSetupHook Hook, string Method)[] specs)
+    {
+        ContentSetupHookMask[] masks = new ContentSetupHookMask[count];
+        for (ushort id = 0; id < count; id++)
+        {
+            Type? type = nativeType(id);
+            masks[id] = type == null
+                ? new ContentSetupHookMask { Overridden = AllSetupHooks, Implemented = 0 }
+                : BuildSetupHookMask(type, coreType(id), coreBase, nativeId(id), specs);
+        }
+        return masks;
+    }
+
+    private static ContentSetupHookMask BuildSetupHookMask(Type nativeType, Type coreType,
+        Type coreBase, string nativeId, (ContentSetupHook Hook, string Method)[] specs)
+    {
+        List<(ContentSetupHook Hook, bool Overridden, bool Implemented)> values = [];
+        foreach ((ContentSetupHook hook, string method) in specs)
+        {
+            bool overridden = Overrides(nativeType, typeof(AbstractModel), method);
+            string coreMethod = SetupHookAliases.GetValueOrDefault((nativeId, hook), method);
+            bool noEffect = SetupHookNoEffect.ContainsKey((nativeId, hook));
+            if (noEffect && !overridden)
+                throw new InvalidDataException(
+                    $"Setup Hook 无效果名单过期：{nativeId} 没有重写 {method}。");
+            bool implemented = overridden
+                && (CoreOverrides(coreType, coreBase, coreMethod) || noEffect
+                    || (hook == ContentSetupHook.AfterRoomEntered
+                        && SetupAfterRoomEnteredNoEffect.Contains(nativeId)));
+            values.Add((hook, overridden, implemented));
+        }
+        return ContentSetupHookMask.From(values);
+    }
+
+    private static bool CoreOverrides(Type coreType, Type coreBase, string method)
+    {
+        MethodInfo? baseMethod = coreBase.GetMethod(method,
+            BindingFlags.Instance | BindingFlags.Public);
+        if (baseMethod == null)
+            return false;
+        MethodInfo? declared = coreType.GetMethod(method,
+            BindingFlags.Instance | BindingFlags.Public);
+        return declared != null && declared.DeclaringType != baseMethod.DeclaringType;
+    }
+
+    private static readonly uint AllSetupHooks =
+        (uint)(ContentSetupHook.AfterRoomEntered | ContentSetupHook.BeforeCombatStart
+            | ContentSetupHook.BeforeCombatStartLate | ContentSetupHook.BeforeSideTurnStart
+            | ContentSetupHook.AfterEnergyReset | ContentSetupHook.AfterEnergyResetLate
+            | ContentSetupHook.BeforeHandDraw | ContentSetupHook.BeforeHandDrawLate
+            | ContentSetupHook.ModifyHandDraw | ContentSetupHook.ModifyHandDrawLate
+            | ContentSetupHook.AfterPlayerTurnStartEarly | ContentSetupHook.AfterPlayerTurnStart
+            | ContentSetupHook.AfterPlayerTurnStartLate | ContentSetupHook.AfterSideTurnStart
+            | ContentSetupHook.AfterSideTurnStartLate | ContentSetupHook.ModifyMaxEnergy
+            | ContentSetupHook.ModifyOrbValue | ContentSetupHook.ShouldProcurePotion
+            | ContentSetupHook.AfterCardDrawnEarly | ContentSetupHook.AfterCardDrawn
+            | ContentSetupHook.AfterCardEnteredCombat
+            | ContentSetupHook.AfterCardGeneratedForCombat
+            | ContentSetupHook.ModifyShuffleOrder
+            | ContentSetupHook.AfterAutoPrePlayPhaseEntered
+            | ContentSetupHook.AfterAutoPrePlayPhaseEnteredLate);
 
     private static ContentRewardHookMask[] ExportHookMasks(int count,
         Func<ushort, Type?> modelType, Func<ushort, string> nativeId)
