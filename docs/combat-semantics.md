@@ -21,7 +21,8 @@
 
 每类内容一个抽象基类：`CardDef`、`PowerDef`、`RelicDef`、`PotionDef`、`MonsterDef`、`OrbDef`、`EnchantmentDef`、`AfflictionDef`。具体内容是 `sealed` 子类，覆写需要的 Hook 虚方法。
 
-- 每个定义用特性声明原版 Id，例如 `[ContentId("BASH")]`。注册表在首次使用时扫描定义，分配连续的 `ushort` 内部 Id，并按"覆写了哪些 Hook"建立每个 Hook 的监听位图，派发时跳过非监听者。各角色专属的内核机制（弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom）见 [角色机制](combat-characters.md)。`HookMask` 的 64 位已用满，此后新增的 Hook 放在 `HookMaskExt`，两者用同一反射计算（`ContentDef.Hooks`/`HooksExt`），`HookDispatch.CollectListeners` 对两种掩码各有一个重载，收集顺序相同。
+- 每个定义用特性声明原版 Id，例如 `[ContentId("BASH")]`。注册表在首次使用时扫描定义，分配连续的 `ushort` 内部 Id，并按"覆写了哪些 Hook"建立每个 Hook 的监听位图，派发时跳过非监听者。
+- 动作 Hook 按快照派发，但每个监听者在调用前重新检查玩家是否仍可触发 Hook：`BattleFlags.PlayerHooksActive` 清零后，玩家拥有的 Power/Relic/Potion/Card/Affliction/Enchantment/Orb 监听被跳过；死亡阻止/复活期间标志保持，`BeforeDeath`/`AfterDeath` 不受影响。这与原版 `CombatState.Contains` 的 `Owner.IsActiveForHooks` 过滤一致。各角色专属的内核机制（弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom）见 [角色机制](combat-characters.md)。`HookMask` 的 64 位已用满，此后新增的 Hook 放在 `HookMaskExt`，两者用同一反射计算（`ContentDef.Hooks`/`HooksExt`），`HookDispatch.CollectListeners` 对两种掩码各有一个重载，收集顺序相同。
 - 定义对象不可变、无字段状态；所有可变值存在 `Battle` 里。
 - 数值从 `Rules` 读取：`rules.Card(id, upgrade).Damage`、`rules.Monster(slot).Move(moveId).Hits` 等。只有原版数据里不存在、写在原版代码中的常量才允许出现在定义里，并注释原版出处。
 - 原版 Id 到内部 Id 的映射在 Bridge 建立；内核只把原版 Id 当元数据字符串，不引用原版类型。

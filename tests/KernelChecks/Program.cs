@@ -31,6 +31,7 @@ CheckRng();
 RunChecks.Check();
 CheckGrowthRewards();
 Rules rules = SliceRules();
+CheckHookDeactivation(rules);
 bool lateRegistrationThrew = false;
 try
 {
@@ -89,6 +90,55 @@ static void Check(bool condition, string message)
 }
 
 // Reference copy of native MegaRandom + Rng (decompiled sts2 0.111.0) to pin the Blitz port.
+
+static void CheckHookDeactivation(Rules rules)
+{
+    Check(Registry.TryPower("THE_GAMBIT_POWER", out ushort gambit), "缺少 THE_GAMBIT_POWER");
+    Check(Registry.TryRelic("LAVA_LAMP", out ushort lamp), "缺少 LAVA_LAMP");
+    Check(Registry.TryRelic("LIZARD_TAIL", out ushort lizard), "缺少 LIZARD_TAIL");
+
+    static Battle Setup(ushort gambit, ushort lamp, ushort? lizard)
+    {
+        Battle battle = NewBattle();
+        battle.Flags |= BattleFlags.PlayerHooksActive;
+        battle.Player.CurrentHp = 5;
+        battle.Player.MaxHp = 50;
+        battle.PowerCount = 1;
+        battle.Powers[0] = new Power { Id = gambit, Owner = Limits.PlayerOwner, Amount = 1 };
+        battle.RelicCount = lizard == null ? (byte)1 : (byte)2;
+        battle.Relics[0] = new Relic { Id = lamp };
+        if (lizard is { } lizardId)
+            battle.Relics[1] = new Relic { Id = lizardId };
+        return battle;
+    }
+
+    // TheGambitPower kills the player inside AfterDamageReceived. Native deactivates the player's
+    // hooks at that point, so a later relic listener (LavaLamp) must not run.
+    Battle dead = Setup(gambit, lamp, lizard: null);
+    Exec deadExec = new(ref dead, rules, default);
+    AfterDamageReceivedHook deadHook = new()
+    {
+        Result = new DamageResult
+        {
+            Receiver = Limits.PlayerOwner,
+            Props = ValueProps.Move,
+            UnblockedDamage = 10,
+        },
+        Dealer = Limits.FirstEnemyOwner,
+    };
+    HookDispatch.Dispatch(ref deadExec, ref deadHook, gatedByEnding: false);
+    Check(dead.Player.IsDead, "TheGambit 击杀后玩家应死亡");
+    Check(dead.Relics[0].Counter == 0, "玩家钩子失效后不应再调用 LavaLamp");
+
+    // Death prevention keeps the player's hooks active; the later relic listener still runs.
+    Battle revived = Setup(gambit, lamp, lizard);
+    Exec revivedExec = new(ref revived, rules, default);
+    AfterDamageReceivedHook revivedHook = deadHook;
+    HookDispatch.Dispatch(ref revivedExec, ref revivedHook, gatedByEnding: false);
+    Check(!revived.Player.IsDead, "LizardTail 应阻止 TheGambit 的死亡");
+    Check(revived.Relics[1].Counter == 1, "LizardTail 应记录已用");
+    Check(revived.Relics[0].Counter == 1, "死亡被阻止后 LavaLamp 仍应收到后续伤害回调");
+}
 
 static void CheckGrowthRewards()
 {
@@ -897,6 +947,8 @@ static Rules SliceRules()
     builder.SetRelicVars(symbioticVirus, [1m]);
     Registry.TryRelic("REPTILE_TRINKET", out ushort reptile);
     builder.SetRelicVars(reptile, [3m]);
+    Registry.TryRelic("LIZARD_TAIL", out ushort lizardTail);
+    builder.SetRelicVars(lizardTail, [50m]);
     Registry.TryCard("STRIKE_IRONCLAD", out ushort strike);
     Registry.TryCard("DEFEND_IRONCLAD", out ushort defend);
     Registry.TryCard("BASH", out ushort bash);

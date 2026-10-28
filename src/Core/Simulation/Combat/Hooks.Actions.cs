@@ -171,6 +171,11 @@ public static partial class HookDispatch
     private static bool TryResolve(in Battle battle, in SnapshotEntry entry, out Listener current)
     {
         current = entry.Listener;
+        // Native combat listener enumeration re-checks owner.IsActiveForHooks as each item is
+        // yielded; after a fatal damage listener deactivates the player's hooks, later relics,
+        // potions and cards must not run. Player death prevention/revive keeps the flag set.
+        if (!PlayerListenerActive(battle, entry.Listener))
+            return false;
         switch (entry.Listener.Kind)
         {
             case ListenerKind.Power:
@@ -221,6 +226,19 @@ public static partial class HookDispatch
             default:
                 return ListenerId(battle, entry.Listener) == entry.Id;
         }
+    }
+
+    private static bool PlayerListenerActive(in Battle battle, in Listener listener)
+    {
+        if ((battle.Flags & BattleFlags.PlayerHooksActive) != 0)
+            return true;
+        return listener.Kind switch
+        {
+            ListenerKind.Power => listener.Owner is not (Limits.PlayerOwner or Limits.OstyOwner),
+            ListenerKind.Relic or ListenerKind.Potion or ListenerKind.Card
+                or ListenerKind.Affliction or ListenerKind.Enchantment or ListenerKind.Orb => false,
+            _ => true,
+        };
     }
 
     /// <summary>Locates the snapshot card by its value and occurrence over the whole battle.</summary>
