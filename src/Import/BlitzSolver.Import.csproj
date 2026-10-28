@@ -11,7 +11,7 @@
     <NoWarn>$(NoWarn);CS0436</NoWarn>
   </PropertyGroup>
 
-  <Import Project="$(MSBuildThisFileDirectory)/../../tests/OfflineHost/GameReferences.props" />
+  <Import Project="$(MSBuildThisFileDirectory)/../../tests/Differential/GameReferences.props" />
 
   <ItemGroup>
     <ProjectReference Include="../Core/BlitzSolver.Core.csproj" />

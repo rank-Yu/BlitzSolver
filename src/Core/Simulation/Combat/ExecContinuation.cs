@@ -10,8 +10,7 @@ namespace BlitzSolver.Simulation.Combat;
 /// <see cref="Exec.NeedsChoice"/>, <see cref="Exec.Request"/>, the pending choice count, the effect
 /// depth and the nested Sly mark range. <see cref="Exec.ChoiceTiming"/> and
 /// <see cref="Exec.PendingBlockBreakOwners"/> are overwritten by the continuation entry, and
-/// <see cref="Exec.SideTurnStartedEarly"/>/<see cref="Exec.TakingExtraTurn"/> are false on any
-/// shared prefix (extra turns are not shared).
+/// <see cref="Exec.TakingExtraTurn"/> is false on any shared prefix (extra turns are not shared).
 /// </summary>
 internal readonly struct ExecContinuation
 {

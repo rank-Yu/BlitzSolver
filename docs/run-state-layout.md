@@ -2,9 +2,10 @@
 
 [返回文档索引](README.md)
 
-本文记录 R1b 的整局状态表示：原版 `RunState`/`Player` 的字段盘点与取舍、`RunState` 的布局与容量、局外随机数的派生、字节编码、玩家可见投影 `RunView`，以及从原版导入时的拒绝码。整局模拟器的流程与决策协议见[整局设计](full-run-design.md)第 3、5、11 节；战斗状态见[战斗状态布局](combat-state-layout.md)。
+本文记录 R1b 的整局状态表示：原版 `RunState`/`Player` 的字段盘点与取舍、`RunState` 的布局与容量、局外随机数的派生、字节编码、玩家可见投影 `RunView`，以及从原版导入时的拒绝码。状态与决策协议见[整局设计](full-run-design.md)第 3、5、11 节；战斗状态见[战斗状态布局](combat-state-layout.md)。
 
-本批只做状态表示与读取，不写 `RunKernel.Step`，不做局外模拟。地图、房间、奖励等“当前待处理决策”的深层内容（货架、奖励列表、事件当前页、选牌页面）留到 R2；本批保留当前房间身份与基础阶段。
+2026-10-27 起局外由原版推进，本节只描述导入后的状态表示。`RunKernel.Step` 已删除；地图、
+房间、奖励与商店的当前界面状态仍随 `RunState` 导入，用于状态比较与 R3b 的请求投影。
 
 ## 1. 范围与事实来源
 
@@ -145,7 +146,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `SerializablePotion`（Id/SlotIndex） | 1 | `RunPotion` |
 | `SavedProperties` 的 int/bool/string/int[]/ModelId/Card/Card[] | 1 | `RunPropertyBag` 通用编码 |
 | `SerializablePlayer` 的发现字段、`SerializableRun` 的时间/绘制/平台字段 | 3 | 不进入 |
-| `SerializableRoom` 的 `ExtraRewards`/`GoldProportion` | 1 | `RunRewards`（写回时 `Generated=0`）与 `RunRoom.GoldProportion`；`EncounterState` 仍是 R2f/Boss 私有状态 |
+| `SerializableRoom` 的 `ExtraRewards`/`GoldProportion` | 1 | `RunState.Rewards`（`Generated=0`）与 `RunRoom.GoldProportion`；`EncounterState` 仍是原版私有状态 |
 | `SerializableModifier` | 4 | 非空拒绝 |
 
 ## 3. `RunState` 布局
@@ -279,10 +280,10 @@ payload byte[]  RunState 的规范字节镜像
 | 遗物：id、状态、Wax/Melted、显示计数 | 是 | `RunRelic` 的可见子集 |
 | 地图：节点、连线、类型、已走、起始/Boss/第二 Boss | 是（未知点显示为未知） | `Map`、`Visited` |
 | 当前房间类型/模型 | 是 | `Rooms` |
-| 当前决策请求：种类、完整选项与每个选项的坐标/模型/数量 | 是 | `RunDecisionRequest.Capture`（R2b-2 地图点；R2c-1 奖励列表、卡牌三/四选一、药水满槽） |
+| 当前决策请求：种类、完整选项与每个选项的坐标/模型/数量 | 是 | R3b 的 `RunDecisionImporter` 从原版界面读取；`RunView.From` 目前只填 `Decision` 与选项数 |
 | 奖励界面阶段与剩余奖励数 | 是 | `RunRewards.Stage/Count` |
-| 卡牌奖励的 id、升级、附魔 | 是（卡面） | `RunRewards.Choices` 投影到请求选项 |
-| 商店货架：每格 id/升级/附魔、价格、打折、库存，删牌价格与是否已用 | 是 | `RunShop` 投影到 `ShopView` 与请求选项 |
+| 卡牌奖励的 id、升级、附魔 | 是（卡面） | `RunRewards.Choices` 投影；请求由 R3b 的 `RunDecisionImporter` 填充 |
+| 商店货架：每格 id/升级/附魔、价格、打折、库存，删牌价格与是否已用 | 是 | `RunShop` 投影到 `ShopView`；请求由 R3b 的 `RunDecisionImporter` 填充 |
 | 未知点房间概率、卡牌稀有度保底、药水掉落保底 | 界面隐藏，但可由玩家见过的历史推导 | `Odds`/`PlayerOdds` 的当前值 |
 | 随机数状态、RNG 计数 | 否 | 不进入 |
 | 预生成事件/遭遇序列、后续幕的 Boss/先古与未来内容 | 否（地图上不可见） | 不进入 |

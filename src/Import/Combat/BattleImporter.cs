@@ -47,7 +47,7 @@ public static class BattleImporter
             throw new UnsupportedImportException(ImportReason.RootPhase,
                 $"根不在玩家出牌阶段：side={state.CurrentSide} phase={playerState.Phase}");
         }
-        if (!player.Creature.IsAlive)
+        if (!player.Creature.IsAlive && !options.AllowDeadPlayer)
             throw new UnsupportedImportException(ImportReason.Unrepresentable, "玩家已死亡");
         if (state.EscapedCreatures.Count != 0 && !options.AllowEscapedEnemies)
             throw new UnsupportedImportException(ImportReason.KnownEnemyHistory,

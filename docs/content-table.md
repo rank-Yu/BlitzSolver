@@ -2,7 +2,7 @@
 
 [返回文档索引](README.md)
 
-本文说明 R2a-1 的进程内内容表、导出器与 Core `RulesBuilder`：它们把 `RulesCompiler` 从原版活对象逐场读取的内容，改成一次导出、之后由整局状态与战斗根重建。`Rules` 的编码与字段不变，验收标准是同一根上两条路径经 `RulesCodec` 编码后逐字节相同。
+本文说明 R2a-1 的进程内内容表、导出器与 Core `RulesBuilder`：它们把战斗开始需要的原版内容一次导出，之后由整局状态与战斗根重建。`Rules` 的编码与字段不变，验收标准是同一根上两条路径经 `RulesCodec` 编码后逐字节相同。
 
 ## 1. 为什么要拆成“内容 + 根状态”
 
@@ -12,7 +12,7 @@
 - 由当前整局状态决定的池、解锁与遗物顺序；
 - 由当前战斗根决定的牌堆、Power、敌人、药水、历史标记等。
 
-整局模拟器在 Core 里从 `RunState` 建战斗时没有对应的原版战斗对象，因此需要把第一类固化成内容表，第二、三类从 `RunState` 与 `Battle` 推出。原版仍然是唯一事实来源：内容表在进程启动时从当前加载的这份游戏导出，不写盘、不缓存、不检查版本。
+Blitz 从 `RunState` 建战斗时没有对应的原版战斗对象，因此需要把第一类固化成内容表，第二、三类从 `RunState` 与 `Battle` 推出。原版仍然是唯一事实来源：内容表在进程启动时从当前加载的这份游戏导出，不写盘、不缓存、不检查版本。
 
 ## 2. 内容表
 
@@ -26,7 +26,6 @@
 | `PowerVars` | 每个有变量名的 Power 的 `DynamicVars[name].BaseValue` | 12 个有变量（`Registry.PowerCount` 242） |
 | `PowerDeathHistoryRisk` | `MirrorRiskTables` 的每 Power 死亡镜像风险 | 242 项 |
 | `Potions` | 每个 `Registry` 药水的目标/稀有度/战略成本/变量与变量属性 | 65 个 |
-| `PotionGeneratableInCombat` | `PotionModel.CanBeGeneratedInCombat` | 65 项 |
 | `RelicVars` | 每个有变量名的遗物变量（`Rules` 使用） | 100 个有变量（`Registry.RelicCount` 297） |
 | `RelicStartVars` | 每个遗物全部 `DynamicVars` 的 `name -> BaseValue`（建局使用，不进 `Rules`） | 297 个遗物 |
 | `Enchantments` | 每个 `Registry` 附魔的 native id 与 `HooksExt`（规则编译器只读 shuffle/before-flush 两位） | 22 个 |
@@ -51,7 +50,9 @@
 类型列出。当前 0.111.0 只有 `EXOSKELETON` 没有独立召唤变体（它的 `INIT_MOVE` 条件分支在
 无槽位 scratch 中无法解析），遭遇变体仍然完整；另有 37 个原版卡池候选卡没有 Blitz 定义。
 
-导出耗时与保留内存（`--content-table-report`，Release，单次）：约 **1.5 秒**、**19.5 MB**（`GC.GetTotalMemory(true)` 前后差；R2c-1 新增每个卡牌等级与遗物的默认属性包、奖励事实与教学表，保留量因此上升）。只测量，不做缓存或优化。
+导出耗时与保留内存（`--content-table-report`）：R2c-1 的完整表在 Release 单次测得约
+**1.5 秒**、**19.5 MB**。R3-0 删除了新局、奖励与商店区块，未重新测时；表仍然只在进程内保留
+一次，不写盘、不缓存。
 
 ## 3. `RulesBuilder`
 
@@ -168,7 +169,7 @@ Wriggler、Myte、PhantasmalGardener 等）在导出时按真实槽位解析；�
 
 ## 7. 对照方法
 
-入口：`tests/OfflineHost` 的 `--rules-build-compare`。每个用例在独立子进程里：
+入口：`tests/Differential` 的 `--rules-build-compare`。每个用例在独立子进程里：
 
 1. 用原版路径建根并调用 `RulesCompiler.Compile`（前缀根调用 `CompileAfterPrefix`）；
 2. 用 `RunStateImporter` 导入 `RunState`、`BattleImporter` 导入 `Battle`；
@@ -184,103 +185,25 @@ Wriggler、Myte、PhantasmalGardener 等）在导出时按真实槽位解析；�
 当前结果：D1 `same=420 diff=0 reject=0 skip=0`，自然 `same=200`，遭遇 `same=90`；没有任何拒绝。内容覆盖：1078/1078 个卡牌升级等级、108/108 个 `Registry` 怪物（含 `EXOSKELETON` 的遭遇变体）、12 个有变量的 Power、100 个有变量的遗物、65 个药水；未用到项为 0。
 
 复跑命令见 [测试与验证](testing.md) 第 6.11 节。
-## 8. 新局相关区块（R2b-1）
+## 8. 已删除的区块
 
-R2b-1 在同一个 `ContentTable` 里加入新局与地图需要的静态数据，全部由
-`src/Import/Run/NewRunContentExporter.cs` 从本机游戏导出：
+R3-0 删除 `NewRunContentExporter`，同时从 `ContentTable` 去掉新局、奖励与商店区块：
+`Acts`/`DefaultActs`/`MapRules`/`AscensionRules`/`SharedRelics`/`SharedEvents`/`SharedAncients`、
+`RewardRules`/`ShopRules`/`TutorialRewards`/`RelicRewardFacts`、奖励/商店 Hook 掩码，以及这些
+区块专用的 `Characters[].Starting`/`RelicPool` 与遭遇金币/弱标记/标签字段。
 
-| 区块 | 内容 | 覆盖数量（0.111.0） |
-| --- | --- | --- |
-| `Characters[].Starting` | 起始牌组顺序、起始遗物（含默认 `DisplayAmount`）、起始药水、HP、金币、MaxEnergy、球槽、药水槽 | 5 个角色 |
-| `Characters[].RelicPool` / `SharedRelicPool` | 遗物池原始顺序；每项稀有度与所需 epoch 掩码 | 共享 118 / 角色各 8 |
-| `SharedEvents` / `EventRequiredEpochs` | `ModelDb.AllSharedEvents` 顺序与每个事件的 Event1/2/3 epoch 掩码 | 18 / 66 |
-| `SharedAncients` | 共享先古（Darv）顺序与 epoch | 1 |
-| `Acts[]` | `BaseRooms`、弱遭遇数、事件顺序、遭遇顺序、先古池、Boss 发现顺序、教学重排交换、两次地图点数量抽取 | 4 幕 |
-| `Encounters[].RoomType/IsWeak/TagMask` | 遭遇类型、弱标记、`EncounterTag` 位图 | 89 |
-| `MapRules` | 网格宽度、起始路径数、精英上限、宝箱/限制行、轮数、五组点类型限制集合、每进阶精英数、商店数 | — |
-| `BaseOdds` / `AscensionRules` / `NeowEpoch` | 概率初值；SwarmingElites/TightBelt/AscendersBane/DoubleBoss 等级、进阶之灾卡、最高进阶；Neow epoch | — |
-| `MapHookRelics` / `MapHookCards` | 覆写地图 Hook 的模型（FurCoat/GoldenCompass、SpoilsMap），用于显式拒绝 | 2 / 1 |
-| `FreeTravelRelics` | 覆写 `ShouldAllowFreeTravel` 的遗物（WingedBoots） | 1 |
-| `UnknownPointHookRelics` / `UnknownPointHookCards` | 覆写未知点候选或概率成长的模型（GoldenCompass/JuzuBracelet、LanternKey） | 2 / 1 |
-| `NextEventHookCards` | 覆写 `ModifyNextEvent` 的卡牌（LanternKey） | 1 |
-| `EventAllowedOverride` | 按事件 id 标记覆写 `IsAllowed` 的事件，R2b-2 遇到时显式拒绝 | 36 / 66 |
-| R2c-1 奖励区块 | 见第 9 节：遭遇金币/奖励开关、奖励概率、教学奖励、遗物/卡牌默认属性 | — |
+仍保留在地图进点路径的内容：
 
-池子按原版枚举顺序保存，不排序；解锁过滤按 epoch 掩码。两处原版方法只能“探测”得到：
+- `BaseOdds`：未知点掷骰的初始概率；
+- `UnknownPointHookRelics`/`UnknownPointHookCards`、`NextEventHookCards`、
+  `EventAllowedOverride`：`RunMapEntry` 显式拒绝未实现 Hook；
+- `CardSetupHooks`/`RelicSetupHooks`/`PowerSetupHooks`/`EnchantmentSetupHooks`：开战建局；
+- `RelicStartVars`：开战遗物按 native 变量名取值。
 
-- `ActModel.GetMapPointTypes` 的两次抽取：用受控 `Rng` 状态探测，记录返回值、`Counter` 增量与
-  原始 `NextDouble` 序列，在均匀/高斯候选空间里重放；`round(mean+z)+offset` 与
-  `round((mean+offset)+z)`、上下界同移等价，所以候选取 `offset=0` 的规范代表。远尾探针让
-  拒绝区间可见，唯一候选对才导出。
-- `ActModel.ApplyActDiscoveryOrderModifications`：在构造的 `RoomSet` 上调用原生方法得到交换
-  集合，再枚举每个列表的交换顺序与 48 个随机排列比对；`NumberOfRuns=1/2` 探测得到
-  “只在首次跑局生效”标记。
+局外推进改由原版负责，奖励池、商店价格与新局静态数据不再需要 Blitz 导出。最后一个包含
+完整局外模拟器的提交是 `683bc03`。
 
-导出器对目录外事件、幕外交换模型、非法稀有度显式失败。单次导出（Release）约 1.3 秒，其中新局
-推断约 0.45 秒；仍然只在进程内保留一次，不写盘、不缓存。详见[新局生成与地图](run-generation.md)。
-
-## 9. 战后奖励区块（R2c-1）
-
-R2c-1 在同一个 `ContentTable` 里加入战后奖励需要的静态数据；Core 的 `RunRewardGenerator`
-只读这些字段，不写奖励数值字面量。
-
-| 区块 | 内容 | 覆盖数量（0.111.0） |
-| --- | --- | --- |
-| `Encounters[].ShouldGiveRewards` | 遭遇是否产生战后奖励 | 89 |
-| `Encounters[].MinGoldByAscension` / `MaxGoldByAscension` | 每个进阶等级的遭遇金币区间（含 Poverty） | 89 × 11 |
-| `Encounters[].CustomGoldProportion` | `CalculateGoldProportion` 依赖战斗私有状态（GremlinMerc） | 1 |
-| `RewardRules` | 药水基础概率/保底步长/精英加成、卡牌稀有度两套（Scarcity）阈值与成长、升级概率、遗物稀有度阈值、药水稀有度阈值 | — |
-| `TutorialRewards` | 首次跑局 Ironclad 的怪物 7 组、精英 2 组、Boss 1 组固定卡牌/药水/遗物与金币常量 | 10 组 |
-| `RelicRewardFacts[].Allowed` | 反射确认重写 `IsAllowed` 后按映射得到的五种变体（常真、Act3 宝箱前、单人、首次跑局 Ironclad 例外、永不允许）；未映射的重写为 `Unsupported`，映射里有但未重写导出失败 | 297 |
-| `RelicRewardFacts[].Stackable` | 拿到后是否从袋中移除 | 297 |
-| `RelicRewardFacts[].InitialDisplayAmount` | 新建可变遗物的 `DisplayAmount` | 297（非可抽稀有度记 0） |
-| `RelicRewardFacts[].Obtain` | `SimpleAdd` / `Implemented` / `Unsupported` | 297 |
-| `RelicRewardFacts[].RewardHooks` | 反射得到的奖励 Hook `Overridden`/`Implemented` 位集；任何 `Unsupported` 位在生成/领取前拒绝 | 297 |
-| `ContentTable.CardRewardHooks` / `EnchantmentRewardHooks` / `PotionRewardHooks` | 按 id 索引的同类反射位集；卡牌 1 个重写（SovereignBlade），附魔/药水 0 | 558 / 22 / 65 |
-| `RelicRewardFacts[].DefaultProperties` | 新建遗物的 `SavedProperties` 默认值 | 297 |
-| `Cards[].DefaultProperties` | 每个升级等级的卡牌 `SavedProperties` 默认值（Genetic Algorithm 等） | 1078 个等级 |
-
-奖励监听者清单与三态规则见[战后奖励](run-rewards.md)第 5 节；`CONTENT-REWARD-HOOK` 行会打印每类
-实际重写/未实现数量。
-
-`RewardRules` 的几个内联常量（药水 0.1 保底、精英 0.5 系数、遗物 0.5/0.83 阈值、药水
-0.1/0.35 阈值）通过读取原版方法体的 `ldc.r4` 导出；卡牌稀有度阈值通过
-`CardRarityOdds.GetBaseOdds` 与 `CardRarityOdds.RarityGrowth` 在 A0/A10 两种
-`ScratchAscension` 下读取；升级概率通过 `CardFactory.UpgradedCardOddScaling` 读取。
-枚举与表结构见 `src/Core/Simulation/Run/RunContent.cs`。
-
-## 10. 商店区块（R2c-2）
-
-商店复用 `RewardRules` 的遗物/药水稀有度阈值，并增加以下静态数据：
-
-| 区块 | 内容 | 覆盖数量（0.111.0） |
-| --- | --- | --- |
-| `ShopRules.CharacterCardTypes` | 反射 `MerchantInventory._coloredCardTypes` | 5 |
-| `ShopRules.ColorlessCardRarities` | 反射 `MerchantInventory._colorlessCardRarities` | 2 |
-| `ShopRules.CardCosts` / `ColorlessCardCosts` | 反射调用原版私有 `MerchantCardEntry.GetCost` 得到每个稀有度的整数价（无色已含 1.15 倍） | 各 11 槽 |
-| `ShopRules.PotionCosts` | 反射调用 `MerchantPotionEntry.GetCost` | 6 槽 |
-| `ShopRules.CardPriceMin/Max`、`RelicPriceMin/Max`、`PotionPriceMin/Max` | 方法体 `ldc.r4` 价格倍率 | 3 对 |
-| `ShopRules.SaleDivisor` | `MerchantCardEntry.CalcCost` 的整数常量 | 1 |
-| `ShopRules.PotionPriceVaries` | 导出进程的 `TestMode.IsOff`；live-prices 对照可强制 true | 1 |
-| `ShopRules.WingedBootsRooms` | `WingedBoots` 的 `Rooms` 动态变量（最大次数/`DisplayAmount` 基准；自由移动时 `TimesUsed` 递增） | 1 |
-| `ShopRules.RemovalBaseCost*` / `RemovalPriceIncrease*` / `InflationLevel` | 反射 `MerchantCardRemovalEntry.BaseCost`/`PriceIncrease` 在 A0 与 Inflation 的值 | 4 + 1 |
-| `ShopRules.ShopRareOdds` / `ShopUncommonOdds` / `ScarcityShop*` | 反射 `CardRarityOdds.GetBaseOdds(Shop, …)` 在 A0/Scarcity 的值 | 4 |
-| `RelicRewardFacts[].MerchantCost` | 反射 canonical 遗物的 `MerchantCost`（假遗物可覆盖） | 297 |
-| `RelicRewardFacts[].AllowedInShops` | 反射 `IsAllowedInShops` | 297 |
-| `RelicRewardFacts[].ShopHooks` | 商店 Flow 的 `Overridden`/`Implemented` 位集 | 297 |
-| `ContentTable.CardShopHooks` / `EnchantmentShopHooks` / `PotionShopHooks` | 按 id 索引的同类位集 | 558 / 22 / 65 |
-
-Hook 清单与三态规则见[商店](run-shop.md)第 6 节。导出器对名单内有但未重写、重写但不在名单内
-都显式失败/标记 `Unsupported`；`IntConstants` 读取整数常量，`FloatConstants` 读取浮点常量。
-
-**房间 Hook 的位规则**：`BeforeRoomEntered`/`AfterRoomEntered` 在原版是通用方法，但
-`ContentShopHookMask` 只记录 Core 已实现的那一支。当前只有商店位
-`BeforeShopRoomEntered`/`AfterShopRoomEntered`；以后新增休息处、宝箱、事件等房间时，必须
-为每种房间各加一对位，并在 Core 里单独实现/判定，不能复用商店位，也不能因为模型重写了
-通用方法就默认其他房间已实现。战斗房间的 `AfterRoomEntered` 走
-`CombatStart.AfterRoomEntered` 的独立战斗规则。
-
-## 11. 建局专用闭包（R2a-5）
+## 9. 建局专用闭包（R2a-5）
 
 `ContentDef` 的三个虚属性只影响 `RunCombatSetup` 的 provisional `Rules`，不进入
 `CombatSetupResult.Rules`，也不进入冻结规则表：
@@ -297,7 +220,7 @@ Hook 清单与三态规则见[商店](run-shop.md)第 6 节。导出器对名单
 `CharacterEthereal` 采样池。最终 `Rules` 只按 `Battle.Cards`/`Battle.Potions` 里实际留下的
 生成内容补统计。
 
-### 11.1 建局 Hook 掩码
+### 9.1 建局 Hook 掩码
 
 `ContentTable` 另有 `CardSetupHooks`/`RelicSetupHooks`/`PowerSetupHooks`/`EnchantmentSetupHooks`
 四个 `ContentSetupHookMask[]`。导出器对每个原生模型反射判断是否重写了建局调用链上的 Hook

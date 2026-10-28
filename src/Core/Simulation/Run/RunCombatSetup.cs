@@ -190,7 +190,7 @@ public static class RunCombatSetup
         RequireRunSetupHooks(in next, table);
         // Native Hook.AfterRoomEntered gains MawBank's gold for the base room before combat start;
         // ApplyRelicCounterState later copies battle.Gold back, so the opening Battle must carry it.
-        RunRewardGenerator.GainMawBankGold(ref next, table);
+        GainMawBankGold(ref next, table);
         Battle battle = CreateBattleShell(in next, table);
         for (int index = 0; index < spawnCount; index++)
         {
@@ -561,8 +561,7 @@ public static class RunCombatSetup
             {
                 // The run-side CombatsLeft decides whether the first-turn effect fires and is
                 // decremented there; the native battle relic has no counter of its own.
-                battle.Relics[index].Counter =
-                    RunRewardGenerator.ReadRelicInt(in relic, "CombatsLeft");
+                battle.Relics[index].Counter = ReadRelicInt(in relic, "CombatsLeft");
             }
         }
         battle.RelicCount = run.Relics.Count;
@@ -751,6 +750,76 @@ public static class RunCombatSetup
         Rules rules = RulesBuilder.Build(table, in run, in battle, encounterId, facts);
         return (rules, facts);
     }
+
+    /// <summary>Native <c>MawBank.AfterRoomEntered</c> at the first room of a map point.</summary>
+    private static void GainMawBankGold(ref RunState state, ContentTable table)
+    {
+        if (state.Rooms.Count != 1)
+            return;
+        for (int index = 0; index < state.Relics.Count; index++)
+        {
+            ref RunRelic relic = ref state.Relics.Items[index];
+            if ((relic.Flags & RunRelicFlags.Melted) != 0)
+                continue;
+            if (Registry.Relic(relic.Id).NativeId != "MAW_BANK"
+                || ReadRelicBool(in relic, "HasItemBeenBought"))
+            {
+                continue;
+            }
+            GainGold(ref state, table, RelicIntVar(table, relic.Id, "Gold"));
+        }
+    }
+
+    private static void GainGold(ref RunState state, ContentTable table, int amount)
+    {
+        decimal value = amount;
+        for (int index = 0; index < state.Relics.Count; index++)
+        {
+            RunRelic relic = state.Relics.Items[index];
+            if ((relic.Flags & RunRelicFlags.Melted) != 0)
+                continue;
+            switch (Registry.Relic(relic.Id).NativeId)
+            {
+                case "BOWLER_HAT":
+                    value *= table.RelicVar(relic.Id, "GoldIncrease");
+                    break;
+                case "ECTOPLASM":
+                    value = 0m;
+                    break;
+            }
+        }
+        if (value <= 0m)
+            return;
+        state.Player.Gold += (int)value;
+        for (int index = 0; index < state.Relics.Count; index++)
+        {
+            RunRelic relic = state.Relics.Items[index];
+            if ((relic.Flags & RunRelicFlags.Melted) != 0)
+                continue;
+            if (Registry.Relic(relic.Id).NativeId == "DRAGON_FRUIT")
+                GainMaxHp(ref state, RelicIntVar(table, relic.Id, "MaxHp"));
+        }
+    }
+
+    private static void GainMaxHp(ref RunState state, int amount)
+    {
+        if (amount <= 0)
+            return;
+        state.Player.MaxHp += amount;
+        state.Player.CurrentHp = Math.Min(state.Player.MaxHp,
+            state.Player.CurrentHp + amount);
+    }
+
+    private static int RelicIntVar(ContentTable table, ushort relicId, string name)
+        => checked((int)table.RelicVar(relicId, name));
+
+    private static int ReadRelicInt(in RunRelic relic, string name)
+        => RunProperties.TryGetInt(relic.Properties, RunProperties.NameHash(name), out int value)
+            ? value : 0;
+
+    private static bool ReadRelicBool(in RunRelic relic, string name)
+        => RunProperties.TryGetBool(relic.Properties, RunProperties.NameHash(name), out bool value)
+            && value;
 
     private static RunCoord FindPointCoord(in RunState run, RunMapPointType type)
     {

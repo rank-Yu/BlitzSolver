@@ -3,7 +3,7 @@ bin/
 obj/
 .local/
 
-tests/OfflineHost/local.props
+tests/Differential/local.props
 
 src/Mod/local.props
 src/Mod/.godot/

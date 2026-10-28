@@ -1,4 +1,4 @@
-// Shared dump code for BlitzSolver/tests/OfflineHost and the reference hook in
+// Shared dump code for BlitzSolver/tests/Differential and the reference hook in
 // CombatSolver/tools/search/OfflineSearchHarness. Reads native CombatState only; never changes it.
 using System.Globalization;
 using System.Text;

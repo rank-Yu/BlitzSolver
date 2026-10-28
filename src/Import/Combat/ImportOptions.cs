@@ -28,6 +28,12 @@ public sealed record ImportOptions
     public bool RequirePlayPhase { get; init; } = true;
 
     /// <summary>
+    /// Allow importing a terminal combat where the player is already dead. Only the differential
+    /// host's terminal observation uses this; search roots keep the default.
+    /// </summary>
+    public bool AllowDeadPlayer { get; init; }
+
+    /// <summary>
     /// The root belongs to a turn-setup fixture (the ordinary Play root or an enumerated setup
     /// branch), captured before the test host's initial injection. The old bridge's setup capture
     /// normalized Vital Spark at least once.

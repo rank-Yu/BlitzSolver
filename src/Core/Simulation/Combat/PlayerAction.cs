@@ -373,7 +373,6 @@ public ref struct Exec
         PendingBlockBreakOwners = 0;
         LastDamageTotal = 0;
         LastDamageOverkill = 0;
-        SideTurnStartedEarly = false;
         TakingExtraTurn = false;
     }
 
@@ -465,8 +464,6 @@ public ref struct Exec
             throw new InvalidOperationException($"EndTurn 前缀的 EffectDepth={EffectDepth} 非零。");
         if (TransientMarkBase != 0)
             throw new InvalidOperationException($"EndTurn 前缀的 TransientMarkBase={TransientMarkBase} 非零。");
-        if (SideTurnStartedEarly)
-            throw new InvalidOperationException("EndTurn 前缀已经提前开始玩家侧回合。");
         if (TakingExtraTurn)
             throw new InvalidOperationException("EndTurn 前缀处于额外回合。");
     }
@@ -498,12 +495,6 @@ public ref struct Exec
     /// never part of the battle state or fingerprint.
     /// </summary>
     public ulong PendingBlockBreakOwners;
-
-    /// <summary>
-    /// A pre-side-start turn-start choice ran the player side start early
-    /// (<c>TurnStartChoiceCursor.BeforeNextTake</c>), so the normal side-start position must not repeat it.
-    /// </summary>
-    public bool SideTurnStartedEarly;
 
     /// <summary>The round being advanced is an extra turn (<c>ShouldTakeExtraTurn</c>).</summary>
     public bool TakingExtraTurn;

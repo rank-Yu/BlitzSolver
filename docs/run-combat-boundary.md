@@ -2,11 +2,11 @@
 
 [返回文档索引](README.md)
 
-本文记录战斗边界的两半：R2a-2 的建局从停在地图选点的 `RunState` 进入战斗地图点，生成
-遭遇，建立第一个玩家出牌阶段的 `Battle`；R2a-3 的写回在战斗结束 Hook 之后、奖励生成之前
-把终局 `Battle` 写回 `RunState`。R2b-2 把"进点、掷房间类型、建房间、追加历史"抽成共享的
-`RunMapEntry`，战斗房间从这里接入建局，非战斗房间停在"已建好、尚未进入"边界；决策协议与
-地图选点见[局外决策协议与地图进点](run-decisions.md)。战后奖励、事件页与地图选择仍不在本文范围。
+本文记录战斗边界的建局：从停在地图选点的 `RunState` 进入战斗地图点，生成遭遇，建立第一个
+玩家出牌阶段的 `Battle`。R3-0 起写回已删除，战斗结束后由原版推进，下一步重新导入
+`RunState`。`RunMapEntry` 把"进点、掷房间类型、建房间、追加历史"抽成共享入口，战斗房间从
+这里接入建局，非战斗房间停在"已建好、尚未进入"边界；决策协议与地图选点见
+[局外决策协议与地图进点](run-decisions.md)。
 
 ## 1. 原版路径
 
@@ -44,12 +44,11 @@
 
 ## 2. Blitz 入口
 
-`src/Core/Simulation/Run/RunMapEntry.cs`（`RunKernel.Step` 与 R2a-2 共用）：
+`src/Core/Simulation/Run/RunMapEntry.cs`：
 
 ```csharp
-RunState next = runState;
-RunStepResult step = kernel.Step(ref next, RunAction.SelectMapPoint(coord));
-// step.Status == Combat 时 step.Combat 是 CombatSetupResult
+RunMapEntryResult entry = RunMapEntry.Enter(in runState, contentTable, coord);
+// entry.Combat 是 CombatSetupResult；entry.CombatChoice 是未给全的开战选择
 ```
 
 R2a-2 的兼容入口仍在 `src/Core/Simulation/Run/RunCombatSetup.cs`：
@@ -113,8 +112,8 @@ ToastyMittens 在手牌只有 1 张时按原生
 不产生 `ChoiceRequest`；ChoicesParadox 只有 1 张生成卡时同理。
 
 `RunCombatSetup.EnterMapCoord` 只接受战斗房间；未知点掷出的商店/宝箱/休息处/事件与先古点
-由 `RunKernel.Step` 返回 `UnsupportedRoom`，内容阶段分别留给 R2c/R2d/R2e/R2f。未知点掷骰、
-事件拉取和非战斗边界的细节见[局外决策协议与地图进点](run-decisions.md)。
+由 `RunMapEntry` 停在"已建好、尚未进入"边界，内容由原版执行器处理。未知点掷骰、事件拉取和
+非战斗边界的细节见[局外决策协议与地图进点](run-decisions.md)。
 
 ## 3. 遭遇生成
 
@@ -212,7 +211,7 @@ BoomingConch），不进入 `Battle` 布局。
 
 ## 6. 对照方法
 
-`tests/OfflineHost` 的模式 `--combat-setup-compare` 在同一进程里跑两条路径：
+`tests/Differential` 的模式 `--combat-setup-compare` 在同一进程里跑两条路径：
 
 1. 原版：导入进点前 `RunState`，调用 `RunManager.EnterMapCoord`（测试调整后也可等价地准备
    act 序列），等待可出牌；用 `LiveCombatTracker.ImportRoot` 的选项导入 `Battle`，
@@ -241,75 +240,20 @@ BoomingConch），不进入 `Battle` 布局。
 结果与复跑命令见 [测试与验证](testing.md) 第 6.12 节；本批的数量与拒绝分布见
 `R2a2-report.md`。
 
-## 7. 战后写回
+## 7. 写回已删除
 
-写回入口在 `src/Core/Simulation/Run/RunCombatWriteback.cs`：
+R3-0 删除了 `RunCombatWriteback`：战斗结束后不再把终局 `Battle` 写回 `RunState`，也不由
+Blitz 生成战后奖励。原版在 `EndCombatInternal` 之后继续推进，下一步从原版重新导入
+`RunState`。开战时的 MawBank 金币、TeaOfDiscourtesy/BoneTea 的 `CombatsLeft` 等仍由
+`RunCombatSetup` 处理，因为它们在第一个出牌阶段的 `Battle` 里可见；战斗结束后的遗物/牌组
+长期变化由原版负责。
 
-```csharp
-RunState next = RunCombatWriteback.Apply(in runAfterEntry, in terminalBattle, table);
-```
-
-终点与 R2c 的奖励生成对齐：原版已经跑完 `EndCombatInternal` 的
-`Hook.AfterCombatEnd`、`CombatRoom.OnCombatEnded`、`Player.AfterCombatEnd`、
-`Hook.AfterCombatVictory`、历史回合数、`MarkPreFinished`，但还没有调用
-`RewardsCmd.GenerateForRoomEnd`。玩家死亡走原版的 `LoseCombat` 终点：不执行战斗结束
-Hook，`RunState.IsGameOver` 由玩家死亡推导，`Decision = GameOver`。
-
-写回顺序：
-
-1. 复制 `Battle.Player` 的 HP/最大 HP、`Battle.Gold`、药水槽和 9 条战斗流；
-2. 处理偷窃的牌组牌：仍被 `SwipePower` 引用的行从牌组移除；已归还的行（无 Power 引用且
-   `RemovedFromState` 已清除）移到牌组末尾；逃跑丢失的行（无 Power 引用且标记仍在）从牌组
-   移除；
-3. 应用牌组长期变化：`GeneticAlgorithm`/`TheScythe` 的成长、`Goopy` 附魔层数；
-4. 胜利/事件结束的结束 Hook：按原生监听顺序处理牌组牌（`Guilty`）、玩家 Power
-   （`ImprovementPower`）、遗物 `AfterCombatEnd` 和两轮 `AfterCombatVictory`；
-5. 同步最终遗物状态、显示计数和 `SavedProperties`；
-6. 同步历史房间的怪物列表与回合数、当前房间 `IsPreFinished`、`Decision`。
-
-DelicateFrond 在 `BeforeCombatStart` 补满的药水已经写回进点后 `RunState.Player.Potions`，
-战斗结束后继续留在药水槽；TeaOfDiscourtesy 的 `CombatsLeft` 在进点时扣减并写
-`RunRelic.Properties`，用尽后 `Status=Disabled`；MawBank 的战斗房间 `AfterRoomEntered` 金币
-在 `RunCombatSetup` 里走与商店相同的 `GainGold`；ToyBox 的 `CombatsSeen`/熔化与
-PaelsLegion 的结束重置仍在写回段。ToastyMittens 的后续回合选择走普通 `Kernel.Step`，写回
-对照按第一选项回答原版。
-
-遗物与 Power 数值全部来自内容表（`ContentTable.RelicVar`/`Card`）。目前覆盖的开战/首回合
-效果与结束效果包括 Anchor、FakeAnchor、Pantograph、RedSkull、BeltBuckle、SneckoEye、Osty、
-BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、FurCoat、GhostSeed、
-StoneCracker、Bellows、PetrifiedToad、FuneraryMask、FencingManual、Akabeko、FestivePopper、
-CrackedCore、RingOfTheSnake，以及 FishingRod、ToyBox、PaelsTooth、PumpkinCandle、
-WongosMysteryTicket、ChosenCheese、BurningBlood/BlackBlood、MeatOnTheBone、SwordOfStone、
-WarHammer 等结束 Hook。
-
-### 7.1 原版结束流程
-
-| # | 原版步骤 | 对 `RunState`/`Player` 的写入 |
-| ---: | --- | --- |
-| 1 | `EndCombatInternal` | `TurnNumber` 先保存为 `turnsTaken`；`IsInProgress=false` |
-| 2 | `Hook.AfterCombatEnd` | 牌组牌先于 Power、遗物：`Guilty` 计数/移除，`ImprovementPower` 升级，`FishingRod`/`ToyBox`/`PaelsTooth`/`PumpkinCandle`/`WongosMysteryTicket`/`ChosenCheese` 修改牌组、最大 HP、属性 |
-| 3 | `room.OnCombatEnded` | 只写 `GoldProportion`（不在 `RunState`） |
-| 4 | `RunManager.WriteReplay` | 离线宿主跳过；不影响 `RunState` |
-| 5 | `player.AfterCombatEnd` | 清空战斗牌堆和 Power；不写持久字段 |
-| 6 | `Hook.AfterCombatVictory` | 先 `AfterCombatVictoryEarly`（MeatOnTheBone 回血），再普通 pass（BurningBlood/BlackBlood 回血、SwordOfStone 替换、WarHammer 升级、BeltBuckle 状态） |
-| 7 | 历史与房间 | `Rooms.Last().TurnsTaken`、`room.MarkPreFinished()` |
-| 8 | 保存/成就/进度 | 存档与进度文件；不改 `RunState` 的可比较字段 |
-| 9 | `CombatEnded` 事件 | `CombatRoom.OfferRoomEndRewards` 在 UI 侧触发；R2c 从生成奖励开始 |
-
-战斗结束只把 `RecoveredHp` 等搜索台账保持为零：开战回血（Pantograph、BloodVial）属于
-`RunState.Player.CurrentHp`，不是战斗内恢复。
-
-### 7.2 差分现状（R2a-5）
-
-`--combat-writeback-compare` 四类：自然 500、遭遇 880（另 10 个
-`THE_ARCHITECT_EVENT_ENCOUNTER` 的 `event-script-end`）、D1 404（另 1 个
-`setup-hook-listener`：`WHISPERING_EARRING` 的自动出牌 Hook 未实现；另 5 个
-`unsupported-relic-state`）、低档 pilot 119（另 1 个 `quality-DEFECT-023` 的终局敌人回合
-路线差异）。动作边界差异为 0；pilot 的 LavaLamp 差异是终局路线差异，不是通用终点缺口。
+原 R2a-3 写回覆盖的结束 Hook、结束流程与差分数字只保留在 `683bc03` 及 R2a-3/R2a-5 报告中，
+不再作为当前实现或回归基准。
 
 ## 8. 进程内整场执行器
 
-`tests/OfflineHost/Combat/NativeActionExecutor.cs` 不开 Godot，用原版公开入口逐个执行内核
+`tests/Differential/Combat/NativeActionExecutor.cs` 不开 Godot，用原版公开入口逐个执行内核
 动作：
 
 - `PlayCard`：`CardModel.TryManualPlay`；
@@ -317,13 +261,19 @@ WarHammer 等结束 Hook。
 - `EndTurn`：`CombatManager.OnEndedTurnLocally` + `EndPlayerTurnAction`。
 
 动作入队/完成沿用 Mod 的 `ActionExecutor.BeforeActionExecuted` 捕获方式；选牌由
-`tests/OfflineHost/Combat/NativeChoiceSelector.cs` 按路线冻结的 `ChoiceRequest` 回答，未支持
+`tests/Differential/Combat/NativeChoiceSelector.cs` 按路线冻结的 `ChoiceRequest` 回答，未支持
 或对不上的请求抛 `choice_mismatch`。每个动作完成后用
 `LiveCombatTracker.ImportForComparison` 按整场托管的导入选项读回 `Battle`，与内核预测逐字节
-比较；终局动作不再导入，交给写回对照。动作等待超时为 `boundary_timeout`，未入队为
+比较。终局动作在战斗结束前没有下一个可出牌边界，但 `TerminalBattleCapture` 在
+`CombatManager.EndCombatInternal`（胜利）与 `ProcessPendingLoss`（失败）的 prefix 捕获原版
+`Battle`，按显式合同比较 `Outcome`（由捕获路径判定，不由预测反推）、玩家 HP/MaxHP、金币、
+药水、遗物状态与 9 条战斗 RNG；手牌/牌堆/回合内计数等清理字段不比较，不能宣称终局
+`Battle` 逐字节全同。捕获缺失报告 `executor-diff`（`terminal_missing`），不计 same；
+`EventDefeat` 以 `terminal_diff` 报告未覆盖，退出码为 1。写回不再参与。动作等待超时为
+`boundary_timeout`，未入队为
 `action_not_enqueued`，原版取消/异常分别为 `action_canceled`/`action_failed`。
 
-离线宿主为原版执行补充的 Godot 绕过都在 `tests/OfflineHost/GameBootstrap.cs`：`Time.GetTicksMsec`、
+离线宿主为原版执行补充的 Godot 绕过都在 `tests/Differential/GameBootstrap.cs`：`Time.GetTicksMsec`、
 `RunManager.WriteReplay`、`NHoverTipSet.Clear` 等。它们只影响离线进程，不改变 Mod 行为。
 
 ## 9. 遗物开战矩阵

@@ -9,20 +9,21 @@ BlitzSolver（极速求解器）是《杀戮尖塔 2》的单人自动游玩 Mod
 | 目录 | 命名空间 | 职责 |
 | --- | --- | --- |
 | `src/Core/Simulation/Combat` | `BlitzSolver.Simulation.Combat` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
-| `src/Core/Simulation/Run` | `BlitzSolver.Simulation.Run` | 整局模拟：定长整局状态 `RunState`、局外随机数、编码 `RunCodec`、玩家可见投影与决策请求 `RunView`/`RunDecisionRequest`（R1b/R2b-2）、局外内核 `RunKernel` 与共享进点 `RunMapEntry`（R2b-2）、进程内内容表 `ContentTable` 与 `RulesBuilder`（R2a-1）、地图进点到首个出牌阶段的战斗边界 `RunCombatSetup`（R2a-2）、战后写回 `RunCombatWriteback`（R2a-3）、新局 `RunGenerator` 与各幕地图 `RunMapGenerator`（R2b-1）、战后奖励 `RunRewardGenerator`（R2c-1）、商店 `RunShopGenerator`（R2c-2）；R2d–R2f 的决策随后续批次落地 |
+| `src/Core/Simulation/Run` | `BlitzSolver.Simulation.Run` | 局外状态与建局：定长 `RunState`、编码 `RunCodec`、转储 `RunDump`、可见投影与决策请求 `RunView`/`RunDecisionRequest`、合法地图点 `RunTravel`、进点 `RunMapEntry`、开战选择预测 `RunCombatSetup`、进程内内容表 `ContentTable` 与 `RulesBuilder`；局外由原版推进，不含 `RunKernel`/奖励/商店/写回/新局生成 |
 | `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔、怪物与遭遇生成定义 |
 | `src/Core/Ai/Combat` | `BlitzSolver.Ai.Combat`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
 | `src/Core/Ai/Run` | `BlitzSolver.Ai.Run` | 局外决策；R1a 只有目录说明，规则与估值随 R4 落地 |
 | `src/Core/Autoplay` | `BlitzSolver.Autoplay` | `CombatPilot` 整场战斗决策循环；Mod 与离线宿主共用 |
-| `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏；子目录 `Combat/`（战斗导入）、`Run/`（整局导入 `RunStateImporter`、内容表导出 `ContentTableExporter`/`NewRunContentExporter`，含遭遇的（怪物、槽位、进阶）规则组合与新局静态数据） |
-| `src/TestHost` | `BlitzSolver.TestHost` | 无头与离线共用的建局、注入与原生状态转储；只在测试中使用，会写游戏状态；子目录 `Combat/`、`Run/`（新局入口、原生合法地图点枚举、快照恢复、独立原生整局转储与原版商店驱动） |
+| `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏；子目录 `Combat/`（战斗导入）、`Run/`（整局导入 `RunStateImporter`、内容表导出 `ContentTableExporter`）、`Run/Decisions/`（R3b 的 `RunDecisionImporter`） |
+| `src/TestHost` | `BlitzSolver.TestHost` | 差分宿主的建局、注入与原生状态转储；只在测试中使用，会写游戏状态；子目录 `Combat/`、`Run/`（新局入口、原生合法地图点枚举、快照恢复、独立原生整局转储与原版商店/奖励驱动，后者是 R3b `RunExecutor` 的起点） |
+| `src/OfflineHost` | 无（R3b 建项目） | 离线宿主骨架：普通 .NET 进程运行原版整局，战斗交给 Blitz；`Runtime/`、`Combat/`、`Run/`；R3-0 只有 README |
 | `src/Mod` | `BlitzSolver` | RitsuLib `ModInitializer` 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Testing/`、`UI/`、`Patches/`；不加入 `BlitzSolver.sln` |
 | `tests/KernelChecks` | | 内核合同（K0）；战斗合同在 `Combat/`，整局合同在 `Run/` |
 | `tests/Golden` | | 冻结快照校验器与数据；战斗校验器在 `Combat/` |
 | `tests/Architecture` | | 编译后的 `BlitzSolver.Core` 层依赖检查；加入 `BlitzSolver.sln` |
-| [`tests/OfflineHost`](tests/OfflineHost/README.md) | | 离线宿主；战斗对照、进程内原版动作执行器与离线整场在 `Combat/`，整局导入、内容表/`RulesBuilder`、战斗边界建局/写回对照、遗物矩阵、新局生成、地图选点与进房间对照、战后奖励、商店对照与多步整局循环在 `Run/`，入口与引导留根目录 |
+| [`tests/Differential`](tests/Differential/README.md) | | 进程内差分；战斗对照、原版动作执行器、战斗 pilot 与离线整场在 `Combat/`，整局导入、内容表/`RulesBuilder`、战斗边界建局、遗物矩阵、地图选点与进房间对照在 `Run/`，入口与引导留根目录 |
 
-依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层；`Ai.Combat` 不引用 `Content`；内容通过 `Registry` 挂到模拟上。`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁，但不直接读私有字段。`Import` 与 `Mod` 都不加入 `BlitzSolver.sln`，依赖规则由 `tests/Architecture` 检查。
+依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层；`Ai.Combat` 不引用 `Content`；内容通过 `Registry` 挂到模拟上。`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁，但不直接读私有字段。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `BlitzSolver.sln`；`OfflineHost` 引用 Core/Import/游戏程序集/GodotSharp/0Harmony，不引用 `TestHost`，`Mod` 不引用 `OfflineHost`。依赖规则由 `tests/Architecture` 检查。
 
 ## 2. 硬约束
 
@@ -66,7 +67,7 @@ dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/d
 
 ## 6. 提交与文档
 
-- 提交信息首行写成 `<模块>: <中文说明>`，冒号用半角加空格，说明与正文用中文。模块用英文：只改一个目录时用目录或项目名（`Simulation`、`Content`、`Ai`、`Autoplay`、`Import`、`TestHost`、`Mod`、`OfflineHost`、`Golden`、`KernelChecks`、`Architecture`、`corpora`）；跨 `src/Core` 多个部分用 `Core`；不对应单个目录时用 `docs`、`repo`、`ci`、`license`；只改顶层文件时用文件名（`README`、`AGENTS.md`）。
+- 提交信息首行写成 `<模块>: <中文说明>`，冒号用半角加空格，说明与正文用中文。模块用英文：只改一个目录时用目录或项目名（`Simulation`、`Content`、`Ai`、`Autoplay`、`Import`、`TestHost`、`Mod`、`OfflineHost`、`Differential`、`run-eval`、`Golden`、`KernelChecks`、`Architecture`、`corpora`）；跨 `src/Core` 多个部分用 `Core`；不对应单个目录时用 `docs`、`repo`、`ci`、`license`；只改顶层文件时用文件名（`README`、`AGENTS.md`）。
 - 只提交本任务的文件；`artifacts/`、`bin/`、`obj/`、`.local/` 不进提交。
 - 一次性脚本、探针与中间产物放 `.local/`，任务结束后删除。
 - 文档用中文，每份文档只有一个职责，`docs/README.md` 是索引。进度、批次与运行流水不写进本文件。

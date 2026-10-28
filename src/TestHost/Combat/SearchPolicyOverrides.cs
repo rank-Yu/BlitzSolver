@@ -1,4 +1,4 @@
-// Shared request-policy overrides. OfflineHost's config compare and the Mod's live SREQ capture
+// Shared request-policy overrides. The differential host's config compare and the Mod's live SREQ capture
 // both apply exactly the same fields so a frozen fixture reproduces its request.
 using BlitzSolver.Simulation.Combat;
 using BlitzSolver.Ai.Combat;

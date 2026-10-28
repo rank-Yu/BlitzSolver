@@ -22,7 +22,7 @@ game_root="$HOME/games/sts2"
 ritsu_root="$HOME/games/sts2/steamapps/workshop/content/2868840/3747602295"
 mod_dir="$repo_root/artifacts/mod/BlitzSolver"
 seed_data="$HOME/sts2/CombatSolver/.local/headless-seed/data"
-offline_host="$repo_root/artifacts/bin/OfflineHost/release/OfflineHost.dll"
+offline_host="$repo_root/artifacts/bin/Differential/release/Differential.dll"
 requests_dir=""
 results_dir=""
 timeout_seconds=600
@@ -61,7 +61,7 @@ usage() {
   --ritsu-root DIR             RitsuLib 目录（默认 workshop 3747602295）
   --mod-dir DIR                BlitzSolver Mod 目录（默认 artifacts/mod/BlitzSolver）
   --seed-data DIR              种子 XDG_DATA_HOME/data（默认 CombatSolver headless-seed/data）
-  --offline-host-dll FILE      OfflineHost.dll（用于 --roots-file/--root 生成请求）
+  --offline-host-dll FILE      Differential.dll（用于 --roots-file/--root 生成请求）
   --combat-solver-dir DIR      CombatSolver Mod 目录（默认 ~/games/sts2/mods/CombatSolver）
   -h, --help                   显示本帮助
 
@@ -205,7 +205,7 @@ if [[ -n ${roots_file:-} ]]; then
     done <"$roots_file"
 fi
 if ((${#roots[@]} > 0)); then
-    [[ -f $offline_host ]] || die "找不到 OfflineHost.dll：$offline_host（先构建 tests/OfflineHost）"
+    [[ -f $offline_host ]] || die "找不到 Differential.dll：$offline_host（先构建 tests/Differential）"
     roots_tmp="$instance_dir/run/roots.txt"
     printf '%s\n' "${roots[@]}" >"$roots_tmp" || die "写根列表失败"
     info "emitting ${#roots[@]} request(s)"

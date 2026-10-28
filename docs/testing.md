@@ -124,18 +124,18 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 #### 重新捕获根
 
 `rerecord` 把根状态当作输入，只重算 K1/K2；当语义修正改的是“从原版状态导入/回放出的根”
-本身时，旧冻结根仍是旧行为，必须先用 `OfflineHost --recapture-root` 重新捕获根和
+本身时，旧冻结根仍是旧行为，必须先用 `Differential --recapture-root` 重新捕获根和
 `config.br`。适用条件是：`--config-compare` 或 `--import-compare` 的差异落在根状态，
 且差异能归因到一次已确认的原版语义修正；不要用它掩盖 K1/K2 或搜索结果的偏差。
 
 ```bash
-# 1. OfflineHost 从原生状态重新导入/回放，写出载荷（roots.gold + config.br）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+# 1. 差分宿主从原生状态重新导入/回放，写出载荷（roots.gold + config.br）
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --root qf-nightmare-detached --recapture-root \
   --data tests/Golden/data --corpora tests/corpora --out .local/recapture
 
 # 2. 保真检查：全部 410 个根重新捕获，除已归因的根外必须 rootBytes=same configBytes=same
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --all --jobs 4 --recapture-root \
   --data tests/Golden/data --corpora tests/corpora --out .local/recapture-all
 
@@ -148,7 +148,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 
 `--recapture-root` 必须同时给 `--roots` 和 `--reason`；载荷目录按根名分目录，`roots.gold` 是
 只含根段的 `GOLD`，`config.br` 是重新编译的 `SREQ`。Golden 不引用游戏程序集：它只读取
-OfflineHost 产出的载荷，替换 `golden.br` 的根段与 `config.br`，其余输入映射、`rulesSha256`
+差分宿主产出的载荷，替换 `golden.br` 的根段与 `config.br`，其余输入映射、`rulesSha256`
 和 K1/K2 规则保持不变。重新捕获只应对已定位的根执行，并在清单的
 `provenance.d1Rerecord` 写入 `recaptureRoots=<根名>`；`tests/Golden/data` 仍由协调者决定是否替换。
 
@@ -334,9 +334,9 @@ git diff --exit-code -- tests/Golden/data/manifest.json
 manifest 证明：文件集合、大小、SHA-256、计数与 provenance 自洽。
 manifest 不证明：语义正确性；它只保护冻结快照不被静默改动。
 
-## 6. 离线宿主（需要游戏文件，不在 CI 中运行）
+## 6. 差分宿主（需要游戏文件，不在 CI 中运行）
 
-`tests/OfflineHost` 是不启动 Godot 的控制台工程：它初始化游戏静态状态、用游戏自己的
+`tests/Differential` 是不启动 Godot 的控制台工程：它初始化游戏静态状态、用游戏自己的
 `RunManager`/`ModelDb` 建局、推进到玩家可操作，写出原生 `CombatState` 的确定性转储，并可用
 `--import-compare` 调 `src/Import` 导入 `Battle`、与 `golden.br` 的 `BATL` 逐字节对照，用
 `--rules-compare` 编译 `Rules` 后与冻结规则对象逐字节对照，或用 `--config-compare` 编译
@@ -345,13 +345,13 @@ manifest 不证明：语义正确性；它只保护冻结快照不被静默改�
 `BlitzSolver.sln`；CI 没有游戏文件，只保证 `dotnet build BlitzSolver.sln` 不受影响。
 
 需要本机游戏目录（`sts2.dll`、`GodotSharp.dll`、`0Harmony.dll`）。路径通过
-`tests/OfflineHost/local.props` 配置；该文件被 git 忽略，模板是 `local.props.example`。
+`tests/Differential/local.props` 配置；该文件被 git 忽略，模板是 `local.props.example`。
 RitsuLib 不需要。建局、注入与转储代码与 Mod 共用 `src/TestHost/`，不在两边复制。
-完整说明见 [`tests/OfflineHost/README.md`](../tests/OfflineHost/README.md)。
+完整说明见 [`tests/Differential/README.md`](../tests/Differential/README.md)。
 
 ```bash
-dotnet build tests/OfflineHost/OfflineHost.csproj -c Release
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --all --jobs 8 --out .local/offlinehost/out
+dotnet build tests/Differential/Differential.csproj -c Release
+dotnet artifacts/bin/Differential/release/Differential.dll --all --jobs 8 --out .local/offlinehost/out
 ```
 
 `--root <name>` 建单个根；`--all` 为每个根起一个子进程；`--compare-only <new> <ref>`
@@ -366,13 +366,13 @@ M2b-0b 起，`NativeStateDump` 格式版本为 2，额外记录跑局/幕信息�
 
 ```bash
 # 单个根：建原生状态 → 导入 → 与 golden.br 的第一个/普通根 BATL 比较
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --import-compare
+dotnet artifacts/bin/Differential/release/Differential.dll   --root kg2-b-stomp --import-compare
 
 # 全部 410 个输入（前缀根回放，回合准备 fixture 枚举全部分支）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --import-compare
+dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --import-compare
 
 # 改用规则编译器输出，而不是解码冻结规则对象
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --import-compare --compiled-rules
+dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --import-compare --compiled-rules
 ```
 
 每根输出 `same`、`diff` 或 `reject`。`diff` 随后打印 `BattleDump.Diff` 的前 24 行，每行带
@@ -391,13 +391,13 @@ import same=410 diff=0 reject=0
 
 ```bash
 # 单个根：编译 Rules → RulesCodec.Encode → 与冻结规则对象逐字节比较
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --rules-compare
+dotnet artifacts/bin/Differential/release/Differential.dll   --root kg2-b-stomp --rules-compare
 
 # 全部 410 个输入
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --rules-compare
+dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --rules-compare
 
 # 静态镜像覆盖率表合同：没有遗漏/多余 id，且覆盖全部 Blitz Registry 内容
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-table-check
+dotnet artifacts/bin/Differential/release/Differential.dll   --rules-table-check
 ```
 
 每根输出 `same`、`diff` 或 `reject`。`diff` 随后打印 `RulesDiff` 的第一处表/项及前 16 行差异；
@@ -414,10 +414,10 @@ RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
 
 ```bash
 # 单个根：编译 ScoreRules/Bound → 重组 SREQ → 与 config.br 逐字节比较
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --root kg2-b-stomp --config-compare
+dotnet artifacts/bin/Differential/release/Differential.dll   --root kg2-b-stomp --config-compare
 
 # 全部 410 个输入
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --all --jobs 8 --config-compare
+dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --config-compare
 ```
 
 410 个输入整份请求逐字节相同，包括 3 个回合准备 fixture 的全部准备根。`diff` 依次比较规则、
@@ -433,7 +433,7 @@ config same=410 diff=0 reject=0 full=410 subparts=0
 Mod 在无头游戏里把 `BATL`/`RULE`/`SREQ.capture`/`native.txt` 写进结果目录后，离线宿主可以对照：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --live-compare .local/m2b1-20-results
 ```
 
@@ -471,9 +471,9 @@ live roots=23 same=23 diff=0 reject=0 native=23
 生成实机请求：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --emit-live-requests .local/live-requests --roots-file .local/m2b0-20-roots.txt
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --emit-live-requests .local/live-requests-all --all
 ```
 
@@ -489,7 +489,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `SREQ`/`SRES`/`search.json`。离线宿主：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --search-compare .local/m2b1-20-results
 ```
 
@@ -549,45 +549,45 @@ HEADLESS_DONE instance=m2b2-final-b ok=10 failed=0 total_ms=297313.871
 
 ```bash
 # 默认中档、确定性搜索；每个根一个子进程，--jobs 控制同时运行的重进程数
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --corpora tests/corpora --jobs 4 \
   --out .local/offline-combat/default
 
 # 指定根列表（每行一个根名，# 注释）；根名必须是 d1 根
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --roots-file .local/roots120.txt --jobs 4 \
   --out .local/offline-combat/default
 
 # 只跑一个根，便于定位（同进程，不再起子进程）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --root quality-DEFECT-000 --out .local/offline-combat/one
 
 # 四档评估：每档 120 根，--jobs 4。低/中/高各约 3/5/7 分钟；
 # ExtraHigh 按 60 根拆两次，单条命令保持在 8 分钟内
 for tier in Low Medium High; do
-  dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  dotnet artifacts/bin/Differential/release/Differential.dll \
     --offline-combat --roots-file .local/roots120.txt --jobs 4 \
     --search-tier "$tier" --out ".local/offline-combat/$tier"
 done
 for part in a b; do
-  dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  dotnet artifacts/bin/Differential/release/Differential.dll \
     --offline-combat --roots-file ".local/roots-xhigh-$part.txt" --jobs 4 \
     --search-tier ExtraHigh --out ".local/offline-combat/xhigh-$part"
 done
 
 # 单宽度探针：起始=最多，便于只测某一宽度；每轮节点上限仍可覆盖
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --corpora tests/corpora --jobs 4 \
   --beam-width 512 --max-width 512 --out .local/offline-combat/w512
 
 # 同宽度、旧局面池上限（200 MiB），用于放大前后对照
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --corpora tests/corpora --jobs 4 \
   --beam-width 512 --max-width 512 --pool-state-budget-mb 200 \
   --out .local/offline-combat/w512-pool200
 
 # 极小预算强制部分路线，走一遍重搜路径（不是等价用例）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --root quality-REGENT-013 --memory-budget-mb 64 \
   --out .local/offline-combat/reroute
 ```
@@ -683,7 +683,7 @@ tools/testing/offline-combat-table.py \
 ```bash
 # 3 个根 × 64/128/256 MiB；同一预算跑两次，逐根比较确定性字段
 for mb in 64 128 256; do
-  dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+  dotnet artifacts/bin/Differential/release/Differential.dll \
     --offline-combat --root quality-REGENT-013 --memory-budget-mb $mb \
     --out .local/budget-test/b$mb
 done
@@ -699,7 +699,7 @@ done
 同一请求复用存储可单独验证：
 
 ```bash
-BLITZ_STORAGE_CHECK=1 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+BLITZ_STORAGE_CHECK=1 dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --root quality-REGENT-013 --out .local/storage-check
 # STORAGE_CHECK same=True firstBytes=... secondBytes=... secondDelta=...
 #   regionsFirst=[chunk:...,array:...] regionsSecond=[chunk:...,array:...]
@@ -712,12 +712,12 @@ BLITZ_STORAGE_CHECK=1 dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 ### 6.9 负例
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
+dotnet artifacts/bin/Differential/release/Differential.dll --import-negative
 ```
 
 默认在 `p8-c-rage-juggling-dark-embrace` 上验证三条路径：把 Power 的内部数据置空得到
 `missing-private-field`；向认领账本注入未认领条目得到 `unclaimed-private-state`；把
-`OfflineHost` 程序集里的测试 Power 挂到玩家身上得到 `third-party-content`。三条都必须拒绝，
+`Differential` 程序集里的测试 Power 挂到玩家身上得到 `third-party-content`。三条都必须拒绝，
 输出 `negative failures=0`。
 
 离线宿主证明：不启动 Godot 时，410 个冻结输入能建出与参考导出相同的原生战斗状态；410 个
@@ -730,7 +730,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --import-negative
 ### 6.10 整局状态导入对照（R1b）
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll   --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
 ```
 
 父进程按 8 并发起子进程：每个自然开局一个进程（5 角色 × A0/A10 × 20 种子 = 200），每个
@@ -751,15 +751,15 @@ D1 输入一个进程（410，含 120 个质量根）。子进程：
 只跑其中一类：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-kind natural --run-seeds 20 --run-jobs 8
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-kind d1 --run-jobs 8
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --run-import-compare --run-d1-root kg2-b-stomp
+dotnet artifacts/bin/Differential/release/Differential.dll   --run-import-compare --run-kind natural --run-seeds 20 --run-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll   --run-import-compare --run-kind d1 --run-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll   --run-import-compare --run-d1-root kg2-b-stomp
 ```
 
 局外导入负例（多人、非标准模式、Modifier、未知事件、未知解锁、无地图、牌组容量）：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
+dotnet artifacts/bin/Differential/release/Differential.dll --run-import-negative
 ```
 
 2026-10 结果：自然开局 `same=200 diff=0 reject=0`；D1 `same=410 diff=0 reject=0`；战斗一致性
@@ -771,12 +771,12 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
 
 ```bash
 # 只导出内容表并报告覆盖、耗时与保留内存
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
+dotnet artifacts/bin/Differential/release/Differential.dll --content-table-report
 
 # 三类逐字节对照
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind natural --build-seeds 20 --build-jobs 8
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind encounter --build-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll   --rules-build-compare --build-kind d1 --build-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll   --rules-build-compare --build-kind natural --build-seeds 20 --build-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll   --rules-build-compare --build-kind encounter --build-jobs 8
 ```
 
 每个用例在独立子进程里用原版路径编译 `Rules`（前缀根用 `CompileAfterPrefix`），再导入
@@ -796,38 +796,38 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare
 分片：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8 --build-shard 0/2
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --rules-build-compare --build-kind d1 --build-jobs 8 --build-shard 1/2
+dotnet artifacts/bin/Differential/release/Differential.dll   --rules-build-compare --build-kind d1 --build-jobs 8 --build-shard 0/2
+dotnet artifacts/bin/Differential/release/Differential.dll   --rules-build-compare --build-kind d1 --build-jobs 8 --build-shard 1/2
 ```
 
 ### 6.12 战斗边界建局对照（R2a-2）
 
 ```bash
 # 自然开局：5 角色 × A0/A10 × 100 种子 = 1000
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind natural --setup-seeds 100 --setup-jobs 4
 
 # 全部 89 个遭遇 × A0/A10 × 20 种子 = 3560；可分片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 4 --setup-shard 0 2
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 4 --setup-shard 1 2
 
 # 开战选择：只打印 Blitz 请求树（不跑原版）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll   --combat-setup-compare --setup-root pr-c-relics --setup-choices
+dotnet artifacts/bin/Differential/release/Differential.dll   --combat-setup-compare --setup-root pr-c-relics --setup-choices
 
 # D1 的 410 个输入 × 4 种子 = 1640；分片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 4 --setup-shard 0 2
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 4 --setup-shard 1 2
 
 # 覆盖统计（只跑 Blitz 建局，不跑原版路径）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind d1 --setup-seeds 1 --setup-jobs 4 --setup-cover
 
 # 内容表（含逐（怪物、槽位、进阶）的原版 AfterAddedToRoom 记录）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
+dotnet artifacts/bin/Differential/release/Differential.dll --content-table-report
 ```
 
 原版侧的选择器用 `CardSelectCmd.PushSelector`（不带 `localOnly`），和 Mod
@@ -840,81 +840,71 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --content-table-report
 `RunCombatSetup.EnterMapCoord`，再用 `RulesBuilder` 和 `RunDump`。`Battle` 逐字节、`RulesCodec`
 逐字节、`RunState` 逐字段比较；失败打印第一处差异路径和值。
 
-2026-10 结果：自然 `same=1000 diff=0 reject=0`；遭遇 `same=3560 diff=0 reject=0`；D1
-`same=1492 diff=0 reject=148`，拒绝分布为 `unsupported-relic=128`、
+2026-10-29 R3-0 结果：自然 `same=1000 diff=0 reject=0`；遭遇 `same=3560 diff=0 reject=0`；D1
+`same=1616 diff=0 reject=24`，拒绝分布为 `setup-hook-listener=4`、
 `unsupported-relic-state=20`。拒绝的根都是遗物开战效果需要玩家选择/生成整副牌组以外内容，或
 D1 请求给遗物注入了不进入 `RunState` 的整数字段；没有对比差异。`--setup-cover` 在 D1 一次运行
 中覆盖 378 个可建局根，记录每个使用的遗物/Power/附魔；完整数量见 `R2a2-report.md`。
 内容表导出约 0.82 秒、保留约 17 MB，encounter 级 unsupported 为 0。
 
-### 6.13 战斗写回对照（R2a-3）
+### 6.13 整场战斗 pilot 对照（R3-0）
 
 ```bash
-# 自然开局：5 角色 × A0/A10 × 50 种子 = 500；可分片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind natural --writeback-seeds 50 --writeback-jobs 4
+# 120 个质量牌组 × 1 个种子，CombatPilot 低档；默认并行 8 个子进程
+dotnet artifacts/bin/Differential/release/Differential.dll --combat-pilot-compare
 
-# 全部 89 个遭遇 × A0/A10 × 5 种子 = 890；分片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 4 --writeback-shard 0 2
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind encounter --writeback-seeds 5 --writeback-jobs 4 --writeback-shard 1 2
-
-# D1 的 410 个输入各 1 个种子
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind d1 --writeback-jobs 4
-
-# 120 个质量牌组 × 1 个种子，CombatPilot 低档
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind pilot --writeback-jobs 4
-
-# 单例：自然开局/遭遇/D1/低档
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-character Ironclad --writeback-ascension 10 \
-  --writeback-seed R2A3-Ironclad-A10-000
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-encounter 30 --writeback-ascension 0 \
-  --writeback-seed R2A3-ENC-0-030
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-root quality-DEFECT-000
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
-  --combat-writeback-compare --writeback-kind pilot --writeback-root quality-IRONCLAD-001
+# 单根；终局 diff 返回 1
+dotnet artifacts/bin/Differential/release/Differential.dll \
+  --combat-pilot-compare --pilot-root quality-IRONCLAD-001
 ```
 
-原版侧的开战和战斗内选择器同样用全局 `PushSelector`（不带 `localOnly`），和 Mod 部署一致；
-手动界面的暂停顺序只作为已知差异记录，不用于对照。
+每个用例在独立子进程里：原版建局并进点，Core `RunCombatSetup` 建同一开局；`CombatPilot`
+低档生成路线，`NativePilotHost` 逐动作交给 `NativeActionExecutor` 用原版公开入口执行。
+每个**可出牌**动作边界仍用 `LiveCombatTracker.ImportForComparison` 读回 `Battle`，与
+`action.After` 逐字节比较。
 
-每个用例在独立子进程里：原版 `EnterMapCoord` 到可出牌，Core `RunCombatSetup.EnterMapCoord`
-建同一开局；随机策略在 Blitz 侧每步选一个合法动作（种子固定），先由 `Kernel.Step` 得到
-预测和完整选择集，再交给 `NativeActionExecutor` 用原版公开入口执行，逐动作导入 `Battle` 与
-预测逐字节比较。终局写回 `RunState` 后与原生终点（所有战斗结束 Hook 之后、奖励生成之前）的
-`NativeRunDump` 逐字段比较。低档子集用 `CombatPilot` + `BeamSolver` 生成路线，执行器仍逐动作
-核对。
+终局另做独立取证：`TerminalBattleCapture` 在 `CombatManager.EndCombatInternal`（胜利）与
+`ProcessPendingLoss`（失败）的 **prefix** 捕获原版 `Battle`，再与预测终局比较。比较合同是
+显式字段：`Outcome`（由捕获来源的胜利/失败路径判定，不由预测 Outcome 反推）、玩家
+`CurrentHp`/`MaxHp`、`Gold`、药水槽、遗物 `Id/Flags/Counter/Aux` 与 9 条战斗 RNG。手牌/
+抽牌堆/弃牌堆/消耗堆、回合内计数、敌人/Power 行等在原版清理中会变化，未纳入合同；因此不
+宣称终局 `Battle` 逐字节全同。合同内字段均独立读取原版；常规导入器携带的搜索专用计数不参与终局比较，
+也没有重实现战后 Hook 或奖励生成。捕获缺失和等待超时报告 `executor-diff`，原因分别为
+`terminal_missing`、`boundary_timeout`；明确不支持的导入报告 `reject`，不计 same。
+`EventDefeat` 当前以 `terminal_diff` 明确报告未覆盖，退出码为 1。
 
-`status=same` 表示动作边界、写回和原生终点全部相同；`status=executor-diff` 是内核预测与
-原版动作边界不同（可能是内核语义、执行器或导入问题，报告逐条分类）；`status=diff` 是动作
-边界相同但写回终点不同；`status=reject` 带稳定原因码。R2a-3 的旧结果与内核缺口清单见
-`.local/tool-tasks/blitz/R2a3-report.md`，R2a-4 的修复与新旧对比见
-`.local/tool-tasks/blitz/R2a4-report.md`。
+`status=same` 表示所有动作边界和终局合同相同；`status=executor-diff` 是内核预测与原版边界
+不同；`status=reject` 带稳定原因码。`--pilot-root` 的 diff 退出码为 1；父进程先看 child exit，
+非零 child 即使打印了 `same` 或 `reject` 也不会被计入正常结果（有明确 `executor-diff` 计 diff，
+否则计 crash）。`actions` 是真实部署动作数，`turns` 是回合数。
 
-2026-10-27 R2a-5 第 1 轮结果（第 2 轮改为所有回合不暂停后没有重跑；写回对照将在 R3-0 删除。比较使用 `src/Import/Combat/BattleReconciler.cs`，与 Mod 完全相同的
-`Same`/`Diff`）：自然 500 根 `same=500 diff=0 reject=0`；遭遇 890 根 `same=880 diff=0
-reject=10`（全部是 `THE_ARCHITECT_EVENT_ENCOUNTER` 的 `event-script-end`）；D1 410 根
-`same=404 diff=0 reject=6`（`setup-hook-listener=1`：`WHISPERING_EARRING` 的
-`AfterAutoPrePlayPhaseEnteredLate` 未实现；`unsupported-relic-state=5`）；低档 120 根
-`same=119 diff=1 reject=0`（`quality-DEFECT-023` 的 pilot 终局敌人回合路线差异，
-`LAVA_LAMP.TookDamageThisCombat` native=false、Blitz=true；同一根的普通写回是 same）。
-动作边界差异 0。
+2026-10-29 R3-0 结果：120 个根 `same=120 diff=0 reject=0 crash=0`，82 胜 38 负，2,863 个
+部署动作。此前第一版终局检查先得到 118 same / 2 diff；定位到两处都是 `TheGambitPower` 的
+`AfterDamageReceived` 杀死玩家后，原版 `CombatState.Contains` 用 `Owner.IsActiveForHooks`
+逐项过滤，后续 LavaLamp/BeatingRemnant 不再调用，而 Core `HookDispatch.TryResolve` 只按 id
+重定位、没有重新检查玩家监听资格。最小修正是在 `TryResolve` 中按 `PlayerHooksActive` 过滤
+玩家所有的 Power/Relic/Potion/Card/Affliction/Enchantment/Orb 监听；死亡阻止/复活期间
+`PlayerHooksActive` 保持，`BeforeDeath`/`AfterDeath` 不受影响。`tests/KernelChecks` 新增
+TheGambit 死亡后不调用 LavaLamp、LizardTail 阻止死亡后 LavaLamp 仍调用的定向合同。
+修正后 D1 418 根 `mismatched=0`、D2 1,983/1,983 全部不变。
+
+负例：`BLITZ_PILOT_TAMPER=hp`、`outcome`、`event` 篡改预测终局，检查分别报告
+`player.hp`、`outcome`、`event-defeat is not covered`，退出码均为 1。
+
+Core 修正后的中档离线 120 与 `r2a5-683bc03` 基线比较为 `same=119 diff=1`：
+`quality-SILENT-022` 的第二轮展开节点数从 42,424 变为 42,258（路线动作数、胜负与 HP 相同），
+这是 TheGambit 死亡后监听失效修正改变该根搜索树的预期影响；基线不更新，也不把该根写成
+same。其余 119 根逐字段相同。
 
 ### 6.14 遗物开战矩阵（R2a-3）
 
 ```bash
 # 从建局 Hook 掩码自动生成：126 个 Implemented 遗物
 # 126 个 Implemented 遗物各 20 种子（无效果的也跑）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-relic-matrix --setup-matrix-seeds 20 --setup-jobs 8
 # 只打印名单与计数
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-matrix-list
 ```
 
@@ -929,7 +919,7 @@ CrackedCore、RingOfTheSnake，首回合状态遗物与 MeatOnTheBone，以及�
 GamblingChip、ToastyMittens、ChoicesParadox、DelicateFrond、VexingPuzzlebox、JeweledMask、
 BigHat、OrangeDough、TeaOfDiscourtesy、RoyalPoison、FakeBloodVial、BoomingConch、
 InfusedCore、MawBank、MysticLighter、TinyMailbox、PaelsLegion。2026-10 结果：
-`cases=126 seeds=20 runs=2520 diff=0 missing=0`（8 片各 `diff=0`；126 个 Implemented 遗物
+`cases=126 seeds=20 runs=2520 diff=0 missing=0`（4 片各 630 runs、各 `diff=0`；126 个 Implemented 遗物
 各 20 种子，无效果的也跑；MysticLighter/TinyMailbox 为预期不触发，PaelsLegion 的
 `NextCombatId` 账本会改变签名）。8 张 Implemented 卡（BANSHEES_CRY、FLATTEN、
 KINGLY_KICK、KINGLY_PUNCH、PINPOINT、ROCKET_PUNCH、STOMP、VOID）用
@@ -940,54 +930,23 @@ Slow/VitalSpark/Focus 等由遗物矩阵/D1 覆盖，其余是出牌/抽牌后�
 矩阵发现并修正了 SwordOfJade 的 Applier、
 RedSkull 的 `StrengthApplied` 计数和 Pantograph/BloodVial 的战后 HP/`RecoveredHp`。
 
-### 6.15 新局生成与地图对照（R2b-1）
-
-```bash
-# 单个用例：角色|进阶|存档|教学重排|种子，对照第 1、2、3 幕
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --new-run-compare \
-  --new-run-case "Ironclad|0|empty|0|R2B1-PROBE-1" --new-run-acts 3
-
-# 全量：5 角色 × 进阶 0..10 × 6 种解锁状态 × 教学重排开/关 × 30 种子 = 19,800；
-# 每个用例对照三幕。按 3 片运行，每片约 5.5 分钟（jobs=4）。
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --new-run-compare \
-  --new-run-seeds 30 --new-run-jobs 4 \
-  --new-run-saves empty,all,real-360,real-375,early-6,early-12 \
-  --new-run-tutorial both --new-run-shard 0/3
-```
-
-每个子进程先导出一次内容表，再顺序处理一批用例（用 `RunManager.CleanUp` 释放上一局）；同一进程
-内同时跑原版 `RunTestHost.StartNewRunBeforeChoicesAsync` 与 Core `RunGenerator.CreateNewRun`，
-用 `RunDump`/`NativeRunDump` 逐字段比较（含 15 条流状态与计数、`MapConsumed`、遗物袋、三幕房间
-序列、地图）；再对第 2、3 幕调用原生 `SetActInternal` 与 Core `RunGenerator.SetAct`，比较地图与
-`act_N_map` 消耗后的 `Counter` 与四个状态字。教学重排只对
-`RunManager.ShouldApplyTutorialModifications()` 打测试补丁，不改全局 `TestMode`。
-
-存档预设：`empty`（R1b 离线宿主默认存档）、`all`（全部 epoch 与遭遇、跑局数极大）、
-`real-360`/`real-375`（CombatSolver 实机 run 快照的 11/54 个已见遭遇、跑局数 6/15，epoch 全解锁）、
-`early-6`/`early-12`（按游戏真实解锁顺序截断的部分 epoch）。本仓库的 D1 根是合成战斗 fixture，
-都从默认存档建局，不带部分解锁状态，所以“真实部分解锁”取实机快照。
-
-2026-10 结果：`same=19800 diff=0 reject=0 error=0`，`mapDiff=0 rngDiff=0`；分片
-`6600/6600`、`6600/6600`、`6600/6600`。新局内容导出约 1.3 秒/进程。
-
-### 6.16 地图选点与进房间对照（R2b-2）
+### 6.15 地图选点与进房间对照（R2b-2）
 
 ```bash
 # 单个用例：角色|进阶|存档|教学重排|种子，走一至三幕
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --map-step-case "Ironclad|0|empty|0|R2B2-PROBE-1" --map-step-acts 3
+dotnet artifacts/bin/Differential/release/Differential.dll --map-step-compare   --map-step-case "Ironclad|0|empty|0|R2B2-PROBE-1" --map-step-acts 3
 
 # 默认全量：5 角色 × 进阶 0/10 × empty/all × 教学重排开/关 × 8 种子 × 3 幕 = 320 局
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --map-step-seeds 8 --map-step-jobs 4 --map-step-acts 3
+dotnet artifacts/bin/Differential/release/Differential.dll --map-step-compare   --map-step-seeds 8 --map-step-jobs 4 --map-step-acts 3
 ```
 
 每个子进程先建新局，用原版自己推进：地图点由确定性随机策略选择；战斗用
 `CreatureCmd.Kill` + `CheckWinCondition` 直接打完；奖励、商店货架、宝箱遗物、休息处与事件页
 全部跳过；换幕用 `RunManager.EnterNextAct`。每到一个地图选点，导入一次 `RunState`，比较
-`RunTravel.Collect`/`RunDecisionRequest.Capture` 与原版
-`RunTestHost.GetTravelablePoints`（起点、Boss、第二 Boss 与 `MapTravel.GetTravelablePointsFrom`
+`RunTravel.Collect` 与原版 `RunTestHost.GetTravelablePoints`（起点、Boss、第二 Boss 与 `MapTravel.GetTravelablePointsFrom`
 的并集，按集合比较）。随后对**每一个**合法选项：用同一份 `SerializableRun` 快照
 （`SetUpSavedSingleplayer` + `GenerateMap`）恢复原版，各自执行一次 `EnterMapCoord` 与
-`RunKernel.Step`；战斗比较 `Battle`/`Rules`/`RunState`，非战斗比较"房间已建好、历史已追加、
+`RunMapEntry.Enter`；战斗比较 `Battle`/`Rules`/`RunState`，非战斗比较"房间已建好、历史已追加、
 尚未进入"的 `RunState`。非战斗房间在测试补丁里截在 `RunManager.EnterRoomInternal` 之前，
 补丁只在该模式启用，不改 Mod。
 
@@ -996,7 +955,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --
 恢复后的导入以恢复后的原版状态为准；事件 RNG 用原生 `new Rng(seed + hash(event id))`
 单独比较。每局最后一幕的 Boss 之后停止；A10 的最后一幕会走第二 Boss。
 
-2026-10 结果（320 局、15,360 个地图决策、19,220 次单步比较）：
+2026-10-28 R3-0 结果（用例数与 `683bc03` 相同的全量）：
 
 - 合法选项：`same=15360 diff=0`；单步 `same=19220 diff=0`，`reject=1853 error=0`。
 - 拒绝只有一种：`event-allowed-check`（未知点拉到的候选事件其原版 `IsAllowed` 依赖跑局状态，
@@ -1007,157 +966,6 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --map-step-compare   --
   不会出现；休息处不是 Unknown 的候选。
 - 按幕：第 1 幕 6,642、第 2 幕 6,439、第 3 幕 6,139。按楼层见 R2b-2 报告。
 
-### 6.17 战后奖励对照（R2c-1）
-
-```bash
-# 自然开局；40 种子 × 5 角色 × A0/A10 × empty/all = 800 个普通战
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
-  --reward-kind natural --reward-seeds 40 --reward-jobs 8 --reward-shard 0 2
-
-# D1；410 个冻结战斗根，2 片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
-  --reward-kind d1 --reward-jobs 8 --reward-shard 0 2
-
-# D1 改用 Low 档 CombatPilot；4 片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
-  --reward-kind pilot --reward-jobs 8 --reward-shard 0 4
-
-# 自然开局强制精英/Boss 遭遇；24 个战斗遭遇 × 2 进阶 × 6 种子，2 片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
-  --reward-kind encounter-pilot --reward-jobs 8 --reward-shard 0 2
-
-# 多步整局改用 pilot
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
-  --reward-kind run-pilot --reward-jobs 8
-
-# 盗贼遭遇专项（尝试 SpecialCard）
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --reward-compare \
-  --reward-kind thief --reward-jobs 8
-```
-
-`pilot` 对 D1 根调用 `CombatPilot`（`SearchPerformanceTier.Low`）打完战斗，之后的写回、生成、
-逐选项领取与 `d1` 完全相同。`encounter-pilot` 用自然新局（`all` 解锁）经 `SetActInternal`
-切到包含目标遭遇的幕、`ForceNextEncounter` 后同样用 pilot；只跑精英/Boss。`run-pilot` 把
-R2b-2 地图选点、战斗、写回、奖励串起来，战斗改用 pilot。`thief` 强制 `THIEVING_HOPPER_WEAK`，
-先结束回合让盗贼偷牌，再随机打完，专门尝试 `SpecialCard`。
-
-2026-10 结果（第 2 轮修正后）：
-
-| 模式 | 用例 | same | diff | reject | 选项比较 | 说明 |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| natural | 800 | 800 | 0 | 0 | 8,823 | 全 Monster；Gold 800、Card 800、Potion 273 |
-| d1 | 410 | 167 | 0 | 243 | 2,097 | Monster 153/Elite 12/Boss 2 相同 |
-| pilot | 410 | 244 | 0 | 166 | 2,879 | Monster 209/Elite 25/Boss 10 相同；SpecialCard 1 |
-| encounter-pilot | 288 | 33 | 0 | 255 | 674 | 全 Elite；Boss 0（pilot 全败） |
-| run-pilot | 40 | 40 | 0 | 0 | 374 | 平均 3.10 点、3.08 战、8.35 奖励动作 |
-| thief | 20 | 20 | 0 | 0 | 188 | 该随机路线未触发 SpecialCard；pilot 的盗贼根触发 1 次 |
-| **合计** | **1,968** | 1,304 | **0** | 664 | **15,035** | 生成列表 + 选项 = **17,003 次比较** |
-
-- 最终保留的拒绝原因：`combat-defeat`（无可比较终点）、`unsupported-relic` /
-  `unsupported-relic-state` / `reward-hook-listener` / `gold-proportion-encounter`
-  （Blitz 显式不支持）、`pilot-event-end`（事件脚本结束，没有可领取奖励）。`writeback-diff`、
-  `pilot-failed`、`action-limit` 在最终结果中均为 0；任何链上字段差异现在记 diff。
-- D1 拒绝：`combat-defeat` 203、`unsupported-relic` 32、`unsupported-relic-state` 5、
-  `gold-proportion-encounter` 1、`reward-hook-listener` 2。
-- pilot 拒绝：`combat-defeat` 122、`unsupported-relic` 32、`unsupported-relic-state` 5、
-  `reward-hook-listener` 3、`gold-proportion-encounter` 1、`pilot-event-end` 3。
-- encounter-pilot 的 255 个拒绝全是 `combat-defeat`；精英合计 70 个（D1 12 + pilot 25 +
-  encounter 33），Boss 合计 12 个（D1 2 + pilot 10）。Boss 少于 20 的原因：24 个战斗遭遇里
-  14 个 Boss 在 A0/A10 × 6 自然种子（168 次）下全部被 Low 档 pilot 打败，D1 的 Boss 根也只有
-  10 个胜利；没有用更高档位或额外 HP 掩盖。
-- 奖励类型总覆盖（各模式相加）：Gold 1,247、Potion 387、Card 1,268、Relic 70、
-  SpecialCard 1、CardRemoval 0；均 diff=0。SpecialCard 来自 pilot 的
-  `tw-thieving-hopper-recover`。
-- `REWARD-DISPLAY-MISMATCH` 按遗物统计：`ORNAMENTAL_FAN` 5 次、`KUSARIGAMA` 5 次、
-  `LETTER_OPENER` 2 次，全部属于 `TransientDisplayRelics` 且实际不一致，已在 native dump
-  投影记录值；名单外 0 次。只有“名单内 **且** 实际不一致”才覆盖；名单外不一致会打印
-  `REWARD-DISPLAY-MISMATCH` 并记 diff（本轮没有出现）。`Status` 写回，`KUSARIGAMA` 的
-  Active/Normal 差异由此消失。
-- `--combat-writeback-compare` 四类：自然 500/500、遭遇 880/0/10、D1 404/0/6、低档 pilot
-  119/1/0（唯一 diff 的原因见 6.13）。
-- 全量拒绝都有稳定原因码，0 子进程崩溃、0 `CapacityException`。
-
-### 6.18 商店对照（R2c-2）
-
-```bash
-# 自然开局：5 角色 × A0/A10 × empty/all × 10 种子 = 200 局
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
-  --shop-kind natural --shop-seeds 10 --shop-jobs 6
-
-# D1：410 个冻结根，4 片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
-  --shop-kind d1 --shop-jobs 6 --shop-shard 0 4
-
-# 真实游戏药水价分支：自然 3 种子、D1 第 0/4 片
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
-  --shop-kind natural-live-prices --shop-seeds 3 --shop-jobs 6
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
-  --shop-kind d1-live-prices --shop-jobs 6 --shop-shard 0 4
-
-# 强制 TheCourier 的自然长序列
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
-  --shop-kind natural-courier --shop-seeds 3 --shop-jobs 6
-
-# 单例调试
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
-  --shop-character Ironclad --shop-ascension 0 --shop-preset all --shop-seed shop-test-0
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --shop-compare \
-  --shop-root quality-IRONCLAD-007
-```
-
-自然局走上地图找可达的商店点；D1 用 `ScenarioBuilder.PrepareRunAsync` 建出牌组/遗物后把起点改成
-商店点。两边同时把金币设为同一值（自然 500、D1 2000）。选购买序列时被 `WouldAccept`
-跳过的 Blitz 显式不支持条目按原因计数：`SHOP-CASE` 行有 `skips=`，汇总行有
-`SHOP-SUMMARY ... skips=`，并按原因输出 `SHOP-SKIP reason=... count=...`。恢复进店前快照后重新进入，比较：
-
-- 进店后的 `RunState`（`NativeRunDump` 独立读原版，`RunDump` 读 Core）与导入器二次读取；
-- 商店请求的每个选项（条目下标、模型、卡牌升级/附魔、价格）与 `RunView.Shop`（打折/删牌价）；
-- 每个合法购买类别的单步序列、删牌的首张/末张/取消、离开、随机多步序列、贪心买空序列；
-  每步后比较 `RunState` 与下一个请求；离开后比较地图合法点。
-- 贪心序列两边金币设为 5000；按槽位轮转买当前第一个合法且有支持的购买条目。非 Courier
-  商店买空后只剩删牌/离开；Courier 会立即补货，序列在 16 次购买后停止，每一步仍做单步比较。
-- `*-live-prices` 用 `ContentTableExporter.Export(forcePotionPriceVaries: true)`，原生侧只在
-  `MerchantPotionEntry.CalcCost` 内临时 `TestMode.IsOn=false`（prefix/postfix），覆盖货架生成
-  和补货的同一分支，不触碰 Godot/UI。
-
-2026-10 最终结果：
-
-| 模式 | 用例 | same | diff | reject | skip | 状态比较 | 选项元素 | 动作步骤 | 贪心购买 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| natural | 200 | 187 | 0 | 0 | 13 | 7,872 | 74,507 | 6,189 | 2,277 |
-| d1 | 410 | 401 | 0 | 9 | 0 | 16,322 | 162,285 | 12,867 | 4,877 |
-| **普通合计** | **610** | **588** | **0** | **9** | **13** | **24,194** | **236,792** | **19,056** | **7,154** |
-| natural-live-prices | 60 | 58 | 0 | 0 | 2 | 2,443 | 23,090 | 1,921 | 708 |
-| d1-live-prices（0/4） | 103 | 103 | 0 | 0 | 0 | 4,199 | 41,648 | 3,312 | 1,259 |
-| natural-courier | 60 | 58 | 0 | 0 | 2 | 2,608 | 30,287 | 2,086 | 870 |
-
-普通模式按动作（已完成步骤）：角色卡购买 4,381、无色卡购买 1,516、遗物购买 2,588、
-药水购买 2,151、打删除牌服务 1,641、确认删牌 1,094、取消删牌 547、离开 5,138；合计
-19,056 个动作步骤，贪心购买 7,154 次。普通 + 新模式的合计为 33,444 次状态比较、
-331,817 个选项元素、26,375 个动作步骤。
-
-`natural-live-prices` 的 1,740 次与 `d1-live-prices` 的 2,978 次原生 `CalcCost` 调用都实际
-走了 `TestMode.IsOff` 分支；`natural-courier` 的 58 个进店用例全部带 TheCourier，D1 普通
-全量有 5 个实际带 Courier 的根。
-
-- D1 拒绝：`shop-hook-listener` 3（`FRESNEL_LENS` 的
-  `ModifyMerchantCardCreationResults`、`BING_BONG` 的 `AfterCardChangedPiles`、`LORDS_PARASOL`
-  的 `AfterRoomEntered`（商店位 `AfterShopRoomEntered`）、`unsupported-relic-state` 5、`free-travel-hook` 1（`WingedBoots`，
-  在 R2b-2 的地图选点边界就拒绝）。
-- 自然 13 个 `skip` 是 12 步内没有可达商店点，不是拒绝。R2a-5 的 F 尾统计：natural
-  200 个用例 `same=187 skip=13`，`skips=900`（`relic-obtain-effect=785`、
-  `reward-hook-listener=115`）；D1 410 个用例 `same=401 reject=9`，`skips=1894`
-  （`relic-obtain-effect=1643`、`reward-hook-listener=251`）。
-- 自然覆盖 5 角色 × A0/A10 × empty/all；D1 覆盖 410 个根的牌组/遗物组合，价格改价
-  （MembershipCard/TheCourier）与补货（TheCourier）在 D1/自然中实际命中。
-- 对照工具不做规范化：`shop.character.N`/`shop.relic.N`/`shop.potion.N`/`shop.removal` 逐字段
-  比较；从快照恢复丢掉的非保存字段按 R2b-2 的同一记录值写回；反射找 `_cost` 失败直接抛异常。
-
-R2a-5 复跑：`--reward-kind natural --reward-seeds 10` 为 200/200 相同、0 拒绝；
-`run-pilot` 40/40 相同。`run-pilot` 已接上商店：进店后比较货架/选项，再走 `LeaveShop` 继续地图，平均
-3.725 个地图点、3.375 场战斗、9.275 个奖励动作；停在 `event-allowed-check` 25、
-`RestSite` 7、`Event` 5、`combat-defeat` 2、`Treasure` 1。
-
 ## 7. 每层证明什么
 
 | 层 | 证明 | 不证明 |
@@ -1167,8 +975,8 @@ R2a-5 复跑：`--reward-kind natural --reward-seeds 10` 为 200/200 相同、0 
 | D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
 | D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 离线宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同；R2c-2 的自然 187 + D1 401 个商店逐字段、逐选项、逐动作相同；live-prices 与 Courier 长序列也 0 diff | 实机部署、任意 Mod、语料外前缀/准备阶段、事件/休息/宝箱负载 |
-| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
+| 差分宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同；开战建局、遗物矩阵、地图进点与战斗 pilot 的保留对照与 `683bc03` 相同 | 实机部署、任意 Mod、语料外前缀/准备阶段、事件/休息/宝箱负载、离线原版整局 |
+| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/差分宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
 | 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
 | 实机整场（手动） | 20 个固定根在无头游戏里自动打完（16 胜 4 负），逐动作核对与回合对账均为 0 偏差/0 部署失败；至少一个根实际走过选牌、抽牌堆/弃牌堆选择与药水目标；取消测试无残留 | 120 根全量、界面、未捕获前缀/准备根、第三方 Mod |
 
@@ -1177,10 +985,11 @@ R2a-5 复跑：`--reward-kind natural --reward-seeds 10` 为 200/200 相同、0 
 ## 8. 未验证项
 
 - **实机全量**：M2b-0 验证了 20 个普通根与 3 个回合准备 fixture，M2b-0b 追加 5 个第三幕 A10 Boss 根与 23 根复跑，M2b-1 验证了 20 个普通根的确定性搜索与 3 个 PF1 重根的中档测量，M2b-2 只验证了 20 个固定根的整场自动战斗。397 个普通根的捕获与确定性搜索、120 根质量语料的整场运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
+- **离线原版整局**：R3b 才落地；R3-0 只建立目录骨架，未在离线进程里跑完整局，也未验证两个宿主的逐步 `RunState` 一致性。
 - **界面**：没有设置页、进度、路线预览或失败提示；普通玩家只有 `F8` 开关与日志。
 - **非选牌模态**：选择驱动只覆盖 `CardSelectCmd` 的 `ICardSelector` 路径；未验证未来/第三方 Mod 的其它模态请求。
 - **前缀根**：实机测试模式显式拒绝前缀动作；继续由离线宿主的 `PrefixReplay` 覆盖。
-- **回合准备多根**：实机只捕获第一个准备选项；完整 `config.br` 的多根排序仍只在离线宿主验证。
+- **回合准备多根**：实机只捕获第一个准备选项；完整 `config.br` 的多根排序仍只在差分宿主验证。
 - **第三方 Mod**：没有实机 Mod 根；导入层只显式拒绝非 `sts2` 程序集的模型，未做兼容层。
 - **Windows/Steam**：当前计时与验证在 Linux；Windows `.ps1` 启动脚本留待后续。
 

@@ -65,7 +65,6 @@ internal static class ExecCoverage
         "_choicesTaken",
         nameof(Exec.EffectDepth),
         nameof(Exec.TransientMarkBase),
-        nameof(Exec.SideTurnStartedEarly),
         nameof(Exec.TakingExtraTurn),
     ];
 

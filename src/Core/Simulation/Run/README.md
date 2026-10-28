@@ -1,12 +1,15 @@
 # Simulation.Run
 
-[整局设计](../../../../docs/full-run-design.md)第 4 节规定的整局模拟层。R1b 已落地整局状态与
-局外随机数；R2a-1 已落地进程内内容表与 `RulesBuilder`；R2a-2 已落地地图进点到首个出牌阶段的
-战斗边界；R2b-2 已落地决策请求、`RunKernel` 与地图选点到非战斗房间的边界；R2c-1 已落地
-战后奖励生成、领取与离开奖励界面。商店、事件等决策随 R2c-2–R2f 继续落地。
+[整局设计](../../../../docs/full-run-design.md)第 4 节规定的局外状态层。2026-10-27 起局外由原版
+`sts2.dll` 推进，这里不再包含局外模拟器；只保留状态、投影、导入所需的表示，以及从进点前
+`RunState` 预测开战选项的 `RunCombatSetup`。
 
-职责：局外状态、地图、房间、奖励、商店、事件流程与局外随机数；进入战斗时建局交给
-[`Simulation.Combat`](../Combat/)，打完写回。
+职责：
+
+- `RunState` 的定长表示、编码、校验与转储；
+- 玩家可见投影 `RunView` 与决策请求/动作类型 `RunDecisionRequest`/`RunAction`；
+- 从进点前状态预测每个开战选项对应的 `Battle`/`Rules`/开局 `RunState`；
+- 进程内内容表 `ContentTable` 与 `RulesBuilder`，供 `RunCombatSetup`/`RulesBuilder` 使用。
 
 | 文件 | 内容 |
 | --- | --- |
@@ -16,17 +19,22 @@
 | `RunRng.cs` | 与原版逐字节一致的 15 条流、事件/遭遇/地图派生 |
 | `RunPropertyBag.cs` | 模型私有 `SavedProperties` 的规范编码 |
 | `RunCodec.cs` | `RUNS` 魔数、版本与规范字节镜像；结构校验 |
-| `RunView.cs` | 只读玩家可见投影；`Ai.Run` 唯一可见的整局类型组 |
-| `ContentTable.cs` | 原生内容快照的进程内表，含遭遇的（怪物、槽位、进阶）规则组合 |
-| `RulesBuilder.cs` | 从 `RunState`、`Battle` 与 `RulesRootFacts` 建 `Rules` |
-| `RunDecisions.cs` | `RunDecisionRequest`/`RunDecisionOption`/`RunAction`/`RunStepResult` 与稳定拒绝码 |
+| `RunDump.cs` | 行式状态转储，供对照使用 |
+| `RunView.cs` | 只读玩家可见投影；`RunView.Request` 留给 R3b 的 `RunDecisionImporter` 填充 |
+| `RunDecisions.cs` | `RunDecisionRequest`/`RunDecisionOption`/`RunAction`/`RunActionKind` 与进点拒绝码 |
 | `RunTravel.cs` | 合法地图点：起点、普通子点、Boss、第二 Boss |
 | `RunUnknownPoint.cs` | 未知点首次跑局保底、黑名单、浮点掷骰与概率成长；教学未知点 |
-| `RunMapEntry.cs` | `RunKernel` 与 R2a-2 共用的进点前半段：房间类型、遭遇/事件、历史；非战斗房间的进入前边界 |
-| `RunKernel.cs` | `Step(ref RunState, in RunAction)`：地图选点、奖励动作、拒绝、战斗/非战斗/结束结果 |
-| `RunRewards.cs` | `RunRewardGenerator`：战后奖励生成、奖励列表/卡牌选项、领取/跳过/离开与额外奖励 |
-| `RunCombatSetup.cs` | `BuildCombat`：遭遇生成、开战与第一回合；兼容入口 `EnterMapCoord`/`EnterMapPoint` |
+| `RunMapEntry.cs` | 进点前半段：房间类型、遭遇/事件、历史；战斗房间继续建局，非战斗房间停在进入前边界 |
+| `RunContent.cs` | 地图进点所需的初始未知点概率与开战 setup Hook 掩码 |
+| `ContentTable.cs` | 原生内容快照的进程内表，含遭遇的（怪物、槽位、进阶）规则组合与开战池 |
+| `RulesBuilder.cs` | 从 `RunState`、`Battle` 与 `RulesRootFacts` 建 `Rules` |
+| `RunCombatSetup.cs` | `TryEnterMapCoord`/`EnterMapCoord`：遭遇生成、开战与第一回合；开战选择预测的唯一入口 |
+
+已删除（2026-10-27，R3-0）：`RunGenerator`、`RunMapGenerator`、`RunRandom`、`RunRewards`、
+`RunShop`、`RunKernel`、`RunCombatWriteback`。最后一个包含完整局外模拟器的提交是 `683bc03`；
+以后需要时从 Git 历史恢复，不在当前设计里维护第二套局外推进。
 
 字段、容量、编码与可见性见[整局状态布局](../../../../docs/run-state-layout.md)；决策协议与进点见
 [局外决策协议与地图进点](../../../../docs/run-decisions.md)；战斗边界见
-[战斗边界](../../../../docs/run-combat-boundary.md)；战后奖励见[战后奖励](../../../../docs/run-rewards.md)。
+[战斗边界](../../../../docs/run-combat-boundary.md)；离线宿主见
+[离线宿主](../../../../docs/offline-host.md)。

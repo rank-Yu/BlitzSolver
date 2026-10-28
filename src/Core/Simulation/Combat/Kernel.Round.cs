@@ -657,7 +657,7 @@ public static partial class Kernel
         AfterPlayerTurnStart(ref x);
         if (x.NeedsChoice)
             return;
-        StartPlayerSideTurnIfNeeded(ref x);
+        StartPlayerSideTurn(ref x);
         if (x.NeedsChoice)
             return;
         ApplyEnemyDeathPowers(ref x);
@@ -679,15 +679,11 @@ public static partial class Kernel
     }
 
     /// <summary>
-    /// The player side start, either at its normal position (after the hand draw and
-    /// <c>AfterPlayerTurnStart</c>) or when a pre-side turn-start choice is taken
-    /// (<c>TurnStartChoiceCursor.BeforeNextTake</c>). Runs once per action execution.
+    /// The player side start, after the hand draw and <c>AfterPlayerTurnStart</c>. Runs once per
+    /// action execution at the two call sites that own the normal start position.
     /// </summary>
-    internal static void StartPlayerSideTurnIfNeeded(ref Exec x)
+    internal static void StartPlayerSideTurn(ref Exec x)
     {
-        if (x.SideTurnStartedEarly)
-            return;
-        x.SideTurnStartedEarly = true;
         ReadOnlySpan<byte> player = [Limits.PlayerOwner];
         TriggerSideTurnStart(ref x, Side.Player, player, decrementPlating: x.B.PlayerTurn != 1,
             isExtraTurn: x.TakingExtraTurn);

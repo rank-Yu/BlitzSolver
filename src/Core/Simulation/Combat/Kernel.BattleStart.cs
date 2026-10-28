@@ -61,7 +61,7 @@ public static partial class Kernel
         AfterPlayerTurnStart(ref x);
         if (x.NeedsChoice)
             return;
-        StartPlayerSideTurnIfNeeded(ref x);
+        StartPlayerSideTurn(ref x);
         if (x.NeedsChoice)
             return;
         ApplyEnemyDeathPowers(ref x);

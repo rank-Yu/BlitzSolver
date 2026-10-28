@@ -10,7 +10,8 @@ namespace BlitzSolver.Simulation.Run;
 /// sequences, no grab-bag order, no unlock state and no per-model private saved properties: those
 /// are not visible on the native screen and cannot be derived from the history the player has seen.
 /// The hidden reward pity counters are included because the player can derive them from that
-/// history. Visibility is tabulated in <c>docs/run-state-layout.md</c>.
+/// history. Visibility is tabulated in <c>docs/run-state-layout.md</c>. The decision request is
+/// imported from the native model by R3b; this projection only carries the decision hint.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct RunView
@@ -42,7 +43,7 @@ public struct RunView
     /// <summary>Remaining rewards shown on the reward list (0 outside a reward list).</summary>
     public byte RewardCount;
     private ushort _padding1;
-    /// <summary>Complete request, including every legal option (map points, rewards and shops).</summary>
+    /// <summary>Complete request; R3b's RunDecisionImporter fills it from the native screen.</summary>
     public RunDecisionRequest Request;
     public ShopView Shop;
     public PlayerView Player;
@@ -71,11 +72,13 @@ public struct RunView
         view.ActIndex = state.ActIndex;
         view.ActFloor = state.ActFloor;
         view.TotalFloor = state.History.Count;
-        view.Request = RunDecisionRequest.Capture(in state);
-        view.Decision = view.Request.Kind;
+        // R3b's RunDecisionImporter fills the request from the native model. Until then the
+        // projection carries the imported decision hint and an empty option list.
+        view.Request = default;
+        view.Decision = state.Decision;
         view.RewardStage = state.Rewards.Stage;
         view.RewardCount = state.Rewards.Count;
-        view.DecisionOptionCount = view.Request.OptionCount;
+        view.DecisionOptionCount = state.DecisionOptionCount;
         view.Player.Character = state.Player.Character;
         view.Player.CurrentHp = state.Player.CurrentHp;
         view.Player.MaxHp = state.Player.MaxHp;

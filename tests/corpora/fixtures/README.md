@@ -1,7 +1,7 @@
 # 冻结 fixture 输入
 
 本目录保存 `tests/Golden/data/d1` 的 290 个 fixture 输入，供离线宿主
-（`tests/OfflineHost`）建出导出快照时的原生战斗状态。
+（`tests/Differential`）建出导出快照时的原生战斗状态。
 
 ## 来源
 

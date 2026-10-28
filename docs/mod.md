@@ -25,12 +25,12 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 | `src/Mod/Combat/SearchSession.cs` | 主线程捕获→后台 `BeamSolver.Solve`→主线程收结果；取消、让帧与内存采样 |
 | `src/Mod/Combat/ActionDeployer.cs` | 主线程动作部署；出牌/药水/结束回合；动作队列捕获与边界等待 |
 | `src/Mod/Combat/PlannedNativeSelector.cs` | 原版 `ICardSelector` 驱动；选项身份与所在牌堆核对 |
-| `src/Import/Combat/BattleReconciler.cs` | `Battle` 编码的严格比较与墓碑/搜索账本归一化；Mod 与 OfflineHost 共用 |
+| `src/Import/Combat/BattleReconciler.cs` | `Battle` 编码的严格比较与墓碑/搜索账本归一化；Mod 与差分宿主共用 |
 | `src/Mod/UI/SearchHotkeyNode.cs` | 普通玩家的 `F8` 全自动开关 |
 | `src/Mod/Testing/TestSession.cs` | 无头测试循环：请求、建局、捕获、单次求解或整场自动战斗、写结果、返回主菜单 |
 | `src/Mod/Combat/GodotCombatWaiter.cs` | 主线程建局与 Play 阶段等待 |
 | `src/Mod/Patches/` | 无头隔离、教学发现顺序、FTUE、回合准备 Start 卡牌捕获 |
-| `src/TestHost/Combat/` | Mod 与 `tests/OfflineHost` 共用的建局、注入与原生状态转储 |
+| `src/TestHost/Combat/` | Mod 与 `tests/Differential` 共用的建局、注入与原生状态转储 |
 | `tools/testing/run-headless.sh` | Linux 隔离实例、请求、启动、轮询与清理 |
 
 依赖方向：`Mod` 编入 `TestHost`、`Import` 与 `Core`；`TestHost → Import → Core`。
@@ -200,8 +200,8 @@ $BLITZ_TEST_DIR/
   mod.log                           # Mod 自己的日志
 ```
 
-- 请求格式与 `tests/OfflineHost` 的 `OfflineRequest` 相同；`GeneratedScenarioPath` 必须是
-  绝对路径。`run-headless.sh --root/--roots-file` 调用 `OfflineHost --emit-live-requests`
+- 请求格式与 `tests/Differential` 的 `OfflineRequest` 相同；`GeneratedScenarioPath` 必须是
+  绝对路径。`run-headless.sh --root/--roots-file` 调用 `Differential --emit-live-requests`
   生成请求，质量语料的 spec 路径会自动变成绝对路径。
 - 一个游戏进程按文件名顺序处理多个请求；每根结束后调用 `NGame.ReturnToMainMenu`，等
   `RunManager` 空闲、主菜单出现、`CombatManager` 无状态后，再建下一局。
@@ -354,12 +354,12 @@ tools/testing/run-headless.sh --instance m2b0-coexist --coexist-combat-solver \
 
 ```bash
 # 正常中档（带 120s 软时间），用于耗时与内存
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --emit-live-requests .local/heavy --root quality-REGENT-013 \
   --search-tier Medium --search-normal
 
 # 到 1s 取消，用于验证取消不残留
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --emit-live-requests .local/cancel --root quality-REGENT-013 \
   --search-tier Medium --search-normal --search-cancel-after-ms 1000
 ```
@@ -375,14 +375,14 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
 ```
 
 脚本把 `--roots-file/--root` 与 `--full-combat`/`--search-tier` 一起传给
-`OfflineHost --emit-live-requests`；整场请求固定 `deterministicSearchForTest=false`，搜索使用
+`Differential --emit-live-requests`；整场请求固定 `deterministicSearchForTest=false`，搜索使用
 正常档软时间。
 
 ## 9. 部署、逐步核对与回合对账
 
 整场循环的决策段由 `CombatPilot`（`src/Core/Autoplay/CombatPilot.cs`）持有：它决定
 何时搜索、沿用哪条路线、路线何时算用完，以及连续失败/回合上限的暂停。`Mod` 的
-`CombatPilotHost` 只在驱动要求时做原生 I/O；`OfflineHost` 的 `--offline-combat` 用同一个
+`CombatPilotHost` 只在驱动要求时做原生 I/O；`Differential` 的 `--offline-combat` 用同一个
 驱动和同一个 `ReplayedRoute` 在内核里执行。新增搜索时机、加宽参数或重搜策略只改驱动与请求
 编译入口，离线测到的就是实机跑的。
 
@@ -492,7 +492,7 @@ Blitz 精确模拟 9 条随机数流，所以预测正确时这些边界应当�
 ### 10.1 捕获/冻结快照对照
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --live-compare .local/m2b1-20-results
 ```
 
@@ -530,7 +530,7 @@ live roots=397 same=397 diff=0 reject=0 native=397
 ### 10.2 搜索请求/结果对照
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --search-compare .local/m2b1-20-results
 ```
 

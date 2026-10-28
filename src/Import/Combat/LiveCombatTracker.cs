@@ -201,11 +201,14 @@ internal sealed class LiveCombatTracker
     }
 
     /// <summary>Imports a live boundary for comparison with the predicted route state.</summary>
-    internal Battle ImportForComparison(CombatState state, Player player, Rules rules, in Battle expected)
+    internal Battle ImportForComparison(CombatState state, Player player, Rules rules,
+        in Battle expected, bool requirePlayPhase = true, bool allowDeadPlayer = false)
     {
         Refresh(state);
         ImportOptions options = new()
         {
+            RequirePlayPhase = requirePlayPhase,
+            AllowDeadPlayer = allowDeadPlayer,
             KnownEnemies = _known,
             KnownEnemyRules = KnownRules(),
             AllowDeadEnemies = true,

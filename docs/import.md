@@ -284,9 +284,9 @@ SearchCase request = EvaluationConfigCompiler.CompileRequest(
 `PrefixReplay` 的累计值。
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --root kg2-b-stomp --config-compare
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --all --jobs 8 --config-compare
 ```
 
@@ -384,13 +384,13 @@ CombatSolver 档位里的 `MaxCardBranchesPerNode`/`MaxPileChoiceBranchesPerActi
 
 ## 6. 离线对照模式
 
-`tests/OfflineHost` 的 `--import-compare` 为每个根建原生状态、导入，再与
+`tests/Differential` 的 `--import-compare` 为每个根建原生状态、导入，再与
 `d1/<root>/golden.br` 的期望 `BATL` 逐字节比较：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --root kg2-b-stomp --import-compare
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --all --jobs 8 --import-compare
 ```
 
@@ -398,16 +398,16 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 不一致时打印 `RulesDiff` 的第一处表/项及前 16 行差异：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --root kg2-b-stomp --rules-compare
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --all --jobs 8 --rules-compare
 ```
 
 `--import-compare --compiled-rules` 改用 `RulesCompiler` 的结果导入，而不是解码冻结对象：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
+dotnet artifacts/bin/Differential/release/Differential.dll \
   --all --jobs 8 --import-compare --compiled-rules
 ```
 
@@ -418,7 +418,7 @@ dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll \
 `--rules-table-check` 在初始化游戏静态状态后校验静态表：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --rules-table-check
+dotnet artifacts/bin/Differential/release/Differential.dll --rules-table-check
 ```
 
 ### 6.1 回合准备的三个 fixture
@@ -526,10 +526,10 @@ RunState run = RunStateImporter.Import(nativeRunState, localPlayer);
 离线命令：
 
 ```bash
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-compare --run-kind d1 --run-jobs 8
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-compare --run-kind natural --run-seeds 20 --run-jobs 8
-dotnet artifacts/bin/OfflineHost/release/OfflineHost.dll --run-import-negative
+dotnet artifacts/bin/Differential/release/Differential.dll --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll --run-import-compare --run-kind d1 --run-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll --run-import-compare --run-kind natural --run-seeds 20 --run-jobs 8
+dotnet artifacts/bin/Differential/release/Differential.dll --run-import-negative
 ```
 
 2026-10 结果：自然开局 200/200、D1 410/410（含 120 个质量根）逐字段相同；战斗一致性

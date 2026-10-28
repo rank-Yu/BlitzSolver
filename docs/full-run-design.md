@@ -16,13 +16,14 @@
 | 只给推荐 | 局外每个决策界面显示推荐及理由，由玩家决定；战斗可以单独托管 |
 | 全自动 | 整局交给 Mod |
 
-**工具目标：** 一个离线局外模拟器，与战斗内核组合后能在普通 .NET 进程里离线跑整局，用来评估并调整局外策略。
+**工具目标：** 离线宿主运行原版整局，战斗交给 Blitz，用来评估局外策略。两个宿主（Mod 与离线）都由原版 `sts2.dll` 推进局外；Blitz 不再自己实现局外模拟器。
 
 **不在范围内：**
 
 - 多人模式；
 - 第三方 Mod 内容：遇到时显式拒绝；
-- 局外决策预知未来，见第 7 节。
+- 局外决策预知未来，见第 7 节；
+- 自己维护第二套局外推进与逐步写回。
 
 **发布门槛：** 尚未确定，以后按实测基线再定。
 
@@ -30,11 +31,11 @@
 
 战斗内核的原则同样适用于局外：
 
-- **定长结构体：** 局外状态和 `Battle` 一样，是不含对象引用的定长结构体，分叉就是复制内存。容量是编译期常量，溢出显式失败。
+- **定长结构体：** `RunState` 是不含对象引用的定长结构体，分叉就是复制内存。容量是编译期常量，溢出显式失败。
 - **确定性：** 同一状态只有一种字节表示；同一种子、同一输入、同一策略，结果逐字节相同。
 - **显式失败：** 未知内容抛 `UnsupportedException`，容量不足抛 `CapacityException`。不近似、不跳过、不返回默认值。
-- **原版是唯一的事实来源：** 模拟器的每一块都要和原版代码或真实游戏逐字节对拍，才算完成。
-- **只有一份实现：** Mod 与离线工具共用同一个整局托管和同一套决策逻辑，离线测到的就是游戏里跑的。
+- **原版是唯一的事实来源：** 局外状态与决策请求都从原版读出；Blitz 只保留开战选择预测。
+- **只有一份实现：** Mod 与离线宿主共用战斗托管与决策逻辑，离线测到的就是游戏里跑的。
 - **热路径零托管分配**，只要它会进入推演或评估的内循环。
 
 ## 3. 随机数分工
@@ -45,46 +46,41 @@
 | --- | --- | --- |
 | `Battle`（已有） | CombatCardGeneration、CombatPotionGeneration、CombatCardSelection、CombatEnergyCosts、CombatTargets、CombatOrbs、MonsterAi | 只在局内使用，状态跨战斗延续 |
 | `Battle`（已有），并跨边界传递 | Shuffle、Niche | Shuffle 主要在局内用，个别局外内容也用；Niche 局内局外都用：怪物 HP、十几件遗物拿到时的效果 |
-| 局外状态（新） | UpFront、UnknownMapPoint、TreasureRoomRelics、Rewards、Shops、Transformations | 只在局外使用 |
-| 局外状态（新） | 每个事件的随机数（种子 + 事件 ID）、每幕地图的随机数（`act_N_map`） | 只在局外使用 |
+| 原版局外（R3 起） | UpFront、UnknownMapPoint、TreasureRoomRelics、Rewards、Shops、Transformations、每个事件的随机数、每幕地图的 `act_N_map` | 由原版 `RunManager` 推进；Blitz 只从导入的 `RunState` 读当前状态 |
 
-局外状态始终持有全部 9 条战斗流的状态，战斗中不需要理解它们，只在战斗边界交给 `Battle`、再收回来。Niche 和 Shuffle 两边都会消耗，所以交接必须原样传递，不能重新派生。
+`RunState` 始终保存全部 15 条流与事件/地图随机数的当前状态，用于导入、编码和状态比较；Blitz 不在局外抽取它们。Niche 和 Shuffle 两边都会消耗，战斗边界必须原样传递，不能重新派生。
 
 ## 4. 分层与目录
 
-Core 按两个维度交叉组织：**模拟 / 决策 / 托管** × **战斗 / 整局**。"整局"（Run）沿用原版的叫法：原版一整局是 `RunState`、`RunManager`，一场战斗是 `CombatState`。`Run` 是包含战斗的整局，地图、房间、奖励都在这一层，进入战斗房间时交给 `Combat`。
+Core 按两个维度交叉组织：**模拟 / 决策 / 托管** × **战斗 / 整局**。"整局"（Run）沿用原版的叫法：原版一整局是 `RunState`、`RunManager`，一场战斗是 `CombatState`。
+
+目标目录树：
 
 ```
-src/Core/                     BlitzSolver.Core（只依赖 .NET 基础库，一个程序集）
-├─ Simulation/                模拟：游戏规则怎么运转
-│  ├─ Combat/                 战斗模拟：Battle、出牌与回合、结算、战斗随机数
-│  └─ Run/                    整局模拟：局外状态、地图、房间、奖励、商店、事件流程、局外随机数；
-│                             进战斗时建局交给 Combat，打完写回
-├─ Content/                   游戏内容：每件东西一份定义，战斗和局外的效果写在一起
-│  ├─ Cards/ Relics/ Potions/ Powers/ Monsters/ Orbs/ Enchantments/ Afflictions/
-│  └─ Events/ Ancients/ Encounters/ Acts/ Pools/
-├─ Ai/                        决策：该怎么做
-│  ├─ Combat/                 战斗搜索：BeamSolver、评分、翻倍重搜
-│  └─ Run/                    局外决策：只读玩家可见信息；规则、估值、以后的推演评估
-└─ Autoplay/                  托管：把模拟和决策串起来，Mod 和离线共用
-   ├─ CombatPilot             整场战斗托管
-   └─ RunPilot                整局托管
+src/
+├─ Core/ (Simulation/{Combat,Run}, Content/, Ai/{Combat,Run}, Autoplay/)
+├─ Import/ (Combat/, Run/, Run/Decisions/ 由 R3b 新增)
+├─ OfflineHost/  README（R3b 落地：Runtime/、Combat/、Run/）
+├─ Mod/ (Combat/, Run/ 由 R3c 落地, UI/, Testing/, Patches/)
+└─ TestHost/ (Combat/, Run/)
+tests/ (Differential/{Combat,Run}, KernelChecks/, Golden/, Architecture/, corpora/{quality,fixtures,runs})
+tools/ (testing/, run-eval/ README)
 ```
+
+`src/Core` 的职责：
+
+| 目录 | 职责 |
+| --- | --- |
+| `Simulation/Combat` | `Battle`、回合与出牌管线、结算、战斗随机数、`Rules` |
+| `Simulation/Run` | 局外状态 `RunState`、编码与投影、决策请求类型、内容表、`RulesBuilder`、开战选择预测 `RunCombatSetup` |
+| `Content` | 卡牌、Power、遗物、药水、球、附魔、怪物与遭遇定义；不再规划 `Events/`、`Ancients/`、`Acts/`、`Pools/` |
+| `Ai/Combat` | `BeamSolver`、评分、翻倍重搜 |
+| `Ai/Run` | 局外决策：只读 `RunView` 与决策请求 |
+| `Autoplay` | `CombatPilot`、`RunPilot`、宿主接口 |
 
 命名空间与目录一致：`BlitzSolver.Simulation.Combat`、`BlitzSolver.Simulation.Run`、`BlitzSolver.Content.*`、`BlitzSolver.Ai.Combat`、`BlitzSolver.Ai.Run`、`BlitzSolver.Autoplay`。
 
-R1a 已把 `Engine`、`Search` 与整场决策循环迁到下列位置；R1b 已落地 `Simulation/Run` 的 `RunState`、`RunView`、局外随机数与编码；R2a-1 已落地内容表 `ContentTable`、`RulesBuilder` 与 `RulesCompiler` 的逐字节对照；R2a-2 已落地地图选点到首个出牌阶段的战斗边界 `RunCombatSetup`。`Ai/Run` 仍只有 README，`RunPilot` 随 R3 落地。
-
-R1a 已完成的迁移：
-
-| 迁移前 | 现在 | 命名空间与类型 |
-| --- | --- | --- |
-| `src/Core/Engine` | `src/Core/Simulation/Combat` | `BlitzSolver.Simulation.Combat` |
-| `src/Core/Content` | 不变 | `BlitzSolver.Content.*` |
-| `src/Core/Search` | `src/Core/Ai/Combat` | `BlitzSolver.Ai.Combat`，子命名空间照旧 |
-| `src/Core/Search/FullCombatDriver.cs` | `src/Core/Autoplay/CombatPilot.cs` | `BlitzSolver.Autoplay`；类 `CombatPilot`，宿主接口 `ICombatPilotHost`，结果类型以 `CombatPilot*` 为前缀 |
-
-依赖规则，由 `tests/Architecture` 在编译后自动检查：
+Core 依赖规则，由 `tests/Architecture` 在编译后自动检查：
 
 | 层 | 可以引用 |
 | --- | --- |
@@ -92,28 +88,27 @@ R1a 已完成的迁移：
 | `Simulation/Run` | `Simulation/Combat` |
 | `Content` | `Simulation/Combat`、`Simulation/Run` |
 | `Ai/Combat` | `Simulation/Combat` |
-| `Ai/Run` | 只能引用 `Simulation/Run` 里登记为可见投影 / 决策请求的类型（`RunView`、`RunOdds`、`RunPlayerOdds` 等），不能引用局外状态本体或随机数类型 |
+| `Ai/Run` | 只能引用 `Simulation/Run` 里登记为可见投影 / 决策请求的类型，不能引用局外状态本体或随机数类型 |
 | `Autoplay` | `Simulation.*`、`Ai.*` |
 
-- 一件遗物的战斗效果和局外效果写在同一份定义里，通过各自的注册表挂到两个模拟上。
 - `Ai/Run` 需要推演评估时，通过 `Autoplay` 注入的接口调用，不直接引用 `Simulation/Run` 的状态。
 - 不拆程序集：内容定义要大量调用模拟的内部函数，战斗热路径也不宜跨程序集。依赖方向由 `tests/Architecture` 读取编译后的 `BlitzSolver.Core` 检查；`Ai/Run` 的未登记引用用本地反例验证会报错。
 
-Core 以外按"战斗 / 整局"对称分子目录，项目名、程序集名、数据格式和命令行不变：
+Core 以外的项目与引用：
 
-| 位置 | 子目录 |
-| --- | --- |
-| `src/Import` | `Combat/`（战斗导入）；`Run/`（R1b 整局导入）；仍是唯一读取原版私有字段的层 |
-| `src/Mod` | `Combat/`（部署、整场宿主、搜索会话）、`Run/`（R1a 仅 README；落地后含 `Screens/`、`Rooms/`）、`UI/`、`Testing/`、`Patches/` |
-| `src/TestHost` | `Combat/`；`Run/`（R1b 新局入口与原生整局转储） |
-| `tests/KernelChecks` | `Combat/`；`Run/`（R1b 整局合同） |
-| `tests/Golden` | 战斗校验器在 `Combat/`（D1/D2、compare、refreeze、rerecord）；manifest、文件读写、哈希、格式合同留根目录；`data/` 不动 |
-| `tests/OfflineHost` | `Combat/`（离线整场、各对照）；`Run/`（R1b 整局导入对照）；入口与引导留根目录；`Differential/` 待后续 |
-| `tests/Architecture` | 已加入：编译后的 Core 层依赖检查 |
-| `tests/corpora` | `quality/` 不动；`runs/` 待新增（固定种子集、录下的整局） |
-| `tools` | `testing/` 不动；`eval/` 待新增（离线整局评估、配对比较、报表） |
+| 项目 | 引用 | 说明 |
+| --- | --- | --- |
+| `src/Import` | Core、`sts2.dll` | 唯一读取原版模型与私有字段的层；战斗导入在 `Combat/`，整局导入在 `Run/`，决策请求导入在 `Run/Decisions/` |
+| `src/OfflineHost` | Core、Import、`sts2.dll`、`GodotSharp`、`0Harmony` | 离线宿主；不引用 `TestHost` |
+| `src/Mod` | Import、游戏程序集、Godot/Harmony、RitsuLib | 不引用 `OfflineHost`；子目录 `Combat/`、`Run/`（R3c）、`UI/`、`Testing/`、`Patches/` |
+| `src/TestHost` | Core、Import、游戏程序集 | 测试用建局与注入；子目录 `Combat/`、`Run/` |
+| `tests/Differential` | OfflineHost、TestHost | 进程内差分；子目录 `Combat/`、`Run/` |
+| `tools/run-eval` | OfflineHost | 整局评估器 |
+| `tests/KernelChecks` | Core | 战斗合同在 `Combat/`，整局合同在 `Run/` |
+| `tests/Golden` | Core | 战斗校验器与冻结数据 |
+| `tests/Architecture` | 编译后的 Core | 层依赖检查 |
 
-文档保持平铺，用文件名前缀区分领域。R1a 已把战斗一组改名为 `combat-state-layout.md`、`combat-semantics.md`、`combat-characters.md`、`combat-potions-relics.md`、`combat-ai.md`；整局一组随阶段新增 `run-state-layout.md`、`run-semantics.md`、`run-ai.md`，另有 `autoplay.md`。`import.md`、`mod.md`、`testing.md`、`golden-data.md` 不改名，内容按战斗与整局分节。
+`OfflineHost`、`Mod`、`tools/run-eval` 都不加入 `BlitzSolver.sln`。`tests/Differential` 也不加入；`Import` 与 `Mod` 的依赖规则由 `tests/Architecture` 检查。
 
 ## 5. 局外状态 `RunState`
 
@@ -125,42 +120,30 @@ Core 以外按"战斗 / 整局"对称分子目录，项目名、程序集名、�
 - 遗物及其计数器，药水槽；
 - 当前幕的地图（节点、连线、房间类型、已走路径）和本局开局生成的序列：敌人、事件、遗物的顺序；
 - 第 3 节列出的全部随机数状态；
-- 当前待处理的决策请求，例如奖励列表、商店货架、事件当前页。
+- 当前原版界面的请求投影：奖励列表、商店货架、事件当前页等。
 
 容量按原版上限和实测定，溢出抛 `CapacityException`。字段变动同步状态布局文档。
 
 **可见投影 `RunView`：** 决策层只能看到它。界面上看不到、**并且**不能从玩家见过的历史推出来的信息，不进 `RunView`；界面上看不到但能从历史推导的隐藏保底计数（未知点房间概率、卡牌稀有度与药水掉落）是例外，按原版规则进入投影。随机数状态、预生成序列、遗物袋顺序与解锁位图仍然不可见。可见与不可见的划分按原版界面逐项确定，并用测试锁定：决策层的类型里不能出现随机数或未来序列。
 
-## 6. 局外内核与决策协议
+## 6. 决策请求与执行
 
-和战斗内核的"动作 + 选择"同一种模式：
+决策请求由导入层从原版读出，R3b 落地为 `RunDecisionImporter`（`src/Import/Run/Decisions/`），不再由 Core 的局外内核生成。`RunKernel.Step` 已删除。
 
-```
-RunKernel.Step(ref RunState state, in RunAction action) → RunStepResult
-```
+保留的协议类型：
 
-`RunStepResult` 的类别是完成并等待下一个决策、进入战斗（带 R2a-2 的 `CombatSetupResult`）、
-本局结束、本批尚不支持的房间内容，以及动作被显式拒绝。不支持的房间内容是结果，不是异常，
-也不是默认值。
+- `RunDecisionRequest` 与 `RunDecisionOption*`：请求种类与全部合法选项；
+- `RunAction`/`RunActionKind`：对请求的回答；
+- `RunView.Request`：投影里的当前请求，由导入层填充。
 
-决策类型：
+请求来源是原版当前界面/模型。执行按宿主分开：
 
-- 地图选点；
-- 先古之民与事件选项，包括多页事件；
-- 战斗奖励（拿卡或跳过、金币、药水、遗物）；
-- 药水满槽时的去留；
-- 选遗物、选卡包；
-- 商店（购买、删牌）；
-- 休息处（休息、升级等）；
-- 升级、变化、删除、附魔时的选牌界面；
-- 幕末的 Boss 遗物。
+| 宿主 | 执行方式 |
+| --- | --- |
+| Mod | `RunDeployer` 经原版界面与公开入口执行 |
+| 离线宿主 | `RunExecutor` 经原版模型层执行 |
 
-每个决策请求都列出原版界面给出的全部合法选项。原版界面会自动完成的选择也按原版规则自动完成，规则和战斗里的隐式选择一致。
-
-R2b-2 已落地地图选点这一种决策：`RunDecisionRequest` 携带种类与完整选项，`RunAction`
-按 `RunActionKind` 回答，`RunView.Request` 是决策层看到的同一份请求。请求只含玩家可见信息，
-不含随机数或未来序列；`Ai.Run` 可见的类型由 `tests/Architecture` 登记。选项与后
-续阶段的接法见[局外决策协议与地图进点](run-decisions.md)。
+不支持的界面或第三方内容显式拒绝，不近似、不返回默认值。地图进点仍由 `RunMapEntry` 表示"房间已建好、尚未进入"的边界；R3b 从原版重新导入后继续。
 
 ## 7. 局外决策层
 
@@ -168,19 +151,18 @@ R2b-2 已落地地图选点这一种决策：`RunDecisionRequest` 携带种类�
 - **统一接口：** `Decide(RunView, 决策请求) → 选择`。推荐模式把同一个结果展示给玩家，附上理由；全自动模式直接执行。
 - **实现按阶段替换：**
   1. 规则估值：卡牌和遗物估值、事件选项打分、商店和休息规则、地图路线规则；
-  2. 模拟评估：在需要的决策上，换新种子推演若干平行世界，用配对比较降噪。换种子推演不使用真实随机数，不违反"不预知未来"；
+  2. 大规模推演：**推迟**。以后确有需要时，从 Git 历史恢复 `683bc03` 的局外模拟器，作为评估工具，而不是当前运行路径；
   3. 必要时再引入学习模型，同样挂在这个接口后面。
 - 评估一个策略改动以离线整局评估（第 10 节）为准，不凭单局印象。
 
 ## 8. 战斗边界
 
-**建局：** 从 `RunState` 构造战斗开始时的 `Battle`。包括按开局序列实例化遭遇、用 Niche 抽怪物 HP、战斗开始时的遗物和能力效果、起手抽牌，直到第一个玩家出牌阶段。终点和现在导入层读取原版状态的时刻相同。
+**写回已删除。** 战斗结束后不再把 `Battle` 写回 `RunState`，也不由 Blitz 生成战后奖励；这些由原版推进，下一步再从原版导入 `RunState`。
 
-- **验证：** 同一场战斗，自建的 `Battle` 必须与导入层从原版读出的 `Battle` 逐字节相同。导入层就是现成的对拍工具。
+**建局保留，用于开战选择预测。** 从进点前的 `RunState` 出发，`RunMapEntry.Enter` 完成进点前半段，`RunCombatSetup` 按开战选择序列构造每个选项对应的 `Battle`、`Rules` 与开局 `RunState`。多根搜索拿到的是同一进点下所有合法开局的根，不需要真实推进原版。
 
-**写回：** 战斗结束后，把 HP、最大生命、金币、牌组的永久变化（诅咒、成长、升级等）、药水增减、遗物计数和 9 条战斗流写回 `RunState`，再按原版生成战后奖励。
-
-**战斗本身：** 交给现有的整场战斗托管和档位，不另写一套。
+- **验证：** 同一场战斗、同一选择序列，自建的 `Battle`/`Rules`/开局 `RunState` 必须与导入层从原版读出的状态逐字节相同。
+- **战斗本身：** 交给现有的整场战斗托管和档位，不另写一套。
 
 R2a-2 的入口、遭遇生成、开战与第一回合的逐步顺序、`RulesRootFacts` 和拒绝码见
 [战斗边界](run-combat-boundary.md)。
@@ -189,58 +171,77 @@ R2a-2 的入口、遭遇生成、开战与第一回合的逐步顺序、`RulesRo
 
 整局托管只有一份，放在 `Autoplay`（`RunPilot`）。它负责：
 
-- 取当前决策请求，交给决策层或玩家，执行选择；
-- 遇到战斗时交给整场战斗托管（`CombatPilot`）；
+- 从宿主取当前 `RunState`/`RunView` 与导入的决策请求；
+- 交给决策层或玩家，执行选择；
+- 遇到战斗时交给 `CombatPilot`；
 - 记录每一步，处理失败与暂停。
 
-宿主只做输入输出：
+两个宿主都由原版推进局外：
 
 | | Mod 宿主 | 离线宿主 |
 | --- | --- | --- |
-| 当前状态 | 从原版导入 `RunState` | 局外内核里的 `RunState` |
-| 执行选择 | 通过原版入口点击对应界面 | `RunKernel.Step` |
-| 每步之后 | 用局外内核预测，再和原版导入的结果逐字节对账；不一致记偏差、停止自动化，交还玩家 | 无 |
+| 局外推进 | 原版游戏 | 原版 `RunManager` 在普通 .NET 进程里 |
+| 当前状态 | 每一步从原版导入 `RunState` | 每一步从原版导入 `RunState` |
+| 执行选择 | `RunDeployer` 经界面 | `RunExecutor` 经模型层 |
+| 对账 | 只保留战斗的逐动作核对；局外逐步对账取消 | 战斗逐动作核对；无局外逐步对账 |
 
-Mod 宿主的逐步对账和战斗的逐动作核对是同一种机制：玩家每打一局，都在给局外模拟器做保真检查。
+类名固定：
+
+| 职责 | Mod | 离线宿主 |
+| --- | --- | --- |
+| 战斗宿主 | `CombatPilotHost` | `OfflineCombatHost` |
+| 战斗执行 | `ActionDeployer` | `CombatExecutor` |
+| 整局宿主 | `RunPilotHost` | `OfflineRunHost` |
+| 局外执行 | `RunDeployer` | `RunExecutor` |
+| 开新局 | — | `NewRunFactory` |
 
 ## 10. 验证与评估
 
-验证分四层，从快到慢：
+验证分三层：
 
-1. **进程内差分（主力）：** 在 OfflineHost 里直接调用原版代码，和局外模拟器用同一种子、同一输入各跑一次，结果逐字节比较。适用于地图生成、开局序列、战后奖励、商店货架、变牌、遗物拿到时的效果、能脱离界面执行的事件选项，以及战斗边界的建局。一分钟可以比成千上万个种子。
-2. **R1 冻结数据：** 真实游戏录下的整局，每个房间边界的原版状态和所做的选择，作为回归基准，规则同 D1/D2。
-3. **整局一致性：** 同一种子、同一确定性策略，无头真实游戏和离线模拟器整局逐步相同。只跑几十局，用来做最终确认，不作为数据来源。
-4. **实机逐步对账：** 第 9 节的 Mod 宿主对账。
+1. **进程内差分（`tests/Differential`）：** 只用于导入和建局。在普通 .NET 进程里调用原版代码，和 Blitz 从同一输入算出的 `Battle`/`Rules`/`RunState` 逐字节比较。
+2. **两个宿主之间的一致性：** 同一种子、同一策略，Mod 与离线宿主逐步比较导入的 `RunState`；战斗另做逐动作核对。
+3. **实机：** 真实游戏里跑 Mod，确认界面执行器、事件/商店/奖励流程与最终结果。
 
-和界面绑得太紧、进程内无法调用的原版逻辑（例如部分需要弹窗交互的事件），逐个评估：加最小补丁让它能离线运行，或者只靠第 2、3 层验证，并在文档里列出。
+和界面绑得太紧、进程内无法调用的原版逻辑，逐个评估：加最小补丁让它能离线运行，或者只靠第 2、3 层验证，并在文档里列出。**"录下的整局作为局外回归基准"已删除**；局外不再有 Blitz 自己的推进实现需要回归。
 
 **评估：**
 
-- 离线整局评估器：N 个种子 × 若干策略版本，统计通关率、到达楼层、各幕结束时的 HP、每次决策耗时；按角色、进阶等级、幕分组报告。
+- 离线整局评估器（`tools/run-eval`）：N 个种子 × 若干策略版本，统计通关率、到达楼层、各幕结束时的 HP、每次决策耗时；按角色、进阶等级、幕分组报告。
 - 比较两个策略版本时用同一批种子配对比较。
-- 定期用少量无头真实游戏，在同样的种子和策略下校验模拟器没有偏。
+- 定期用少量无头真实游戏，在同样的种子和策略下校验两个宿主没有偏差。
 
 ## 11. 阶段
 
 | 阶段 | 内容 | 主要验证 |
 | --- | --- | --- |
 | R0 | 战斗搜索定型：翻倍重搜与新档位 | 离线 120 根、无头整场、D1/D2 |
-| R1 | 先做结构准备：按第 4 节改名与归位、建空骨架、加依赖检查、中文名改为"极速求解器"，不改行为。再做 `RunState`、局外随机数、从原版导入局外状态 | 结构准备：D1/D2、离线 120 根、28 根核对全部不变。导入：结果与原版对象逐字段一致 |
-| R2 | 局外模拟器，按顺序逐块完成：战斗边界 → 地图与开局序列 → 奖励、商店、变牌 → 遗物拿到时的效果、休息、宝箱 → 事件 → 先古之民与幕切换 | 进程内差分，每块成千上万个种子 |
-| R3 | 整局托管，Mod 与离线共用；离线用简单策略跑通整局 | 离线大量跑整局；少量无头整局一致性确认；R1 冻结数据 |
-| R4 | 局外规则策略；推荐与全自动的原版界面执行器 | 策略在模拟器上开发与调参；实机逐步对账 |
-| R5 | 离线评估与调参闭环、界面、设置、Windows 实测、打包 | 发布门槛（待定） |
-
-R2 内部的顺序按"确定、易验证、被后面依赖"排列。每块做完就能单独用于验证和后续开发，不需要等全部完成。
+| R1 | 结构准备、`RunState`、局外随机数、从原版导入局外状态 | D1/D2、离线 120 根、导入逐字段一致 |
+| R2 | 原方向下的局外模拟器，做到 R2c-2 的商店；R2a-5 收尾开战选择与随机遗物 | 进程内差分，每块成千上万个种子 |
+| R2a-5 | 开战选择与随机遗物；最后一个包含完整局外模拟器的提交是 `683bc03` | 建局对照、遗物矩阵、D1 |
+| R3-0 | 清理与改名：删除局外模拟器、奖励/商店对照与写回；`tests/Differential`；新目录骨架与设计文档 | 保留的对照与 `683bc03` 完全相同 |
+| R3a | 可行性验证：离线进程能否稳定运行原版整局、导入每一步 `RunState` | 小规模原版整局 |
+| R3b | 离线宿主、决策请求导入 `RunDecisionImporter`、`RunPilot`、`NewRunFactory` | 离线整局跑通 |
+| R3c | Mod 界面执行器、两个宿主的一致性检查 | 同种子同策略逐步 `RunState` 比较 |
+| R4 | 局外规则策略；推荐与全自动的原版界面执行器 | 策略在评估器上开发与调参 |
+| R5 | 评估闭环、界面、设置、Windows 实测、打包 | 发布门槛（待定） |
 
 ## 12. 已定决策与待定事项
 
-已定（2026-10-26，用户确认）：
+已定（2026-10-27，用户确认）：
+
+- 局外改由原版 `sts2.dll` 推进，不再自己写局外模拟器；R2d–R2f 取消；
+- 两个宿主都由原版推进局外；离线宿主在普通 .NET 进程里运行原版，Mod 在真实游戏里运行；每一步都从原版重新导入 `RunState`；
+- 决策请求由导入层从原版读出；
+- Blitz 的局外部分只保留开战选择预测与状态/投影/导入；
+- 用户原话："我们没有太大的分叉需求，只需要测试我们写的局外策略代码的好坏就行了"；
+- 该条替换 2026-10-26 的"局外模拟器自己写，按 Blitz 的结构设计"；
+- 最后一个包含完整局外模拟器的提交是 `683bc03`；以后需要从 Git 历史恢复。
+
+已定（2026-10-26，仍然成立的部分）：
 
 - 产品目标是整局自动游玩，三种模式都保留；
 - 局外决策不预知未来；
-- 局外模拟器自己写，按 Blitz 的结构设计，不依赖 sts2-sim。sts2-sim（MIT）可以作为第二个对照基准和参考实现，借鉴时注明出处；
-- 先做模拟器，策略开发和数据都在模拟器上进行；无头游戏只做最终确认；
 - 最终覆盖所有角色、所有进阶等级、所有场景；
 - 目录命名按第 4 节：`Simulation` / `Ai` / `Autoplay` × `Combat` / `Run`；
 - 中文名改为"极速求解器"，英文名 BlitzSolver 不变。
@@ -249,10 +250,10 @@ R2 内部的顺序按"确定、易验证、被后面依赖"排列。每块做完
 
 - 发布门槛；
 - 各决策类型在推荐模式下的界面形式；
-- 进程内无法调用的原版局外逻辑清单与验证方式，R2 逐块确定。
+- 进程内无法调用的原版局外逻辑清单与验证方式，R3 逐块确定。
 
 已知风险：
 
-- 局外内容量大，约相当于现有内核的三成；
-- 局外也有性能陷阱，例如地图去重这类组合计算；
-- 局外策略的质量没有现成上限可参照，需要靠评估闭环逐步提高。
+- 离线运行原版的界面绑定：部分事件/商店/奖励需要弹窗或场景树，离线可能只能走模型层；
+- TestMode 差别：离线打开 `TestMode.IsOn`，实机不打开，价格/教学/Tutorial 分支可能不同；
+- 多进程：评估器每个工作进程跑一局，原版静态状态与内存占用需要隔离和观测。

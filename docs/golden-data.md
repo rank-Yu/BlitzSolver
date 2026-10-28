@@ -261,9 +261,10 @@ v2 只改数据格式和对外标识里的名字，不改任何字段值：
 2026-10-28 R2a-5 重录：`quality-REGENT-001`（walk 21/state 11）、
 `qf-turn-start-choice-forge`（K1 root 0）、`qf2-gradient-failure`（walk 3/state 29）与
 `ts-a-toasty`（walk 2/state 26）受“回合开始选择统一按全局选择器、不暂停”和
-`FromHand`/`FromSimpleGrid` 全回合短路径影响。原版证据用
+`FromHand`/`FromSimpleGrid` 全回合短路径影响。原版证据用当时的
 `--combat-writeback-compare --writeback-root <根>` 在全局
 `FirstChoiceCombatSetupSelector`/`NativeChoiceSelector` 下逐动作比较，四根均为 `same`；
+R3-0 删除了该命令，终局改在战斗层由 `--combat-pilot-compare` 比较；
 重录命令为（分两批写入同一目标）：
 
 ```bash

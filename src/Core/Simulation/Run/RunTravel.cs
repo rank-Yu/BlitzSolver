@@ -99,17 +99,6 @@ public static class RunTravel
     public static bool TryFindPoint(in RunState state, RunCoord coord, out RunMapPoint point)
         => FindPoint(in state, coord, out point);
 
-    /// <summary>Held relics that rewrite the travel rule (native <c>ShouldAllowFreeTravel</c>).</summary>
-    public static bool HoldsFreeTravelRelic(in RunState state, ContentTable content)
-    {
-        for (int index = 0; index < state.Relics.Count; index++)
-        {
-            if (Array.IndexOf(content.FreeTravelRelics, state.Relics.Items[index].Id) >= 0)
-                return true;
-        }
-        return false;
-    }
-
     private static bool FindPoint(in RunState state, RunCoord coord, out RunMapPoint point)
     {
         for (int index = 0; index < state.Map.NodeCount; index++)

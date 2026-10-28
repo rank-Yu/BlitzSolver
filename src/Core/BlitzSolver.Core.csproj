@@ -8,6 +8,6 @@
     <InternalsVisibleTo Include="BlitzSolver.KernelChecks" />
     <InternalsVisibleTo Include="BlitzSolver.Golden" />
     <InternalsVisibleTo Include="BlitzSolver.Import" />
-    <InternalsVisibleTo Include="OfflineHost" />
+    <InternalsVisibleTo Include="Differential" />
   </ItemGroup>
 </Project>

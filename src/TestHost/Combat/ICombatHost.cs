@@ -1,4 +1,4 @@
-// Shared by tests/OfflineHost (message-loop pumping, no Godot) and the in-game Mod (native NGame
+// Shared by tests/Differential (message-loop pumping, no Godot) and the in-game Mod (native NGame
 // startup and frame waits). ScenarioBuilder owns all fixture construction, so both hosts run the
 // exact same injection sequence and differ only in how the run and the main loop are driven.
 using MegaCrit.Sts2.Core.Combat;

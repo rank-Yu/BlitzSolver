@@ -56,6 +56,12 @@ public sealed class NativeShopChoice
 /// <summary>One live merchant inventory plus the legal-action enumeration.</summary>
 public sealed class NativeShopSession
 {
+    private const int CharacterCardBase = 0;
+    private const int ColorlessCardBase = RunLimits.ShopCharacterCards;
+    private const int RelicBase = ColorlessCardBase + RunLimits.ShopColorlessCards;
+    private const int PotionBase = RelicBase + RunLimits.ShopRelics;
+    private const int RemovalIndex = PotionBase + RunLimits.ShopPotions;
+
     private readonly NativeRunState _run;
     private readonly Player _player;
     private readonly MerchantRoom _room;
@@ -108,7 +114,7 @@ public sealed class NativeShopSession
             choices.Add(new NativeShopChoice
             {
                 Kind = NativeShopChoiceKind.Relic,
-                Index = RunShopGenerator.RelicBase + slot,
+                Index = RelicBase + slot,
                 Slot = slot,
                 Price = entry.Cost,
                 Entry = entry,
@@ -124,7 +130,7 @@ public sealed class NativeShopSession
             choices.Add(new NativeShopChoice
             {
                 Kind = NativeShopChoiceKind.Potion,
-                Index = RunShopGenerator.PotionBase + slot,
+                Index = PotionBase + slot,
                 Slot = slot,
                 Price = entry.Cost,
                 Entry = entry,
@@ -138,7 +144,7 @@ public sealed class NativeShopSession
             choices.Add(new NativeShopChoice
             {
                 Kind = NativeShopChoiceKind.CardRemoval,
-                Index = RunShopGenerator.RemovalIndex,
+                Index = RemovalIndex,
                 Price = removal.Cost,
                 Entry = removal,
             });
