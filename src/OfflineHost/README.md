@@ -95,6 +95,39 @@ NativePilotHost 直接推进的逐房 RunDump、NativeRunDump、完整 MapPointH
 定向生产夹具另覆盖商店购买/补货/stale/删牌/满药水/unknown、正常与异常价格 scope、实际 Exit history、
 休息取消/成功/保留选项/空奖励保护和跨两次奖励租约。夹具 setup 可以注入状态，不作为自然游玩证据。
 
+## 事件选牌、宝箱与第一幕停止
+
+事件选牌包裹真实 CardSelectCmd 上下文，只在 ICardSelector 异步回调上提交子请求。
+ChooseACard 的原始回调固定 0..1，但可见 MinSelect 按 canSkip 为 0 或 1；不允许跳过时拒绝空回答。
+候选可以是非牌组实例，同 ID 不同实体绑定各自的 option id。此命令没有原生 prefs/prompt，
+合成 prefs 只表达控制边界，PageKey 保持空。变牌、附魔、移除保留原版过滤、排序、自动选择、
+日志、实际作用与 hook；附魔三个重载最终按牌组顺序展示，<=Min 时由原版自动返回。
+Purpose 表示正在选择的用途；SelectionPreviewKnowledge=Unknown 明确说明尚不提供修改后的卡牌预览。
+自定义变牌 delegate 的预览仍显式 Unsupported。牌组/原候选/模型/房间/附魔条件变化使旧请求失效。
+
+TreasureRoom.EnterInternal 在开箱前生成的同步器遗物不进入 RunView。Treasure 请求先只展示 Open；
+实际选择后原样执行 DoNormalRewards 和 DoExtraRewardsIfNeeded，再展示 RelicSelect/Skip，完成后才提供 Leave。
+单人领取经过真实 PickRelicLocally 与原始 PickRelicAction，观察完成与异常；RelicsAwarded 仅保存真实结果，
+在当前 dispatch 上下文中按原 UI 模型责任 await RelicCmd.Obtain(ToMutable()) 并处理 MoveToFallback。
+单人跳过只调用 SkipRelicLocally，保留原版 session 直到 TreasureRoom.Exit，不伪造领取或清私有字段。
+空箱按原 UI 展示阶段调用 CompleteWithNoRelics，不等待不会再发生的 award。
+额外奖励仍运行原版 Generate/Offer/BeginRewardsSet；仅接受当前房间真实空 set，非空或嵌套明确拒绝。
+宝箱的不可取消原版父任务和入队动作先 settle，再报告取消和释放 owner/selector，迟到回调不能另行自动领取。
+
+普通 Boss 使用每场独立的既有战斗管线。StopAfter="act1" 使用 act1-smoke-v1，与 rooms-smoke-v1
+保持相同的可见顺序，宝箱固定 Open→首件合法遗物→Leave。MaxRooms 只约束 rooms；
+decisions/steps/timeout 和取消继续覆盖所有模式。固定事件规则可能自然死亡，不承诺通过第一幕。
+
+Paused / act1-complete 的时点是：actIndex=0 的真实 Boss 胜利、逐步/终局原版对照成功，
+原版奖励同步器已经完成，纯展示 Offer 等待已释放，停在 Boss 奖励页继续/换幕按钮之前。
+原版此按钮调用 ActChangeSynchronizer.SetLocalPlayerReady，单人会立即递增 ActFloor 并进入下一幕，
+因此宿主不调用该按钮、不入队换幕 vote，也不借普通 Proceed 伪造 Boss 离房。
+原版 UI 的换幕按钮不属于此有界宿主的可执行动作，Boss 奖励请求只提供合法奖励，不广告 Leave；完成后自动报告停止边界。
+这不是整局 Victory。rooms 在同一边界达到 MaxRooms 时仍返回 room-budget-reached；
+预算未满则 scope-act-end，不等待不存在的普通地图选择，也不跨入第二幕。
+事件死亡在原始命令和队列稳定后，由原版 IsGameOver 与 IsDead 共同确认，返回 Death。
+Failed/Timeout/Cancelled 的 FinalState 为 null；Death 可以保留最后已确认的原版状态。
+
 ## 初始化与无界面设施
 
 移植来源及 MIT 声明保留在各文件头。新 runtime 没有迁移旧测试宿主的奖励 alternatives 抑制、
@@ -132,5 +165,5 @@ stale、replay、嵌套拒绝及原始 Offer 异常。夹具中的 EndCombatInte
 测试专用 Harmony 负向夹具验证实际 runner 遇 HP 差异/缺捕获不能给出 milestone，
 并在原版首动作完成后取消，检查 selector/订阅释放及单进程单局限制。生产不包含测试环境变量后门。
 
-不支持三幕通关、宝箱/Boss/换幕/嵌套战斗、复杂事件与任意嵌套奖励、批量评估、策略质量或全内容覆盖。
+不支持三幕通关、换幕/嵌套战斗、复杂事件与任意嵌套奖励、批量评估、策略质量或全内容覆盖。
 使用方式见 tools/run-eval/README.md；共享执行协议见 docs/autoplay.md。

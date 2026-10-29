@@ -87,10 +87,13 @@ internal static class RunDecisionChecks
             [RunDecisionOptionKind.Card],
             [RunDecisionOptionKind.Relic, RunDecisionOptionKind.BossRelic, RunDecisionOptionKind.Skip],
             [RunDecisionOptionKind.Potion, RunDecisionOptionKind.Skip],
+            [], // GameOver remains a terminal signal, never a request.
+            [RunDecisionOptionKind.Open, RunDecisionOptionKind.Skip, RunDecisionOptionKind.Leave],
         ];
-        for (int kind = 1; kind <= 9; kind++)
+        for (int kind = 1; kind <= 11; kind++)
         {
-            for (int optionKind = 1; optionKind <= 14; optionKind++)
+            if (kind == 10) continue;
+            for (int optionKind = 1; optionKind <= 15; optionKind++)
             {
                 RunDecisionRequest request = Fixture((RunDecision)kind);
                 request.OptionCount = 1;
@@ -369,6 +372,7 @@ internal static class RunDecisionChecks
             RunDecision.RestSite => RunDecisionOptionKind.RestSiteOption,
             RunDecision.RelicSelect => RunDecisionOptionKind.Relic,
             RunDecision.PotionDiscard => RunDecisionOptionKind.Potion,
+            RunDecision.Treasure => RunDecisionOptionKind.Open,
             _ => RunDecisionOptionKind.Card,
         };
         RunDecisionBuilder.AddOption(ref request, Row(row, 11));

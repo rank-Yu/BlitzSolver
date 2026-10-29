@@ -60,6 +60,7 @@ public sealed class NativeDecisionSnapshot<T> where T : class
             || a.OptionCount != b.OptionCount || a.MinSelect != b.MinSelect || a.MaxSelect != b.MaxSelect
             || a.FactCount != b.FactCount || a.CardCount != b.CardCount || a.KeyByteCount != b.KeyByteCount
             || a.Kind != b.Kind || a.SelectionPurpose != b.SelectionPurpose
+            || a.SelectionPreviewKnowledge != b.SelectionPreviewKnowledge
             || a.Cancelable != b.Cancelable || a.RequireConfirmation != b.RequireConfirmation) return false;
         for (int i = 0; i < a.OptionCount; i++) if (!a.Options[i].Equals(b.Options[i])) return false;
         for (int i = 0; i < a.FactCount; i++) if (!a.Facts[i].Equals(b.Facts[i])) return false;

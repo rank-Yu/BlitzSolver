@@ -24,3 +24,5 @@
   接口、取消/确认、过期与覆盖限制见[局外决策](../../../docs/run-decisions.md#7-原版首批导入与绑定)。
 
 内容表的范围与对照方法见 [内容表与 RulesBuilder](../../../docs/content-table.md)。
+
+事件 CardSelect 导入还保留 ChooseCard、变牌、附魔与移除的真实命令类型，区分 ChooseCard 回调和 canSkip 可见边界；修改预览明确 Unknown。Treasure 导入根据宿主展示阶段产生封箱 Open、已展示 RelicSelect/Skip 或已完成 Leave，封箱请求不含提前生成的遗物。导入只读模型，所有原版开箱、投票、领取与退出仍由 OfflineHost 执行。

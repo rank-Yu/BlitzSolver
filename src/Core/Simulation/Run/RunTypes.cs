@@ -80,6 +80,7 @@ public enum RunDecision : byte
     RelicSelect = 8,
     PotionDiscard = 9,
     GameOver = 10,
+    Treasure = 11,
 }
 
 /// <summary>Native <c>RelicRarity</c>; values match the game enum.</summary>

@@ -16,6 +16,10 @@ public sealed record CombatSummary(string Status, string Outcome, int Turns, int
     int Searches, long ExpandedNodes, int Deviations, int DeploymentFailures,
     string? Failure, string? OpeningSha256, string? TerminalSha256, string TerminalPath,
     int? TerminalHp, int? TerminalMaxHp, int? TerminalGold);
+/// <summary>Combat/AfterCombat/AfterRewards describe the first combat. Rooms contain completed map
+/// rooms (excluding Neow); Combats contain independently captured fights. act1-complete means native
+/// Boss rewards completed before the act-transition button, never whole-run victory. Failed, Timeout
+/// and Cancelled have no reliable FinalState; Death may retain a confirmed terminal run snapshot.</summary>
 public sealed record FirstCombatResult(string Status, string? Milestone, string? Detail,
     FirstCombatOptions Configuration, string Policy, VisibleChoice[] Choices,
     StateSummary? Starting, StateSummary? AfterCombat, CombatSummary? Combat,
@@ -35,7 +39,7 @@ public static class FirstCombat
             || options.Ascension is < 0 or > 10 || options.TimeoutSeconds is < 1 or > 86400
             || options.MemoryBudgetBytes < 1 || options.UnlockProfile != "neow-epoch-v1"
             || options.SearchTier is not ("Low" or "Medium" or "High" or "ExtraHigh")
-            || options.StopAfter is not ("first-combat" or "next-room" or "rooms")
+            || options.StopAfter is not ("first-combat" or "next-room" or "rooms" or "act1")
             || options.MaxRooms is < 1 or > 100 || options.MaximumDecisions < 1 || options.MaximumSteps < 1
             || options.Character is not ("Ironclad" or "Silent" or "Regent" or "Necrobinder" or "Defect"))
             throw new InvalidDataException("Invalid first-combat configuration.");

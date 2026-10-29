@@ -20,7 +20,7 @@ using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 namespace BlitzSolver.Import;
 
 /// <summary>The actual command that reached the pending callback, not a guess from its prompt.</summary>
-public enum NativeCardSelectionKind { DeckGeneric, DeckUpgrade, SimpleGrid }
+public enum NativeCardSelectionKind { DeckGeneric, DeckUpgrade, SimpleGrid, ChooseCard, DeckTransform, DeckEnchant, DeckRemove }
 
 /// <summary>Read-only native choices. Host tokens must be fresh; importing does not reserve or consume them.</summary>
 public static partial class RunDecisionImporter
@@ -118,18 +118,20 @@ public static partial class RunDecisionImporter
     /// Automatic selections and zero-candidate early returns are not pending choices.</summary>
     public static NativeDecisionSnapshot<CardModel> CardSelect(Player player, IReadOnlyList<CardModel> options,
         CardSelectorPrefs prefs, NativeCardSelectionKind kind, RunDecisionToken token,
-        RunSelectionPurpose purpose = RunSelectionPurpose.None)
+        RunSelectionPurpose purpose = RunSelectionPurpose.None,
+        EnchantmentModel? enchantment = null, int enchantmentAmount = 0, Func<CardModel, bool>? filter = null)
     {
         CheckPlayer(player);
         if (options.Count > RunLimits.DecisionOptions) throw new CapacityException("Decision.Options", RunLimits.DecisionOptions);
         if (!Enum.IsDefined(kind)) throw new UnsupportedException("decision-card: unknown native command");
-        if (options.Count == 0 || !prefs.RequireManualConfirmation && options.Count <= prefs.MinSelect)
+        if (options.Count == 0 || kind != NativeCardSelectionKind.ChooseCard
+            && (kind == NativeCardSelectionKind.DeckEnchant || !prefs.RequireManualConfirmation) && options.Count <= prefs.MinSelect)
             throw new UnsupportedException("decision-card: native command returns automatically, no pending choice");
         if (prefs.MinSelect < 0 || prefs.MaxSelect < prefs.MinSelect || prefs.MinSelect > options.Count)
             throw new UnsupportedException("decision-card: unsupported native selection bounds");
         if (kind == NativeCardSelectionKind.DeckUpgrade && prefs.MinSelect != prefs.MaxSelect)
             throw new UnsupportedException("decision-card: upgrade preview requires exact selection count");
-        CardModel[]? deck = kind == NativeCardSelectionKind.SimpleGrid ? null : player.Deck.Cards.ToArray();
+        CardModel[]? deck = kind is NativeCardSelectionKind.SimpleGrid or NativeCardSelectionKind.ChooseCard ? null : player.Deck.Cards.ToArray();
         foreach (CardModel card in options)
         {
             NativeAccess.RequireOriginal(card);
@@ -137,7 +139,10 @@ public static partial class RunDecisionImporter
                 throw new UnsupportedException("decision-card: unknown card " + card.Id.Entry);
             if (!ReferenceEquals(card.Owner, player) || deck != null && !deck.Any(c => ReferenceEquals(c, card))
                 || kind == NativeCardSelectionKind.DeckUpgrade && !card.IsUpgradable
-                || purpose == RunSelectionPurpose.Remove && !card.IsRemovable)
+                || purpose == RunSelectionPurpose.Remove && !card.IsRemovable
+                || kind == NativeCardSelectionKind.DeckTransform && (!card.IsTransformable || card.Type == MegaCrit.Sts2.Core.Entities.Cards.CardType.Quest)
+                || kind == NativeCardSelectionKind.DeckEnchant && (enchantment == null || !enchantment.CanEnchant(card))
+                || filter != null && !filter(card))
                 throw new UnsupportedException("decision-card: candidate is not eligible in current source");
         }
         RunDecisionRequest request = New(RunDecision.CardSelect, token);
@@ -146,7 +151,8 @@ public static partial class RunDecisionImporter
         request.Cancelable = prefs.Cancelable ? (byte)1 : (byte)0;
         request.RequireConfirmation = prefs.RequireManualConfirmation ? (byte)1 : (byte)0;
         request.SelectionPurpose = purpose;
-        request.PageKey = RunDecisionBuilder.AddKey(ref request, prefs.Prompt.LocEntryKey);
+        request.PageKey = kind == NativeCardSelectionKind.ChooseCard ? default
+            : RunDecisionBuilder.AddKey(ref request, prefs.Prompt.LocEntryKey);
         foreach (CardModel card in options)
             RunDecisionBuilder.AddOption(ref request, new RunDecisionOption
             {
@@ -154,8 +160,10 @@ public static partial class RunDecisionImporter
                 PayloadKind = RunDecisionPayloadKind.Card, Card = Card(card),
             });
         AbstractRoom? room = player.RunState.CurrentRoom;
-        return new(request, options.ToArray(), () => CardSelect(player, options, prefs, kind, token, purpose),
+        EventModel? eventModel = (room as EventRoom)?.LocalMutableEvent;
+        return new(request, options.ToArray(), () => CardSelect(player, options, prefs, kind, token, purpose, enchantment, enchantmentAmount, filter),
             () => ReferenceEquals(room, player.RunState.CurrentRoom)
+                && (room is not EventRoom eventRoom || ReferenceEquals(eventModel, eventRoom.LocalMutableEvent))
                 && (deck == null || SameInstances(deck, player.Deck.Cards)));
     }
 

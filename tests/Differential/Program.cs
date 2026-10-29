@@ -43,6 +43,11 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--act1-boss-fixture") return ActOneBoundaryFixture.Run(args[1]);
+        if (args.Length == 2 && args[0] == "--act1-reference") return RoomsReference.Run(50, args[1], act1: true);
+        if (args.Length == 2 && args[0] == "--act1-production") return RoomsReference.Production(50, args[1]);
+        if (args.Length == 1 && args[0] == "--event-selection-host-checks") return EventSelectionHostChecks.Run();
+        if (args.Length == 1 && args[0] == "--treasure-host-checks") return TreasureHostChecks.Run();
         if (args.Length == 1 && args[0] == "--rooms-later-combat-failure") return FirstCombatReference.LaterCombatFailure();
         if (args.Length == 1 && args[0] == "--multiroom-host-checks") return MultiRoomHostChecks.Run();
         if (args.Length == 1 && args[0] == "--shop-host-checks") return ShopHostChecks.Run();

@@ -108,6 +108,7 @@ public enum RunDecisionOptionKind : byte
     Reroll = 12,
     Leave = 13,
     CardBundle = 14,
+    Open = 15,
 }
 
 [InlineArray(RunLimits.DecisionOptions)]
@@ -147,6 +148,8 @@ public struct RunDecisionRequest
     public ushort KeyByteCount;
     public RunDecision Kind;
     public RunSelectionPurpose SelectionPurpose;
+    /// <summary>Knowledge of the displayed modification preview. Unknown never promises a resulting card.</summary>
+    public RunDecisionKnowledge SelectionPreviewKnowledge;
     public byte Cancelable;
     public byte RequireConfirmation;
     public RunDecisionOptionArray Options;

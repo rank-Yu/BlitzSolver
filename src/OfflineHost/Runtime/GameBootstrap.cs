@@ -71,7 +71,7 @@ internal static class GameBootstrap
             nameof(MegaCrit.Sts2.Core.Platform.PlatformUtil.GetPlayerNameRaw), prefix: nameof(PlayerNameRawPrefix));
         foreach (Type type in new[] { typeof(EnchantmentModel), typeof(RelicModel) })
             Harmony.Patch(AccessTools.PropertyGetter(type, type == typeof(RelicModel) ? "HoverTipsExcludingRelic" : "HoverTips"), prefix: new HarmonyMethod(typeof(GameBootstrap), nameof(NoHoverTips)));
-        foreach (string loader in new[] { "LoadRoomEventAssets", "LoadRoomRestSite", "LoadRoomMerchantAssets" })
+        foreach (string loader in new[] { "LoadRoomEventAssets", "LoadRoomRestSite", "LoadRoomMerchantAssets", "LoadRoomTreasureAssets" })
             Patch(typeof(PreloadManager), loader, prefix: nameof(CompletedTaskPrefix));
         foreach (MethodInfo method in typeof(UserDataPathProvider).GetMethods().Where(m => m.Name is "GetProfileDir" or "GetProfileScopedBasePath"))
             Harmony.Patch(method, prefix: new HarmonyMethod(typeof(GameBootstrap), nameof(ProfilePath)));

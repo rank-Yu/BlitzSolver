@@ -14,12 +14,14 @@ public static class RunDecisionProtocol
     {
         if (request.Token.SessionId == 0 || request.Token.Revision == 0)
             Fail("request-token", "session and revision must be nonzero");
-        if (request.Kind is < RunDecision.MapPoint or > RunDecision.PotionDiscard)
+        if (request.Kind is < RunDecision.MapPoint or > RunDecision.Treasure || request.Kind == RunDecision.GameOver)
             throw new UnsupportedException("request-kind: no pending supported choice");
         RunDecisionBuilder.CheckCount(request.OptionCount, RunLimits.DecisionOptions, "Decision.Options");
         RunDecisionBuilder.CheckCount(request.FactCount, RunDecisionLimits.Facts, "Decision.Facts");
         RunDecisionBuilder.CheckCount(request.CardCount, RunDecisionLimits.Cards, "Decision.Cards");
         RunDecisionBuilder.CheckCount(request.KeyByteCount, RunDecisionLimits.KeyBytes, "Decision.Keys");
+        if (request.SelectionPreviewKnowledge != RunDecisionKnowledge.Unknown)
+            Fail("selection-preview", "modification previews are not represented yet");
         if (request.Cancelable > 1 || request.RequireConfirmation > 1)
             Fail("request-flags", "boolean fields must be zero or one");
         if (request.SelectionPurpose > RunSelectionPurpose.Enchant
@@ -54,7 +56,7 @@ public static class RunDecisionProtocol
             }
             if ((option.Flags & ~(RunDecisionOptionFlags.Disabled | RunDecisionOptionFlags.Locked)) != 0)
                 Fail("option-flags", "unknown row flags");
-            if (option.Kind is < RunDecisionOptionKind.MapPoint or > RunDecisionOptionKind.CardBundle)
+            if (option.Kind is < RunDecisionOptionKind.MapPoint or > RunDecisionOptionKind.Open)
                 Fail("option-kind", "invalid option enum");
             if (option.PayloadKind > RunDecisionPayloadKind.CardBundle)
                 Fail("payload-kind", "invalid payload enum");
@@ -182,6 +184,7 @@ public static class RunDecisionProtocol
             RunDecision.CardSelect => row.Kind == RunDecisionOptionKind.Card,
             RunDecision.RelicSelect => row.Kind is RunDecisionOptionKind.Relic or RunDecisionOptionKind.BossRelic
                 or RunDecisionOptionKind.Skip,
+            RunDecision.Treasure => row.Kind is RunDecisionOptionKind.Open or RunDecisionOptionKind.Skip or RunDecisionOptionKind.Leave,
             RunDecision.PotionDiscard => row.Kind is RunDecisionOptionKind.Potion or RunDecisionOptionKind.Skip,
             _ => false,
         };

@@ -7,8 +7,8 @@ internal static class Program
     {
         if (args.Length == 1 && args[0] is "--help" or "-h")
         {
-            Console.WriteLine("run-eval --game-data PATH [--seed R3B2-DECISION] [--character Ironclad] [--ascension 0] [--unlocks neow-epoch-v1] [--tier Low|Medium|High|ExtraHigh] [--timeout-seconds 300] [--stop-after first-combat|next-room|rooms] [--max-rooms 4] [--max-decisions 256] [--max-steps 512]");
-            Console.WriteLine("Starts one native run; default stops before rewards, next-room pauses after entering the next room, rooms completes a bounded number of Act1 map rooms. JSON output; Ctrl+C cancels.");
+            Console.WriteLine("run-eval --game-data PATH [--seed R3B2-DECISION] [--character Ironclad] [--ascension 0] [--unlocks neow-epoch-v1] [--tier Low|Medium|High|ExtraHigh] [--timeout-seconds 300] [--stop-after first-combat|next-room|rooms|act1] [--max-rooms 4] [--max-decisions 256] [--max-steps 512]");
+            Console.WriteLine("Starts one native run; default stops before rewards, next-room pauses after entering the next room, rooms completes a bounded number of Act1 map rooms, act1 pauses after Boss rewards before the act transition. JSON output; Ctrl+C cancels.");
             return 0;
         }
         try
@@ -48,7 +48,7 @@ internal static class Program
             if (tier is not ("Low" or "Medium" or "High" or "ExtraHigh"))
                 throw new InvalidDataException("Unknown tier: " + tier);
             if (maxRooms is < 1 or > 100 || maxDecisions < 1 || maxSteps < 1) throw new InvalidDataException("Invalid room/decision/step budget.");
-            if (stopAfter is not ("first-combat" or "next-room" or "rooms")) throw new InvalidDataException("Unknown stop-after: " + stopAfter);
+            if (stopAfter is not ("first-combat" or "next-room" or "rooms" or "act1")) throw new InvalidDataException("Unknown stop-after: " + stopAfter);
             using CancellationTokenSource cancellation = new();
             void Cancel(object? sender, ConsoleCancelEventArgs eventArgs) { eventArgs.Cancel = true; cancellation.Cancel(); }
             Console.CancelKeyPress += Cancel;
@@ -61,7 +61,7 @@ internal static class Program
             }
             finally { Console.SetOut(output); Console.CancelKeyPress -= Cancel; }
             Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-            return result.Milestone is "first-combat-complete" or "next-room-entered" or "room-budget-reached" ? 0
+            return result.Milestone is "first-combat-complete" or "next-room-entered" or "room-budget-reached" or "act1-complete" ? 0
                 : result.Status == "Timeout" ? 4 : result.Status == "Cancelled" ? 130 : 1;
         }
         catch (InvalidDataException error) { Console.Error.WriteLine(error.Message); return 2; }

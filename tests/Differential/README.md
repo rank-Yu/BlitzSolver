@@ -339,3 +339,11 @@ history 和 RNG 对照；定向覆盖折扣补货、stale/不足金、取消/lat
 和空奖励生成 hook 变成可选奖励时的显式拒绝、嵌套、异常、取消恢复。
 postcombat-host-checks 额外覆盖两次真实离房间的奖励租约及旧 token，过程 setup 的 EndCombatInternal
 只建立生命周期夹具，不代表自然战斗胜利。自然游玩证据来自独立 CLI/rooms-reference。
+
+
+### 事件选牌、宝箱与第一幕边界
+
+- `--event-selection-host-checks`：真实 SelfHelpBook 与原版直接 selector 对照；ChooseCard 可跳/必选、非牌组同 ID 实例、空候选；原版变牌/移除/三个附魔重载及自动选择、多选、确认、stale、取消、原始异常。
+- `--treasure-host-checks`：封箱隐藏遗物、真实开箱金币/额外空 set/原版投票与领取，领/跳/空/第二箱的完整状态/history/RNG 直接 oracle；重复/过期、非空额外奖励、延迟原版 hook 取消 drain 和迟到回调。
+- `--act1-production SEED` / `--act1-reference SEED`：共享 RunPilot 与独立旧 runtime/TestHost/旧 NativePilotHost 的逐完成房间及最终停止 checkpoint，包含完整 RunDump、NativeRunDump、MapPointHistory、原版 IsGameOver/HP/ActIndex。
+- `--act1-boss-fixture act1|rooms-exact|rooms-more|budget`：明确将真实 CeremonialBeast Boss 的怪物 HP 设为 1 的测试夹具，仅检验原版胜利/终局/领奖和停止边界，不是自然通关。记录完整直接原版 oracle 是否相同、Ready 调用和换幕 vote 是否为零、ActIndex/ActFloor 是否保持，覆盖 rooms 预算优先与未完成不误报。

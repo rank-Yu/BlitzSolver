@@ -10,13 +10,13 @@
 ## 1. 请求、回答与共享负载
 
 Core 提供有界、无托管引用的可见协议；`RunDecisionImporter` 已支持首批原版地图、事件、
-休息、选牌、奖励列表/选牌奖励、药水整理与商店待选请求。协议能表达一种界面不代表已有该界面的执行桥接。`RunState`/`RunCodec v3` 的 49912 字节
+休息、选牌、奖励列表/选牌奖励、药水整理、商店及宝箱展示阶段待选请求。协议能表达一种界面不代表已有该界面的执行桥接。`RunState`/`RunCodec v3` 的 49912 字节
 布局不变，`RunDecision` 的既有数字不变。
 
 | 类型 | 内容与预算 |
 | --- | --- |
 | `RunDecisionToken` | 非零 `ulong SessionId` 与非零 `ulong Revision`，16 字节 |
-| `RunDecisionRequest` | Token、可见 `Source`、`PageKey`、Kind、独立数量/取消/确认约束、选牌用途及共享池，15960 字节 |
+| `RunDecisionRequest` | Token、可见 `Source`、`PageKey`、Kind、独立数量/取消/确认约束、选牌用途、预览知识及共享池，15960 字节 |
 | `RunDecisionOption` | 非零请求内 `OptionId`、Kind、明确 `PayloadKind`、可见锁定/禁用 flags、NativeKey、typed 代价/效果及 bundle 切片，44 字节 |
 | `RunDecisionFact` | 正数 `Amount`、FactKind；只有 AddCard 带完整可见 CardView，16 字节 |
 | `RunDecisionSlice` | `ushort Start/Count`，4 字节；空切片必须为 default |
@@ -50,10 +50,13 @@ NativeKey 与可选 PageKey 保存原版 `TextKey`、休息选项 `OptionId` 等
 区分选项，但不作为执行身份，不解析文本推断效果。本批不保存完整本地化文案或动态参数；
 首批导入器读取机器键及两个已映射事件的 typed 事实；完整本地化参数仍未接入。`SelectionPurpose` 仅用于 CardSelect，
 可为 None/Remove/Upgrade/Transform/Enchant；None 表示用途未描述，不能猜测。
+SelectionPreviewKnowledge 目前必须为 Unknown：它不承诺变牌/附魔后的卡牌预览，不能把当前 CardView 当作预测结果。
+Treasure=11 与 Open=15 追加到既有请求/选项枚举；GameOver=10 仍不是可执行请求。
+封箱 Treasure 请求只含无负载 Open，真实开箱之后才用 RelicSelect/Skip 展示原实例；完成后的 Treasure/Leave 才允许离开。
 
 `RunView.From` 目前只填状态里的决策提示与选项数，Request 保持 default，不能作为可执行
 请求。地图合法点仍由 `RunTravel.Collect` 独立枚举；`RunMapEntry.Enter` 仍接受坐标，不是第二个
-请求执行器。正式 OfflineRunHost/RunExecutor 已执行 Map/Event/Rest/CardSelect，策略估值与全内容导入仍未落地；测试桥接见第 7 节。
+请求执行器。正式 OfflineRunHost/RunExecutor 已执行 Map/Event/Rest/Shop/CardSelect/Treasure，策略估值与全内容导入仍未落地；测试桥接见第 7 节。
 
 `RunStepStatus`/`RunStepResult`/`RunStepReject` 是旧局外内核的结果类型，已随 `RunKernel` 删除。
 仍保留的拒绝原因是 `RunStepReason` 的四个字符串，供 `RunMapEntry`/`RunUnknownPoint` 抛

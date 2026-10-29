@@ -20,6 +20,10 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
     private static long _nextSession;
     private static OfflineRunHost? _owner;
     private static readonly AsyncLocal<Execution?> Active = new();
+    // Combat turn-loop continuations may inherit the completed Map dispatch context.
+    // The combat delegate owns its own native selector/queue lifecycle in that phase.
+    internal static bool HasExecutionContext => Active.Value is { } execution
+        && (execution.Open || _owner?._inCombatCallback != true);
     internal static bool IsExecuting => Active.Value is { Open: true };
     private readonly object _gate = new();
     private readonly NativeRun _run;
@@ -110,7 +114,8 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
                 if (boundary.Event != null && !ReferenceEquals(boundary.Event.Owner?.RunState, _run))
                     throw new InvalidDataException("host-event-run-changed");
                 RunExecutor.Pending pending = boundary.Kind == OfflineBoundaryKind.Rewards
-                    ? RewardPending(NextToken()) : boundary.Kind == OfflineBoundaryKind.Shop
+                    ? RewardPending(NextToken()) : boundary.Kind == OfflineBoundaryKind.Treasure
+                        ? TreasurePending(boundary.Treasure ?? throw new InvalidDataException("host-treasure-required"), NextToken()) : boundary.Kind == OfflineBoundaryKind.Shop
                         ? ShopPending(boundary, NextToken()) : _executor.Import(boundary, _run, _player, NextToken());
                 RunView view = Fresh(pending.Request); _pending = pending;
                 return new(RunBoundaryKind.Decision, view);
@@ -169,7 +174,7 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
         NativeCallbacks.Selection selection = NativeCallbacks.CurrentSelection
             ?? throw new InvalidDataException("host-card-prefs-missing");
         if (!ReferenceEquals(scope.Host, this) || !scope.Open || !ReferenceEquals(selection.Player, _player)
-            || selection.Prefs.MinSelect != minimum || selection.Prefs.MaxSelect != maximum)
+            || selection.CallbackMin != minimum || selection.CallbackMax != maximum)
             throw new InvalidDataException("host-unrelated-card-callback");
         if (Interlocked.Exchange(ref selection.Consumed, 1) != 0) throw new InvalidDataException("host-card-prefs-consumed");
         scope.Token.ThrowIfCancellationRequested();
@@ -182,8 +187,23 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
             CheckAvailable(executing: true);
             if (_pending != null) throw new InvalidDataException("host-child-busy");
             snapshot = RunDecisionImporter.CardSelect(_player, cards, selection.Prefs, selection.Kind, NextToken(),
-                _shopRemoval ? RunSelectionPurpose.Remove : selection.Kind == NativeCardSelectionKind.DeckUpgrade ? RunSelectionPurpose.Upgrade : RunSelectionPurpose.None);
+                _shopRemoval ? RunSelectionPurpose.Remove : selection.Kind switch
+                {
+                    NativeCardSelectionKind.DeckUpgrade => RunSelectionPurpose.Upgrade,
+                    NativeCardSelectionKind.DeckRemove => RunSelectionPurpose.Remove,
+                    NativeCardSelectionKind.DeckTransform => RunSelectionPurpose.Transform,
+                    NativeCardSelectionKind.DeckEnchant => RunSelectionPurpose.Enchant,
+                    _ => RunSelectionPurpose.None,
+                }, selection.Enchantment, selection.Amount, selection.Filter);
             pending = RunExecutor.Bind(snapshot, (_, _) => Task.CompletedTask);
+            Action validate = pending.ValidateCurrent;
+            pending = pending with { ValidateCurrent = () =>
+            {
+                ValidateRun();
+                if (!Enumerable.SequenceEqual<CardModel>(options, cards, ReferenceEqualityComparer.Instance))
+                    throw new InvalidDataException("host-card-candidates-changed");
+                validate();
+            } };
             view = Fresh(pending.Request); _pending = pending;
         }
         try

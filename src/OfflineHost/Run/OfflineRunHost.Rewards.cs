@@ -30,6 +30,12 @@ public sealed partial class OfflineRunHost
         }
         await _rewards.Start().WaitAsync(token);
     }
+    internal bool RewardsSetCompleted => _rewards is { SetCompleted: true };
+    internal async ValueTask SettleBossRewardsAsync(CancellationToken token)
+    {
+        var presentation = _rewards ?? throw new InvalidDataException("host-no-rewards");
+        await presentation.SettleCompletedBoss(token);
+    }
     internal bool RewardsProceedConfirmed => _rewards is { Proceeded: true };
     internal bool RewardsTravelEnabled => _rewards is { TravelEnabled: true };
     internal async ValueTask ConfirmRewardsRoomExitAsync(CancellationToken token)
@@ -52,7 +58,7 @@ public sealed partial class OfflineRunHost
         RewardsSet set = presentation.Set ?? throw new InvalidDataException("host-no-reward-set");
         return RunExecutor.Bind(RunDecisionImporter.Rewards(set,
             () => set.Rewards.Where(r => !r.SuccessfullySelected).ToArray(),
-            () => presentation.Active, () => presentation.Active, token), async (selected, _) =>
+            () => presentation.Active, () => presentation.Active && !presentation.IsBoss, token), async (selected, _) =>
         {
             if (ReferenceEquals(selected[0], set)) { await presentation.Leave(); return; }
             Reward reward = (Reward)selected[0];

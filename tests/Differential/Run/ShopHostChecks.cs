@@ -221,11 +221,11 @@ internal static class ShopHostChecks
         var (run, player, room) = Start();
         var entry = room.GetLocalInventory().RelicEntries[0];
         AccessTools.Property(typeof(MerchantRelicEntry), nameof(MerchantRelicEntry.Model))
-            .SetValue(entry, ModelDb.Relic<HeftyTablet>().ToMutable());
+            .SetValue(entry, ModelDb.Relic<ScrollBoxes>().ToMutable());
         var host = Host(run, player, room); RunView view = Get(host.WaitForBoundaryAsync(default)).View;
         int deck = player.Deck.Cards.Count; bool rejected = false;
         try { Wait(host.ExecuteAsync(Pick(view, Row(view, room, player, entry)), NoChild, default).AsTask()); }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("FromChooseACardScreen", StringComparison.Ordinal)) { rejected = true; }
+        catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("FromChooseABundleScreen", StringComparison.Ordinal)) { rejected = true; }
         Check(rejected && player.Deck.Cards.Count == deck, "unsupported relic callback rejected before native automatic choice");
         Wait(host.DisposeAsync().AsTask());
         Check(CardSelectCmd.Selector == null && !OfflineRunHost.IsShopRemoval, "unsupported shop releases selector/purpose scope");

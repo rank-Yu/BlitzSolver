@@ -30,6 +30,7 @@ internal sealed class RewardPresentation : IAsyncDisposable
     }
     internal static void CheckGenerated(RewardsSet set)
     {
+        TreasureRewards.CheckGenerated(set);
         // Heal always offers a custom set, even when empty. Hooks still run in the original
         // GenerateWithoutOffering. Reject generated choices before BeginRewardsSet can select.
         if (RestRewards.Value is { } scope && ReferenceEquals(scope.Set, set)
@@ -49,6 +50,7 @@ internal sealed class RewardPresentation : IAsyncDisposable
     private bool _closed;
     internal RewardsSet? Set { get; private set; }
     internal bool Proceeded { get; private set; }
+    internal bool IsBoss => _room.RoomType == RoomType.Boss;
     internal bool Active => !_closed && !Proceeded && Set != null;
     internal bool TravelEnabled => Proceeded && !_closed && !CombatManager.Instance.IsInProgress
         && ReferenceEquals(_player.RunState.CurrentRoom, _room)
@@ -88,6 +90,7 @@ internal sealed class RewardPresentation : IAsyncDisposable
     }
     internal static void CheckOffer(RewardsSet set)
     {
+        if (TreasureRewards.CheckOffer(set)) return;
         RewardPresentation? owner = Offering.Value;
         if (owner == null)
         {
@@ -100,7 +103,7 @@ internal sealed class RewardPresentation : IAsyncDisposable
                 // to TestMode's default reward selector after its execution/scope has closed.
                 throw new UnsupportedException("host-unsupported-native-entry:RewardsSet.Offer");
             }
-            if (_owner != null || OfflineRunHost.IsExecuting) throw new UnsupportedException("host-unsupported-native-entry:RewardsSet.Offer");
+            if (_owner != null || OfflineRunHost.HasExecutionContext) throw new UnsupportedException("host-unsupported-native-entry:RewardsSet.Offer");
             return;
         }
         owner._lifetime.Token.ThrowIfCancellationRequested();
@@ -111,6 +114,7 @@ internal sealed class RewardPresentation : IAsyncDisposable
     }
     internal static void TrackOffer(RewardsSet set, Task task)
     {
+        TreasureRewards.TrackOffer(set, task);
         RewardPresentation? owner = Offering.Value;
         if (owner != null && ReferenceEquals(owner.Set, set))
         {
@@ -126,9 +130,23 @@ internal sealed class RewardPresentation : IAsyncDisposable
         _shown.TrySetResult();
         await _released.Task.WaitAsync(_lifetime.Token);
     }
+    internal bool SetCompleted => Set != null && RunManager.Instance.RewardsSetSynchronizer.IsRewardsSetCompleted(Set);
+    // Boss Proceed enqueues a vote that immediately enters the next act in singleplayer.
+    // Stop before that button, after the real set has completed; release presentation only.
+    internal async Task SettleCompletedBoss(CancellationToken token)
+    {
+        if (!Active || _room.RoomType != RoomType.Boss || !SetCompleted
+            || !ReferenceEquals(_player.RunState.CurrentRoom, _room))
+            throw new InvalidDataException("host-boss-rewards-incomplete");
+        _released.TrySetResult();
+        await (_offer ?? throw new InvalidDataException("host-reward-offer-missing")).WaitAsync(token);
+        if (_generation != null) await _generation.WaitAsync(token);
+        if (_start != null) await _start.WaitAsync(token);
+    }
     internal async Task Leave()
     {
         if (!Active || Set == null) throw new InvalidDataException("host-reward-screen-closed");
+        if (IsBoss) throw new UnsupportedException("host-boss-proceed-is-act-transition");
         // Terminal Proceed opens the map. Native EnterMapCoord owns skipping untaken rewards.
         await RunManager.Instance.ProceedFromTerminalRewardsScreen();
         Proceeded = true;

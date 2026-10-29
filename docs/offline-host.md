@@ -2,7 +2,7 @@
 
 离线宿主的目标是在普通 .NET 9 控制台进程里加载原版 `sts2.dll`，由原版 `RunManager` 推进整局。
 它不启动 Godot 可执行文件，也不需要场景树；战斗通过 `CombatPilot` 交给 Blitz，局外每一步都从
-原版重新导入 `RunState`。现已有独立 `OfflineHost` 库、共享 `RunPilot` 与真实 Map/Event/Rest/Shop/CardSelect
+原版重新导入 `RunState`。现已有独立 `OfflineHost` 库、共享 `RunPilot` 与真实 Map/Event/Rest/Shop/CardSelect/Treasure
 执行。Runtime/NewRunFactory/Combat 已迁移，tools/run-eval 通过纯 DTO 接口从独立进程正常启动，
 默认完成首场真实战斗并在领奖前以 Paused / first-combat-complete 停止；显式
 --stop-after next-room 支持原版战后奖励/异步选卡/满药水管理及合法进入下一房间，
@@ -10,6 +10,10 @@
 多场独立战斗奖励与正式商店，在第 N 个地图节点达到安全可旅行边界后停止，不计 Neow、不进入下一房。
 独立入口按事件完成、休息同步器完成、商店 Leave 或已实际 Proceed 的战后奖励展示报告地图边界；
 原版终局清理前捕获、逐步比较和结算后队列稳定均是完成的前提。
+--stop-after act1 使用相同的可见规则，真实 Boss 胜利且原版奖励全部完成后停在换幕按钮之前，
+Boss 奖励请求不包含本范围无法执行的换幕 Leave；不调用 ActChangeSynchronizer、不进入第二幕；这是 Paused / act1-complete，绝不是整局 Victory。
+宝箱先由共享 RunPilot 选择 Open，执行原版正常/额外奖励后才显示遗物领取/跳过，最后 Leave。
+事件 ChooseCard、变牌、附魔和移除保留原版过滤/自动选择/实际作用，仅托管真实异步选择回调。
 当前 API、无界面设施差异与验证范围见
 [src/OfflineHost](../src/OfflineHost/README.md) 和 [CLI](../tools/run-eval/README.md)。
 
