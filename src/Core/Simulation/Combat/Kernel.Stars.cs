@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Star (Regent resource) kernel. Sources: <c>CombatPredictionSimulator.Energy.GainStars</c>,

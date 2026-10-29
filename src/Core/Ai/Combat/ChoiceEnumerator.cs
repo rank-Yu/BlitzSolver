@@ -1,7 +1,7 @@
 using System.Numerics;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// Enumerates the selections a <see cref="ChoiceRequest"/> allows. <see cref="Enumerate"/> is the

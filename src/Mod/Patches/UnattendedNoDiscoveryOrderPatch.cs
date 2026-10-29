@@ -2,7 +2,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Runs;
 using STS2RitsuLib.Patching.Models;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// 无头测试不应用首次跑局的教学发现顺序。离线宿主用 <c>TestMode.IsOn = true</c> 让
@@ -11,7 +11,7 @@ namespace BlitzSolver;
 /// </summary>
 internal sealed class UnattendedNoDiscoveryOrderPatch : IPatchMethod
 {
-    public static string PatchId => "blitzsolver_unattended_no_discovery_order";
+    public static string PatchId => "sts2solver_unattended_no_discovery_order";
 
     public static string Description => "无头测试不覆盖第三幕 Boss 的发现顺序";
 

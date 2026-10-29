@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Colorless;
+namespace Sts2Solver.Content.Cards.Colorless;
 
 [ContentId("ETERNAL_ARMOR")]
 public sealed class EternalArmor : CardDef

@@ -28,7 +28,7 @@ using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Unlocks;
 using MegaCrit.Sts2.Core.ValueProps;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal static class ScenarioBuilder
 {

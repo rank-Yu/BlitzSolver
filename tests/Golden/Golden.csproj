@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>BlitzSolver.Golden</AssemblyName>
+    <AssemblyName>Sts2Solver.Golden</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Core/BlitzSolver.Core.csproj" />
+    <ProjectReference Include="../../src/Core/Sts2Solver.Core.csproj" />
   </ItemGroup>
 </Project>

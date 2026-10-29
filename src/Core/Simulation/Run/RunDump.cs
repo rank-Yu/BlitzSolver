@@ -2,9 +2,9 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// Canonical text view of a <see cref="RunState"/> for field-by-field comparison with an

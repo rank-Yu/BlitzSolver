@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Necrobinder;
+namespace Sts2Solver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>Deathbringer</c>: for each hittable enemy in roster order, apply Doom then Weak
@@ -320,7 +320,7 @@ public sealed class Melancholy : CardDef
     /// <summary>
     /// The run listeners include the deck copy of this card, but <c>AfterDeathMirrors.HandleMelancholy</c>
     /// resolves it with <c>State.FindCard(card)</c> and does nothing when the card is not in a combat pile.
-    /// The deck copy therefore has no effect and need not exist in Blitz (only combat piles are imported).
+    /// The deck copy therefore has no effect and need not exist in Sts2Solver (only combat piles are imported).
     /// </summary>
     public override bool DeckCopyOutsideCombatIsInert => true;
 

@@ -1,6 +1,6 @@
-# Blitz 纯内核合同
+# Sts2Solver 纯内核合同
 
-通过 `ProjectReference` 引用编译后的 `BlitzSolver.Core`（源码为 `src/Core/Simulation/Combat/`、`src/Core/Ai/Combat/` 与 `src/Core/Content/`），不依赖游戏程序集或 BlitzSolver 其他代码。
+通过 `ProjectReference` 引用编译后的 `Sts2Solver.Core`（源码为 `src/Core/Simulation/Combat/`、`src/Core/Ai/Combat/` 与 `src/Core/Content/`），不依赖游戏程序集或 Sts2Solver 其他代码。
 
 ```bash
 DOTNET_TieredCompilation=0 dotnet run --project tests/KernelChecks -c Release

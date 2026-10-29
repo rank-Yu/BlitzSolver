@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Colorless;
+namespace Sts2Solver.Content.Cards.Colorless;
 
 /// <summary>
 /// Native <c>BundleOfJoy</c>: add <c>Cards</c> distinct colorless cards to the hand.

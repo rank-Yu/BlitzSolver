@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Ironclad;
+namespace Sts2Solver.Content.Cards.Ironclad;
 
 [ContentId("CONFLAGRATION")]
 public sealed class Conflagration : CardDef
@@ -105,7 +105,7 @@ public sealed class Thrash : CardDef
     public override IReadOnlyList<string> VarNames => ["Damage"];
 
     // The native card adds ModifyDamage's decimal result to DynamicVars.Damage.BaseValue and to
-    // the private ExtraDamage field, and AfterDowngraded re-adds ExtraDamage. Blitz keeps the
+    // the private ExtraDamage field, and AfterDowngraded re-adds ExtraDamage. Sts2Solver keeps the
     // exact delta in the battle's decimal table; downgrade leaves the table untouched.
     public override bool UsesDecimalDamageVar => true;
 

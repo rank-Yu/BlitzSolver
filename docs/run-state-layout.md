@@ -241,13 +241,13 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 
 - 命名流：`MegaRandom(seed + XxHash64(UTF8(name)))`；名字是原版 `RunRngType`/`PlayerRngType` 的 `SnakeCase`。
 - `MegaRandom` 初始化用 SplitMix64 连续四次；每次 `Next*` 恰好递增一次 `Counter`。
-- 玩家种子：`Player.InitializeSeed(seed)` 为 `Hash(seed string) + slot`；单人 slot 0。`RunState.Rng.PlayerSeed` 直接保存这个值，不在 Blitz 侧重算字符串种子。
+- 玩家种子：`Player.InitializeSeed(seed)` 为 `Hash(seed string) + slot`；单人 slot 0。`RunState.Rng.PlayerSeed` 直接保存这个值，不在 Sts2Solver 侧重算字符串种子。
 - 事件 RNG：`seed + (shared ? 0 : slot) + Hash(event id)`；单人 slot 0。`Rng.Events` 保存当前事件链的已消费状态。
 - 遭遇 RNG：`seed + TotalFloor + Hash(encounter id)`；`TotalFloor` 由 `History.Count` 得到。
 - 每幕地图 RNG：`seed + Hash("act_N_map")`；`Rng.Map` 保存初始状态，`MapConsumed` 标记该幕地图是否已在原版生成。当前幕地图已导入，R2 不应再用该初始状态重生成；未来幕从 `MapConsumed=0` 开始。
 - `RunRng.NewRun(runSeed, playerSeed)` 生成 15 条初始状态，是本批离线建局与导入的唯一构造入口。
 
-`tests/KernelChecks/Run/RunChecks.cs` 用从原版导出的固定种子前 8 次抽取锁死所有 15 条命名流、事件、遭遇与地图派生；`--run-import-compare` 对每个自然开局/战斗根再从原版与 Blitz 各抽 64 次（`NextInt(1000)`/`NextFloat`/`NextDouble`/`NextInt(-5,100)`/`NextBool` 轮换）。
+`tests/KernelChecks/Run/RunChecks.cs` 用从原版导出的固定种子前 8 次抽取锁死所有 15 条命名流、事件、遭遇与地图派生；`--run-import-compare` 对每个自然开局/战斗根再从原版与 Sts2Solver 各抽 64 次（`NextInt(1000)`/`NextFloat`/`NextDouble`/`NextInt(-5,100)`/`NextBool` 轮换）。
 
 ## 5. 编码
 
@@ -327,7 +327,7 @@ RNG、属性包或未来序列。正例与嵌套数组/托管引用反例、Kern
 
 ## 7. 原版导入
 
-`src/Import/Run/RunStateImporter.Import(RunState native, Player localPlayer)` 只读，返回 `BlitzSolver.Simulation.Run.RunState`。它先校验顶层范围，再逐组读取；任何未知/第三方/越界内容在写入前拒绝，不返回半成品。
+`src/Import/Run/RunStateImporter.Import(RunState native, Player localPlayer)` 只读，返回 `Sts2Solver.Simulation.Run.RunState`。它先校验顶层范围，再逐组读取；任何未知/第三方/越界内容在写入前拒绝，不返回半成品。
 
 ### 7.1 拒绝码
 
@@ -337,7 +337,7 @@ RNG、属性包或未来序列。正例与嵌套数组/托管引用反例、Kern
 | `unsupported-game-mode` | 非 `GameMode.Standard` |
 | `unsupported-modifier` | `Modifiers` 非空 |
 | `third-party-content` | 任一模型来自非 `sts2` 程序集 |
-| `unsupported-card` / `unsupported-relic` / `unsupported-potion` / `unsupported-monster` / `unsupported-enchantment` / `unsupported-affliction` / `unsupported-orb` | 不在 Blitz `Registry` |
+| `unsupported-card` / `unsupported-relic` / `unsupported-potion` / `unsupported-monster` / `unsupported-enchantment` / `unsupported-affliction` / `unsupported-orb` | 不在 Sts2Solver `Registry` |
 | `unsupported-character` / `unsupported-act` / `unsupported-encounter` / `unsupported-event` | 不在 `RunCatalog` |
 | `unsupported-unlock` | 解锁 epoch 或已见遭遇不在目录 |
 | `unsupported-map` | 地图不是 `StandardActMap`/`SavedActMap` 或坐标越界 |
@@ -376,7 +376,7 @@ RNG、属性包或未来序列。正例与嵌套数组/托管引用反例、Kern
 - 商店：自然 187 局 + D1 401 局逐字段与逐动作相同，0 diff；拒绝 9 例均有原因码（R2c-2 报告）。
 - D1：**410/410** 输入逐字段相同（含 120 个质量根）；战斗一致性 **410/410** 相同；15 条流 × 64 次抽取 0 偏差；地图 **410/410** 相同。
 - 负例：多人、非标准模式、Modifier、未知事件、未知解锁、无地图、牌组容量共 7 类均返回稳定拒绝码。
-- 复跑命令见[测试与验证](testing.md)第 6.10 节；本批报告在 `.local/tool-tasks/blitz/R1b-report.md`；商店对照在 `.local/tool-tasks/blitz/R2c2-report.md`。
+- 复跑命令见[测试与验证](testing.md)第 6.10 节；本批报告在 `.local/tool-tasks/sts2-solver/R1b-report.md`；商店对照在 `.local/tool-tasks/sts2-solver/R2c2-report.md`。
 
 ## 9. 未完成与未验证
 

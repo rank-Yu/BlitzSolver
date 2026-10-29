@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Defect;
+namespace Sts2Solver.Content.Cards.Defect;
 
 [ContentId("COMPACT")]
 public sealed class Compact : CardDef
@@ -18,7 +18,7 @@ public sealed class Compact : CardDef
         if (x.NeedsChoice)
             return;
         if (!Registry.TryCard("FUEL", out ushort fuel))
-            throw new UnsupportedException("压缩变换需要 FUEL 的 Blitz 定义。");
+            throw new UnsupportedException("压缩变换需要 FUEL 的 Sts2Solver 定义。");
         Span<int> statuses = stackalloc int[x.B.HandCount];
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
@@ -172,7 +172,7 @@ public sealed class Overclock : CardDef
         if (x.NeedsChoice)
             return;
         if (!Registry.TryCard("BURN", out ushort burn))
-            throw new UnsupportedException("过载生成需要 BURN 的 Blitz 定义。");
+            throw new UnsupportedException("过载生成需要 BURN 的 Sts2Solver 定义。");
         Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, burn), Pile.Discard);
     }
 }
@@ -269,7 +269,7 @@ public sealed class FightThrough : CardDef
         if (x.NeedsChoice)
             return;
         if (!Registry.TryCard("WOUND", out ushort id))
-            throw new UnsupportedException("突破需要 WOUND 的 Blitz 定义。");
+            throw new UnsupportedException("突破需要 WOUND 的 Sts2Solver 定义。");
         for (int index = 0; index < 2; index++)
         {
             if (!Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, id), Pile.Discard))

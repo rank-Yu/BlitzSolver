@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>SentryModePower</c>: <c>BeforeHandDraw</c> creates one <c>SweepingGaze</c> token per
@@ -21,7 +21,7 @@ public sealed class SentryModePower : PowerDef
         if (self.Owner != Limits.PlayerOwner)
             return;
         if (!Registry.TryCard("SWEEPING_GAZE", out ushort gaze))
-            throw new UnsupportedException("SweepingGaze 没有 Blitz 定义。");
+            throw new UnsupportedException("SweepingGaze 没有 Sts2Solver 定义。");
         int amount = x.B.Powers[self.Index].Amount;
         for (int index = 0; index < amount; index++)
         {

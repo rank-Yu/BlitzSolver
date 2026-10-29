@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// <c>DieForYouPower</c>: while Osty is alive, a powered attack on its owner redirects the unblocked HP
@@ -171,7 +171,7 @@ public sealed class CountdownPower : PowerDef
     internal static ushort DoomId()
         => Registry.TryPower("DOOM_POWER", out ushort id)
             ? id
-            : throw new UnsupportedException("倒计时需要 DoomPower 的 Blitz 定义。");
+            : throw new UnsupportedException("倒计时需要 DoomPower 的 Sts2Solver 定义。");
 }
 
 /// <summary>

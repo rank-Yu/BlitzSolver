@@ -1,16 +1,16 @@
 // Builds every native option of the turn-setup page by rebuilding the same rooted scenario once per
 // option. CombatSolver enumerated these branches on its shadow engine; the offline host runs the
 // native setup page again for each choice, then imports each Play root with the shared rule table.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
-using RunState = BlitzSolver.Simulation.Run.RunState;
+using RunState = Sts2Solver.Simulation.Run.RunState;
 
 namespace Differential;
 

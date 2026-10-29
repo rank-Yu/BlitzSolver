@@ -1,5 +1,5 @@
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
 
 namespace Differential;
 
@@ -67,11 +67,11 @@ internal static class RunProbeContracts
         Console.WriteLine("CONTRACT native event repeat/once cases=2 passed");
     }
 
-    internal static void CheckRunCodec(BlitzSolver.Simulation.Run.RunState run)
+    internal static void CheckRunCodec(Sts2Solver.Simulation.Run.RunState run)
     {
-        byte[] bytes = BlitzSolver.Simulation.Run.RunCodec.Encode(run);
-        var decoded = BlitzSolver.Simulation.Run.RunCodec.Decode(bytes);
-        if (!bytes.AsSpan().SequenceEqual(BlitzSolver.Simulation.Run.RunCodec.Encode(decoded)))
+        byte[] bytes = Sts2Solver.Simulation.Run.RunCodec.Encode(run);
+        var decoded = Sts2Solver.Simulation.Run.RunCodec.Decode(bytes);
+        if (!bytes.AsSpan().SequenceEqual(Sts2Solver.Simulation.Run.RunCodec.Encode(decoded)))
             throw new InvalidDataException("正式 RunCodec 编码往返合同失败");
         Console.WriteLine("CONTRACT official RunCodec canonical roundtrip passed; padding coverage in KernelChecks");
     }

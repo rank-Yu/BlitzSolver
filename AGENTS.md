@@ -1,30 +1,30 @@
-# BlitzSolver 仓库工作指令
+# Sts2Solver 仓库工作指令
 
 本文件约束所有在本仓库中工作的 coding agent。开始处理任务前完整阅读。
 
 ## 1. 项目边界
 
-BlitzSolver（极速求解器）是《杀戮尖塔 2》的单人自动游玩 Mod，面向原版游戏内容。战斗求解已经完成；目标是整局自动游玩，保留只托管战斗、只给推荐、全自动三种模式。目标目录结构（`Simulation` / `Ai` / `Autoplay` × `Combat` / `Run`）、依赖规则和验证方式见 [整局设计](docs/full-run-design.md) 第 4 节；当前目录与职责如下表，依赖规则由 `tests/Architecture` 检查。
+Sts2Solver（尖塔求解器，仓库名 sts2-solver）是面向《杀戮尖塔 2》原版单人内容、同种子 SL 模式的战斗与整局求解器。战斗搜索和执行链路已经可用，搜索质量仍持续优化；目标是整局自动游玩，保留只托管战斗、只给推荐、全自动三种模式。目标目录结构（`Simulation` / `Ai` / `Autoplay` × `Combat` / `Run`）、依赖规则和验证方式见 [整局设计](docs/full-run-design.md) 第 4 节；当前目录与职责如下表，依赖规则由 `tests/Architecture` 检查。
 
 | 目录 | 命名空间 | 职责 |
 | --- | --- | --- |
-| `src/Core/Simulation/Combat` | `BlitzSolver.Simulation.Combat` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
-| `src/Core/Simulation/Run` | `BlitzSolver.Simulation.Run` | 局外状态与建局：定长 `RunState`、编码 `RunCodec`、转储 `RunDump`、可见投影与决策请求 `RunView`/`RunDecisionRequest`、合法地图点 `RunTravel`、进点 `RunMapEntry`、开战选择预测 `RunCombatSetup`、进程内内容表 `ContentTable` 与 `RulesBuilder`；局外由原版推进，不含 `RunKernel`/奖励/商店/写回/新局生成 |
-| `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔、怪物与遭遇生成定义 |
-| `src/Core/Ai/Combat` | `BlitzSolver.Ai.Combat`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
-| `src/Core/Ai/Run` | `BlitzSolver.Ai.Run` | 局外决策；`IRunPolicy`/`RunPilotAnswer` 可见决策接口，规则与估值随 R4 落地 |
-| `src/Core/Autoplay` | `BlitzSolver.Autoplay` | `CombatPilot` 整场战斗与 `RunPilot` 整局边界/决策循环；Mod 与离线宿主共用 |
-| `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏；子目录 `Combat/`（战斗导入）、`Run/`（整局导入 `RunStateImporter`、内容表导出 `ContentTableExporter`）、`Run/Decisions/`（R3b 的 `RunDecisionImporter`） |
-| `src/TestHost` | `BlitzSolver.TestHost` | 差分宿主的建局、注入与原生状态转储；只在测试中使用，会写游戏状态；子目录 `Combat/`、`Run/`（新局入口、原生合法地图点枚举、快照恢复、独立原生整局转储与原版商店/奖励驱动，后者是 R3b `RunExecutor` 的起点） |
-| `src/OfflineHost` | `BlitzSolver.OfflineHost.Run` | 局外执行库：`OfflineRunHost`/`RunExecutor` 执行 Map/Event/Rest/Shop/CardSelect/Treasure，`Runtime/` 捕获必要原版回调；Runtime 提供独立消息泵/内存存档/无界面初始化，NewRunFactory 正常启动；Combat 复用既有求解和原版动作逐步/终局比较；FirstCombat DTO 默认首战后领奖前停止；显式 next-room 接原版奖励/异步选卡/药水丢弃与下一房稳定暂停；rooms 接有界 Act1 多房间、多战奖励租约与正式原版商店；事件变牌/附魔/移除保留原版异步选牌，宝箱保留开箱/投票/领取阶段，act1 在 Boss 真实胜利和领奖完成后、换幕按钮之前停止 |
+| `src/Core/Simulation/Combat` | `Sts2Solver.Simulation.Combat` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
+| `src/Core/Simulation/Run` | `Sts2Solver.Simulation.Run` | 局外状态与建局：定长 `RunState`、编码 `RunCodec`、转储 `RunDump`、可见投影与决策请求 `RunView`/`RunDecisionRequest`、合法地图点 `RunTravel`、进点 `RunMapEntry`、开战选择预测 `RunCombatSetup`、进程内内容表 `ContentTable` 与 `RulesBuilder`；局外由原版推进，不含 `RunKernel`/奖励/商店/写回/新局生成 |
+| `src/Core/Content` | `Sts2Solver.Content.*` | 卡牌、Power、遗物、药水、球、附魔、怪物与遭遇生成定义 |
+| `src/Core/Ai/Combat` | `Sts2Solver.Ai.Combat`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
+| `src/Core/Ai/Run` | `Sts2Solver.Ai.Run` | 局外决策；`IRunPolicy`/`RunPilotAnswer` 可见决策接口，规则与估值随 R4 落地 |
+| `src/Core/Autoplay` | `Sts2Solver.Autoplay` | `CombatPilot` 整场战斗与 `RunPilot` 整局边界/决策循环；Mod 与离线宿主共用 |
+| `src/Import` | `Sts2Solver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏；子目录 `Combat/`（战斗导入）、`Run/`（整局导入 `RunStateImporter`、内容表导出 `ContentTableExporter`）、`Run/Decisions/`（R3b 的 `RunDecisionImporter`） |
+| `src/TestHost` | `Sts2Solver.TestHost` | 差分宿主的建局、注入与原生状态转储；只在测试中使用，会写游戏状态；子目录 `Combat/`、`Run/`（新局入口、原生合法地图点枚举、快照恢复、独立原生整局转储与原版商店/奖励驱动，后者是 R3b `RunExecutor` 的起点） |
+| `src/OfflineHost` | `Sts2Solver.OfflineHost.Run` | 局外执行库：`OfflineRunHost`/`RunExecutor` 执行 Map/Event/Rest/Shop/CardSelect/Treasure，`Runtime/` 捕获必要原版回调；Runtime 提供独立消息泵/内存存档/无界面初始化，NewRunFactory 正常启动；Combat 复用既有求解和原版动作逐步/终局比较；FirstCombat DTO 默认首战后领奖前停止；显式 next-room 接原版奖励/异步选卡/药水丢弃与下一房稳定暂停；rooms 接有界 Act1 多房间、多战奖励租约与正式原版商店；事件变牌/附魔/移除保留原版异步选牌，宝箱保留开箱/投票/领取阶段，act1 在 Boss 真实胜利和领奖完成后、换幕按钮之前停止 |
 | `tools/run-eval` | | 独立首战/战后下一房/有界多房间/第一幕烟测 CLI，仅引用 OfflineHost 公开 DTO；显式配置与紧凑 JSON，不加入 solution |
-| `src/Mod` | `BlitzSolver` | RitsuLib `ModInitializer` 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Testing/`、`UI/`、`Patches/`；不加入 `BlitzSolver.sln` |
+| `src/Mod` | `Sts2Solver` | RitsuLib `ModInitializer` 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Testing/`、`UI/`、`Patches/`；不加入 `Sts2Solver.sln` |
 | `tests/KernelChecks` | | 内核合同（K0）；战斗合同在 `Combat/`，整局合同在 `Run/` |
 | `tests/Golden` | | 冻结快照校验器与数据；战斗校验器在 `Combat/` |
-| `tests/Architecture` | | 编译后的 `BlitzSolver.Core` 层依赖检查；加入 `BlitzSolver.sln` |
+| `tests/Architecture` | | 编译后的 `Sts2Solver.Core` 层依赖检查；加入 `Sts2Solver.sln` |
 | [`tests/Differential`](tests/Differential/README.md) | | 进程内差分；战斗对照、原版动作执行器、战斗 pilot 与离线整场在 `Combat/`，整局导入、内容表/`RulesBuilder`、战斗边界建局、遗物矩阵、地图选点与进房间对照在 `Run/`，入口与引导留根目录 |
 
-依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层；`Ai.Combat` 不引用 `Content`；内容通过 `Registry` 挂到模拟上。`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁，但不直接读私有字段。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `BlitzSolver.sln`；`OfflineHost` 引用 Core/Import/游戏程序集/GodotSharp/0Harmony，不引用 `TestHost`，`Mod` 不引用 `OfflineHost`。依赖规则由 `tests/Architecture` 检查。
+依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层；`Ai.Combat` 不引用 `Content`；内容通过 `Registry` 挂到模拟上。`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁，但不直接读私有字段。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `Sts2Solver.sln`；`OfflineHost` 引用 Core/Import/游戏程序集/GodotSharp/0Harmony，不引用 `TestHost`，`Mod` 不引用 `OfflineHost`。依赖规则由 `tests/Architecture` 检查。
 
 ## 2. 硬约束
 
@@ -52,12 +52,12 @@ BlitzSolver（极速求解器）是《杀戮尖塔 2》的单人自动游玩 Mod
 - 从 CombatSolver 移植的代码在文件头保留来源路径、源提交与 MIT 声明。
 - 参照 CombatSolver 翻译编写的代码（例如对照原引擎的结算顺序、原版 Runtime 的部署流程）同样在文件头或文档里注明对照来源。不从 CombatSolver 的 `src/Engine` 复制状态定义或方法体。README 的“来源与许可”一节保留 CombatSolver 与 Random Foreseer 的版权声明，不要删。
 - `LICENSE` 与 `README.md` 随每个二进制发布包一起提供（README 里有上游的版权声明）。
-- 只移植 BlitzSolver 实际读取的成员，语义与注释原样保留；要改语义时另起提交，并按第 3 节处理。
+- 只移植 Sts2Solver 实际读取的成员，语义与注释原样保留；要改语义时另起提交，并按第 3 节处理。
 
 ## 5. 验证
 
 ```bash
-dotnet build BlitzSolver.sln -c Release
+dotnet build Sts2Solver.sln -c Release
 dotnet run --project tests/KernelChecks -c Release --no-build
 dotnet run --project tests/Golden -c Release --no-build -- k0
 dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>Native <c>DisintegrationPower</c>: at its owner's side turn end late, take its amount as
 /// unpowered damage dealt by itself.</summary>

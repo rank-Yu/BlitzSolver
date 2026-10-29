@@ -1,12 +1,12 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat.Novelty;
-using BlitzSolver.Ai.Combat.Policy;
-using BlitzSolver.Ai.Combat.Quality;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat.Novelty;
+using Sts2Solver.Ai.Combat.Policy;
+using Sts2Solver.Ai.Combat.Quality;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// The Bfws novelty scheduler of <c>the existing search's RunNoveltyOpen</c>, over <see cref="Battle"/>.
@@ -414,7 +414,7 @@ internal sealed partial class BeamSolver
     }
 
     /// <summary>
-    /// <c>the existing search's MeetsHpTarget</c> reduced to the same values the Blitz terminal sink uses.
+    /// <c>the existing search's MeetsHpTarget</c> reduced to the same values the Sts2Solver terminal sink uses.
     /// The target was frozen by the bridge from the request's policy and battle-damage snapshot.
     /// </summary>
     private bool MeetsNoveltyHpTarget(in Battle state, int node, in ScoreFeatures features)

@@ -9,9 +9,9 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.TestSupport;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 internal sealed class ChoicePlanMismatchException(string message) : InvalidOperationException(message);
 
@@ -66,7 +66,7 @@ internal sealed class PlannedNativeSelector(
         foreach (int option in choice.SelectedIndexes())
             selected.Add(live[map[option]]);
         ModLog.Info(
-            $"[BlitzSolver] DEPLOY_CHOICE {owner} index={_index - 1}/{_choices.Count} " +
+            $"[Sts2Solver] DEPLOY_CHOICE {owner} index={_index - 1}/{_choices.Count} " +
             $"source={choice.Request.Source} effect={choice.Request.Effect} " +
             $"plan_bounds={choice.Request.MinCount}..{choice.Request.MaxCount} " +
             $"native_bounds={minSelect}..{maxSelect} options={live.Count} " +

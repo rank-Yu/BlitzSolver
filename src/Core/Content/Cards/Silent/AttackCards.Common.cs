@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Silent;
+namespace Sts2Solver.Content.Cards.Silent;
 
 [ContentId("DAGGER_THROW")]
 public sealed class DaggerThrow : CardDef

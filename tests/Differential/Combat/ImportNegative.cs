@@ -2,8 +2,8 @@
 // private-state entry, and a model from a third-party assembly must all reject explicitly.
 using System.Collections;
 using System.Reflection;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;

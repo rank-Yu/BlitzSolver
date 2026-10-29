@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Defect;
+namespace Sts2Solver.Content.Cards.Defect;
 
 [ContentId("ICE_LANCE")]
 public sealed class IceLance : CardDef

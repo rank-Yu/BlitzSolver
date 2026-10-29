@@ -6,7 +6,7 @@ using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.TestSupport;
 
-namespace BlitzSolver.OfflineHost.Runtime;
+namespace Sts2Solver.OfflineHost.Runtime;
 
 internal static class MerchantRuntime
 {

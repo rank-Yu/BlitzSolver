@@ -1,12 +1,12 @@
 // Preserve sts2 v0.111.0 TreasureRoom.DoExtraRewardsIfNeeded and RewardsSet.Offer lifecycle.
 // Only the empty native set is supported; hooks/generation/BeginRewardsSet still run normally.
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 internal sealed class TreasureRewards(Player player, TreasureRoom room) : IDisposable
 {

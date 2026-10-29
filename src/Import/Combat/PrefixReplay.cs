@@ -1,11 +1,11 @@
 // Fixed-prefix replay semantics adapted from CombatSolver src/Search/Probes/SearchReplayCore.cs,
 // src/Search/Probes/SearchProbeHelpers.cs and src/Search/CardChoiceSupport.cs at commit a62f1850
 // (MIT, Copyright (c) 2026 Torch1230 and contributors). The existing engine's SimulatedCombatState
-// is replaced by the imported Battle and the Blitz kernel's PlayerAction/choice requests.
+// is replaced by the imported Battle and the Sts2Solver kernel's PlayerAction/choice requests.
 
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 public enum PrefixActionKind : byte
 {
@@ -54,7 +54,7 @@ public sealed record PrefixReplayResult(
     int ExplicitPotionStrategicCost);
 
 /// <summary>
-/// Executes the fixed prefix on the Blitz kernel from the imported pre-prefix root. The actions are
+/// Executes the fixed prefix on the Sts2Solver kernel from the imported pre-prefix root. The actions are
 /// the same <c>PlanAction</c>s the existing engine replays: a card/target occurrence plus the plan's
 /// card choices in execution order. Any action the kernel cannot resolve with the recorded plan is
 /// rejected instead of being approximated.

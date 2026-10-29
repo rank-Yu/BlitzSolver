@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>Sts2Solver.Core</AssemblyName>
+    <RootNamespace>Sts2Solver</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sts2Solver.KernelChecks" />
+    <InternalsVisibleTo Include="Sts2Solver.Golden" />
+    <InternalsVisibleTo Include="Sts2Solver.Import" />
+    <InternalsVisibleTo Include="Differential" />
+    <InternalsVisibleTo Include="Sts2Solver.OfflineHost" />
+  </ItemGroup>
+</Project>

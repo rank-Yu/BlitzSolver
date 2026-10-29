@@ -13,12 +13,12 @@ using MegaCrit.Sts2.Core.Models.Events;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Models.Relics;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Theft handling captured at the root (<c>TheftPolicy</c>).</summary>
 public enum SearchTheftPolicy

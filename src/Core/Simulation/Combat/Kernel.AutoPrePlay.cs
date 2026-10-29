@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// The AutoPrePlay phase at the player's turn start, mirroring
@@ -214,7 +214,7 @@ public static partial class Kernel
     /// <c>EnchantmentLifecycleSupport.TriggerAutoPrePlay</c>: on the first player turn, auto-play every
     /// card carrying the Imbued enchantment in <c>AllCards</c> order (hand, draw, discard, exhaust,
     /// play). The existing engine snapshots the card objects before the loop and keeps playing those
-    /// objects. Blitz has no card identity, so it snapshots each card's absolute position plus a stable
+    /// objects. Sts2Solver has no card identity, so it snapshots each card's absolute position plus a stable
     /// key (id, enchantment, affliction, clone) and tracks the position through the net move of every
     /// auto-play. A position whose key no longer matches, a changed card count (generated/removed cards)
     /// or a played card whose final position cannot be captured is an explicit boundary: the kernel

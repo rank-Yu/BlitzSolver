@@ -1,9 +1,9 @@
 // --search-compare: replay the game's deterministic SREQ/SRES byte for byte offline and rebuild the
 // same request from the offline host's own native import.
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Ai.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Regent;
+namespace Sts2Solver.Content.Cards.Regent;
 
 /// <summary>
 /// <c>BlackHole</c>: CardPowerOnPlaySupport applies BlackHolePower with the "BlackHolePower" variable;

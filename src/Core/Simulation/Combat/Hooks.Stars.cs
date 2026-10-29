@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Star hooks (Regent). The existing engine's order is copied from
@@ -33,7 +33,7 @@ public static partial class HookDispatch
     /// <summary>
     /// <c>PowerLifecycleSupport.AfterStarsSpent</c>: the existing engine does not walk the listener
     /// list. It runs <c>TriggerRelicsAfterStarsSpent</c> over the player's relics in relic order and
-    /// then the <c>ChildOfTheStarsPower</c> loop over <c>EffectivePowers()</c>. Blitz therefore runs
+    /// then the <c>ChildOfTheStarsPower</c> loop over <c>EffectivePowers()</c>. Sts2Solver therefore runs
     /// the relic listeners first and the power listeners second; both groups keep table order. No
     /// vanilla potion, card or monster implements the hook (only MiniRegent, GalacticDust and
     /// ChildOfTheStarsPower do), so no other listener kind can observe this order.

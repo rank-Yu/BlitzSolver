@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Opening-combat semantics that run before the first player turn: the initial deck shuffle, the

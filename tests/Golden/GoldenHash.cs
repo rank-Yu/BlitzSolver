@@ -1,10 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
+using Sts2Solver.Ai.Combat.Policy;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 /// <summary>
 /// The M0 host's D1 feature hash, ported field by field. The field order below is the wire order;

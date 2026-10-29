@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Forge (Regent): <c>PersistentPowerSupport.Forge</c> in the existing engine. The first forge of a
@@ -20,7 +20,7 @@ public static partial class Kernel
         if (x.NeedsChoice)
             return false;
         if (!Registry.TryCard(SovereignBladeId, out ushort blade))
-            throw new UnsupportedException("锻造需要 SOVEREIGN_BLADE 的 Blitz 定义。");
+            throw new UnsupportedException("锻造需要 SOVEREIGN_BLADE 的 Sts2Solver 定义。");
         if (!HasUnexhaustedSovereignBlade(x.B, blade))
         {
             Card created = CreateCard(x.R, blade);
@@ -45,7 +45,7 @@ public static partial class Kernel
 
     /// <summary>
     /// <c>GetSovereignBlades(player, includeExhausted: false)</c>: a Sovereign Blade in any pile other
-    /// than the exhaust pile (a card with no pile counts as unexhausted natively; in Blitz every card
+    /// than the exhaust pile (a card with no pile counts as unexhausted natively; in Sts2Solver every card
     /// is in a pile).
     /// </summary>
     private static bool HasUnexhaustedSovereignBlade(in Battle battle, ushort blade)

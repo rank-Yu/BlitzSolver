@@ -3,10 +3,10 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
@@ -197,7 +197,7 @@ internal sealed class RunProbe
         catch (TimeoutException e) { status = "timeout"; code = 4; Telemetry.Write("failure", new { error = e.ToString() }); }
         catch (UnsupportedException e) { status = "unsupported"; code = 3; Telemetry.Write("failure", new { error = e.ToString() }); }
         catch (UnsupportedImportException e) { status = "unsupported"; code = 3; Telemetry.Write("failure", new { error = e.ToString() }); }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException e) { status = "unsupported"; code = 3; Telemetry.Write("failure", new { error = e.ToString() }); }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException e) { status = "unsupported"; code = 3; Telemetry.Write("failure", new { error = e.ToString() }); }
         catch (CapacityException e) { status = "capacity"; code = 3; Telemetry.Write("failure", new { error = e.ToString() }); }
         catch (InvalidDataException e) { status = "invalid"; code = 2; Telemetry.Write("failure", new { error = e.ToString() }); }
         finally
@@ -377,15 +377,15 @@ internal sealed class RunProbe
             NativeRewardSession? reward = _rewardSessions.LastOrDefault();
             var imported = RunStateImporter.Import(_run, _player, reward?.Set, reward?.RemainingRewards);
             // Hash the official canonical codec bytes. Keep the old semantic field as an alias.
-            byte[] encoded = BlitzSolver.Simulation.Run.RunCodec.Encode(imported);
+            byte[] encoded = Sts2Solver.Simulation.Run.RunCodec.Encode(imported);
             hash = Convert.ToHexString(SHA256.HashData(encoded));
             semanticHash = hash;
-            if (Environment.GetEnvironmentVariable("BLITZ_PROBE_CAPTURE_RUNSTATE") == $"{_run.CurrentActIndex}/{_run.ActFloor}")
+            if (Environment.GetEnvironmentVariable("STS2_SOLVER_PROBE_CAPTURE_RUNSTATE") == $"{_run.CurrentActIndex}/{_run.ActFloor}")
             {
                 using (Telemetry.Measure("logging"))
                 {
                     File.WriteAllBytes(Path.Combine(_settings.Output, $"run-{_actions:D5}.bin"), encoded);
-                    File.WriteAllText(Path.Combine(_settings.Output, $"run-{_actions:D5}.txt"), BlitzSolver.Simulation.Run.RunDump.Capture(imported));
+                    File.WriteAllText(Path.Combine(_settings.Output, $"run-{_actions:D5}.txt"), Sts2Solver.Simulation.Run.RunDump.Capture(imported));
                 }
             }
         }

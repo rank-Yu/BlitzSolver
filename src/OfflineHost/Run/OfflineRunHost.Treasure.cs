@@ -1,7 +1,7 @@
 // Gameplay sequence follows sts2 v0.111.0 NTreasureRoom.OpenChest and
 // NTreasureRoomRelicCollection.AnimateRelicAwards; only their presentation is replaced.
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Actions;
 using MegaCrit.Sts2.Core.Entities.TreasureRelicPicking;
@@ -10,7 +10,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 public sealed partial class OfflineRunHost
 {

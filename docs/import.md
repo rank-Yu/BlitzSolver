@@ -4,7 +4,7 @@
 
 `src/Import` 把游戏原生的 `CombatState` 直接投影成定长 `Battle`，不建 CombatSolver 的
 `SimulatedCombatState` 影子状态。它是只读的导入/规则编译层，集中读取游戏模型私有字段；
-`Core` 不引用它，`BlitzSolver.sln` 也不包含它（CI 没有游戏文件）。建局、注入与原生状态转储
+`Core` 不引用它，`Sts2Solver.sln` 也不包含它（CI 没有游戏文件）。建局、注入与原生状态转储
 在独立的 `src/TestHost`，该层也会引用 `sts2.dll`/Harmony 并通过 publicizer 访问原生内部成员，
 但只用于测试。
 
@@ -12,7 +12,7 @@
 [冻结快照](golden-data.md)，复跑命令见 [测试与验证](testing.md)。
 
 本层只读原生状态与模型；建局、注入与转储会写游戏状态，放在独立的 `src/TestHost`
-（`BlitzSolver.TestHost`），由离线宿主与 Mod 共用。
+（`Sts2Solver.TestHost`），由离线宿主与 Mod 共用。
 
 ## 1. 入口与输入
 
@@ -104,7 +104,7 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 | # | 参数 | 实现 |
 | ---: | --- | --- |
 | 1 | `Cards` | 原生 `CardModel.ToMutable()` + `UpgradeInternal/FinalizeUpgradeInternal` 克隆规范卡；根卡/生成卡/卡池卡按升级等级建表 |
-| 2 | `PowerVars` | canonical Power 的 `DynamicVars[name].BaseValue`，名字来自 Blitz `PowerDef.VarNames` |
+| 2 | `PowerVars` | canonical Power 的 `DynamicVars[name].BaseValue`，名字来自 Sts2Solver `PowerDef.VarNames` |
 | 3 | `Potions` | canonical 药水的目标/稀有度/变量；战略成本查固定政策表（Token=0、High=18、Elevated=14、其余=9） |
 | 4 | `RelicVars` | canonical 遗物的 `DynamicVars[name].BaseValue` |
 | 5 | `Monsters` | 原生 `MonsterMoveStateMachine`、静态权重、条件分支、攻击意图与怪物私有整数；已知敌人按根上模型编译 |
@@ -122,7 +122,7 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 | 17 | `BaseOrbSlotCount` | `Player.Character.BaseOrbSlotCount` |
 | 18 | `RootSwordSageAmount` | 玩家 `SwordSagePower` 的当前量 |
 | 19 | `UnsettlingLampRelicId` | 遗物顺序中第一个 `UnsettlingLamp` 的规则 id |
-| 20 | `HasIdentityContent` | 角色类型 + SwordSage + 根卡/Power/遗物的 Blitz 身份标记 |
+| 20 | `HasIdentityContent` | 角色类型 + SwordSage + 根卡/Power/遗物的 Sts2Solver 身份标记 |
 | 21 | `HasShuffleOrderEnchantment` | 根卡附魔的 `HookMaskExt.ModifyShuffleOrder` |
 | 22 | `HasBeforeFlushEnchantment` | 根卡附魔的 `HookMaskExt.BeforeFlush` |
 | 23 | `HasTheftContent` | 两个盗贼遭遇、盗贼怪物或根上的盗贼 Power |
@@ -151,7 +151,7 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 - 导出源：CombatSolver `src/Flash/Bridge/FlashRulesCompiler.cs` 的同一查询，源提交 `a62f1850`；
 - 覆盖 603 个原版卡牌 id、283 个原版 Power id（`ModelDb.All` 的全量 canonical 内容）；
 - 表里没有的 id 以 `missing-mirror-risk` 显式拒绝，不默认为 false；
-- `--rules-table-check` 对照 `ModelDb.All` 检查遗漏/多余 id，并检查 Blitz Registry 的每个
+- `--rules-table-check` 对照 `ModelDb.All` 检查遗漏/多余 id，并检查 Sts2Solver Registry 的每个
   card/power id 都有表项。
 
 导出钩子提交在 CombatSolver `flash/m0` 的 `91641ff0`（环境变量 `M2A3_RULES_TABLES_DUMP`），读取 `a62f1850` 的原引擎；游戏或 CombatSolver 更新后用它重新导出，再用 `--rules-table-check` 复核。
@@ -222,7 +222,7 @@ SearchCase request = EvaluationConfigCompiler.CompileRequest(
 
 | 字段 | 实现 |
 | --- | --- |
-| `Cards` | 对 Blitz Registry 的每个 card id、每个 `0..MaxUpgradeLevel` 用 canonical 卡克隆并升级；读 `Damage/Block/Cards` 基值、类型、动态类型、变量下标、攻击段数、飞刀来源、动态变量关键字、回合结束效果、Osty/Shiv 标签、`LatentValue`/`LatentTrait` 与 `CalculatedKind` |
+| `Cards` | 对 Sts2Solver Registry 的每个 card id、每个 `0..MaxUpgradeLevel` 用 canonical 卡克隆并升级；读 `Damage/Block/Cards` 基值、类型、动态类型、变量下标、攻击段数、飞刀来源、动态变量关键字、回合结束效果、Osty/Shiv 标签、`LatentValue`/`LatentTrait` 与 `CalculatedKind` |
 | `Powers` | 每个 Registry power 的 `StrategicKind`、`StrategicRequirements`、`PersistentSetupTraits`、`ITemporaryPower`、原生类型与 Danse Macabre 能量阈值 |
 | `PotionStrategicCost` | canonical 药水 + `PotionValuationRegistry` 的 Token/High/Elevated/Standard 政策；持未融化 Petrified Toad 时 Potion Shaped Rock 为 0 |
 | `GrowthBudgets` / `RequiredGrowthRewards` | 取 `SearchPolicy.Effective*`；第三方额度以 `unsupported-policy` 拒绝 |
@@ -329,7 +329,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 `src/Core/Ai/Combat/WideningSearch.cs` 完成，Mod 与离线整场共用该实现。
 
 CombatSolver 档位里的 `MaxCardBranchesPerNode`/`MaxPileChoiceBranchesPerAction`/
-`MaxHandChoiceBranchesPerAction` 只用于旧引擎协调器；Flash 与 Blitz 都固定 32 个选择分支，
+`MaxHandChoiceBranchesPerAction` 只用于旧引擎协调器；Flash 与 Sts2Solver 都固定 32 个选择分支，
 因此不进入 `BeamOptions`。novelty、计划承诺、早期侦察、incumbent、`HpTargetStop`、药水审计
 与 `PowerCommitments` 保持默认；`PotionReplacementHpCredit` 也暂为 0（未接药水奖励预测）。
 字段取舍与完整对照见 [Mod 入口与无头捕获](mod.md) 第 7 节。
@@ -427,7 +427,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll --rules-table-check
 `golden.br` 有 4/3/4 个根，共 11 个根。旧桥在 `CombatManager.SetupPlayerTurn` 之前捕获 Start
 根，再在影子引擎上枚举准备选择；离线宿主在同一个原生入口用 Harmony 前缀记录 Start 时刻的
 卡牌对象集合，然后按原生准备页的每个选项重建一次同一场战斗（每次都跳过测试宿主的初始注入），
-把每个分支导入成 `Battle`。这样准备选择本身仍由原游戏执行，分支状态不需要在 Blitz 内核里
+把每个分支导入成 `Battle`。这样准备选择本身仍由原游戏执行，分支状态不需要在 Sts2Solver 内核里
 重写 `SetupPlayerTurn`。
 
 原生选项顺序与 M0 的搜索枚举顺序不同，且 M0 会按语义去重/限额：Toasty Mittens 的 5 个选项
@@ -509,7 +509,7 @@ RunState run = RunStateImporter.Import(nativeRunState, localPlayer);
 ```
 
 `src/Import/Run/RunStateImporter.cs` 从原版 `RunState` 与本地 `Player` 读取定长
-`BlitzSolver.Simulation.Run.RunState`；只读，不改动游戏状态。字段盘点、容量、编码与可见性见
+`Sts2Solver.Simulation.Run.RunState`；只读，不改动游戏状态。字段盘点、容量、编码与可见性见
 [整局状态布局](run-state-layout.md)。
 
 - 只支持单人、`GameMode.Standard`、原版内容；多人、Daily/Custom、Modifier、第三方程序集模型

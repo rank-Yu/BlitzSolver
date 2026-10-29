@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 /// <summary>
 /// <c>MysticLighter</c>: powered attacks from an enchanted card of its owner gain the relic's

@@ -2,7 +2,7 @@
   <!--
     离线宿主：不启动 Godot 引擎，在普通 .NET 9 控制台进程里初始化游戏静态状态，
     建出与冻结快照导出时相同的原生 CombatState，再写出确定性状态转储。
-    本工程不加入 BlitzSolver.sln；需要游戏文件，见 README.md。
+    本工程不加入 Sts2Solver.sln；需要游戏文件，见 README.md。
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -19,9 +19,9 @@
   <Import Project="$(MSBuildProjectDirectory)/GameReferences.props" />
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Import/BlitzSolver.Import.csproj" />
-    <ProjectReference Include="../../src/TestHost/BlitzSolver.TestHost.csproj" />
-    <ProjectReference Include="../../src/OfflineHost/BlitzSolver.OfflineHost.csproj" />
+    <ProjectReference Include="../../src/Import/Sts2Solver.Import.csproj" />
+    <ProjectReference Include="../../src/TestHost/Sts2Solver.TestHost.csproj" />
+    <ProjectReference Include="../../src/OfflineHost/Sts2Solver.OfflineHost.csproj" />
     <Compile Include="../Golden/GoldenHash.cs" Link="GoldenHash.cs" />
   </ItemGroup>
 </Project>

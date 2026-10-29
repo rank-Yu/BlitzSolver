@@ -1,8 +1,8 @@
 // Native semantics cross-checked against sts2 v0.111.0: NMapScreen.RecalculateTravelability,
 // EventOption, CardSelectCmd and CardSelectorPrefs. Reads only; lifecycle belongs to the host.
 using System.Reflection;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -17,7 +17,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>The actual command that reached the pending callback, not a guess from its prompt.</summary>
 public enum NativeCardSelectionKind { DeckGeneric, DeckUpgrade, SimpleGrid, ChooseCard, DeckTransform, DeckEnchant, DeckRemove }

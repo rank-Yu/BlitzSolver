@@ -1,9 +1,9 @@
-// Adapted from tests/Differential/MainLoopContext.cs at 6a5f645 (BlitzSolver, MIT).
+// Adapted from tests/Differential/MainLoopContext.cs at 6a5f645 (Sts2Solver, MIT).
 // Ported from CombatSolver/tools/search/OfflineSearchHarness/MainLoopContext.cs
 // at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors).
 using System.Collections.Concurrent;
 
-namespace BlitzSolver.OfflineHost.Runtime;
+namespace Sts2Solver.OfflineHost.Runtime;
 
 /// <summary>
 /// 单线程消息泵。游戏的回合循环全是 async/await：没有 SynchronizationContext 时

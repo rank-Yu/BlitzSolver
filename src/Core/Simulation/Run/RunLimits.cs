@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// Fixed capacities of <see cref="RunState"/>. Exceeding any of them throws

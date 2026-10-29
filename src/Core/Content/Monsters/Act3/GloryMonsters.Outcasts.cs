@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Act3;
+namespace Sts2Solver.Content.Monsters.Act3;
 
 /// <summary>
 /// ScrollOfBiting: MORE_TEETH applies Strength 2 to itself; its starting PaperCutsPower 2 is a root

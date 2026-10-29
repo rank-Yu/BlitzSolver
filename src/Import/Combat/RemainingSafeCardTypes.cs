@@ -1,7 +1,7 @@
 // Generated from CombatSolver a62f1850 StrategicHpRecoveryBound.RemainingSafeCards
 // plus the Regent/LouseProgenitor closure. The environment certificate classifies cards by
 // exact type; subclasses and mod types deliberately do not match.
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 internal static class RemainingSafeCardTypes
 {

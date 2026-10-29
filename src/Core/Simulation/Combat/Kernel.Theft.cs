@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public static partial class Kernel
 {
@@ -57,7 +57,7 @@ public static partial class Kernel
     public static void RecordThievery(ref Exec x, byte owner)
     {
         if (!Registry.TryPower("THIEVERY_POWER", out ushort id))
-            throw new UnsupportedException("偷窃需要 THIEVERY_POWER 的 Blitz 定义。");
+            throw new UnsupportedException("偷窃需要 THIEVERY_POWER 的 Sts2Solver 定义。");
         int index = FindPower(x.B, owner, id);
         if (index < 0)
             return;
@@ -124,7 +124,7 @@ public static partial class Kernel
         Piles.RemoveAt(ref x.B, pile, position);
         ushort swipe = Registry.TryPower("SWIPE_POWER", out ushort swipeId)
             ? swipeId
-            : throw new UnsupportedException("偷牌需要 SWIPE_POWER 的 Blitz 定义。");
+            : throw new UnsupportedException("偷牌需要 SWIPE_POWER 的 Sts2Solver 定义。");
         int applied = ApplyPowerTargeted(ref x, owner, Limits.PlayerOwner, swipe, 1, owner);
         if (applied == 0)
             throw new InvalidOperationException("飞贼的 SwipePower 未能施加。");
@@ -192,7 +192,7 @@ public static partial class Kernel
         {
             ref readonly Power power = ref x.B.Powers[index];
             if (power.Applier == owner || power.Target == owner)
-                throw new UnsupportedException("逃跑生物仍被其他 Power 的施法者/目标引用，Blitz 无法表示。");
+                throw new UnsupportedException("逃跑生物仍被其他 Power 的施法者/目标引用，Sts2Solver 无法表示。");
         }
         int roster = 0;
         for (int index = 0; index < x.B.RosterCount; index++)
@@ -250,7 +250,7 @@ public static partial class Kernel
     public static void PrepareSteamEruption(ref Exec x, byte owner)
     {
         if (!Registry.TryPower("STEAM_ERUPTION_POWER", out ushort steam))
-            throw new UnsupportedException("蒸汽爆发需要 STEAM_ERUPTION_POWER 的 Blitz 定义。");
+            throw new UnsupportedException("蒸汽爆发需要 STEAM_ERUPTION_POWER 的 Sts2Solver 定义。");
         int amount = Math.Max(0, GetAmount(x.B, owner, steam));
         x.B.Enemy(owner).Ai[SteamEruptionDamageRegister] = amount;
         SetPowerAmount(ref x.B, owner, steam, 0);

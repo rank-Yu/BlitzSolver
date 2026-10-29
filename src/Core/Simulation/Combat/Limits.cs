@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Fixed capacities of <see cref="Battle"/>. Exceeding any of them throws
@@ -69,7 +69,7 @@ public static class Limits
 
     /// <summary>
     /// Selected-card values carried by instanced powers that clone them later (NightmarePower). The
-    /// existing engine keeps one detached <c>CardModel</c> clone per instance; Blitz stores its full
+    /// existing engine keeps one detached <c>CardModel</c> clone per instance; Sts2Solver stores its full
     /// value in a compact table. Exceeding the capacity throws <see cref="CapacityException"/>
     /// instead of evicting a live selection.
     /// </summary>

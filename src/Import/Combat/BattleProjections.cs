@@ -1,7 +1,7 @@
 // Ported from CombatSolver src/Flash/Bridge/FlashStateProjections.cs at commit a62f1850
 // (MIT, Copyright (c) 2026 Torch1230 and contributors), replacing its PredictionStateStore reads
 // with direct native model reads at the root boundary. The cases and slot meanings are preserved.
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
@@ -9,7 +9,7 @@ using MegaCrit.Sts2.Core.Models.Relics;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>
 /// Projects per-model private state into <see cref="Power"/> aux slots and <see cref="Relic"/>

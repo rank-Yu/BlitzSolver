@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Act1;
+namespace Sts2Solver.Content.Monsters.Act1;
 
 /// <summary>
 /// Ceremonial Beast (CEREMONIAL_BEAST_BOSS): STAMP applies PlowPower (<c>PlowAmount</c>), PLOW and

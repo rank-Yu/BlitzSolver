@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Exact port of .NET's <c>GenericArraySortHelper&lt;T&gt;.IntrospectiveSort</c> as used by

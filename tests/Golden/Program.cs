@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Golden;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Golden;
+using Sts2Solver.Ai.Combat;
 
-// Pure-core Blitz golden verifier: Engine + Content + Search, with only the BCL as a dependency.
+// Pure-core Sts2Solver golden verifier: Engine + Content + Search, with only the BCL as a dependency.
 
 if (args.Length == 0)
 {
@@ -13,7 +13,7 @@ if (args.Length == 0)
 }
 try
 {
-    if (Environment.GetEnvironmentVariable("BLITZ_VERIFY_SEARCH_EQUIVALENCE") == "1")
+    if (Environment.GetEnvironmentVariable("STS2_SOLVER_VERIFY_SEARCH_EQUIVALENCE") == "1")
         SearchVerificationHooks.VerifySearchEquivalence = true;
     switch (args[0])
     {

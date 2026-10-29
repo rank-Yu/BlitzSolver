@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary><c>ChildOfTheStarsPower</c>: block equal to Amount per star spent by its owner.</summary>
 [ContentId("CHILD_OF_THE_STARS_POWER")]
@@ -69,7 +69,7 @@ public sealed class ArsenalPower : PowerDef
         if (creator != Limits.PlayerOwner || self.Owner != Limits.PlayerOwner)
             return;
         if (!Registry.TryPower("STRENGTH_POWER", out ushort strength))
-            throw new UnsupportedException("阿森纳需要力量的 Blitz 定义。");
+            throw new UnsupportedException("阿森纳需要力量的 Sts2Solver 定义。");
         Kernel.ApplyPower(ref x, self.Owner, strength, x.B.Powers[self.Index].Amount, self.Owner);
     }
 }

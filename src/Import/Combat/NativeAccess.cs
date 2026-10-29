@@ -1,4 +1,4 @@
-// Reads native models and private fields for the importer. This is the only layer in BlitzSolver
+// Reads native models and private fields for the importer. This is the only layer in Sts2Solver
 // allowed to depend on the game model types and their non-public state.
 using System.Reflection;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -12,7 +12,7 @@ using MegaCrit.Sts2.Core.Unlocks;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Central native read layer. All failures are explicit, never defaulted.</summary>
 internal static class NativeAccess

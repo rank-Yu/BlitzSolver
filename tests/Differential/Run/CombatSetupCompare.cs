@@ -7,10 +7,10 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
@@ -22,7 +22,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using NativeRunState = MegaCrit.Sts2.Core.Runs.RunState;
-using RunState = BlitzSolver.Simulation.Run.RunState;
+using RunState = Sts2Solver.Simulation.Run.RunState;
 
 namespace Differential;
 
@@ -507,10 +507,10 @@ internal static class CombatSetupCompare
                 expectedRun = NativeRunDump.Capture(after, combatPlayer);
             }
             native.Dispose();
-            List<string> battleDiff = BattleDump.Diff(expected, actual.Battle, "native", "blitz");
+            List<string> battleDiff = BattleDump.Diff(expected, actual.Battle, "native", "solver");
             byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
-            byte[] blitzRuleBytes = RulesCodec.Encode(actual.Rules);
-            string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
+            byte[] solverRuleBytes = RulesCodec.Encode(actual.Rules);
+            string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(solverRuleBytes)
                 ? null
                 : string.Join(" | ", RulesDiff.Compare(nativeRules, actual.Rules).Take(4));
             string? runDiff = FirstDifference(expectedRun, RunDump.Capture(actual.Run));
@@ -1101,7 +1101,7 @@ internal static class CombatSetupCompare
                 Console.WriteLine($"SETUP-COVER-REJECT reason={error.Reason}");
                 return 0;
             }
-            catch (BlitzSolver.Simulation.Combat.UnsupportedException)
+            catch (Sts2Solver.Simulation.Combat.UnsupportedException)
             {
                 first.Setup.Dispose();
                 Console.WriteLine("SETUP-COVER-REJECT reason=core-unsupported");
@@ -1211,10 +1211,10 @@ internal static class CombatSetupCompare
                         string expectedRun = NativeRunDump.Capture(after, combatPlayer);
                         CombatSetupResult actual = sequence.Result;
                         List<string> battleDiff = BattleDump.Diff(expected, actual.Battle,
-                            "native", "blitz");
+                            "native", "solver");
                         byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
-                        byte[] blitzRuleBytes = RulesCodec.Encode(actual.Rules);
-                        string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
+                        byte[] solverRuleBytes = RulesCodec.Encode(actual.Rules);
+                        string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(solverRuleBytes)
                             ? null
                             : string.Join(" | ", RulesDiff.Compare(nativeRules, actual.Rules).Take(4));
                         string? runDiff = FirstDifference(expectedRun, RunDump.Capture(actual.Run));
@@ -1261,7 +1261,7 @@ internal static class CombatSetupCompare
             Console.WriteLine("  " + error.Detail);
             return 0;
         }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error)
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error)
         {
             Console.WriteLine($"SETUP kind={kind} label={label} status=reject reason=core-unsupported encounter={encounterName ?? "-"}");
             Console.WriteLine("  " + error.Message);
@@ -1283,7 +1283,7 @@ internal static class CombatSetupCompare
         CombatSetupChoiceSelector selector)
     {
         if (selector.Calls != requests.Count)
-            return $"native={selector.Calls} blitz={requests.Count}";
+            return $"native={selector.Calls} solver={requests.Count}";
         for (int index = 0; index < requests.Count; index++)
         {
             ChoiceRequest request = requests[index];
@@ -1298,14 +1298,14 @@ internal static class CombatSetupCompare
     {
         int count = native.CardIds.Length;
         if (request.OptionCount != count)
-            return $"options native={count} blitz={request.OptionCount}";
+            return $"options native={count} solver={request.OptionCount}";
         if (request.MinCount != native.MinCount || request.MaxCount != native.MaxCount)
         {
             return $"bounds native={native.MinCount}..{native.MaxCount} " +
-                $"blitz={request.MinCount}..{request.MaxCount}";
+                $"solver={request.MinCount}..{request.MaxCount}";
         }
         if (request.OptionsAreGenerated != native.Generated)
-            return $"generated native={native.Generated} blitz={request.OptionsAreGenerated}";
+            return $"generated native={native.Generated} solver={request.OptionsAreGenerated}";
         if (native.Generated)
         {
             for (int index = 0; index < count; index++)
@@ -1315,25 +1315,25 @@ internal static class CombatSetupCompare
                     || card.Upgrade != native.Upgrades[index])
                 {
                     return $"option {index} native={native.CardIds[index]}+{native.Upgrades[index]} " +
-                        $"blitz={Registry.Card(card.Id).NativeId}+{card.Upgrade}";
+                        $"solver={Registry.Card(card.Id).NativeId}+{card.Upgrade}";
                 }
             }
         }
         else
         {
             if (request.Source != Pile.Hand)
-                return $"source native=hand blitz={request.Source}";
+                return $"source native=hand solver={request.Source}";
             for (int index = 0; index < count; index++)
             {
                 if (request.Options[index] != index)
-                    return $"hand index {index} blitz={request.Options[index]}";
+                    return $"hand index {index} solver={request.Options[index]}";
             }
         }
         (ChoiceKind kind, ChoiceEffect effect) = ExpectedChoice(native);
         if (request.Kind != kind)
-            return $"kind native={kind} blitz={request.Kind}";
+            return $"kind native={kind} solver={request.Kind}";
         if (request.Effect != effect)
-            return $"effect native={effect} blitz={request.Effect}";
+            return $"effect native={effect} solver={request.Effect}";
         return null;
     }
 
@@ -1407,10 +1407,10 @@ internal static class CombatSetupCompare
         for (int index = 0; index < shared; index++)
         {
             if (!string.Equals(left[index], right[index], StringComparison.Ordinal))
-                return $"line {index + 1}: native=[{left[index]}] blitz=[{right[index]}]";
+                return $"line {index + 1}: native=[{left[index]}] solver=[{right[index]}]";
         }
         if (left.Length != right.Length)
-            return $"行数 native={left.Length} blitz={right.Length}";
+            return $"行数 native={left.Length} solver={right.Length}";
         return null;
     }
 

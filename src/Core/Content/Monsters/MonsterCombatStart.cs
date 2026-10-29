@@ -2,9 +2,9 @@
 // MonsterModel.AfterAddedToRoom once per (monster, slot, ascension) and records the resulting powers
 // and HP changes. This file only keeps the structural initial-state choices that are part of the
 // state-machine compile, not content numbers.
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Act1
+namespace Sts2Solver.Content.Monsters.Act1
 {
 
 public sealed partial class Nibbit : MonsterDef

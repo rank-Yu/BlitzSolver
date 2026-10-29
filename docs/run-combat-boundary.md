@@ -10,7 +10,7 @@
 
 ## 1. 原版路径
 
-以下顺序对应 sts2 `v0.111.0` 的单人标准模式。行号与类名只用于对照，不是 Blitz 的依赖。
+以下顺序对应 sts2 `v0.111.0` 的单人标准模式。行号与类名只用于对照，不是 Sts2Solver 的依赖。
 
 | # | 步骤 | 读取 | 写入 | 随机数 |
 | ---: | --- | --- | --- | --- |
@@ -42,7 +42,7 @@
 - `BeforeCombatStart` 之前 `IsInProgress` 已置 true，Anchor、BeltBuckle 等格挡/状态效果生效。
 - 第一回合不清理格挡，也不重置 `StarsGainedThisTurn`；DivineRight 在房间进入时获得的 3 星保留到根。
 
-## 2. Blitz 入口
+## 2. Sts2Solver 入口
 
 `src/Core/Simulation/Run/RunMapEntry.cs`：
 
@@ -74,7 +74,7 @@ CombatSetupResult result = RunCombatSetup.EnterMapCoord(in runState, table, coor
 ### 2.1 开战选择
 
 开战的前三段（`AfterRoomEntered`、`BeforeCombatStart(Late)`）和第一回合准备都可能需要玩家选择。
-Blitz 用战斗内核已有的 `ChoiceRequest` + 选择序列表示，不另建局外选择类型：
+Sts2Solver 用战斗内核已有的 `ChoiceRequest` + 选择序列表示，不另建局外选择类型：
 
 ```csharp
 CombatSetupAttempt attempt = RunCombatSetup.TryEnterMapCoord(in run, table, coord, choices);
@@ -118,7 +118,7 @@ ToastyMittens 在手牌只有 1 张时按原生
 ## 3. 遭遇生成
 
 `src/Core/Content/Encounters/Encounters.cs` 为每个 `RunCatalog` 遭遇提供一个
-`EncounterDef`，按原版 `GenerateMonsters` 的选择顺序写出 Blitz 值类型：
+`EncounterDef`，按原版 `GenerateMonsters` 的选择顺序写出 Sts2Solver 值类型：
 
 - `EncounterDef.Slots` 是原版 `EncounterModel.Slots`（导入层用它把 Creature 的槽位名映射为
   `Enemy.Slot`；不在列表中的名字映射为 `NoSlot`）。
@@ -216,7 +216,7 @@ BoomingConch），不进入 `Battle` 布局。
 1. 原版：导入进点前 `RunState`，调用 `RunManager.EnterMapCoord`（测试调整后也可等价地准备
    act 序列），等待可出牌；用 `LiveCombatTracker.ImportRoot` 的选项导入 `Battle`，
    `RulesCompiler` 编 `Rules`，`NativeRunDump` 转储进点后 `RunState`。
-2. Blitz：导入同一进点前 `RunState`，调用 `RunCombatSetup.EnterMapCoord`；用
+2. Sts2Solver：导入同一进点前 `RunState`，调用 `RunCombatSetup.EnterMapCoord`；用
    `RulesBuilder` 建 `Rules`，`RunDump` 转储。
 
 比较 `Battle` 逐字节、`RulesCodec` 编码逐字节、`RunState` 逐字段。失败时打印第一处差异的
@@ -226,9 +226,9 @@ BoomingConch），不进入 `Battle` 布局。
 （Toolbox 0..1、ChoicesParadox 1..1）、`Exhaust`（ToastyMittens 1..1）或
 `DiscardAndDraw`（GamblingChip 0..手牌数）枚举可行位掩码；GamblingChip 在手牌超过 7 张时取
 空集、每个单张、全选和 16 个确定性随机子集，其余选择全枚举。每个序列都从同一进点前
-`RunState` 重放 Blitz，并让原版用同一序列重新进点；比较请求（种类、生成卡 id/升级或手牌
+`RunState` 重放 Sts2Solver，并让原版用同一序列重新进点；比较请求（种类、生成卡 id/升级或手牌
 下标、min/max）、`Battle`、`Rules` 和进点后 `RunState`。`--setup-choices --setup-root <root>`
-只打印 Blitz 的请求树，不跑原版。
+只打印 Sts2Solver 的请求树，不跑原版。
 
 三类用例：
 
@@ -243,7 +243,7 @@ BoomingConch），不进入 `Battle` 布局。
 ## 7. 写回已删除
 
 R3-0 删除了 `RunCombatWriteback`：战斗结束后不再把终局 `Battle` 写回 `RunState`，也不由
-Blitz 生成战后奖励。原版在 `EndCombatInternal` 之后继续推进，下一步从原版重新导入
+Sts2Solver 生成战后奖励。原版在 `EndCombatInternal` 之后继续推进，下一步从原版重新导入
 `RunState`。开战时的 MawBank 金币、TeaOfDiscourtesy/BoneTea 的 `CombatsLeft` 等仍由
 `RunCombatSetup` 处理，因为它们在第一个出牌阶段的 `Battle` 里可见；战斗结束后的遗物/牌组
 长期变化由原版负责。
@@ -280,7 +280,7 @@ Blitz 生成战后奖励。原版在 `EndCombatInternal` 之后继续推进，�
 
 `--combat-setup-compare --setup-relic-matrix` 对每个有开战/首回合或首回合结束状态的遗物
 做定向建局：清空起始遗物后注入目标遗物，按触发条件选择普通/精英/Boss 与满血/受伤，
-分别跑原版与 Blitz 两条路径。`--setup-matrix-seeds`（默认 20）控制有触发用例的种子数；自动发现的无效果/默认项用 1 个
+分别跑原版与 Sts2Solver 两条路径。`--setup-matrix-seeds`（默认 20）控制有触发用例的种子数；自动发现的无效果/默认项用 1 个
 smoke 种子；`--setup-matrix-list` 打印 Implemented 名单与计数。
 `SETUP-RELQ` 按遗物汇总 `same/seeds` 与 `triggered`，`SETUP-RELQ-MISSING` 列出预期触发但
 没有触发的遗物。矩阵使用 run-pilot 序列（GamblingChip 例外地取第一张单卡，保证触发可见）。

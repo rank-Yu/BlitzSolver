@@ -1,9 +1,9 @@
 // Encounter generation ported from the native EncounterModel.GenerateMonsters overrides in
 // sts2 v0.111.0. The recipes keep the native selection order and RNG draws, but are written
-// with Blitz value types instead of mutable model objects.
-using BlitzSolver.Simulation.Combat;
+// with Sts2Solver value types instead of mutable model objects.
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Encounters;
+namespace Sts2Solver.Content.Encounters;
 
 [ContentId("AEONGLASS_BOSS")]
 public sealed class AeonglassBossEncounter : EncounterDef

@@ -1,12 +1,12 @@
-// Adapted from tests/Differential/Combat/TerminalBattleProjection.cs at 6a5f645 (BlitzSolver, MIT).
-using BlitzSolver.OfflineHost.Runtime;
+// Adapted from tests/Differential/Combat/TerminalBattleProjection.cs at 6a5f645 (Sts2Solver, MIT).
+using Sts2Solver.OfflineHost.Runtime;
 // Terminal comparison contract at the original combat-end boundary. It does not replay or
 // simulate any post-combat hook: it compares only fields that are still present in the native
 // combat state before CombatManager.EndCombatInternal / ProcessPendingLoss cleanup.
 using System.Text;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.OfflineHost.Combat;
+namespace Sts2Solver.OfflineHost.Combat;
 
 internal static class TerminalBattleProjection
 {

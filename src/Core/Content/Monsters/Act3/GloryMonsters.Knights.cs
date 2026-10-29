@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Act3;
+namespace Sts2Solver.Content.Monsters.Act3;
 
 /// <summary>
 /// DevotedSculptor: "FORBIDDEN_INCANTATION_MOVE" applies RitualPower with the private

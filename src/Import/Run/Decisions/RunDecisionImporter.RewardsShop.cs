@@ -2,8 +2,8 @@
 // CardReward.OnSelect, PotionCmd, MerchantEntry and NMerchantInventory. Read only.
 using System.Collections;
 using System.Reflection;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Merchant;
@@ -16,7 +16,7 @@ using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 public static partial class RunDecisionImporter
 {

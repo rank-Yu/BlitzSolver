@@ -1,14 +1,14 @@
 // UI lifecycle follows sts2 v0.111.0 CombatRoom.OfferRoomEndRewards,
 // RewardsSet.Offer and NRewardsScreen.OnProceedButtonPressed. Native rewards remain authoritative.
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 internal sealed class RewardPresentation : IAsyncDisposable
 {

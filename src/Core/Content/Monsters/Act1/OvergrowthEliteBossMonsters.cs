@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Act1;
+namespace Sts2Solver.Content.Monsters.Act1;
 
 /// <summary>
 /// Vantom: "DISMEMBER_MOVE" adds three Wounds to the discard pile; "PREPARE_MOVE" applies Strength 2

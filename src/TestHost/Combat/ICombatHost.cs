@@ -5,7 +5,7 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal interface ICombatHost
 {

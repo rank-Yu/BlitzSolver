@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     原生战斗状态导入器：读取游戏 CombatState/History/模型私有字段，投影成 Battle。
-    依赖 Core 与游戏程序集。本工程不加入 BlitzSolver.sln（CI 没有游戏文件）。
+    依赖 Core 与游戏程序集。本工程不加入 Sts2Solver.sln（CI 没有游戏文件）。
   -->
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <AssemblyName>BlitzSolver.Import</AssemblyName>
-    <RootNamespace>BlitzSolver.Import</RootNamespace>
+    <AssemblyName>Sts2Solver.Import</AssemblyName>
+    <RootNamespace>Sts2Solver.Import</RootNamespace>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);CS0436</NoWarn>
   </PropertyGroup>
@@ -14,6 +14,6 @@
   <Import Project="$(MSBuildThisFileDirectory)/../../tests/Differential/GameReferences.props" />
 
   <ItemGroup>
-    <ProjectReference Include="../Core/BlitzSolver.Core.csproj" />
+    <ProjectReference Include="../Core/Sts2Solver.Core.csproj" />
   </ItemGroup>
 </Project>

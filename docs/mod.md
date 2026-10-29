@@ -15,7 +15,7 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 
 | 路径 | 职责 |
 | --- | --- |
-| `src/Mod/BlitzSolver.csproj` | `Godot.NET.Sdk/4.5.1` Mod 工程；不加入 `BlitzSolver.sln` |
+| `src/Mod/Sts2Solver.csproj` | `Godot.NET.Sdk/4.5.1` Mod 工程；不加入 `Sts2Solver.sln` |
 | `src/Mod/Entry.cs` | 游戏 `ModInitializer` 入口；检测 CombatSolver；注册补丁与生命周期 |
 | `src/Core/Autoplay/CombatPilot.cs` | Mod 与离线工具共用的整场决策循环：搜索时机、路线所有权、用尽/失败约定与回合记账 |
 | `src/Core/Simulation/Combat/RouteReplay.cs` | 把 `PlayerAction[]` 回放成每个动作的 `Before`/`After` 与选择计划 |
@@ -46,11 +46,11 @@ M2b-0 完成了“游戏加载 Mod、在可出牌时捕获并导入”；M2b-1 �
 
 Core 仍然只依赖 BCL。`Mod` 引用游戏程序集、Godot、Harmony 与 RitsuLib；只读导入/规则编译
 的模型私有字段读取集中在 `src/Import`，`src/TestHost` 仅测试使用 publicizer 做建局、注入与
-转储。Mod 不加入 `BlitzSolver.sln`，CI 不构建它。
+转储。Mod 不加入 `Sts2Solver.sln`，CI 不构建它。
 
 ## 2. 打包结论：一个 DLL
 
-**结论：游戏的 Mod 加载器不能从 Mod 目录加载多个 DLL；本仓库发布单个 `BlitzSolver.dll`。**
+**结论：游戏的 Mod 加载器不能从 Mod 目录加载多个 DLL；本仓库发布单个 `Sts2Solver.dll`。**
 
 依据：
 
@@ -63,36 +63,36 @@ Core 仍然只依赖 BCL。`Mod` 引用游戏程序集、Godot、Harmony 与 Rit
    `FileNotFoundException: Could not load file or assembly 'Dep'`；把依赖放到宿主应用目录才
    能解析。
 3. RitsuLib 自己的 `ModuleAssemblyResolver` 能从 `compat/`、`shared/` 加载它的多个程序集，
-   那是 RitsuLib 内部的解析器，不改变游戏加载器的上述合同。BlitzSolver 不能依赖每个用户
+   那是 RitsuLib 内部的解析器，不改变游戏加载器的上述合同。Sts2Solver 不能依赖每个用户
    都安装同一套目录结构来解析 Core/Import。
 
-因此 `src/Mod/BlitzSolver.csproj` 把 `src/Core/**/*.cs`、`src/Import/**/*.cs` 与
-`src/TestHost/**/*.cs` 作为 `Compile` 源码一起编进 `BlitzSolver.dll`。`ProjectReference` 只建立
-构建依赖顺序，`ReferenceOutputAssembly="false"`，不会复制 `BlitzSolver.Core.dll`、
-`BlitzSolver.Import.dll` 或 `BlitzSolver.TestHost.dll`。打包目录只包含：
+因此 `src/Mod/Sts2Solver.csproj` 把 `src/Core/**/*.cs`、`src/Import/**/*.cs` 与
+`src/TestHost/**/*.cs` 作为 `Compile` 源码一起编进 `Sts2Solver.dll`。`ProjectReference` 只建立
+构建依赖顺序，`ReferenceOutputAssembly="false"`，不会复制 `Sts2Solver.Core.dll`、
+`Sts2Solver.Import.dll` 或 `Sts2Solver.TestHost.dll`。打包目录只包含：
 
 ```text
-BlitzSolver/
-  BlitzSolver.json
-  BlitzSolver.dll
+Sts2Solver/
+  Sts2Solver.json
+  Sts2Solver.dll
   LICENSE
   README.md
 ```
 
 PE 引用表只包含 BCL、`GodotSharp`、`sts2`、RitsuLib 与 `0Harmony`，没有
-`BlitzSolver.Core`/`BlitzSolver.Import`/`BlitzSolver.TestHost` 程序集引用。RitsuLib 作为依赖由
+`Sts2Solver.Core`/`Sts2Solver.Import`/`Sts2Solver.TestHost` 程序集引用。RitsuLib 作为依赖由
 用户安装，不随本仓库分发。
 
 ## 3. 清单与标识
 
-`src/Mod/BlitzSolver.json`：
+`src/Mod/Sts2Solver.json`：
 
 ```json
 {
-  "id": "BlitzSolver",
-  "name": "极速求解器",
+  "id": "Sts2Solver",
+  "name": "尖塔求解器",
   "author": "rank-Yu",
-  "description": "极速求解器（Blitz Solver）：整场战斗路线搜索、部署与逐动作核对。F8 开关本场全自动。",
+  "description": "尖塔求解器（STS2 Solver）：整场战斗路线搜索、部署与逐动作核对。F8 开关本场全自动。",
   "version": "0.1.0",
   "has_dll": true,
   "min_game_version": "0.111.0",
@@ -100,19 +100,25 @@ PE 引用表只包含 BCL、`GodotSharp`、`sts2`、RitsuLib 与 `0Harmony`，�
 }
 ```
 
-中文名「极速求解器」，英文名 "Blitz Solver"（初始化日志带 `name=... english=...`）。
+中文名「尖塔求解器」，英文名 "STS2 Solver"（初始化日志带 `name=... english=...`）。
 `affects_gameplay` 为 `true`：玩家按 `F8` 开启全自动后，Mod 通过原版动作队列写战斗动作；
 不按 `F8` 时只加载入口与快捷键节点，不建局、不搜索、不部署。
 
 构建：
 
 ```bash
-dotnet build src/Mod/BlitzSolver.csproj -c Release
+dotnet build src/Mod/Sts2Solver.csproj -c Release
 ```
 
 游戏程序集与 RitsuLib 路径来自被 git 忽略的 `src/Mod/local.props`；模板是
 `local.props.example`。构建只读取游戏/RitsuLib 文件，绝不写入 `~/games/sts2/mods`；
-打包产物在 `artifacts/mod/BlitzSolver/`。
+打包产物在 `artifacts/mod/Sts2Solver/`。
+
+Mod ID、DLL 与清单统一为 `Sts2Solver`，中文展示名为“尖塔求解器”。升级旧名称的安装时，
+先移除旧版 Mod 目录，再安装新的 `Sts2Solver` 目录，避免两个版本同时加载。
+当前没有独立的持久化用户配置文件；自定义启动脚本中的环境变量需改为
+`STS2_SOLVER_SEARCH_MEMORY_MB`、`STS2_SOLVER_TEST_DIR` 和 `STS2_SOLVER_HEADLESS_ROOT`。
+旧版本测试记录保留原名称，当前构建与启动入口只使用新名称。
 
 ## 4. 入口、触发与生命周期
 
@@ -120,16 +126,16 @@ dotnet build src/Mod/BlitzSolver.csproj -c Release
 
 1. 检查 `ModManager.Mods` 中是否存在 `CombatSolver`（`state` 为 `None` 或 `Loaded`）。
    存在时只写一行
-   `[BlitzSolver] DISABLED reason=CombatSolver present (coexistence policy: no patches, no events)`
+   `[Sts2Solver] DISABLED reason=CombatSolver present (coexistence policy: no patches, no events)`
    后返回；不注册补丁、不订阅生命周期。
 2. 不存在时用 RitsuLib 的 `CreatePatcher`/`ApplyRequiredPatcher` 注册补丁；注册
    `CombatStartingEvent`/`CombatEndedEvent` 生命周期，并在 `NGame` 上挂 `SearchHotkeyNode`。
-3. 只有设置环境变量 `BLITZ_TEST_DIR` 时才进入测试模式，并在 `GameReadyEvent` 后启动测试
+3. 只有设置环境变量 `STS2_SOLVER_TEST_DIR` 时才进入测试模式，并在 `GameReadyEvent` 后启动测试
    循环。普通玩家不设置该变量时仍会加载入口与快捷键节点，但不会自动建局或自动搜索。
 
 搜索内存上限由 Mod 宿主按机器给出：默认取
 `GC.GetGCMemoryInfo().TotalAvailableMemoryBytes` 的 15%，下限 1 GiB，不设上限；容器与任务
-对象限制已由该 API 计入。环境变量 `BLITZ_SEARCH_MEMORY_MB`（MiB）可覆盖默认值，非法值写
+对象限制已由该 API 计入。环境变量 `STS2_SOLVER_SEARCH_MEMORY_MB`（MiB）可覆盖默认值，非法值写
 `SEARCH_MEMORY_IGNORED` 后回退默认。这个数字只经 `SearchRequestCompiler` 传给
 `BeamOptions.SearchMemoryBudgetBytes`，不进入 `SREQ`/`SRES`；搜索核心不读取 GC 或系统
 内存。超预算时搜索按节点上限同样的边界停止并交出当前最好路线，日志与 `full-combat.json`
@@ -138,7 +144,7 @@ dotnet build src/Mod/BlitzSolver.csproj -c Release
 普通玩家的触发方式是 **`F8` 开关**：当前战斗处于本地玩家 `Play` 阶段时，`SearchHotkeyNode`
 调用 `AutoCombatSession.Toggle`。第一次按下开始“本场全自动”，会话在每回合自动搜索并部署；
 再按一次、战斗结束、预测偏差达到暂停上限或战斗退出时恢复手动。没有界面，全部状态写
-`[BlitzSolver] AUTO_*`/`DEPLOY_*` 日志。测试模式下 `TestSession.Active=true`，`F8` 被显式
+`[Sts2Solver] AUTO_*`/`DEPLOY_*` 日志。测试模式下 `TestSession.Active=true`，`F8` 被显式
 拒绝，避免与测试循环并发。
 
 取消入口：
@@ -184,7 +190,7 @@ dotnet build src/Mod/BlitzSolver.csproj -c Release
 协议是文件式的，一侧是启动脚本，一侧是游戏内 Mod：
 
 ```text
-$BLITZ_TEST_DIR/
+$STS2_SOLVER_TEST_DIR/
   requests/<root>.json              # OfflineRequest，文件名即结果根名
   results/<root>/
     BATL                            # BattleCodec.Encode
@@ -294,7 +300,7 @@ $BLITZ_TEST_DIR/
 | 极高（`ExtraHigh`） | 256 | 2,048 | 宽度 × 2,000 | 240 秒 | 72 / 42 / 54 |
 
 四档都从 256 起步；低档只跑一轮，中/高/极高档最多翻倍到 512/1,024/2,048。局面池随宽度
-放大、单池封顶 1,728 MiB，规则与 2,048 轮的 64 位计算见 [Blitz 搜索](combat-ai.md)。
+放大、单池封顶 1,728 MiB，规则与 2,048 轮的 64 位计算见 [Sts2Solver 搜索](combat-ai.md)。
 
 `CombatPilotHost.SearchAsync` 组装第一轮请求后调用 Core 的 `WideningSearch`，Mod 只提供一个
 执行单轮的委托（`SearchSession.RunAsync`）和共享的 `SearchStorage`；档位解析、翻倍、节点
@@ -316,14 +322,14 @@ $BLITZ_TEST_DIR/
   标记区分“离线跑出的潜力”和“实机真的会跑到的轮次”。
 - 只有内存预算会同时约束两侧：某一轮撞到全局搜索内存预算时，该轮结束即停止，不再加宽。
 
-Blitz 的 `BeamOptions` 没有分支上限字段；Flash 路径本身也固定使用 32 个选择分支，Blitz
+Sts2Solver 的 `BeamOptions` 没有分支上限字段；Flash 路径本身也固定使用 32 个选择分支，Sts2Solver
 `BeamSolver.MaxChoiceBranches=32` 与之相同，因此这三列只记录档位来源，不进入请求。其余
 未显式设置的高级成员保持默认：`CandidateScanCount=0`、`Incumbent=null`、`HpTargetStop=null`、
 `PotionFreeBaseline=null`、`SmartPotionEligibilityHpCeiling=null`、`AuditPotionPolicy=false`、
 `ForcedPotionDirectives=None`、`MinimumPotionUses=0`、`PlanCommitment=null`、
 `EarlyTurnScoutDepth=0`、`Novelty=null`、`PowerCommitments=null`、`SecondRankBand=false`、
 `AggressivePowerCommitment=false`。完整来源表与理由见 M2b-1 报告
-（`.local/tool-tasks/blitz/M2b1-report.md`）。
+（`.local/tool-tasks/sts2-solver/M2b1-report.md`）。
 
 ## 8. 启动脚本与命令
 
@@ -342,7 +348,7 @@ tools/testing/run-headless.sh --instance m2b0-coexist --coexist-combat-solver \
     --probe-only --cleanup-instance-on-exit
 ```
 
-脚本在 `.local/headless-instances/<实例>` 下复制整份游戏、RitsuLib、打包好的 BlitzSolver
+脚本在 `.local/headless-instances/<实例>` 下复制整份游戏、RitsuLib、打包好的 Sts2Solver
 与种子 `XDG_DATA_HOME`；默认不复制 CombatSolver。`--cleanup-instance-on-exit` 用 trap 在
 正常/异常/信号退出时终止自己启动的进程并删除整个实例，随后打印
 `INSTANCE_REMOVED path=...`。没有该参数时保留实例供排查。
@@ -474,7 +480,7 @@ TheBomb/Panache/ToricToughness 的 `Target` 与 SlimedBerserker Weak、BeltBuckl
   实际状态重新搜索；
 - 路线已用完：重新搜索，直到战斗结束。
 
-Blitz 精确模拟 9 条随机数流，所以预测正确时这些边界应当逐字节相同；不同就是模拟/导入/
+Sts2Solver 精确模拟 9 条随机数流，所以预测正确时这些边界应当逐字节相同；不同就是模拟/导入/
 部署问题的信号，不能靠放宽比较消掉。
 
 ### 9.5 失败约定

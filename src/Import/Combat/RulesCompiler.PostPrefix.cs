@@ -3,12 +3,12 @@
 // its post-prefix shadow simulator; this port reads the replayed Battle for the content-dependent
 // inputs and the pre-prefix native state for the request-root inputs.
 
-// Post-prefix rule compilation: the fixed prefix runs on the Blitz kernel, so the native state only
+// Post-prefix rule compilation: the fixed prefix runs on the Sts2Solver kernel, so the native state only
 // exists before it. The static/run-derived inputs come from that native root; every combat-content
 // input (piles, powers, relics, potions, detached cards, known enemies and their live AI registers)
 // comes from the replayed Battle. The reference bridge compiles the same way from its post-prefix
 // shadow simulator.
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -25,7 +25,7 @@ using MegaCrit.Sts2.Core.Runs;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 public static partial class RulesCompiler
 {
@@ -254,7 +254,7 @@ public static partial class RulesCompiler
             string nativeId = pending.Dequeue();
             if (!Registry.TryMonster(nativeId, out ushort id))
                 throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                    $"生成怪物 {nativeId} 没有 Blitz 定义");
+                    $"生成怪物 {nativeId} 没有 Sts2Solver 定义");
             if (!seen.Add(id))
                 continue;
             closure.Add(id);
@@ -417,7 +417,7 @@ public static partial class RulesCompiler
                         continue;
                     if (!Registry.TryPower(powerId, out ushort powerInternalId))
                         throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                            $"生成 Power {powerId} 没有 Blitz 定义");
+                            $"生成 Power {powerId} 没有 Sts2Solver 定义");
                     Declare(Registry.Power(powerInternalId));
                 }
                 while (pendingPools.Count > 0)
@@ -441,7 +441,7 @@ public static partial class RulesCompiler
                 (string cardId, int upgrade) = pendingCards.Dequeue();
                 if (!Registry.TryCard(cardId, out ushort cardInternalId))
                     throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                        $"生成卡 {cardId} 没有 Blitz 定义");
+                        $"生成卡 {cardId} 没有 Sts2Solver 定义");
                 CardModel canonical = CanonicalCards.Value.TryGetValue(cardId, out CardModel? card)
                     ? card
                     : throw new UnsupportedImportException(ImportReason.UnsupportedClosure,

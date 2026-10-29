@@ -4,9 +4,9 @@
 // See docs/run-state-layout.md.
 using System;
 using System.Collections.Generic;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>Kind of a model reference carried by run state.</summary>
 public enum RunRefKind : byte

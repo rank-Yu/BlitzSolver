@@ -1,8 +1,8 @@
-// Ported from CombatSolver src/Search/SearchWorkPacer.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
+// Ported from CombatSolver src/Search/SearchWorkPacer.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
 using System.Diagnostics;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>限制后台求解连续占用 CPU 的时间片，给游戏渲染线程留出调度空间。</summary>
 internal sealed class SearchWorkPacer(SearchFramePressureSignal framePressureSignal)

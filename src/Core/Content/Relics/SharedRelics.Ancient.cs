@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 /// <summary>
 /// <c>IronClub</c>: <c>AfterCardPlayed</c> counts cards toward <c>Cards</c>, then draws 1 when the
@@ -473,7 +473,7 @@ public sealed class PaelsLegion : RelicDef
     public override void BeforeCombatStart(ref Exec x, Listener self)
     {
         // Native BeforeCombatStart summons the PaelsLegion pet (PlayerCmd.AddPet). The pet has
-        // 9999 HP and only a no-op move, so Blitz does not model a creature row, but native
+        // 9999 HP and only a no-op move, so Sts2Solver does not model a creature row, but native
         // CreateCreature consumes one CombatId and later summons must continue from it.
         x.B.NextCombatId++;
     }

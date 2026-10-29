@@ -1,8 +1,8 @@
 <Project Sdk="Godot.NET.Sdk/4.5.1">
   <!--
-    BlitzSolver Mod 本体。游戏加载器只加载与清单 id 同名的 <id>.dll，不会加载同目录的其它
+    Sts2Solver Mod 本体。游戏加载器只加载与清单 id 同名的 <id>.dll，不会加载同目录的其它
     DLL（见 docs/mod.md 的打包结论），因此本工程把 Core、Import 与 TestHost 的源码一起编进
-    BlitzSolver.dll；ProjectReference 只建立依赖顺序，不复制程序集。
+    Sts2Solver.dll；ProjectReference 只建立依赖顺序，不复制程序集。
   -->
   <Import Project="$(MSBuildProjectDirectory)/local.props" Condition="Exists('$(MSBuildProjectDirectory)/local.props')" />
 
@@ -13,8 +13,8 @@
     <ImplicitUsings>true</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <AssemblyName>BlitzSolver</AssemblyName>
-    <RootNamespace>BlitzSolver</RootNamespace>
+    <AssemblyName>Sts2Solver</AssemblyName>
+    <RootNamespace>Sts2Solver</RootNamespace>
     <Version>0.1.0</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);CS0436</NoWarn>
@@ -22,7 +22,7 @@
     <Sts2DataDir Condition="'$(Sts2DataDir)' == ''">$(Sts2Dir)/data_sts2_linuxbsd_x86_64</Sts2DataDir>
     <RitsuLibDir Condition="'$(RitsuLibDir)' == ''">$(RitsuWorkshopRoot)/compat/$(RitsuLibReferenceTarget)</RitsuLibDir>
     <RitsuLibReferencesProps>$(RitsuWorkshopRoot)/RitsuLib.References.props</RitsuLibReferencesProps>
-    <ModOutputDir Condition="'$(ModOutputDir)' == ''">$(MSBuildProjectDirectory)/../../artifacts/mod/BlitzSolver</ModOutputDir>
+    <ModOutputDir Condition="'$(ModOutputDir)' == ''">$(MSBuildProjectDirectory)/../../artifacts/mod/Sts2Solver</ModOutputDir>
   </PropertyGroup>
 
   <Import Project="$(RitsuLibReferencesProps)" Condition="Exists('$(RitsuLibReferencesProps)')" />
@@ -33,9 +33,9 @@
     <Compile Include="../Core/**/*.cs" Exclude="../Core/bin/**;../Core/obj/**" LinkBase="Core" />
     <Compile Include="../Import/**/*.cs" Exclude="../Import/bin/**;../Import/obj/**" LinkBase="Import" />
     <Compile Include="../TestHost/**/*.cs" Exclude="../TestHost/bin/**;../TestHost/obj/**" LinkBase="TestHost" />
-    <ProjectReference Include="../Core/BlitzSolver.Core.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="../Import/BlitzSolver.Import.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="../TestHost/BlitzSolver.TestHost.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Core/Sts2Solver.Core.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Import/Sts2Solver.Import.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../TestHost/Sts2Solver.TestHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,17 +46,17 @@
                Condition="!Exists('$(RitsuLibReferencesProps)')" />
   </ItemGroup>
 
-  <Target Name="ValidateBlitzSolverInstall" BeforeTargets="ResolveAssemblyReferences">
+  <Target Name="ValidateSts2SolverInstall" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="!Exists('$(Sts2DataDir)/sts2.dll')" Text="找不到 $(Sts2DataDir)/sts2.dll。请检查 src/Mod/local.props。" />
     <Error Condition="!Exists('$(RitsuLibReferencesProps)') and !Exists('$(RitsuLibDir)/STS2-RitsuLib.dll')"
            Text="找不到 RitsuLib 引用。请检查 RitsuWorkshopRoot/RitsuLibReferenceTarget。" />
   </Target>
 
-  <Target Name="PackBlitzSolverMod" AfterTargets="Build">
+  <Target Name="PackSts2SolverMod" AfterTargets="Build">
     <RemoveDir Directories="$(ModOutputDir)" />
     <MakeDir Directories="$(ModOutputDir)" />
-    <Copy SourceFiles="$(TargetPath);$(MSBuildProjectDirectory)/BlitzSolver.json;$(MSBuildProjectDirectory)/../../LICENSE;$(MSBuildProjectDirectory)/../../README.md"
+    <Copy SourceFiles="$(TargetPath);$(MSBuildProjectDirectory)/Sts2Solver.json;$(MSBuildProjectDirectory)/../../LICENSE;$(MSBuildProjectDirectory)/../../README.md"
           DestinationFolder="$(ModOutputDir)" />
-    <Message Importance="high" Text="BlitzSolver mod packaged: $(ModOutputDir)" />
+    <Message Importance="high" Text="Sts2Solver mod packaged: $(ModOutputDir)" />
   </Target>
 </Project>

@@ -1,8 +1,8 @@
-using BlitzSolver.Content.Afflictions;
-using BlitzSolver.Content.Monsters.Act1;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Afflictions;
+using Sts2Solver.Content.Monsters.Act1;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// <c>PlowPower</c> (Ceremonial Beast's STAMP_MOVE): when the owner takes unblocked damage and its

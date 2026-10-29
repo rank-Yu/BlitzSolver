@@ -1,5 +1,5 @@
-// Ported from CombatSolver src/Search/BfwsBoundedOpen.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-namespace BlitzSolver.Ai.Combat.Novelty;
+// Ported from CombatSolver src/Search/BfwsBoundedOpen.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+namespace Sts2Solver.Ai.Combat.Novelty;
 
 // A stable double-ended queue releases the worst entry as soon as the frontier
 // reaches its bound. It never retains tombstones containing simulation graphs.

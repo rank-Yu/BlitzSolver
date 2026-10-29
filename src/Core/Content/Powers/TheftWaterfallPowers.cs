@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>ThieveryPower</c> (GremlinMerc, one instanced stack of 20 applied in
@@ -175,7 +175,7 @@ public sealed class FlutterPower : PowerDef
 
     // The existing engine decrements Flutter through a PowerAmountPredictionState; when the hopper
     // dies before the next synchronization, its death cleanup zeroes the model but the pending amount
-    // is restored afterwards, leaving the row on the removed enemy. Blitz has no such lag, so keep the
+    // is restored afterwards, leaving the row on the removed enemy. Sts2Solver has no such lag, so keep the
     // row explicitly. It is inert once the owner leaves the roster, and no other monster has Flutter.
     public override bool ShouldPowerBeRemovedAfterOwnerDeath => false;
 

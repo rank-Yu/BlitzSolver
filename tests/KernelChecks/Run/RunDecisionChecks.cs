@@ -1,9 +1,9 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 
-namespace BlitzSolver.KernelChecks;
+namespace Sts2Solver.KernelChecks;
 
 internal static class RunDecisionChecks
 {

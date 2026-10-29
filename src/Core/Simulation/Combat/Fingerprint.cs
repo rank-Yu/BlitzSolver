@@ -2,10 +2,10 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
-/// Byte-image identity of Blitz values. The hash only buckets and covers the used part of each
+/// Byte-image identity of Sts2Solver values. The hash only buckets and covers the used part of each
 /// region (unused slots are zero in canonical form); equality always compares every byte, so two
 /// states are merged only when they are identical.
 /// </summary>

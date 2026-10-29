@@ -1,8 +1,8 @@
 // Rules-compare mode: compiles Rules from the native root and compares its canonical encoding with
 // the root's frozen rule object byte for byte.
 using System.IO.Compression;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;

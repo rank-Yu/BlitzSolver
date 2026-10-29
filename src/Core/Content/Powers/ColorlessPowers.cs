@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>DarkShacklesPower</c> (a negative <c>TemporaryStrengthPower</c>): the application path
@@ -122,7 +122,7 @@ public sealed class TheGambitPower : PowerDef
 /// <summary>
 /// Native <c>AutomationPower</c> (instanced): every 10 cards drawn grants its owner <c>Amount</c>
 /// energy and restarts the counter. AfterCardDrawnMirrors keeps the counter in
-/// AutomationPredictionState; the Blitz row stores it in Aux0.
+/// AutomationPredictionState; the Sts2Solver row stores it in Aux0.
 /// </summary>
 [ContentId("AUTOMATION_POWER")]
 public sealed class AutomationPower : PowerDef

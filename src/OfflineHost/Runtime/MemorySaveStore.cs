@@ -1,10 +1,10 @@
-// Adapted from tests/Differential/MemorySaveStore.cs at 6a5f645 (BlitzSolver, MIT).
+// Adapted from tests/Differential/MemorySaveStore.cs at 6a5f645 (Sts2Solver, MIT).
 // Ported from CombatSolver/tools/search/OfflineSearchHarness/MemorySaveStore.cs
 // at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors).
 using System.Text;
 using MegaCrit.Sts2.Core.Saves;
 
-namespace BlitzSolver.OfflineHost.Runtime;
+namespace Sts2Solver.OfflineHost.Runtime;
 
 /// <summary>
 /// 纯内存存档后端。游戏自带的 <c>MockGodotFileIo</c> 引用 Steamworks，加载那条路会拖进原生库；

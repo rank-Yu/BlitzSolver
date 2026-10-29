@@ -1,5 +1,5 @@
 using System.Text.Json;
-using BlitzSolver.OfflineHost;
+using Sts2Solver.OfflineHost;
 
 internal static class Program
 {

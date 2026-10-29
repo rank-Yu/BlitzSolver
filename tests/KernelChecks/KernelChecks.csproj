@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>BlitzSolver.KernelChecks</AssemblyName>
+    <AssemblyName>Sts2Solver.KernelChecks</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Core/BlitzSolver.Core.csproj" />
+    <ProjectReference Include="../../src/Core/Sts2Solver.Core.csproj" />
   </ItemGroup>
 </Project>

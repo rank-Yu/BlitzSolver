@@ -1,12 +1,12 @@
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
-/// The takeover requests a Blitz search honors at the same checkpoints as the existing search
+/// The takeover requests a Sts2Solver search honors at the same checkpoints as the existing search
 /// (<c>Phases.cs</c>: before a novelty parent, before every play depth, after every
-/// turn layer). The bridge maps <see cref="BlitzSolver.Ai.Combat.SearchTakeoverKind"/> to this enum so the
+/// turn layer). The bridge maps <see cref="Sts2Solver.Ai.Combat.SearchTakeoverKind"/> to this enum so the
 /// solver never reads Runtime interaction state directly.
 /// </summary>
 internal enum TakeoverAction
@@ -17,7 +17,7 @@ internal enum TakeoverAction
 }
 
 /// <summary>
-/// One progress snapshot of a running Blitz search. <see cref="Route"/> is the currently advertised
+/// One progress snapshot of a running Sts2Solver search. <see cref="Route"/> is the currently advertised
 /// route from the search root (a fixed prefix is added by the bridge), and
 /// <see cref="CandidateVersion"/> changes only when that route changes.
 /// </summary>
@@ -120,7 +120,7 @@ internal sealed partial class BeamSolver
     /// <summary>
     /// The best surviving end-turn state of the current root turn. The existing search's
     /// <c>ConsiderCurrentTurnCandidate</c> keeps the best final-ordering key among current-turn
-    /// boundaries; Blitz scans the boundary pool only when a takeover is actually requested, so the
+    /// boundaries; Sts2Solver scans the boundary pool only when a takeover is actually requested, so the
     /// ordinary search pays nothing for this bookkeeping.
     /// </summary>
     private int SelectCurrentTurnCandidate(Pool? boundary)
@@ -313,7 +313,7 @@ internal sealed partial class BeamSolver
     /// The route preview node: the current best terminal candidate, or the best final-ordering
     /// key among the live frontier when no terminal candidate is better. Mirrors the existing
     /// search's <c>Retention.RankFinal</c> + <c>FinalPlanOrdering.Select</c> over completed and
-    /// active nodes, restricted to the pools the Blitz layer currently retains.
+    /// active nodes, restricted to the pools the Sts2Solver layer currently retains.
     /// </summary>
     private int SelectPreviewNode(int currentBestNode, RouteKey? currentBestKey, Pool pool,
         out ScoreFeatures features, out bool hasFeatures)

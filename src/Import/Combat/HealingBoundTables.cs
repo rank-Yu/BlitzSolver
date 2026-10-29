@@ -2,12 +2,12 @@
 // Source: CombatSolver a62f1850 FlashBoundBridge classification of the native content tables.
 // The arrays are the exact per-content results the D1 export froze; M2a-4 does not re-derive
 // the predicates. Every enabled config (384/410) was compared byte for byte.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
-/// <summary>Frozen healing-bound classification tables, indexed by Blitz content id.</summary>
+/// <summary>Frozen healing-bound classification tables, indexed by Sts2Solver content id.</summary>
 internal static class HealingBoundTables
 {
     private static readonly int[] UnsafeCards = [1, 10, 16, 17, 61, 73, 74, 79, 91, 153, 155, 160, 166, 170, 173, 175, 186, 191, 192, 211, 214, 241, 252, 257, 285, 292, 295, 302, 306, 310, 325, 329, 332, 342, 353, 393, 399, 405, 408, 448, 453, 464, 468, 470, 507, 518, 521, 545, 548, 550];

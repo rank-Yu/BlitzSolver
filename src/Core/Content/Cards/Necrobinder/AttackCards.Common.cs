@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Necrobinder;
+namespace Sts2Solver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>BlightStrike</c>: attack, then apply Doom equal to the attack's blocked + unblocked damage against

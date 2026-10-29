@@ -1,4 +1,4 @@
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Differential")]
-[assembly: InternalsVisibleTo("BlitzSolver")]
+[assembly: InternalsVisibleTo("Sts2Solver")]

@@ -1,10 +1,10 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
 
-namespace BlitzSolver.Ai.Combat.Scoring;
+namespace Sts2Solver.Ai.Combat.Scoring;
 
 /// <summary>
 /// Ports the existing search's state evaluation to <see cref="Battle"/>. Every computation follows
@@ -392,7 +392,7 @@ internal sealed class Scorer
     }
 
     /// <summary>
-    /// <c>SimulatedCombatState.ReadRelicCounter</c> for the supported relics. Blitz already carries
+    /// <c>SimulatedCombatState.ReadRelicCounter</c> for the supported relics. Sts2Solver already carries
     /// each counter that the native relic reads for gameplay; only the Meat on the Bone threshold
     /// health comparison is recomputed from the battle.
     /// </summary>
@@ -409,7 +409,7 @@ internal sealed class Scorer
                 return battle.Relics[index].Counter;
         }
         throw new UnsupportedException(
-            $"遗物计数目标 {rule.Target.Id} 的遗物不在 Blitz 状态中。");
+            $"遗物计数目标 {rule.Target.Id} 的遗物不在 Sts2Solver 状态中。");
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -772,7 +772,7 @@ internal sealed class Scorer
                 (int)Math.Ceiling(CardValue(battle, card, stats, cardScore) * 2d)));
         }
         // Free-card opportunity (FreeAttackPower), Void Form and summon next turn. Void Form has no
-        // admitted Blitz content.
+        // admitted Sts2Solver content.
         int summonNextTurn = GetAmount(battle, _score.SummonNextTurnPowerId, Limits.PlayerOwner);
         int summonNextTurnValue = summonNextTurn == 0
             ? 0
@@ -1106,7 +1106,7 @@ internal sealed class Scorer
     /// <c>SearchEvaluator.BuildProjectedShuffleOrder</c>: discard + draw + hand in that order, the
     /// native stable-shuffle projection (unstable sort by card id/upgrade, then Fisher-Yates from the
     /// end on a copy of the shuffle RNG), then the value sum and a card-state key. The existing key
-    /// hashes the existing engine's per-card fingerprint; Blitz hashes the card byte image instead.
+    /// hashes the existing engine's per-card fingerprint; Sts2Solver hashes the card byte image instead.
     /// </summary>
     private (int Value, ulong ProjectedFirst, ulong ProjectedSecond,
         ulong UnorderedFirst, ulong UnorderedSecond) CaptureShuffleAndUnorderedKeys(in Battle battle)
@@ -1321,7 +1321,7 @@ internal sealed class Scorer
     private ThreatProjection ProjectHpAfterThreatBody(in Battle battle)
     {
         // the existing search's ProjectHpAfterThreat walks the run-listener table, which still contains the
-        // player's relics and cards after the player dies; Blitz's PlayerHooksActive flag only gates the
+        // player's relics and cards after the player dies; Sts2Solver's PlayerHooksActive flag only gates the
         // combat dispatch. The projection must include those modifiers (Tungsten Rod's per-hit reduction
         // is the visible case) even on a dead snapshot.
         //
@@ -1666,7 +1666,7 @@ internal sealed class Scorer
 
     // the existing search's StateEvaluation.OrbRetentionValue. The existing engine applies
     // Hook.ModifyOrbValue (Focus) through OrbMirrors.GetPassiveValue; Kernel.OrbPassiveValue is
-    // the same pure query over the Blitz listener list.
+    // the same pure query over the Sts2Solver listener list.
     private int OrbRetentionValue(in Battle battle, int aliveEnemyCount)
     {
         decimal value = 0m;
@@ -2772,7 +2772,7 @@ internal sealed class Scorer
     }
 
     /// <summary>
-    /// <c>ContextualRankingModel.Adjustment</c> for a Blitz state. Terminal and non-surviving
+    /// <c>ContextualRankingModel.Adjustment</c> for a Sts2Solver state. Terminal and non-surviving
     /// contexts bypass the model; the four retention-only inputs are recomputed here because the
     /// ordinary child score skips them, and the rest are the K4-checked features.
     /// </summary>

@@ -1,7 +1,7 @@
 using System.Reflection;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.KernelChecks;
+namespace Sts2Solver.KernelChecks;
 
 /// <summary>
 /// K0 contract for the EndTurn prefix split. Every instance field of <see cref="Exec"/> must be in

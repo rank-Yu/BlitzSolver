@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 /// <summary>
 /// <c>InfusedCore</c>: channels 3 Lightning at the first side turn start (before the root) and adds

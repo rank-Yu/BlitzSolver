@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Potions;
+namespace Sts2Solver.Content.Potions;
 
 /// <summary>
 /// The shared 0..1 GenerateToHand choice of the four card-generation potions. Candidate generation is

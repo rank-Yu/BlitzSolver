@@ -1,19 +1,19 @@
 using System.Security.Cryptography;
 using System.Text;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.OfflineHost.Combat;
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.OfflineHost.Combat;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 
-namespace BlitzSolver.OfflineHost.Runtime;
+namespace Sts2Solver.OfflineHost.Runtime;
 
 internal static class FirstCombatSession
 {
@@ -115,7 +115,7 @@ internal static class FirstCombatSession
                                 || combats.LastOrDefault() is not { Outcome: "victory", Deviations: 0, DeploymentFailures: 0 })
                                 throw new InvalidDataException("act1-boss-completion-unconfirmed");
                             if (run.Map.SecondBossMapPoint != null && run.CurrentMapCoord == run.Map.BossMapPoint.coord)
-                                throw new BlitzSolver.Simulation.Combat.UnsupportedException("act1-second-boss-boundary");
+                                throw new Sts2Solver.Simulation.Combat.UnsupportedException("act1-second-boss-boundary");
                             await runHost.SettleBossRewardsAsync(ct);
                             afterRewards ??= Summarize(run, player);
                             bossCompleted = true;
@@ -220,7 +220,7 @@ internal static class FirstCombatSession
         { return Result(timeout.IsCancellationRequested ? "Timeout" : "Cancelled", null, timeout.IsCancellationRequested ? "overall-timeout" : "external-cancellation"); }
         catch (TimeoutException error) { return Result("Timeout", null, error.Message); }
         catch (UnsupportedImportException error) { return Result("Failed", null, error.Message); }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error) { return Result("Failed", null, error.Message); }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error) { return Result("Failed", null, error.Message); }
         catch (CapacityException error) { return Result("Failed", null, error.Message); }
         catch (InvalidDataException error) { return Result("Failed", null, error.Message); }
         catch (OfflineDeploymentException error) { return Result("Failed", null, error.Message); }
@@ -262,7 +262,7 @@ internal static class FirstCombatSession
             RunDecisionRequest request = view.Request;
             if (!multi && request.Kind == RunDecision.Event
                 && (!RunCatalog.TryEvent("NEOW", out ushort neow) || request.Source != new RunRef(RunRefKind.Event, neow)))
-                throw new BlitzSolver.Simulation.Combat.UnsupportedException("smoke-policy-event-outside-neow");
+                throw new Sts2Solver.Simulation.Combat.UnsupportedException("smoke-policy-event-outside-neow");
             string[] names = new string[request.OptionCount];
             List<int> legal = [];
             int chosen = -1;

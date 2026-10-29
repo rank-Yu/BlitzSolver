@@ -1,6 +1,6 @@
 // Managed UI-only bridge for sts2 v0.111.0 CardReward.OnSelect's existing awaited screen path.
 // Alternative hotkey IL bypass adapted from tests/Differential/Run/RunRewardShopCompare.cs,
-// baseline 16128953 (BlitzSolver, MIT). No reward logic is replaced.
+// baseline 16128953 (Sts2Solver, MIT). No reward logic is replaced.
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -12,7 +12,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using MegaCrit.Sts2.Core.Nodes.Screens.CardSelection;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 internal static class RewardCardScreen
 {

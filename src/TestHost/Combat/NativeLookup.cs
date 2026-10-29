@@ -1,7 +1,7 @@
 // Shared native-model lookup used while constructing a fixture root.
 using MegaCrit.Sts2.Core.Models;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal static class NativeLookup
 {

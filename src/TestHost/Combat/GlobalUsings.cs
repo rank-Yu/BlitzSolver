@@ -1,1 +1,1 @@
-global using BlitzSolver.Import;
+global using Sts2Solver.Import;

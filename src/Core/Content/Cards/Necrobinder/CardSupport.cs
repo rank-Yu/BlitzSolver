@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Necrobinder;
+namespace Sts2Solver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// Shared Necrobinder card helpers. The pet rules are the existing engine's
@@ -42,7 +42,7 @@ internal static class NecrobinderContent
     public static Card CreateSoul(in Battle battle, Rules rules, bool upgraded)
     {
         if (!Registry.TryCard("SOUL", out ushort soul))
-            throw new UnsupportedException("灵魂牌没有 Blitz 定义。");
+            throw new UnsupportedException("灵魂牌没有 Sts2Solver 定义。");
         return Kernel.CreateCard(rules, soul, upgraded ? 1 : 0);
     }
 

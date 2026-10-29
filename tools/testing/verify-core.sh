@@ -51,7 +51,7 @@ printf "VERIFY_CORE sha=%s worktree=%s sdk=%s jobs=%s data=%s\n" \
     "$(git rev-parse HEAD)" "$worktree" "$(dotnet --version)" "$jobs" "$data_dir"
 
 # 只构建 Differential 不会刷新 Golden/KernelChecks 目录中的 Core.dll。
-dotnet build BlitzSolver.sln -c Release
+dotnet build Sts2Solver.sln -c Release
 dotnet run --project tests/KernelChecks -c Release --no-build
 dotnet run --project tests/Architecture -c Release --no-build
 dotnet run --project tests/Golden -c Release --no-build -- k0

@@ -3,7 +3,7 @@
 // by direct reads of the native combat state and CombatManager.History; the field mapping and the
 // all-or-nothing rejection strategy are preserved. Engine method names referenced in comments are
 // read-only references, not copied implementation.
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -22,7 +22,7 @@ using MegaCrit.Sts2.Core.Runs;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>
 /// Imports one native <see cref="CombatState"/> root directly into <see cref="Battle"/>, without
@@ -168,7 +168,7 @@ public static class BattleImporter
         return battle;
     }
 
-    private static BlitzSolver.Simulation.Combat.Creature Vitals(Creature creature, bool lostHpThisTurn) => new()
+    private static Sts2Solver.Simulation.Combat.Creature Vitals(Creature creature, bool lostHpThisTurn) => new()
     {
         CurrentHp = creature.CurrentHp,
         MaxHp = creature.MaxHp,
@@ -689,7 +689,7 @@ public static class BattleImporter
             Upgrade = checked((byte)upgrade),
             // LocalKeywords is the card's own state. Keywords also runs the combat hook
             // (HexPower.TryModifyKeywordsInCombat adds Ethereal to Hexed cards); that grant is a
-            // lazy query in Blitz and must not be written into the card row, or it survives after
+            // lazy query in Sts2Solver and must not be written into the card row, or it survives after
             // HexPower/Hexed is gone and is counted twice by Kernel.HasKeyword.
             Keywords = MapKeywords(card.GetKeywordsWithSources(KeywordSources.Local)),
             BaseCost = checked((sbyte)card.EnergyCost._base),
@@ -831,7 +831,7 @@ public static class BattleImporter
             if (madScience.TinkerTimeType is not (NativeCardType.Attack or NativeCardType.Skill or NativeCardType.Power))
                 throw new UnsupportedImportException(ImportReason.Unrepresentable,
                     $"{card.Id.Entry} 的 TinkerTimeType {(int)madScience.TinkerTimeType}");
-            result.Private = BlitzSolver.Content.Cards.Event.MadScience.Encode(
+            result.Private = Sts2Solver.Content.Cards.Event.MadScience.Encode(
                 (int)madScience.TinkerTimeType, (int)madScience.TinkerTimeRider);
         }
         return result;

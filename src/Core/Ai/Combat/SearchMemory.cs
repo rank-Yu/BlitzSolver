@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// Raised when a search-owned allocation would cross <see cref="BeamOptions.SearchMemoryBudgetBytes"/>.

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Afflictions;
+namespace Sts2Solver.Content.Afflictions;
 
 /// <summary>
 /// <c>Tainted</c>: Skill cards only, stackable. Vital Spark applies it (once at combat start without a

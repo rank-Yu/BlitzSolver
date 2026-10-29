@@ -1,8 +1,8 @@
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Simulation.Run;
 
-namespace BlitzSolver.KernelChecks;
+namespace Sts2Solver.KernelChecks;
 
 internal static class RunPilotChecks
 {
@@ -136,10 +136,10 @@ internal static class RunPilotChecks
         public ValueTask<CombatPilotTurn?> WaitForTurnAsync(CancellationToken token) => ValueTask.FromResult<CombatPilotTurn?>(null);
         public CombatPilotFinal Final(bool cancelled) { Finals++; return new(status == "victory" ? "victory" : status == "defeat" ? "defeat" : "in_progress", status, 1, 0, 80, []); }
         public ValueTask<CombatPilotSearch> SearchAsync(int turn, string reason, CancellationToken token) => throw new InvalidOperationException();
-        public ValueTask<CombatPilotBoundary> CheckBoundaryAsync(BlitzSolver.Simulation.Combat.ReplayedAction expected, int turn, int index, CancellationToken token) => throw new InvalidOperationException();
+        public ValueTask<CombatPilotBoundary> CheckBoundaryAsync(Sts2Solver.Simulation.Combat.ReplayedAction expected, int turn, int index, CancellationToken token) => throw new InvalidOperationException();
         public void BeginDeployment(int turn) => throw new InvalidOperationException();
-        public ValueTask<CombatPilotDeployment> DeployAsync(BlitzSolver.Simulation.Combat.ReplayedAction action, int turn, CancellationToken token) => throw new InvalidOperationException();
-        public void OnActionDeployed(BlitzSolver.Simulation.Combat.ReplayedAction action) => throw new InvalidOperationException();
-        public void OnRouteAccepted(BlitzSolver.Simulation.Combat.ReplayedRoute route) => throw new InvalidOperationException();
+        public ValueTask<CombatPilotDeployment> DeployAsync(Sts2Solver.Simulation.Combat.ReplayedAction action, int turn, CancellationToken token) => throw new InvalidOperationException();
+        public void OnActionDeployed(Sts2Solver.Simulation.Combat.ReplayedAction action) => throw new InvalidOperationException();
+        public void OnRouteAccepted(Sts2Solver.Simulation.Combat.ReplayedRoute route) => throw new InvalidOperationException();
     }
 }

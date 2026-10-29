@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Defect;
+namespace Sts2Solver.Content.Cards.Defect;
 
 [ContentId("CLAW")]
 public sealed class Claw : CardDef
@@ -271,7 +271,7 @@ public sealed class GunkUp : CardDef
         if (x.NeedsChoice)
             return;
         if (!Registry.TryCard("SLIMED", out ushort id))
-            throw new UnsupportedException("黏液需要 SLIMED 的 Blitz 定义。");
+            throw new UnsupportedException("黏液需要 SLIMED 的 Sts2Solver 定义。");
         Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, id), Pile.Discard);
     }
 }

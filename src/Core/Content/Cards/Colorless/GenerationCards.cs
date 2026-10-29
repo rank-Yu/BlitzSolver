@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Colorless;
+namespace Sts2Solver.Content.Cards.Colorless;
 
 [ContentId("BEAT_DOWN")]
 public sealed class BeatDown : CardDef
@@ -37,7 +37,7 @@ public sealed class BeatDown : CardDef
             return;
         // The existing engine keeps the selected CardModel objects, so a card that an earlier
         // auto-play moves (drawn into hand, shuffled into the draw pile, exhausted, ...) is still
-        // played from its new pile. Blitz marks each selected card with a one-action identity byte;
+        // played from its new pile. Sts2Solver marks each selected card with a one-action identity byte;
         // the mark travels with the card value through every pile move and is cleared in finally.
         int discardStart = Piles.Start(x.B, Pile.Discard);
         for (int item = 0; item < take; item++)
@@ -62,7 +62,7 @@ public sealed class BeatDown : CardDef
                 if (!TryFindMarked(ref x.B, (byte)(item + 1), out Pile pile, out int position))
                 {
                     // The selected CardModel left every combat pile (removed from state, transformed
-                    // or detached). The existing engine would still play that object; Blitz has no
+                    // or detached). The existing engine would still play that object; Sts2Solver has no
                     // pile-free executing card representation, so this is an explicit boundary.
                     throw new UnsupportedException("BeatDown 选中的弃牌在结算前离开了战斗牌堆。");
                 }

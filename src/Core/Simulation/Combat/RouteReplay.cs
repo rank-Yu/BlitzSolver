@@ -2,7 +2,7 @@
 // partial Battle the kernel is in when it asks, mirroring the existing search's replay order; this
 // is a translation of the deployment design in CombatSolver src/Runtime/SolverController.cs at
 // a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors), not a copy of its engine.
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// One choice request observed while replaying an action, plus the selection the route carries and

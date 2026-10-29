@@ -1,11 +1,11 @@
 using System.Diagnostics;
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.TestHost;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.TestHost;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -14,7 +14,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Settings;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// 无头测试模式：按文件名顺序依次处理 requests/*.json，每个请求建局、注入、等到可出牌，
@@ -22,7 +22,7 @@ namespace BlitzSolver;
 /// </summary>
 internal static class TestSession
 {
-    public const string DirectoryVariable = "BLITZ_TEST_DIR";
+    public const string DirectoryVariable = "STS2_SOLVER_TEST_DIR";
 
     private static bool _started;
 
@@ -36,39 +36,39 @@ internal static class TestSession
         string? configured = Environment.GetEnvironmentVariable(DirectoryVariable);
         if (string.IsNullOrWhiteSpace(configured))
         {
-            ModLog.Error("[BlitzSolver] TEST_NOT_STARTED reason=missing_BLITZ_TEST_DIR");
+            ModLog.Error("[Sts2Solver] TEST_NOT_STARTED reason=missing_STS2_SOLVER_TEST_DIR");
             return;
         }
         string root = Path.GetFullPath(configured);
         string requestDirectory = Path.Combine(root, "requests");
         if (!Directory.Exists(requestDirectory))
         {
-            ModLog.Error($"[BlitzSolver] TEST_NOT_STARTED reason=missing_requests directory={requestDirectory}");
+            ModLog.Error($"[Sts2Solver] TEST_NOT_STARTED reason=missing_requests directory={requestDirectory}");
             return;
         }
         Directory.CreateDirectory(Path.Combine(root, "results"));
         NGame? host = NGame.Instance;
         if (host == null)
         {
-            ModLog.Error("[BlitzSolver] TEST_NOT_STARTED reason=NGame_instance_missing");
+            ModLog.Error("[Sts2Solver] TEST_NOT_STARTED reason=NGame_instance_missing");
             return;
         }
         Active = true;
-        ModLog.Info($"[BlitzSolver] TEST_STARTED requests={requestDirectory}");
+        ModLog.Info($"[Sts2Solver] TEST_STARTED requests={requestDirectory}");
         _ = RunAsync(host, root, requestDirectory);
     }
 
     public static void OnCombatEnded()
     {
         if (Active)
-            ModLog.Info("[BlitzSolver] COMBAT_ENDED test_session_active=true");
+            ModLog.Info("[Sts2Solver] COMBAT_ENDED test_session_active=true");
     }
 
     private static async Task RunAsync(NGame host, string testRoot, string requestDirectory)
     {
         string resultRoot = Path.Combine(testRoot, "results");
         await WaitForMainMenuReadyAsync(host);
-        ModLog.Info("[BlitzSolver] TEST_MAIN_MENU_READY");
+        ModLog.Info("[Sts2Solver] TEST_MAIN_MENU_READY");
         string[] files = Directory.GetFiles(requestDirectory, "*.json")
             .Where(path => !string.Equals(Path.GetFileName(path), "manifest.json", StringComparison.Ordinal))
             .OrderBy(static path => path, StringComparer.Ordinal)
@@ -94,11 +94,11 @@ internal static class TestSession
                 if (request.FlashTurnSetupRootForTest)
                     TurnSetupRootCapture.BeginBuild();
                 stage = "build";
-                ModLog.Info($"[BlitzSolver] BUILD_STARTED root={root}");
+                ModLog.Info($"[Sts2Solver] BUILD_STARTED root={root}");
                 CombatState combat = await ScenarioBuilder.BuildAsync(
                     new GodotCombatWaiter(host), request,
                     skipInitialInjection: request.FlashTurnSetupRootForTest);
-                ModLog.Info($"[BlitzSolver] BUILD_COMPLETED root={root}");
+                ModLog.Info($"[Sts2Solver] BUILD_COMPLETED root={root}");
                 stage = "settle";
                 await GodotCombatWaiter.SettleAsync(host);
                 stage = "capture";
@@ -140,7 +140,7 @@ internal static class TestSession
                             [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest,
                             auto.Status, auto.ElapsedMs));
                         ModLog.Info(
-                            $"[BlitzSolver] FULL_COMBAT_OK root={root} status={auto.Status} " +
+                            $"[Sts2Solver] FULL_COMBAT_OK root={root} status={auto.Status} " +
                             $"turns={auto.Turns} hp={auto.PlayerHp}/{auto.PlayerMaxHp} " +
                             $"searches={auto.Searches} reused={auto.ReusedTurns} " +
                             $"deviations={auto.Deviations} failures={auto.DeploymentFailures}");
@@ -151,7 +151,7 @@ internal static class TestSession
                         results.Add(new ResultEntry(root, "failed", stage, stopwatch.ElapsedMilliseconds,
                             failure, [.. FirstChoiceCardSelector.LastSelections],
                             request.FlashTurnSetupRootForTest, auto.Status, auto.ElapsedMs));
-                        ModLog.Error($"[BlitzSolver] FULL_COMBAT_FAILED root={root} {failure}");
+                        ModLog.Error($"[Sts2Solver] FULL_COMBAT_FAILED root={root} {failure}");
                     }
                 }
                 else
@@ -170,7 +170,7 @@ internal static class TestSession
                         if (!searchOk)
                             searchFailure = $"search {search.Status}: {search.Error}";
                         else if (search.RouteSummary.Length > 0)
-                            ModLog.Info($"[BlitzSolver] SEARCH_ROUTE root={root} {search.RouteSummary}");
+                            ModLog.Info($"[Sts2Solver] SEARCH_ROUTE root={root} {search.RouteSummary}");
                     }
                     failure = searchFailure;
                     stage = captured == null ? "capture" : "status";
@@ -198,7 +198,7 @@ internal static class TestSession
                             [.. FirstChoiceCardSelector.LastSelections], request.FlashTurnSetupRootForTest,
                             search?.Status ?? "skipped", search?.ElapsedMilliseconds ?? 0));
                         ModLog.Info(
-                            $"[BlitzSolver] CAPTURE_OK root={root} ms={stopwatch.ElapsedMilliseconds} "
+                            $"[Sts2Solver] CAPTURE_OK root={root} ms={stopwatch.ElapsedMilliseconds} "
                             + $"search={search?.Status ?? "skipped"}");
                     }
                     else
@@ -208,7 +208,7 @@ internal static class TestSession
                             searchFailure, [.. FirstChoiceCardSelector.LastSelections],
                             request.FlashTurnSetupRootForTest, search?.Status ?? "failed",
                             search?.ElapsedMilliseconds ?? 0));
-                        ModLog.Error($"[BlitzSolver] SEARCH_FAILED root={root} stage={stage} {searchFailure}");
+                        ModLog.Error($"[Sts2Solver] SEARCH_FAILED root={root} stage={stage} {searchFailure}");
                     }
                 }
             }
@@ -216,67 +216,67 @@ internal static class TestSession
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, $"unsupported reason={error.Reason} {error.Detail}", null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} unsupported reason={error.Reason} {error.Detail}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} unsupported reason={error.Reason} {error.Detail}");
             }
             catch (UnsupportedException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} unsupported {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} unsupported {error.Message}");
             }
             catch (CapacityException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, $"capacity region={error.Region} {error.Message}", null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} capacity region={error.Region} {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} capacity region={error.Region} {error.Message}");
             }
             catch (NotSupportedException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} unsupported {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} unsupported {error.Message}");
             }
             catch (InvalidDataException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} invalid_data {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} invalid_data {error.Message}");
             }
             catch (InvalidOperationException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} invalid_operation {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} invalid_operation {error.Message}");
             }
             catch (TimeoutException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} timeout {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} timeout {error.Message}");
             }
             catch (OperationCanceledException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} canceled {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} canceled {error.Message}");
             }
             catch (IOException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} io {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} io {error.Message}");
             }
             catch (JsonException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} json {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} json {error.Message}");
             }
             catch (UnauthorizedAccessException error)
             {
                 failed++;
                 results.Add(Failure(root, stage, stopwatch, error.Message, null, false));
-                ModLog.Error($"[BlitzSolver] CAPTURE_FAILED root={root} stage={stage} access {error.Message}");
+                ModLog.Error($"[Sts2Solver] CAPTURE_FAILED root={root} stage={stage} access {error.Message}");
             }
 
             bool breakAfterCleanup = false;
@@ -290,12 +290,12 @@ internal static class TestSession
             }
             catch (TimeoutException error)
             {
-                ModLog.Error($"[BlitzSolver] RESET_FAILED root={root} timeout {error.Message}");
+                ModLog.Error($"[Sts2Solver] RESET_FAILED root={root} timeout {error.Message}");
                 breakAfterCleanup = true;
             }
             catch (InvalidOperationException error)
             {
-                ModLog.Error($"[BlitzSolver] RESET_FAILED root={root} invalid_operation {error.Message}");
+                ModLog.Error($"[Sts2Solver] RESET_FAILED root={root} invalid_operation {error.Message}");
                 breakAfterCleanup = true;
             }
             if (breakAfterCleanup)
@@ -322,7 +322,7 @@ internal static class TestSession
         DoneEntry done = new(1, files.Length, ok, failed, total.Elapsed.TotalMilliseconds, [.. results]);
         WriteJson(Path.Combine(resultRoot, "done.json"), done);
         ModLog.Info(
-            $"[BlitzSolver] TEST_DONE requests={files.Length} ok={ok} failed={failed} " +
+            $"[Sts2Solver] TEST_DONE requests={files.Length} ok={ok} failed={failed} " +
             $"total_ms={total.Elapsed.TotalMilliseconds:0}");
         Active = false;
         host.GetTree().Quit(failed == 0 ? 0 : 1);
@@ -387,7 +387,7 @@ internal static class TestSession
         {
             SaveManager.Instance.PrefsSave.FastMode = instant;
             ModLog.Info(
-                $"[BlitzSolver] FULL_COMBAT_START root={root} fast_mode={instant} tier={tier}");
+                $"[Sts2Solver] FULL_COMBAT_START root={root} fast_mode={instant} tier={tier}");
             return await AutoCombatSession.RunAsync(host, combat, request, root, tier,
                 CancellationToken.None, cancelAfterMilliseconds);
         }
@@ -395,7 +395,7 @@ internal static class TestSession
         {
             SaveManager.Instance.PrefsSave.FastMode = original;
             ModLog.Info(
-                $"[BlitzSolver] FULL_COMBAT_FAST_MODE_RESTORED root={root} mode={original}");
+                $"[Sts2Solver] FULL_COMBAT_FAST_MODE_RESTORED root={root} mode={original}");
         }
     }
 

@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat.Novelty;
-using BlitzSolver.Ai.Combat.Policy;
-using BlitzSolver.Ai.Combat.Quality;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat.Novelty;
+using Sts2Solver.Ai.Combat.Policy;
+using Sts2Solver.Ai.Combat.Quality;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 internal sealed record BeamOptions(
     int BeamWidth,
@@ -54,7 +54,7 @@ internal sealed record BeamOptions(
     /// </summary>
     public BoundFeatures? Bound { get; init; }
 
-    /// <summary>The request's initial incumbent, already translated to Blitz player-turn units.</summary>
+    /// <summary>The request's initial incumbent, already translated to Sts2Solver player-turn units.</summary>
     public SearchIncumbent? Incumbent { get; init; }
 
     /// <summary>The existing primary member's effective potion policy, used to qualify incumbent tightening.</summary>
@@ -64,7 +64,7 @@ internal sealed record BeamOptions(
     public TheftPolicy? TheftPolicy { get; init; }
 
     /// <summary>
-    /// The request's forced potion directives, as canonical Blitz potion ids. Only a request without a
+    /// The request's forced potion directives, as canonical Sts2Solver potion ids. Only a request without a
     /// potion-policy override enforces them, matching <c>the existing search's EnforcesPotionDirectives</c>.
     /// </summary>
     public ForcedPotionDirectives ForcedPotionDirectives { get; init; } = ForcedPotionDirectives.None;
@@ -172,7 +172,7 @@ internal sealed record BeamOptions(
     public bool SecondRankBand { get; init; }
 
     /// <summary>
-    /// The existing profile's band width (<c>effectiveLimit</c> in <c>RankBest</c>). Zero means the Blitz
+    /// The existing profile's band width (<c>effectiveLimit</c> in <c>RankBest</c>). Zero means the Sts2Solver
     /// layer width. The bridge freezes the request profile's width so the W+1..2W band uses the same
     /// width as the regular search.
     /// </summary>
@@ -200,7 +200,7 @@ internal sealed record BeamOptions(
 
     /// <summary>
     /// The shared frame-pressure pacer. The bridge creates it from
-    /// <see cref="SearchPolicySnapshot.FramePressureSignal"/> so the Blitz layer and expansion loops
+    /// <see cref="SearchPolicySnapshot.FramePressureSignal"/> so the Sts2Solver layer and expansion loops
     /// yield exactly like the existing search's replay checkpoints. Null in direct kernel tests.
     /// </summary>
     public SearchWorkPacer? Pacer { get; init; }
@@ -249,7 +249,7 @@ internal enum PlanPayoffKind : byte
 
 /// <summary>
 /// A <see cref="PlanCommitment"/> reduced to the values Beam reads: the CopyPower representative
-/// seats and the per-route payoff count. The card is a Blitz content id resolved by the bridge.
+/// seats and the per-route payoff count. The card is a Sts2Solver content id resolved by the bridge.
 /// </summary>
 internal sealed record PlanCommitment(
     bool CopyPowerSeats,
@@ -319,9 +319,9 @@ internal sealed record PotionPolicy(
 
 /// <summary>
 /// The request's forced potion directives (<c>PotionStrategySnapshot.Directives</c> with
-/// <see cref="PotionDirective.Force"/>), resolved to canonical Blitz potion ids. A directive is
+/// <see cref="PotionDirective.Force"/>), resolved to canonical Sts2Solver potion ids. A directive is
 /// satisfied by one explicit use of that potion identity in its slot; the fixed prefix's uses are
-/// folded into <paramref name="AlreadyUsedMask"/> because they are not Blitz nodes.
+/// folded into <paramref name="AlreadyUsedMask"/> because they are not Sts2Solver nodes.
 /// </summary>
 internal sealed record ForcedPotionDirectives(
     int[] Slots,
@@ -350,7 +350,7 @@ internal sealed record BeamResult(
     internal static readonly IReadOnlyDictionary<string, int> NoCapacityDrops =
         new Dictionary<string, int>(0);
 
-    /// <summary>Children dropped because their state exceeded a Blitz capacity (a search boundary).</summary>
+    /// <summary>Children dropped because their state exceeded a Sts2Solver capacity (a search boundary).</summary>
     public int CapacityPruned { get; init; }
 
     /// <summary>
@@ -423,7 +423,7 @@ internal sealed record BeamResult(
     /// <summary>
     /// False when an audited request found no route satisfying the ported potion policy. The dispatch
     /// point reports it in the existing search's <c>PotionPolicyUnsatisfiedException</c> shape;
-    /// "Blitz found none" is not the existing search's own verdict.
+    /// "Sts2Solver found none" is not the existing search's own verdict.
     /// </summary>
     public bool PotionPolicySatisfied { get; init; } = true;
 
@@ -1292,7 +1292,7 @@ internal sealed partial class BeamSolver
             _potionReplacementHpCredit);
 
     /// <summary>
-    /// <c>PotionStrategySnapshot.EvaluateForcedUses(SearchNode)</c> over the Blitz node chain: one
+    /// <c>PotionStrategySnapshot.EvaluateForcedUses(SearchNode)</c> over the Sts2Solver node chain: one
     /// explicit use of each forced potion identity in its slot, with the fixed prefix's uses folded in.
     /// Returns whether every forced directive was used.
     /// </summary>
@@ -1539,7 +1539,7 @@ internal sealed partial class BeamSolver
         int optionalPotionStrategicCost = OptionalPotionStrategicCost(
             features.ExplicitPotionStrategicCost, optionalPotionCount);
         // The policy-deficit key is part of the audited final ordering only. Primary/refinement
-        // members keep their prior route key so the Blitz adoption decisions they already passed do
+        // members keep their prior route key so the Sts2Solver adoption decisions they already passed do
         // not move; the exact-layer requests port the key together with the potion filter.
         int policyHpDeficit = _auditPotionPolicy
             && _effectivePotionPolicy == PotionUseMode.RequireAtLeastOne
@@ -2253,10 +2253,10 @@ internal sealed partial class BeamSolver
     /// <summary>
     /// Builds the routing-choice signature of one answered selection request. The existing
     /// <c>RoutingChoiceSignature</c> also carries source/context ids and three enemy/pile distribution
-    /// fingerprints; Blitz has no string source ids or distribution keys on the route node, so those
+    /// fingerprints; Sts2Solver has no string source ids or distribution keys on the route node, so those
     /// dimensions are not part of the key (choices from different sources of the same turn with the same
     /// effect and option merge). The supported effect set is the non-mutation routing set; persistent
-    /// ordered-mutation effects are not part of this key (Blitz does not generate that lineage).
+    /// ordered-mutation effects are not part of this key (Sts2Solver does not generate that lineage).
     /// </summary>
     private bool TryBuildRoutingChoice(in Battle parent, in PlayerAction action,
         in ChoiceRequest request, scoped ReadOnlySpan<Card> optionCards, ulong selection,
@@ -2288,7 +2288,7 @@ internal sealed partial class BeamSolver
             occurrence = option;
         }
         // The existing PlanCardChoice.SourceId is the requesting card's entry (the potion's entry
-        // for potion choices, the relic's for turn-start relic choices). Blitz has no string on the
+        // for potion choices, the relic's for turn-start relic choices). Sts2Solver has no string on the
         // request, so the currently played card or potion identifies the source; a card/potion id is
         // prefixed with its kind so the two id spaces cannot merge.
         int sourceId = action.Kind switch
@@ -2336,7 +2336,7 @@ internal sealed partial class BeamSolver
     }
 
     /// <summary>
-    /// The existing <c>BeamRetentionPolicy.BuildRootActionLineageSignature</c> over Blitz actions.
+    /// The existing <c>BeamRetentionPolicy.BuildRootActionLineageSignature</c> over Sts2Solver actions.
     /// The root action's kind/card/potion/target is frozen on the first step; when the root has an
     /// unused card replay allocator the route's first played card is part of the signature too. The
     /// signature is a stable value, so equal first actions from different turn-setup roots group
@@ -2410,7 +2410,7 @@ internal sealed partial class BeamSolver
 
     private static ulong MixLineage(ulong hash, ulong value) => (hash ^ value) * 1099511628211UL;
 
-    /// <summary>The existing <c>PlanAction.TargetCombatId</c> for a Blitz target owner.</summary>
+    /// <summary>The existing <c>PlanAction.TargetCombatId</c> for a Sts2Solver target owner.</summary>
     private static int TargetCombatId(in Battle parent, in PlayerAction action)
     {
         if (action.Target == Limits.NoOwner)
@@ -2853,7 +2853,7 @@ internal sealed partial class BeamSolver
     /// The node's final score and its intermediate ranking value. The final score is the ported
     /// <see cref="Scorer.Features"/> score; the ranking value is
     /// <see cref="Scorer.BeamRankScore"/> minus the strategic HP cost of the potions this route has
-    /// spent. The potion term is Blitz-specific: the existing snapshot score does not include potion cost,
+    /// spent. The potion term is Sts2Solver-specific: the existing snapshot score does not include potion cost,
     /// so without it the beam would spend potions for free.
     /// </summary>
     private (double Score, double Rank, double PureRank, int PotionCost, ScoreFeatures Features) Score(
@@ -2864,11 +2864,11 @@ internal sealed partial class BeamSolver
         // skips duplicate and terminal children.
         ScoreFeatures features = _scorer.Features(battle, actionCount, includeRetentionOnly: false);
         // The plan representative seats keep the existing MaxBy(BeamRankScore) tie order, which does
-        // not include Blitz's potion-cost rank penalty. The two values differ only by that term.
+        // not include Sts2Solver's potion-cost rank penalty. The two values differ only by that term.
         double pureRank = _scorer.BeamRankScore(battle, features, terminal, isEndTurn);
         // ExplicitPotionStrategicCost includes the fixed prefix and potions generated during the
         // search; the previous root-slot diff saw neither generated uses nor their identity costs.
-        // An audited exact layer must spend its potions, so the Blitz-specific "spending is free"
+        // An audited exact layer must spend its potions, so the Sts2Solver-specific "spending is free"
         // correction would rank the required line below states that have not spent them yet; the
         // final ordering still charges the cost. Non-audit members keep the correction.
         double rank = _auditPotionPolicy && _options.MinimumPotionUses > 1
@@ -2988,7 +2988,7 @@ internal sealed partial class BeamSolver
     /// <see cref="Battle"/>, the fingerprint or the state key.
     /// </summary>
     /// <summary>
-    /// <c>the existing search's AttachPowerCommitment</c> over a Blitz route node. Returns the 1-based
+    /// <c>the existing search's AttachPowerCommitment</c> over a Sts2Solver route node. Returns the 1-based
     /// <see cref="_commitments"/> index, or 0 when the child carries no commitment. A child whose parent
     /// has no commitment and that does not play a registered power returns immediately, so the lane
     /// costs nothing on ordinary transitions.
@@ -3419,7 +3419,7 @@ internal sealed partial class BeamSolver
     }
 
     /// <summary>
-    /// K4 entry: the Blitz route-trait delta for one transition, computed from the same feature
+    /// K4 entry: the Sts2Solver route-trait delta for one transition, computed from the same feature
     /// projection the probe compares field by field. The reference side calls the existing
     /// <c>Classify*Traits</c>; <c>pure</c> and the PaelsEye declined flag are inputs the probe derives
     /// from the simulator history/relics for both sides.
@@ -3438,7 +3438,7 @@ internal sealed partial class BeamSolver
     /// when the play only started/finished cards and dealt/received damage (the existing
     /// <c>SearchProbeHelpers.IsPureHistoryEntry</c> set). Every other history entry is produced by a
     /// draw, generation, selection, channel, affliction, cost randomisation, draw-pile auto-play or
-    /// potion generation, so those transitions are detected from the branch state the Blitz kernel
+    /// potion generation, so those transitions are detected from the branch state the Sts2Solver kernel
     /// changed. The probe checks this input against the history-derived reference on every transition.
     /// </summary>
     internal static bool IsPureTransitionForTesting(in Battle before, in Battle after,
@@ -3514,7 +3514,7 @@ internal sealed partial class BeamSolver
     /// <para>
     /// The existing <c>pure</c> input is derived from the simulator history entry types
     /// (<c>CardPlayStarted</c>/<c>CardPlayFinished</c>/<c>CreatureAttacked</c>/<c>DamageReceived</c>).
-    /// Blitz route metadata has no history entry stream, so a card play is classified as not pure. That
+    /// Sts2Solver route metadata has no history entry stream, so a card play is classified as not pure. That
     /// only widens the <see cref="SearchRouteTraits.Control"/> candidate set; the other terms of the same
     /// classification are exact feature comparisons.
     /// </para>
@@ -5174,7 +5174,7 @@ internal sealed partial class BeamSolver
         }
 
         /// <summary>
-        /// The existing RankBest required set, restricted to the mechanisms whose inputs Blitz already
+        /// The existing RankBest required set, restricted to the mechanisms whose inputs Sts2Solver already
         /// evaluates exactly: one leader set per potion count, the global leaders, the strongest
         /// root-action lineages (clamp(width / 8, 4, 16)), the turn-boundary hand leader, the setup
         /// trait and focus target groups, and the eight lane leaders.
@@ -6308,7 +6308,7 @@ internal sealed partial class BeamSolver
 
         /// <summary>
         /// <c>BeamRetentionPolicy.MultiObjectiveDominates</c> over the K4-checked retention facts.
-        /// The original compares the three distribution fingerprints as a cohort gate; Blitz has no
+        /// The original compares the three distribution fingerprints as a cohort gate; Sts2Solver has no
         /// fingerprint projection on the route node, so the cohort is the equivalent coarse tuple of
         /// the enemy combat/control and live-pile aggregates. All dominance dimensions are exact facts.
         /// </summary>
@@ -6466,7 +6466,7 @@ internal sealed partial class BeamSolver
 
         /// <summary>
         /// The existing search's <c>ComputeStandPat</c> (<c>StandPatJobs</c>/<c>Retention</c>): replay EndTurn on the retained state and read the
-        /// resulting state's resources. Blitz has no simulator; the kernel step is the same end-turn
+        /// resulting state's resources. Sts2Solver has no simulator; the kernel step is the same end-turn
         /// semantics. A request for a turn-start choice makes the probe unavailable (default), which is
         /// the one boundary the existing roll-out resolves through its choice policy.
         /// </summary>
@@ -6717,7 +6717,7 @@ internal sealed partial class BeamSolver
         }
 
         /// <summary>
-        /// <c>OrderedMutationRetention.BuildOrderedPileTacticalKey</c> over the K4-checked facts. Blitz
+        /// <c>OrderedMutationRetention.BuildOrderedPileTacticalKey</c> over the K4-checked facts. Sts2Solver
         /// has no per-node shuffle-crossed/boundary fields in the retention facts; both are constant
         /// for a ranked pool (a pool is one turn layer), so they add no grouping distinction here.
         /// </summary>
@@ -6809,7 +6809,7 @@ internal sealed partial class BeamSolver
         /// <c>BeamRetentionPolicy.RankBest</c>'s ordered-pile portfolio: tactical state groups by
         /// max rank, cadence buckets/families by pocketwatch state, Pareto representatives per
         /// cadence, then bounded exact projected-shuffle-order variants per selected tactical group.
-        /// The representatives replace ordinary seats (the Blitz beam width is unchanged).
+        /// The representatives replace ordinary seats (the Sts2Solver beam width is unchanged).
         /// </summary>
         private void AddOrderedPileRepresentatives(List<int> required, int width, bool turnBoundary)
         {
@@ -7272,8 +7272,8 @@ internal sealed partial class BeamSolver
         }
 
         /// <summary><c>BeamRetentionPolicy.Ranking.PotionUseLineageKey</c>: the sorted explicit potion
-        /// id multiset along the route, ordinal. The route chain is the Blitz node chain (prefix actions
-        /// are not Blitz nodes and were already excluded from the existing search's chain too).</summary>
+        /// id multiset along the route, ordinal. The route chain is the Sts2Solver node chain (prefix actions
+        /// are not Sts2Solver nodes and were already excluded from the existing search's chain too).</summary>
         private string PotionUseLineageKey(int node)
         {
             _potionLineageScratch.Clear();
@@ -7288,7 +7288,7 @@ internal sealed partial class BeamSolver
             if (actions != _routeNodes[node].Depth - _initialActionCount)
             {
                 throw new InvalidOperationException(
-                    $"Blitz 路线节点动作链长度不一致：actions={actions} "
+                    $"Sts2Solver 路线节点动作链长度不一致：actions={actions} "
                     + $"depth={_routeNodes[node].Depth} initial={_initialActionCount}。");
             }
             if (_potionLineageScratch.Count == 0)

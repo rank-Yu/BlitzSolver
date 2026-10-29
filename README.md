@@ -1,12 +1,12 @@
-# BlitzSolver 极速求解器
+# STS2 Solver · 尖塔求解器
 
-《杀戮尖塔 2》单人自动游玩 Mod，开发中。战斗求解已经可用；目标是整局自动游玩，架构见 [整局设计](docs/full-run-design.md)。
+面向《杀戮尖塔 2》SL 模式的战斗与整局求解器，开发中。基于同一种子的确定性状态搜索，覆盖战斗搜索与局外决策；Mod 当前提供战斗自动执行，离线宿主已接通第一幕流程。架构见 [整局设计](docs/full-run-design.md)。
 
 整场战斗状态是一个 12,696 字节的定长结构体 `Battle`，不含对象引用，分支只需整块复制内存。搜索在它上面做 Beam，热路径零托管分配。
 
 ## 当前状态
 
-- 搜索核心（引擎、内容、搜索）已经独立成只依赖 .NET 基础库的 `BlitzSolver.Core`，覆盖五个角色卡池、296 个遗物、65 种药水与三幕全部遭遇。
+- 搜索核心（引擎、内容、搜索）已经独立成只依赖 .NET 基础库的 `Sts2Solver.Core`，覆盖五个角色卡池、296 个遗物、65 种药水与三幕全部遭遇。
 - 冻结快照回归（`tests/Golden`）不需要游戏文件，就能证明内核与搜索的每一步都和导出时的原引擎结果一致。
 - Mod 已能在无头游戏中加载，并在可出牌时把 20 个普通根捕获、导入；`Battle`、`Rules`、
   评估配置与原生状态转储都与冻结快照/差分宿主逐字节相同。同样的根能在游戏里对捕获状态做
@@ -28,7 +28,7 @@
 | `src/Import` | 原生导入；战斗导入在 `Combat/`，整局与决策请求在 `Run/` |
 | `src/TestHost` | 测试共享建局与转储；战斗在 `Combat/`，整局在 `Run/` |
 | `src/OfflineHost` | 原版离线宿主：首战、下一房间、有界 Act1 多房间，事件选牌/商店/宝箱及 Boss 领奖后的换幕前停止 |
-| `src/Mod` | RitsuLib Mod 入口、战斗与测试代码；不加入 `BlitzSolver.sln` |
+| `src/Mod` | RitsuLib Mod 入口、战斗与测试代码；不加入 `Sts2Solver.sln` |
 | `tests/KernelChecks` | 内核合同（K0）；战斗合同在 `Combat/` |
 | `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data`，战斗校验器在 `Combat/` |
 | `tests/Architecture` | 编译后的 Core 层依赖检查 |
@@ -43,7 +43,7 @@
 需要 .NET 9 SDK。
 
 ```bash
-dotnet build BlitzSolver.sln -c Release
+dotnet build Sts2Solver.sln -c Release
 dotnet run --project tests/KernelChecks -c Release --no-build
 dotnet run --project tests/Architecture -c Release --no-build
 dotnet run --project tests/Golden -c Release --no-build -- k0

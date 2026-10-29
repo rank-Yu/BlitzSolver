@@ -21,6 +21,6 @@
 ## 本批不执行的部分
 
 - 13 个 fixture 带 `flashPrefixActions` 或 `flashPrefixPlan`；本批只建前缀之前的原生状态，
-  不执行前缀。清单见 `.local/tool-tasks/blitz/M2a0-report.md`。
+  不执行前缀。清单见 `.local/tool-tasks/sts2-solver/M2a0-report.md`。
 - `ts-a-toasty`、`ts-b-toolbox`、`qf2-gradient-failure` 会各产生额外的回合准备（turn-setup）
   根；本批只建每个 fixture 一个普通可操作根，额外 8 个根留给 M2a-5。

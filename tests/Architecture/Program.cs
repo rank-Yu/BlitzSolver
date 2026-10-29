@@ -1,6 +1,6 @@
 using System.Reflection;
-using BlitzSolver.Architecture;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Architecture;
+using Sts2Solver.Simulation.Combat;
 
 Assembly core = typeof(Battle).Assembly;
 IReadOnlyList<Violation> violations = DependencyChecker.Check(core);
@@ -16,8 +16,8 @@ Console.WriteLine($"ARCHITECTURE_OK assembly={core.GetName().Name} types={core.G
 
 Assembly self = typeof(DependencyChecker).Assembly;
 IReadOnlyList<Violation> negative = DependencyChecker.Check(self);
-const string sourceType = "BlitzSolver.Ai.Run.UnregisteredRunReferenceFixture";
-const string targetType = "BlitzSolver.Simulation.Run.RunProjectionFixture";
+const string sourceType = "Sts2Solver.Ai.Run.UnregisteredRunReferenceFixture";
+const string targetType = "Sts2Solver.Simulation.Run.RunProjectionFixture";
 Violation? expected = negative.FirstOrDefault(violation
     => violation.Source == sourceType && violation.Target == targetType);
 if (expected is null)
@@ -37,8 +37,8 @@ if (permitted.Any(violation => violation.Source == sourceType && violation.Targe
 Console.WriteLine("ARCHITECTURE_ALLOWLIST_OK 登记后的可见投影被允许");
 
 IReadOnlyList<Violation> visible = DependencyChecker.Check(self);
-const string visibleSource = "BlitzSolver.Ai.Run.VisibleRunReferenceFixture";
-const string visibleTarget = "BlitzSolver.Simulation.Run.RunView";
+const string visibleSource = "Sts2Solver.Ai.Run.VisibleRunReferenceFixture";
+const string visibleTarget = "Sts2Solver.Simulation.Run.RunView";
 if (visible.Any(violation => violation.Source == visibleSource && violation.Target == visibleTarget))
 {
     Console.WriteLine("ARCHITECTURE_VISIBLE_FAILED RunView 已登记但仍被拒绝");
@@ -47,19 +47,19 @@ if (visible.Any(violation => violation.Source == visibleSource && violation.Targ
 Console.WriteLine("ARCHITECTURE_VISIBLE_OK RunView 对 Ai.Run 可见");
 HashSet<string> recursiveTypes = new(StringComparer.Ordinal)
 {
-    "BlitzSolver.Simulation.Run.VisibleNestedFixture",
-    "BlitzSolver.Simulation.Run.VisibleInlineFixture",
-    "BlitzSolver.Simulation.Run.ManagedVisibleFixture",
-    "BlitzSolver.Simulation.Run.IndirectVisibleFixture",
+    "Sts2Solver.Simulation.Run.VisibleNestedFixture",
+    "Sts2Solver.Simulation.Run.VisibleInlineFixture",
+    "Sts2Solver.Simulation.Run.ManagedVisibleFixture",
+    "Sts2Solver.Simulation.Run.IndirectVisibleFixture",
 };
 IReadOnlyList<Violation> recursive = DependencyChecker.Check(self, recursiveTypes);
-if (!recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.VisibleNestedFixture"
-        && v.Target == "BlitzSolver.Simulation.Run.HiddenNestedFixture")
-    || !recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.ManagedVisibleFixture"
+if (!recursive.Any(v => v.Source == "Sts2Solver.Simulation.Run.VisibleNestedFixture"
+        && v.Target == "Sts2Solver.Simulation.Run.HiddenNestedFixture")
+    || !recursive.Any(v => v.Source == "Sts2Solver.Simulation.Run.ManagedVisibleFixture"
         && v.Target == "System.String")
-    || !recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.IndirectVisibleFixture"
+    || !recursive.Any(v => v.Source == "Sts2Solver.Simulation.Run.IndirectVisibleFixture"
         && v.Target == "System.IntPtr")
-    || !recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.IndirectVisibleFixture"
+    || !recursive.Any(v => v.Source == "Sts2Solver.Simulation.Run.IndirectVisibleFixture"
         && v.Target == "System.UIntPtr"))
 {
     Console.WriteLine("ARCHITECTURE_RECURSIVE_FAILED 未拒绝嵌套隐藏负载、托管引用或地址");

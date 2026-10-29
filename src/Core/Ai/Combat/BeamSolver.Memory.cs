@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 internal sealed partial class BeamSolver
 {

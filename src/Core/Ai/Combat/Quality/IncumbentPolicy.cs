@@ -1,11 +1,11 @@
-// Ported from CombatSolver src/Search/Probes/PrimaryIncumbentPolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-using BlitzSolver.Ai.Combat.Policy;
+// Ported from CombatSolver src/Search/Probes/PrimaryIncumbentPolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+using Sts2Solver.Ai.Combat.Policy;
 
-namespace BlitzSolver.Ai.Combat.Quality;
+namespace Sts2Solver.Ai.Combat.Quality;
 
 /// <summary>
 /// The existing primary member's incumbent pruning rule, shared by the Beam retention policy and
-/// the Blitz retained-seat lane. Pure functions over frozen request values.
+/// the Sts2Solver retained-seat lane. Pure functions over frozen request values.
 /// </summary>
 internal static class IncumbentPolicy
 {

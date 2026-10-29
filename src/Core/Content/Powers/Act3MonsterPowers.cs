@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>PaperCutsPower</c>: after its owner deals unblocked powered-attack damage to a player,
@@ -82,7 +82,7 @@ public sealed class SoarPower : PowerDef
 /// Native <c>GalvanicPower</c>: after a Galvanized card is played, the <b>card's owner</b> takes
 /// <c>Amount</c> Unpowered damage (<c>AfterCardPlayedMirrors.HandleGalvanicPower</c> damages
 /// <c>context.PreviewCard.Owner.Creature</c>, not the power's owner; the Globe Head carries the power
-/// while the player plays the card). Every card in a Blitz battle is the player's, so the target is
+/// while the player plays the card). Every card in a Sts2Solver battle is the player's, so the target is
 /// the player owner. Its <c>AfterCardEnteredCombat</c> is mirrored by
 /// <c>Kernel.NormalizeCardAfflictions</c> (newly entered Power cards get Galvanized with the
 /// power's amount).
@@ -152,7 +152,7 @@ public sealed class ChainsOfBindingPower : PowerDef
     public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)
     {
         // BeforeCardPlayedMirrors.HandleChainsOfBindingPower skips CardModel.IsDupe, not IsClone.
-        // The only dupes Blitz creates are HistoryCourse copies; Card.IsClone marks native
+        // The only dupes Sts2Solver creates are HistoryCourse copies; Card.IsClone marks native
         // CreateClone copies (Swift, AdaptiveStrike), which must set the mark when Bound.
         if (x.CurrentPlayIsHistoryCourseDupe || play.Card.AfflictionId == 0
             || play.Card.AfflictionId - 1 != Registry.AfflictionId<Afflictions.BoundAffliction>())

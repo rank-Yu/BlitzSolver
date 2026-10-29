@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public static partial class Kernel
 {
@@ -247,7 +247,7 @@ public static partial class Kernel
         bool inPile)
     {
         // CardModel.GetResultLocationForCardPlay returns PileType.None for IsDupe: the card leaves
-        // combat instead of exhausting/discarding. The HistoryCourse copy is the only dupe Blitz creates.
+        // combat instead of exhausting/discarding. The HistoryCourse copy is the only dupe Sts2Solver creates.
         if (x.CurrentPlayIsHistoryCourseDupe)
         {
             if (inPile)

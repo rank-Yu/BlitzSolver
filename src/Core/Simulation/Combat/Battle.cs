@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public enum Side : byte
 {
@@ -257,7 +257,7 @@ public enum Counter : byte
 /// All branch-mutable state of one combat at a stable boundary. Unmanaged and reference-free:
 /// a copy is a deep fork, and the byte image is the state identity. See
 /// <c>docs/combat-state-layout.md</c>. Field order avoids implicit padding; the total size
-/// is asserted by <c>BlitzSolver.KernelChecks</c>.
+/// is asserted by <c>Sts2Solver.KernelChecks</c>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct Battle

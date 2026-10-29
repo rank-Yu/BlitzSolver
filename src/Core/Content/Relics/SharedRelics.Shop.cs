@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 /// <summary>
 /// <c>UndyingSigil</c>: powered attacks from a doomed creature against its owner are multiplied by

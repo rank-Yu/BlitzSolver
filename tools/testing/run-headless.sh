@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Linux headless launcher for BlitzSolver's Mod test mode.
+# Linux headless launcher for Sts2Solver's Mod test mode.
 #
 # Creates .local/headless-instances/<instance>, copies the game, RitsuLib, the packaged
-# BlitzSolver mod and the seed XDG_DATA_HOME into it, writes one or more OfflineRequest JSON
+# Sts2Solver mod and the seed XDG_DATA_HOME into it, writes one or more OfflineRequest JSON
 # files, starts the native headless game with --force-steam=off, and polls results/done.json.
 #
 # The instance never contains CombatSolver unless --coexist-combat-solver is given (used only
@@ -17,10 +17,10 @@ info() { echo "run-headless: $*"; }
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 instance=""
-instance_root="${BLITZ_HEADLESS_ROOT:-$repo_root/.local/headless-instances}"
+instance_root="${STS2_SOLVER_HEADLESS_ROOT:-$repo_root/.local/headless-instances}"
 game_root="$HOME/games/sts2"
 ritsu_root="$HOME/games/sts2/steamapps/workshop/content/2868840/3747602295"
-mod_dir="$repo_root/artifacts/mod/BlitzSolver"
+mod_dir="$repo_root/artifacts/mod/Sts2Solver"
 seed_data="$HOME/sts2/CombatSolver/.local/headless-seed/data"
 offline_host="$repo_root/artifacts/bin/Differential/release/Differential.dll"
 requests_dir=""
@@ -59,7 +59,7 @@ usage() {
   --instance-root DIR          实例根（默认 .local/headless-instances）
   --game-root DIR              游戏目录（默认 ~/games/sts2）
   --ritsu-root DIR             RitsuLib 目录（默认 workshop 3747602295）
-  --mod-dir DIR                BlitzSolver Mod 目录（默认 artifacts/mod/BlitzSolver）
+  --mod-dir DIR                Sts2Solver Mod 目录（默认 artifacts/mod/Sts2Solver）
   --seed-data DIR              种子 XDG_DATA_HOME/data（默认 CombatSolver headless-seed/data）
   --offline-host-dll FILE      Differential.dll（用于 --roots-file/--root 生成请求）
   --combat-solver-dir DIR      CombatSolver Mod 目录（默认 ~/games/sts2/mods/CombatSolver）
@@ -104,7 +104,7 @@ done
 [[ $instance =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]] || die "非法实例名：$instance"
 [[ $timeout_seconds =~ ^[1-9][0-9]*$ ]] || die "--timeout-seconds 必须是正整数"
 [[ -x $game_root/SlayTheSpire2 ]] || die "找不到游戏：$game_root/SlayTheSpire2"
-[[ -f $mod_dir/BlitzSolver.json && -f $mod_dir/BlitzSolver.dll ]] || die "找不到打包好的 Mod：$mod_dir"
+[[ -f $mod_dir/Sts2Solver.json && -f $mod_dir/Sts2Solver.dll ]] || die "找不到打包好的 Mod：$mod_dir"
 [[ -d $seed_data/SlayTheSpire2/default/1 ]] || die "种子数据缺少 settings：$seed_data"
 command -v jq >/dev/null || die "需要 jq"
 command -v realpath >/dev/null || die "需要 realpath"
@@ -120,7 +120,7 @@ done
 [[ $instance_dir != "$repo_root/"* ]] || true
 
 if [[ -e $instance_dir ]]; then
-    if [[ -f $instance_dir/.blitz-headless-owned ]]; then
+    if [[ -f $instance_dir/.sts2-solver-headless-owned ]]; then
         info "removing previous owned instance $instance_dir"
         rm -rf -- "$instance_dir" || die "无法删除旧实例：$instance_dir"
     else
@@ -135,7 +135,7 @@ elif (( probe_only == 0 )); then
 fi
 
 mkdir -p -- "$instance_dir"/{game,data,config,cache,run/requests,run/results} || die "无法创建实例目录"
-printf '%s\n' "$instance_dir" >"$instance_dir/.blitz-headless-owned" || die "无法写实例标记"
+printf '%s\n' "$instance_dir" >"$instance_dir/.sts2-solver-headless-owned" || die "无法写实例标记"
 
 game_pid=""
 cleanup() {
@@ -164,7 +164,7 @@ trap cleanup EXIT INT TERM
 info "copying game to $instance_dir/game"
 cp -aL --reflink=auto -- "$game_root/." "$instance_dir/game/" || die "复制游戏失败"
 rm -rf -- "$instance_dir/game/mods" || die "无法清理实例 mods"
-mkdir -p -- "$instance_dir/game/mods/STS2-RitsuLib" "$instance_dir/game/mods/BlitzSolver" \
+mkdir -p -- "$instance_dir/game/mods/STS2-RitsuLib" "$instance_dir/game/mods/Sts2Solver" \
     || die "无法创建实例 mods"
 
 [[ -f $ritsu_root/STS2-RitsuLib.dll && -f $ritsu_root/mod_manifest.json ]] \
@@ -174,9 +174,9 @@ mv -- "$instance_dir/game/mods/STS2-RitsuLib/mod_manifest.json" \
     "$instance_dir/game/mods/STS2-RitsuLib/STS2-RitsuLib.json" || die "写 RitsuLib 清单失败"
 rm -f -- "$instance_dir/game/mods/STS2-RitsuLib/mod_manifest.json"
 
-cp -a -- "$mod_dir/." "$instance_dir/game/mods/BlitzSolver/" || die "复制 BlitzSolver 失败"
-[[ -f $instance_dir/game/mods/BlitzSolver/BlitzSolver.dll &&
-   -f $instance_dir/game/mods/BlitzSolver/BlitzSolver.json ]] || die "BlitzSolver Mod 不完整"
+cp -a -- "$mod_dir/." "$instance_dir/game/mods/Sts2Solver/" || die "复制 Sts2Solver 失败"
+[[ -f $instance_dir/game/mods/Sts2Solver/Sts2Solver.dll &&
+   -f $instance_dir/game/mods/Sts2Solver/Sts2Solver.json ]] || die "Sts2Solver Mod 不完整"
 
 if (( coexist == 1 )); then
     [[ -f $combat_solver_dir/CombatSolver.json && -f $combat_solver_dir/CombatSolver.dll ]] \
@@ -257,7 +257,7 @@ launcher_log="$instance_dir/launcher.log"
         XDG_DATA_HOME="$instance_dir/data" \
         XDG_CONFIG_HOME="$instance_dir/config" \
         XDG_CACHE_HOME="$instance_dir/cache" \
-        BLITZ_TEST_DIR="$instance_dir/run" \
+        STS2_SOLVER_TEST_DIR="$instance_dir/run" \
         "$instance_dir/game/SlayTheSpire2" \
         --headless --disable-vsync --max-fps 0 --force-steam=off --log-file "$log_path"
 ) </dev/null >"$launcher_log" 2>&1 &
@@ -275,8 +275,8 @@ if (( probe_only == 1 )); then
     ok=0
     while (( SECONDS < deadline )); do
         if ! kill -0 "$game_pid" 2>/dev/null; then break; fi
-        if grep -q "\[BlitzSolver\] INIT id=BlitzSolver" "$log_path" 2>/dev/null \
-            || grep -q "\[BlitzSolver\] DISABLED reason=CombatSolver" "$log_path" 2>/dev/null; then
+        if grep -q "\[Sts2Solver\] INIT id=Sts2Solver" "$log_path" 2>/dev/null \
+            || grep -q "\[Sts2Solver\] DISABLED reason=CombatSolver" "$log_path" 2>/dev/null; then
             ok=1
             break
         fi
@@ -287,21 +287,21 @@ if (( probe_only == 1 )); then
         die "等待 Mod 初始化日志超时"
     fi
     if (( coexist == 1 )); then
-        grep -q "\[BlitzSolver\] DISABLED reason=CombatSolver" "$log_path" \
+        grep -q "\[Sts2Solver\] DISABLED reason=CombatSolver" "$log_path" \
             || die "共存检查失败：没有 DISABLED 日志"
-        if grep -q "\[BlitzSolver\] INIT id=BlitzSolver" "$log_path"; then
+        if grep -q "\[Sts2Solver\] INIT id=Sts2Solver" "$log_path"; then
             die "共存检查失败：CombatSolver 存在时仍然 INIT"
         fi
-        if grep -q "\[BlitzSolver\] TEST_STARTED" "$log_path"; then
+        if grep -q "\[Sts2Solver\] TEST_STARTED" "$log_path"; then
             die "共存检查失败：CombatSolver 存在时启动了测试模式"
         fi
         [[ ! -f $instance_dir/run/mod.log ]] || die "共存检查失败：仍写了测试日志"
-        grep -m1 "\[BlitzSolver\] DISABLED" "$log_path" || true
+        grep -m1 "\[Sts2Solver\] DISABLED" "$log_path" || true
         echo "COEXISTENCE check=passed instance=$instance"
     else
-        grep -q "\[BlitzSolver\] INIT id=BlitzSolver" "$log_path" \
+        grep -q "\[Sts2Solver\] INIT id=Sts2Solver" "$log_path" \
             || die "Mod 初始化日志缺失"
-        grep -m1 "\[BlitzSolver\] INIT" "$log_path" || true
+        grep -m1 "\[Sts2Solver\] INIT" "$log_path" || true
         echo "MOD_LOAD check=passed instance=$instance"
     fi
     exit 0
@@ -323,10 +323,10 @@ done
     die "等待 results/done.json 超时（${timeout_seconds}s）"
 }
 
-if ! grep -q "\[BlitzSolver\] INIT id=BlitzSolver" "$log_path"; then
+if ! grep -q "\[Sts2Solver\] INIT id=Sts2Solver" "$log_path"; then
     die "Mod 未初始化：日志中没有 INIT"
 fi
-if grep -q "Exception thrown while loading mod BlitzSolver" "$log_path"; then
+if grep -q "Exception thrown while loading mod Sts2Solver" "$log_path"; then
     die "Mod 加载异常"
 fi
 

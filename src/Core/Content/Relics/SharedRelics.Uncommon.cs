@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 /// <summary>
 /// <c>TwistedFunnel</c>: at the first player side turn start applies Poison to every hittable enemy.
@@ -117,7 +117,7 @@ public sealed class SparklingRouge : RelicDef
 
 /// <summary>
 /// <c>RippleBasin</c>: <c>BeforeSideTurnEnd</c>, if no attack card was played this turn, gains 4 block
-/// (<c>BeforeSideTurnEndMirrors.HandleRippleBasin</c>; Blitz's
+/// (<c>BeforeSideTurnEndMirrors.HandleRippleBasin</c>; Sts2Solver's
 /// <see cref="Counter.AttacksPlayedThisTurn"/> is the branch-local counterpart of
 /// <c>GetAttacksPlayedThisTurn</c>).
 /// </summary>
@@ -506,7 +506,7 @@ public sealed class PenNib : RelicDef
     private const int AttacksThreshold = 10;
 
     // The native latch is the CardPlay whose damage to double (PenNibPredictionState.AttackToDouble).
-    // Blitz stores that play's one-action identity instead of a boolean: a Sly card auto-played by the
+    // Sts2Solver stores that play's one-action identity instead of a boolean: a Sly card auto-played by the
     // tenth attack's own selection is a different CardPlay and must not inherit the doubling.
     // Aux is 0 at every stable boundary because the triggering card's AfterCardPlayed clears it.
     public override void BeforeCardPlayed(ref Exec x, Listener self, in CardPlayInfo play)

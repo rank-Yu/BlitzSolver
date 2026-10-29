@@ -1,12 +1,12 @@
 // Explicit boundary fixture: start a real native Boss room with test-only monster HP=1.
 // This is never a natural Act1 completion claim. Combat/pilot/rewards remain production code.
 using System.Text.Json;
-using BlitzSolver.OfflineHost;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.OfflineHost;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -43,8 +43,8 @@ internal static class ActOneBoundaryFixture
         }
         _requestContract &= legalReward;
     }
-    private static BlitzSolver.OfflineHost.Runtime.MainLoopContext? _productionLoop;
-    private static void Loop(BlitzSolver.OfflineHost.Runtime.MainLoopContext __instance) => _productionLoop = __instance;
+    private static Sts2Solver.OfflineHost.Runtime.MainLoopContext? _productionLoop;
+    private static void Loop(Sts2Solver.OfflineHost.Runtime.MainLoopContext __instance) => _productionLoop = __instance;
     private static Task? _offer;
     private static void Ready() => _ready++;
     private static void Enqueue(GameAction action) { if (action is VoteToMoveToNextActAction) _votes++; }
@@ -56,17 +56,17 @@ internal static class ActOneBoundaryFixture
     {
         if (mode is not ("act1" or "rooms-exact" or "rooms-more" or "budget"))
             throw new InvalidDataException("unknown act1 fixture mode");
-        Harmony harmony = new("BlitzSolver.Differential.ActOneFixture");
+        Harmony harmony = new("Sts2Solver.Differential.ActOneFixture");
         harmony.Patch(
-            AccessTools.Method(typeof(BlitzSolver.OfflineHost.Runtime.NewRunFactory), "Create"),
+            AccessTools.Method(typeof(Sts2Solver.OfflineHost.Runtime.NewRunFactory), "Create"),
             postfix: new HarmonyMethod(typeof(ActOneBoundaryFixture), nameof(Created)));
         harmony.Patch(AccessTools.Method(typeof(ActChangeSynchronizer), nameof(ActChangeSynchronizer.SetLocalPlayerReady)),
             prefix: new HarmonyMethod(typeof(ActOneBoundaryFixture), nameof(Ready)));
         harmony.Patch(AccessTools.Method(typeof(ActionQueueSynchronizer), nameof(ActionQueueSynchronizer.RequestEnqueue)),
             prefix: new HarmonyMethod(typeof(ActOneBoundaryFixture), nameof(Enqueue)));
-        harmony.Patch(AccessTools.GetDeclaredConstructors(typeof(BlitzSolver.OfflineHost.Runtime.MainLoopContext)).Single(),
+        harmony.Patch(AccessTools.GetDeclaredConstructors(typeof(Sts2Solver.OfflineHost.Runtime.MainLoopContext)).Single(),
             postfix: new HarmonyMethod(typeof(ActOneBoundaryFixture), nameof(Loop)));
-        Type policy = typeof(BlitzSolver.OfflineHost.Runtime.FirstCombatSession)
+        Type policy = typeof(Sts2Solver.OfflineHost.Runtime.FirstCombatSession)
             .GetNestedType("SmokePolicy", System.Reflection.BindingFlags.NonPublic)!;
         harmony.Patch(AccessTools.Method(policy, "DecideAsync"),
             prefix: new HarmonyMethod(typeof(ActOneBoundaryFixture), nameof(Decision)));

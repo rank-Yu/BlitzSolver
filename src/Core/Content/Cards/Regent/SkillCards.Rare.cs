@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Regent;
+namespace Sts2Solver.Content.Cards.Regent;
 
 /// <summary>
 /// <c>DecisionsDecisions</c>: draw the Cards variable, choose one non-unplayable Skill in hand, then
@@ -173,7 +173,7 @@ public sealed class IAmInvincible : CardDef
     {
         if (self.Kind != ListenerKind.Card || self.Owner != Limits.PlayerOwner)
             return;
-        // DrawPile.TopCard?.References(card): the top of the draw pile is this card. Blitz has no
+        // DrawPile.TopCard?.References(card): the top of the draw pile is this card. Sts2Solver has no
         // instance identity, so the hook does not test the listener's own position (it can be stale
         // after an earlier copy was auto-played); instead it checks the current top value. Every copy
         // anywhere is a listener, and there is at least one listener per draw-pile copy, so all

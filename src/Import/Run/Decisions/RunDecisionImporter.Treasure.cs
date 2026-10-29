@@ -1,12 +1,12 @@
 // Read-only visibility follows sts2 v0.111.0 TreasureRoom/NTreasureRoom and relic synchronizer.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 public static partial class RunDecisionImporter
 {

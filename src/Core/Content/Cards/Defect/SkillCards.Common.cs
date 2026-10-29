@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Defect;
+namespace Sts2Solver.Content.Cards.Defect;
 
 [ContentId("COOLHEADED")]
 public sealed class CoolHeaded : CardDef
@@ -64,7 +64,7 @@ public sealed class BoostAway : CardDef
         if (x.NeedsChoice)
             return;
         if (!Registry.TryCard("DAZED", out ushort dazed))
-            throw new UnsupportedException("Dazed 没有 Blitz 定义。");
+            throw new UnsupportedException("Dazed 没有 Sts2Solver 定义。");
         Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, dazed), Pile.Discard);
     }
 }
@@ -122,7 +122,7 @@ public sealed class Turbo : CardDef
         if (x.NeedsChoice)
             return;
         if (!Registry.TryCard("VOID", out ushort id))
-            throw new UnsupportedException("涡轮生成需要 VOID 的 Blitz 定义。");
+            throw new UnsupportedException("涡轮生成需要 VOID 的 Sts2Solver 定义。");
         Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, id), Pile.Discard);
     }
 }

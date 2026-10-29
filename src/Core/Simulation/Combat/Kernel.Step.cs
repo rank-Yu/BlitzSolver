@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public static partial class Kernel
 {
@@ -63,7 +63,7 @@ public static partial class Kernel
     {
         // SettleReplayActionBoundary: resolve the queued changes and renormalize card afflictions.
         // The existing engine skips SettleReplayActionBoundary for every non-None boundary, including
-        // EventDefeat (CombatBeamSolver.Expansion.Replay.cs:432). Only the Blitz-internal transient
+        // EventDefeat (CombatBeamSolver.Expansion.Replay.cs:432). Only the Sts2Solver-internal transient
         // flags and decimal slots are still normalized below.
         if (!x.NeedsChoice && x.B.Outcome != Outcome.EventDefeat)
         {

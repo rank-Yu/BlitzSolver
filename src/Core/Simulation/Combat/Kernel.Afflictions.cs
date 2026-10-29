@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Card afflictions and enchantments. Afflictions are markers on a card; the powers that apply them
@@ -59,12 +59,12 @@ public static partial class Kernel
                 return;
             long stacked = (long)card.AfflictionAmount + amount;
             if (stacked is < short.MinValue or > short.MaxValue)
-                throw new UnsupportedException($"苦难 {def.NativeId} 层数 {stacked} 超出 Blitz 的短整型表示。");
+                throw new UnsupportedException($"苦难 {def.NativeId} 层数 {stacked} 超出 Sts2Solver 的短整型表示。");
             card.AfflictionAmount = (short)stacked;
             return;
         }
         if (amount is < short.MinValue or > short.MaxValue)
-            throw new UnsupportedException($"苦难 {def.NativeId} 层数 {amount} 超出 Blitz 的短整型表示。");
+            throw new UnsupportedException($"苦难 {def.NativeId} 层数 {amount} 超出 Sts2Solver 的短整型表示。");
         card.AfflictionId = checked((byte)(afflictionId + 1));
         card.AfflictionAmount = (short)amount;
     }
@@ -251,7 +251,7 @@ public static partial class Kernel
     /// Mirrors <c>SimulatedCombatState.NormalizeAeonglassWithers</c>: every Wither is upgraded to the
     /// summed <c>WitherUpgradeCount</c> of the roster Aeonglass enemies. The fake upgrade adds 3 to the
     /// Damage variable per level, and Wither's only dynamic-variable delta is that upgrade (base
-    /// 3, max upgrade level 0), so the Blitz value is the delta itself.
+    /// 3, max upgrade level 0), so the Sts2Solver value is the delta itself.
     /// </summary>
     public static void NormalizeAeonglassWithers(ref Exec x)
     {
@@ -282,7 +282,7 @@ public static partial class Kernel
     private static void SetAfflictionAmount(ref Card card, int amount)
     {
         if (amount is < short.MinValue or > short.MaxValue)
-            throw new UnsupportedException($"污染层数 {amount} 超出 Blitz 的短整型表示。");
+            throw new UnsupportedException($"污染层数 {amount} 超出 Sts2Solver 的短整型表示。");
         card.AfflictionAmount = (short)amount;
     }
 

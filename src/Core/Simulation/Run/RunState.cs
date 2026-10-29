@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// All branch-mutable state of one single-player run at a stable boundary. Unmanaged and

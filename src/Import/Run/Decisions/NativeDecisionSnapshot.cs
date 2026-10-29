@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Run;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Immutable request-local native bindings. Game references remain outside the pure request.
 /// This is not a session: the host must own fresh tokens, consumption, busy state and cancellation dispatch.</summary>

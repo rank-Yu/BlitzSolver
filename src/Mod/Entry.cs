@@ -3,14 +3,14 @@ using MegaCrit.Sts2.Core.Nodes;
 using STS2RitsuLib;
 using STS2RitsuLib.Patching.Core;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 [ModInitializer(nameof(Initialize))]
 public static class ModEntry
 {
-    public const string ModId = "BlitzSolver";
-    public const string DisplayName = "极速求解器";
-    public const string EnglishName = "Blitz Solver";
+    public const string ModId = "Sts2Solver";
+    public const string DisplayName = "尖塔求解器";
+    public const string EnglishName = "STS2 Solver";
     public const string Version = "0.1.0";
 
     public static bool Enabled { get; private set; }
@@ -23,7 +23,7 @@ public static class ModEntry
         if (CombatSolverPresent())
         {
             MegaCrit.Sts2.Core.Logging.Log.Info(
-                "[BlitzSolver] DISABLED reason=CombatSolver present (coexistence policy: no patches, no events)");
+                "[Sts2Solver] DISABLED reason=CombatSolver present (coexistence policy: no patches, no events)");
             return;
         }
 
@@ -31,9 +31,9 @@ public static class ModEntry
         TestMode = !string.IsNullOrWhiteSpace(testDirectory);
         Enabled = true;
         ModLog.Initialize(TestMode ? Path.Combine(testDirectory!, "mod.log") : null);
-        ModLog.Info($"[BlitzSolver] INIT id={ModId} version={Version} name={DisplayName} english={EnglishName} test_mode={TestMode}");
+        ModLog.Info($"[Sts2Solver] INIT id={ModId} version={Version} name={DisplayName} english={EnglishName} test_mode={TestMode}");
 
-        ModPatcher patcher = RitsuLibFramework.CreatePatcher(ModId, "blitzsolver", DisplayName);
+        ModPatcher patcher = RitsuLibFramework.CreatePatcher(ModId, "sts2solver", DisplayName);
         patcher.RegisterPatch<UnattendedTestIsolationPatch>();
         patcher.RegisterPatch<UnattendedNoDiscoveryOrderPatch>();
         patcher.RegisterPatch<UnattendedHeadlessFtuePatch>();
@@ -41,7 +41,7 @@ public static class ModEntry
         RitsuLibFramework.ApplyRequiredPatcher(patcher, DisableMod);
         if (!Enabled)
         {
-            ModLog.Error("[BlitzSolver] DISABLED reason=required patch registration failed");
+            ModLog.Error("[Sts2Solver] DISABLED reason=required patch registration failed");
             return;
         }
 
@@ -60,7 +60,7 @@ public static class ModEntry
         NGame? host = NGame.Instance;
         if (host == null)
         {
-            ModLog.Warn("[BlitzSolver] HOTKEY_DISABLED reason=NGame_instance_missing");
+            ModLog.Warn("[Sts2Solver] HOTKEY_DISABLED reason=NGame_instance_missing");
         }
         else
         {
@@ -70,7 +70,7 @@ public static class ModEntry
                 AutoCombatSession.Cancel("tree_exiting");
                 SearchSession.Cancel("tree_exiting");
             };
-            ModLog.Info("[BlitzSolver] HOTKEY_READY key=F8 action=toggle_full_auto");
+            ModLog.Info("[Sts2Solver] HOTKEY_READY key=F8 action=toggle_full_auto");
         }
     }
 

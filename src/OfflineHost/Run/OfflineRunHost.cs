@@ -1,7 +1,7 @@
-using BlitzSolver.Autoplay;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
@@ -12,7 +12,7 @@ using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Runs;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 /// <summary>Single native session. The embedding runtime owns game initialization and boundary discovery.</summary>
 public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
@@ -263,6 +263,6 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
             => host.SelectAsync(options, minSelect, maxSelect);
         public CardRewardSelection GetSelectedCardReward(IReadOnlyList<CardCreationResult> options,
             IReadOnlyList<CardRewardAlternative> alternatives)
-            => throw new BlitzSolver.Simulation.Combat.UnsupportedException("host-sync-card-reward: asynchronous policy is unsupported");
+            => throw new Sts2Solver.Simulation.Combat.UnsupportedException("host-sync-card-reward: asynchronous policy is unsupported");
     }
 }

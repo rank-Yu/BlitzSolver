@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 
-namespace BlitzSolver.OfflineHost;
+namespace Sts2Solver.OfflineHost;
 
 /// <summary>Standalone process input. No game or test types cross this boundary.</summary>
 public sealed record FirstCombatOptions(string GameDataDirectory, string Seed = "R3B2-DECISION",

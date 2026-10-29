@@ -1,6 +1,6 @@
 # CombatSolver 接入方式（历史参考）
 
-这是 CombatSolver 中的接入方式，仅作历史参考。新仓库没有 `BeamSolveDispatch`、`CombatSearchCoordinator`、Off/On 模式、Bridge 或旧引擎回放物化；这些内容不在 BlitzSolver 的运行路径中。
+这是 CombatSolver 中的接入方式，仅作历史参考。新仓库没有 `BeamSolveDispatch`、`CombatSearchCoordinator`、Off/On 模式、Bridge 或旧引擎回放物化；这些内容不在 Sts2Solver 的运行路径中。
 
 ## 2. 路线物化
 

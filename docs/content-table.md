@@ -12,13 +12,13 @@
 - 由当前整局状态决定的池、解锁与遗物顺序；
 - 由当前战斗根决定的牌堆、Power、敌人、药水、历史标记等。
 
-Blitz 从 `RunState` 建战斗时没有对应的原版战斗对象，因此需要把第一类固化成内容表，第二、三类从 `RunState` 与 `Battle` 推出。原版仍然是唯一事实来源：内容表在进程启动时从当前加载的这份游戏导出，不写盘、不缓存、不检查版本。
+Sts2Solver 从 `RunState` 建战斗时没有对应的原版战斗对象，因此需要把第一类固化成内容表，第二、三类从 `RunState` 与 `Battle` 推出。原版仍然是唯一事实来源：内容表在进程启动时从当前加载的这份游戏导出，不写盘、不缓存、不检查版本。
 
 ## 2. 内容表
 
 类型：`src/Core/Simulation/Run/ContentTable.cs` 的 `ContentTable`。
 导出器：`src/Import/Run/ContentTableExporter.cs` 的 `ContentTableExporter.Export()`。
-表只由 `ModelDb` 的规范模型与 Blitz `Registry`/`RunCatalog` 生成，只在内存里存在一次；`RulesBuilder` 不读任何原版对象。
+表只由 `ModelDb` 的规范模型与 Sts2Solver `Registry`/`RunCatalog` 生成，只在内存里存在一次；`RulesBuilder` 不读任何原版对象。
 
 | 区块 | 内容 | 覆盖数量（0.111.0） |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ Blitz 从 `RunState` 建战斗时没有对应的原版战斗对象，因此需�
 
 怪物规则按进阶 0..10 各导出一份。原版 `MinInitialHp`、攻击意图和部分静态整数通过 `AscensionHelper` 读取当前跑局进阶；导出器在无跑局状态下临时给 `RunManager` 一个只用于“非空”判断的占位状态与对应 `AscensionManager`，导出完立即恢复。这是导出器唯一的临时全局上下文，不写进度、不碰存档；若导出时已有进行中的跑局会显式失败。
 
-原版有但 Blitz 不支持的内容不会默认成功：`ContentTable` 为卡牌、Power、药水、遗物、附魔、
+原版有但 Sts2Solver 不支持的内容不会默认成功：`ContentTable` 为卡牌、Power、药水、遗物、附魔、
 怪物分别保留 `CardUnsupported`/`PowerUnsupported`/`PotionUnsupported`/`RelicUnsupported`/
 `EnchantmentUnsupported`/`MonsterUnsupported`，遭遇保留 `UnsupportedReason`/`UnsupportedDetail`；
 每项带稳定原因码与细节。`RulesBuilder` 用与 `RulesCompiler` 相同的稳定码（`unsupported-card`、
@@ -48,7 +48,7 @@ Blitz 从 `RunState` 建战斗时没有对应的原版战斗对象，因此需�
 `unsupported-enchantment`、`unsupported-encounter`、`unsupported-closure`、`capacity`）抛出
 `ContentUnavailableException`。`--content-table-report` 会把所有 `CONTENT-UNSUPPORTED` 条目按
 类型列出。当前 0.111.0 只有 `EXOSKELETON` 没有独立召唤变体（它的 `INIT_MOVE` 条件分支在
-无槽位 scratch 中无法解析），遭遇变体仍然完整；另有 37 个原版卡池候选卡没有 Blitz 定义。
+无槽位 scratch 中无法解析），遭遇变体仍然完整；另有 37 个原版卡池候选卡没有 Sts2Solver 定义。
 
 导出耗时与保留内存（`--content-table-report`）：R2c-1 的完整表在 Release 单次测得约
 **1.5 秒**、**19.5 MB**。R3-0 删除了新局、奖励与商店区块，未重新测时；表仍然只在进程内保留
@@ -200,7 +200,7 @@ R3-0 删除 `NewRunContentExporter`，同时从 `ContentTable` 去掉新局、�
 - `CardSetupHooks`/`RelicSetupHooks`/`PowerSetupHooks`/`EnchantmentSetupHooks`：开战建局；
 - `RelicStartVars`：开战遗物按 native 变量名取值。
 
-局外推进改由原版负责，奖励池、商店价格与新局静态数据不再需要 Blitz 导出。最后一个包含
+局外推进改由原版负责，奖励池、商店价格与新局静态数据不再需要 Sts2Solver 导出。最后一个包含
 完整局外模拟器的提交是 `683bc03`。
 
 ## 9. 建局专用闭包（R2a-5）

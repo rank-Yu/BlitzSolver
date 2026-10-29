@@ -1,7 +1,7 @@
 using Godot;
 using MegaCrit.Sts2.Core.Nodes;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// The ordinary-game trigger: F8 toggles whole-combat automation. The UI and per-turn controls are
@@ -21,7 +21,7 @@ internal sealed partial class SearchHotkeyNode : Node
         NGame? host = NGame.Instance;
         if (host == null)
             return;
-        ModLog.Info("[BlitzSolver] HOTKEY_AUTO_TOGGLE key=F8");
+        ModLog.Info("[Sts2Solver] HOTKEY_AUTO_TOGGLE key=F8");
         AutoCombatSession.Toggle(host);
     }
 }

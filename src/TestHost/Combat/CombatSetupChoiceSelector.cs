@@ -1,12 +1,12 @@
 // Native driver for the opening-combat choice sequence. One harness run answers exactly the
-// selections the Blitz replay consumed, in order, and records the request the game made so the
+// selections the Sts2Solver replay consumed, in order, and records the request the game made so the
 // offline comparison can check kind, option list and bounds.
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.TestSupport;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 /// <summary>One native card-selection request observed during the opening build.</summary>
 internal sealed class NativeSetupChoiceRecord

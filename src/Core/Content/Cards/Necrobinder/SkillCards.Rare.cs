@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Necrobinder;
+namespace Sts2Solver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>EndOfDays</c>: apply Doom to every hittable enemy, then kill the doomed ones together
@@ -96,7 +96,7 @@ public sealed class Seance : CardDef
         if (x.B.DrawCount == 0)
             return;
         if (!Registry.TryCard("SOUL", out ushort soul))
-            throw new UnsupportedException("Soul 没有 Blitz 定义。");
+            throw new UnsupportedException("Soul 没有 Sts2Solver 定义。");
         int count = Math.Min((int)CardEffects.Var(x, 0), x.B.DrawCount);
         if (count <= 0)
             return;

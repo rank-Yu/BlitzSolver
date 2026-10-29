@@ -1,10 +1,10 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Turn-phase skeleton mirroring the existing engine's phase functions. Two shapes occur there:
 /// listener-order passes over powers or relics with a per-type switch (each switch case becomes the
 /// definition's phase method), and fixed type sequences (kept here as ordered native-id lists, copied
-/// from the existing code). A type without a Blitz definition is skipped; admission already rejects
+/// from the existing code). A type without a Sts2Solver definition is skipped; admission already rejects
 /// roots that hold it.
 /// </summary>
 public static partial class Kernel

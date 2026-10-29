@@ -1,7 +1,7 @@
 // Contract check for the frozen mirror-coverage tables: the table must contain exactly the
-// canonical native card/power ids, and every Blitz registry id must be present.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
+// canonical native card/power ids, and every Sts2Solver registry id must be present.
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
 using MegaCrit.Sts2.Core.Models;
 
 namespace Differential;

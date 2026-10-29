@@ -1,17 +1,17 @@
-// Adapted from tests/Differential/Combat/TerminalBattleCapture.cs at 6a5f645 (BlitzSolver, MIT).
-using BlitzSolver.OfflineHost.Runtime;
+// Adapted from tests/Differential/Combat/TerminalBattleCapture.cs at 6a5f645 (Sts2Solver, MIT).
+using Sts2Solver.OfflineHost.Runtime;
 // Read-only observer for the original combat terminal boundary. It installs Harmony prefixes on
 // the two native end paths (victory: EndCombatInternal; defeat: ProcessPendingLoss) and imports the
 // native battle before the game clears turn-scoped state. Nothing is written back.
 using System.Reflection;
 using System.Runtime.ExceptionServices;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 
-namespace BlitzSolver.OfflineHost.Combat;
+namespace Sts2Solver.OfflineHost.Combat;
 
 internal enum TerminalCapturePath : byte
 {
@@ -22,7 +22,7 @@ internal enum TerminalCapturePath : byte
 
 internal static class TerminalBattleCapture
 {
-    private static readonly HarmonyLib.Harmony Harmony = new("BlitzSolver.OfflineHost.Terminal");
+    private static readonly HarmonyLib.Harmony Harmony = new("Sts2Solver.OfflineHost.Terminal");
     private static readonly MethodInfo VictoryPrefixMethod = typeof(TerminalBattleCapture).GetMethod(
         nameof(VictoryPrefix), BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new MissingMethodException(typeof(TerminalBattleCapture).FullName,
@@ -111,7 +111,7 @@ internal static class TerminalBattleCapture
         {
             _failure = error;
         }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error)
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error)
         {
             _failure = error;
         }

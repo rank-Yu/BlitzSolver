@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Potions;
+namespace Sts2Solver.Content.Potions;
 
 [ContentId("POTION_SHAPED_ROCK")]
 public sealed class PotionShapedRock : PotionDef

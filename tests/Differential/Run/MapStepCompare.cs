@@ -3,7 +3,7 @@
 //   native: RunManager.EnterMapCoord, with a test-only Harmony prefix that stops a non-combat
 //           room just before EnterRoomInternal (the "room built, history appended, not entered"
 //           boundary) and lets combat continue to the playable first turn;
-//   blitz:  RunStateImporter.Import(native) + RunMapEntry.Enter.
+//   solver:  RunStateImporter.Import(native) + RunMapEntry.Enter.
 // Combat options compare Battle/Rules/RunState like R2a-2; non-combat options compare the
 // RunState at the before-entry boundary. The native snapshot is SerializableRun, restored with
 // SetUpSavedSingleplayer + GenerateMap, so every option starts from the identical state.
@@ -15,10 +15,10 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -34,7 +34,7 @@ using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Unlocks;
 using NativeCreature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 using NativeRunState = MegaCrit.Sts2.Core.Runs.RunState;
-using RunState = BlitzSolver.Simulation.Run.RunState;
+using RunState = Sts2Solver.Simulation.Run.RunState;
 
 namespace Differential;
 
@@ -171,7 +171,7 @@ internal static class MapStepCompare
             return 2;
         }
         string directory = Path.Combine(Directory.GetCurrentDirectory(), ".local", "tool-tasks",
-            "blitz", "map-step-batches");
+            "solver", "map-step-batches");
         Directory.CreateDirectory(directory);
         List<string> batches = [];
         for (int worker = 0; worker < jobs; worker++)
@@ -397,7 +397,7 @@ internal static class MapStepCompare
                 Error(line, exception.Message);
                 error++;
             }
-            catch (BlitzSolver.Simulation.Combat.UnsupportedException exception)
+            catch (Sts2Solver.Simulation.Combat.UnsupportedException exception)
             {
                 Error(line, exception.Message);
                 error++;
@@ -572,7 +572,7 @@ internal static class MapStepCompare
         if (!same)
         {
             state.Diff(
-                $"decision act={native.CurrentActIndex + 1} floor={native.ActFloor} native={OptionText(sortedOptions)} blitz={PointText(points[..pointCount])}");
+                $"decision act={native.CurrentActIndex + 1} floor={native.ActFloor} native={OptionText(sortedOptions)} solver={PointText(points[..pointCount])}");
         }
 
         SerializableRun snapshot = RunManager.Instance.ToSave(null);
@@ -634,7 +634,7 @@ internal static class MapStepCompare
                 _captured?.RoomType ?? RoomTypeOfNative(),
                 "reject", exception.Reason);
         }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException exception)
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException exception)
         {
             state.Rejects++;
             state.Step(imported.ActIndex + 1, floor, pointType,
@@ -659,13 +659,13 @@ internal static class MapStepCompare
         {
             state.Step(act, floor, pointType, captured.RoomType, "diff", "status");
             state.Diff(
-                $"step act={act} floor={floor} point={pointType} native={captured.RoomType} blitz={entry.RoomType}");
+                $"step act={act} floor={floor} point={pointType} native={captured.RoomType} solver={entry.RoomType}");
             return;
         }
 
         string nativeDump = FilterEventRng(NativeRunDump.Capture(captured.Native, captured.Player));
-        string blitzDump = FilterEventRng(RunDump.Capture(entry.Run));
-        List<string> differences = RunImportCompare.DiffDumps(nativeDump, blitzDump);
+        string solverDump = FilterEventRng(RunDump.Capture(entry.Run));
+        List<string> differences = RunImportCompare.DiffDumps(nativeDump, solverDump);
         CheckEventRng(captured, entry.Run, differences);
         if (differences.Count == 0)
         {
@@ -694,7 +694,7 @@ internal static class MapStepCompare
         {
             state.Step(act, floor, pointType, nativeRoom, "diff", "status");
             state.Diff(
-                $"combat act={act} floor={floor} point={pointType} native={nativeRoom} blitz={entry.RoomType}");
+                $"combat act={act} floor={floor} point={pointType} native={nativeRoom} solver={entry.RoomType}");
             if (continueAfter)
             {
                 FinishCombat(combat);
@@ -706,10 +706,10 @@ internal static class MapStepCompare
         Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
         Battle expected = new LiveCombatTracker(combat).ImportRoot(combat, combatPlayer,
             nativeRules);
-        List<string> battleDiff = BattleDump.Diff(expected, entry.Combat.Battle, "native", "blitz");
+        List<string> battleDiff = BattleDump.Diff(expected, entry.Combat.Battle, "native", "solver");
         byte[] nativeRuleBytes = RulesCodec.Encode(nativeRules);
-        byte[] blitzRuleBytes = RulesCodec.Encode(entry.Combat.Rules);
-        string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(blitzRuleBytes)
+        byte[] solverRuleBytes = RulesCodec.Encode(entry.Combat.Rules);
+        string? rulesDiff = nativeRuleBytes.AsSpan().SequenceEqual(solverRuleBytes)
             ? null
             : string.Join(" | ", RulesDiff.Compare(nativeRules, entry.Combat.Rules).Take(4));
         List<string> runDiff = RunImportCompare.DiffDumps(
@@ -786,21 +786,21 @@ internal static class MapStepCompare
         return string.Join('\n', kept);
     }
 
-    private static void CheckEventRng(Captured captured, in RunState blitz,
+    private static void CheckEventRng(Captured captured, in RunState solver,
         List<string> differences)
     {
         if (captured.RoomType != RunRoomType.Event)
             return;
-        if (blitz.Rng.EventCount != 1)
+        if (solver.Rng.EventCount != 1)
         {
-            differences.Add($"rng.events: native=1 blitz={blitz.Rng.EventCount}");
+            differences.Add($"rng.events: native=1 solver={solver.Rng.EventCount}");
             return;
         }
-        RunEventRng eventRng = blitz.Rng.Events[0];
+        RunEventRng eventRng = solver.Rng.Events[0];
         if (eventRng.EventId != captured.EventId || eventRng.Active == 0)
         {
             differences.Add(
-                $"rng.event: native={RunCatalog.EventName(captured.EventId)} blitz={RunCatalog.EventName(eventRng.EventId)} active={eventRng.Active}");
+                $"rng.event: native={RunCatalog.EventName(captured.EventId)} solver={RunCatalog.EventName(eventRng.EventId)} active={eventRng.Active}");
             return;
         }
         MegaCrit.Sts2.Core.Random.Rng expected = new(
@@ -813,7 +813,7 @@ internal static class MapStepCompare
             || saved.state1 != actual.S1 || saved.state2 != actual.S2 || saved.state3 != actual.S3)
         {
             differences.Add(
-                $"rng.event.0: native={saved.counter}/{saved.state0:x16}{saved.state1:x16}{saved.state2:x16}{saved.state3:x16} blitz={actual.Counter}/{actual.S0:x16}{actual.S1:x16}{actual.S2:x16}{actual.S3:x16}");
+                $"rng.event.0: native={saved.counter}/{saved.state0:x16}{saved.state1:x16}{saved.state2:x16}{saved.state3:x16} solver={actual.Counter}/{actual.S0:x16}{actual.S1:x16}{actual.S2:x16}{actual.S3:x16}");
         }
     }
 

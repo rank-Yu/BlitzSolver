@@ -1,7 +1,7 @@
 // Generated from CombatSolver a62f1850 StrategicHpRecoveryBound.ComponentInitialCard:
 // ComponentInitialCards ∪ IronDecimillipedeSafeCards ∪ RemainingSafeCards. Type identity is
 // the component certificate predicate; subclasses and mod types deliberately do not match.
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 internal static class ComponentInitialCardTypes
 {

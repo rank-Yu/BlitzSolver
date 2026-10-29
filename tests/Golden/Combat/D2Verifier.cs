@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 internal sealed record D2Summary(int Selected, int Equal, int Mismatch, long Expanded, long PrefixChecks,
     long ThreatChecks, long PrefixShared, long PrefixUnshared, long PrefixReuse, long PrefixChoiceUnshared,

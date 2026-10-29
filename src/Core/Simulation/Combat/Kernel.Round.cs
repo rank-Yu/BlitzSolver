@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public static partial class Kernel
 {
@@ -338,7 +338,7 @@ public static partial class Kernel
 
     /// <summary>
     /// Mirrors <c>CorePowerSupport.TickDurations</c>: Weak, Vulnerable, Frail and Intangible, then NoBlock,
-    /// for every creature. Blitz marks those powers with <see cref="PowerDef.TicksAtEnemySideEnd"/>.
+    /// for every creature. Sts2Solver marks those powers with <see cref="PowerDef.TicksAtEnemySideEnd"/>.
     /// </summary>
     private static void TickDurations(ref Battle battle)
     {
@@ -563,7 +563,7 @@ public static partial class Kernel
     /// Mirrors <c>SimulatedCombatState.SnapshotPowerAmountsAtTurnStart</c> for one creature, limited
     /// to the powers whose <c>AmountOnTurnStart</c> any settlement reads
     /// (<see cref="PowerDef.UsesAmountOnTurnStart"/>). The native snapshot writes the model
-    /// amount, which lags a mirrored decrement by one action boundary; Blitz has no such lag, so the
+    /// amount, which lags a mirrored decrement by one action boundary; Sts2Solver has no such lag, so the
     /// remaining powers keep this inert field at zero instead of reproducing the stale model value.
     /// </summary>
     private static void SnapshotPowerAmountsAtTurnStart(ref Battle battle, ushort owners)
@@ -669,7 +669,7 @@ public static partial class Kernel
         if (x.NeedsChoice)
             return;
         // TriggerAutoPrePlayEarly: Bombardment cards in the exhaust pile, then the scheduled Mayhem
-        // auto-plays. Imbued / HistoryCourse / WhisperingEarring have no Blitz definitions.
+        // auto-plays. Imbued / HistoryCourse / WhisperingEarring have no Sts2Solver definitions.
         x.B.Phase = PlayerPhase.AutoPrePlay;
         AutoPrePlay(ref x);
         if (x.NeedsChoice)

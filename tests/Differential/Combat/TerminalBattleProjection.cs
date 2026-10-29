@@ -2,7 +2,7 @@
 // simulate any post-combat hook: it compares only fields that are still present in the native
 // combat state before CombatManager.EndCombatInternal / ProcessPendingLoss cleanup.
 using System.Text;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
 namespace Differential;
 

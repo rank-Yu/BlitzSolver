@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Regent;
+namespace Sts2Solver.Content.Cards.Regent;
 
 [ContentId("STRIKE_REGENT")]
 public sealed class StrikeRegent : CardDef

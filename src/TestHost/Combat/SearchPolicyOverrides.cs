@@ -1,10 +1,10 @@
 // Shared request-policy overrides. The differential host's config compare and the Mod's live SREQ capture
 // both apply exactly the same fields so a frozen fixture reproduces its request.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal static class SearchPolicyOverrides
 {

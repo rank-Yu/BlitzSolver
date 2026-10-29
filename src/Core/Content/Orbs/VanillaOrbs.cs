@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Orbs;
+namespace Sts2Solver.Content.Orbs;
 
 [ContentId("DARK_ORB")]
 public sealed class DarkOrb : OrbDef
@@ -24,7 +24,7 @@ public sealed class DarkOrb : OrbDef
             throw new UnsupportedException($"暗球累积值 {value} 不是整数。");
         long accumulated = (long)x.B.Orbs[orbIndex].Aux + (int)value;
         if (accumulated is < int.MinValue or > int.MaxValue)
-            throw new UnsupportedException($"暗球累积值 {accumulated} 超出 Blitz 的整数表示。");
+            throw new UnsupportedException($"暗球累积值 {accumulated} 超出 Sts2Solver 的整数表示。");
         x.B.Orbs[orbIndex].Aux = (int)accumulated;
     }
 

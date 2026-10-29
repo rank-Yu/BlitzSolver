@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Ironclad;
+namespace Sts2Solver.Content.Cards.Ironclad;
 
 [ContentId("BRAND")]
 public sealed class Brand : CardDef

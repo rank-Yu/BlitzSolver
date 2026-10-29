@@ -1,5 +1,5 @@
-// Ported from CombatSolver src/Search/ReachableHandValue.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-namespace BlitzSolver.Ai.Combat.Scoring;
+// Ported from CombatSolver src/Search/ReachableHandValue.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+namespace Sts2Solver.Ai.Combat.Scoring;
 
 internal static class ReachableHandValue
 {

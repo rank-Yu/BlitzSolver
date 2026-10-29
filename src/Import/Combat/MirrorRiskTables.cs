@@ -4,7 +4,7 @@
 // This file is data, not an inference implementation: do not edit by hand.
 using System.Collections.Generic;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>
 /// Frozen mirror-coverage booleans exported from the reference engine. A true value means the

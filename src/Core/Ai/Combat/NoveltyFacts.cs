@@ -1,8 +1,8 @@
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
-using BlitzSolver.Ai.Combat.Novelty;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
+using Sts2Solver.Ai.Combat.Novelty;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// The novelty fact list of a projected state (<c>the existing search's CaptureNoveltyFacts</c>).
@@ -11,7 +11,7 @@ namespace BlitzSolver.Ai.Combat;
 /// </summary>
 internal static class NoveltyFacts
 {
-    /// <summary>The Blitz side of the existing capture, in the same fact shape and insertion order.</summary>
+    /// <summary>The Sts2Solver side of the existing capture, in the same fact shape and insertion order.</summary>
     public static void Capture(in Battle battle, in ScoreFeatures features, List<BfwsFact> facts)
     {
         ReadOnlySpan<int> values = [features.Energy, features.Stars, features.HandCount,

@@ -2,9 +2,9 @@ using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// Canonical, fixed-capacity encoding of a native <c>SavedProperties</c> bag.

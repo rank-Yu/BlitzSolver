@@ -2,8 +2,8 @@
 // semantics (FlashDifferentialProbe.Run at 91641ff0). Anything outside that grammar is rejected.
 using System.Globalization;
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
 
 namespace Differential;
 

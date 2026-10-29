@@ -2,18 +2,18 @@
 // Core/Autoplay/CombatPilot.cs; this file keeps only native I/O: waiting for the play phase,
 // importing roots, running the in-game search worker, deploying actions and projecting the live
 // boundary back to Battle.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.TestHost;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>Native host for <see cref="CombatPilot"/>.</summary>
 internal sealed class CombatPilotHost(
@@ -105,32 +105,32 @@ internal sealed class CombatPilotHost(
         catch (UnsupportedImportException error)
         {
             string detail = $"reason={error.Reason} {error.Detail}";
-            ModLog.Error($"[BlitzSolver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {detail}");
+            ModLog.Error($"[Sts2Solver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {detail}");
             return new CombatPilotSearch(null, "rejected", 0, 0, 0, false, detail,
                 "import_failed", detail, 0, 0);
         }
         catch (UnsupportedException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {error.Message}");
             return new CombatPilotSearch(null, "rejected", 0, 0, 0, false, error.Message,
                 "import_unsupported", error.Message, 0, 0);
         }
         catch (CapacityException error)
         {
             string detail = $"region={error.Region} {error.Message}";
-            ModLog.Error($"[BlitzSolver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {detail}");
+            ModLog.Error($"[Sts2Solver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {detail}");
             return new CombatPilotSearch(null, "rejected", 0, 0, 0, false, detail,
                 "import_capacity", detail, 0, 0);
         }
         catch (InvalidDataException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {error.Message}");
             return new CombatPilotSearch(null, "rejected", 0, 0, 0, false, error.Message,
                 "request_invalid", error.Message, 0, 0);
         }
         catch (InvalidOperationException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_IMPORT_FAILED turn={turn} reason={reason} {error.Message}");
             return new CombatPilotSearch(null, "rejected", 0, 0, 0, false, error.Message,
                 "request_invalid", error.Message, 0, 0);
         }
@@ -152,7 +152,7 @@ internal sealed class CombatPilotHost(
             string error = outcome.FailureError ?? "搜索没有返回路线";
             string detail = $"search {status}: {error}";
             ModLog.Error(
-                $"[BlitzSolver] AUTO_SEARCH_FAILED turn={turn} reason={reason} " +
+                $"[Sts2Solver] AUTO_SEARCH_FAILED turn={turn} reason={reason} " +
                 $"status={status} error={error} rounds={rounds.Length}");
             return new CombatPilotSearch(null, status, outcome.ElapsedMs,
                 outcome.TotalExpandedNodes, 0, false, error, "search_failed", detail,
@@ -174,28 +174,28 @@ internal sealed class CombatPilotHost(
         }
         catch (InvalidDataException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
             return InvalidRoute(outcome, beam, "invalid", "route_invalid", error.Message);
         }
         catch (InvalidOperationException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
             return InvalidRoute(outcome, beam, "invalid", "route_invalid", error.Message);
         }
         catch (UnsupportedException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {error.Message}");
             return InvalidRoute(outcome, beam, "invalid", "route_unsupported", error.Message);
         }
         catch (CapacityException error)
         {
             string detail = $"region={error.Region} {error.Message}";
-            ModLog.Error($"[BlitzSolver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {detail}");
+            ModLog.Error($"[Sts2Solver] AUTO_ROUTE_INVALID turn={turn} reason={reason} {detail}");
             return InvalidRoute(outcome, beam, "invalid", "route_capacity", detail);
         }
         tracker.Observe(searchRoot);
         ModLog.Info(
-            $"[BlitzSolver] AUTO_SEARCH turn={turn} reason={reason} ms={outcome.ElapsedMs} " +
+            $"[Sts2Solver] AUTO_SEARCH turn={turn} reason={reason} ms={outcome.ElapsedMs} " +
             $"expanded={outcome.TotalExpandedNodes} route={beam.BestRoute.Length} " +
             $"victory={beam.BestIsVictory} score={beam.BestScore} rounds={rounds.Length} " +
             $"best_round={outcome.BestRound} damage_free={outcome.DamageFreeVictory} " +
@@ -222,7 +222,7 @@ internal sealed class CombatPilotHost(
                 host, _root, round.Case, deterministic: false, tier, resultDirectory: null,
                 cancelAfterMilliseconds: null, storage);
             ModLog.Info(
-                $"[BlitzSolver] AUTO_WIDEN_ROUND turn={turn} reason={reason} round={round.Round} " +
+                $"[Sts2Solver] AUTO_WIDEN_ROUND turn={turn} reason={reason} round={round.Round} " +
                 $"width={round.Width} remaining_ms={round.RemainingMilliseconds} " +
                 $"soft_ms={round.SoftTimeMilliseconds} status={result.Status} " +
                 $"ms={result.ElapsedMilliseconds} expanded={result.ExpandedNodes}");
@@ -254,12 +254,12 @@ internal sealed class CombatPilotHost(
         Battle live = tracker.ImportForComparison(_combat, _player, rules, expected.Before);
         if (BattleReconciler.Same(expected.Before, live))
         {
-            ModLog.Info($"[BlitzSolver] TURN_REUSE turn={turn} index={index}");
+            ModLog.Info($"[Sts2Solver] TURN_REUSE turn={turn} index={index}");
             return ValueTask.FromResult(new CombatPilotBoundary(true, CombatPilotAction.Describe(expected), []));
         }
         string[] diff = BattleReconciler.Diff(expected.Before, live);
         ModLog.Error(
-            $"[BlitzSolver] TURN_DEVIATION turn={turn} index={index} " +
+            $"[Sts2Solver] TURN_DEVIATION turn={turn} index={index} " +
             $"action={CombatPilotAction.Describe(expected)} diff={string.Join(" | ", diff)}");
         return ValueTask.FromResult(new CombatPilotBoundary(false, CombatPilotAction.Describe(expected), diff));
     }
@@ -282,7 +282,7 @@ internal sealed class CombatPilotHost(
         catch (DeploymentFailureException error)
         {
             ModLog.Error(
-                $"[BlitzSolver] DEPLOY_FAILURE turn={turn} index={action.Index} " +
+                $"[Sts2Solver] DEPLOY_FAILURE turn={turn} index={action.Index} " +
                 $"action={CombatPilotAction.Describe(action)} reason={error.Reason} detail={error.Message}");
             return new CombatPilotDeployment(false, false, error.Reason, error.Message,
                 CombatPilotAction.Describe(action), []);
@@ -292,7 +292,7 @@ internal sealed class CombatPilotHost(
         {
             string[] diff = BattleReconciler.Diff(action.After, actual);
             ModLog.Error(
-                $"[BlitzSolver] ACTION_DEVIATION turn={turn} index={action.Index} " +
+                $"[Sts2Solver] ACTION_DEVIATION turn={turn} index={action.Index} " +
                 $"action={CombatPilotAction.Describe(action)} diff={string.Join(" | ", diff)}");
             return new CombatPilotDeployment(true, false, null, null, CombatPilotAction.Describe(action), diff);
         }
@@ -309,13 +309,13 @@ internal sealed class CombatPilotHost(
                 _potionsUsed.Add(Registry.Potion((ushort)(stored - 1)).NativeId);
         }
         ModLog.Info(
-            $"[BlitzSolver] DEPLOY_OK turn={action.Before.PlayerTurn} index={action.Index} " +
+            $"[Sts2Solver] DEPLOY_OK turn={action.Before.PlayerTurn} index={action.Index} " +
             $"action={CombatPilotAction.Describe(action)} outcome={action.After.Outcome} " +
             $"next_turn={action.After.PlayerTurn}");
         if (action.After.Outcome != Outcome.None)
         {
             ModLog.Info(
-                $"[BlitzSolver] DEPLOY_TERMINAL_CONFIRMED turn={action.Before.PlayerTurn} " +
+                $"[Sts2Solver] DEPLOY_TERMINAL_CONFIRMED turn={action.Before.PlayerTurn} " +
                 $"index={action.Index} action={CombatPilotAction.Describe(action)} outcome={action.After.Outcome}");
         }
     }

@@ -1,9 +1,9 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>Opaque host session plus monotonically increasing revision; neither is a content hash.
 /// The host owns uniqueness, invalidation and consumption. Pure validation stores no replay history.</summary>

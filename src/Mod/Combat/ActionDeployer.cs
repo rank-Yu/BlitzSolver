@@ -5,8 +5,8 @@
 // driver, so headless and visible runs take the same card-selection path.
 using System.Diagnostics;
 using Godot;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Actions;
@@ -22,7 +22,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Settings;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 internal sealed class DeploymentFailureException(string reason, string detail)
     : InvalidOperationException($"{reason}: {detail}")
@@ -81,7 +81,7 @@ internal sealed class ActionDeployer(
                 selector.AssertConsumed();
             else if (selector.PendingCount > 0)
                 ModLog.Info(
-                    $"[BlitzSolver] DEPLOY_CHOICE_SKIPPED_TERMINAL turn={planned.Before.PlayerTurn} " +
+                    $"[Sts2Solver] DEPLOY_CHOICE_SKIPPED_TERMINAL turn={planned.Before.PlayerTurn} " +
                     $"index={planned.Index} action={planned.Action} pending={selector.PendingCount}");
         }
         catch (ChoicePlanMismatchException error)
@@ -95,7 +95,7 @@ internal sealed class ActionDeployer(
         if (planned.After.Outcome != Outcome.None)
         {
             ModLog.Info(
-                $"[BlitzSolver] DEPLOY_TERMINAL turn={planned.Before.PlayerTurn} " +
+                $"[Sts2Solver] DEPLOY_TERMINAL turn={planned.Before.PlayerTurn} " +
                 $"index={planned.Index} action={planned.Action} outcome={planned.After.Outcome}");
             return planned.After;
         }

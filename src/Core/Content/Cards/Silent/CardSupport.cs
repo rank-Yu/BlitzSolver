@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Silent;
+namespace Sts2Solver.Content.Cards.Silent;
 
 /// <summary>
 /// Base of the cards that can generate Shivs. The closure declaration makes the rule compiler freeze
@@ -30,7 +30,7 @@ internal static class SilentContent
         if (count <= 0)
             return;
         if (!Registry.TryCard(ShivId, out ushort shiv))
-            throw new UnsupportedException("飞刀生成需要 SHIV 的 Blitz 定义。");
+            throw new UnsupportedException("飞刀生成需要 SHIV 的 Sts2Solver 定义。");
         for (int index = 0; index < count; index++)
         {
             Card card = Kernel.CreateCard(x.R, shiv);
@@ -45,7 +45,7 @@ internal static class SilentContent
 
     /// <summary>
     /// <c>GenerateInkyShivs(owner, count)</c>: the generated Shivs receive the Inky enchantment at
-    /// amount 1 after they enter combat. Enchanting before insertion is equivalent: no Blitz hook runs
+    /// amount 1 after they enter combat. Enchanting before insertion is equivalent: no Sts2Solver hook runs
     /// on Shiv entering combat and the enchantment is a pure card value.
     /// </summary>
     public static void GenerateInkyShivs(ref Exec x, int count)
@@ -53,9 +53,9 @@ internal static class SilentContent
         if (count <= 0)
             return;
         if (!Registry.TryCard(ShivId, out ushort shiv))
-            throw new UnsupportedException("墨汁飞刀生成需要 SHIV 的 Blitz 定义。");
+            throw new UnsupportedException("墨汁飞刀生成需要 SHIV 的 Sts2Solver 定义。");
         if (!Registry.TryEnchantment(InkyId, out ushort inky))
-            throw new UnsupportedException("墨汁飞刀生成需要 INKY 的 Blitz 定义。");
+            throw new UnsupportedException("墨汁飞刀生成需要 INKY 的 Sts2Solver 定义。");
         for (int index = 0; index < count; index++)
         {
             Card card = Kernel.CreateCard(x.R, shiv);

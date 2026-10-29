@@ -1,7 +1,7 @@
 // Opening-combat choice enumeration. Core treats the build as a pure function of the pre-entry
 // RunState and the selection sequence; this file walks every sequence the comparison can afford.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 
 namespace Differential;
 

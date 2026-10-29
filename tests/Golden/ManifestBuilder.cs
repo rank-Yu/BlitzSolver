@@ -2,9 +2,9 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 internal static class ManifestProvenance
 {

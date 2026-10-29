@@ -1,11 +1,11 @@
 using System.Reflection;
 using System.Reflection.Emit;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Architecture;
+namespace Sts2Solver.Architecture;
 
 /// <summary>
-/// Reads the compiled <c>BlitzSolver.Core</c> assembly and checks the layer dependency rules from
+/// Reads the compiled <c>Sts2Solver.Core</c> assembly and checks the layer dependency rules from
 /// <c>docs/full-run-design.md</c> section 4. Type references are discovered from signatures, base
 /// types, interfaces, locals and IL operands; BCL types are always allowed and are ignored by the
 /// layer classifier.
@@ -105,85 +105,85 @@ internal static class ArchitectureRules
     internal static readonly IReadOnlySet<string> VisibleRunTypes = new HashSet<string>(
         StringComparer.Ordinal)
     {
-        "BlitzSolver.Simulation.Run.RunView",
-        "BlitzSolver.Simulation.Run.RunView+PlayerView",
-        "BlitzSolver.Simulation.Run.RunView+PotionView",
-        "BlitzSolver.Simulation.Run.RunView+PotionViewArray",
-        "BlitzSolver.Simulation.Run.RunView+CardView",
-        "BlitzSolver.Simulation.Run.RunView+CardViewArray",
-        "BlitzSolver.Simulation.Run.RunView+DeckView",
-        "BlitzSolver.Simulation.Run.RunView+RelicView",
-        "BlitzSolver.Simulation.Run.RunView+RelicViewArray",
-        "BlitzSolver.Simulation.Run.RunView+RelicViewSet",
-        "BlitzSolver.Simulation.Run.RunView+MapPointView",
-        "BlitzSolver.Simulation.Run.RunView+MapPointViewArray",
-        "BlitzSolver.Simulation.Run.RunView+MapView",
-        "BlitzSolver.Simulation.Run.RunView+RoomView",
-        "BlitzSolver.Simulation.Run.RunView+RoomViewArray",
-        "BlitzSolver.Simulation.Run.RunView+ShopView",
-        "BlitzSolver.Simulation.Run.RunView+ShopCardView",
-        "BlitzSolver.Simulation.Run.RunView+ShopCardViewArray",
-        "BlitzSolver.Simulation.Run.RunView+ShopColorlessCardViewArray",
-        "BlitzSolver.Simulation.Run.RunView+ShopModelView",
-        "BlitzSolver.Simulation.Run.RunView+ShopRelicViewArray",
-        "BlitzSolver.Simulation.Run.RunView+ShopPotionViewArray",
-        "BlitzSolver.Simulation.Run.RunShopStage",
-        "BlitzSolver.Simulation.Run.RunShopEntryFlags",
-        "BlitzSolver.Simulation.Run.RunView+RoomViewSet",
-        "BlitzSolver.Simulation.Run.RunCoord",
-        "BlitzSolver.Simulation.Run.RunRef",
-        "BlitzSolver.Simulation.Run.RunRefKind",
-        "BlitzSolver.Simulation.Run.RunDecision",
-        "BlitzSolver.Simulation.Run.RunRewardType",
-        "BlitzSolver.Simulation.Run.RunRewardStage",
-        "BlitzSolver.Simulation.Run.RunRewardFlags",
-        "BlitzSolver.Simulation.Run.RunDecisionRequest",
-        "BlitzSolver.Simulation.Run.RunDecisionOption",
-        "BlitzSolver.Simulation.Run.RunDecisionOptionKind",
-        "BlitzSolver.Simulation.Run.RunDecisionOptionArray",
-        "BlitzSolver.Simulation.Run.RunAction",
-        "BlitzSolver.Simulation.Run.RunActionKind",
-        "BlitzSolver.Simulation.Run.RunDecisionToken",
-        "BlitzSolver.Simulation.Run.RunDecisionSlice",
-        "BlitzSolver.Simulation.Run.RunDecisionKnowledge",
-        "BlitzSolver.Simulation.Run.RunDecisionOptionFlags",
-        "BlitzSolver.Simulation.Run.RunDecisionPayloadKind",
-        "BlitzSolver.Simulation.Run.RunSelectionPurpose",
-        "BlitzSolver.Simulation.Run.RunDecisionFactKind",
-        "BlitzSolver.Simulation.Run.RunDecisionFact",
-        "BlitzSolver.Simulation.Run.RunDecisionFactArray",
-        "BlitzSolver.Simulation.Run.RunDecisionCardArray",
-        "BlitzSolver.Simulation.Run.RunDecisionKeyArray",
-        "BlitzSolver.Simulation.Run.RunDecisionLimits",
-        "BlitzSolver.Simulation.Run.RunOptionIdArray",
-        "BlitzSolver.Simulation.Run.RunDecisionProtocol",
-        "BlitzSolver.Simulation.Run.RunDecisionBuilder",
-        "BlitzSolver.Simulation.Run.RunMapPointType",
-        "BlitzSolver.Simulation.Run.RunRoomType",
-        "BlitzSolver.Simulation.Run.RunRelicStatus",
-        "BlitzSolver.Simulation.Run.RunRelicFlags",
-        "BlitzSolver.Simulation.Run.RunLimits",
-        "BlitzSolver.Simulation.Run.RunOdds",
-        "BlitzSolver.Simulation.Run.RunPlayerOdds",
-        "BlitzSolver.Simulation.Run.RunMapStartArray",
-        "BlitzSolver.Simulation.Run.RunMapChildren",
+        "Sts2Solver.Simulation.Run.RunView",
+        "Sts2Solver.Simulation.Run.RunView+PlayerView",
+        "Sts2Solver.Simulation.Run.RunView+PotionView",
+        "Sts2Solver.Simulation.Run.RunView+PotionViewArray",
+        "Sts2Solver.Simulation.Run.RunView+CardView",
+        "Sts2Solver.Simulation.Run.RunView+CardViewArray",
+        "Sts2Solver.Simulation.Run.RunView+DeckView",
+        "Sts2Solver.Simulation.Run.RunView+RelicView",
+        "Sts2Solver.Simulation.Run.RunView+RelicViewArray",
+        "Sts2Solver.Simulation.Run.RunView+RelicViewSet",
+        "Sts2Solver.Simulation.Run.RunView+MapPointView",
+        "Sts2Solver.Simulation.Run.RunView+MapPointViewArray",
+        "Sts2Solver.Simulation.Run.RunView+MapView",
+        "Sts2Solver.Simulation.Run.RunView+RoomView",
+        "Sts2Solver.Simulation.Run.RunView+RoomViewArray",
+        "Sts2Solver.Simulation.Run.RunView+ShopView",
+        "Sts2Solver.Simulation.Run.RunView+ShopCardView",
+        "Sts2Solver.Simulation.Run.RunView+ShopCardViewArray",
+        "Sts2Solver.Simulation.Run.RunView+ShopColorlessCardViewArray",
+        "Sts2Solver.Simulation.Run.RunView+ShopModelView",
+        "Sts2Solver.Simulation.Run.RunView+ShopRelicViewArray",
+        "Sts2Solver.Simulation.Run.RunView+ShopPotionViewArray",
+        "Sts2Solver.Simulation.Run.RunShopStage",
+        "Sts2Solver.Simulation.Run.RunShopEntryFlags",
+        "Sts2Solver.Simulation.Run.RunView+RoomViewSet",
+        "Sts2Solver.Simulation.Run.RunCoord",
+        "Sts2Solver.Simulation.Run.RunRef",
+        "Sts2Solver.Simulation.Run.RunRefKind",
+        "Sts2Solver.Simulation.Run.RunDecision",
+        "Sts2Solver.Simulation.Run.RunRewardType",
+        "Sts2Solver.Simulation.Run.RunRewardStage",
+        "Sts2Solver.Simulation.Run.RunRewardFlags",
+        "Sts2Solver.Simulation.Run.RunDecisionRequest",
+        "Sts2Solver.Simulation.Run.RunDecisionOption",
+        "Sts2Solver.Simulation.Run.RunDecisionOptionKind",
+        "Sts2Solver.Simulation.Run.RunDecisionOptionArray",
+        "Sts2Solver.Simulation.Run.RunAction",
+        "Sts2Solver.Simulation.Run.RunActionKind",
+        "Sts2Solver.Simulation.Run.RunDecisionToken",
+        "Sts2Solver.Simulation.Run.RunDecisionSlice",
+        "Sts2Solver.Simulation.Run.RunDecisionKnowledge",
+        "Sts2Solver.Simulation.Run.RunDecisionOptionFlags",
+        "Sts2Solver.Simulation.Run.RunDecisionPayloadKind",
+        "Sts2Solver.Simulation.Run.RunSelectionPurpose",
+        "Sts2Solver.Simulation.Run.RunDecisionFactKind",
+        "Sts2Solver.Simulation.Run.RunDecisionFact",
+        "Sts2Solver.Simulation.Run.RunDecisionFactArray",
+        "Sts2Solver.Simulation.Run.RunDecisionCardArray",
+        "Sts2Solver.Simulation.Run.RunDecisionKeyArray",
+        "Sts2Solver.Simulation.Run.RunDecisionLimits",
+        "Sts2Solver.Simulation.Run.RunOptionIdArray",
+        "Sts2Solver.Simulation.Run.RunDecisionProtocol",
+        "Sts2Solver.Simulation.Run.RunDecisionBuilder",
+        "Sts2Solver.Simulation.Run.RunMapPointType",
+        "Sts2Solver.Simulation.Run.RunRoomType",
+        "Sts2Solver.Simulation.Run.RunRelicStatus",
+        "Sts2Solver.Simulation.Run.RunRelicFlags",
+        "Sts2Solver.Simulation.Run.RunLimits",
+        "Sts2Solver.Simulation.Run.RunOdds",
+        "Sts2Solver.Simulation.Run.RunPlayerOdds",
+        "Sts2Solver.Simulation.Run.RunMapStartArray",
+        "Sts2Solver.Simulation.Run.RunMapChildren",
     };
 
     internal static Layer LayerOf(string? ns)
     {
         if (ns is null)
             return Layer.None;
-        if (ns == "BlitzSolver.Simulation.Combat" || ns.StartsWith("BlitzSolver.Simulation.Combat.", StringComparison.Ordinal))
+        if (ns == "Sts2Solver.Simulation.Combat" || ns.StartsWith("Sts2Solver.Simulation.Combat.", StringComparison.Ordinal))
             return Layer.SimulationCombat;
-        if (ns == "BlitzSolver.Simulation.Run" || ns.StartsWith("BlitzSolver.Simulation.Run.", StringComparison.Ordinal))
+        if (ns == "Sts2Solver.Simulation.Run" || ns.StartsWith("Sts2Solver.Simulation.Run.", StringComparison.Ordinal))
             return Layer.SimulationRun;
-        if (ns == "BlitzSolver.Content" || ns.StartsWith("BlitzSolver.Content.", StringComparison.Ordinal))
+        if (ns == "Sts2Solver.Content" || ns.StartsWith("Sts2Solver.Content.", StringComparison.Ordinal))
             return Layer.Content;
-        if (ns == "BlitzSolver.Ai.Combat" || ns.StartsWith("BlitzSolver.Ai.Combat.", StringComparison.Ordinal))
+        if (ns == "Sts2Solver.Ai.Combat" || ns.StartsWith("Sts2Solver.Ai.Combat.", StringComparison.Ordinal))
             return Layer.AiCombat;
-        if (ns == "BlitzSolver.Ai.Run" || ns.StartsWith("BlitzSolver.Ai.Run.", StringComparison.Ordinal))
+        if (ns == "Sts2Solver.Ai.Run" || ns.StartsWith("Sts2Solver.Ai.Run.", StringComparison.Ordinal))
             return Layer.AiRun;
-        if (ns == "BlitzSolver.Autoplay" || ns.StartsWith("BlitzSolver.Autoplay.", StringComparison.Ordinal))
+        if (ns == "Sts2Solver.Autoplay" || ns.StartsWith("Sts2Solver.Autoplay.", StringComparison.Ordinal))
             return Layer.Autoplay;
         return Layer.None;
     }

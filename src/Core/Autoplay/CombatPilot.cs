@@ -3,10 +3,10 @@
 // the search cadence, route ownership, failure policy and turn bookkeeping here is what makes the
 // offline result the same as the in-game full combat.
 using System.Diagnostics;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Autoplay;
+namespace Sts2Solver.Autoplay;
 
 /// <summary>One search in the whole-combat log.</summary>
 internal sealed record CombatPilotSearchEntry(

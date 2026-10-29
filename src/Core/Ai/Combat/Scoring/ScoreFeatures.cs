@@ -1,8 +1,8 @@
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
 
-namespace BlitzSolver.Ai.Combat.Scoring;
+namespace Sts2Solver.Ai.Combat.Scoring;
 
 /// <summary>
 /// The evaluation values Beam ranks by, computed from a <see cref="Battle"/>
@@ -87,7 +87,7 @@ internal readonly record struct ScoreFeatures
     public int Stars { get; init; }
     public int HandCount { get; init; }
 
-    /// <summary><c>SearchNode.Turn</c> (the snapshot's combat turn, equal to the Blitz player turn).</summary>
+    /// <summary><c>SearchNode.Turn</c> (the snapshot's combat turn, equal to the Sts2Solver player turn).</summary>
     public int Turn { get; init; }
     public int ReachableHandValue { get; init; }
     public int ZeroCostPlayableCount { get; init; }
@@ -165,8 +165,8 @@ internal readonly record struct ScoreFeatures
     public int ProjectedShuffleOrderValue { get; init; }
 
     /// <summary>
-    /// Blitz-side projected-shuffle key. The existing key hashes the existing engine's per-card state
-    /// fingerprint; Blitz hashes the complete <see cref="Card"/> byte image instead. It partitions
+    /// Sts2Solver-side projected-shuffle key. The existing key hashes the existing engine's per-card state
+    /// fingerprint; Sts2Solver hashes the complete <see cref="Card"/> byte image instead. It partitions
     /// the exact projected card sequence the same way (equal sequence of equal card states), which is
     /// what the ordered-pile cohorts consume; the numeric hash is not comparable across engines.
     /// </summary>
@@ -192,7 +192,7 @@ internal readonly record struct ScoreFeatures
     public ulong EnemyControlDistributionSecond { get; init; }
 
     /// <summary>
-    /// Blitz-side unordered pile key: the order-invariant multiset hash over hand, draw, discard and
+    /// Sts2Solver-side unordered pile key: the order-invariant multiset hash over hand, draw, discard and
     /// exhaust. The existing key sums the existing per-card state fingerprints; the numeric value is
     /// therefore not comparable, but the equivalence class (same multiset of equal card states) is.
     /// </summary>

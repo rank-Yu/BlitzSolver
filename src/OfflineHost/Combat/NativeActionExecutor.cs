@@ -1,13 +1,13 @@
-// Adapted from tests/Differential/Combat/NativeActionExecutor.cs at 6a5f645 (BlitzSolver, MIT).
-using BlitzSolver.OfflineHost.Runtime;
+// Adapted from tests/Differential/Combat/NativeActionExecutor.cs at 6a5f645 (Sts2Solver, MIT).
+using Sts2Solver.OfflineHost.Runtime;
 // In-process deployment of one replayed combat action without Godot. The card/potion/end-turn
 // entry points and the enqueue-capture pattern are adapted from src/Mod/Combat/ActionDeployer.cs,
 // which follows CombatSolver src/Runtime/SolverController.cs at a62f1850 (MIT, Copyright (c) 2026
 // Torch1230 and contributors). The offline host drives async continuations with MainLoopContext and
 // answers card selections through NativeChoiceSelector.
 using System.Diagnostics;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Actions;
@@ -20,7 +20,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
 using NativeCreature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver.OfflineHost.Combat;
+namespace Sts2Solver.OfflineHost.Combat;
 
 internal sealed class OfflineDeploymentException(string reason, string detail)
     : InvalidOperationException($"{reason}: {detail}")

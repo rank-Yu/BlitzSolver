@@ -2,7 +2,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Nodes.Ftue;
 using STS2RitsuLib.Patching.Models;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// 无头测试不创建无窗口战斗基础教学界面。
@@ -11,7 +11,7 @@ namespace BlitzSolver;
 /// </summary>
 internal sealed class UnattendedHeadlessFtuePatch : IPatchMethod
 {
-    public static string PatchId => "blitzsolver_unattended_headless_ftue";
+    public static string PatchId => "sts2solver_unattended_headless_ftue";
 
     public static string Description => "无头测试不创建无窗口战斗基础教学界面";
 
@@ -29,7 +29,7 @@ internal sealed class UnattendedHeadlessFtuePatch : IPatchMethod
         if (!TestSession.Active)
             return true;
         __result = null;
-        ModLog.Info("[BlitzSolver] FTUE_SKIPPED id=combat_rules_ftue reason=headless_ui");
+        ModLog.Info("[Sts2Solver] FTUE_SKIPPED id=combat_rules_ftue reason=headless_ui");
         return false;
     }
 }

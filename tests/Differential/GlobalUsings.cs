@@ -1,1 +1,1 @@
-global using BlitzSolver.TestHost;
+global using Sts2Solver.TestHost;

@@ -1,11 +1,11 @@
-// Adapted from src/TestHost/Run/RunTestHost.cs at 6a5f645 (BlitzSolver, MIT).
+// Adapted from src/TestHost/Run/RunTestHost.cs at 6a5f645 (Sts2Solver, MIT).
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Timeline.Epochs;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Unlocks;
 
-namespace BlitzSolver.OfflineHost.Runtime;
+namespace Sts2Solver.OfflineHost.Runtime;
 
 internal static class NewRunFactory
 {

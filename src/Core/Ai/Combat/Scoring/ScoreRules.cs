@@ -1,8 +1,8 @@
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
 
-namespace BlitzSolver.Ai.Combat.Scoring;
+namespace Sts2Solver.Ai.Combat.Scoring;
 
 /// <summary>Strategic-effect classification of one admitted power (port of <c>StrategicEffectModel.Evaluate</c>).</summary>
 internal enum StrategicKind : byte
@@ -221,7 +221,7 @@ internal sealed class CardScore
     public SetupTraits LatentTrait { get; init; }
 
     /// <summary>
-    /// The definition's <see cref="BlitzSolver.Simulation.Combat.CardDef.HasDynamicCardType"/>:
+    /// The definition's <see cref="Sts2Solver.Simulation.Combat.CardDef.HasDynamicCardType"/>:
     /// the live type (and MadScience's latent value/trait) come from the card value, not this table.
     /// </summary>
     public bool DynamicCardType { get; init; }
@@ -249,7 +249,7 @@ internal sealed class PowerScore
     public int DanseMacabreEnergyThreshold { get; init; }
 }
 
-/// <summary>One configured relic counter goal, with the Blitz relic id that carries its counter.</summary>
+/// <summary>One configured relic counter goal, with the Sts2Solver relic id that carries its counter.</summary>
 internal readonly record struct RelicCounterRule(
     RelicCounterTarget Target,
     ushort RelicId,
@@ -329,7 +329,7 @@ internal sealed class ScoreRules
     public required ushort[] RootPotions { get; init; }
 
     /// <summary>
-    /// Cumulative potion counters at the Blitz search root. A fixed prefix may already have spent
+    /// Cumulative potion counters at the Sts2Solver search root. A fixed prefix may already have spent
     /// potions; the scorer adds these frozen totals to the root-potion diff so the derived
     /// counters equal the existing snapshot's cumulative values.
     /// </summary>

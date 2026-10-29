@@ -1,8 +1,8 @@
 // Reads the native RunState/Player into the fixed RunState. This is the only place that reads the
 // native run save model and its private fields; it never mutates the game.
 using System.Reflection;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -18,11 +18,11 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using MegaCrit.Sts2.Core.Unlocks;
-using RunState = BlitzSolver.Simulation.Run.RunState;
-using RngState = BlitzSolver.Simulation.Combat.RngState;
+using RunState = Sts2Solver.Simulation.Run.RunState;
+using RngState = Sts2Solver.Simulation.Combat.RngState;
 using NativeRunState = MegaCrit.Sts2.Core.Runs.RunState;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>
 /// Native <c>RunState</c> + local <c>Player</c> to <see cref="RunState"/>. The importer is read-only.

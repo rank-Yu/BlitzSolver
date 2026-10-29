@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>DanseMacabrePower</c>: when its owner plays a card whose resolved energy cost is at
@@ -50,7 +50,7 @@ public sealed class ReaperFormPower : PowerDef
         if (total <= 0)
             return;
         if (!Registry.TryPower("DOOM_POWER", out ushort doom))
-            throw new UnsupportedException("Doom 没有 Blitz 定义。");
+            throw new UnsupportedException("Doom 没有 Sts2Solver 定义。");
         Kernel.ApplyPowerWithoutCardSource(ref x, result.Receiver, doom,
             total * x.B.Powers[self.Index].Amount, self.Owner);
     }

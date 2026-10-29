@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>Per-card state flags. Values never encode presentation.</summary>
 [Flags]
@@ -192,7 +192,7 @@ public struct Card
     /// <summary>
     /// Native <c>SimulatedCombatState._returnToHandNextTurn</c> membership (Bolas and ThrummingHatchet):
     /// the card goes back to hand at the next player turn's BeforeHandDraw. The existing engine keeps
-    /// the played card object in a set; Blitz carries the same membership on the card value.
+    /// the played card object in a set; Sts2Solver carries the same membership on the card value.
     /// </summary>
     public bool ReturnToHandNextTurn
     {

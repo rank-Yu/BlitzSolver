@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Regent;
+namespace Sts2Solver.Content.Cards.Regent;
 
 /// <summary>
 /// <c>LunarBlast</c>: CalculatedHits = CalculationBase + CalculationExtra × Skill cards played this
@@ -153,7 +153,7 @@ public sealed class Charge : CardDef
         if (selected.IsEmpty || Kernel.IsOverOrEnding(x.B))
             return;
         if (!Registry.TryCard(cardId, out ushort replacementId))
-            throw new UnsupportedException($"变化需要 {cardId} 的 Blitz 定义。");
+            throw new UnsupportedException($"变化需要 {cardId} 的 Sts2Solver 定义。");
         Kernel.TransformSelectedTo(ref x, pile, selected, replacementId, x.Card.Upgrade > 0);
     }
 }

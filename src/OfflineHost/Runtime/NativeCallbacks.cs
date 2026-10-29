@@ -1,7 +1,7 @@
 // Callback semantics cross-checked against sts2 v0.111.0 CardSelectCmd and EventOption.
-// Adapted from tests/Differential/Run/NativeDecisionTestSession.cs at 5890e705 (BlitzSolver, MIT).
+// Adapted from tests/Differential/Run/NativeDecisionTestSession.cs at 5890e705 (Sts2Solver, MIT).
 using System.Reflection;
-using BlitzSolver.Import;
+using Sts2Solver.Import;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
@@ -15,7 +15,7 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 /// <summary>Installed once. Inactive callbacks only carry local context and never choose native options.</summary>
 internal static class NativeCallbacks
@@ -54,7 +54,7 @@ internal static class NativeCallbacks
         lock (Gate)
         {
             if (_installed) return;
-            Harmony harmony = new("BlitzSolver.OfflineHost.NativeCallbacks");
+            Harmony harmony = new("Sts2Solver.OfflineHost.NativeCallbacks");
             string[] supported = [nameof(CardSelectCmd.FromDeckGeneric), nameof(CardSelectCmd.FromDeckForUpgrade),
                 nameof(CardSelectCmd.FromSimpleGrid), nameof(CardSelectCmd.FromChooseACardScreen),
                 nameof(CardSelectCmd.FromDeckForTransformation), nameof(CardSelectCmd.FromDeckForEnchantment),
@@ -88,7 +88,7 @@ internal static class NativeCallbacks
         if (OfflineRunHost.IsShopRemoval && __originalMethod.DeclaringType == typeof(CardSelectCmd)
             && __originalMethod.Name == nameof(CardSelectCmd.FromDeckForRemoval)) return;
         if (OfflineRunHost.HasExecutionContext)
-            throw new BlitzSolver.Simulation.Combat.UnsupportedException("host-unsupported-native-entry:" + __originalMethod.DeclaringType!.Name + "." + __originalMethod.Name);
+            throw new Sts2Solver.Simulation.Combat.UnsupportedException("host-unsupported-native-entry:" + __originalMethod.DeclaringType!.Name + "." + __originalMethod.Name);
     }
     private static void SelectionPrefix(object[] __args, MethodBase __originalMethod, out Selection? __state)
     {
@@ -116,7 +116,7 @@ internal static class NativeCallbacks
             _ => NativeCardSelectionKind.SimpleGrid,
         };
         if (kind == NativeCardSelectionKind.DeckTransform && Arg("cardToTransformation") != null && OfflineRunHost.IsExecuting)
-            throw new BlitzSolver.Simulation.Combat.UnsupportedException("host-custom-transformation-preview");
+            throw new Sts2Solver.Simulation.Combat.UnsupportedException("host-custom-transformation-preview");
         if (player == null && Arg("cards") is IReadOnlyList<CardModel> cards && cards.Count > 0) player = cards[0].Owner;
         Func<CardModel, bool>? filter = Arg("additionalFilter") as Func<CardModel, bool> ?? Arg("filter") as Func<CardModel, bool>;
         SelectionContext.Value = new(player, prefs, kind, kind == NativeCardSelectionKind.ChooseCard ? 0 : prefs.MinSelect,

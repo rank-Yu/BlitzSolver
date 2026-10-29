@@ -1,7 +1,7 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Models;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// The deployment identity of a card: native id plus current upgrade level. Choice matching also

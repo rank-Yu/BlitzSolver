@@ -1,4 +1,4 @@
-// Adapted from tests/Differential/OfflineLocalization.cs at 6a5f645 (BlitzSolver, MIT).
+// Adapted from tests/Differential/OfflineLocalization.cs at 6a5f645 (Sts2Solver, MIT).
 // Ported from CombatSolver/tools/search/OfflineSearchHarness/OfflineLocalization.cs
 // at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors).
 using System.Globalization;
@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using MegaCrit.Sts2.Core.Localization;
 
-namespace BlitzSolver.OfflineHost.Runtime;
+namespace Sts2Solver.OfflineHost.Runtime;
 
 /// <summary>
 /// 离线本地化。<c>LocManager.Initialize()</c> 会用 <c>Godot.FileAccess</c> 读

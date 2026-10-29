@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Shared card effect building blocks, mirroring <c>GeneralCardMirrors</c> and the common
@@ -179,7 +179,7 @@ public static class CardEffects
         // Card's integer variable slots are the representation for every other card. A
         // fractional delta on a card that did not opt into the decimal table is a kernel boundary.
         if (delta != decimal.Truncate(delta))
-            throw new UnsupportedException($"卡牌变量偏移 {delta} 不是整数，Blitz 卡牌变量无法表示。");
+            throw new UnsupportedException($"卡牌变量偏移 {delta} 不是整数，Sts2Solver 卡牌变量无法表示。");
         short value = checked((short)(index switch
         {
             0 => played.Var0,

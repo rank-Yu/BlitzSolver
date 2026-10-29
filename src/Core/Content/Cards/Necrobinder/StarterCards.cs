@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Necrobinder;
+namespace Sts2Solver.Content.Cards.Necrobinder;
 
 [ContentId("STRIKE_NECROBINDER")]
 public sealed class StrikeNecrobinder : CardDef

@@ -1,7 +1,7 @@
-// Ported from CombatSolver src/Search/RouteQualityPolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-using BlitzSolver.Ai.Combat.Policy;
+// Ported from CombatSolver src/Search/RouteQualityPolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+using Sts2Solver.Ai.Combat.Policy;
 
-namespace BlitzSolver.Ai.Combat.Quality;
+namespace Sts2Solver.Ai.Combat.Quality;
 
 internal enum RouteQualityProjection
 {

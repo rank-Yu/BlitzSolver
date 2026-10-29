@@ -1,17 +1,17 @@
 // Ported semantics from CombatSolver src/Flash/Bridge/FlashRouteMaterializer.cs at commit a62f1850
 // (MIT, Copyright (c) 2026 Torch1230 and contributors). It assembles the primary Beam request from
 // the already imported root, the compiled rules and the captured policy; the difference is that the
-// Blitz request uses the kernel's own root/options types instead of the old engine's bridges.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
-using BlitzSolver.Ai.Combat.Scoring;
+// Sts2Solver request uses the kernel's own root/options types instead of the old engine's bridges.
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
+using Sts2Solver.Ai.Combat.Scoring;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Relics;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Performance tiers exposed by the Flash solver settings.</summary>
 public enum SearchPerformanceTier
@@ -27,7 +27,7 @@ public enum SearchPerformanceTier
 /// <see cref="StartWidth"/> and doubles the beam until <see cref="MaxWidth"/>; every round's node
 /// cap is <c>width × MaxExpandedNodesPerWidth</c>, and all rounds of one decision share
 /// <see cref="TotalTimeBudgetMilliseconds"/> in the game. The branch caps are carried for the
-/// report and for parity with <c>SolverSearchProfile</c>; Blitz enforces the same fixed
+/// report and for parity with <c>SolverSearchProfile</c>; Sts2Solver enforces the same fixed
 /// 32-selection branch cap in the kernel, so no <see cref="BeamOptions"/> field receives them.
 /// </summary>
 public readonly record struct SearchPerformanceProfile(

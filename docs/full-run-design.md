@@ -2,7 +2,7 @@
 
 [返回文档索引](README.md)
 
-本文是 BlitzSolver 从"整场战斗求解"扩展到"整局自动游玩"的目标架构。它只记录长期方向、边界与分工；每个阶段开工时另写任务卡，进度与数字记在各批次报告里，不写进本文。
+本文是 Sts2Solver 从"整场战斗求解"扩展到"整局自动游玩"的目标架构。它只记录长期方向、边界与分工；每个阶段开工时另写任务卡，进度与数字记在各批次报告里，不写进本文。
 
 ## 1. 目标与范围
 
@@ -16,7 +16,7 @@
 | 只给推荐 | 局外每个决策界面显示推荐及理由，由玩家决定；战斗可以单独托管 |
 | 全自动 | 整局交给 Mod |
 
-**工具目标：** 离线宿主运行原版整局，战斗交给 Blitz，用来评估局外策略。两个宿主（Mod 与离线）都由原版 `sts2.dll` 推进局外；Blitz 不再自己实现局外模拟器。
+**工具目标：** 离线宿主运行原版整局，战斗交给 Sts2Solver，用来评估局外策略。两个宿主（Mod 与离线）都由原版 `sts2.dll` 推进局外；Sts2Solver 不再自己实现局外模拟器。
 
 **不在范围内：**
 
@@ -34,7 +34,7 @@
 - **定长结构体：** `RunState` 是不含对象引用的定长结构体，分叉就是复制内存。容量是编译期常量，溢出显式失败。
 - **确定性：** 同一状态只有一种字节表示；同一种子、同一输入、同一策略，结果逐字节相同。
 - **显式失败：** 未知内容抛 `UnsupportedException`，容量不足抛 `CapacityException`。不近似、不跳过、不返回默认值。
-- **原版是唯一的事实来源：** 局外状态与决策请求都从原版读出；Blitz 只保留开战选择预测。
+- **原版是唯一的事实来源：** 局外状态与决策请求都从原版读出；Sts2Solver 只保留开战选择预测。
 - **只有一份实现：** Mod 与离线宿主共用战斗托管与决策逻辑，离线测到的就是游戏里跑的。
 - **热路径零托管分配**，只要它会进入推演或评估的内循环。
 
@@ -46,9 +46,9 @@
 | --- | --- | --- |
 | `Battle`（已有） | CombatCardGeneration、CombatPotionGeneration、CombatCardSelection、CombatEnergyCosts、CombatTargets、CombatOrbs、MonsterAi | 只在局内使用，状态跨战斗延续 |
 | `Battle`（已有），并跨边界传递 | Shuffle、Niche | Shuffle 主要在局内用，个别局外内容也用；Niche 局内局外都用：怪物 HP、十几件遗物拿到时的效果 |
-| 原版局外（R3 起） | UpFront、UnknownMapPoint、TreasureRoomRelics、Rewards、Shops、Transformations、每个事件的随机数、每幕地图的 `act_N_map` | 由原版 `RunManager` 推进；Blitz 只从导入的 `RunState` 读当前状态 |
+| 原版局外（R3 起） | UpFront、UnknownMapPoint、TreasureRoomRelics、Rewards、Shops、Transformations、每个事件的随机数、每幕地图的 `act_N_map` | 由原版 `RunManager` 推进；Sts2Solver 只从导入的 `RunState` 读当前状态 |
 
-`RunState` 始终保存全部 15 条流与事件/地图随机数的当前状态，用于导入、编码和状态比较；Blitz 不在局外抽取它们。Niche 和 Shuffle 两边都会消耗，战斗边界必须原样传递，不能重新派生。
+`RunState` 始终保存全部 15 条流与事件/地图随机数的当前状态，用于导入、编码和状态比较；Sts2Solver 不在局外抽取它们。Niche 和 Shuffle 两边都会消耗，战斗边界必须原样传递，不能重新派生。
 
 ## 4. 分层与目录
 
@@ -78,7 +78,7 @@ tools/ (testing/, run-eval/ README)
 | `Ai/Run` | 局外决策：只读 `RunView` 与决策请求 |
 | `Autoplay` | `CombatPilot`、`RunPilot`、宿主接口 |
 
-命名空间与目录一致：`BlitzSolver.Simulation.Combat`、`BlitzSolver.Simulation.Run`、`BlitzSolver.Content.*`、`BlitzSolver.Ai.Combat`、`BlitzSolver.Ai.Run`、`BlitzSolver.Autoplay`。
+命名空间与目录一致：`Sts2Solver.Simulation.Combat`、`Sts2Solver.Simulation.Run`、`Sts2Solver.Content.*`、`Sts2Solver.Ai.Combat`、`Sts2Solver.Ai.Run`、`Sts2Solver.Autoplay`。
 
 Core 依赖规则，由 `tests/Architecture` 在编译后自动检查：
 
@@ -92,7 +92,7 @@ Core 依赖规则，由 `tests/Architecture` 在编译后自动检查：
 | `Autoplay` | `Simulation.*`、`Ai.*` |
 
 - `Ai/Run` 需要推演评估时，通过 `Autoplay` 注入的接口调用，不直接引用 `Simulation/Run` 的状态。
-- 不拆程序集：内容定义要大量调用模拟的内部函数，战斗热路径也不宜跨程序集。依赖方向由 `tests/Architecture` 读取编译后的 `BlitzSolver.Core` 检查；`Ai/Run` 的未登记引用用本地反例验证会报错。
+- 不拆程序集：内容定义要大量调用模拟的内部函数，战斗热路径也不宜跨程序集。依赖方向由 `tests/Architecture` 读取编译后的 `Sts2Solver.Core` 检查；`Ai/Run` 的未登记引用用本地反例验证会报错。
 
 Core 以外的项目与引用：
 
@@ -108,7 +108,7 @@ Core 以外的项目与引用：
 | `tests/Golden` | Core | 战斗校验器与冻结数据 |
 | `tests/Architecture` | 编译后的 Core | 层依赖检查 |
 
-`OfflineHost`、`Mod`、`tools/run-eval` 都不加入 `BlitzSolver.sln`。`tests/Differential` 也不加入；`Import` 与 `Mod` 的依赖规则由 `tests/Architecture` 检查。
+`OfflineHost`、`Mod`、`tools/run-eval` 都不加入 `Sts2Solver.sln`。`tests/Differential` 也不加入；`Import` 与 `Mod` 的依赖规则由 `tests/Architecture` 检查。
 
 ## 5. 局外状态 `RunState`
 
@@ -164,7 +164,7 @@ Token；唯一身份、单调修订、原版实例映射与消费/失效必须�
 
 ## 8. 战斗边界
 
-**写回已删除。** 战斗结束后不再把 `Battle` 写回 `RunState`，也不由 Blitz 生成战后奖励；这些由原版推进，下一步再从原版导入 `RunState`。
+**写回已删除。** 战斗结束后不再把 `Battle` 写回 `RunState`，也不由 Sts2Solver 生成战后奖励；这些由原版推进，下一步再从原版导入 `RunState`。
 
 **建局保留，用于开战选择预测。** 从进点前的 `RunState` 出发，`RunMapEntry.Enter` 完成进点前半段，`RunCombatSetup` 按开战选择序列构造每个选项对应的 `Battle`、`Rules` 与开局 `RunState`。多根搜索拿到的是同一进点下所有合法开局的根，不需要真实推进原版。
 
@@ -206,11 +206,11 @@ R2a-2 的入口、遭遇生成、开战与第一回合的逐步顺序、`RulesRo
 
 验证分三层：
 
-1. **进程内差分（`tests/Differential`）：** 只用于导入和建局。在普通 .NET 进程里调用原版代码，和 Blitz 从同一输入算出的 `Battle`/`Rules`/`RunState` 逐字节比较。
+1. **进程内差分（`tests/Differential`）：** 只用于导入和建局。在普通 .NET 进程里调用原版代码，和 Sts2Solver 从同一输入算出的 `Battle`/`Rules`/`RunState` 逐字节比较。
 2. **两个宿主之间的一致性：** 同一种子、同一策略，Mod 与离线宿主逐步比较导入的 `RunState`；战斗另做逐动作核对。
 3. **实机：** 真实游戏里跑 Mod，确认界面执行器、事件/商店/奖励流程与最终结果。
 
-和界面绑得太紧、进程内无法调用的原版逻辑，逐个评估：加最小补丁让它能离线运行，或者只靠第 2、3 层验证，并在文档里列出。**"录下的整局作为局外回归基准"已删除**；局外不再有 Blitz 自己的推进实现需要回归。
+和界面绑得太紧、进程内无法调用的原版逻辑，逐个评估：加最小补丁让它能离线运行，或者只靠第 2、3 层验证，并在文档里列出。**"录下的整局作为局外回归基准"已删除**；局外不再有 Sts2Solver 自己的推进实现需要回归。
 
 **评估：**
 
@@ -240,9 +240,9 @@ R2a-2 的入口、遭遇生成、开战与第一回合的逐步顺序、`RulesRo
 - 局外改由原版 `sts2.dll` 推进，不再自己写局外模拟器；R2d–R2f 取消；
 - 两个宿主都由原版推进局外；离线宿主在普通 .NET 进程里运行原版，Mod 在真实游戏里运行；每一步都从原版重新导入 `RunState`；
 - 决策请求由导入层从原版读出；
-- Blitz 的局外部分只保留开战选择预测与状态/投影/导入；
+- Sts2Solver 的局外部分只保留开战选择预测与状态/投影/导入；
 - 用户原话："我们没有太大的分叉需求，只需要测试我们写的局外策略代码的好坏就行了"；
-- 该条替换 2026-10-26 的"局外模拟器自己写，按 Blitz 的结构设计"；
+- 该条替换 2026-10-26 的"局外模拟器自己写，按 Sts2Solver 的结构设计"；
 - 最后一个包含完整局外模拟器的提交是 `683bc03`；以后需要从 Git 历史恢复。
 
 已定（2026-10-26，仍然成立的部分）：
@@ -251,7 +251,7 @@ R2a-2 的入口、遭遇生成、开战与第一回合的逐步顺序、`RulesRo
 - 局外决策不预知未来；
 - 最终覆盖所有角色、所有进阶等级、所有场景；
 - 目录命名按第 4 节：`Simulation` / `Ai` / `Autoplay` × `Combat` / `Run`；
-- 中文名改为"极速求解器"，英文名 BlitzSolver 不变。
+- 中文名改为"尖塔求解器"，英文名 Sts2Solver 不变。
 
 待定：
 

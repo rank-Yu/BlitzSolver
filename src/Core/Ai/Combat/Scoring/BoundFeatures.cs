@@ -1,8 +1,8 @@
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
 
-namespace BlitzSolver.Ai.Combat.Scoring;
+namespace Sts2Solver.Ai.Combat.Scoring;
 
 /// <summary>Which remaining-healing certificate the root uses; mirrors <c>RemainingHealingPotentialCore</c>.</summary>
 internal enum HealingCertificate : byte

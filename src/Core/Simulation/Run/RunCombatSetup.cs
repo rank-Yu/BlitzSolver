@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>The opening battle, its rules and the run state after entering the map point.</summary>
 public sealed class CombatSetupResult
@@ -386,7 +386,7 @@ public static class RunCombatSetup
     /// <summary>
     /// Monsters spawned during BeforeCombatStart can die before the first play phase. Native
     /// CombatState.Enemies is the live roster and does not retain such a setup-spawned corpse;
-    /// Blitz keeps known enemies for writeback history, so trim trailing dead extras before
+    /// Sts2Solver keeps known enemies for writeback history, so trim trailing dead extras before
     /// building the root rules/battle.
     /// </summary>
     private static void PruneSetupDeadExtras(ref Battle battle, int spawnCount)

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 [ContentId("FOCUS_POWER")]
 public sealed class FocusPower : PowerDef
@@ -402,7 +402,7 @@ public sealed class FeralPower : PowerDef
         bool isAutoPlay, int energyValue, Pile location, out PilePosition position)
     {
         position = PilePosition.Bottom;
-        // Native FeralPower checks CardModel.IsDupe, not IsClone. The only dupes Blitz creates are the
+        // Native FeralPower checks CardModel.IsDupe, not IsClone. The only dupes Sts2Solver creates are the
         // HistoryCourse auto-play copies; Card.IsClone marks native CreateClone copies
         // (AdaptiveStrike), which FeralPower does not exclude.
         if (x.CurrentPlayIsHistoryCourseDupe

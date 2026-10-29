@@ -1,6 +1,6 @@
-# Golden：BlitzSolver 冻结快照校验器
+# Golden：Sts2Solver 冻结快照校验器
 
-`Golden` 通过 `ProjectReference` 引用 `src/Core/BlitzSolver.Core.csproj`，在只有 BCL 的进程里
+`Golden` 通过 `ProjectReference` 引用 `src/Core/Sts2Solver.Core.csproj`，在只有 BCL 的进程里
 校验冻结快照 `tests/Golden/data`。它不引用游戏 DLL、Godot、Harmony 或 RitsuLib。
 
 ```bash
@@ -10,11 +10,11 @@ dotnet run --project tests/Golden -c Release -- manifest tests/Golden/data
 dotnet run --project tests/Golden -c Release -- verify tests/Golden/data --only d1 --jobs 8
 dotnet run --project tests/Golden -c Release -- verify tests/Golden/data --only d2 --jobs 8 --shard 0/4
 dotnet run --project tests/Golden -c Release -- compare tests/Golden/data --jobs 6 --config all --shard 0/4
-dotnet run --project tests/Golden -c Release -- refreeze tests/Golden/data /tmp/blitz-refreeze --jobs 6
-dotnet run --project tests/Golden -c Release -- verify /tmp/blitz-refreeze --jobs 6
-dotnet run --project tests/Golden -c Release -- rerecord tests/Golden/data /tmp/blitz-rerecord --roots .local/rerecord-roots.txt --reason "<原因>" --jobs 6
-dotnet run --project tests/Golden -c Release -- rerecord tests/Golden/data /tmp/blitz-rerecord --roots .local/rerecord-roots.txt --recapture-root /tmp/offlinehost/recapture --reason "<原因>" --jobs 6
-dotnet run --project tests/Golden -c Release -- verify /tmp/blitz-rerecord --only d1 --jobs 6
+dotnet run --project tests/Golden -c Release -- refreeze tests/Golden/data /tmp/sts2-solver-refreeze --jobs 6
+dotnet run --project tests/Golden -c Release -- verify /tmp/sts2-solver-refreeze --jobs 6
+dotnet run --project tests/Golden -c Release -- rerecord tests/Golden/data /tmp/sts2-solver-rerecord --roots .local/rerecord-roots.txt --reason "<原因>" --jobs 6
+dotnet run --project tests/Golden -c Release -- rerecord tests/Golden/data /tmp/sts2-solver-rerecord --roots .local/rerecord-roots.txt --recapture-root /tmp/offlinehost/recapture --reason "<原因>" --jobs 6
+dotnet run --project tests/Golden -c Release -- verify /tmp/sts2-solver-rerecord --only d1 --jobs 6
 ```
 
 > `tests/Golden/data` 的 D2 期望结果已按 M3b 默认搜索重冻；之后改变搜索结果的改动先用 `compare` 做只报告对照，经用户同意后再 `refreeze`。
@@ -54,4 +54,4 @@ D2 读取 `d2/requests/*.request.br`（`SREQ`），把软时间预算改成 `Tim
 容量丢弃、终态压缩、药水审计、侦察层与接管动作。当前 1,983 个请求全部相等；期望结果在 M3b
 合并时用 `refreeze` 重算过。
 
-数据格式、计数和 Search 外部类型清单见 `.local/tool-tasks/blitz/M0-report.md`。
+数据格式、计数和 Search 外部类型清单见 `.local/tool-tasks/sts2-solver/M0-report.md`。

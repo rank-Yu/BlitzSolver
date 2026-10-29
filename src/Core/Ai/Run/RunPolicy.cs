@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Run;
 
-namespace BlitzSolver.Ai.Run;
+namespace Sts2Solver.Ai.Run;
 
 public readonly record struct RunPilotAnswer(RunAction Action, bool Confirmed = false);
 /// <summary>Only registered visible DTOs cross the strategy boundary; Architecture enforces this layer.</summary>

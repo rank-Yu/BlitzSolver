@@ -2,7 +2,7 @@
 // a deterministic state dump; also compares a dump directory against a reference directory.
 using System.Diagnostics;
 using System.Text.Json;
-using BlitzSolver.Import;
+using Sts2Solver.Import;
 using MegaCrit.Sts2.Core.Combat;
 
 namespace Differential;
@@ -946,7 +946,7 @@ internal static class Program
                 ? (long)budgetMb * 1024 * 1024
                 : OfflineCombatSettings.DefaultMemoryBudgetBytes);
         int warmupNodes = int.TryParse(
-            Environment.GetEnvironmentVariable("BLITZ_OFFLINE_WARMUP_NODES"), out int warmup)
+            Environment.GetEnvironmentVariable("STS2_SOLVER_OFFLINE_WARMUP_NODES"), out int warmup)
             ? Math.Max(0, warmup) : 50_000;
         OfflineCombatSettings settings = new(data, corpora, output, tier, profile,
             memoryBudgetBytes, warmupNodes, maxNodes, poolStateBudgetMb);

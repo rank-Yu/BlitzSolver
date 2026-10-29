@@ -2,9 +2,9 @@
 
 [返回文档索引](README.md)
 
-`tests/Golden/data` 是 BlitzSolver 的冻结证据。它由 CombatSolver 时期的 M0 宿主在固定输入上导出，当前仓库只读取、校验和重放，不依赖游戏程序集。本文说明目录、格式、来源与更新条件；如何复跑见 [测试与验证](testing.md)。
+`tests/Golden/data` 是 Sts2Solver 的冻结证据。它由 CombatSolver 时期的 M0 宿主在固定输入上导出，当前仓库只读取、校验和重放，不依赖游戏程序集。本文说明目录、格式、来源与更新条件；如何复跑见 [测试与验证](testing.md)。
 
-数据格式本身不带产品名：魔数、版本、JSON 键和根名在 v2 中都不含 `Flash` 或 `Blitz`。类型名在文中按当前代码写作 `Battle`、`Rules`、`ScoreRules` 等。`meta.json` 的 `input` 仍保存 CombatSolver 时期的 fixture/语料路径（例如 `coverage/fixtures/cards/flash-dx5-pen-nib-sly.json`），那是出处，不是当前格式的一部分。
+数据格式本身不带产品名：魔数、版本、JSON 键和根名在 v2 中都不含 `Flash` 或 `Sts2Solver`。类型名在文中按当前代码写作 `Battle`、`Rules`、`ScoreRules` 等。`meta.json` 的 `input` 仍保存 CombatSolver 时期的 fixture/语料路径（例如 `coverage/fixtures/cards/flash-dx5-pen-nib-sly.json`），那是出处，不是当前格式的一部分。
 
 ## 1. 目录结构
 
@@ -177,12 +177,12 @@ D1/D2 的语义参照 CombatSolver `a62f1850`，但快照本身由 M0 宿主在 
 
 ### 8.1 D1 重录
 
-原版语义修正后，旧 M0 录制会记录当时的内核行为；`Golden rerecord` 在副本上按当前 Blitz
+原版语义修正后，旧 M0 录制会记录当时的内核行为；`Golden rerecord` 在副本上按当前 Sts2Solver
 代码重录指定 D1 根：
 
 ```bash
 dotnet run --project tests/Golden -c Release -- \
-  rerecord tests/Golden/data /tmp/blitz-rerecord --roots .local/rerecord-roots.txt --jobs 6
+  rerecord tests/Golden/data /tmp/sts2-solver-rerecord --roots .local/rerecord-roots.txt --jobs 6
 ```
 
 - 源目录只读；目标目录必须为空，两者不能互相包含。工具先复制整棵数据目录。
@@ -225,7 +225,7 @@ v2 只改数据格式和对外标识里的名字，不改任何字段值：
 | D1 根名 | `flash-<name>` | `<name>` |
 | manifest 键 | `flashBattleSize` | `battleSize` |
 
-迁移由 `.local/tool-tasks/blitz/migrate-v2/` 的一次性工具完成，工具不进入提交。工具使用冻结的 v1 读取器解码旧文件，用 v2 写入器生成新文件，再分别用 v1/v2 读取器逐字段比较：
+迁移由 `.local/tool-tasks/sts2-solver/migrate-v2/` 的一次性工具完成，工具不进入提交。工具使用冻结的 v1 读取器解码旧文件，用 v2 写入器生成新文件，再分别用 v1/v2 读取器逐字段比较：
 
 - 45,175,779 次比较，`mismatches=0`；覆盖规则表、`Battle` 字节、K1/K2 记录、请求选项、期望结果、meta 与 replay 报告/index。
 - 文件数与各类计数不变：D1 410 个根目录、418 个记录根、5,062 个 K1、15,296 条游走、482,227 个游走状态、469,352 个转移；D2 1,983 个请求/期望；规则对象 388 个；总文件 5,592。

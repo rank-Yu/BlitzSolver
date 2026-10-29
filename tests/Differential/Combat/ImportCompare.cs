@@ -1,9 +1,9 @@
-// Import-compare mode: builds the native root, imports it with BlitzSolver.Import, and compares the
+// Import-compare mode: builds the native root, imports it with Sts2Solver.Import, and compares the
 // decoded expected GOLD root byte for byte (the first root, or the matching ordinary setup root for
 // the three turn-setup fixtures).
 using System.IO.Compression;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;

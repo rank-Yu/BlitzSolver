@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>A hook invocation: which mask selects listeners and how to call one of them.</summary>
 public interface IActionHook

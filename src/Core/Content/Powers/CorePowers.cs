@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>Native <c>StrengthPower</c>: additive damage for its owner's powered attacks.</summary>
 [ContentId("STRENGTH_POWER")]
@@ -240,7 +240,7 @@ public sealed class IntangiblePower : PowerDef
 /// Native <c>NoDrawPower</c> (BattleTrance, BulletTime and similar): while its owner is a player,
 /// a non-hand draw is refused (<c>ShouldDrawMirrors.HandleNoDrawPower</c>). The existing engine removes
 /// it in <c>EndTurnPowerSupport.TriggerRegular</c> when the owner participates in the side turn end;
-/// Blitz's <c>EndTurnRegular</c> is that pass. No private slot.
+/// Sts2Solver's <c>EndTurnRegular</c> is that pass. No private slot.
 /// </summary>
 [ContentId("NO_DRAW_POWER")]
 public sealed class NoDrawPower : PowerDef

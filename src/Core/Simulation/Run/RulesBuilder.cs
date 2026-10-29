@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// Root facts that the opening battle root knows but <see cref="Battle"/> does not carry. The
@@ -409,7 +409,7 @@ public static class RulesBuilder
         {
             if (!Registry.TryCard(nativeId, out ushort extraId))
                 throw new ContentUnavailableException(ContentReason.UnsupportedClosure,
-                    $"开战生成卡 {nativeId} 没有 Blitz 定义");
+                    $"开战生成卡 {nativeId} 没有 Sts2Solver 定义");
             AddCardStats(draft, table, in battle, extraId, upgrade);
             if (seenCards.Add((extraId, upgrade)))
                 pendingCards.Enqueue((extraId, upgrade));
@@ -430,7 +430,7 @@ public static class RulesBuilder
         {
             if (!Registry.TryCard(card.NativeId, out ushort cardId))
                 throw new ContentUnavailableException(ContentReason.UnsupportedClosure,
-                    $"生成卡 {card.NativeId} 没有 Blitz 定义");
+                    $"生成卡 {card.NativeId} 没有 Sts2Solver 定义");
             if (seenCards.Add((cardId, card.Upgrade)))
                 pendingCards.Enqueue((cardId, card.Upgrade));
         }
@@ -493,7 +493,7 @@ public static class RulesBuilder
                         continue;
                     if (!Registry.TryPower(nativeId, out ushort powerId))
                         throw new ContentUnavailableException(ContentReason.UnsupportedClosure,
-                            $"生成 Power {nativeId} 没有 Blitz 定义");
+                            $"生成 Power {nativeId} 没有 Sts2Solver 定义");
                     Declare(Registry.Power(powerId));
                 }
                 while (pendingPools.Count > 0)
@@ -614,7 +614,7 @@ public static class RulesBuilder
                 continue;
             if (entry.CardId == ContentPoolEntry.NoCard)
                 throw new ContentUnavailableException(ContentReason.UnsupportedCard,
-                    $"卡池 {key} 的候选 {entry.NativeId} 没有 Blitz 定义");
+                    $"卡池 {key} 的候选 {entry.NativeId} 没有 Sts2Solver 定义");
             if (seen.Add(entry.CardId))
                 ids.Add(entry.CardId);
         }
@@ -635,7 +635,7 @@ public static class RulesBuilder
                 continue;
             if (entry.PotionId == ContentPotionEntry.NoPotion)
                 throw new ContentUnavailableException(ContentReason.UnsupportedPotion,
-                    $"药水池的候选 {entry.NativeId} 没有 Blitz 定义");
+                    $"药水池的候选 {entry.NativeId} 没有 Sts2Solver 定义");
             if (seen.Add(entry.PotionId))
                 ids.Add(entry.PotionId);
         }
@@ -747,7 +747,7 @@ public static class RulesBuilder
             string nativeId = pending.Dequeue();
             if (!Registry.TryMonster(nativeId, out ushort id))
                 throw new ContentUnavailableException(ContentReason.UnsupportedClosure,
-                    $"生成怪物 {nativeId} 没有 Blitz 定义");
+                    $"生成怪物 {nativeId} 没有 Sts2Solver 定义");
             if (!seen.Add(id))
                 continue;
             closure.Add(id);

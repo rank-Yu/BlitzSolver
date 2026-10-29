@@ -3,8 +3,8 @@
 // native battle before the game clears turn-scoped state. Nothing is written back.
 using System.Reflection;
 using System.Runtime.ExceptionServices;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -20,7 +20,7 @@ internal enum TerminalCapturePath : byte
 
 internal static class TerminalBattleCapture
 {
-    private static readonly HarmonyLib.Harmony Harmony = new("blitz.differential.terminal");
+    private static readonly HarmonyLib.Harmony Harmony = new("sts2solver.differential.terminal");
     private static readonly MethodInfo VictoryPrefixMethod = typeof(TerminalBattleCapture).GetMethod(
         nameof(VictoryPrefix), BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new MissingMethodException(typeof(TerminalBattleCapture).FullName,
@@ -94,7 +94,7 @@ internal static class TerminalBattleCapture
     /// <summary>Negative-test hook: mutate only the predicted terminal copy.</summary>
     private static void ApplyTestTamper(ref Battle predicted)
     {
-        string? tamper = Environment.GetEnvironmentVariable("BLITZ_PILOT_TAMPER");
+        string? tamper = Environment.GetEnvironmentVariable("STS2_SOLVER_PILOT_TAMPER");
         switch (tamper)
         {
             case "hp":
@@ -128,7 +128,7 @@ internal static class TerminalBattleCapture
         {
             _failure = error;
         }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error)
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error)
         {
             _failure = error;
         }

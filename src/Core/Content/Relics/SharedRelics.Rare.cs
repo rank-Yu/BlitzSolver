@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 /// <summary>
 /// <c>Bookmark</c>: after the turn-end flush, pick one retained hand card that is not X-cost and whose
@@ -245,7 +245,7 @@ public sealed class RazorTooth : RelicDef
 
 /// <summary>
 /// <c>IntimidatingHelmet</c>: <c>BeforeCardPlayed</c>, when the play's energy value is at least 2, gains
-/// 4 unpowered block (<c>BeforeCardPlayedMirrors.HandleIntimidatingHelmet</c>; Blitz's
+/// 4 unpowered block (<c>BeforeCardPlayedMirrors.HandleIntimidatingHelmet</c>; Sts2Solver's
 /// <see cref="Exec.XValue"/> carries the same <c>CardPlay.Resources.EnergyValue</c>).
 /// </summary>
 [ContentId("INTIMIDATING_HELMET")]
@@ -848,7 +848,7 @@ public sealed class HelicalDart : RelicDef
 
 /// <summary>
 /// <c>PaperKrane</c>: <c>ModifyWeakMultiplier</c> subtracts 0.15 for powered attacks against the
-/// owner. The existing engine routes it through <c>WeakPower</c>'s multiplier; the Blitz kernel reads
+/// owner. The existing engine routes it through <c>WeakPower</c>'s multiplier; the Sts2Solver kernel reads
 /// the relic there, so this definition only declares the rule-table variable.
 /// </summary>
 [ContentId("PAPER_KRANE")]

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 /// <summary>Native <c>BurningBlood</c>: heals after combat only, so it has no in-combat hooks.</summary>
 [ContentId("BURNING_BLOOD")]

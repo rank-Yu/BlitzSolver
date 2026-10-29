@@ -4,7 +4,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Saves;
 using STS2RitsuLib.Patching.Models;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// 无头测试不写入玩家的遭遇与击杀进度。
@@ -13,7 +13,7 @@ namespace BlitzSolver;
 /// </summary>
 internal sealed class UnattendedTestIsolationPatch : IPatchMethod
 {
-    public static string PatchId => "blitzsolver_unattended_test_isolation";
+    public static string PatchId => "sts2solver_unattended_test_isolation";
 
     public static string Description => "无头测试不写入玩家的遭遇与击杀进度";
 
@@ -30,7 +30,7 @@ internal sealed class UnattendedTestIsolationPatch : IPatchMethod
     {
         if (!TestSession.Active)
             return true;
-        ModLog.Info("[BlitzSolver] PROGRESS_WRITE_SKIPPED scope=combat_win_stats");
+        ModLog.Info("[Sts2Solver] PROGRESS_WRITE_SKIPPED scope=combat_win_stats");
         return false;
     }
 }

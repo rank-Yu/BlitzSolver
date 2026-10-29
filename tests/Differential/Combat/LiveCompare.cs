@@ -2,10 +2,10 @@
 // snapshot and with the offline host's own native-state dump for the same root.
 using System.IO.Compression;
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Runs;

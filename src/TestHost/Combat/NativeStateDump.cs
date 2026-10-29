@@ -1,8 +1,8 @@
-// Shared dump code for BlitzSolver/tests/Differential and the reference hook in
+// Shared dump code for Sts2Solver/tests/Differential and the reference hook in
 // CombatSolver/tools/search/OfflineSearchHarness. Reads native CombatState only; never changes it.
 using System.Globalization;
 using System.Text;
-using BlitzSolver.Import;
+using Sts2Solver.Import;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -13,7 +13,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal static class NativeStateDump
 {

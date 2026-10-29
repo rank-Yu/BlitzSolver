@@ -1,4 +1,4 @@
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// Resolves the Mod's search-memory ceiling. The search core only receives the resulting byte count;
@@ -10,7 +10,7 @@ namespace BlitzSolver;
 internal static class SearchMemoryBudget
 {
     /// <summary>Optional override in MiB. Documented in <c>docs/mod.md</c>.</summary>
-    internal const string OverrideVariable = "BLITZ_SEARCH_MEMORY_MB";
+    internal const string OverrideVariable = "STS2_SOLVER_SEARCH_MEMORY_MB";
 
     private static readonly Lazy<long> Resolved = new(Resolve, isThreadSafe: true);
 
@@ -27,7 +27,7 @@ internal static class SearchMemoryBudget
                 return mebibytes > long.MaxValue / scale ? long.MaxValue : mebibytes * scale;
             }
             ModLog.Error(
-                $"[BlitzSolver] SEARCH_MEMORY_IGNORED value={configured} " +
+                $"[Sts2Solver] SEARCH_MEMORY_IGNORED value={configured} " +
                 $"reason=not_positive_integer variable={OverrideVariable}");
         }
         const long floor = 1L << 30;

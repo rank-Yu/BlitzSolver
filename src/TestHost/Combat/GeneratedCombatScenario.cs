@@ -16,7 +16,7 @@ using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Rooms;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 // Scenario construction only. This RNG never touches the game's run/combat streams.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

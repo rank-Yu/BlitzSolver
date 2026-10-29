@@ -1,12 +1,12 @@
 // Entry point for the M2a-4 evaluation configuration: assemble the same SREQ request the
 // CombatSolver M0 harness wrote (rules + imported root + BeamOptions with Scorer/Bound).
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Compiles the score table and bound configuration and assembles the frozen request.</summary>
 internal static class EvaluationConfigCompiler

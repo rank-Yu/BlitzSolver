@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Necrobinder;
+namespace Sts2Solver.Content.Cards.Necrobinder;
 
 /// <summary>
 /// <c>TimesUp</c>: calculated attack with CalculationBase 0 + ExtraDamage 1 × the target's Doom
@@ -74,7 +74,7 @@ public sealed class Squeeze : CardDef
 /// <c>Misery</c>: deal the attack, then copy every debuff on the selected target to every other
 /// hittable enemy. Existing engine: <c>BespokeCardMirrors.MiseryOnPlay</c>. The clone carries the
 /// original amount and applier. Temporary powers are the existing engine's <c>ITemporaryPower</c>
-/// merge path (temporary → internal power amount); Blitz has no per-instance dynamic-variable copy,
+/// merge path (temporary → internal power amount); Sts2Solver has no per-instance dynamic-variable copy,
 /// so a target carrying one is an explicit unsupported boundary rather than a half-clone.
 /// </summary>
 [ContentId("MISERY")]

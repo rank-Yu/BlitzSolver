@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Osty, the Necrobinder pet. Semantics follow <c>SimulatedCombatState.CardLifecycle</c>'s
@@ -13,13 +13,13 @@ public static partial class Kernel
         if (amount <= 0)
             return;
         if (!Registry.TryPower("DIE_FOR_YOU_POWER", out ushort dieForYou))
-            throw new UnsupportedException("Osty 需要 DieForYouPower 的 Blitz 定义。");
+            throw new UnsupportedException("Osty 需要 DieForYouPower 的 Sts2Solver 定义。");
         bool created = (x.B.Flags & BattleFlags.OstyPresent) == 0;
         if (created)
         {
             // CreatePredictedMonster consumes one CombatId before any HP is assigned. The native model
             // starts at 1/1 HP; the existing engine overwrites both before anything can observe them
-            // (the DieForYouPower application has no HP reader), so Blitz initializes the target HP
+            // (the DieForYouPower application has no HP reader), so Sts2Solver initializes the target HP
             // directly instead of hard-coding the model's initial value.
             x.B.NextCombatId = unchecked(x.B.NextCombatId + 1);
             x.B.Flags |= BattleFlags.OstyPresent;
@@ -62,7 +62,7 @@ public static partial class Kernel
             (int)Math.Min((long)osty.CurrentHp + Math.Max(0, amount), Limits.ValueClamp));
     }
 
-    /// <summary>Mirrors <c>SimulatedCombatState.GetOstyMaxHp</c> for the single-player Blitz state.</summary>
+    /// <summary>Mirrors <c>SimulatedCombatState.GetOstyMaxHp</c> for the single-player Sts2Solver state.</summary>
     public static int OstyMaxHp(in Battle battle)
         => (battle.Flags & BattleFlags.OstyPresent) == 0 ? 0 : battle.Osty.MaxHp;
 

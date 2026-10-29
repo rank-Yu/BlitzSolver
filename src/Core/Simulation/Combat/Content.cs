@@ -1,8 +1,8 @@
 using System.Reflection;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
-/// <summary>Declares the native model id implemented by a Blitz content definition.</summary>
+/// <summary>Declares the native model id implemented by a Sts2Solver content definition.</summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class ContentIdAttribute(string nativeId) : Attribute
 {
@@ -316,7 +316,7 @@ public enum HookMaskExt : ulong
 /// <summary>
 /// Candidate lists frozen by the Bridge with the existing engine's own generation queries. A
 /// definition declaring one of these ids requires the rule table to contain the list and every
-/// candidate to have a Blitz card definition (admission rejects the root otherwise).
+/// candidate to have a Sts2Solver card definition (admission rejects the root otherwise).
 /// </summary>
 public static class CardPools
 {
@@ -366,14 +366,14 @@ public abstract class ContentDef
 
     /// <summary>
     /// Native card ids (with upgrade level) this content can put into combat. The rule compiler adds
-    /// their canonical stats, and admission rejects the root when any of them has no Blitz definition.
+    /// their canonical stats, and admission rejects the root when any of them has no Sts2Solver definition.
     /// </summary>
     public virtual IReadOnlyList<(string CardId, int Upgrade)> GeneratedCards => [];
 
     /// <summary>
     /// Candidate pools (see <see cref="CardPools"/>) this content can generate from. The Bridge
     /// freezes each pool with the existing engine's own query and admission rejects the root when a
-    /// candidate has no Blitz definition.
+    /// candidate has no Sts2Solver definition.
     /// </summary>
     public virtual IReadOnlyList<string> GeneratedCardPools => [];
 
@@ -787,7 +787,7 @@ public abstract class ListenerDef : ContentDef
     /// <summary>
     /// <c>Hook.ModifyOrbPassiveTriggerCount</c>: a pure query over every combat listener; the listeners
     /// that change the count are recorded for <c>AfterModifyingOrbPassiveTriggerCount</c>, whose only
-    /// vanilla listener (GoldPlatedCables) is cosmetic and has no Blitz definition.
+    /// vanilla listener (GoldPlatedCables) is cosmetic and has no Sts2Solver definition.
     /// </summary>
     public virtual int ModifyOrbPassiveTriggerCounts(in Battle battle, Rules rules, Listener self,
         in Orb orb, int orbIndex, int triggerCount) => triggerCount;
@@ -895,7 +895,7 @@ public abstract class ListenerDef : ContentDef
 
     /// <summary>
     /// Native <c>BeforeAttack</c> (<c>CombatPredictionSimulator.BeginAttackContext</c>), before the first
-    /// hit. Every Blitz attack comes from a card or a monster move; <paramref name="props"/> are its
+    /// hit. Every Sts2Solver attack comes from a card or a monster move; <paramref name="props"/> are its
     /// damage props.
     /// </summary>
     public virtual void BeforeAttack(ref Exec x, Listener self, byte attacker, ValueProps props)
@@ -932,7 +932,7 @@ public abstract class CardDef : ListenerDef
     /// Cards whose power compensation lives in <c>CorePowerSupport.ApplyCardPowers</c>'s switch after
     /// <c>ResolveMonologues</c>. The kernel resolves pending Monologue Strength before such a card's
     /// first power application so the power table keeps the existing engine's acquisition order. The
-    /// list is the case-label set of that switch (the Blitz content split is by native card id).
+    /// list is the case-label set of that switch (the Sts2Solver content split is by native card id).
     /// </summary>
     public bool ResolvesMonologuesBeforeCompensation => NativeId is
             "ABRASIVE"
@@ -1101,7 +1101,7 @@ public abstract class CardDef : ListenerDef
     /// <summary>
     /// True when every <see cref="HookMask.RunListenerHooks"/> hook this definition implements is a
     /// no-op for the copy that lives in the player's deck outside combat. The existing engine dispatches
-    /// those hooks over the run listeners, which include deck cards; Blitz only has the combat copies.
+    /// those hooks over the run listeners, which include deck cards; Sts2Solver only has the combat copies.
     /// Melancholy qualifies: its <c>AfterDeath</c> handler resolves the card through the combat state and
     /// returns without effect when the card is not in a combat pile. Admission still rejects every other
     /// deck card implementing a run-listener hook. See admission-and-verification.md.
@@ -1128,7 +1128,7 @@ public abstract class CardDef : ListenerDef
     /// <summary>
     /// Native <c>AfterDowngraded</c> restores a per-play Damage accumulator that the model keeps
     /// outside its dynamic variables (Rampage's <c>_extraDamageFromPlays</c>, TheScythe's
-    /// <c>IncreasedDamage</c>). Blitz keeps that accumulation in <see cref="Card.Var0"/>, so
+    /// <c>IncreasedDamage</c>). Sts2Solver keeps that accumulation in <see cref="Card.Var0"/>, so
     /// <see cref="Kernel.DowngradeCard"/> restores the pre-downgrade value after the level-0
     /// reset instead of reading a private field.
     /// </summary>
@@ -1208,7 +1208,7 @@ public abstract class PowerDef : ListenerDef
     /// <c>DrawCardsNextTurnPower</c>, <c>SummonNextTurnPower</c> and <c>HelloWorldPower</c>
     /// (<c>PowerLifecycleSupport.SemanticallyRelevantAmountOnTurnStart</c>). Other powers only carry
     /// the value in the native model, where a mirrored decrement (PowerAmountPredictionState) leaves
-    /// the model amount one action behind until <c>SynchronizePowerAmountPredictionStates</c>. Blitz
+    /// the model amount one action behind until <c>SynchronizePowerAmountPredictionStates</c>. Sts2Solver
     /// applies mirrored decrements immediately, so for every non-reader the value is projected and
     /// snapshotted as zero instead of trying to reproduce a lagging model field.
     /// </summary>
@@ -1261,7 +1261,7 @@ public abstract class PowerDef : ListenerDef
     public virtual bool IsTemporaryPower => false;
 
     /// <summary>
-    /// Native <c>ITemporaryPower.InternallyAppliedPower</c> as a Blitz native id, used by Misery's
+    /// Native <c>ITemporaryPower.InternallyAppliedPower</c> as a Sts2Solver native id, used by Misery's
     /// cloned-temporary merge. A null value means the temporary power has no represented internal
     /// stat (no clone call site needs the merge).
     /// </summary>
@@ -1859,7 +1859,7 @@ public abstract class EncounterDef : ContentDef
 }
 
 /// <summary>
-/// Registry of all Blitz content definitions in this assembly. Ids are assigned per kind in
+/// Registry of all Sts2Solver content definitions in this assembly. Ids are assigned per kind in
 /// ordinal order of native ids.
 /// </summary>
 public static class Registry
@@ -1870,7 +1870,7 @@ public static class Registry
     private static bool _buildStarted;
 
     /// <summary>
-    /// Adds an assembly whose Blitz content definitions participate in the registry's ordinal id
+    /// Adds an assembly whose Sts2Solver content definitions participate in the registry's ordinal id
     /// assignment. Test-only: the core production registry scans its own assembly exactly as before.
     /// </summary>
     internal static void RegisterTestAssembly(Assembly assembly)
@@ -1952,7 +1952,7 @@ public static class Registry
 
     /// <summary>
     /// Canonical id of the Art of War relic (0 when the content is absent). <c>CanTriggerArtOfWarNextTurn</c>
-    /// reads the same <c>StatefulRelicState.Current == 0</c>; the Blitz definition keeps it in
+    /// reads the same <c>StatefulRelicState.Current == 0</c>; the Sts2Solver definition keeps it in
     /// <see cref="Relic.Counter"/>.
     /// </summary>
     public static ushort ArtOfWarRelicId
@@ -1984,35 +1984,35 @@ public static class Registry
     {
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out ContentDef? def)
             ? def.Id
-            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Blitz Power。");
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Sts2Solver Power。");
     }
 
     private static class CardIdCache<T> where T : CardDef
     {
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out ContentDef? def)
             ? def.Id
-            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Blitz 卡牌。");
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Sts2Solver 卡牌。");
     }
 
     private static class MonsterIdCache<T> where T : MonsterDef
     {
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out ContentDef? def)
             ? def.Id
-            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Blitz 怪物。");
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Sts2Solver 怪物。");
     }
 
     private static class AfflictionIdCache<T> where T : AfflictionDef
     {
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out ContentDef? def)
             ? def.Id
-            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Blitz 苦难。");
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Sts2Solver 苦难。");
     }
 
     private static class EnchantmentIdCache<T> where T : EnchantmentDef
     {
         public static readonly ushort Id = Data.Value.ByType.TryGetValue(typeof(T), out ContentDef? def)
             ? def.Id
-            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Blitz 附魔。");
+            : throw new InvalidOperationException($"{typeof(T).Name} 没有登记为 Sts2Solver 附魔。");
     }
 
     private sealed record Tables(
@@ -2085,7 +2085,7 @@ public static class Registry
             if (!typeof(T).IsAssignableFrom(type) || type.IsAbstract)
                 continue;
             ContentIdAttribute attribute = type.GetCustomAttribute<ContentIdAttribute>()
-                ?? throw new InvalidOperationException($"Blitz 定义 {type.FullName} 缺少 [ContentId]。");
+                ?? throw new InvalidOperationException($"Sts2Solver 定义 {type.FullName} 缺少 [ContentId]。");
             found.Add((attribute.NativeId, type));
         }
         found.Sort((left, right) => string.CompareOrdinal(left.NativeId, right.NativeId));
@@ -2097,13 +2097,13 @@ public static class Registry
         {
             (string nativeId, Type type) = found[index];
             T def = (T)(Activator.CreateInstance(type)
-                ?? throw new InvalidOperationException($"无法创建 Blitz 定义 {type.FullName}。"));
+                ?? throw new InvalidOperationException($"无法创建 Sts2Solver 定义 {type.FullName}。"));
             def.NativeId = nativeId;
             def.Id = (ushort)index;
             def.Hooks = (HookMask)ComputeHooks<HookMask>(type);
             def.HooksExt = (HookMaskExt)ComputeHooks<HookMaskExt>(type);
             if (!ids.TryAdd(nativeId, (ushort)index))
-                throw new InvalidOperationException($"原版 Id {nativeId} 有多个 Blitz {typeof(T).Name} 定义。");
+                throw new InvalidOperationException($"原版 Id {nativeId} 有多个 Sts2Solver {typeof(T).Name} 定义。");
             defs[index] = def;
             byType.Add(type, def);
         }

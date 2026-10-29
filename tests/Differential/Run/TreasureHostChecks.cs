@@ -1,12 +1,12 @@
 // Original treasure commands and UI gameplay responsibility are an independent native oracle.
 // Debug rooms and hook fault injection below are fixtures, never natural-run victories.
 using System.Text.Json;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -19,7 +19,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Unlocks;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
-using Bootstrap = BlitzSolver.OfflineHost.Runtime.GameBootstrap;
+using Bootstrap = Sts2Solver.OfflineHost.Runtime.GameBootstrap;
 
 namespace Differential;
 
@@ -168,7 +168,7 @@ internal static class TreasureHostChecks
     }
     private static void Faults()
     {
-        Harmony harmony = new("BlitzSolver.Differential.TreasureFaults");
+        Harmony harmony = new("Sts2Solver.Differential.TreasureFaults");
         harmony.Patch(AccessTools.Method(typeof(Hook), nameof(Hook.ModifyRewards)),
             prefix: new HarmonyMethod(typeof(TreasureHostChecks), nameof(ModifyRewards)));
         harmony.Patch(AccessTools.Method(typeof(Hook), nameof(Hook.AfterGoldGained)),
@@ -188,7 +188,7 @@ internal static class TreasureHostChecks
         boundary = Get(host.WaitForBoundaryAsync(default).AsTask()); _extra = true; int gold = player.Gold;
         rejected = false;
         try { Wait(host.ExecuteAsync(Pick(boundary.View), (_, _) => throw new InvalidDataException("unexpected-child"), default).AsTask()); }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("treasure-extra", StringComparison.Ordinal)) { rejected = true; }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("treasure-extra", StringComparison.Ordinal)) { rejected = true; }
         finally { _extra = false; }
         Check(rejected && player.Gold > gold && player.Gold < gold + 60 && player.Relics.Count == 1, "normal native gold preserved; unknown extra reward never auto-selected");
         Wait(host.DisposeAsync().AsTask()); _cases++;
@@ -213,7 +213,7 @@ internal static class TreasureHostChecks
         ExecutionContext.Run(_late!, _ =>
         {
             try { new RewardsSet(player).WithCustomRewards([new GoldReward(7, 7, player)]).Offer().GetAwaiter().GetResult(); }
-            catch (BlitzSolver.Simulation.Combat.UnsupportedException) { lateRejected = true; }
+            catch (Sts2Solver.Simulation.Combat.UnsupportedException) { lateRejected = true; }
         }, null);
         // Captured general execution context is closed; it may not fall through to automatic reward selection.
         Check(lateRejected, "closed native execution rejects a late reward offer"); _late = null; _cases++;

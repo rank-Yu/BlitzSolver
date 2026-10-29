@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Run;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Stable rejection codes for native-to-Battle import.</summary>
 public static class ImportReason
@@ -49,11 +49,11 @@ public static class ImportReason
 }
 
 /// <summary>
-/// Native state cannot be represented by <see cref="BlitzSolver.Simulation.Combat.Battle"/>. The importer
+/// Native state cannot be represented by <see cref="Sts2Solver.Simulation.Combat.Battle"/>. The importer
 /// rejects the whole root; it never returns a partially defaulted battle.
 /// </summary>
 public sealed class UnsupportedImportException(string reason, string detail)
-    : Exception($"Blitz 导入拒绝 reason={reason}：{detail}")
+    : Exception($"Sts2Solver 导入拒绝 reason={reason}：{detail}")
 {
     /// <summary>Stable machine-readable reason code (see <see cref="ImportReason"/>).</summary>
     public string Reason { get; } = reason;

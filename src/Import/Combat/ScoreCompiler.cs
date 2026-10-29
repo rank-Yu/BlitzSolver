@@ -2,10 +2,10 @@
 // (MIT, Copyright (c) 2026 Torch1230 and contributors). The existing engine's simulated snapshot
 // is replaced by the imported Battle plus direct reads of the native models. The four rank
 // baselines are computed by the Core scorer on the imported root, as FlashRankBaseline did.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
+using Sts2Solver.Ai.Combat.Policy;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -21,7 +21,7 @@ using MegaCrit.Sts2.Core.Runs;
 using NativeCardType = MegaCrit.Sts2.Core.Entities.Cards.CardType;
 using NativeCardTag = MegaCrit.Sts2.Core.Entities.Cards.CardTag;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Root-local facts the score/bound bridges froze besides the policy.</summary>
 public sealed record EvaluationRootFacts
@@ -543,7 +543,7 @@ internal static class ScoreCompiler
             if (!Registry.TryRelic(relic.Id.Entry, out ushort relicId))
             {
                 throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                    $"遗物 {relic.Id.Entry} 没有 Blitz 定义");
+                    $"遗物 {relic.Id.Entry} 没有 Sts2Solver 定义");
             }
             int threshold = target.Id == SearchRelicCounter.MeatOnTheBone
                 ? ModelDb.Relic<MeatOnTheBone>().DynamicVars["HpThreshold"].IntValue

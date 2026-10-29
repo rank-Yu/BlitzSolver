@@ -1,8 +1,8 @@
 // Seeded random legal-action policy for the in-process combat boundary comparison. The policy only
 // proposes action shapes; the kernel produces the authoritative child state and the frozen choice
 // plan that the native executor replays.
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
 
 namespace Differential;
 

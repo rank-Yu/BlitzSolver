@@ -1,9 +1,9 @@
 using System.Buffers.Binary;
 using System.Text;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 /// <summary>
 /// K0 contract for the on-disk format tags. Every codec magic must decode, in little-endian byte

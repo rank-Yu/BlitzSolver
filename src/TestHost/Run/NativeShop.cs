@@ -3,7 +3,7 @@
 // MerchantEntry.OnTryPurchaseWrapper. Card removal uses the test ICardSelector; the UI-only
 // OnCardRemovalUsed callback is reproduced with the public SetUsed() after a successful removal.
 using System.Linq;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -15,7 +15,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.TestSupport;
 using NativeRunState = MegaCrit.Sts2.Core.Runs.RunState;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 public enum NativeShopChoiceKind
 {

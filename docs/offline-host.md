@@ -1,7 +1,7 @@
 # 离线宿主
 
 离线宿主的目标是在普通 .NET 9 控制台进程里加载原版 `sts2.dll`，由原版 `RunManager` 推进整局。
-它不启动 Godot 可执行文件，也不需要场景树；战斗通过 `CombatPilot` 交给 Blitz，局外每一步都从
+它不启动 Godot 可执行文件，也不需要场景树；战斗通过 `CombatPilot` 交给 Sts2Solver，局外每一步都从
 原版重新导入 `RunState`。现已有独立 `OfflineHost` 库、共享 `RunPilot` 与真实 Map/Event/Rest/Shop/CardSelect/Treasure
 执行。Runtime/NewRunFactory/Combat 已迁移，tools/run-eval 通过纯 DTO 接口从独立进程正常启动，
 默认完成首场真实战斗并在领奖前以 Paused / first-combat-complete 停止；显式
@@ -26,7 +26,7 @@ Boss 奖励请求不包含本范围无法执行的换幕 Leave；不调用 ActCh
 | `Run/` | `OfflineRunHost`、`RunExecutor` 与真实局外选择执行 |
 
 离线宿主只依赖 `Core`、`Import`、`sts2.dll`、`GodotSharp`、`0Harmony`；不引用 `TestHost`，
-也不被 `Mod` 引用。原版整局推进，Blitz 只拿到导入后的 `RunState`/`Battle` 与决策请求。
+也不被 `Mod` 引用。原版整局推进，Sts2Solver 只拿到导入后的 `RunState`/`Battle` 与决策请求。
 
 ## 2. 完整宿主的目标启动顺序
 

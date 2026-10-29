@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// <c>TyrannyPower</c>: the owner draws Amount extra cards (<c>ModifyHandDraw</c>) and at the player

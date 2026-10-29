@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - run: dotnet build BlitzSolver.sln -c Release
+      - run: dotnet build Sts2Solver.sln -c Release
       - run: dotnet run --project tests/KernelChecks -c Release --no-build
       - run: dotnet run --project tests/Golden -c Release --no-build -- k0
       - run: dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data --only d1

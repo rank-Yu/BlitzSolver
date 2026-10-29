@@ -1,5 +1,5 @@
-// Ported from CombatSolver src/Search/PowerCardValuation/PowerCardValuationContracts.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-namespace BlitzSolver.Ai.Combat.Scoring;
+// Ported from CombatSolver src/Search/PowerCardValuation/PowerCardValuationContracts.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+namespace Sts2Solver.Ai.Combat.Scoring;
 
 /// <summary>
 /// 能力承诺的机制族。所有角色共用同一组族标签，具体到卡牌的归属由各卡池目录登记；

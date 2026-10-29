@@ -1,20 +1,20 @@
 using System.Text;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat.Policy;
-using BlitzSolver.Ai.Combat.Quality;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat.Policy;
+using Sts2Solver.Ai.Combat.Quality;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
-/// One complete Blitz search request: the frozen rules, every root battle and the exact
+/// One complete Sts2Solver search request: the frozen rules, every root battle and the exact
 /// <see cref="BeamOptions"/> the bridge constructed.
 /// </summary>
 internal sealed record SearchCase(Rules Rules, Battle[] Battles, BeamOptions Options);
 
 /// <summary>
 /// Deterministic encoding of one <see cref="BeamSolver"/> request and result. The request
-/// carries the complete rule and score/bound tables Blitz reads, so a decoded request can be solved
+/// carries the complete rule and score/bound tables Sts2Solver reads, so a decoded request can be solved
 /// without the existing engine. Host-only callbacks (<see cref="BeamOptions.Pacer"/>,
 /// <see cref="BeamOptions.Progress"/>, <see cref="BeamOptions.PollTakeover"/>,
 /// <see cref="BeamOptions.Trace"/>) are recorded as presence bits and not reconstructed: they
@@ -44,17 +44,17 @@ internal static class SearchCodec
         });
 
     internal static SearchCase DecodeRequest(byte[] bytes)
-        => Codec.Read(bytes, "Blitz 搜索请求", reader =>
+        => Codec.Read(bytes, "Sts2Solver 搜索请求", reader =>
         {
             if (reader.ReadUInt32() != RequestMagic)
-                throw new InvalidDataException("Blitz 搜索请求魔数不符。");
+                throw new InvalidDataException("Sts2Solver 搜索请求魔数不符。");
             ushort version = reader.ReadUInt16();
             if (version != Codec.FormatVersion)
-                throw new InvalidDataException($"Blitz 搜索请求版本 {version} 不受支持。");
+                throw new InvalidDataException($"Sts2Solver 搜索请求版本 {version} 不受支持。");
             int rulesLength = Codec.ReadCount(reader, 1 << 28, "规则字节");
             byte[] rulesBytes = reader.ReadBytes(rulesLength);
             if (rulesBytes.Length != rulesLength)
-                throw new InvalidDataException("Blitz 搜索请求的规则数据被截断。");
+                throw new InvalidDataException("Sts2Solver 搜索请求的规则数据被截断。");
             Rules rules = RulesCodec.Decode(rulesBytes);
             int battleCount = Codec.ReadCount(reader, 4096, "搜索根");
             Battle[] battles = new Battle[battleCount];
@@ -64,7 +64,7 @@ internal static class SearchCodec
                     BattleCodec.HeaderSize + Battle.ExpectedSize, "搜索根字节");
                 byte[] battleBytes = reader.ReadBytes(length);
                 if (battleBytes.Length != length)
-                    throw new InvalidDataException("Blitz 搜索根数据被截断。");
+                    throw new InvalidDataException("Sts2Solver 搜索根数据被截断。");
                 battles[index] = BattleCodec.Decode(battleBytes);
             }
             BeamOptions options = DecodeOptions(reader, rules);
@@ -219,7 +219,7 @@ internal static class SearchCodec
         PowerCommitmentCatalog? commitments = hasCommitments ? DecodePowerCommitments(reader) : null;
         byte hooks = reader.ReadByte();
         if ((hooks & ~0x0F) != 0)
-            throw new InvalidDataException($"Blitz 搜索请求的宿主回调位 {hooks:X} 非法。");
+            throw new InvalidDataException($"Sts2Solver 搜索请求的宿主回调位 {hooks:X} 非法。");
         return new BeamOptions(beamWidth, maxExpanded, maxTurns, budget, initialHp)
         {
             CandidateScanCount = scan,
@@ -1003,13 +1003,13 @@ internal static class SearchCodec
         });
 
     internal static BeamResult DecodeResult(byte[] bytes, int expectedBestRootIndex = -1)
-        => Codec.Read(bytes, "Blitz 搜索结果", reader =>
+        => Codec.Read(bytes, "Sts2Solver 搜索结果", reader =>
         {
             if (reader.ReadUInt32() != ResultMagic)
-                throw new InvalidDataException("Blitz 搜索结果魔数不符。");
+                throw new InvalidDataException("Sts2Solver 搜索结果魔数不符。");
             ushort version = reader.ReadUInt16();
             if (version != Codec.FormatVersion)
-                throw new InvalidDataException($"Blitz 搜索结果版本 {version} 不受支持。");
+                throw new InvalidDataException($"Sts2Solver 搜索结果版本 {version} 不受支持。");
             PlayerAction[] best = ReadRoute(reader);
             int topCount = Codec.ReadCount(reader, 1 << 16, "最终候选路线");
             PlayerAction[][] top = new PlayerAction[topCount][];
@@ -1061,7 +1061,7 @@ internal static class SearchCodec
             TakeoverAction takeover = (TakeoverAction)ReadByteEnum(reader, "接管动作");
             if (expectedBestRootIndex >= 0 && bestRoot != expectedBestRootIndex)
                 throw new InvalidDataException(
-                    $"Blitz 搜索结果根下标 {bestRoot} 与请求的 {expectedBestRootIndex} 不同。");
+                    $"Sts2Solver 搜索结果根下标 {bestRoot} 与请求的 {expectedBestRootIndex} 不同。");
             return new BeamResult(best, top, victory, score, expanded, transitions,
                 duplicates, turns, pruned, TimeSpan.Zero)
             {

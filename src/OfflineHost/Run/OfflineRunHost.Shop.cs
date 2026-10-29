@@ -1,10 +1,10 @@
 // Native command order follows sts2 v0.111.0 MerchantEntry/NMerchantInventory.
-// Binding adapted from NativeDecisionTestSession.RewardsShop.cs at f410988 (BlitzSolver, MIT).
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Run;
+// Binding adapted from NativeDecisionTestSession.RewardsShop.cs at f410988 (Sts2Solver, MIT).
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 public sealed partial class OfflineRunHost
 {

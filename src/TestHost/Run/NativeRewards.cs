@@ -14,7 +14,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.TestSupport;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 public enum NativeRewardStage
 {

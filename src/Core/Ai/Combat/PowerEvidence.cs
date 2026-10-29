@@ -1,12 +1,12 @@
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
-/// The existing solver's per-card power-commitment evidence over a Blitz battle: trigger evidence,
+/// The existing solver's per-card power-commitment evidence over a Sts2Solver battle: trigger evidence,
 /// opening-projection floors/potentials, and the Silent specialized progress/realized evidence. It
-/// reads only the byte-exact Blitz state (K1/K2/K4), the K4 feature values and the compiled card
+/// reads only the byte-exact Sts2Solver state (K1/K2/K4), the K4 feature values and the compiled card
 /// score rules; no old-engine model or live value is touched.
 /// </summary>
 /// <summary>

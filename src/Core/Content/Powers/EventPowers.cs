@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>FeedingFrenzyPower</c>, a positive <c>TemporaryStrengthPower</c>: the application adds
@@ -101,7 +101,7 @@ public sealed class ReboundPower : PowerDef
 
 /// <summary>
 /// Native <c>ToricToughnessPower</c> (instanced): <c>AfterBlockCleared</c> gains the block value
-/// stored by <c>SetBlock</c> as unpowered block, then decrements the turn count. Blitz stores the
+/// stored by <c>SetBlock</c> as unpowered block, then decrements the turn count. Sts2Solver stores the
 /// block value in <see cref="Power.Aux0"/> (Amount is the turn count).
 /// </summary>
 [ContentId("TORIC_TOUGHNESS_POWER")]
@@ -181,7 +181,7 @@ public sealed class CuriousPower : PowerDef
 /// side turn end it decrements while the amount is above 1. On the last tick the native power sets
 /// the encounter's <c>RanOutOfTime</c> and escapes the dummy; the existing engine records the
 /// encounter flag (<c>SimulatedCombatState.MarkBattlewornDummyTimedOut</c>) and ends the action at
-/// <c>SearchBoundaryReason.EventDefeat</c> before the death/poison passes. Blitz mirrors exactly that
+/// <c>SearchBoundaryReason.EventDefeat</c> before the death/poison passes. Sts2Solver mirrors exactly that
 /// amount-1 state and sets <see cref="Outcome.EventDefeat"/>; it does not remove the dummy (the
 /// existing engine returns before the escape).
 /// </summary>

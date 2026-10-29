@@ -7,7 +7,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Models.Relics;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 internal sealed class PrivateStateLedger
 {

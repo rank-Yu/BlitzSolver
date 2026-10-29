@@ -1,9 +1,9 @@
 // Diagnostic: exports the process-local content table once and reports its coverage, time and
 // retained memory. The table is never cached to disk.
 using System.Diagnostics;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 
 namespace Differential;
 
@@ -129,7 +129,7 @@ internal static class ContentTableReport
             Console.WriteLine(
                 $"CONTENT-UNSUPPORTED type=card-pool pool={kind}:{name} id=<none> " +
                 $"name={entry.NativeId} reason={ContentReason.UnsupportedCard} " +
-                "detail=卡池候选没有 Blitz 定义");
+                "detail=卡池候选没有 Sts2Solver 定义");
         }
     }
 

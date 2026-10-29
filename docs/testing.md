@@ -2,7 +2,7 @@
 
 [返回文档索引](README.md)
 
-本文说明 BlitzSolver 当前仓库能验证什么、不能验证什么，以及如何复跑。冻结快照的格式、来源和更新条件见 [冻结快照](golden-data.md)。
+本文说明 Sts2Solver 当前仓库能验证什么、不能验证什么，以及如何复跑。冻结快照的格式、来源和更新条件见 [冻结快照](golden-data.md)。
 
 ## 1. 环境
 
@@ -18,29 +18,29 @@ Linux/Bash 本地完整验收统一使用：
 tools/testing/verify-core.sh --jobs 8
 ```
 
-脚本先构建整个 `BlitzSolver.sln`，构建成功后依次运行 KernelChecks、Architecture、Golden
+脚本先构建整个 `Sts2Solver.sln`，构建成功后依次运行 KernelChecks、Architecture、Golden
 K0 与完整 D1/D2；任一步失败立即非零退出。它打印当前提交、工作区是否有未提交改动、SDK、
 并行度与数据目录绝对路径；`dirty` 时提交号不代表全部受测源码。默认并行度为 8，不能通过
 参数跳过构建。审核候选快照时可显式使用
 `tools/testing/verify-core.sh --jobs 8 --data-dir .local/<candidate>`，日志会打印实际数据目录；
 默认始终验证 `tests/Golden/data`。
 
-`dotnet run --no-build` 会使用该测试项目产物目录里的 `BlitzSolver.Core.dll` 副本。只构建
+`dotnet run --no-build` 会使用该测试项目产物目录里的 `Sts2Solver.Core.dll` 副本。只构建
 `tests/Differential` 不会刷新 Golden 或 KernelChecks 的副本，改 Core 后必须重新构建整个
 solution，再运行下文的单项命令；不能把旧产物的通过结果当作当前源码的验证。
 
 单独构建：
 
 ```bash
-dotnet build BlitzSolver.sln -c Release -t:Rebuild
+dotnet build Sts2Solver.sln -c Release -t:Rebuild
 ```
 
 当前结果：`0 个警告，0 个错误`。产物在 `artifacts/bin/`：
 
-- `BlitzSolver.Core.dll`
-- `BlitzSolver.KernelChecks.dll`
-- `BlitzSolver.Golden.dll`
-- `BlitzSolver.Architecture.dll`
+- `Sts2Solver.Core.dll`
+- `Sts2Solver.KernelChecks.dll`
+- `Sts2Solver.Golden.dll`
+- `Sts2Solver.Architecture.dll`
 
 ### 2.1 层依赖规则
 
@@ -48,7 +48,7 @@ dotnet build BlitzSolver.sln -c Release -t:Rebuild
 dotnet run --project tests/Architecture -c Release --no-build
 ```
 
-`tests/Architecture` 读取编译后的 `BlitzSolver.Core`，检查 `Simulation.Combat`、`Simulation.Run`、
+`tests/Architecture` 读取编译后的 `Sts2Solver.Core`，检查 `Simulation.Combat`、`Simulation.Run`、
 `Content`、`Ai.Combat`、`Ai.Run` 与 `Autoplay` 之间的类型引用；BCL 引用一律允许。违反时逐条输出
 `源类型 -> 目标类型 via ...` 并以非零退出。`Ai.Run` 目前只允许 `Simulation.Run` 中显式登记为可见
 投影 / 决策请求的类型（目前为 `RunView` 及其嵌套类型、`RunOdds`、`RunPlayerOdds` 等可见元素）；测试程序集里的本地反例同时验证未登记引用会报错、登记后
@@ -108,26 +108,26 @@ D1 对每个根重放：
 - 每个转移的 `traitPresent`/`traitHash`；
 - 规则对象 `objects/rules/*.br` 的编码一致性。
 
-D1 证明：冻结的 410 个 D1 输入在 BlitzSolver 上可逐字节重放，评分/下界/路线标签特征与录制时一致。其中 23 个根在 M2c 按原版证据修正语义后由 Blitz 重录（`provenance.d1Rerecord`），其余 387 个根仍是 M0 宿主的录制。
+D1 证明：冻结的 410 个 D1 输入在 Sts2Solver 上可逐字节重放，评分/下界/路线标签特征与录制时一致。其中 23 个根在 M2c 按原版证据修正语义后由 Sts2Solver 重录（`provenance.d1Rerecord`），其余 387 个根仍是 M0 宿主的录制。
 D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 
 ### 4.1.1 D1 重录与保真检查
 
-语义修正后旧 D1 录制本身会变成旧行为，需要 Blitz 自己重录。命令：
+语义修正后旧 D1 录制本身会变成旧行为，需要 Sts2Solver 自己重录。命令：
 
 ```bash
 # 1. 在未改语义的代码上证明工具可复现旧录制：全部 410 个根逐字节相同
 dotnet run --project tests/Golden -c Release --no-build -- \
-  rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-fidelity \
-  --roots .local/tool-tasks/blitz/rerecord-roots-all.txt --reason "fidelity check" --jobs 6
-diff -r tests/Golden/data/d1 .local/tool-tasks/blitz/rerecord-fidelity/d1
+  rerecord tests/Golden/data .local/tool-tasks/sts2-solver/rerecord-fidelity \
+  --roots .local/tool-tasks/sts2-solver/rerecord-roots-all.txt --reason "fidelity check" --jobs 6
+diff -r tests/Golden/data/d1 .local/tool-tasks/sts2-solver/rerecord-fidelity/d1
 
 # 2. 语义修正后只重录失配可归因的根
 dotnet run --project tests/Golden -c Release --no-build -- \
-  rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-d1 \
-  --roots .local/tool-tasks/blitz/rerecord-roots.txt --reason "<批次与语义修正>" --jobs 6
+  rerecord tests/Golden/data .local/tool-tasks/sts2-solver/rerecord-d1 \
+  --roots .local/tool-tasks/sts2-solver/rerecord-roots.txt --reason "<批次与语义修正>" --jobs 6
 dotnet run --project tests/Golden -c Release --no-build -- \
-  verify .local/tool-tasks/blitz/rerecord-d1 --only d1 --jobs 6
+  verify .local/tool-tasks/sts2-solver/rerecord-d1 --only d1 --jobs 6
 ```
 
 第一项是阶段 C 的门槛：`rerecord` 解出旧记录，保留根状态、`config.br` 与 `meta.json` 的
@@ -160,8 +160,8 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 # 3. Golden 用载荷替换根与 config.br，再按 M0 策略重算 K1/K2 与派生哈希
 dotnet run --project tests/Golden -c Release --no-build -- \
-  rerecord tests/Golden/data .local/tool-tasks/blitz/rerecord-root \
-  --roots .local/tool-tasks/blitz/rerecord-root.txt \
+  rerecord tests/Golden/data .local/tool-tasks/sts2-solver/rerecord-root \
+  --roots .local/tool-tasks/sts2-solver/rerecord-root.txt \
   --recapture-root .local/recapture --reason "<批次与语义修正>" --jobs 4
 ```
 
@@ -204,7 +204,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 - `--config none|play|choice|all|choice-fill|all-fill`：`none` 关闭两项去重，`play` 只开完全等价的出牌去重，`choice` 只开旧版选牌等价类（每个类向量一个代表），`all` 是 `play + choice`，`choice-fill` 是类优先并补位置变体，`all-fill` 是 `play + choice-fill`（正式默认）。
 - `--shard i/n`：与 `verify` 相同的 D2 权重分片；全量对照按 4 片运行。
 - `--out`：逐请求 CSV，含质量分类、路线是否逐动作相同、展开/转移、分数、胜负、`ms` 与等价计数。
-- `--verify`：在对照时打开 `BLITZ_VERIFY_SEARCH_EQUIVALENCE` 的全部检查；精确等价断言失败仍会以 `GOLDEN_FAILED` 退出，近似项只统计。
+- `--verify`：在对照时打开 `STS2_SOLVER_VERIFY_SEARCH_EQUIVALENCE` 的全部检查；精确等价断言失败仍会以 `GOLDEN_FAILED` 退出，近似项只统计。
 - 质量用 `BeamSolver.TryCompareResultQuality`：把冻结路线与当前路线分别从同一根重放，按求解器自己的终局比较键（胜负、存活、死亡保护、战略失血、成长、回合、资源、可选药水、敌人 HP、分数、动作数）分类为更好/相同/更差。无法重放时计 `unknown`。
 - 本命令不修改 `tests/Golden/data`，也不更新 manifest。
 
@@ -256,9 +256,9 @@ D2/D1 数据没有幕字段；`quality-*` 根名只带角色，`a3-*` 根可确�
 
 ```bash
 dotnet run --project tests/Golden -c Release --no-build -- \
-  refreeze tests/Golden/data .local/tool-tasks/blitz/refreeze-data-fill --jobs 6
+  refreeze tests/Golden/data .local/tool-tasks/sts2-solver/refreeze-data-fill --jobs 6
 dotnet run --project tests/Golden -c Release --no-build -- \
-  verify .local/tool-tasks/blitz/refreeze-data-fill --jobs 6
+  verify .local/tool-tasks/sts2-solver/refreeze-data-fill --jobs 6
 ```
 
 `refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。普通 `manifest` 现在保留已有的 `provenance.refreeze` 与 `provenance.d1Rerecord`；在重冻或重录后的数据上重写清单应逐字节不变。
@@ -266,7 +266,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 本次副本演示输出：
 
 ```text
-REFREEZE_OK source=.../tests/Golden/data target=.../.local/tool-tasks/blitz/refreeze-data-fill
+REFREEZE_OK source=.../tests/Golden/data target=.../.local/tool-tasks/sts2-solver/refreeze-data-fill
   requests=1983 captured=2802 jobs=6
   refreeze=M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6
 MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
@@ -278,7 +278,7 @@ MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
 
 `tests/KernelChecks` 的 `ExecCoverage` 合同用反射枚举 `Exec` 的全部实例字段（含私有字段），要求每个字段恰好归入一类：进入 `ExecContinuation`、捕获时断言为空/为零、`AdvanceRoundPlayerStart` 入口重置、或单独处理（`B`/`R`/选择游标）。分类表在 `tests/KernelChecks/Combat/ExecCoverage.cs` 一处；同时反向校验快照字段集合与 `ExecContinuation` 完全一致。出现未分类、重复归类或快照表不一致时，消息写出字段名。临时给 `Exec` 加字段的本地反向检查会失败（`ReverseCoverageProbe` 未分类）。
 
-`BeamSolver` 默认使用共享的 `EndTurn` 前缀；设置 `BLITZ_VERIFY_SEARCH_EQUIVALENCE=1` 后同时开启：
+`BeamSolver` 默认使用共享的 `EndTurn` 前缀；设置 `STS2_SOLVER_VERIFY_SEARCH_EQUIVALENCE=1` 后同时开启：
 
 - 每个复用前缀的选择叶子同时执行完整 `Kernel.Step` 与前缀续跑，先逐字节比较 `Battle`（不一致时用 `BattleDump.Diff` 输出字段差异），并比较 `StepResult`、`ChoiceRequest`（选项、来源、时机与生成卡字节）和 `HistoryRisk`；
 - 每次 `Scorer.ProjectHpAfterThreat` 原地投影前保存 `Battle`，`finally` 恢复后逐字节比较前后镜像；不一致时用 `BattleDump.Diff` 写出字段差异；
@@ -288,9 +288,9 @@ MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
 在副本上全量 D2 打开开关的命令与结果：
 
 ```bash
-BLITZ_VERIFY_SEARCH_EQUIVALENCE=1 \
+STS2_SOLVER_VERIFY_SEARCH_EQUIVALENCE=1 \
   dotnet run --project tests/Golden -c Release --no-build -- \
-  verify .local/tool-tasks/blitz/refreeze-data-fill --only d2 --jobs 6
+  verify .local/tool-tasks/sts2-solver/refreeze-data-fill --only d2 --jobs 6
 ```
 
 ```text
@@ -361,7 +361,7 @@ manifest 不证明：语义正确性；它只保护冻结快照不被静默改�
 `--rules-compare` 编译 `Rules` 后与冻结规则对象逐字节对照，或用 `--config-compare` 编译
 `ScoreRules`/`BoundFeatures.Config` 后与 `config.br` 逐字节对照；`--search-compare` 还能
 重放游戏写出的确定性 `SREQ`/`SRES` 并核对离线组装的请求。工程**不加入**
-`BlitzSolver.sln`；CI 没有游戏文件，只保证 `dotnet build BlitzSolver.sln` 不受影响。
+`Sts2Solver.sln`；CI 没有游戏文件，只保证 `dotnet build Sts2Solver.sln` 不受影响。
 
 需要本机游戏目录（`sts2.dll`、`GodotSharp.dll`、`0Harmony.dll`）。路径通过
 `tests/Differential/local.props` 配置；该文件被 git 忽略，模板是 `local.props.example`。
@@ -415,7 +415,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll   --root kg2-b-stomp 
 # 全部 410 个输入
 dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --rules-compare
 
-# 静态镜像覆盖率表合同：没有遗漏/多余 id，且覆盖全部 Blitz Registry 内容
+# 静态镜像覆盖率表合同：没有遗漏/多余 id，且覆盖全部 Sts2Solver Registry 内容
 dotnet artifacts/bin/Differential/release/Differential.dll   --rules-table-check
 ```
 
@@ -557,14 +557,14 @@ HEADLESS_DONE instance=m2b2-final-b ok=10 failed=0 total_ms=297313.871
 ```
 
 16 胜 4 负，合计搜索 20 次、沿用回合 88 次、预测偏差 0、部署失败 0；逐场数据见
-`.local/tool-tasks/blitz/M2b2-report.md`。取消验证用
+`.local/tool-tasks/sts2-solver/M2b2-report.md`。取消验证用
 `--full-combat --search-cancel-after-ms 5000`，得到 `fullCombatStatus=cancelled`、
 `AutoCombatSession.IsRunning=false`，随后正常返回主菜单。
 
 ### 6.7 离线整场自动战斗
 
 `--offline-combat` 用与 Mod 完全相同的整场决策循环（`src/Core/Autoplay/CombatPilot.cs`）
-在 Blitz 内核里打完一个根，不启动 Godot，也不模拟原生动画。默认跑质量语料的 120 根：
+在 Sts2Solver 内核里打完一个根，不启动 Godot，也不模拟原生动画。默认跑质量语料的 120 根：
 
 ```bash
 # 默认中档、确定性搜索；每个根一个子进程，--jobs 控制同时运行的重进程数
@@ -678,7 +678,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 ```bash
 tools/testing/offline-combat-table.py \
   --results .local/offline-combat/Medium \
-  --baseline ~/sts2/BlitzSolver/.local/q120/baseline.tsv
+  --baseline ~/sts2/sts2-solver/.local/q120/baseline.tsv
 ```
 
 它按角色、幕与房间类型对照 CombatSolver 基线，并列出胜负不同的根与异常（非胜负结果、偏差、
@@ -710,15 +710,15 @@ done
 
 离线子进程默认先做一次 50,000 节点的热身求解（同一根、同宽度、不计入 `elapsedMs`），
 让分层 JIT 在测得的搜索前达到游戏进程的热状态。环境变量
-`BLITZ_OFFLINE_WARMUP_NODES` 可改节点数，0 关闭；测内存对照时应设为 0，避免热身堆残留
+`STS2_SOLVER_OFFLINE_WARMUP_NODES` 可改节点数，0 关闭；测内存对照时应设为 0，避免热身堆残留
 抬高 `managedHeapPeakBytes`。计时口径：同一个 120 根、默认 Medium、`--jobs 6`；对照
-`~/sts2/BlitzSolver/.local/q120c` 的 3 lane 无头游戏结果，只取旧离线 `w240` 中
+`~/sts2/sts2-solver/.local/q120c` 的 3 lane 无头游戏结果，只取旧离线 `w240` 中
 `elapsedMs >= 500` 的 117 次搜索，逐次算 `gameMs / offlineMs`，取中位数。
 
 同一请求复用存储可单独验证：
 
 ```bash
-BLITZ_STORAGE_CHECK=1 dotnet artifacts/bin/Differential/release/Differential.dll \
+STS2_SOLVER_STORAGE_CHECK=1 dotnet artifacts/bin/Differential/release/Differential.dll \
   --offline-combat --root quality-REGENT-013 --out .local/storage-check
 # STORAGE_CHECK same=True firstBytes=... secondBytes=... secondDelta=...
 #   regionsFirst=[chunk:...,array:...] regionsSecond=[chunk:...,array:...]
@@ -760,8 +760,8 @@ D1 输入一个进程（410，含 120 个质量根）。子进程：
    战斗开始的整局状态。
 2. `RunStateImporter.Import` 后，与独立实现的 `NativeRunDump`（`src/TestHost/Run/`，不调用
    导入层）逐字段比较；差异打印字段路径与两边值。私有属性由原生侧直接从 `SavedProperties`
-   打印 `名字哈希:类型:值`，Blitz 侧从属性包解码出同一文本，属性编码器不参与对照。
-3. 15 条流各从原版与 Blitz 抽 64 次（`NextInt(1000)`、`NextFloat`、`NextDouble`、
+   打印 `名字哈希:类型:值`，Sts2Solver 侧从属性包解码出同一文本，属性编码器不参与对照。
+3. 15 条流各从原版与 Sts2Solver 抽 64 次（`NextInt(1000)`、`NextFloat`、`NextDouble`、
    `NextInt(-5,100)`、`NextBool` 轮换），并检查计数器；另抽当前事件流与 4 条 `act_N_map`。
 4. 比较当前幕地图的节点、连线、类型、起始/Boss/第二 Boss、已走坐标。
 5. D1 还导入同一战斗的 `Battle`，检查 9 条战斗流、HP/最大 HP、持久牌组身份、遗物
@@ -832,7 +832,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind encounter --setup-seeds 20 --setup-jobs 4 --setup-shard 1 2
 
-# 开战选择：只打印 Blitz 请求树（不跑原版）
+# 开战选择：只打印 Sts2Solver 请求树（不跑原版）
 dotnet artifacts/bin/Differential/release/Differential.dll   --combat-setup-compare --setup-root pr-c-relics --setup-choices
 
 # D1 的 410 个输入 × 4 种子 = 1640；分片
@@ -841,7 +841,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind d1 --setup-seeds 4 --setup-jobs 4 --setup-shard 1 2
 
-# 覆盖统计（只跑 Blitz 建局，不跑原版路径）
+# 覆盖统计（只跑 Sts2Solver 建局，不跑原版路径）
 dotnet artifacts/bin/Differential/release/Differential.dll \
   --combat-setup-compare --setup-kind d1 --setup-seeds 1 --setup-jobs 4 --setup-cover
 
@@ -855,7 +855,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll --content-table-repor
 仍 410/410。
 
 每个用例在独立子进程里跑两条路径：原版 `RunManager.EnterMapCoord` 到可出牌，导入 `Battle`、
-编译 `Rules`、转储进点后 `RunState`；Blitz 侧导入同一进点前 `RunState`，调用
+编译 `Rules`、转储进点后 `RunState`；Sts2Solver 侧导入同一进点前 `RunState`，调用
 `RunCombatSetup.EnterMapCoord`，再用 `RulesBuilder` 和 `RunDump`。`Battle` 逐字节、`RulesCodec`
 逐字节、`RunState` 逐字段比较；失败打印第一处差异路径和值。
 
@@ -907,7 +907,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 TheGambit 死亡后不调用 LavaLamp、LizardTail 阻止死亡后 LavaLamp 仍调用的定向合同。
 修正后 D1 418 根 `mismatched=0`、D2 1,983/1,983 全部不变。
 
-负例：`BLITZ_PILOT_TAMPER=hp`、`outcome`、`event` 篡改预测终局，检查分别报告
+负例：`STS2_SOLVER_PILOT_TAMPER=hp`、`outcome`、`event` 篡改预测终局，检查分别报告
 `player.hp`、`outcome`、`event-defeat is not covered`，退出码均为 1。
 
 Core 修正后的中档离线 120 与 `r2a5-683bc03` 基线比较为 `same=119 diff=1`：

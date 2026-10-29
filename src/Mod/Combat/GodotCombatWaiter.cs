@@ -5,9 +5,9 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Runs;
-using BlitzSolver.TestHost;
+using Sts2Solver.TestHost;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>在真实游戏主线程上建局并等原生战斗进入本地玩家的 Play 阶段。</summary>
 internal sealed class GodotCombatWaiter(NGame host) : ICombatHost

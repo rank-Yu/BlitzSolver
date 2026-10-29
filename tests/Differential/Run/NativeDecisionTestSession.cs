@@ -1,8 +1,8 @@
 // TEST ONLY: native dispatch and lifecycle exercise. This is not an OfflineHost or a production pilot.
 // Selection callback prefs are captured at the actual CardSelectCmd entry; ICardSelector alone loses them.
 using System.Reflection;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Run;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
@@ -95,8 +95,8 @@ internal sealed partial class NativeDecisionTestSession
         pending.ValidateBindings(action);
         try { pending.ValidateCurrent(); }
         catch (InvalidDataException error) { Invalidate(pending, error); throw; }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error) { Invalidate(pending, error); throw; }
-        catch (BlitzSolver.Simulation.Combat.CapacityException error) { Invalidate(pending, error); throw; }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error) { Invalidate(pending, error); throw; }
+        catch (Sts2Solver.Simulation.Combat.CapacityException error) { Invalidate(pending, error); throw; }
         catch (UnsupportedImportException error) { Invalidate(pending, error); throw; }
         _current = null; // Consume before calling native code. Exceptions and nested choices never revive it.
         _executions++;

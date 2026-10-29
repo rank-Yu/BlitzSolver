@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>FeelNoPainPower</c>: <c>AfterCardExhausted</c> gains its amount as Unpowered block
@@ -58,7 +58,7 @@ public sealed class JuggernautPower : PowerDef
 
 /// <summary>
 /// Native <c>CrueltyPower</c>: its amount is added to the Vulnerable multiplier as a percentage by
-/// <c>ModifyDamageMirrors.HandleVulnerablePower</c>, which the Blitz Vulnerable definition mirrors.
+/// <c>ModifyDamageMirrors.HandleVulnerablePower</c>, which the Sts2Solver Vulnerable definition mirrors.
 /// The power itself has no hook of its own.
 /// </summary>
 [ContentId("CRUELTY_POWER")]
@@ -489,7 +489,7 @@ public sealed class RupturePower : PowerDef
             power.Aux0 += power.Amount;
             return;
         }
-        // The existing engine applies with cardSource: null; Blitz has no card source on powers.
+        // The existing engine applies with cardSource: null; Sts2Solver has no card source on powers.
         Kernel.ApplyPower(ref x, self.Owner, Registry.PowerId<StrengthPower>(), power.Amount, self.Owner);
     }
 
@@ -554,7 +554,7 @@ public sealed class HellraiserPower : PowerDef
     /// <summary>
     /// <c>HittableEnemies.All(c =&gt; c.HpDisplay.IsInfinite())</c>: hittable enemies are the roster
     /// entries not in a death phase. The only infinite display is a Waterfall Giant rewritten by
-    /// <c>TryTriggerSteamEruptionDeath</c>; Blitz records that as the steam phase or the value-clamp HP
+    /// <c>TryTriggerSteamEruptionDeath</c>; Sts2Solver records that as the steam phase or the value-clamp HP
     /// (the Explode phase clears SteamPhase but keeps the rewritten HP until the forced kill).
     /// </summary>
     private static bool AllHittableEnemiesInfinite(ref Exec x)

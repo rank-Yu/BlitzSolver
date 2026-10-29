@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// <c>PoisonPower</c>: the counter is triggered by the kernel's <c>TriggerPoison</c> (enemy side start
@@ -233,7 +233,7 @@ public sealed class InfiniteBladesPower : PowerDef
         if (amount <= 0 || self.Owner != Limits.PlayerOwner)
             return;
         if (!Registry.TryCard("SHIV", out ushort shiv))
-            throw new UnsupportedException("无限刀刃需要 SHIV 的 Blitz 定义。");
+            throw new UnsupportedException("无限刀刃需要 SHIV 的 Sts2Solver 定义。");
         for (int index = 0; index < amount; index++)
         {
             if (!Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, shiv), Pile.Hand))
@@ -246,7 +246,7 @@ public sealed class InfiniteBladesPower : PowerDef
 
 /// <summary>
 /// <c>MasterPlannerPower</c>: <c>AfterCardPlayed</c> adds the Sly keyword to a Skill its owner played
-/// (<c>AfterCardPlayedMirrors.HandleMasterPlannerPower</c>). Blitz has no card identity, so the keyword
+/// (<c>AfterCardPlayedMirrors.HandleMasterPlannerPower</c>). Sts2Solver has no card identity, so the keyword
 /// is written to the card's play-pile entry, which becomes the discard-pile entry.
 /// </summary>
 [ContentId("MASTER_PLANNER_POWER")]

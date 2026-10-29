@@ -2,12 +2,12 @@
 // EndCombatInternal supplies a settled combat fixture; these do not claim combat simulation coverage.
 // All reward effects, alternatives, synchronization and potion actions use the original game methods.
 using System.Reflection;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
@@ -24,7 +24,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Timeline.Epochs;
 using MegaCrit.Sts2.Core.Unlocks;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
-using Bootstrap = BlitzSolver.OfflineHost.Runtime.GameBootstrap;
+using Bootstrap = Sts2Solver.OfflineHost.Runtime.GameBootstrap;
 
 namespace Differential;
 
@@ -41,7 +41,7 @@ internal static class PostCombatHostChecks
     {
         _loop = new(); SynchronizationContext.SetSynchronizationContext(_loop);
         Bootstrap.ApplyGodotBypasses(); Bootstrap.SkipGodotNodeStaticConstructors(); Bootstrap.InitializeStaticState();
-        Harmony harmony = new("BlitzSolver.Differential.PostCombat");
+        Harmony harmony = new("Sts2Solver.Differential.PostCombat");
         harmony.Patch(AccessTools.Method(typeof(RewardsCmd), nameof(RewardsCmd.GenerateForRoomEnd)),
             prefix: new HarmonyMethod(typeof(PostCombatHostChecks), nameof(Generate)));
         harmony.Patch(AccessTools.Method(typeof(RewardsSet), nameof(RewardsSet.GenerateWithoutOffering)),
@@ -96,7 +96,7 @@ internal static class PostCombatHostChecks
         bool rejected = false;
         try { Wait(callback()); }
         catch (InvalidDataException e) when (e.Message.Contains(fragment, StringComparison.Ordinal)) { rejected = true; }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains(fragment, StringComparison.Ordinal)) { rejected = true; }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains(fragment, StringComparison.Ordinal)) { rejected = true; }
         Check(rejected, "expected " + fragment);
     }
     private static CardReward Cards(Player player, bool reroll = false)

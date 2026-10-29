@@ -2,11 +2,11 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 /// <summary>
 /// Re-records selected D1 roots with the current kernel on a copy of the frozen data directory. The

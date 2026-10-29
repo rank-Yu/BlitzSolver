@@ -1,11 +1,11 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// Content equivalence of two <see cref="Card"/> values for the search's option deduplication.
 ///
-/// <para>Blitz has no persistent per-card identity in <see cref="Battle"/>: references to a card
+/// <para>Sts2Solver has no persistent per-card identity in <see cref="Battle"/>: references to a card
 /// object are carried by pile position and, inside one action, by the value plus occurrence
 /// (<see cref="Kernel"/>'s selected-card snapshot). The one identity-marked field is
 /// <see cref="Card.TransientMark"/> ("one-action identity mark used by BeatDown to follow a card

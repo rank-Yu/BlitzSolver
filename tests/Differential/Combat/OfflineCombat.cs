@@ -1,14 +1,14 @@
-// --offline-combat: whole-combat replay inside the Blitz kernel. The decision loop is the same
+// --offline-combat: whole-combat replay inside the Sts2Solver kernel. The decision loop is the same
 // CombatPilot the Mod runs; this host supplies the imported opening root, deterministic search
 // and kernel stepping instead of native deployment.
 using System.Diagnostics;
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
-using BlitzSolver.TestHost;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -513,7 +513,7 @@ internal static class OfflineCombat
                 _warmedUp = true;
                 Warmup(searchCase, token);
             }
-            if (!_storageChecked && Environment.GetEnvironmentVariable("BLITZ_STORAGE_CHECK") == "1")
+            if (!_storageChecked && Environment.GetEnvironmentVariable("STS2_SOLVER_STORAGE_CHECK") == "1")
             {
                 _storageChecked = true;
                 StorageCheck(searchCase, token);

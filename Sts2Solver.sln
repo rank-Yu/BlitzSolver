@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlitzSolver.Core", "src\Core\BlitzSolver.Core.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A11}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sts2Solver.Core", "src\Core\Sts2Solver.Core.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A11}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KernelChecks", "tests\KernelChecks\KernelChecks.csproj", "{5A6C0F3A-9C1B-4D6E-A1F2-0B7E4C2D8A12}"
 EndProject

@@ -1,12 +1,12 @@
 // Directed production OfflineRunHost shop fixtures. Debug setup is test data only.
 // Purchases/selectors/history are compared with direct original methods on a fresh identical run.
 using System.Text.Json;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Merchant;
@@ -18,7 +18,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Unlocks;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
-using Bootstrap = BlitzSolver.OfflineHost.Runtime.GameBootstrap;
+using Bootstrap = Sts2Solver.OfflineHost.Runtime.GameBootstrap;
 
 namespace Differential;
 
@@ -225,7 +225,7 @@ internal static class ShopHostChecks
         var host = Host(run, player, room); RunView view = Get(host.WaitForBoundaryAsync(default)).View;
         int deck = player.Deck.Cards.Count; bool rejected = false;
         try { Wait(host.ExecuteAsync(Pick(view, Row(view, room, player, entry)), NoChild, default).AsTask()); }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("FromChooseABundleScreen", StringComparison.Ordinal)) { rejected = true; }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("FromChooseABundleScreen", StringComparison.Ordinal)) { rejected = true; }
         Check(rejected && player.Deck.Cards.Count == deck, "unsupported relic callback rejected before native automatic choice");
         Wait(host.DisposeAsync().AsTask());
         Check(CardSelectCmd.Selector == null && !OfflineRunHost.IsShopRemoval, "unsupported shop releases selector/purpose scope");

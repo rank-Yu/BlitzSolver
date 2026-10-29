@@ -1,5 +1,5 @@
-// Ported from CombatSolver src/Search/BfwsPackedNovelty.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-namespace BlitzSolver.Ai.Combat.Novelty;
+// Ported from CombatSolver src/Search/BfwsPackedNovelty.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+namespace Sts2Solver.Ai.Combat.Novelty;
 
 internal enum BfwsFactKind : byte { Scalar, Energy, Block, Hp, Zone, Draw, Power }
 

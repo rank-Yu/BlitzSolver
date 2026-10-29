@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>Pure, all-or-nothing validation. Message prefixes are stable rejection codes.
 /// A successful check does not consume a token; the native host must invalidate/consume it.</summary>

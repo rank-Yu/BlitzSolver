@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Curse;
+namespace Sts2Solver.Content.Cards.Curse;
 
 /// <summary>
 /// Native <c>AscendersBane</c>: Eternal, Unplayable, Ethereal; no combat hook is overridden. Its
@@ -255,7 +255,7 @@ public sealed class Regret : CardDef
 
 /// <summary>
 /// Native <c>Debt</c>: Unplayable, no upgrade; its <c>OnTurnEndInHand</c> loses up to 10 gold. The
-/// existing engine has no mirror/compensation for that hook, so Blitz keeps the definition empty to
+/// existing engine has no mirror/compensation for that hook, so Sts2Solver keeps the definition empty to
 /// match the authority (the card still enters the play pile and is discarded at turn end).
 /// </summary>
 [ContentId("DEBT")]

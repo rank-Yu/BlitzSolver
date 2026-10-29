@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Regent;
+namespace Sts2Solver.Content.Cards.Regent;
 
 /// <summary>
 /// <c>BeatIntoShape</c>: the inferred attack, then forge
@@ -90,7 +90,7 @@ public sealed class CrashLanding : CardDef
         if (count <= 0)
             return;
         if (!Registry.TryCard(DebrisId, out ushort debris))
-            throw new UnsupportedException("坠毁需要 DEBRIS 的 Blitz 定义。");
+            throw new UnsupportedException("坠毁需要 DEBRIS 的 Sts2Solver 定义。");
         for (int index = 0; index < count; index++)
         {
             if (!Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R, debris), Pile.Hand))

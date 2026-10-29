@@ -6,8 +6,8 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Ascension;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -33,10 +33,10 @@ using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Unlocks;
 
 using NativeCreature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
-using EngineCardRarity = BlitzSolver.Simulation.Combat.CardRarity;
-using EngineCardType = BlitzSolver.Simulation.Combat.CardType;
+using EngineCardRarity = Sts2Solver.Simulation.Combat.CardRarity;
+using EngineCardType = Sts2Solver.Simulation.Combat.CardType;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Builds the one process-local <see cref="ContentTable"/> from <c>ModelDb</c>.</summary>
 public static class ContentTableExporter
@@ -497,7 +497,7 @@ public static class ContentTableExporter
                 {
                     PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
                         ? powerId
-                        : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                        : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Sts2Solver 定义。"),
                     Amount = power.Amount,
                     Target = ownerIsPlayer ? CombatStartPowerTarget.Player : CombatStartPowerTarget.Owner,
                     ApplierIsOwner = power.Applier == creature,
@@ -513,7 +513,7 @@ public static class ContentTableExporter
                 {
                     PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
                         ? powerId
-                        : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                        : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Sts2Solver 定义。"),
                     Amount = power.Amount,
                     Target = CombatStartPowerTarget.Player,
                     ApplierIsOwner = true,
@@ -569,7 +569,7 @@ public static class ContentTableExporter
             {
                 PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
                     ? powerId
-                    : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                    : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Sts2Solver 定义。"),
                 Amount = power.Amount,
                 Target = ownerIsPlayer ? CombatStartPowerTarget.Player : CombatStartPowerTarget.Owner,
                 ApplierIsOwner = power.Applier == creature,
@@ -585,7 +585,7 @@ public static class ContentTableExporter
             {
                 PowerId = Registry.TryPower(power.Id.Entry, out ushort powerId)
                     ? powerId
-                    : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Blitz 定义。"),
+                    : throw new InvalidOperationException($"原版 Power {power.Id.Entry} 没有 Sts2Solver 定义。"),
                 Amount = power.Amount,
                 Target = CombatStartPowerTarget.Player,
                 ApplierIsOwner = true,

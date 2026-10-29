@@ -1,4 +1,4 @@
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// Equivalence-work diagnostics of one solve. None of these values enters the result encoding,

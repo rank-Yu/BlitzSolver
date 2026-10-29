@@ -1,8 +1,8 @@
 using System.Buffers.Binary;
 using System.Numerics;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// Deterministic 64-bit hash used for native <c>StringHelper.GetDeterministicHashCode</c>

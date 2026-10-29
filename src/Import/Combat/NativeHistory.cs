@@ -15,7 +15,7 @@ using MegaCrit.Sts2.Core.ValueProps;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>Immutable snapshot of the native combat history plus the root turn window.</summary>
 internal sealed class NativeHistory

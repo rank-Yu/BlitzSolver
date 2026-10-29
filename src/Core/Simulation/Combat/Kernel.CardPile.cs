@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>Native <c>CardPilePosition</c>.</summary>
 public enum PilePosition : byte
@@ -256,7 +256,7 @@ public static partial class Kernel
     /// <summary>
     /// <c>HookMirrors.ModifyShuffleOrder</c> over the combat listeners in dispatch order. The existing
     /// engine always passes <c>isInitialShuffle: false</c> from <c>CombatPredictionSimulator.Shuffle</c>
-    /// (the only shuffle call site), so Blitz passes false as well.
+    /// (the only shuffle call site), so Sts2Solver passes false as well.
     /// </summary>
     private static void ModifyShuffleOrder(ref Exec x, scoped Span<Card> cards, int count)
     {

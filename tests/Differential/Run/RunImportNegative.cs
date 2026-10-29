@@ -1,7 +1,7 @@
 // Negative run-import cases: every out-of-scope or unknown state must reject with a stable
 // ImportReason code instead of returning a partially defaulted RunState.
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Map;

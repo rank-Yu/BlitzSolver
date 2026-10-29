@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Event;
+namespace Sts2Solver.Content.Cards.Event;
 
 [ContentId("BYRD_SWOOP")]
 public sealed class ByrdSwoop : CardDef
@@ -316,7 +316,7 @@ public sealed class ToricToughness : CardDef
 /// <c>MadScience</c> (TinkerTime event): the saved <c>TinkerTimeType</c> selects Attack (damage),
 /// Skill (block) or Power (one of three setup powers), and <c>TinkerTimeRider</c> adds the rider
 /// chosen by the event. Existing engine: <c>CardGenerationCardMirrors.MadScienceOnPlay</c> reads
-/// both saved properties; the rule table is canonical Attack/No rider, so Blitz packs the two saved
+/// both saved properties; the rule table is canonical Attack/No rider, so Sts2Solver packs the two saved
 /// enum values into <see cref="Card.Private"/> and projects them at admission.
 /// </summary>
 [ContentId("MAD_SCIENCE")]

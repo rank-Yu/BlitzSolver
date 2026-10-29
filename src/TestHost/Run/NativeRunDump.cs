@@ -1,12 +1,12 @@
 // Independent native run-state dump. It reads the original RunState/Player with publicized game
-// members only and formats the same canonical text as BlitzSolver.Simulation.Run.RunDump. It does
+// members only and formats the same canonical text as Sts2Solver.Simulation.Run.RunDump. It does
 // not call RunStateImporter, so a natural-start comparison exercises the importer against a second
 // reader rather than against itself.
 using System.Globalization;
 using System.Reflection;
 using System.Text;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -23,7 +23,7 @@ using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using NativeRunState = MegaCrit.Sts2.Core.Runs.RunState;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal static class NativeRunDump
 {
@@ -469,7 +469,7 @@ internal static class NativeRunDump
     }
 
     /// <summary>
-    /// Prints native <c>SavedProperties</c> directly, without the Blitz property-bag encoder.
+    /// Prints native <c>SavedProperties</c> directly, without the Sts2Solver property-bag encoder.
     /// Entry format: <c>nameHash:type:value</c>, sorted by name hash; arrays are printed item by
     /// item and strings verbatim. This is the independent side of the property comparison.
     /// </summary>

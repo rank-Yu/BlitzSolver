@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>Native <c>DamageResult</c> fields the pipeline uses.</summary>
 public struct DamageResult
@@ -134,7 +134,7 @@ public static partial class Kernel
                 break;
             // EchoingSlash.OnPlay reads base.DynamicVars.Damage on every wave. A mid-attack upgrade
             // (the last DampenPower caster dying to this wave restores the card's original level)
-            // therefore changes later waves. Blitz plays from the copy in Exec.Card; re-sync it
+            // therefore changes later waves. Sts2Solver plays from the copy in Exec.Card; re-sync it
             // and its rules table before each wave after the first.
             if (wave++ > 0)
                 SyncCurrentPlayCard(ref x);
@@ -591,7 +591,7 @@ public static partial class Kernel
 
     /// <summary>
     /// <c>TriggeredPowerSupport.CompensateHistorySince</c>'s block-break branch. The existing engine
-    /// scans the damage history after an effect's death pass; Blitz records the owners instead.
+    /// scans the damage history after an effect's death pass; Sts2Solver records the owners instead.
     /// A lethal hit has already removed BurrowedPower, so it never forces the stun.
     /// </summary>
     public static void ApplyBlockBreakCompensations(ref Exec x)
@@ -622,7 +622,7 @@ public static partial class Kernel
     }
 
     /// <summary>
-    /// Mirrors the parts of <c>SimulatedCombatState.RecordDamageReceived</c> that Blitz tracks: the
+    /// Mirrors the parts of <c>SimulatedCombatState.RecordDamageReceived</c> that Sts2Solver tracks: the
     /// powered attack hits the player dealt to each enemy (BeatIntoShape's calculated-forge
     /// multiplier), the lost-HP-this-turn mark of every receiver and the player's cumulative HP loss.
     /// The hit is recorded even when the attack was fully blocked, exactly like the existing engine.
@@ -634,7 +634,7 @@ public static partial class Kernel
         {
             ref Enemy enemy = ref battle.Enemies[receiver - Limits.FirstEnemyOwner];
             if (enemy.PoweredAttackHitsThisTurn == byte.MaxValue)
-                throw new UnsupportedException("单个敌人的本回合强化攻击命中数超过 255，Blitz 无法表示。");
+                throw new UnsupportedException("单个敌人的本回合强化攻击命中数超过 255，Sts2Solver 无法表示。");
             enemy.PoweredAttackHitsThisTurn++;
         }
         if (result.UnblockedDamage <= 0)

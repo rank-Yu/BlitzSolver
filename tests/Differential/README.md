@@ -2,12 +2,12 @@
 
 进程内差分宿主：在普通 .NET 9 控制台进程里初始化原版《杀戮尖塔 2》的静态状态，用原版
 `RunManager`、`ModelDb` 与 `CombatState` 建局，再把原生状态导入 `Battle`/`RunState` 与
-Blitz 的结果逐字节比较。它不启动 Godot 可执行文件，也不需要场景树。
+Sts2Solver 的结果逐字节比较。它不启动 Godot 可执行文件，也不需要场景树。
 
 R3-0 起局外由原版推进；本工程保留导入、建局、地图进点、战斗边界、规则/配置与战斗 pilot
 的对照。局外整局运行在 `src/OfflineHost`（R3b）。
 
-本工程不在 `BlitzSolver.sln` 中；CI 没有游戏文件，不会构建或运行它。
+本工程不在 `Sts2Solver.sln` 中；CI 没有游戏文件，不会构建或运行它。
 
 ## 需要游戏文件
 
@@ -130,7 +130,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 ```
 
 每个用例在独立子进程里：原版 `RunManager.EnterMapCoord` 到可出牌，导入 `Battle`、编译
-`Rules`、转储进点后 `RunState`；Blitz 侧导入同一进点前 `RunState`，调用
+`Rules`、转储进点后 `RunState`；Sts2Solver 侧导入同一进点前 `RunState`，调用
 `RunCombatSetup.EnterMapCoord`，用 `RulesBuilder` 建 `Rules`、`RunDump` 转储。比较
 `Battle`/`RulesCodec` 逐字节与 `RunState` 逐字段。`--setup-cover` 只统计覆盖，
 `--setup-choices` 打印开战选择请求树，`--setup-matrix-list` 打印遗物矩阵名单。
@@ -277,7 +277,7 @@ R3a曾发现原始 `RunCodec` 字节哈希跨进程不总相同：`RunRef` 是4�
 hash差异保持公开。此后独立Core修复在正式编码输出边界清零所有2,452个隐式padding字节，布局、
 v3格式与字段校验不变；覆盖合同位于KernelChecks。探针已删除临时掩码实现，`stateHash` 直接哈希
 正式编码，保留 `semanticStateHash` 为相同值的日志兼容别名。跨进程复跑必须逐条严格比较完整
-trace（包括两个hash字段）与summary全部非时间/内存facts。`BLITZ_PROBE_CAPTURE_RUNSTATE=0/12`
+trace（包括两个hash字段）与summary全部非时间/内存facts。`STS2_SOLVER_PROBE_CAPTURE_RUNSTATE=0/12`
 可额外保存幕0层12决策边界的正式RunState二进制和完整字段转储，供独立定位。
 
 ## 正式局外执行库回归

@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// K0 contract for <see cref="RulesCodec"/>. It builds a synthetic rule table whose every

@@ -1,16 +1,16 @@
 // --combat-pilot-compare: drive a Low-tier CombatPilot through the original game's public action
 // entry points in one child process, and compare every play-phase action boundary by importing the
-// native combat state and comparing it with the Blitz prediction byte for byte. A terminal action
+// native combat state and comparing it with the Sts2Solver prediction byte for byte. A terminal action
 // ends combat before another playable native boundary exists, so it is not reimported; the pilot's
 // terminal outcome/status is reported instead. The run-level write-back is gone.
 using System.Diagnostics;
 using System.Globalization;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
@@ -246,7 +246,7 @@ internal static class CombatPilotCompare
         RunCoord coord = new((byte)point.coord.col, (byte)point.coord.row);
         try
         {
-            BlitzSolver.Simulation.Run.RunState before =
+            Sts2Solver.Simulation.Run.RunState before =
                 RunStateImporter.Import(prepared.Run, prepared.Player);
             CombatSetupResult setupEntry = CombatSetupChoices.ResolveFirst(before, _table!, coord,
                 emptyGambling: true, out _, out _);
@@ -270,7 +270,7 @@ internal static class CombatPilotCompare
                 tracker = new LiveCombatTracker(combat);
                 opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
             }
-            List<string> setupDiff = BattleDump.Diff(opening, setupEntry.Battle, "native", "blitz");
+            List<string> setupDiff = BattleDump.Diff(opening, setupEntry.Battle, "native", "solver");
             if (setupDiff.Count != 0)
                 return Diff(root, -1, "setup", setupDiff, target.Id.Entry);
             tracker.Observe(opening);
@@ -322,7 +322,7 @@ internal static class CombatPilotCompare
             Console.WriteLine("  " + error.Detail);
             return 0;
         }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error)
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error)
         {
             Console.WriteLine(
                 $"PILOT root={root} status=reject reason=core-unsupported " +

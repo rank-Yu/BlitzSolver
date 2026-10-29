@@ -4,12 +4,12 @@ using System.Text.Json;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Rewards;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.RestSite;
@@ -20,7 +20,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Unlocks;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
-using Bootstrap = BlitzSolver.OfflineHost.Runtime.GameBootstrap;
+using Bootstrap = Sts2Solver.OfflineHost.Runtime.GameBootstrap;
 
 namespace Differential;
 
@@ -94,7 +94,7 @@ internal static class MultiRoomHostChecks
     }
     private static void Faults()
     {
-        Harmony harmony = new("BlitzSolver.Differential.RestFaults");
+        Harmony harmony = new("Sts2Solver.Differential.RestFaults");
         harmony.Patch(AccessTools.Method(typeof(Hook), nameof(Hook.ModifyRewards)),
             prefix: new HarmonyMethod(typeof(MultiRoomHostChecks), nameof(ModifyRewards)));
         harmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Multiplayer.Game.RewardsSetSynchronizer), "BeginRewardsSet"),
@@ -113,7 +113,7 @@ internal static class MultiRoomHostChecks
                 Wait(host.ExecuteAsync(Pick(pending.Result.View, heal), (_, _) => throw new InvalidDataException("unexpected-rest-child"),
                     _cancellation.Token).AsTask());
             }
-            catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (mode is "generated" or "nested"
+            catch (Sts2Solver.Simulation.Combat.UnsupportedException e) when (mode is "generated" or "nested"
                 && e.Message.Contains(mode == "generated" ? "host-unsupported-rest-rewards" : "host-unsupported-native-entry", StringComparison.Ordinal)) { rejected = true; }
             catch (InvalidDataException e) when (mode == "failure" && e.Message == "rest-hook-failure") { rejected = true; }
             catch (OperationCanceledException) when (mode == "cancel") { cancelled = true; }
@@ -131,7 +131,7 @@ internal static class MultiRoomHostChecks
                 ExecutionContext.Run(_capturedRest ?? throw new InvalidDataException("missing-captured-rest-context"), _ =>
                 {
                     try { new RewardsSet(player).WithCustomRewards([new GoldReward(7, 7, player)]).Offer().GetAwaiter().GetResult(); }
-                    catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("host-unsupported-native-entry", StringComparison.Ordinal)) { lateRejected = true; }
+                    catch (Sts2Solver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains("host-unsupported-native-entry", StringComparison.Ordinal)) { lateRejected = true; }
                 }, null);
                 Check(lateRejected && player.Gold == gold, "closed captured rest context rejects late Offer before TestMode automatic reward");
                 _capturedRest = null;

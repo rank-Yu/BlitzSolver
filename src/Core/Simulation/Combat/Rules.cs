@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public enum CardType : byte
 {
@@ -263,7 +263,7 @@ public sealed class CardPool
 }
 
 /// <summary>
-/// Immutable per-root rule tables shared by every branch of one Blitz solve. Values come from
+/// Immutable per-root rule tables shared by every branch of one Sts2Solver solve. Values come from
 /// native models at root import; content definitions read numbers from here instead of
 /// hard-coding them.
 /// </summary>

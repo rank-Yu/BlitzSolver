@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public static partial class Kernel
 {
@@ -16,7 +16,7 @@ public static partial class Kernel
             return false;
         ref Battle battle = ref x.B;
         // SimulatedCombatState caps the simulated channels at 1000 and records a risk instead of
-        // continuing. Blitz has no risk bookkeeping for this cap; reaching it is an explicit boundary.
+        // continuing. Sts2Solver has no risk bookkeeping for this cap; reaching it is an explicit boundary.
         if (battle.Counter(Counter.OrbChannels) >= MaxChanneledOrbs)
             throw new UnsupportedException("充能球生成次数达到预测上限 1000。");
         if (x.R.BaseOrbSlotCount == 0 && battle.OrbCapacity == 0)
@@ -25,7 +25,7 @@ public static partial class Kernel
         if (battle.OrbCapacity > 0 && battle.OrbCount >= battle.OrbCapacity)
         {
             // Vanilla evicts the leftmost orb, then enqueues. The existing engine aborts the prediction
-            // if the evoke synchronously refills the freed slot; Blitz cannot represent the resulting
+            // if the evoke synchronously refills the freed slot; Sts2Solver cannot represent the resulting
             // risk either, so it rejects instead of inventing another evoke.
             EvokeNext(ref x);
             if (x.NeedsChoice)
@@ -298,7 +298,7 @@ public static partial class Kernel
     public static ushort OrbId(string nativeId)
         => Registry.TryOrb(nativeId, out ushort id)
             ? id
-            : throw new UnsupportedException($"充能球 {nativeId} 没有 Blitz 定义。");
+            : throw new UnsupportedException($"充能球 {nativeId} 没有 Sts2Solver 定义。");
 
     private static bool IsLightning(ushort orbId)
         => Registry.TryOrb("LIGHTNING_ORB", out ushort lightning) && lightning == orbId;

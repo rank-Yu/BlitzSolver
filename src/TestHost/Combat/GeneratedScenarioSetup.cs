@@ -4,7 +4,7 @@
 // protocol-host search policy and session forwarding are not carried over.
 using System.Text.Json;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal sealed record GeneratedScenarioSetup(
     OfflineRequest Request,

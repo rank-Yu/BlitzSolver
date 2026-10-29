@@ -1,17 +1,17 @@
-// Adapted from tests/Differential/Combat/NativePilotHost.cs at 6a5f645 (BlitzSolver, MIT).
+// Adapted from tests/Differential/Combat/NativePilotHost.cs at 6a5f645 (Sts2Solver, MIT).
 // Native CombatPilot adapter for the standalone runtime. Search uses the same request
 // compiler and BeamSolver as the offline whole-combat host; deployment goes through
 // NativeActionExecutor so each route action is checked against the original game.
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.OfflineHost.Runtime;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.OfflineHost.Runtime;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 
-namespace BlitzSolver.OfflineHost.Combat;
+namespace Sts2Solver.OfflineHost.Combat;
 
 internal sealed class NativePilotHost(
     MainLoopContext loop,
@@ -116,7 +116,7 @@ internal sealed class NativePilotHost(
             string detail = $"reason={error.Reason} {error.Detail}";
             return ValueTask.FromResult(Failed("rejected", detail, "import_failed", detail));
         }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error)
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error)
         {
             return ValueTask.FromResult(Failed("rejected", error.Message, "import_unsupported",
                 error.Message));

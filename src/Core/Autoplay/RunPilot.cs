@@ -1,7 +1,7 @@
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.Ai.Run;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.Ai.Run;
 
-namespace BlitzSolver.Autoplay;
+namespace Sts2Solver.Autoplay;
 
 public enum RunBoundaryKind { Decision, Combat, Terminal, Paused }
 public enum RunStopReason { Victory, Death, Budget, Cancelled, Paused, Failed }

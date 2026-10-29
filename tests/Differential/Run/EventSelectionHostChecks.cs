@@ -1,12 +1,12 @@
 // Lifecycle fixtures execute original commands and compare an independent original selector.
 // Fixture event options are test-only; no production state injection is used.
 using System.Text.Json;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -22,7 +22,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Unlocks;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
-using Bootstrap = BlitzSolver.OfflineHost.Runtime.GameBootstrap;
+using Bootstrap = Sts2Solver.OfflineHost.Runtime.GameBootstrap;
 
 namespace Differential;
 
@@ -201,7 +201,7 @@ internal static class EventSelectionHostChecks
             try { Wait(executing); }
             catch (OperationCanceledException) when (mode == "cancel") { rejected = true; }
             catch (InvalidDataException) when (mode is "stale" or "failure" or "unconfirmed") { rejected = true; }
-            catch (BlitzSolver.Simulation.Combat.UnsupportedException) when (mode == "stale") { rejected = true; }
+            catch (Sts2Solver.Simulation.Combat.UnsupportedException) when (mode == "stale") { rejected = true; }
             Check(rejected && CardSelectCmd.Selector == null, "failure/cancellation restore selector " + mode);
             Check(!player.Deck.Cards.Any(c => c.Enchantment is Sharp { Amount: 2 }), "late/rejected answer has no effect " + mode);
             Wait(host.DisposeAsync().AsTask());

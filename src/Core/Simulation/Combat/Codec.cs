@@ -4,10 +4,10 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
-/// Deterministic little-endian primitives shared by the Blitz golden codecs. The writer never emits
+/// Deterministic little-endian primitives shared by the Sts2Solver golden codecs. The writer never emits
 /// timestamps, unordered dictionary enumeration or runtime-dependent values; the reader rejects
 /// truncated input and unknown versions explicitly.
 /// </summary>

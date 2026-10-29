@@ -2,10 +2,10 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 /// <summary>
 /// Report-only A/B comparison of the current solver against the frozen D2 results. This command

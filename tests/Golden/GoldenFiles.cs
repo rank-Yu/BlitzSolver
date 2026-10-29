@@ -1,7 +1,7 @@
 using System.IO.Compression;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 internal static class GoldenFiles
 {

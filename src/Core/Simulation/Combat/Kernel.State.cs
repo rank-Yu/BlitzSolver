@@ -1,7 +1,7 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
-/// The Blitz simulation kernel. Each partial file mirrors one area of the existing engine and
+/// The Sts2Solver simulation kernel. Each partial file mirrors one area of the existing engine and
 /// names the existing method it follows; the step order inside each method is the existing
 /// engine's order.
 /// </summary>
@@ -55,7 +55,7 @@ public static partial class Kernel
     }
 
     /// <summary>
-    /// Mirrors <c>SimulatedCombatState.HasUnresolvedSpawningDeath</c> for the death powers the Blitz
+    /// Mirrors <c>SimulatedCombatState.HasUnresolvedSpawningDeath</c> for the death powers the Sts2Solver
     /// content implements (<see cref="PowerDef.SpawnsPrimaryEnemyOnDeath"/>).
     /// </summary>
     private static bool HasUnresolvedSpawningDeath(in Battle battle)

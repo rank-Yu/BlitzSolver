@@ -2,9 +2,9 @@
 // round's execution; the escalation widths, per-round node caps, pool growth, reusable storage,
 // final-route ordering, the damage-free stop and the per-decision time insurance all live here.
 using System.Diagnostics;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// One decision's widening policy. The offline host passes <see cref="EnforceTimeBudget"/> false:

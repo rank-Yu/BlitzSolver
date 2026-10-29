@@ -1,5 +1,5 @@
-// Ported from CombatSolver src/Search/ContextualRankingModel.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-namespace BlitzSolver.Ai.Combat.Scoring;
+// Ported from CombatSolver src/Search/ContextualRankingModel.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+namespace Sts2Solver.Ai.Combat.Scoring;
 
 /// <summary>
 /// Optional, immutable correction to intermediate Beam ranking. This is an estimate,
@@ -15,7 +15,7 @@ internal sealed class ContextualRankingModel
         double MaximumAdjustmentHp, string ModelId);
 
     /// <summary>
-    /// The scalar node context the model reads. <see cref="SearchNode"/> and the Blitz scorer both
+    /// The scalar node context the model reads. <see cref="SearchNode"/> and the Sts2Solver scorer both
     /// map their own state into this value, so both compute the same 28 features and adjustment.
     /// </summary>
     internal readonly record struct Input(

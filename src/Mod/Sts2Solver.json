@@ -1,0 +1,17 @@
+{
+  "id": "Sts2Solver",
+  "name": "尖塔求解器",
+  "author": "rank-Yu",
+  "description": "尖塔求解器（STS2 Solver）：面向 SL 模式的战斗与整局求解器。Mod 当前支持整场战斗搜索、部署与逐动作核对，F8 开关本场全自动。",
+  "version": "0.1.0",
+  "has_pck": false,
+  "has_dll": true,
+  "affects_gameplay": true,
+  "min_game_version": "0.111.0",
+  "dependencies": [
+    {
+      "id": "STS2-RitsuLib",
+      "min_version": "0.6.0"
+    }
+  ]
+}

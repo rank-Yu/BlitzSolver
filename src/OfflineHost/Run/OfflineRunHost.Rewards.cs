@@ -1,9 +1,9 @@
 // Native reward execution follows sts2 v0.111.0 RewardsSetSynchronizer/CardReward and NPotionPopup.
 // Snapshot binding pattern adapted from tests/Differential/Run/NativeDecisionTestSession.RewardsShop.cs
-// at baseline 16128953 (BlitzSolver, MIT).
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Run;
+// at baseline 16128953 (Sts2Solver, MIT).
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Actions;
@@ -13,7 +13,7 @@ using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 public sealed partial class OfflineRunHost
 {

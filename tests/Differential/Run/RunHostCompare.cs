@@ -1,12 +1,12 @@
 // Production OfflineHost integration. Debug rooms are lifecycle fixtures, never full-run claims.
 using System.Reflection;
-using BlitzSolver.Ai.Run;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.OfflineHost.Run;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Ai.Run;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.OfflineHost.Run;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
@@ -61,7 +61,7 @@ internal static class RunHostCompare
         bool rejected = false;
         try { Wait(action()); }
         catch (InvalidDataException error) when (error.Message.Contains(reason, StringComparison.Ordinal)) { rejected = true; }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException error) when (error.Message.Contains(reason, StringComparison.Ordinal)) { rejected = true; }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException error) when (error.Message.Contains(reason, StringComparison.Ordinal)) { rejected = true; }
         Check(rejected, "expected rejection " + reason);
     }
     private static void Cancelled(Task task)

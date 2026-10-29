@@ -1,7 +1,7 @@
 // TEST ONLY. Native selectors remain native: CardReward's test callback is synchronous;
 // tests answer inside that callback, and its native while loop calls us again after reroll.
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;

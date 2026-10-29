@@ -1,11 +1,11 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// Player-visible projection of <see cref="RunState"/>. The run decision layer
-/// (<c>BlitzSolver.Ai.Run</c>) may reference explicitly registered visible DTOs and protocol helpers
+/// (<c>Sts2Solver.Ai.Run</c>) may reference explicitly registered visible DTOs and protocol helpers
 /// from <c>Simulation.Run</c>; nested payload visibility is checked recursively. It deliberately contains no RNG state, no pre-generated act room
 /// sequences, no grab-bag order, no unlock state and no per-model private saved properties: those
 /// are not visible on the native screen and cannot be derived from the history the player has seen.

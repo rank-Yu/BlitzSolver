@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Act2;
+namespace Sts2Solver.Content.Monsters.Act2;
 
 /// <summary>
 /// BowlbugRock: "HEADBUTT_MOVE" is a plain attack; "DIZZY_MOVE" is the native stun animation state.

@@ -4,11 +4,11 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -20,9 +20,9 @@ using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Timeline.Epochs;
 using MegaCrit.Sts2.Core.Unlocks;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
-using ProductionCapture = BlitzSolver.OfflineHost.Combat.TerminalBattleCapture;
-using ProductionProjection = BlitzSolver.OfflineHost.Combat.TerminalBattleProjection;
-using ProductionPath = BlitzSolver.OfflineHost.Combat.TerminalCapturePath;
+using ProductionCapture = Sts2Solver.OfflineHost.Combat.TerminalBattleCapture;
+using ProductionProjection = Sts2Solver.OfflineHost.Combat.TerminalBattleProjection;
+using ProductionPath = Sts2Solver.OfflineHost.Combat.TerminalCapturePath;
 
 namespace Differential;
 
@@ -152,10 +152,10 @@ internal static class FirstCombatReference
     private static void CaptureNative(NativeRun run, Player player) => NativeSnapshots.Add(NativeSnapshot(run, player));
     internal static int ProductionPostCombat()
     {
-        new Harmony("BlitzSolver.Differential.ProductionPostCombat").Patch(
-            AccessTools.Method(typeof(BlitzSolver.OfflineHost.Runtime.FirstCombatSession), "Summarize"),
+        new Harmony("Sts2Solver.Differential.ProductionPostCombat").Patch(
+            AccessTools.Method(typeof(Sts2Solver.OfflineHost.Runtime.FirstCombatSession), "Summarize"),
             postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(CaptureNative)));
-        var result = BlitzSolver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir, StopAfter: "next-room"));
+        var result = Sts2Solver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir, StopAfter: "next-room"));
         Console.WriteLine(JsonSerializer.Serialize(new { result, nativeSnapshots = NativeSnapshots },
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         return result.Milestone == "next-room-entered" ? 0 : 1;
@@ -181,19 +181,19 @@ internal static class FirstCombatReference
     {
         using CancellationTokenSource cancellation = new();
         _combatCancellation = cancellation;
-        Harmony harmony = new("BlitzSolver.Differential.CombatCancellation");
-        harmony.Patch(AccessTools.Method(typeof(BlitzSolver.OfflineHost.Combat.NativeActionExecutor), "Execute"),
+        Harmony harmony = new("Sts2Solver.Differential.CombatCancellation");
+        harmony.Patch(AccessTools.Method(typeof(Sts2Solver.OfflineHost.Combat.NativeActionExecutor), "Execute"),
             postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(CancelAfterDeployment)));
-        harmony.Patch(AccessTools.Method(typeof(BlitzSolver.OfflineHost.Combat.NativeChoiceSelector), "Activate"),
+        harmony.Patch(AccessTools.Method(typeof(Sts2Solver.OfflineHost.Combat.NativeChoiceSelector), "Activate"),
             postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(TrackSelector)));
         EventInfo actionEvent = typeof(MegaCrit.Sts2.Core.GameActions.ActionExecutor).GetEvent("BeforeActionExecuted")
             ?? throw new InvalidDataException("action event missing");
         harmony.Patch(actionEvent.AddMethod!, postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(SubscriptionAdded)));
         harmony.Patch(actionEvent.RemoveMethod!, postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(SubscriptionRemoved)));
-        BlitzSolver.OfflineHost.FirstCombatResult result = BlitzSolver.OfflineHost.FirstCombat.Run(
+        Sts2Solver.OfflineHost.FirstCombatResult result = Sts2Solver.OfflineHost.FirstCombat.Run(
             new(AssemblyBootstrap.Sts2DataDir), cancellation.Token);
         bool singleRunRejected = false;
-        try { BlitzSolver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir)); }
+        try { Sts2Solver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir)); }
         catch (InvalidOperationException error) when (error.Message.Contains("One native run", StringComparison.Ordinal))
         { singleRunRejected = true; }
         bool passed = result.Status == "Cancelled" && result.Milestone == null
@@ -225,10 +225,10 @@ internal static class FirstCombatReference
     {
         if (mode is not ("hp" or "missing")) throw new InvalidDataException("negative mode");
         _negativeMode = mode;
-        new Harmony("BlitzSolver.Differential.FirstCombatNegative").Patch(
+        new Harmony("Sts2Solver.Differential.FirstCombatNegative").Patch(
             AccessTools.Method(typeof(ProductionCapture), "Capture"),
             postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(TamperCapturedTerminal)));
-        BlitzSolver.OfflineHost.FirstCombatResult result = BlitzSolver.OfflineHost.FirstCombat.Run(
+        Sts2Solver.OfflineHost.FirstCombatResult result = Sts2Solver.OfflineHost.FirstCombat.Run(
             new(AssemblyBootstrap.Sts2DataDir));
         bool rejected = result.Milestone == null && result.Status == "Failed"
             && result.Combat is { DeploymentFailures: > 0 }
@@ -254,10 +254,10 @@ internal static class FirstCombatReference
     private static int _compiledCombats;
     internal static int LaterCombatFailure()
     {
-        new Harmony("BlitzSolver.Differential.LaterCombatFailure").Patch(
+        new Harmony("Sts2Solver.Differential.LaterCombatFailure").Patch(
             AccessTools.Method(typeof(RulesCompiler), nameof(RulesCompiler.Compile)),
             prefix: new HarmonyMethod(typeof(FirstCombatReference), nameof(FailLaterCompile)));
-        var result = BlitzSolver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir, StopAfter: "rooms", MaxRooms: 4));
+        var result = Sts2Solver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir, StopAfter: "rooms", MaxRooms: 4));
         bool rejected = result.Status == "Failed" && result.Detail == "fixture-second-combat-root"
             && result.Rooms is { Length: 1 } && result.Combats is { Length: 1 }
             && result.FinalState == null && ProductionCapture.Value == null && ProductionCapture.Path == ProductionPath.None;
@@ -280,7 +280,7 @@ internal static class FirstCombatReference
         ProductionCapture.Begin(() => null);
         bool rejected = false;
         try { ProductionCapture.Compare(default); }
-        catch (BlitzSolver.OfflineHost.Combat.OfflineDeploymentException error) when (error.Reason == "terminal_missing") { rejected = true; }
+        catch (Sts2Solver.OfflineHost.Combat.OfflineDeploymentException error) when (error.Reason == "terminal_missing") { rejected = true; }
         Check(rejected, "missing terminal capture must reject completion");
         Battle native = default;
         native.Player.CurrentHp = 50; native.Player.MaxHp = 80; native.Outcome = Outcome.Victory; native.Gold = 99;
@@ -314,7 +314,7 @@ internal static class FirstCombatReference
         ProductionCapture.End();
         using CancellationTokenSource cancellation = new();
         cancellation.Cancel();
-        BlitzSolver.OfflineHost.Runtime.MainLoopContext loop = new();
+        Sts2Solver.OfflineHost.Runtime.MainLoopContext loop = new();
         rejected = false;
         try { loop.RunUntilCompleted(Task.CompletedTask, TimeSpan.FromSeconds(1), "cancelled-drain", cancellation.Token); }
         catch (OperationCanceledException) { rejected = true; }
@@ -325,20 +325,20 @@ internal static class FirstCombatReference
         try { loop.RunUntilCompleted(new TaskCompletionSource().Task, TimeSpan.FromSeconds(1), "pending-cancel", pendingCancellation.Token); }
         catch (OperationCanceledException) { rejected = true; }
         Check(rejected, "message pump cancels pending native wait");
-        foreach (BlitzSolver.OfflineHost.FirstCombatOptions invalid in new[]
+        foreach (Sts2Solver.OfflineHost.FirstCombatOptions invalid in new[]
         {
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, TimeoutSeconds: 0),
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, UnlockProfile: "unknown"),
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, SearchTier: "unknown"),
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MemoryBudgetBytes: 0),
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, StopAfter: "unknown"),
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaxRooms: 0),
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaximumSteps: 0),
-            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaximumDecisions: 0),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, TimeoutSeconds: 0),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, UnlockProfile: "unknown"),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, SearchTier: "unknown"),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MemoryBudgetBytes: 0),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, StopAfter: "unknown"),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaxRooms: 0),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaximumSteps: 0),
+            new Sts2Solver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaximumDecisions: 0),
         })
         {
             rejected = false;
-            try { BlitzSolver.OfflineHost.FirstCombat.Run(invalid); }
+            try { Sts2Solver.OfflineHost.FirstCombat.Run(invalid); }
             catch (InvalidDataException) { rejected = true; }
             Check(rejected, "public facade rejects invalid configuration before native startup");
         }

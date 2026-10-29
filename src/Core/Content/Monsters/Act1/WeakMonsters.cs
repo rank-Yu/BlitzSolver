@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Act1;
+namespace Sts2Solver.Content.Monsters.Act1;
 
 [ContentId("FUZZY_WURM_CRAWLER")]
 public sealed class FuzzyWurmCrawler : MonsterDef

@@ -3,10 +3,10 @@
 // NMerchantCardRemoval.OnCardRemovalUsed, MerchantPotionEntry.CalcCost.
 using System.Reflection;
 using System.Reflection.Emit;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
@@ -129,7 +129,7 @@ internal static class RunRewardShopCompare
         _checks++;
         try { action(); }
         catch (InvalidDataException e) when (e.Message.Contains(reason, StringComparison.Ordinal)) { return; }
-        catch (BlitzSolver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains(reason, StringComparison.Ordinal)) { return; }
+        catch (Sts2Solver.Simulation.Combat.UnsupportedException e) when (e.Message.Contains(reason, StringComparison.Ordinal)) { return; }
         catch (UnsupportedImportException e) when (e.Message.Contains(reason, StringComparison.Ordinal)) { return; }
         throw new InvalidDataException("expected rejection: " + reason);
     }

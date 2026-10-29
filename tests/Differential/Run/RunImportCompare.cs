@@ -4,17 +4,17 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
-using RunState = BlitzSolver.Simulation.Run.RunState;
+using RunState = Sts2Solver.Simulation.Run.RunState;
 using NativeRunState = MegaCrit.Sts2.Core.Runs.RunState;
 
 namespace Differential;

@@ -3,18 +3,18 @@
 // CombatSolver src/Runtime/SolverController.cs at a62f1850 (MIT, Copyright (c) 2026 Torch1230 and
 // contributors), reduced to one search and one deployment at a time.
 using System.Diagnostics;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.TestHost;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// The single full-auto session. Ordinary F8 toggles it; the test protocol awaits it. All game
@@ -35,24 +35,24 @@ internal static class AutoCombatSession
     {
         if (!NGame.IsMainThread())
         {
-            ModLog.Error("[BlitzSolver] AUTO_REJECTED reason=not_main_thread");
+            ModLog.Error("[Sts2Solver] AUTO_REJECTED reason=not_main_thread");
             return;
         }
         if (IsRunning)
         {
             Cancel("hotkey");
-            ModLog.Info("[BlitzSolver] AUTO_STOP_REQUESTED reason=hotkey");
+            ModLog.Info("[Sts2Solver] AUTO_STOP_REQUESTED reason=hotkey");
             return;
         }
         if (TestSession.Active)
         {
-            ModLog.Info("[BlitzSolver] AUTO_REJECTED reason=test_session_active");
+            ModLog.Info("[Sts2Solver] AUTO_REJECTED reason=test_session_active");
             return;
         }
         CombatState? combat = CombatManager.Instance.DebugOnlyGetState();
         if (combat == null || !CombatManager.Instance.IsInProgress)
         {
-            ModLog.Info("[BlitzSolver] AUTO_REJECTED reason=no_active_combat");
+            ModLog.Info("[Sts2Solver] AUTO_REJECTED reason=no_active_combat");
             return;
         }
         Player? player = LocalContext.GetMe(combat);
@@ -60,7 +60,7 @@ internal static class AutoCombatSession
             || combat.CurrentSide != CombatSide.Player
             || player.PlayerCombatState.Phase != PlayerTurnPhase.Play)
         {
-            ModLog.Info("[BlitzSolver] AUTO_REJECTED reason=not_playable");
+            ModLog.Info("[Sts2Solver] AUTO_REJECTED reason=not_playable");
             return;
         }
         _ = RunDetachedAsync(host, combat);
@@ -73,7 +73,7 @@ internal static class AutoCombatSession
             CombatPilotResult result = await RunAsync(host, combat, request: null, root: "manual",
                 SearchPerformanceTier.Medium, CancellationToken.None);
             ModLog.Info(
-                $"[BlitzSolver] AUTO_DONE root=manual status={result.Status} outcome={result.Outcome} " +
+                $"[Sts2Solver] AUTO_DONE root=manual status={result.Status} outcome={result.Outcome} " +
                 $"turns={result.Turns} hp={result.PlayerHp}/{result.PlayerMaxHp} " +
                 $"searches={result.Searches} reused={result.ReusedTurns} " +
                 $"deviations={result.Deviations} failures={result.DeploymentFailures} " +
@@ -81,35 +81,35 @@ internal static class AutoCombatSession
         }
         catch (UnsupportedImportException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_FAILED root=manual reason={error.Reason} {error.Detail}");
+            ModLog.Error($"[Sts2Solver] AUTO_FAILED root=manual reason={error.Reason} {error.Detail}");
         }
         catch (UnsupportedException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_FAILED root=manual unsupported {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_FAILED root=manual unsupported {error.Message}");
         }
         catch (CapacityException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_FAILED root=manual capacity region={error.Region} {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_FAILED root=manual capacity region={error.Region} {error.Message}");
         }
         catch (NotSupportedException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_FAILED root=manual unsupported {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_FAILED root=manual unsupported {error.Message}");
         }
         catch (InvalidDataException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_FAILED root=manual invalid_data {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_FAILED root=manual invalid_data {error.Message}");
         }
         catch (InvalidOperationException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_FAILED root=manual invalid_operation {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_FAILED root=manual invalid_operation {error.Message}");
         }
         catch (TimeoutException error)
         {
-            ModLog.Error($"[BlitzSolver] AUTO_FAILED root=manual timeout {error.Message}");
+            ModLog.Error($"[Sts2Solver] AUTO_FAILED root=manual timeout {error.Message}");
         }
         catch (OperationCanceledException)
         {
-            ModLog.Info($"[BlitzSolver] AUTO_CANCELLED root=manual reason={Reason() ?? "cancel"}");
+            ModLog.Info($"[Sts2Solver] AUTO_CANCELLED root=manual reason={Reason() ?? "cancel"}");
         }
     }
 
@@ -142,7 +142,7 @@ internal static class AutoCombatSession
             int lastHp = player.Creature.CurrentHp;
             int lastMaxHp = player.Creature.MaxHp;
             ModLog.Info(
-                $"[BlitzSolver] AUTO_START root={root} turn={lastTurn} hp={lastHp}/{lastMaxHp} " +
+                $"[Sts2Solver] AUTO_START root={root} turn={lastTurn} hp={lastHp}/{lastMaxHp} " +
                 $"enemies={tracker.RootEnemyCount} tier={tier}");
             CombatPilotHost combatHost = new(host, rules, tracker, request, tier, root, combat, player);
             using Timer? cancelTimer = cancelAfterMilliseconds is { } cancelLimit
@@ -154,7 +154,7 @@ internal static class AutoCombatSession
             total.Stop();
             result = result with { ElapsedMs = total.ElapsedMilliseconds };
             ModLog.Info(
-                $"[BlitzSolver] AUTO_END root={root} status={result.Status} outcome={result.Outcome} " +
+                $"[Sts2Solver] AUTO_END root={root} status={result.Status} outcome={result.Outcome} " +
                 $"turn={result.Turns} hp={result.PlayerHp}/{result.PlayerMaxHp} " +
                 $"searches={result.Searches} reused={result.ReusedTurns} " +
                 $"deviations={result.Deviations} deployment_failures={result.DeploymentFailures} " +
@@ -194,7 +194,7 @@ internal static class AutoCombatSession
         }
         if (cancellation != null && !cancellation.IsCancellationRequested)
         {
-            ModLog.Info($"[BlitzSolver] AUTO_CANCEL_REQUESTED reason={reason}");
+            ModLog.Info($"[Sts2Solver] AUTO_CANCEL_REQUESTED reason={reason}");
             cancellation.Cancel();
             SearchSession.Cancel(reason);
         }
@@ -208,7 +208,7 @@ internal static class AutoCombatSession
         {
             if (Environment.TickCount64 >= deadline)
             {
-                ModLog.Error($"[BlitzSolver] AUTO_CANCEL_TIMEOUT reason={reason}");
+                ModLog.Error($"[Sts2Solver] AUTO_CANCEL_TIMEOUT reason={reason}");
                 return false;
             }
             await GodotCombatWaiter.NextFrameAsync(host);

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Event;
+namespace Sts2Solver.Content.Cards.Event;
 
 [ContentId("BYRDONIS_EGG")]
 public sealed class ByrdonisEgg : CardDef

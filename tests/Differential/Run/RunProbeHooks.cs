@@ -1,6 +1,6 @@
 // Probe-only runtime observation and UI bypasses, following sts2 v0.111.0 public model entries.
 using System.Reflection;
-using BlitzSolver.Import;
+using Sts2Solver.Import;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.CardSelection;

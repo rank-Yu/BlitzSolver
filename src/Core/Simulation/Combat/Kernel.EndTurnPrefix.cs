@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>Why an end-turn action did or did not expose a shareable player-turn-start prefix.</summary>
 public enum EndTurnPrefixStatus

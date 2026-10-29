@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>ImbalancedPower</c> (BowlbugRock's starting power, applied in <c>AfterAddedToRoom</c>):
@@ -130,7 +130,7 @@ public sealed class SlumberPower : PowerDef
 /// <c>AfterCardPlayed</c> gains the power's amount as Unpowered block, consumes the power and marks
 /// the state consumed (<c>AfterDamageReceivedMirrors.HandleCurlUpPower</c>,
 /// <c>AfterCardPlayedMirrors.HandleCurlUpPower</c>). Aux0 = Consumed; Aux1 = a card is recorded.
-/// Blitz cards have no instance identity, so the recorded "same card" test is the fact that the next
+/// Sts2Solver cards have no instance identity, so the recorded "same card" test is the fact that the next
 /// <c>AfterCardPlayed</c> after a card-sourced hit is that card's own (nested auto-plays finish their
 /// own <c>AfterCardPlayed</c> first), exactly the window the native reference comparison covers.
 /// </summary>

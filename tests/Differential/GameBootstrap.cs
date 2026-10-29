@@ -2,7 +2,7 @@
 // at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors).
 // Adapted for the differential host: no CombatSolver assembly, no search-policy injection.
 using System.Reflection;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Run;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -25,7 +25,7 @@ namespace Differential;
 /// </summary>
 internal static class GameBootstrap
 {
-    public const string HarmonyId = "blitzsolver.offline.host";
+    public const string HarmonyId = "sts2solver.offline.host";
     private static Harmony? _harmony;
     private static readonly List<string> _bypasses = [];
     private static readonly LocTable EmptyLocTable = new("offline", []);

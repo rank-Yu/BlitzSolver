@@ -1,9 +1,9 @@
 // Opening-combat effects that native models run before the captured play-phase root. These are the
-// blitz-side counterparts of the pre-root imports documented in docs/content-table.md; the values
+// solver-side counterparts of the pre-root imports documented in docs/content-table.md; the values
 // are the native canonical bases (the same values the content table exports for the rules).
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 internal static class StartVars
 {
@@ -425,7 +425,7 @@ public sealed partial class FuneraryMask : RelicDef
         for (int index = 0; index < StartVars.Int(ref x, self, "Cards"); index++)
         {
             Kernel.AddGeneratedCard(ref x, Kernel.CreateCard(x.R,
-                Registry.CardId<BlitzSolver.Content.Cards.Necrobinder.Soul>()), Pile.Draw, PilePosition.Random,
+                Registry.CardId<Sts2Solver.Content.Cards.Necrobinder.Soul>()), Pile.Draw, PilePosition.Random,
                 creator: Limits.PlayerOwner);
         }
     }

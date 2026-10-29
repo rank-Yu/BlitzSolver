@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// Stable reason codes shared by the combat rules compiler and the run-layer rules builder. The
@@ -60,7 +60,7 @@ public sealed class ContentCard
 
 /// <summary>
 /// One ordered candidate of a card pool, with the filter facts and the epochs that must be
-/// revealed. <see cref="CardId"/> is <see cref="NoCard"/> when the native card has no Blitz
+/// revealed. <see cref="CardId"/> is <see cref="NoCard"/> when the native card has no Sts2Solver
 /// definition; the builder rejects with <c>unsupported-card</c> only when that candidate survives
 /// the unlock and pool filters.
 /// </summary>

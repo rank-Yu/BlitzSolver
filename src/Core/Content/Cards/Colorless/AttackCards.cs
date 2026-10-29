@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Colorless;
+namespace Sts2Solver.Content.Cards.Colorless;
 
 [ContentId("DRAMATIC_ENTRANCE")]
 public sealed class DramaticEntrance : CardDef
@@ -283,7 +283,7 @@ public sealed class SeekerStrike : CardDef
         if (optionCount == 0)
             return;
         // CardChoiceSupport.BuildSeekerSpec records RecordRisk(UnresolvedPlayerChoice); the risk is
-        // not in the compensated catalog, so the snapshot flips HasRisk and Blitz must follow.
+        // not in the compensated catalog, so the snapshot flips HasRisk and Sts2Solver must follow.
         x.B.Flags |= BattleFlags.HasRisk;
         x.HistoryRisk = true;
         Span<int> selected = stackalloc int[1];

@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public static partial class Kernel
 {
@@ -216,7 +216,7 @@ public static partial class Kernel
             return 0;
         ushort strength = Registry.TryPower("STRENGTH_POWER", out ushort id)
             ? id
-            : throw new UnsupportedException("临时力量需要力量的 Blitz 定义。");
+            : throw new UnsupportedException("临时力量需要力量的 Sts2Solver 定义。");
         if (def.IsInstanced || GetAmount(x.B, target, temporaryId) == 0)
             ApplyPower(ref x, target, strength, sign * amount, applier);
         int applied = AddPowerAmount(ref x, target, temporaryId, def, amount, applier, out int resulting);
@@ -251,7 +251,7 @@ public static partial class Kernel
             return 0;
         ushort focus = Registry.TryPower("FOCUS_POWER", out ushort id)
             ? id
-            : throw new UnsupportedException("临时集中需要集中的 Blitz 定义。");
+            : throw new UnsupportedException("临时集中需要集中的 Sts2Solver 定义。");
         bool alreadyApplied = GetAmount(x.B, target, temporaryId) != 0;
         if (def.IsInstanced || !alreadyApplied)
             ApplyPower(ref x, target, focus, sign * amount, applier);
@@ -306,7 +306,7 @@ public static partial class Kernel
             return 0;
         ushort dexterity = Registry.TryPower("DEXTERITY_POWER", out ushort id)
             ? id
-            : throw new UnsupportedException("临时敏捷需要敏捷的 Blitz 定义。");
+            : throw new UnsupportedException("临时敏捷需要敏捷的 Sts2Solver 定义。");
         bool alreadyApplied = GetAmount(x.B, target, temporaryId) != 0;
         if (def.IsInstanced || !alreadyApplied)
             ApplyPower(ref x, target, dexterity, amount, applier);
@@ -331,7 +331,7 @@ public static partial class Kernel
             return;
         ushort focus = Registry.TryPower("FOCUS_POWER", out ushort focusId)
             ? focusId
-            : throw new UnsupportedException("临时集中需要集中的 Blitz 定义。");
+            : throw new UnsupportedException("临时集中需要集中的 Sts2Solver 定义。");
         ApplyPower(ref x, self.Owner, focus, delta, self.Owner);
     }
 
@@ -350,7 +350,7 @@ public static partial class Kernel
             return;
         ushort strength = Registry.TryPower("STRENGTH_POWER", out ushort strengthId)
             ? strengthId
-            : throw new UnsupportedException("临时力量需要力量的 Blitz 定义。");
+            : throw new UnsupportedException("临时力量需要力量的 Sts2Solver 定义。");
         ApplyPower(ref x, self.Owner, strength, delta, self.Owner);
     }
 

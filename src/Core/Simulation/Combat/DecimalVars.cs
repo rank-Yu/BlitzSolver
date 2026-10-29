@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Exact decimal card-variable deltas. Only a definition that opts in through
@@ -11,7 +11,7 @@ namespace BlitzSolver.Simulation.Combat;
 /// <remarks>
 /// The existing engine puts the decimal <c>ModifyDamage</c> result into
 /// <c>CardModel.DynamicVars.Damage.BaseValue</c> and <c>Thrash.ExtraDamage</c>, then reads
-/// <c>BaseValue</c> in the attack command and in the card-value estimate. Blitz stores the exact
+/// <c>BaseValue</c> in the attack command and in the card-value estimate. Sts2Solver stores the exact
 /// delta (base value minus the rule table's canonical value) as a <see cref="decimal"/>; the card's
 /// <c>Private</c> field holds slot + 1. Slots are a value set, not owners: two card objects may
 /// share a slot while their values are equal, and an update always moves the card to a slot whose

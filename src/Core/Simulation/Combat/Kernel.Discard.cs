@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// The card-effect discard pipeline, mirroring <c>CombatPredictionSimulator.Discard</c> /
@@ -39,7 +39,7 @@ public static partial class Kernel
     /// </summary>
     /// <remarks>
     /// The auto-play happens after the draw, so a shuffle may have moved the discarded card into the
-    /// draw pile. Blitz has no card identity, so each Sly card is located by value and its occurrence
+    /// draw pile. Sts2Solver has no card identity, so each Sly card is located by value and its occurrence
     /// among byte-equal cards over the whole battle, captured when it was discarded. The existing
     /// engine holds the card object and auto-plays it from whichever pile it is in.
     /// </remarks>

@@ -1,8 +1,8 @@
-# BlitzSolver 文档
+# Sts2Solver 文档
 
-BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场战斗保存在固定大小、不含对象引用的结构体里，分叉只需复制内存，在受支持的战斗上以较低开销展开 Beam 搜索，并用冻结快照校验搜索与结算结果。项目的目标是整局自动游玩：局外由原版 `sts2.dll` 推进，Blitz 负责战斗与局外策略，架构见 [整局设计](full-run-design.md)。
+Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场战斗保存在固定大小、不含对象引用的结构体里，分叉只需复制内存，在受支持的战斗上以较低开销展开 Beam 搜索，并用冻结快照校验搜索与结算结果。项目的目标是整局自动游玩：局外由原版 `sts2.dll` 推进，Sts2Solver 负责战斗与局外策略，架构见 [整局设计](full-run-design.md)。
 
-本目录是 BlitzSolver 的设计与验证文档。CombatSolver 时期的宿主接入、Bridge 与离线回放等材料收在 [`archive/`](archive/)。
+本目录是 Sts2Solver 的设计与验证文档。CombatSolver 时期的宿主接入、Bridge 与离线回放等材料收在 [`archive/`](archive/)。
 
 ## 1. 设计目标
 
@@ -24,28 +24,28 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 
 | 目录 | 内容 |
 | --- | --- |
-| `src/Core/Simulation/Combat/` | `BlitzSolver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
+| `src/Core/Simulation/Combat/` | `Sts2Solver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
 | `src/Core/Simulation/Run/` | 局外状态 `RunState`、编码与投影、决策请求类型、内容表与 `RulesBuilder`、开战选择预测 `RunCombatSetup` |
-| `src/Core/Content/` | `BlitzSolver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
-| `src/Core/Ai/Combat/` | `BlitzSolver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
-| `src/Core/Ai/Combat/Quality/` | `BlitzSolver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
-| `src/Core/Ai/Combat/Policy/` | `BlitzSolver.Ai.Combat.Policy`：药水、偷窃、成长、遗物计数与首领结算策略 |
-| `src/Core/Ai/Combat/Scoring/` | `BlitzSolver.Ai.Combat.Scoring`：状态评估、评分权重与能力牌估值 |
-| `src/Core/Ai/Combat/Novelty/` | `BlitzSolver.Ai.Combat.Novelty`：Bfws 新颖度容器、选项与遥测 |
+| `src/Core/Content/` | `Sts2Solver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
+| `src/Core/Ai/Combat/` | `Sts2Solver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
+| `src/Core/Ai/Combat/Quality/` | `Sts2Solver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
+| `src/Core/Ai/Combat/Policy/` | `Sts2Solver.Ai.Combat.Policy`：药水、偷窃、成长、遗物计数与首领结算策略 |
+| `src/Core/Ai/Combat/Scoring/` | `Sts2Solver.Ai.Combat.Scoring`：状态评估、评分权重与能力牌估值 |
+| `src/Core/Ai/Combat/Novelty/` | `Sts2Solver.Ai.Combat.Novelty`：Bfws 新颖度容器、选项与遥测 |
 | `src/Core/Ai/Run/` | 局外决策：只读 `RunView` 与决策请求 |
-| `src/Core/Autoplay/` | `BlitzSolver.Autoplay`：`CombatPilot` 与 `RunPilot`（R3b） |
-| `src/Import/` | `BlitzSolver.Import`：原生 `CombatState` → `Battle`、原生 `RunState` → `RunState`、决策请求导入；唯一允许读游戏模型与私有字段的层，只读；子目录 `Combat/`、`Run/`、`Run/Decisions/`（R3b） |
+| `src/Core/Autoplay/` | `Sts2Solver.Autoplay`：`CombatPilot` 与 `RunPilot`（R3b） |
+| `src/Import/` | `Sts2Solver.Import`：原生 `CombatState` → `Battle`、原生 `RunState` → `RunState`、决策请求导入；唯一允许读游戏模型与私有字段的层，只读；子目录 `Combat/`、`Run/`、`Run/Decisions/`（R3b） |
 | `src/OfflineHost/` | 离线宿主（R3b）：普通 .NET 进程运行原版有界 Act1 多房间与商店；子目录 `Runtime/`、`Combat/`、`Run/` |
-| `src/TestHost/` | `BlitzSolver.TestHost`：测试用建局、注入与原生状态转储；战斗部分在 `Combat/`，整局在 `Run/` |
-| `src/Mod/` | `BlitzSolver`：RitsuLib Mod 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Run/`（R3c）、`UI/`、`Testing/`、`Patches/`；不加入 `BlitzSolver.sln` |
-| `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`）；战斗合同在 `Combat/`，整局合同在 `Run/` |
-| `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/`；战斗校验器在 `Combat/` |
-| `tests/Architecture/` | 编译后的 `BlitzSolver.Core` 层依赖检查（程序集 `BlitzSolver.Architecture`），加入 `BlitzSolver.sln` |
+| `src/TestHost/` | `Sts2Solver.TestHost`：测试用建局、注入与原生状态转储；战斗部分在 `Combat/`，整局在 `Run/` |
+| `src/Mod/` | `Sts2Solver`：RitsuLib Mod 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Run/`（R3c）、`UI/`、`Testing/`、`Patches/`；不加入 `Sts2Solver.sln` |
+| `tests/KernelChecks/` | K0 纯内核合同（程序集 `Sts2Solver.KernelChecks`）；战斗合同在 `Combat/`，整局合同在 `Run/` |
+| `tests/Golden/` | 冻结快照校验器（程序集 `Sts2Solver.Golden`）与 `data/`；战斗校验器在 `Combat/` |
+| `tests/Architecture/` | 编译后的 `Sts2Solver.Core` 层依赖检查（程序集 `Sts2Solver.Architecture`），加入 `Sts2Solver.sln` |
 | [`tests/Differential/`](../tests/Differential/README.md) | 进程内差分：不启动 Godot，建出原生 `CombatState`/`RunState`；战斗对照、进程内原版动作执行与离线整场在 `Combat/`，整局导入、建局、地图选点、内容表与 `RulesBuilder` 在 `Run/`；需要游戏文件，不在 CI 中运行 |
 | `tools/run-eval/` | 独立烟测 CLI：首战、下一房间与有界多房间；批量整局评估仍待 R5 |
 | `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
 
-依赖方向：`Content → Simulation.Combat`（整局层还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层，`Ai.Combat` 不引用 `Content`（内容通过注册表挂到模拟上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`OfflineHost` 引用 Core、Import、游戏程序集与 Godot/Harmony，不引用 `TestHost`；`Mod` 不引用 `OfflineHost`。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `BlitzSolver.sln`，依赖规则由 `tests/Architecture` 检查。
+依赖方向：`Content → Simulation.Combat`（整局层还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层，`Ai.Combat` 不引用 `Content`（内容通过注册表挂到模拟上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`OfflineHost` 引用 Core、Import、游戏程序集与 Godot/Harmony，不引用 `TestHost`；`Mod` 不引用 `OfflineHost`。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `Sts2Solver.sln`，依赖规则由 `tests/Architecture` 检查。
 
 ## 3. 文档索引
 
@@ -86,7 +86,7 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 - R1b 新增：`RunState`（49,912 字节）与 `RunView`；15 条随机流的派生与 64 次抽取和原版一致；自然开局 200/200、D1 410/410（含 120 个质量根）逐字段相同；7 类局外导入负例显式拒绝。见 [整局状态布局](run-state-layout.md)。
 - R2a-1 新增：进程内内容表与 `RulesBuilder`。D1 全部 410 个输入、自然第一场战斗 200、全部 89 个遭遇加 Ruby Raiders 覆盖种子，`RulesBuilder` 与 `RulesCompiler` 的 `RulesCodec` 编码全部逐字节相同；内容覆盖 1078/1078 个卡牌等级、108/108 个怪物。见 [内容表与 RulesBuilder](content-table.md)。
 - R2a-2 新增：地图进点到首个出牌阶段的战斗边界 `RunCombatSetup`；R2a-3 至 R2c-2 的局外模拟、奖励与商店已按 2026-10-27 的决定删除，最后包含它们的提交是 `683bc03`。
-- R3-0：删除局外模拟器、奖励/商店对照、写回与新局生成；原离线宿主工程改名为 `tests/Differential`；保留的导入/建局/地图进点/战斗对照与 `683bc03` 相同。终局独立检查发现 `TheGambitPower` 在 `AfterDamageReceived` 中杀死玩家后，原版按 `IsActiveForHooks` 逐项过滤后续监听，而 Blitz 仍调用后续遗物；已按此最小修正 `HookDispatch.TryResolve`，KernelChecks 新增定向合同，D1/D2 不变。中档离线 120 根因此有 1 根（`quality-SILENT-022`）搜索展开数变化，其余 119 根与基线逐字段相同。见 [离线宿主](offline-host.md) 与 [测试与验证](testing.md) 6.13。
+- R3-0：删除局外模拟器、奖励/商店对照、写回与新局生成；原离线宿主工程改名为 `tests/Differential`；保留的导入/建局/地图进点/战斗对照与 `683bc03` 相同。终局独立检查发现 `TheGambitPower` 在 `AfterDamageReceived` 中杀死玩家后，原版按 `IsActiveForHooks` 逐项过滤后续监听，而 Sts2Solver 仍调用后续遗物；已按此最小修正 `HookDispatch.TryResolve`，KernelChecks 新增定向合同，D1/D2 不变。中档离线 120 根因此有 1 根（`quality-SILENT-022`）搜索展开数变化，其余 119 根与基线逐字段相同。见 [离线宿主](offline-host.md) 与 [测试与验证](testing.md) 6.13。
 - **未验证**：界面、离线原版整局、两个宿主的一致性、语料外的多段准备阶段与未捕获前缀、第三方 Mod 内容、Windows 启动脚本。
 
 内核语义以 [战斗状态布局](combat-state-layout.md)、[战斗内核语义](combat-semantics.md)、[战斗角色机制](combat-characters.md) 与 [战斗药水与遗物](combat-potions-relics.md) 为准；搜索行为以 [战斗搜索](combat-ai.md) 为准；快照与证据以 [冻结快照](golden-data.md) 和 [测试与验证](testing.md) 为准。

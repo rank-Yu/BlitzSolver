@@ -1,11 +1,11 @@
-// Adapted from tests/Differential/Combat/NativeChoiceSelector.cs at 6a5f645 (BlitzSolver, MIT).
-using BlitzSolver.OfflineHost.Runtime;
+// Adapted from tests/Differential/Combat/NativeChoiceSelector.cs at 6a5f645 (Sts2Solver, MIT).
+using Sts2Solver.OfflineHost.Runtime;
 // Native card-choice driver for the in-process action executor. The matching rules and the
 // card-identity binding are adapted from src/Mod/Combat/PlannedNativeSelector.cs, which in turn
 // follows CombatSolver's headless PlannedCardSelector at a62f1850 (MIT, Copyright (c) 2026
 // Torch1230 and contributors). This copy only replaces ModLog with the offline host's quiet mode.
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -13,7 +13,7 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.TestSupport;
 
-namespace BlitzSolver.OfflineHost.Combat;
+namespace Sts2Solver.OfflineHost.Combat;
 
 internal sealed class NativeChoiceMismatchException(string message) : InvalidOperationException(message);
 

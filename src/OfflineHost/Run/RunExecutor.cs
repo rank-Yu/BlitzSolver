@@ -1,7 +1,7 @@
 // Native command order cross-checked against sts2 v0.111.0 CardSelectCmd/EventSynchronizer.
-// Lifecycle adapted from tests/Differential/Run/NativeDecisionTestSession.cs at 5890e705 (BlitzSolver, MIT).
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Run;
+// Lifecycle adapted from tests/Differential/Run/NativeDecisionTestSession.cs at 5890e705 (Sts2Solver, MIT).
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Run;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.RestSite;
 using MegaCrit.Sts2.Core.Events;
@@ -10,14 +10,14 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 
-namespace BlitzSolver.OfflineHost.Run;
+namespace Sts2Solver.OfflineHost.Run;
 
 public enum OfflineBoundaryKind { Map, Event, Rest, Combat, Terminal, Rewards, Paused, Shop, Treasure }
 /// <summary>Runtime signals: the library does not infer UI readiness, map enablement or victory from HP.</summary>
 public sealed record OfflineRunBoundary(OfflineBoundaryKind Kind, EventModel? Event = null,
     RestSiteRoom? Rest = null, Func<bool>? TravelEnabled = null,
     MerchantRoom? Shop = null, Func<bool>? ShopActive = null, Action? CloseShop = null,
-    BlitzSolver.Autoplay.RunStopReason Terminal = BlitzSolver.Autoplay.RunStopReason.Failed, string? Detail = null, TreasureRoom? Treasure = null);
+    Sts2Solver.Autoplay.RunStopReason Terminal = Sts2Solver.Autoplay.RunStopReason.Failed, string? Detail = null, TreasureRoom? Treasure = null);
 
 public sealed class RunExecutor
 {

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Monsters.Event;
+namespace Sts2Solver.Content.Monsters.Event;
 
 /// <summary>
 /// FakeMerchantMonster: SWIPE_MOVE is a plain attack, SPEW_COINS_MOVE is 2×8, THROW_RELIC_MOVE applies
@@ -55,7 +55,7 @@ public sealed class Architect : MonsterDef
 /// The three Battleworn Dummy variants (75/150/300 HP) share the native single-node NOTHING_MOVE loop
 /// and the BattlewornDummyTimeLimitPower applied by <c>AfterAddedToRoom</c>. That power arrives in the
 /// root power table; <see cref="Powers.BattlewornDummyTimeLimitPower"/> models the decrement and
-/// rejects the timeout boundary (the native escape / encounter RanOutOfTime flag has no Blitz
+/// rejects the timeout boundary (the native escape / encounter RanOutOfTime flag has no Sts2Solver
 /// outcome).
 /// </summary>
 [ContentId("BATTLE_FRIEND_V1")]

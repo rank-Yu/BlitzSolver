@@ -2,11 +2,11 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 internal sealed record D1Summary(
     int Files,
@@ -96,7 +96,7 @@ internal static class D1Verifier
         int rootActionCount = config.Options.InitialActionCount;
 
         if (record.Roots.Count == 0)
-            throw new InvalidDataException($"根 {rootName} 没有 Blitz 根。");
+            throw new InvalidDataException($"根 {rootName} 没有 Sts2Solver 根。");
         JsonElement counts = metaRoot.GetProperty("counts");
         if (counts.GetProperty("roots").GetInt32() != record.Roots.Count
             || counts.GetProperty("k1").GetInt32() != record.K1.Count

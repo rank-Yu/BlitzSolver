@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Status;
+namespace Sts2Solver.Content.Cards.Status;
 
 /// <summary>
 /// Native <c>Beckon</c>: cost 1, playable with no OnPlay effect; at the player's turn end it loses

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace BlitzSolver.Simulation.Run;
+namespace Sts2Solver.Simulation.Run;
 
 /// <summary>
 /// The initial current values of the run odds set read from the native constructors. Only the

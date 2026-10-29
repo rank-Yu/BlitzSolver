@@ -3,15 +3,15 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.KernelChecks;
-using BlitzSolver.Content.Afflictions;
-using BlitzSolver.Content.Cards.Status;
-using BlitzSolver.Content.Enchantments;
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Content.Relics;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.KernelChecks;
+using Sts2Solver.Content.Afflictions;
+using Sts2Solver.Content.Cards.Status;
+using Sts2Solver.Content.Enchantments;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Content.Relics;
 
-// Pure Blitz kernel contracts (K0): no game assembly; BlitzSolver.Core is the only production
+// Pure Sts2Solver kernel contracts (K0): no game assembly; Sts2Solver.Core is the only production
 // content assembly. Differential equivalence with the existing engine is checked separately by the
 // offline harness probe.
 Registry.RegisterTestAssembly(Assembly.GetExecutingAssembly());
@@ -78,8 +78,8 @@ Console.WriteLine(JsonSerializer.Serialize(new
 {
     contracts = "Passed",
     battleBytes = Unsafe.SizeOf<Battle>(),
-    runStateBytes = Unsafe.SizeOf<BlitzSolver.Simulation.Run.RunState>(),
-    runViewBytes = Unsafe.SizeOf<BlitzSolver.Simulation.Run.RunView>(),
+    runStateBytes = Unsafe.SizeOf<Sts2Solver.Simulation.Run.RunState>(),
+    runViewBytes = Unsafe.SizeOf<Sts2Solver.Simulation.Run.RunView>(),
     runtime = Environment.Version.ToString(),
     benchmark,
 }, new JsonSerializerOptions { WriteIndented = true }));
@@ -90,7 +90,7 @@ static void Check(bool condition, string message)
         throw new InvalidOperationException(message);
 }
 
-// Reference copy of native MegaRandom + Rng (decompiled sts2 0.111.0) to pin the Blitz port.
+// Reference copy of native MegaRandom + Rng (decompiled sts2 0.111.0) to pin the Sts2Solver port.
 
 static void CheckHookDeactivation(Rules rules)
 {
@@ -199,7 +199,7 @@ static void CheckRng()
     Check(rng.Counter == 6000, $"计数器应为 6000，实际 {rng.Counter}");
 }
 
-// Blitz's introsort must permute equal-key cards exactly like List<T>.Sort().
+// Sts2Solver's introsort must permute equal-key cards exactly like List<T>.Sort().
 static void CheckIntroSort(Rules rules)
 {
     Random random = new(17);
@@ -362,7 +362,7 @@ static void CheckKm2Kernel(Rules rules)
             Kernel.EnemyOwner(0), hasCardSource: false, default),
         "未完全格挡的 Damage 应返回 false");
 
-    Check(Registry.TryPower("INFESTED_POWER", out ushort infested), "InfestedPower 应有 Blitz 定义");
+    Check(Registry.TryPower("INFESTED_POWER", out ushort infested), "InfestedPower 应有 Sts2Solver 定义");
     battle = default;
     battle.Outcome = Outcome.None;
     battle.EnemyCount = 1;
@@ -600,7 +600,7 @@ static Battle TwBattle(Rules rules)
 {
     Battle battle = NewBattle();
     battle.Gold = 0;
-    battle.Enemies[0].MonsterId = Registry.MonsterId<BlitzSolver.Content.Monsters.Act1.WaterfallGiant>();
+    battle.Enemies[0].MonsterId = Registry.MonsterId<Sts2Solver.Content.Monsters.Act1.WaterfallGiant>();
     battle.Enemies[0].Rules = 0;
     battle.Enemies[0].Move = 0;
     battle.Enemies[0].ForcedMove = byte.MaxValue;

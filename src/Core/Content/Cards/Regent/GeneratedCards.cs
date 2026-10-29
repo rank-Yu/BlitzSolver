@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Regent;
+namespace Sts2Solver.Content.Cards.Regent;
 
 /// <summary><c>MinionDiveBomb</c>: the inferred single-target attack (13 damage, +3 on upgrade).</summary>
 [ContentId("MINION_DIVE_BOMB")]

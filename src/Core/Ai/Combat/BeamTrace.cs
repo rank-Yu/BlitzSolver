@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Ai.Combat;
+namespace Sts2Solver.Ai.Combat;
 
 /// <summary>
 /// Route metadata attached to one pool seat for the offline trace only. It mirrors the fields the
@@ -47,7 +47,7 @@ internal readonly record struct TraceSetupLeader(
 /// state can be dropped (generation, dedup, rank truncation, lane representatives, incumbent/ceiling
 /// pruning, end-turn compaction and budget end) with the route node identity it already carries.
 /// The implementation lives in the bridge (it needs the existing engine to map a target
-/// <c>PlanAction</c> route onto Blitz actions); production leaves <see cref="BeamOptions.Trace"/>
+/// <c>PlanAction</c> route onto Sts2Solver actions); production leaves <see cref="BeamOptions.Trace"/>
 /// null, so every call site is one null check and no retention decision reads trace state.
 /// </summary>
 internal abstract class BeamTrace

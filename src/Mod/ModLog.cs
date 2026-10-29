@@ -1,8 +1,8 @@
 using MegaCrit.Sts2.Core.Logging;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
-/// <summary>BlitzSolver 的日志门面：同时写游戏日志与测试目录下的 mod.log。</summary>
+/// <summary>Sts2Solver 的日志门面：同时写游戏日志与测试目录下的 mod.log。</summary>
 internal static class ModLog
 {
     private static readonly object Gate = new();

@@ -3,12 +3,12 @@
 // raw GOLD record with the roots and an empty K1/K2 section plus a Brotli-compressed config.br; the
 // Golden tool reads that payload, replaces the frozen root state, and re-records K1/K2 with Core only.
 using System.IO.Compression;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Golden;
-using BlitzSolver.Import;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Policy;
-using BlitzSolver.Ai.Combat.Scoring;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Golden;
+using Sts2Solver.Import;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Policy;
+using Sts2Solver.Ai.Combat.Scoring;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;

@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Potions;
+namespace Sts2Solver.Content.Potions;
 
 /// <summary>
 /// Native <c>DeprecatedPotion</c>: a removed potion kept for run history. The existing search does

@@ -1,10 +1,10 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using BlitzSolver.Ai.Combat;
+using Sts2Solver.Ai.Combat;
 
-namespace BlitzSolver.Golden;
+namespace Sts2Solver.Golden;
 
 /// <summary>
 /// Recomputes every D2 expected result with the current solver on a copy of the data directory and

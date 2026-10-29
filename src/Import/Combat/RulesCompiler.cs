@@ -4,7 +4,7 @@
 // and the spawn creation path are implemented against the native model APIs instead of the
 // engine's SimulatedCombatState. Rule table shape and closure ordering are preserved.
 using System.Reflection;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -27,17 +27,17 @@ using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Runs;
 
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
-using EngineCardRarity = BlitzSolver.Simulation.Combat.CardRarity;
-using EngineCardTag = BlitzSolver.Simulation.Combat.CardTag;
-using EngineCardType = BlitzSolver.Simulation.Combat.CardType;
-using EngineMoveRepeatType = BlitzSolver.Simulation.Combat.MoveRepeatType;
-using EnginePotionRarity = BlitzSolver.Simulation.Combat.PotionRarity;
-using EngineTargetType = BlitzSolver.Simulation.Combat.TargetType;
+using EngineCardRarity = Sts2Solver.Simulation.Combat.CardRarity;
+using EngineCardTag = Sts2Solver.Simulation.Combat.CardTag;
+using EngineCardType = Sts2Solver.Simulation.Combat.CardType;
+using EngineMoveRepeatType = Sts2Solver.Simulation.Combat.MoveRepeatType;
+using EnginePotionRarity = Sts2Solver.Simulation.Combat.PotionRarity;
+using EngineTargetType = Sts2Solver.Simulation.Combat.TargetType;
 using NativeCardTag = MegaCrit.Sts2.Core.Entities.Cards.CardTag;
 using NativePotionRarity = MegaCrit.Sts2.Core.Entities.Potions.PotionRarity;
 using NativeCardType = MegaCrit.Sts2.Core.Entities.Cards.CardType;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>
 /// Compiles a native root into <see cref="Rules"/>. This is the M2a-3 replacement for decoding a
@@ -354,7 +354,7 @@ public static partial class RulesCompiler
             string nativeId = pending.Dequeue();
             if (!Registry.TryMonster(nativeId, out ushort id))
                 throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                    $"生成怪物 {nativeId} 没有 Blitz 定义");
+                    $"生成怪物 {nativeId} 没有 Sts2Solver 定义");
             if (!seen.Add(id))
                 continue;
             closure.Add(id);
@@ -589,7 +589,7 @@ public static partial class RulesCompiler
                         continue;
                     if (!Registry.TryPower(powerId, out ushort powerInternalId))
                         throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                            $"生成 Power {powerId} 没有 Blitz 定义");
+                            $"生成 Power {powerId} 没有 Sts2Solver 定义");
                     Declare(Registry.Power(powerInternalId));
                 }
                 while (pendingPools.Count > 0)
@@ -613,7 +613,7 @@ public static partial class RulesCompiler
                 (string cardId, int upgrade) = pendingCards.Dequeue();
                 if (!Registry.TryCard(cardId, out ushort cardInternalId))
                     throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                        $"生成卡 {cardId} 没有 Blitz 定义");
+                        $"生成卡 {cardId} 没有 Sts2Solver 定义");
                 CardModel canonical = CanonicalCards.Value.TryGetValue(cardId, out CardModel? card)
                     ? card
                     : throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
@@ -665,7 +665,7 @@ public static partial class RulesCompiler
             PotionModel potion = options[index];
             if (!Registry.TryPotion(potion.Id.Entry, out ushort id))
                 throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                    $"随机药水 {potion.Id.Entry} 没有 Blitz 定义");
+                    $"随机药水 {potion.Id.Entry} 没有 Sts2Solver 定义");
             ids[index] = id;
         }
         return ids;
@@ -710,7 +710,7 @@ public static partial class RulesCompiler
             CardModel candidate = candidates[index];
             if (!Registry.TryCard(candidate.Id.Entry, out ushort id))
                 throw new UnsupportedImportException(ImportReason.UnsupportedClosure,
-                    $"生成卡 {candidate.Id.Entry} 没有 Blitz 定义（卡池 {poolKey}）");
+                    $"生成卡 {candidate.Id.Entry} 没有 Sts2Solver 定义（卡池 {poolKey}）");
             ids[index] = id;
         }
         return ids;

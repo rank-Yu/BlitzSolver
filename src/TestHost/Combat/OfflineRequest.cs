@@ -2,12 +2,12 @@
 // (MIT, Copyright (c) 2026 Torch1230 and contributors).
 // Only the fields required to build the native root of the 410 frozen inputs are carried over.
 using System.Text.Json;
-using BlitzSolver.Import;
+using Sts2Solver.Import;
 using System.Text.Json.Serialization;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Rooms;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal static class OfflineJson
 {

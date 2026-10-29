@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 public static partial class Kernel
 {
@@ -123,7 +123,7 @@ public static partial class Kernel
     /// Replaces the card at <paramref name="index"/> in <paramref name="pile"/> with
     /// <paramref name="replacement"/> at the same position, mirroring <c>CardCmd.Transform</c> as the
     /// existing engine resolves it (<c>CardChoiceResolution.AddTransformedCard</c>). The original has
-    /// no instance identity in Blitz, so the position is the identity.
+    /// no instance identity in Sts2Solver, so the position is the identity.
     /// </summary>
     public static void ReplaceCard(ref Exec x, Pile pile, int index, in Card replacement)
     {

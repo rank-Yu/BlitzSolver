@@ -4,17 +4,17 @@
 // path is carried over, without deployment, continuation or portfolio logic.
 using System.Diagnostics;
 using System.Text.Json;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Import;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.TestHost;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Import;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace BlitzSolver;
+namespace Sts2Solver;
 
 /// <summary>
 /// The single-Beam driver. Capture/import/request assembly happen on the game main thread; the
@@ -148,7 +148,7 @@ internal static class SearchSession
             if (resultDirectory != null && deterministic)
                 WriteBytes(Path.Combine(resultDirectory, "SREQ"), requestBytes);
             ModLog.Info(
-                $"[BlitzSolver] SEARCH_STARTED root={root} tier={tier} deterministic={deterministic} "
+                $"[Sts2Solver] SEARCH_STARTED root={root} tier={tier} deterministic={deterministic} "
                 + $"beam={searchCase.Options.BeamWidth} nodes={searchCase.Options.MaxExpandedNodes} "
                 + $"soft_ms={(deterministic ? -1 : (long)searchCase.Options.SoftTimeBudget.TotalMilliseconds)} "
                 + $"turn={searchCase.Options.InitialPlayerTurn} root_bytes={requestBytes.Length}");
@@ -200,7 +200,7 @@ internal static class SearchSession
                     managedPeak, workingSetPeak, allocated, workerExited, pacer?.YieldCount ?? 0,
                     Reason());
                 ModLog.Info(
-                    $"[BlitzSolver] SEARCH_CANCELLED root={root} reason={result.Error} "
+                    $"[Sts2Solver] SEARCH_CANCELLED root={root} reason={result.Error} "
                     + $"ms={elapsed.ElapsedMilliseconds} worker_exited={workerExited}");
             }
             else if (worker.IsFaulted)
@@ -211,7 +211,7 @@ internal static class SearchSession
                     managedPeak, workingSetPeak, allocated, workerExited, pacer?.YieldCount ?? 0,
                     status, reason);
                 ModLog.Error(
-                    $"[BlitzSolver] SEARCH_FAILED root={root} stage=solve kind={result.ErrorKind} "
+                    $"[Sts2Solver] SEARCH_FAILED root={root} stage=solve kind={result.ErrorKind} "
                     + $"reason={result.Error} ms={elapsed.ElapsedMilliseconds}");
             }
             else
@@ -223,7 +223,7 @@ internal static class SearchSession
                 if (resultDirectory != null && deterministic)
                     WriteBytes(Path.Combine(resultDirectory, "SRES"), SearchCodec.EncodeResult(beam));
                 ModLog.Info(
-                    $"[BlitzSolver] SEARCH_DONE root={root} ms={elapsed.ElapsedMilliseconds} "
+                    $"[Sts2Solver] SEARCH_DONE root={root} ms={elapsed.ElapsedMilliseconds} "
                     + $"expanded={beam.ExpandedNodes} transitions={beam.Transitions} turns={beam.TurnsSearched} "
                     + $"victory={beam.BestIsVictory} score={beam.BestScore} actions={beam.BestRoute.Length} "
                     + $"duplicates={beam.Duplicates} pruned={beam.PrunedIncumbents} "
@@ -242,7 +242,7 @@ internal static class SearchSession
             if (worker is { IsCompleted: false })
             {
                 cancellation.Cancel();
-                ModLog.Error($"[BlitzSolver] SEARCH_ABANDONED root={root} reason=driver_exception");
+                ModLog.Error($"[Sts2Solver] SEARCH_ABANDONED root={root} reason=driver_exception");
             }
             lock (Gate)
             {
@@ -280,7 +280,7 @@ internal static class SearchSession
                 return;
             _cancelReason = reason;
         }
-        ModLog.Info($"[BlitzSolver] SEARCH_CANCEL_REQUESTED root={_root} reason={reason}");
+        ModLog.Info($"[Sts2Solver] SEARCH_CANCEL_REQUESTED root={_root} reason={reason}");
         cancellation.Cancel();
     }
 
@@ -293,7 +293,7 @@ internal static class SearchSession
             if (Environment.TickCount64 >= deadline)
             {
                 ModLog.Error(
-                    $"[BlitzSolver] SEARCH_CANCEL_TIMEOUT root={_root} reason={reason} "
+                    $"[Sts2Solver] SEARCH_CANCEL_TIMEOUT root={_root} reason={reason} "
                     + $"running={IsRunning}");
                 return false;
             }

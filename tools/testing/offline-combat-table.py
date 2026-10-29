@@ -7,7 +7,7 @@ so the same report can be regenerated after any search change.
 
 Usage:
   tools/testing/offline-combat-table.py --results .local/offline-combat/default \
-      --baseline ~/sts2/BlitzSolver/.local/q120/baseline.tsv
+      --baseline ~/sts2/sts2-solver/.local/q120/baseline.tsv
 
 The baseline is a tab-separated file with columns:
   root  win|death  turns  playerHp  playerMaxHp  searches
@@ -86,7 +86,7 @@ def main() -> int:
         groups[f"第{spec['actIndex'] + 1}幕"].append((rid, expected, result))
         groups[spec["encounterKind"]].append((rid, expected, result))
 
-    print("| 分组 | 场数 | Blitz 胜 | CombatSolver 胜 | 两边都胜时 HP 差合计 | 搜索次数 Blitz / CS |")
+    print("| 分组 | 场数 | Sts2Solver 胜 | CombatSolver 胜 | 两边都胜时 HP 差合计 | 搜索次数 Sts2Solver / CS |")
     print("| --- | ---: | ---: | ---: | ---: | ---: |")
     order = ["合计", "IRONCLAD", "SILENT", "DEFECT", "REGENT", "NECROBINDER",
              "第1幕", "第2幕", "第3幕", "Monster", "Elite", "Boss"]
@@ -94,21 +94,21 @@ def main() -> int:
         items = groups.get(group)
         if not items:
             continue
-        blitz_wins = sum(won(result) for _, _, result in items)
+        solver_wins = sum(won(result) for _, _, result in items)
         combat_wins = sum(expected["win"] for _, expected, _ in items)
         hp_delta = sum(result["playerHp"] - expected["hp"]
                        for _, expected, result in items if won(result) and expected["win"])
-        blitz_searches = sum(result.get("searches", 0) for _, _, result in items if result)
+        solver_searches = sum(result.get("searches", 0) for _, _, result in items if result)
         combat_searches = sum(expected["searches"] for _, expected, _ in items)
-        print(f"| {group} | {len(items)} | {blitz_wins} | {combat_wins} | "
-              f"{hp_delta:+d} | {blitz_searches} / {combat_searches} |")
+        print(f"| {group} | {len(items)} | {solver_wins} | {combat_wins} | "
+              f"{hp_delta:+d} | {solver_searches} / {combat_searches} |")
 
     print()
     print("胜负不同的根：")
     for rid, spec, expected, result in rows:
         if won(result) != expected["win"]:
             print(f"  {rid} act{spec['actIndex'] + 1} {spec['encounterKind']}: "
-                  f"Blitz {result and result.get('outcome')} "
+                  f"Sts2Solver {result and result.get('outcome')} "
                   f"turn={result and result.get('turns')} hp={result and result.get('playerHp')} | "
                   f"CS {'win' if expected['win'] else 'death'} "
                   f"turn={expected['turn']} hp={expected['hp']}")

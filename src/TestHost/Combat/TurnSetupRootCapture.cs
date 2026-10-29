@@ -10,7 +10,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 
-namespace BlitzSolver.TestHost;
+namespace Sts2Solver.TestHost;
 
 internal static class TurnSetupRootCapture
 {
@@ -25,7 +25,7 @@ internal static class TurnSetupRootCapture
     {
         if (_harmony != null)
             return;
-        _harmony = new Harmony("BlitzSolver.TurnSetupRootCapture");
+        _harmony = new Harmony("Sts2Solver.TurnSetupRootCapture");
         _harmony.Patch(
             AccessTools.Method(typeof(CombatManager), "SetupPlayerTurn"),
             prefix: new HarmonyMethod(typeof(TurnSetupRootCapture), nameof(Prefix)));

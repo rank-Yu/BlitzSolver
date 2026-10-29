@@ -1,9 +1,9 @@
-// Adapted from tests/Differential/GameBootstrap.cs at 6a5f645 (BlitzSolver, MIT).
+// Adapted from tests/Differential/GameBootstrap.cs at 6a5f645 (Sts2Solver, MIT).
 // Ported from CombatSolver/tools/search/OfflineSearchHarness/GameBootstrap.cs
 // at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors).
 // Adapted for the standalone production runtime: no CombatSolver assembly, no search-policy injection.
 using System.Reflection;
-using BlitzSolver.Simulation.Run;
+using Sts2Solver.Simulation.Run;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -18,7 +18,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.TestSupport;
 
-namespace BlitzSolver.OfflineHost.Runtime;
+namespace Sts2Solver.OfflineHost.Runtime;
 
 /// <summary>
 /// 游戏核心静态状态的离线初始化，以及所有「会打到 Godot 原生层」的绕过。
@@ -26,7 +26,7 @@ namespace BlitzSolver.OfflineHost.Runtime;
 /// </summary>
 internal static class GameBootstrap
 {
-    public const string HarmonyId = "BlitzSolver.OfflineHost.Runtime";
+    public const string HarmonyId = "Sts2Solver.OfflineHost.Runtime";
     private static Harmony? _harmony;
     private static readonly List<string> _bypasses = [];
     private static readonly LocTable EmptyLocTable = new("offline", []);

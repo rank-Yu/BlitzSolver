@@ -1,7 +1,7 @@
-// Ported from CombatSolver src/Search/PotionUsePolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members BlitzSolver reads.
-using BlitzSolver.Ai.Combat.Scoring;
+// Ported from CombatSolver src/Search/PotionUsePolicy.cs at a62f1850 (MIT License, Copyright (c) 2026 Torch1230 and contributors); only the members Sts2Solver reads.
+using Sts2Solver.Ai.Combat.Scoring;
 
-namespace BlitzSolver.Ai.Combat.Policy;
+namespace Sts2Solver.Ai.Combat.Policy;
 
 internal static class PotionUsePolicy
 {

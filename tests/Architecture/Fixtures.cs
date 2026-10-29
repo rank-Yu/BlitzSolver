@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Run
+namespace Sts2Solver.Simulation.Run
 {
     /// <summary>Local negative/positive fixture: an unregistered Run-layer type.</summary>
     internal sealed class RunProjectionFixture
@@ -8,11 +8,11 @@ namespace BlitzSolver.Simulation.Run
     /// <summary>Local positive fixture: Simulation.Run may reference Simulation.Combat.</summary>
     internal sealed class RunRulesFixture
     {
-        internal static BlitzSolver.Simulation.Combat.Battle Make() => default;
+        internal static Sts2Solver.Simulation.Combat.Battle Make() => default;
     }
 }
 
-namespace BlitzSolver.Ai.Run
+namespace Sts2Solver.Ai.Run
 {
     /// <summary>
     /// Local counterexample: Ai.Run references a Simulation.Run type that is not registered as a
@@ -20,17 +20,17 @@ namespace BlitzSolver.Ai.Run
     /// </summary>
     internal sealed class UnregisteredRunReferenceFixture
     {
-        internal static BlitzSolver.Simulation.Run.RunProjectionFixture Make() => new();
+        internal static Sts2Solver.Simulation.Run.RunProjectionFixture Make() => new();
     }
 
     /// <summary>Positive fixture: the registered RunView projection is visible to Ai.Run.</summary>
     internal sealed class VisibleRunReferenceFixture
     {
-        internal static BlitzSolver.Simulation.Run.RunView Make() => default;
+        internal static Sts2Solver.Simulation.Run.RunView Make() => default;
     }
 }
 
-namespace BlitzSolver.Simulation.Run
+namespace Sts2Solver.Simulation.Run
 {
     internal readonly record struct VisibleNestedFixture(VisibleInlineFixture Payload);
 

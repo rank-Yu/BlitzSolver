@@ -1,12 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
-/// D1 kernel golden file: the Blitz root(s), the input mapping that produced them, every checked K1
+/// D1 kernel golden file: the Sts2Solver root(s), the input mapping that produced them, every checked K1
 /// completion and every recorded K2 walk. The file is a plain deterministic binary payload; the
-/// harness compresses it, and <c>BlitzSolver.Golden</c> replays it against the Kernel only.
+/// harness compresses it, and <c>Sts2Solver.Golden</c> replays it against the Kernel only.
 /// </summary>
 public sealed class GoldenRootRecord
 {

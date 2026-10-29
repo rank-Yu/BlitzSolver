@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Defect;
+namespace Sts2Solver.Content.Cards.Defect;
 
 [ContentId("SYNTHESIS")]
 public sealed class Synthesis : CardDef
@@ -106,7 +106,7 @@ public sealed class RocketPunch : CardDef
     }
 
     // AfterCardGeneratedForCombatMirrors.HandleRocketPunch: a generated Status lowers this card's cost
-    // by 1 until played. All generated cards in Blitz come from the player.
+    // by 1 until played. All generated cards in Sts2Solver come from the player.
     public override void AfterCardGeneratedForCombat(ref Exec x, Listener self, int position, byte creator)
     {
         if (creator != Limits.PlayerOwner)

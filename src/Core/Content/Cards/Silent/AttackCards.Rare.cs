@@ -1,7 +1,7 @@
-using BlitzSolver.Content.Powers;
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Content.Powers;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Silent;
+namespace Sts2Solver.Content.Cards.Silent;
 
 [ContentId("MURDER")]
 public sealed class Murder : CardDef

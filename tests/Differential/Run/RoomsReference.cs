@@ -2,11 +2,11 @@
 // Native choices are dispatched directly; neither OfflineRunHost nor its policy executes here.
 using System.Reflection;
 using System.Text.Json;
-using BlitzSolver.Autoplay;
-using BlitzSolver.Import;
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Simulation.Run;
-using BlitzSolver.TestHost;
+using Sts2Solver.Autoplay;
+using Sts2Solver.Import;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Simulation.Run;
+using Sts2Solver.TestHost;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Commands;
@@ -48,10 +48,10 @@ internal static class RoomsReference
     }
     internal static int Production(int rooms, string? seed = null)
     {
-        new Harmony("BlitzSolver.Differential.RoomsProduction").Patch(
-            AccessTools.GetDeclaredConstructors(typeof(BlitzSolver.OfflineHost.RoomSummary)).Single(c => c.IsPublic),
+        new Harmony("Sts2Solver.Differential.RoomsProduction").Patch(
+            AccessTools.GetDeclaredConstructors(typeof(Sts2Solver.OfflineHost.RoomSummary)).Single(c => c.IsPublic),
             postfix: new HarmonyMethod(typeof(RoomsReference), nameof(Capture)));
-        var result = BlitzSolver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir,
+        var result = Sts2Solver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir,
             Seed: seed ?? "R3B2-DECISION", StopAfter: seed == null ? "rooms" : "act1", MaxRooms: rooms, TimeoutSeconds: 1200));
         Console.WriteLine(JsonSerializer.Serialize(new { result, checkpoints = Checkpoints, finalSnapshot = Snapshot(RunManager.Instance.DebugOnlyGetState()!, RunManager.Instance.DebugOnlyGetState()!.Players.Single()) },
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
@@ -94,7 +94,7 @@ internal static class RoomsReference
         EventRoom neow = (EventRoom)run.CurrentRoom!;
         RunManager.Instance.EventSynchronizer.ChooseLocalOption(neow.LocalMutableEvent.CurrentOptions.ToList().IndexOf(neow.LocalMutableEvent.CurrentOptions.FirstOrDefault(o => !o.IsLocked && o.Relic is LavaRock) ?? neow.LocalMutableEvent.CurrentOptions.First(o => !o.IsLocked)));
         Wait(RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks());
-        List<BlitzSolver.OfflineHost.CombatSummary> combats = [];
+        List<Sts2Solver.OfflineHost.CombatSummary> combats = [];
         RewardsSet.testSelector = async set =>
         {
             foreach (Reward reward in set.Rewards) await RunManager.Instance.RewardsSetSynchronizer.SelectLocalReward(reward);

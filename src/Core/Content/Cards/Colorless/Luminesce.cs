@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Colorless;
+namespace Sts2Solver.Content.Cards.Colorless;
 
 /// <summary>
 /// Native <c>Luminesce</c> (0-cost Token Skill, Exhaust/Retain): gains its Energy variable

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Complete deterministic encoding of <see cref="Rules"/>. Every table and scalar that the

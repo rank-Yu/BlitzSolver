@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Powers;
+namespace Sts2Solver.Content.Powers;
 
 /// <summary>
 /// Native <c>ClarityPower</c>: draws one extra card per turn while its owner is the player and loses
@@ -262,7 +262,7 @@ public sealed class DuplicationPower : PowerDef
 /// Native <c>GigantificationPower</c>: the next powered Attack card play deals triple damage and
 /// consumes one stack. BeforeAttack records the armed attack, ModifyDamageMultiplicative applies 3x
 /// while the same card's attack runs, AfterAttack decrements. Aux0 is the armed flag; CommandToModify's
-/// card identity is unambiguous because Blitz resolves one card attack at a time.
+/// card identity is unambiguous because Sts2Solver resolves one card attack at a time.
 /// </summary>
 [ContentId("GIGANTIFICATION_POWER")]
 public sealed class GigantificationPower : PowerDef

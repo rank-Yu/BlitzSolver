@@ -1,4 +1,4 @@
-namespace BlitzSolver.Simulation.Combat;
+namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
 /// Hook dispatch mirroring <c>HookMirrors</c>. Listeners are visited in the existing engine's
@@ -350,7 +350,7 @@ public static partial class HookDispatch
     /// <c>HookMirrors.ModifyOrbPassiveTriggerCount</c>: every combat listener in order, recording the
     /// ones that changed the count. The existing engine then calls
     /// <c>AfterModifyingOrbPassiveTriggerCount</c> on those listeners; its only vanilla listener
-    /// (GoldPlatedCables) is cosmetic, so the Blitz kernel does not model that pass.
+    /// (GoldPlatedCables) is cosmetic, so the Sts2Solver kernel does not model that pass.
     /// </summary>
     public static int ModifyOrbPassiveTriggerCounts(in Battle battle, Rules rules, in Orb orb,
         int orbIndex, int triggerCount)

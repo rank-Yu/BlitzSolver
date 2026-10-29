@@ -1,5 +1,5 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Relics;
+namespace Sts2Solver.Content.Relics;
 
 [ContentId("CIRCLET")] public sealed class Circlet : RelicDef; // IsStackable

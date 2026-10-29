@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Silent;
+namespace Sts2Solver.Content.Cards.Silent;
 
 /// <summary>
 /// <c>Shiv</c>: 0-cost attack that exhausts. Its native <c>TargetType</c> is AllEnemies while the

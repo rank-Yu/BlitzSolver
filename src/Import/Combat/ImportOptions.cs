@@ -1,7 +1,7 @@
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Models;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>
 /// Root-local values the old search bridge carried on its snapshot rather than in the native
@@ -43,7 +43,7 @@ public sealed record ImportOptions
     /// <summary>
     /// The exact card objects present in the player's combat piles at the turn-setup Start snapshot.
     /// <see cref="BattleImporter"/> marks a card created during setup with
-    /// <see cref="BlitzSolver.Simulation.Combat.Keywords.CreatedAfterRoot"/> when it is not in this set. Null keeps
+    /// <see cref="Sts2Solver.Simulation.Combat.Keywords.CreatedAfterRoot"/> when it is not in this set. Null keeps
     /// the previous approximation for non-setup roots.
     /// </summary>
     public IReadOnlySet<CardModel>? RootCards { get; init; }
@@ -51,7 +51,7 @@ public sealed record ImportOptions
     /// <summary>
     /// The stable known-enemy order for a mid-combat import. Root capture leaves this null and uses
     /// <c>CombatState.Enemies</c> (all alive). Deployment reconciliation passes the root order plus
-    /// summons, so an enemy removed from the native list after death keeps its Blitz row.
+    /// summons, so an enemy removed from the native list after death keeps its Sts2Solver row.
     /// </summary>
     public IReadOnlyList<Creature>? KnownEnemies { get; init; }
 

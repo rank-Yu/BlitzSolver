@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Cards.Event;
+namespace Sts2Solver.Content.Cards.Event;
 
 [ContentId("ABUNDANCE")]
 public sealed class Abundance : CardDef
@@ -118,7 +118,7 @@ public sealed class Maul : CardDef
     public override IReadOnlyList<string> VarNames => ["Damage", "Increase"];
 
     // BespokeCardMirrors.MaulOnPlay: two attack hits, then every Maul card in AllCards gets
-    // DynamicVars.Damage += Increase and _extraDamageFromMaulPlays += Increase. Blitz keeps the
+    // DynamicVars.Damage += Increase and _extraDamageFromMaulPlays += Increase. Sts2Solver keeps the
     // Damage offset in Var0 and the private accumulator in Private.
     public override void OnPlay(ref Exec x)
     {

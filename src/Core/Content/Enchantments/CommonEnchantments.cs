@@ -1,6 +1,6 @@
-using BlitzSolver.Simulation.Combat;
+using Sts2Solver.Simulation.Combat;
 
-namespace BlitzSolver.Content.Enchantments;
+namespace Sts2Solver.Content.Enchantments;
 
 /// <summary><c>Sharp</c>: adds the enchantment amount to powered attacks (decompiled Sharp.cs).</summary>
 [ContentId("SHARP")]
@@ -62,7 +62,7 @@ public sealed class Momentum : EnchantmentDef
         ref Card played = ref Kernel.CurrentPlayCard(ref x);
         long extra = (long)played.EnchantmentPrivate + played.EnchantmentAmount;
         if (extra is < short.MinValue or > short.MaxValue)
-            throw new UnsupportedException($"Momentum 累计伤害 {extra} 超出 Blitz 的短整型表示。");
+            throw new UnsupportedException($"Momentum 累计伤害 {extra} 超出 Sts2Solver 的短整型表示。");
         played.EnchantmentPrivate = (short)extra;
         Kernel.SyncCurrentPlayCard(ref x);
     }
@@ -96,7 +96,7 @@ public sealed class Goopy : EnchantmentDef
             return;
         ref Card card = ref x.B.Cards[self.Index];
         if (card.EnchantmentAmount == short.MaxValue)
-            throw new UnsupportedException($"Goopy 层数 {card.EnchantmentAmount} 超出 Blitz 的短整型表示。");
+            throw new UnsupportedException($"Goopy 层数 {card.EnchantmentAmount} 超出 Sts2Solver 的短整型表示。");
         card.EnchantmentAmount++;
         if ((card.Flags & CardFlags.DeckCard) != 0)
         {

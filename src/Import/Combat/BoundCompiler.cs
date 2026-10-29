@@ -2,10 +2,10 @@
 // (MIT, Copyright (c) 2026 Torch1230 and contributors). Per-content classifications are frozen in
 // HealingBoundTables (the exact D1 answers); root predicates are reimplemented against the native
 // models and the imported Battle.
-using BlitzSolver.Simulation.Combat;
-using BlitzSolver.Ai.Combat;
-using BlitzSolver.Ai.Combat.Scoring;
-using BlitzSolver.Ai.Combat.Policy;
+using Sts2Solver.Simulation.Combat;
+using Sts2Solver.Ai.Combat;
+using Sts2Solver.Ai.Combat.Scoring;
+using Sts2Solver.Ai.Combat.Policy;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -26,7 +26,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using Creature = MegaCrit.Sts2.Core.Entities.Creatures.Creature;
 using EnchantmentInstinct = MegaCrit.Sts2.Core.Models.Enchantments.Instinct;
 
-namespace BlitzSolver.Import;
+namespace Sts2Solver.Import;
 
 /// <summary>
 /// Compiles <see cref="BoundFeatures.Config"/> from the native root, the imported <see cref="Battle"/>
