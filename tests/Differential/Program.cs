@@ -43,6 +43,11 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--rooms-later-combat-failure") return FirstCombatReference.LaterCombatFailure();
+        if (args.Length == 1 && args[0] == "--multiroom-host-checks") return MultiRoomHostChecks.Run();
+        if (args.Length == 1 && args[0] == "--shop-host-checks") return ShopHostChecks.Run();
+        if (args.Length == 2 && args[0] == "--rooms-reference") return RoomsReference.Run(int.Parse(args[1]));
+        if (args.Length == 2 && args[0] == "--rooms-production") return RoomsReference.Production(int.Parse(args[1]));
         if (args.Length == 1 && args[0] == "--postcombat-production-capture") return FirstCombatReference.ProductionPostCombat();
         if (args.Length == 1 && args[0] == "--postcombat-host-checks") return PostCombatHostChecks.Run();
         if (args.Length > 0 && args[0] == "--run-host-compare")

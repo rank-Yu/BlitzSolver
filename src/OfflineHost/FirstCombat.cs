@@ -7,7 +7,8 @@ namespace BlitzSolver.OfflineHost;
 /// <summary>Standalone process input. No game or test types cross this boundary.</summary>
 public sealed record FirstCombatOptions(string GameDataDirectory, string Seed = "R3B2-DECISION",
     string Character = "Ironclad", int Ascension = 0, string UnlockProfile = "neow-epoch-v1",
-    string SearchTier = "Low", int TimeoutSeconds = 300, long MemoryBudgetBytes = 2576980377, string StopAfter = "first-combat");
+    string SearchTier = "Low", int TimeoutSeconds = 300, long MemoryBudgetBytes = 2576980377, string StopAfter = "first-combat",
+    int MaxRooms = 4, int MaximumDecisions = 256, int MaximumSteps = 512);
 public sealed record VisibleChoice(string Kind, string[] Options, string[] Selected);
 public sealed record StateSummary(string Sha256, int Hp, int MaxHp, int Gold, string[] Deck,
     string[] Relics, string[] Potions);
@@ -18,7 +19,9 @@ public sealed record CombatSummary(string Status, string Outcome, int Turns, int
 public sealed record FirstCombatResult(string Status, string? Milestone, string? Detail,
     FirstCombatOptions Configuration, string Policy, VisibleChoice[] Choices,
     StateSummary? Starting, StateSummary? AfterCombat, CombatSummary? Combat,
-    StateSummary? AfterRewards = null, NextRoomSummary? NextRoom = null);
+    StateSummary? AfterRewards = null, NextRoomSummary? NextRoom = null,
+    RoomSummary[]? Rooms = null, CombatSummary[]? Combats = null, StateSummary? FinalState = null);
+public sealed record RoomSummary(string RoomType, string Model, int Col, int Row, StateSummary State);
 public sealed record NextRoomSummary(string RoomType, string Model, int Col, int Row, StateSummary State);
 
 public static class FirstCombat
@@ -32,7 +35,8 @@ public static class FirstCombat
             || options.Ascension is < 0 or > 10 || options.TimeoutSeconds is < 1 or > 86400
             || options.MemoryBudgetBytes < 1 || options.UnlockProfile != "neow-epoch-v1"
             || options.SearchTier is not ("Low" or "Medium" or "High" or "ExtraHigh")
-            || options.StopAfter is not ("first-combat" or "next-room")
+            || options.StopAfter is not ("first-combat" or "next-room" or "rooms")
+            || options.MaxRooms is < 1 or > 100 || options.MaximumDecisions < 1 || options.MaximumSteps < 1
             || options.Character is not ("Ironclad" or "Silent" or "Regent" or "Necrobinder" or "Defect"))
             throw new InvalidDataException("Invalid first-combat configuration.");
         if (Interlocked.Exchange(ref _started, 1) != 0)

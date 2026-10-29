@@ -36,6 +36,8 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
     private bool _waiting;
     private bool _combatPending;
     private bool _inCombatCallback;
+    private bool _shopRemoval;
+    internal static bool IsShopRemoval => Active.Value is { Open: true } scope && scope.Host._shopRemoval;
     private CancellationTokenSource? _operation;
     private CancellationTokenSource? _boundaryOperation;
     private sealed record Execution(OfflineRunHost Host, RunDecisionCallback Decide, CancellationToken Token)
@@ -108,7 +110,8 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
                 if (boundary.Event != null && !ReferenceEquals(boundary.Event.Owner?.RunState, _run))
                     throw new InvalidDataException("host-event-run-changed");
                 RunExecutor.Pending pending = boundary.Kind == OfflineBoundaryKind.Rewards
-                    ? RewardPending(NextToken()) : _executor.Import(boundary, _run, _player, NextToken());
+                    ? RewardPending(NextToken()) : boundary.Kind == OfflineBoundaryKind.Shop
+                        ? ShopPending(boundary, NextToken()) : _executor.Import(boundary, _run, _player, NextToken());
                 RunView view = Fresh(pending.Request); _pending = pending;
                 return new(RunBoundaryKind.Decision, view);
             }
@@ -179,7 +182,7 @@ public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
             CheckAvailable(executing: true);
             if (_pending != null) throw new InvalidDataException("host-child-busy");
             snapshot = RunDecisionImporter.CardSelect(_player, cards, selection.Prefs, selection.Kind, NextToken(),
-                selection.Kind == NativeCardSelectionKind.DeckUpgrade ? RunSelectionPurpose.Upgrade : RunSelectionPurpose.None);
+                _shopRemoval ? RunSelectionPurpose.Remove : selection.Kind == NativeCardSelectionKind.DeckUpgrade ? RunSelectionPurpose.Upgrade : RunSelectionPurpose.None);
             pending = RunExecutor.Bind(snapshot, (_, _) => Task.CompletedTask);
             view = Fresh(pending.Request); _pending = pending;
         }

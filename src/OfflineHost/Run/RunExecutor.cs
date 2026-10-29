@@ -12,10 +12,11 @@ using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 
 namespace BlitzSolver.OfflineHost.Run;
 
-public enum OfflineBoundaryKind { Map, Event, Rest, Combat, Terminal, Rewards, Paused }
+public enum OfflineBoundaryKind { Map, Event, Rest, Combat, Terminal, Rewards, Paused, Shop }
 /// <summary>Runtime signals: the library does not infer UI readiness, map enablement or victory from HP.</summary>
 public sealed record OfflineRunBoundary(OfflineBoundaryKind Kind, EventModel? Event = null,
     RestSiteRoom? Rest = null, Func<bool>? TravelEnabled = null,
+    MerchantRoom? Shop = null, Func<bool>? ShopActive = null, Action? CloseShop = null,
     BlitzSolver.Autoplay.RunStopReason Terminal = BlitzSolver.Autoplay.RunStopReason.Failed, string? Detail = null);
 
 public sealed class RunExecutor
@@ -43,11 +44,12 @@ public sealed class RunExecutor
         => new(snapshot.Request, snapshot.ValidateCurrent, action => snapshot.Resolve(action),
             action => dispatch(snapshot.Resolve(action), action));
 
-    private static Task ChooseRest(RestSiteRoom room, RestSiteOption option)
+    private static async Task ChooseRest(RestSiteRoom room, RestSiteOption option)
     {
         int index = -1;
         for (int i = 0; i < room.Options.Count; i++) if (ReferenceEquals(room.Options[i], option)) index = i;
         if (index < 0) throw new InvalidDataException("host-rest-instance");
-        return RunManager.Instance.RestSiteSynchronizer.ChooseLocalOption(index);
+        using IDisposable? emptyRewards = option is HealRestSiteOption ? RewardPresentation.AllowEmptyRestRewards(option.Owner) : null;
+        await RunManager.Instance.RestSiteSynchronizer.ChooseLocalOption(index);
     }
 }

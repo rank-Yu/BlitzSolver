@@ -35,14 +35,14 @@ BlitzSolver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场
 | `src/Core/Ai/Run/` | 局外决策：只读 `RunView` 与决策请求 |
 | `src/Core/Autoplay/` | `BlitzSolver.Autoplay`：`CombatPilot` 与 `RunPilot`（R3b） |
 | `src/Import/` | `BlitzSolver.Import`：原生 `CombatState` → `Battle`、原生 `RunState` → `RunState`、决策请求导入；唯一允许读游戏模型与私有字段的层，只读；子目录 `Combat/`、`Run/`、`Run/Decisions/`（R3b） |
-| `src/OfflineHost/` | 离线宿主骨架（R3b 落地）：普通 .NET 进程运行原版整局；子目录 `Runtime/`、`Combat/`、`Run/` |
+| `src/OfflineHost/` | 离线宿主（R3b）：普通 .NET 进程运行原版有界 Act1 多房间与商店；子目录 `Runtime/`、`Combat/`、`Run/` |
 | `src/TestHost/` | `BlitzSolver.TestHost`：测试用建局、注入与原生状态转储；战斗部分在 `Combat/`，整局在 `Run/` |
 | `src/Mod/` | `BlitzSolver`：RitsuLib Mod 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Run/`（R3c）、`UI/`、`Testing/`、`Patches/`；不加入 `BlitzSolver.sln` |
 | `tests/KernelChecks/` | K0 纯内核合同（程序集 `BlitzSolver.KernelChecks`）；战斗合同在 `Combat/`，整局合同在 `Run/` |
 | `tests/Golden/` | 冻结快照校验器（程序集 `BlitzSolver.Golden`）与 `data/`；战斗校验器在 `Combat/` |
 | `tests/Architecture/` | 编译后的 `BlitzSolver.Core` 层依赖检查（程序集 `BlitzSolver.Architecture`），加入 `BlitzSolver.sln` |
 | [`tests/Differential/`](../tests/Differential/README.md) | 进程内差分：不启动 Godot，建出原生 `CombatState`/`RunState`；战斗对照、进程内原版动作执行与离线整场在 `Combat/`，整局导入、建局、地图选点、内容表与 `RulesBuilder` 在 `Run/`；需要游戏文件，不在 CI 中运行 |
-| `tools/run-eval/` | 整局评估器骨架（R5 落地）：多进程跑原版整局、配对比较与分组报表 |
+| `tools/run-eval/` | 独立烟测 CLI：首战、下一房间与有界多房间；批量整局评估仍待 R5 |
 | `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
 
 依赖方向：`Content → Simulation.Combat`（整局层还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层，`Ai.Combat` 不引用 `Content`（内容通过注册表挂到模拟上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`OfflineHost` 引用 Core、Import、游戏程序集与 Godot/Harmony，不引用 `TestHost`；`Mod` 不引用 `OfflineHost`。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `BlitzSolver.sln`，依赖规则由 `tests/Architecture` 检查。

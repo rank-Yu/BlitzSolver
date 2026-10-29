@@ -7,8 +7,8 @@ internal static class Program
     {
         if (args.Length == 1 && args[0] is "--help" or "-h")
         {
-            Console.WriteLine("run-eval --game-data PATH [--seed R3B2-DECISION] [--character Ironclad] [--ascension 0] [--unlocks neow-epoch-v1] [--tier Low|Medium|High|ExtraHigh] [--timeout-seconds 300] [--stop-after first-combat|next-room]");
-            Console.WriteLine("Starts one native run; default stops before rewards, next-room claims rewards and pauses in the next room. JSON output; Ctrl+C cancels.");
+            Console.WriteLine("run-eval --game-data PATH [--seed R3B2-DECISION] [--character Ironclad] [--ascension 0] [--unlocks neow-epoch-v1] [--tier Low|Medium|High|ExtraHigh] [--timeout-seconds 300] [--stop-after first-combat|next-room|rooms] [--max-rooms 4] [--max-decisions 256] [--max-steps 512]");
+            Console.WriteLine("Starts one native run; default stops before rewards, next-room pauses after entering the next room, rooms completes a bounded number of Act1 map rooms. JSON output; Ctrl+C cancels.");
             return 0;
         }
         try
@@ -16,7 +16,7 @@ internal static class Program
             string? data = null;
             string stopAfter = "first-combat";
             string seed = "R3B2-DECISION", character = "Ironclad", unlocks = "neow-epoch-v1", tier = "Low";
-            int ascension = 0, seconds = 300;
+            int ascension = 0, seconds = 300, maxRooms = 4, maxDecisions = 256, maxSteps = 512;
             HashSet<string> seen = [];
             for (int i = 0; i < args.Length; i++)
             {
@@ -25,6 +25,9 @@ internal static class Program
                 string value = args[++i];
                 switch (name)
                 {
+                    case "--max-rooms" when int.TryParse(value, out int r): maxRooms = r; break;
+                    case "--max-decisions" when int.TryParse(value, out int d): maxDecisions = d; break;
+                    case "--max-steps" when int.TryParse(value, out int st): maxSteps = st; break;
                     case "--stop-after": stopAfter = value; break;
                     case "--game-data": data = value; break;
                     case "--seed": seed = value; break;
@@ -44,7 +47,8 @@ internal static class Program
             if (unlocks != "neow-epoch-v1") throw new InvalidDataException("Unknown unlock profile: " + unlocks);
             if (tier is not ("Low" or "Medium" or "High" or "ExtraHigh"))
                 throw new InvalidDataException("Unknown tier: " + tier);
-            if (stopAfter is not ("first-combat" or "next-room")) throw new InvalidDataException("Unknown stop-after: " + stopAfter);
+            if (maxRooms is < 1 or > 100 || maxDecisions < 1 || maxSteps < 1) throw new InvalidDataException("Invalid room/decision/step budget.");
+            if (stopAfter is not ("first-combat" or "next-room" or "rooms")) throw new InvalidDataException("Unknown stop-after: " + stopAfter);
             using CancellationTokenSource cancellation = new();
             void Cancel(object? sender, ConsoleCancelEventArgs eventArgs) { eventArgs.Cancel = true; cancellation.Cancel(); }
             Console.CancelKeyPress += Cancel;
@@ -53,11 +57,11 @@ internal static class Program
             try
             {
                 Console.SetOut(Console.Error); // Native assembly initialization can print diagnostics.
-                result = FirstCombat.Run(new(data, seed, character, ascension, unlocks, tier, seconds, StopAfter: stopAfter), cancellation.Token);
+                result = FirstCombat.Run(new(data, seed, character, ascension, unlocks, tier, seconds, StopAfter: stopAfter, MaxRooms: maxRooms, MaximumDecisions: maxDecisions, MaximumSteps: maxSteps), cancellation.Token);
             }
             finally { Console.SetOut(output); Console.CancelKeyPress -= Cancel; }
             Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-            return result.Milestone is "first-combat-complete" or "next-room-entered" ? 0
+            return result.Milestone is "first-combat-complete" or "next-room-entered" or "room-budget-reached" ? 0
                 : result.Status == "Timeout" ? 4 : result.Status == "Cancelled" ? 130 : 1;
         }
         catch (InvalidDataException error) { Console.Error.WriteLine(error.Message); return 2; }

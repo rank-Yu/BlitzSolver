@@ -27,14 +27,14 @@
 | `src/Core/Autoplay` | `CombatPilot` 整场战斗决策循环；`RunPilot` 随 R3b |
 | `src/Import` | 原生导入；战斗导入在 `Combat/`，整局与决策请求在 `Run/` |
 | `src/TestHost` | 测试共享建局与转储；战斗在 `Combat/`，整局在 `Run/` |
-| `src/OfflineHost` | 离线宿主骨架（R3b 落地）；R3-0 只有 README |
+| `src/OfflineHost` | 原版离线宿主：首战、下一房间、有界 Act1 多房间及商店 |
 | `src/Mod` | RitsuLib Mod 入口、战斗与测试代码；不加入 `BlitzSolver.sln` |
 | `tests/KernelChecks` | 内核合同（K0）；战斗合同在 `Combat/` |
 | `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data`，战斗校验器在 `Combat/` |
 | `tests/Architecture` | 编译后的 Core 层依赖检查 |
 | `tests/Differential` | 进程内差分；战斗对照与离线整场在 `Combat/`，导入/建局/地图进点在 `Run/` |
 | `tools/testing` | Linux 无头实例启动与请求/结果轮询 |
-| `tools/run-eval` | 整局评估器骨架（R5）；R3-0 只有 README |
+| `tools/run-eval` | 独立首战/下一房间/有界多房间烟测 CLI；批量整局评估待 R5 |
 | `tests/corpora/quality` | 120 根质量语料（五个角色 × 三幕） |
 | `docs` | 规格文档，从 [docs/README.md](docs/README.md) 进入 |
 

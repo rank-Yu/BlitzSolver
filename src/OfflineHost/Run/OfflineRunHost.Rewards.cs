@@ -39,7 +39,12 @@ public sealed partial class OfflineRunHost
         { CheckAvailable(executing: true); token.ThrowIfCancellationRequested(); ValidateRun();
             presentation = _rewards ?? throw new InvalidDataException("host-no-rewards"); }
         await presentation.SettleRoomExit(token);
-        lock (_gate) { CheckAvailable(executing: true); ValidateRun(); }
+        await presentation.DisposeAsync();
+        lock (_gate)
+        { CheckAvailable(executing: true); ValidateRun();
+            if (!ReferenceEquals(_rewards, presentation)) throw new InvalidDataException("host-reward-lease-changed");
+            _rewards = null;
+        }
     }
     private RunExecutor.Pending RewardPending(RunDecisionToken token)
     {

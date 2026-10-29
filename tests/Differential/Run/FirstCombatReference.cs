@@ -198,7 +198,7 @@ internal static class FirstCombatReference
         { singleRunRejected = true; }
         bool passed = result.Status == "Cancelled" && result.Milestone == null
             && result.Combat is { Actions: >= 1 } && _selectorScopes == 0 && _subscriptions == 0
-            && singleRunRejected;
+            && singleRunRejected && (result.FinalState == null || result.FinalState.Hp == (int)RunManager.Instance.DebugOnlyGetState()!.Players.Single().Creature.CurrentHp);
         Console.WriteLine(JsonSerializer.Serialize(new { passed, selectorScopes = _selectorScopes,
             subscriptions = _subscriptions, singleRunRejected, result }));
         return passed ? 0 : 1;
@@ -251,6 +251,24 @@ internal static class FirstCombatReference
         }
     }
 
+    private static int _compiledCombats;
+    internal static int LaterCombatFailure()
+    {
+        new Harmony("BlitzSolver.Differential.LaterCombatFailure").Patch(
+            AccessTools.Method(typeof(RulesCompiler), nameof(RulesCompiler.Compile)),
+            prefix: new HarmonyMethod(typeof(FirstCombatReference), nameof(FailLaterCompile)));
+        var result = BlitzSolver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir, StopAfter: "rooms", MaxRooms: 4));
+        bool rejected = result.Status == "Failed" && result.Detail == "fixture-second-combat-root"
+            && result.Rooms is { Length: 1 } && result.Combats is { Length: 1 }
+            && result.FinalState == null && ProductionCapture.Value == null && ProductionCapture.Path == ProductionPath.None;
+        Console.WriteLine(JsonSerializer.Serialize(new { rejected, result }));
+        return rejected ? 0 : 1;
+    }
+    private static void FailLaterCompile()
+    {
+        if (++_compiledCombats == 2) throw new InvalidDataException("fixture-second-combat-root");
+    }
+
     internal static int Contracts()
     {
         int checks = 0;
@@ -291,6 +309,8 @@ internal static class FirstCombatReference
         try { ProductionCapture.RequireValue(); }
         catch (InvalidDataException error) when (error.Message == "capture-original-failure") { rejected = true; }
         Check(rejected, "capture failure must preserve original reason");
+        ProductionCapture.Clear();
+        Check(ProductionCapture.Value == null && ProductionCapture.Path == ProductionPath.None, "new combat clears prior terminal evidence before any action");
         ProductionCapture.End();
         using CancellationTokenSource cancellation = new();
         cancellation.Cancel();
@@ -312,6 +332,9 @@ internal static class FirstCombatReference
             new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, SearchTier: "unknown"),
             new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MemoryBudgetBytes: 0),
             new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, StopAfter: "unknown"),
+            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaxRooms: 0),
+            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaximumSteps: 0),
+            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MaximumDecisions: 0),
         })
         {
             rejected = false;

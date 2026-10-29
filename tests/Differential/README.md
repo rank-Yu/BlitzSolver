@@ -114,7 +114,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll --run-reward-shop-com
 Discard 只调用 PotionCmd.Discard，领取需新列表动作，未覆盖 NPotionPopup 的动作入队/UI 链。
 商店 Leave 只关闭库存，不退出房间；删牌成功后的 SetUsed 仅补原 UI 职责，不重写扣费/移牌。
 MerchantPotionEntry.CalcCost 周围用局部 prefix/finalizer 还原真实随机价路径并检查异常恢复；
-旧 probe/测试默认模式不安装这些新增桥接。正式 OfflineHost 的奖励/商店执行、Mod 桥接与通用 bundle/RelicSelect 仍未落地。
+旧 probe/测试默认模式不安装这些新增桥接。正式 OfflineHost 已实现有界 Act1、多场战斗奖励与商店执行；Mod 桥接与通用 bundle/RelicSelect 仍未落地。
 
 ## 战斗边界建局
 
@@ -319,3 +319,23 @@ selector/动作订阅归零，且同进程第二局被拒绝。
 第二项只给正式 FirstCombat.Run 增加只读 NativeRunDump 阶段 hash，第三项使用旧测试 runtime、
 旧 NativePilotHost 及同步测试 selector 直接驱动原版，对照全部阶段 RunDump、NativeRunDump 加独立序列化的完整 MapPointHistory 与可见候选。
 生产实现与独立参考均保留原版 alternatives/hooks；参考没有调用正式奖励桥。
+
+## 有界多房间与正式商店对照
+
+    dotnet artifacts/bin/Differential/release/Differential.dll --rooms-production 4
+    dotnet artifacts/bin/Differential/release/Differential.dll --rooms-reference 4
+    dotnet artifacts/bin/Differential/release/Differential.dll --shop-host-checks
+    dotnet artifacts/bin/Differential/release/Differential.dll --multiroom-host-checks
+
+rooms-production 仅在测试进程通过 Harmony 旁观公开房间摘要构造，捕获本房完成边界的完整 RunDump、
+NativeRunDump（包括 RNG）及序列化的完整 MapPointHistory；生产 CLI 不包含这些大轨迹。
+rooms-reference 使用独立旧 runtime/TestHost 建局、旧 NativePilotHost 与原版直接选项/奖励推进，
+不调用生产 host/policy 循环；目前固定主 seed Ironclad/A0/Low 的普通 Act1 路径，参数是完成房间数。
+两进程 JSON 的 checkpoints 和完整 combats 应逐字段相同。默认初始化诊断可能在首行，解析末行 JSON。
+
+shop-host-checks 通过正式 OfflineRunHost 执行商品/删牌，与新建相同夹具上的原版 wrapper 直接结果、
+history 和 RNG 对照；定向覆盖折扣补货、stale/不足金、取消/late、满药水、未知回调、正常价格 scope
+与实际 Exit 未购记录。multiroom-host-checks 覆盖普通治疗、MiniatureTent 保留选项、Smith 取消/成功
+和空奖励生成 hook 变成可选奖励时的显式拒绝、嵌套、异常、取消恢复。
+postcombat-host-checks 额外覆盖两次真实离房间的奖励租约及旧 token，过程 setup 的 EndCombatInternal
+只建立生命周期夹具，不代表自然战斗胜利。自然游玩证据来自独立 CLI/rooms-reference。

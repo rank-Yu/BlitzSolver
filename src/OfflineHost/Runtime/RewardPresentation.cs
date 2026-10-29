@@ -13,6 +13,29 @@ namespace BlitzSolver.OfflineHost.Run;
 internal sealed class RewardPresentation : IAsyncDisposable
 {
     private static readonly AsyncLocal<RewardPresentation?> Offering = new();
+    private static readonly AsyncLocal<EmptyRestRewards?> RestRewards = new();
+    private sealed class EmptyRestRewards(Player player) : IDisposable
+    {
+        internal readonly Player Player = player;
+        internal RewardsSet? Set;
+        internal bool Open = true;
+        public void Dispose() { Open = false; RestRewards.Value = null; }
+    }
+    internal static bool EmptyRestRewardsActive => RestRewards.Value is { Open: true };
+    internal static IDisposable AllowEmptyRestRewards(Player player)
+    {
+        if (!OfflineRunHost.IsExecuting || RestRewards.Value != null || _owner != null)
+            throw new UnsupportedException("host-rest-reward-scope");
+        var scope = new EmptyRestRewards(player); RestRewards.Value = scope; return scope;
+    }
+    internal static void CheckGenerated(RewardsSet set)
+    {
+        // Heal always offers a custom set, even when empty. Hooks still run in the original
+        // GenerateWithoutOffering. Reject generated choices before BeginRewardsSet can select.
+        if (RestRewards.Value is { } scope && ReferenceEquals(scope.Set, set)
+            && (!scope.Open || set.Room != null || set.Rewards.Count != 0))
+            throw new UnsupportedException("host-unsupported-rest-rewards");
+    }
     private static RewardPresentation? _owner;
     private readonly Player _player;
     private readonly CombatRoom _room;
@@ -68,6 +91,15 @@ internal sealed class RewardPresentation : IAsyncDisposable
         RewardPresentation? owner = Offering.Value;
         if (owner == null)
         {
+            if (RestRewards.Value is { } rest)
+            {
+                if (OfflineRunHost.IsExecuting && rest.Open && rest.Set == null && _owner == null
+                    && ReferenceEquals(rest.Player, set.Player) && set.Room == null && set.Rewards.Count == 0)
+                { rest.Set = set; return; }
+                // A captured ExecutionContext can outlive Dispose. It must never fall through
+                // to TestMode's default reward selector after its execution/scope has closed.
+                throw new UnsupportedException("host-unsupported-native-entry:RewardsSet.Offer");
+            }
             if (_owner != null || OfflineRunHost.IsExecuting) throw new UnsupportedException("host-unsupported-native-entry:RewardsSet.Offer");
             return;
         }
@@ -118,6 +150,8 @@ internal sealed class RewardPresentation : IAsyncDisposable
             throw new InvalidDataException("host-reward-exit-unconfirmed");
         _released.TrySetResult();
         await (_offer ?? throw new InvalidDataException("host-reward-offer-missing")).WaitAsync(token);
+        if (_generation != null) await _generation.WaitAsync(token);
+        if (_start != null) await _start.WaitAsync(token);
         token.ThrowIfCancellationRequested();
         if (_closed || ReferenceEquals(_room, _player.RunState.CurrentRoom))
             throw new InvalidDataException("host-reward-exit-unconfirmed");

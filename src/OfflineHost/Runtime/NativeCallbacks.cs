@@ -43,14 +43,19 @@ internal static class NativeCallbacks
             harmony.Patch(AccessTools.Method(typeof(RewardsSet), nameof(RewardsSet.Offer)),
                 prefix: new HarmonyMethod(typeof(NativeCallbacks), nameof(RewardOfferPrefix)),
                 postfix: new HarmonyMethod(typeof(NativeCallbacks), nameof(RewardOfferPostfix)));
+            harmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Multiplayer.Game.RewardsSetSynchronizer), "BeginRewardsSet"),
+                prefix: new HarmonyMethod(typeof(NativeCallbacks), nameof(GeneratedRewardsPrefix)));
             RewardCardScreen.Install(harmony);
             _installed = true;
         }
     }
+    private static void GeneratedRewardsPrefix(RewardsSet set) => RewardPresentation.CheckGenerated(set);
     private static void RewardOfferPrefix(RewardsSet __instance) => RewardPresentation.CheckOffer(__instance);
     private static void RewardOfferPostfix(RewardsSet __instance, Task __result) => RewardPresentation.TrackOffer(__instance, __result);
     private static void RejectUnsupported(MethodBase __originalMethod)
     {
+        if (OfflineRunHost.IsShopRemoval && __originalMethod.DeclaringType == typeof(CardSelectCmd)
+            && __originalMethod.Name == nameof(CardSelectCmd.FromDeckForRemoval)) return;
         if (OfflineRunHost.IsExecuting)
             throw new BlitzSolver.Simulation.Combat.UnsupportedException("host-unsupported-native-entry:" + __originalMethod.DeclaringType!.Name + "." + __originalMethod.Name);
     }

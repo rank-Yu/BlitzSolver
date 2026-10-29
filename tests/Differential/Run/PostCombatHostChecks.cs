@@ -59,6 +59,7 @@ internal static class PostCombatHostChecks
         Case("dispose-pending-child-and-late-answer", () => Cancellation(true));
         Case("child-stale-rejected", Stale);
         Case("unrelated-offer-and-native-raw-failure", Failures);
+        Case("two-leases-room-exit-and-old-token", TwoLeases);
         Console.WriteLine($"POSTCOMBAT status=pass cases={_cases} checks={_checks}");
         return 0;
     }
@@ -103,7 +104,7 @@ internal static class PostCombatHostChecks
             CardCreationSource.Encounter, player, CardCreationOptions.ForRoom(player, RoomType.Monster)) { CanReroll = reroll };
     private static RewardsSet Set(Player player, CombatRoom room, params Reward[] rewards)
         => new RewardsSet(player).EmptyForRoom(room).WithCustomRewards(rewards.ToList());
-    private static (NativeRun Run, Player Player, OfflineRunHost Host) Prepare(Func<Player, CombatRoom, RewardsSet> factory, bool start = true)
+    private static (NativeRun Run, Player Player, OfflineRunHost Host) Prepare(Func<Player, CombatRoom, RewardsSet> factory, bool start = true, bool multi = false)
     {
         var create = RunTestHost.StartNewRunWithUnlocksAsync(ModelDb.AllCharacters.Single(c => c.GetType().Name == "Ironclad"),
             0, "R3B2-DECISION", new UnlockState([new NeowEpoch().Id], [], 1));
@@ -116,11 +117,20 @@ internal static class PostCombatHostChecks
         _factory = factory;
         bool first = true;
         OfflineRunHost? host = null;
-        host = new(run, player, _ => ValueTask.FromResult(first
-            ? new OfflineRunBoundary(OfflineBoundaryKind.Combat)
-            : host!.RewardsProceedConfirmed
-                ? new OfflineRunBoundary(OfflineBoundaryKind.Map, TravelEnabled: () => host!.RewardsTravelEnabled)
-                : new OfflineRunBoundary(OfflineBoundaryKind.Rewards)),
+        async ValueTask<OfflineRunBoundary> Boundary(CancellationToken token)
+        {
+            if (multi && !ReferenceEquals(run.CurrentRoom, room))
+            {
+                await host!.ConfirmRewardsRoomExitAsync(token);
+                Check(RewardsSet.testSelector == null, "settled previous lease releases global selector before reuse");
+                room = run.CurrentRoom as CombatRoom ?? throw new InvalidDataException("fixture-next-combat");
+                first = true;
+            }
+            return first ? new(OfflineBoundaryKind.Combat)
+                : host!.RewardsProceedConfirmed ? new(OfflineBoundaryKind.Map, TravelEnabled: () => host!.RewardsTravelEnabled)
+                : new(OfflineBoundaryKind.Rewards);
+        }
+        host = new(run, player, Boundary,
             async token => { first = false; await host!.OfferCombatRewardsAsync(room, token); return new(); });
         Get(host.WaitForBoundaryAsync(default));
         if (start) Get(host.RunCombatAsync(default));
@@ -192,6 +202,29 @@ internal static class PostCombatHostChecks
             && run.MapPointHistory.SelectMany(a => a).SelectMany(h => h.PlayerStats).Sum(s => s.CardChoices.Count) == 2,
             "real map entry skips stack and completes tracked offer");
         Wait(host.DisposeAsync().AsTask());
+    }
+    private static void TwoLeases()
+    {
+        var (run, player, host) = Prepare((p, r) => Set(p, r, Cards(p)), multi: true);
+        RunView first = Get(host.WaitForBoundaryAsync(default)).View, firstChild = default;
+        Wait(host.ExecuteAsync(Pick(first), (v, _) => { firstChild = v; return ValueTask.FromResult(Pick(v)); }, default).AsTask());
+        RunView leave = Get(host.WaitForBoundaryAsync(default)).View;
+        Wait(host.ExecuteAsync(Pick(leave, RunDecisionOptionKind.Leave), NoChild, default).AsTask());
+        RunView map = Get(host.WaitForBoundaryAsync(default)).View;
+        int next = Enumerable.Range(0, map.Request.OptionCount).First(i => map.Request.Options[i].PointType == RunMapPointType.Monster);
+        Wait(host.ExecuteAsync(Pick(map, next), NoChild, default).AsTask());
+        Wait(new OfflineCombatWaiter(_loop).WaitForPlayableCombatAsync());
+        Wait(CombatManager.Instance.EndCombatInternal());
+        RunPilotBoundary combat = Get(host.WaitForBoundaryAsync(default));
+        Check(combat.Kind == RunBoundaryKind.Combat, "second native combat boundary after real room exit");
+        Get(host.RunCombatAsync(default));
+        RunView second = Get(host.WaitForBoundaryAsync(default)).View;
+        Check(second.Request.Token.SessionId == first.Request.Token.SessionId
+            && second.Request.Token.Revision > firstChild.Request.Token.Revision, "lease reuse preserves monotonic session revision");
+        Reject(() => host.ExecuteAsync(Pick(firstChild), NoChild, default).AsTask(), "action-token");
+        Wait(host.ExecuteAsync(Pick(second), (v, _) => ValueTask.FromResult(Pick(v)), default).AsTask());
+        End(host);
+        Check(RewardsSet.testSelector == null && CardSelectCmd.Selector == null, "two completed leases leave no global owner");
     }
     private static void Empty()
     {

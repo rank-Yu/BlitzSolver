@@ -1,4 +1,4 @@
-# OfflineHost 原版战后宿主
+# OfflineHost 原版有界整局宿主
 
 普通 .NET 9 库，不加入 solution。依赖 Core、Import、原版游戏、GodotSharp 和 Harmony；
 不引用 TestHost/Differential，不链接其源文件。公开 FirstCombat 接口只有 BCL DTO。
@@ -17,7 +17,7 @@ Runtime 自建单线程 SynchronizationContext，驱动原版 async 续体。Off
 只接受 Neow 事件、地图及其选牌请求；过滤 Disabled/Locked，优先可见 LAVA_ROCK，
 否则选第一个合法选项。它只是烟测策略，没有 R4 局外估值，也不读取 seed、RNG 或未来内容。
 输出地图坐标和点类型。next-room-smoke-v1 还选择可见奖励、首张合法卡及合法 Leave；满药水时丢弃首个合法槽，
-回到奖励列表后重新选择领取。两个策略都只读可见 DTO。未知事件、房间和未授权奖励入口显式失败。
+回到奖励列表后重新选择领取。这些策略都只读可见 DTO。first/next 的选择顺序兼容；rooms-smoke-v1 见下节。未知原生命令和未授权奖励入口显式失败。
 
 Combat 接入既有 RulesCompiler、LiveCombatTracker、CombatPilot、SearchRequestCompiler、
 BeamSolver 和 WideningSearch。默认 Low：256 起始/最大宽、每宽 2000 节点、原有 60000ms 档位，
@@ -54,13 +54,46 @@ surrogate 不调用 Godot 构造或 Dispose，创建后立即抑制终结器；�
 DiscardPotionGameAction 的队列与完成等待，返回保留库存；两者都回奖励列表，必须新操作领取。
 terminal Leave 调用原版 ProceedFromTerminalRewardsScreen 打开地图。原版并不在此跳过未领奖励，
 所以 host 继续持有 OfferTask；实际 EnterMapCoord 的 BeforeLeavingRoom 才写入 OnSkipped/history
-并完成同步器 stack。新房间稳定后等待原始 Offer 完成，返回通用 Paused，不调用第二场战斗。
+并完成同步器 stack。新房间稳定后等待原始 generation/Offer/Start 完成，释放 selector、订阅和 owner，再清空 host 引用；next-room 返回通用 Paused，rooms 可以新建下一场奖励租约。
 新增 AfterRewards/NextRoom 摘要与 next-room-smoke-v1 可见选择；默认 first-combat 模式兼容。
 
 取消不能回滚原版已发生效果。原版 CardReward.OnSelect 在 await 被取消时可能保留未完成的
 screen 引用及模型自己的 RelicObtained 订阅，host 不写它的私有 gameplay 状态来伪装完成；
 host 的 selector/事件订阅/租约全部释放，已知 surrogate 的 OptionSelected/RefreshOptions/GetCardHolder 迟到调用显式拒绝。
 该局不可恢复，独立 CLI 一进程一局提供最终隔离。
+
+## 有界多房间与商店
+
+显式 StopAfter="rooms" 使用同一个 RunPilot，MaxRooms 默认 4，计数是达到本房原版可旅行边界的
+地图节点数，排除 Neow（虽然其坐标是第 0 行）。第 N 房处理完成后直接 Paused / room-budget-reached，
+不会进入第 N+1 房。事件走 EventSynchronizer；IsProceed 保留原始回调。休息走 RestSiteSynchronizer，
+取消 Smith 后仍继续选择，MiniatureTent 等保留选项时要等剩余选项真正完成。普通 Heal 的原版空
+OfferCustom 保留生成/hook/同步器，仅在 Heal dispatch 作用域允许一次无房间、无可选奖励的 set；
+若生成 hook 加入奖励，在 BeginRewardsSet 之前显式 Unsupported，未知嵌套不会被自动领取。
+
+rooms-smoke-v1 优先可见 Neow LAVA_ROCK；合法地图点按当前可见 col、row 排序；自然事件优先
+可见 Proceed/Leave/GiveUp，否则取末个合法项；休息选首个合法项；每个商店最多购买一项当前
+可负担商品，再 Leave。这些偏好只读 RunView/NativeKey，不看 seed、RNG 或未来内容。
+该保守策略不是胜率、估值或最优性声明。每场战斗都重新编译 rules、tracker/root/search policy；
+进入战斗前清空旧终局证据，逐动作和终局继续与原版核对。原有 Combat/AfterCombat/AfterRewards
+始终表示首战；新增 Rooms/Combats 汇总和 FinalState。FinalState 只在可确认导入的边界提供，
+原生命令将要 dispatch 时清空，避免失败/取消后的旧摘要被当成最终状态。
+
+商店展示已有 MerchantInventory 的 Cost 与原实体绑定；每次买/失败/补货后都重新导入 snapshot/token。
+商品走 OnTryPurchaseWrapper；删牌使用 cancelable:true 的原版 wrapper，真正异步子选择带完整
+prefs/确认/Cancel 与仅该 dispatch 生效的 Remove purpose。成功后补 NMerchantInventory 的
+SetUsed 模型责任，取消不花金币、不标用。满药水商品按原版合法性禁用，不自动开启奖励丢弃流程。
+Leave 只关闭展示；实际原版 Exit 才写未购卡/遗物/药水的 history，末房预算停止时不补写。
+
+MerchantRuntime 仅包住同步 MerchantPotionEntry.CalcCost 与 MerchantRoom.Exit，将 TestMode
+暂置 false 并在 Harmony finalizer 恢复。原版价格算法、hook 折扣/补货、Shops RNG 与未购 history
+逻辑不变，不跨 await 关闭 TestMode，不重新计算已展示的 Cost。资源旁路只新增 merchant assets 预载。
+
+主 seed Ironclad/A0/R3B2-DECISION/Low 的 rooms4 自然运行完成 SlimesWeak、NibbitsWeak、
+TabletOfTruth、ShrinkerBeetleWeak，共三场战斗和各自奖励。独立旧 runtime/TestHost/旧
+NativePilotHost 直接推进的逐房 RunDump、NativeRunDump、完整 MapPointHistory 与三份完整战斗摘要一致。
+定向生产夹具另覆盖商店购买/补货/stale/删牌/满药水/unknown、正常与异常价格 scope、实际 Exit history、
+休息取消/成功/保留选项/空奖励保护和跨两次奖励租约。夹具 setup 可以注入状态，不作为自然游玩证据。
 
 ## 初始化与无界面设施
 
@@ -99,5 +132,5 @@ stale、replay、嵌套拒绝及原始 Offer 异常。夹具中的 EndCombatInte
 测试专用 Harmony 负向夹具验证实际 runner 遇 HP 差异/缺捕获不能给出 milestone，
 并在原版首动作完成后取消，检查 selector/订阅释放及单进程单局限制。生产不包含测试环境变量后门。
 
-不支持商店、下一房间内的后续推进、三幕通关、批量评估、策略质量或全内容覆盖。
+不支持三幕通关、宝箱/Boss/换幕/嵌套战斗、复杂事件与任意嵌套奖励、批量评估、策略质量或全内容覆盖。
 使用方式见 tools/run-eval/README.md；共享执行协议见 docs/autoplay.md。

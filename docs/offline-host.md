@@ -2,12 +2,13 @@
 
 离线宿主的目标是在普通 .NET 9 控制台进程里加载原版 `sts2.dll`，由原版 `RunManager` 推进整局。
 它不启动 Godot 可执行文件，也不需要场景树；战斗通过 `CombatPilot` 交给 Blitz，局外每一步都从
-原版重新导入 `RunState`。现已有独立 `OfflineHost` 库、共享 `RunPilot` 与真实 Map/Event/Rest/CardSelect
+原版重新导入 `RunState`。现已有独立 `OfflineHost` 库、共享 `RunPilot` 与真实 Map/Event/Rest/Shop/CardSelect
 执行。Runtime/NewRunFactory/Combat 已迁移，tools/run-eval 通过纯 DTO 接口从独立进程正常启动，
 默认完成首场真实战斗并在领奖前以 Paused / first-combat-complete 停止；显式
 --stop-after next-room 支持原版战后奖励/异步选卡/满药水管理及合法进入下一房间，
-以通用 Paused / next-room-entered 停止。尚无商店及后续整局自动推进。独立入口只把明确已结束事件
-或已实际 Proceed 的战后奖励展示报告为地图边界；
+以通用 Paused / next-room-entered 停止。显式 --stop-after rooms --max-rooms N 在普通 Act1 处理多房间、
+多场独立战斗奖励与正式商店，在第 N 个地图节点达到安全可旅行边界后停止，不计 Neow、不进入下一房。
+独立入口按事件完成、休息同步器完成、商店 Leave 或已实际 Proceed 的战后奖励展示报告地图边界；
 原版终局清理前捕获、逐步比较和结算后队列稳定均是完成的前提。
 当前 API、无界面设施差异与验证范围见
 [src/OfflineHost](../src/OfflineHost/README.md) 和 [CLI](../tools/run-eval/README.md)。
@@ -16,7 +17,7 @@
 
 | 目录 | 职责 |
 | --- | --- |
-| `Runtime/` | 程序集解析、消息泵、内存存档、本地化、Godot UI 设施、NewRunFactory 与首战会话 |
+| `Runtime/` | 程序集解析、消息泵、内存存档、本地化、Godot UI 设施、NewRunFactory 与有界多房间会话 |
 | `Combat/` | `NativePilotHost`、`NativeActionExecutor`、原版选择器与终局捕获/比较 |
 | `Run/` | `OfflineRunHost`、`RunExecutor` 与真实局外选择执行 |
 
@@ -42,8 +43,8 @@
 | 行为 | 离线 TestMode | 实机/原版 | 处理 |
 | --- | --- | --- | --- |
 | `TestMode.IsOn` | `true` | `false` | 只影响下列测试分支；不据此修改战斗语义 |
-| `MerchantPotionEntry.CalcCost` | 不抽药水随机价，直接按稀有度基础价 | 在 `Shops` 流抽 `NextFloat(0.95,1.05)` | **不能只“调用原版”**：同一个方法在 `TestMode.IsOn=true` 下仍不消费 `Shops` RNG。R3b 必须在生成/补货的该调用周围局部设 `TestMode.IsOn=false`（prefix/postfix 或等价 try/finally），并在异常路径恢复 `true`；不能全局关闭 TestMode |
-| `MerchantRoom.Exit` 的地图历史 | 跳过 `CardChoices`/`RelicChoices`/`PotionChoices` 的 `wasPicked=false` 写入 | 写入这些玩家统计 | `RunState` 不保存选择历史；R3b 以原版真实写入为准 |
+| `MerchantPotionEntry.CalcCost` | 不抽药水随机价，直接按稀有度基础价 | 在 `Shops` 流抽 `NextFloat(0.95,1.05)` | **不能只“调用原版”**：同一个方法在 `TestMode.IsOn=true` 下仍不消费 `Shops` RNG。MerchantRuntime 已在生成/补货的该同步调用周围局部设 `TestMode.IsOn=false`（prefix/finalizer），并在异常路径恢复 `true`；不能全局关闭 TestMode |
+| `MerchantRoom.Exit` 的地图历史 | 跳过 `CardChoices`/`RelicChoices`/`PotionChoices` 的 `wasPicked=false` 写入 | 写入这些玩家统计 | `RunState` 不保存选择历史；MerchantRuntime 已在该同步方法周围以 prefix/finalizer 切换 TestMode，保留原版真实写入 |
 | `RunManager.ClearScreens` 等 UI 调用 | 无界面，直接返回 | 关闭原生界面 | 离线宿主不读界面；选择通过模型层执行 |
 | 教学发现顺序 | 默认 `ShouldApplyTutorialModifications()==false` | 实机测试会话用补丁同样返回 false | 两边都走 `UpFront` RNG 分支，第三幕 Boss 结构对齐 |
 | 战后奖励与选卡 | testSelector 受会话租约控制展示；选卡使用原版 OnSelect 的 awaited UI 通道托管桥 | 原生界面 | 生成/同步器/发牌/hook/history/Reroll 保持原版；terminal Proceed 与 EnterMap 清理顺序一致 |
@@ -61,6 +62,11 @@ TestMode 是进程级全局设置；任何需要真实游戏分支的对照都�
 - 实机：Mod 在真实游戏里跑同一策略，比较战斗逐动作边界。
 
 R3-0 的差分结果与 `683bc03` 相同；最后一次包含完整局外模拟器的提交是 `683bc03`。
+
+正式有界会话对照入口 --rooms-production 4 / --rooms-reference 4 在独立进程使用生产实现与旧 runtime、
+旧 NativePilotHost/原版直接推进，逐房比较完整 RunDump、NativeRunDump（含 RNG）、完整 MapPointHistory
+与全部战斗证据。--shop-host-checks、--multiroom-host-checks、--postcombat-host-checks 分别覆盖
+商店、休息、跨房多次奖励租约的生产库生命周期。
 
 ## 5. R3a 可运行探针
 
