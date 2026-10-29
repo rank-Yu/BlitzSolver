@@ -29,6 +29,7 @@ internal sealed class SearchBudget
     internal static long SearchShare(long remaining, int members)
     {
         long share = Math.Max(1, remaining / Math.Max(1, members));
-        return Math.Max(1, share - Math.Min(50, Math.Max(1, share / 20)));
+        // Keep time for replay and bookkeeping even when this is the last member.
+        return Math.Max(1, share - Math.Min(2_000, Math.Max(100, share / 10)));
     }
 }

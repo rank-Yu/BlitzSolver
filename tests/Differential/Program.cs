@@ -1060,7 +1060,6 @@ internal static class Program
                   [--search-cancel-after-ms N] [--full-combat]
               dotnet Differential.dll --offline-combat [--root <name> | --roots-file <file> | --corpora <dir>]
                   [--search-tier Low|Medium|High|ExtraHigh] [--jobs 1..8] [--out <dir>]
-                  [--beam-width N] [--max-width N] [--max-nodes N] [--nodes-per-width N]
                   [--pool-state-budget-mb N] [--memory-budget-mb N]
             """);
     }

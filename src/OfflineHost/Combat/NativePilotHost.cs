@@ -25,7 +25,7 @@ internal sealed class NativePilotHost(
     long memoryBudgetBytes,
     Func<string, IDisposable>? measure = null,
     Action<Battle, Battle>? onDifference = null,
-    Action<SearchCase>? onSearchRequest = null) : ICombatPilotHost
+    Action<CombatSearchRequest>? onSearchRequest = null) : ICombatPilotHost
 {
     private readonly NativeActionExecutor _executor = new(loop, combat, player, rules, tracker);
     private readonly List<string> _potionsUsed = [];
@@ -71,15 +71,16 @@ internal sealed class NativePilotHost(
                 deterministic: true, memoryBudgetBytes);
             SearchStorage storage = new();
             SearchPlan plan = profile.ToSearchPlan(memoryBudgetBytes);
+            CombatSearchRequest request = new(searchCase, plan);
+            onSearchRequest?.Invoke(request);
             ValueTask<SearchMemberMeasurement> RunMember(SearchCase member, SearchStorage shared, CancellationToken ct)
             {
-                onSearchRequest?.Invoke(member);
                 System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
                 BeamResult result = new BeamSolver(member.Rules, member.Options).Solve(member.Battles, shared, ct);
                 return ValueTask.FromResult(new SearchMemberMeasurement(result, "ok", null,
                     watch.ElapsedMilliseconds));
             }
-            CombatSearchResult outcome = CombatSearchCoordinator.RunAsync(new(searchCase, plan), storage, RunMember, token)
+            CombatSearchResult outcome = CombatSearchCoordinator.RunAsync(request, storage, RunMember, token)
                 .AsTask().GetAwaiter().GetResult();
             BeamResult beam = outcome.Beam ?? throw new InvalidDataException(
                 $"search {outcome.FailureStatus}: {outcome.FailureError}");

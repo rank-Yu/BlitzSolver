@@ -68,12 +68,13 @@ internal static class CombatSearchCoordinator
             // Leave a small part of each share for replay, bookkeeping and cancellation checkpoints.
             long searchMs = SearchBudget.SearchShare(remaining, phaseRemaining);
             PotionPolicy potions = PotionSearchSchedule.Limit(initial.Options.Potions, member.Potions);
+            long memberDeadline = checked(budget.Now + searchMs);
             BeamOptions options = initial.Options with
             {
                 BeamWidth = member.Width,
                 MaxTurns = int.MaxValue,
                 UnlimitedNodes = true,
-                DeadlineExpired = budget.Expired,
+                DeadlineExpired = () => budget.Now >= memberDeadline || budget.Expired(),
                 SoftTimeBudget = TimeSpan.FromMilliseconds(searchMs),
                 SearchMemoryBudgetBytes = plan.MemoryBytes,
                 PoolStateBudgetBytes = initial.Options.PoolStateBudgetBytes > 0

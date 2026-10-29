@@ -19,11 +19,7 @@ Runtime 自建单线程 SynchronizationContext，驱动原版 async 续体。Off
 输出地图坐标和点类型。next-room-smoke-v1 还选择可见奖励、首张合法卡及合法 Leave；满药水时丢弃首个合法槽，
 回到奖励列表后重新选择领取。这些策略都只读可见 DTO。first/next 的选择顺序兼容；rooms-smoke-v1 见下节。未知原生命令和未授权奖励入口显式失败。
 
-Combat 接入既有 RulesCompiler、LiveCombatTracker、CombatPilot、SearchRequestCompiler、
-BeamSolver 和 WideningSearch。默认 Low：256 起始/最大宽、每宽 2000 节点、原有 60000ms 档位，
-默认内存预算 2576980377 bytes（16 GiB 的 15%）。与旧 RunProbe 一样使用确定性 widening：
-搜索按既有节点上限运行，各宽度的时间保险只记录；整体 timeout/token 仍覆盖求解和原版等待。
-算法及搜索预算语义没有改动。
+Combat 接入 RulesCompiler、LiveCombatTracker、CombatPilot、SearchRequestCompiler 和 Core 的组合协调器。默认 Low 的基准、窄、宽、进攻宽度分别为 225、150、338、90；总时间 60 秒，默认搜索内存预算 2,576,980,377 字节。各成员共享截止时间和内存预算，没有生产节点上限；档位与 Smart 用药分层见 [战斗搜索](../../docs/combat-ai.md)。取消 token 覆盖求解和原版等待。
 
 每个动作通过原版入队/执行/选择器，并导入原版边界逐步比较。原版 EndCombatInternal /
 ProcessPendingLoss 清理前捕获终局，按既有 TerminalBattleProjection 合同比较 HP、maxHP、

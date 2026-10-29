@@ -192,7 +192,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll --search-compare .loc
 dotnet artifacts/bin/Differential/release/Differential.dll --offline-combat --corpora tests/corpora --jobs 4 \
   --out .local/offline-combat/default
 dotnet artifacts/bin/Differential/release/Differential.dll --offline-combat --root quality-DEFECT-000 \
-  --beam-width 256 --max-width 256 --out .local/offline-combat/one
+  --search-tier Medium --out .local/offline-combat/one
 ```
 
 不启动 Godot，用与 Mod 相同的 `CombatPilot` 在内核里打完一个根。每个根写
@@ -242,19 +242,15 @@ dotnet artifacts/bin/Differential/release/Differential.dll --run-probe \
 非法参数退出2，真实不支持退出3，等待超时4，预算5；父批次任何子进程非零都返回1，崩溃不会
 变成死亡/胜利。自然死亡是合法终局，死亡前没有到达的内容不算已覆盖。
 
-探针默认复用完整 `WideningSearch`：Medium 宽256..512，每轮节点上限为宽×2000，固定内存预算
-为16GiB×15%。和既有离线战斗相同，为可复现运行全部宽度，`EnforceTimeBudget=false`，不会按
-机器速度跳过轮次；它不是实机120秒保险的墙钟复刻。Low只有256宽。每局记录档位、每次搜索轮次、
-实际展开节点、所选轮次与重搜次数；不能把早期单轮调试结果当完整Medium性能。
+探针使用与 Mod 相同的 `CombatSearchCoordinator`、档位时间和共享内存预算；默认预算为 2,576,980,377 字节。成员和跳过原因按实际墙钟记录，时间截断的结果不可当成确定性 Golden。
 
 每局目录包含 `trace.jsonl`（probe-only可见请求、选择、原版RunState的规范编码SHA256与摘要）、
 `summary.json`（状态、互斥耗时、峰值内存）、`progress.json`（最近推进/搜索/部署阶段），以及
-父进程保存的 stdout/stderr。每轮进入求解前覆盖保存 `search-request.bin` 与 `search-root.txt`，
+父进程保存的 stdout/stderr。每次决策进入求解前覆盖保存组合 `SCV2` 的 `search-request.bin` 与 `search-root.txt`，
 便于定位搜索阻塞；差异时另存未经比较规范化的 predicted/native Battle 二进制和文本。
 `batch.json` 记录并发度、父测逐进程墙钟、批次墙钟、退出码和吞吐量。
 
-耗时互斥归类：initialization包含游戏初始化和正常开局；combat_search包含请求编译、完整翻倍
-搜索及路线回放；native_combat是原版部署和边界等待；native_run是原版局外推进及异步消息泵等待；
+耗时互斥归类：initialization包含游戏初始化和正常开局；combat_search包含请求编译、组合搜索及路线回放；native_combat是原版部署和边界等待；native_run是原版局外推进及异步消息泵等待；
 import_check是RunState导入、战斗导入与逐边界核对；policy是有显式计时的选择规则；logging包括
 JSON/进度/搜索证据文件；other包括剩余驱动与计时开销。嵌套进入新类别暂停旧类别，按活动scope
 标识处理非LIFO异步完成，summary给出分段之和与未归类余量。policy中未单独包裹的常数时间选项

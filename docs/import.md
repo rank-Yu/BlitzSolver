@@ -296,46 +296,11 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 ### 4.5 搜索请求编译器
 
-`SearchRequestCompiler` 在 M2a 的导入/评估配置之上组装完整 `SearchCase`，离线宿主与 Mod
-共用。它不接原生 `SimulationSnapshot`，而是从已导入的 `Battle`、编译出的 `Rules`、
-`SearchPolicy`、根事实与性能档位直接构造 `BeamOptions`：
+`SearchRequestCompiler` 只读原生根、已编译的规则和 `SearchPolicy`，冻结 `SearchCase` 所需的评分、下界、根生命、药水默认策略、失窃目标、遗物/成长目标与回放状态。能力承诺目录根据根中已登记的能力牌和真实 `RunState.TotalFloor` 编译；生成闭包内的登记能力也有描述符。普通界面未设置药水指令时使用 Smart。
 
-| 字段 | 来源 |
-| --- | --- |
-| `BeamWidth` / `MaxExpandedNodes` / `SoftTimeBudget` | `SearchPerformanceProfile.For(tier)`；确定性测试把软时间改为 `TimeSpan.MaxValue` |
-| `SearchMemoryBudgetBytes` | `CompileRequest` 的可选 `searchMemoryBudgetBytes` 参数；宿主给数字（Mod 取物理内存总量或容器限制的 15%、离线 0.15 × 16 GiB），不进入 `SREQ` |
-| `MaxTurns` | 64 |
-| `InitialPlayerMaxHp` | `Battle.Player.MaxHp` |
-| `Scorer` / `Bound` | `EvaluationConfigCompiler.CompileScorer` / `CompileBound` |
-| `Ordering` | `Battle.Player.CurrentHp/MaxHp` + `ScoreRules.BossHpRelief` / `PostCombatRelicHeal` |
-| `Potions` / `EffectivePotionPolicy` | `Smart`；无指令、无最早回合/使用次数限制 |
-| `InitialPlayerTurn` / `InitialSearchTurn` | `Battle.PlayerTurn` |
-| `InitialActionCount` / 前缀药水计数 | `EvaluationRootFacts` |
-| `TheftPolicy` | `SearchPolicy.TheftPolicy` 的 Core 枚举映射 |
-| `Act3BossStrategy` | `SearchPolicy.Act3BossStrategy` |
-| `PreserveReplayAllocatorOpening` | 未融化 `ThrowingAxe._usedThisCombat == false` |
-| `AmbergrisPotionId` | `ScoreRules.AmbergrisPotionId` |
+`SearchPerformanceProfile` 提供基准、窄、宽、进攻四个最终宽度及总时间；档位值见 [战斗搜索](combat-ai.md)。Mod 与 OfflineHost 再把宿主内存预算加入 `CombatSearchRequest`，交由 `CombatSearchCoordinator` 构造成员。成员宽度、评价、保留、用药限制与软时间在协调器中设置，全部受原请求保护/强制指令约束，生产没有展开节点上限。
 
-档位值取 `SearchPerformanceProfile` 的多轮字段：
-
-| 档位 | 起始宽度 | 最多宽度 | 每轮节点上限 | 决策总时间 |
-| --- | ---: | ---: | ---: | ---: |
-| 低 | 256 | 256 | 宽度 × 2,000 | 60 秒 |
-| 中 | 256 | 512 | 宽度 × 2,000 | 120 秒 |
-| 高 | 256 | 1,024 | 宽度 × 2,000 | 180 秒 |
-| 极高（`ExtraHigh`） | 256 | 2,048 | 宽度 × 2,000 | 240 秒 |
-
-`CompileRequest` 只组装第一轮；多轮翻倍、每轮节点上限、局面池放大与时间保险由
-`src/Core/Ai/Combat/WideningSearch.cs` 完成，Mod 与离线整场共用该实现。
-
-CombatSolver 档位里的 `MaxCardBranchesPerNode`/`MaxPileChoiceBranchesPerAction`/
-`MaxHandChoiceBranchesPerAction` 只用于旧引擎协调器；Flash 与 Sts2Solver 都固定 32 个选择分支，
-因此不进入 `BeamOptions`。novelty、计划承诺、早期侦察、incumbent、`HpTargetStop`、药水审计
-与 `PowerCommitments` 保持默认；`PotionReplacementHpCredit` 也暂为 0（未接药水奖励预测）。
-字段取舍与完整对照见 [Mod 入口与无头捕获](mod.md) 第 7 节。
-
-请求编译器只读原生模型；worker 只拿到请求里的 `Battle`/`Rules`/冻结数组，不再读取 live
-战斗。确定性请求不附加 pacer，保证游戏 `SREQ` 离线重放与游戏 `SRES` 逐字节相同。
+`SCV2` 保存组合请求及总预算，旧 `SREQ` 仍表示冻结的确定性单成员请求。宿主回调与帧压力信号只在运行时传递；worker 不再读取 live 战斗或全局搜索设置。
 
 ## 5. 拒绝规则
 

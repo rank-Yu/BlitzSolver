@@ -149,7 +149,8 @@ internal static class SearchSession
                 WriteBytes(Path.Combine(resultDirectory, "SREQ"), requestBytes);
             ModLog.Info(
                 $"[Sts2Solver] SEARCH_STARTED root={root} tier={tier} deterministic={deterministic} "
-                + $"beam={searchCase.Options.BeamWidth} nodes={searchCase.Options.MaxExpandedNodes} "
+                + $"beam={searchCase.Options.BeamWidth} "
+                + (searchCase.Options.UnlimitedNodes ? "nodes=unlimited " : $"nodes={searchCase.Options.MaxExpandedNodes} ")
                 + $"soft_ms={(deterministic ? -1 : (long)searchCase.Options.SoftTimeBudget.TotalMilliseconds)} "
                 + $"turn={searchCase.Options.InitialPlayerTurn} root_bytes={requestBytes.Length}");
 

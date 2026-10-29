@@ -62,7 +62,8 @@ Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场�
 | [战斗内核语义](combat-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
 | [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [战斗药水与遗物](combat-potions-relics.md) | 额外回合管线、药水与遗物机制 |
-| [战斗搜索](combat-ai.md) | `BeamSolver` 的容器复用、保留、评估、剪枝与容量边界 |
+| [战斗搜索](combat-ai.md) | 组合调度、四维配置、路线比较、内存与兼容语义 |
+| [局内组合搜索规格](combat-search-v2-spec.md) | 本次搜索重构的目标、参数与验收范围 |
 | [原生状态导入](import.md) | `CombatState` → `Battle`/`Rules`/评估配置的编译、拒绝码与离线对照 |
 | [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
 | [Mod 入口与无头捕获](mod.md) | 打包、RitsuLib 入口、共存、部署与对账、测试协议、启动脚本与实机对照 |
@@ -72,6 +73,7 @@ Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场�
 
 | 文档 | 内容 |
 | --- | --- |
+| [逐轮加宽历史验证](archive/combat-search-widening-validation.md) | 被组合搜索替换的旧搜索命令、计时和内存对照 |
 | [CombatSolver 接入方式](archive/combatsolver-integration.md) | CombatSolver 的接入分派与旧引擎回放物化，仅作历史参考 |
 | [CombatSolver 准入与校验](archive/admission-and-verification.md) | CombatSolver 里对接原引擎的 Bridge 准入与运行时核对 |
 | [CombatSolver 时期测试记录](archive/combatsolver-flash-testing.md) | 旧回归工具、批次数值与实机整场记录 |

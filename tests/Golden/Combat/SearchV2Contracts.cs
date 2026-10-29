@@ -73,6 +73,26 @@ internal static class SearchV2Contracts
         Assert(delayedOutcome.Beam == null && delayedOutcome.ExpandedNodes == 0
             && delayedOutcome.Status == CombatSearchStatus.Incomplete,
             "shared deadline covers host queue before member starts");
+        clock = 0;
+        int delayedCalls = 0;
+        ValueTask<SearchMemberMeasurement> DelayedShare(SearchCase member, SearchStorage shared, CancellationToken token)
+        {
+            if (delayedCalls++ == 0)
+            {
+                clock = (long)member.Options.SoftTimeBudget.TotalMilliseconds + 1;
+                Assert(clock < plan.TotalMilliseconds, "test delay stays inside total deadline");
+                BeamResult delayed = new BeamSolver(member.Rules, member.Options).Solve(member.Battles, shared, token);
+                Assert(delayed.SoftTimeBudgetReached && delayed.ExpandedNodesTotal == 0,
+                    "member share includes host queue");
+                return ValueTask.FromResult(new SearchMemberMeasurement(delayed, "ok", null, 0));
+            }
+            return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, 0));
+        }
+        CombatSearchResult delayedShare = CombatSearchCoordinator.RunAsync(new(original, plan),
+            new SearchStorage(), DelayedShare, CancellationToken.None, () => clock)
+            .AsTask().GetAwaiter().GetResult();
+        Assert(delayedShare.Members[0].StopReason == "time" && delayedShare.Members[0].ExpandedNodes == 0,
+            "member cutoff is independent of total cutoff");
         int retentionChecks = 0;
         bool expired = false;
         BeamOptions interruptedOptions = batched with

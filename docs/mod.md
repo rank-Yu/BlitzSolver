@@ -137,9 +137,7 @@ Mod ID、DLL 与清单统一为 `Sts2Solver`，中文展示名为“尖塔求解
 `GC.GetGCMemoryInfo().TotalAvailableMemoryBytes` 的 15%，下限 1 GiB，不设上限；容器与任务
 对象限制已由该 API 计入。环境变量 `STS2_SOLVER_SEARCH_MEMORY_MB`（MiB）可覆盖默认值，非法值写
 `SEARCH_MEMORY_IGNORED` 后回退默认。这个数字只经 `SearchRequestCompiler` 传给
-`BeamOptions.SearchMemoryBudgetBytes`，不进入 `SREQ`/`SRES`；搜索核心不读取 GC 或系统
-内存。超预算时搜索按节点上限同样的边界停止并交出当前最好路线，日志与 `full-combat.json`
-的 `memoryBudgetExceeded`/`memoryExceededAtBytes` 记录触发点。
+请求的内存预算；搜索核心不读取 GC 或系统内存。超预算时成员停止，并保留已验证的合法路线或进度。日志与 `full-combat.json` 的 `memoryBudgetExceeded`/`memoryExceededAtBytes` 记录触发点。该预算计搜索自有逻辑存储，并非游戏进程总 RSS 上限。
 
 普通玩家的触发方式是 **`F8` 开关**：当前战斗处于本地玩家 `Play` 阶段时，`SearchHotkeyNode`
 调用 `AutoCombatSession.Toggle`。第一次按下开始“本场全自动”，会话在每回合自动搜索并部署；
@@ -271,65 +269,18 @@ $STS2_SOLVER_TEST_DIR/
 
 ## 7. 搜索请求、档位与时间保险
 
-`SearchRequestCompiler`（`src/Import`）从已经导入的根、`Rules`、`SearchPolicy`、根事实与
-性能档位组装第一轮的 `SearchCase`。它只读，不写游戏状态。字段来源与默认值：
+`SearchRequestCompiler` 在主线程冻结战斗根、规则、玩家目标、评分与能力目录；`CombatSearchCoordinator` 按同一根顺序运行组合成员。Mod 为每个成员提供后台工作线程和帧压力 pacer，根、策略、时间和内存都随请求传入。界面目前没有药水指令设置，默认 Smart；请求合同支持显式保护和强制用药。完整调度、筛选和时间分配见 [战斗搜索](combat-ai.md)。
 
-| 字段 | 取值 |
-| --- | --- |
-| `BeamWidth` / `MaxExpandedNodes` / `SoftTimeBudget` | 第一轮取档位起始宽度、`起始宽度 × 2,000` 和决策总时间；`WideningSearch` 每轮重写这三项；确定性测试把软时间改成 `TimeSpan.MaxValue` |
-| `MaxTurns` | 64（主搜索成员固定） |
-| `InitialPlayerMaxHp` | 导入根的玩家最大 HP |
-| `Scorer` / `Bound` | `EvaluationConfigCompiler.CompileScorer`/`CompileBound` |
-| `Ordering` | 根当前 HP/最大 HP + `ScoreRules.BossHpRelief`/`PostCombatRelicHeal` |
-| `Potions` / `EffectivePotionPolicy` | `Smart`，无指令、无最早回合/使用次数限制 |
-| `InitialPlayerTurn` / `InitialSearchTurn` | 导入根的 `PlayerTurn` |
-| `InitialActionCount` | `EvaluationRootFacts.InitialActionCount`（普通根 0） |
-| `TheftPolicy` | `SearchPolicy.TheftPolicy`（盗贼遭遇时 `PreserveResources`） |
-| `Act3BossStrategy` | `SearchPolicy.Act3BossStrategy` |
-| `PreserveReplayAllocatorOpening` | 未融化的 `ThrowingAxe` 且本场未使用 |
-| `AmbergrisPotionId` | `ScoreRules.AmbergrisPotionId` |
-| `SecondRankBandWidth` | 当轮 Beam 宽度；多轮搜索每轮同步；`SecondRankBand=false` |
+| 档位 | 基准宽度 | 窄宽度 | 宽宽度 | 进攻宽度 | 总时间 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 低 | 225 | 150 | 338 | 90 | 60 秒 |
+| 中（默认） | 300 | 200 | 450 | 120 | 120 秒 |
+| 高 | 450 | 300 | 675 | 180 | 180 秒 |
+| 极高 | 675 | 450 | 1013 | 270 | 300 秒 |
 
-档位（`SearchPerformanceProfile`）：
+各成员共享一份绝对截止时间及内存账本，没有生产节点上限。搜索日志记录每成员四维配置、实际执行、终止原因、质量和资源峰值；节点数仅供诊断。回放验证后的可用进度可以供托管执行；没有胜利不表示证明必败。取消传播到后台求解与整理检查点。
 
-| 档位 | 起始宽度 | 最多宽度 | 每轮节点上限 | 决策总时间 | 分支上限（卡/堆/手） |
-| --- | ---: | ---: | ---: | ---: | --- |
-| 低 | 256 | 256 | 宽度 × 2,000 | 60 秒 | 24 / 12 / 16 |
-| 中（默认） | 256 | 512 | 宽度 × 2,000 | 120 秒 | 32 / 18 / 24 |
-| 高 | 256 | 1,024 | 宽度 × 2,000 | 180 秒 | 48 / 28 / 36 |
-| 极高（`ExtraHigh`） | 256 | 2,048 | 宽度 × 2,000 | 240 秒 | 72 / 42 / 54 |
-
-四档都从 256 起步；低档只跑一轮，中/高/极高档最多翻倍到 512/1,024/2,048。局面池随宽度
-放大、单池封顶 1,728 MiB，规则与 2,048 轮的 64 位计算见 [Sts2Solver 搜索](combat-ai.md)。
-
-`CombatPilotHost.SearchAsync` 组装第一轮请求后调用 Core 的 `WideningSearch`，Mod 只提供一个
-执行单轮的委托（`SearchSession.RunAsync`）和共享的 `SearchStorage`；档位解析、翻倍、节点
-上限、局面池放大、终局比较、无伤停止与时间保险都在 Core 这一份实现里，离线宿主调用同一
-个入口。第二轮及以后各轮用翻倍后的宽度重新搜索同一个根，仍是独立求解，不复用上一轮的
-`BeamSolver`。
-
-### 7.1 时间保险
-
-- 一次决策的所有轮共用档位总时间（低/中/高/极高档分别为 60/120/180/240 秒），第一轮把
-  它全部作为软时间。
-- 每轮开始前按上一轮实际耗时的 2 倍预估；剩余时间小于预估就不开始，直接用当前最好的
-  路线。第一轮没有上一轮，总是开始。
-- 正在跑的一轮把开始时的剩余时间作为 `BeamOptions.SoftTimeBudget`；被时限截断时
-  `BeamSolver` 返回当时最好的路线，`BeamResult.SoftTimeBudgetReached=true`。
-- 每轮耗时按挂钟计，包含该轮的搜索与主线程等待；轮次结束后重新读剩余时间。
-- 离线确定性模式不截断、不跳过，但用同一套预估把游戏里会跳过的轮次标成
-  `wouldSkip`、会截断的标成 `wouldTruncate`，并在决策级 `softTimeRisk` 汇总；报告以这些
-  标记区分“离线跑出的潜力”和“实机真的会跑到的轮次”。
-- 只有内存预算会同时约束两侧：某一轮撞到全局搜索内存预算时，该轮结束即停止，不再加宽。
-
-Sts2Solver 的 `BeamOptions` 没有分支上限字段；Flash 路径本身也固定使用 32 个选择分支，Sts2Solver
-`BeamSolver.MaxChoiceBranches=32` 与之相同，因此这三列只记录档位来源，不进入请求。其余
-未显式设置的高级成员保持默认：`CandidateScanCount=0`、`Incumbent=null`、`HpTargetStop=null`、
-`PotionFreeBaseline=null`、`SmartPotionEligibilityHpCeiling=null`、`AuditPotionPolicy=false`、
-`ForcedPotionDirectives=None`、`MinimumPotionUses=0`、`PlanCommitment=null`、
-`EarlyTurnScoutDepth=0`、`Novelty=null`、`PowerCommitments=null`、`SecondRankBand=false`、
-`AggressivePowerCommitment=false`。完整来源表与理由见 M2b-1 报告
-（`.local/tool-tasks/solver/M2b1-report.md`）。
+单次确定性捕获测试继续读写旧 `SREQ`/`SRES` 并按冻结语义执行；组合请求的 `SCV2` 与旧编码区分。实机、OfflineHost 和离线整场不会退回单次旧搜索。
 
 ## 8. 启动脚本与命令
 

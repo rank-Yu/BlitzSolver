@@ -32,14 +32,20 @@ public readonly record struct SearchPerformanceProfile(
     private const int LegacyCaptureNodeLimit = 512_000;
     internal int StartMaxExpandedNodes => LegacyCaptureNodeLimit;
 
-    public static SearchPerformanceProfile For(SearchPerformanceTier tier) => tier switch
+    public static SearchPerformanceProfile For(SearchPerformanceTier tier)
     {
-        SearchPerformanceTier.Low => new(225, 150, 338, 90, 60_000),
-        SearchPerformanceTier.Medium => new(300, 200, 450, 120, 120_000),
-        SearchPerformanceTier.High => new(450, 300, 675, 180, 180_000),
-        SearchPerformanceTier.ExtraHigh => new(675, 450, 1013, 270, 300_000),
-        _ => throw new ArgumentOutOfRangeException(nameof(tier)),
-    };
+        CombatSearchTier coreTier = tier switch
+        {
+            SearchPerformanceTier.Low => CombatSearchTier.Low,
+            SearchPerformanceTier.Medium => CombatSearchTier.Medium,
+            SearchPerformanceTier.High => CombatSearchTier.High,
+            SearchPerformanceTier.ExtraHigh => CombatSearchTier.ExtraHigh,
+            _ => throw new ArgumentOutOfRangeException(nameof(tier)),
+        };
+        SearchPlan preset = SearchPresets.For(coreTier, 0);
+        return new(preset.BaselineWidth, preset.NarrowWidth, preset.WideWidth,
+            preset.OffensiveWidth, preset.TotalMilliseconds);
+    }
 
     internal SearchPlan ToSearchPlan(long memoryBytes)
         => new(BaselineWidth, NarrowWidth, WideWidth, OffensiveWidth,

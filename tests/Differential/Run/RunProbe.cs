@@ -417,14 +417,14 @@ internal sealed class RunProbe
     };
     private static object Card(CardModel c) => new { model = c.Id.Entry, upgrade = c.CurrentUpgradeLevel,
         enchantment = c.Enchantment?.Id.Entry, enchantmentAmount = c.Enchantment?.Amount };
-    private void CaptureSearchRequest(SearchCase search)
+    private void CaptureSearchRequest(CombatSearchRequest search)
     {
         using (Telemetry.Measure("logging"))
         {
-            File.WriteAllBytes(Path.Combine(_settings.Output, "search-request.bin"), SearchCodec.EncodeRequest(search));
-            File.WriteAllLines(Path.Combine(_settings.Output, "search-root.txt"), BattleDump.Lines(search.Battles[0]));
+            File.WriteAllBytes(Path.Combine(_settings.Output, "search-request.bin"), CombatSearchCodec.Encode(search));
+            File.WriteAllLines(Path.Combine(_settings.Output, "search-root.txt"), BattleDump.Lines(search.Case.Battles[0]));
             Telemetry.Progress("combat_search", new { _combats, _actions, act = _run.CurrentActIndex,
-                floor = _run.ActFloor, width = search.Options.BeamWidth });
+                floor = _run.ActFloor, width = search.Plan.BaselineWidth });
         }
     }
 

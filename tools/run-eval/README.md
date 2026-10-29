@@ -35,7 +35,7 @@ Boss 奖励请求只提供本范围合法奖励，原版 UI 的换幕按钮不�
 --max-rooms 的 1..100 预算只对 rooms 停止边界生效，默认 4，计完成的地图节点房间，不计 Neow；第 N 房达到可合法离开的边界（Boss 为领奖后换幕按钮之前）即停止，不额外进入下一房。决策和步骤预算覆盖所有模式及异步子选择。
 --game-data 必填。默认角色 Ironclad、A0、seed R3B2-DECISION。
 角色接受 Ironclad/Silent/Regent/Necrobinder/Defect，但这不是所有角色/内容已验证的声明。
-tier 接受 Low/Medium/High/ExtraHigh；使用既有确定性 widening 配置和 2576980377 bytes 内存预算。
+tier 接受 Low/Medium/High/ExtraHigh；使用组合搜索、对应档位时间和 2576980377 bytes 内存预算。
 唯一解锁 profile neow-epoch-v1 与旧 run-host-compare 的自然 Neow 样例相同：
 unlockedEpochIds=[NeowEpoch.Id]、encountersSeen=[]、numberOfRuns=1。
 角色由 CLI 显式指定；Silent 是使用该低解锁内容配置的角色夹具，
