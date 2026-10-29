@@ -281,6 +281,7 @@ internal sealed partial class BeamSolver
             _pruned,
             _solveWatch?.Elapsed ?? TimeSpan.Zero)
         {
+            ExpandedNodesTotal = _expandedTotal,
             CapacityPruned = _capacityPruned,
             EndTurnPrefixShared = _endTurnPrefixShared,
             EndTurnPrefixUnshared = _endTurnPrefixUnshared,

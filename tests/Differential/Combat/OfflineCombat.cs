@@ -79,8 +79,7 @@ internal static class OfflineCombat
         }
         Console.WriteLine(
             $"offline-combat roots={roots.Length} jobs={jobs} tier={settings.Tier} " +
-            $"beam={settings.Profile.StartWidth}..{settings.Profile.MaxWidth} " +
-            $"nodes_per_width={settings.Profile.MaxExpandedNodesPerWidth} " +
+            $"widths={settings.Profile.BaselineWidth}/{settings.Profile.NarrowWidth}/{settings.Profile.WideWidth}/{settings.Profile.OffensiveWidth} " +
             $"time_ms={settings.Profile.TotalTimeBudgetMilliseconds} out={settings.Output}");
         Stopwatch wall = Stopwatch.StartNew();
         List<OfflineCombatRootResult> results = [];
@@ -255,12 +254,6 @@ internal static class OfflineCombat
         start.ArgumentList.Add(settings.Output);
         start.ArgumentList.Add("--search-tier");
         start.ArgumentList.Add(settings.Tier.ToString());
-        start.ArgumentList.Add("--beam-width");
-        start.ArgumentList.Add(settings.Profile.StartWidth.ToString());
-        start.ArgumentList.Add("--max-width");
-        start.ArgumentList.Add(settings.Profile.MaxWidth.ToString());
-        start.ArgumentList.Add("--nodes-per-width");
-        start.ArgumentList.Add(settings.Profile.MaxExpandedNodesPerWidth.ToString());
         if (settings.MaxExpandedNodesOverride is { } maxNodes)
         {
             start.ArgumentList.Add("--max-nodes");
@@ -312,11 +305,11 @@ internal static class OfflineCombat
         {
             schemaVersion = 1,
             tier = settings.Tier.ToString(),
-            startWidth = settings.Profile.StartWidth,
-            maxWidth = settings.Profile.MaxWidth,
-            maxExpandedNodesPerWidth = settings.Profile.MaxExpandedNodesPerWidth,
+            baselineWidth = settings.Profile.BaselineWidth,
+            narrowWidth = settings.Profile.NarrowWidth,
+            wideWidth = settings.Profile.WideWidth,
+            offensiveWidth = settings.Profile.OffensiveWidth,
             totalTimeBudgetMilliseconds = settings.Profile.TotalTimeBudgetMilliseconds,
-            maxExpandedNodesOverride = settings.MaxExpandedNodesOverride,
             poolStateBudgetMb = settings.PoolStateBudgetMb,
             memoryBudgetBytes = settings.MemoryBudgetBytes,
             roots,
@@ -416,8 +409,6 @@ internal static class OfflineCombat
         private readonly List<string> _potionsUsed = [];
         private bool _warmedUp;
         private bool _storageChecked;
-        private SearchStorage? _roundStorage;
-        private CancellationToken _roundToken;
         private readonly int _combatStartHp = opening.Player.CurrentHp;
         private readonly int _combatStartMaxHp = opening.Player.MaxHp;
         private Battle _current = opening;
@@ -519,23 +510,17 @@ internal static class OfflineCombat
                 StorageCheck(searchCase, token);
             }
 
-            WideningSearchPlan plan = new(profile.StartWidth, profile.MaxWidth,
-                profile.MaxExpandedNodesPerWidth, profile.TotalTimeBudgetMilliseconds,
-                EnforceTimeBudget: false)
-            {
-                MaxExpandedNodesOverride = MaxExpandedNodesOverride ?? 0,
-                PoolStateBudgetOverrideBytes = PoolStateBudgetMb is { } poolMb
-                    ? checked(poolMb * 1024 * 1024) : 0,
-                CombatStartPlayerHp = _combatStartHp,
-                CombatStartPlayerMaxHp = _combatStartMaxHp,
-            };
+            if (MaxExpandedNodesOverride is not null)
+                return ValueTask.FromResult(Failed("rejected", "组合搜索不接受节点上限。", "request_invalid", "组合搜索不接受节点上限。"));
+            if (PoolStateBudgetMb is { } poolMb)
+                searchCase = searchCase with { Options = searchCase.Options with
+                    { PoolStateBudgetBytes = checked(poolMb * 1024 * 1024) } };
+            SearchPlan plan = profile.ToSearchPlan(MemoryBudgetBytes);
             SearchStorage storage = new();
-            _roundStorage = storage;
-            _roundToken = token;
-            WideningSearchOutcome outcome;
+            CombatSearchResult outcome;
             try
             {
-                outcome = WideningSearch.RunAsync(searchCase, plan, storage, RunRound, token)
+                outcome = CombatSearchCoordinator.RunAsync(new(searchCase, plan), storage, RunMember, token)
                     .AsTask().GetAwaiter().GetResult();
             }
             catch (OperationCanceledException)
@@ -568,8 +553,6 @@ internal static class OfflineCombat
                     "search_failed", error.Message));
             }
 
-            _roundStorage = null;
-            WideningRoundLog[] rounds = outcome.Rounds;
             if (outcome.Beam is not { } beam)
             {
                 string status = outcome.FailureStatus.Length > 0 ? outcome.FailureStatus : "failed";
@@ -583,9 +566,9 @@ internal static class OfflineCombat
                     outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
                     outcome.RouteNodePeakCount)
                 {
-                    Rounds = rounds,
-                    RoundsRun = outcome.RoundsRun,
-                    RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+                    SelectedMember = outcome.SelectedMember, SearchStatus = outcome.Status,
+                    Members = outcome.Members, MembersRun = outcome.MembersRun,
+                    MembersSkippedByTime = outcome.MembersSkippedByTime,
                 });
             }
 
@@ -624,15 +607,13 @@ internal static class OfflineCombat
                 outcome.SearchMemoryUsedBytes, outcome.SearchMemoryPeakBytes,
                 outcome.RouteNodeStorageBytes, outcome.RouteNodePeakCount)
             {
-                DamageFreeVictory = outcome.DamageFreeVictory,
-                BestRound = outcome.BestRound,
-                Rounds = rounds,
-                RoundsRun = outcome.RoundsRun,
-                RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+                SelectedMember = outcome.SelectedMember, SearchStatus = outcome.Status,
+                Members = outcome.Members, MembersRun = outcome.MembersRun,
+                MembersSkippedByTime = outcome.MembersSkippedByTime,
             });
         }
 
-        private static CombatPilotSearch InvalidRoute(WideningSearchOutcome outcome, BeamResult beam,
+        private static CombatPilotSearch InvalidRoute(CombatSearchResult outcome, BeamResult beam,
             string status, string reason, string detail)
             => new(null, status, outcome.ElapsedMs, outcome.TotalExpandedNodes,
                 beam.BestRoute.Length, beam.BestIsVictory, detail, reason, detail,
@@ -642,12 +623,12 @@ internal static class OfflineCombat
                 outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
                 outcome.RouteNodePeakCount)
             {
-                Rounds = outcome.Rounds,
-                RoundsRun = outcome.RoundsRun,
-                RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+                SelectedMember = outcome.SelectedMember, SearchStatus = outcome.Status,
+                Members = outcome.Members, MembersRun = outcome.MembersRun,
+                MembersSkippedByTime = outcome.MembersSkippedByTime,
             };
 
-        private ValueTask<WideningRoundMeasurement> RunRound(WideningRoundRequest request)
+        private ValueTask<SearchMemberMeasurement> RunMember(SearchCase member, SearchStorage storage, CancellationToken token)
         {
             Stopwatch roundWatch = Stopwatch.StartNew();
             long managedPeak = 0;
@@ -656,8 +637,8 @@ internal static class OfflineCombat
             try
             {
                 Task<BeamResult> solve = Task.Run(() =>
-                    new BeamSolver(request.Case.Rules, request.Case.Options)
-                        .Solve(request.Case.Battles, RoundStorage(), _roundToken));
+                    new BeamSolver(member.Rules, member.Options)
+                        .Solve(member.Battles, storage, token));
                 while (!solve.IsCompleted)
                 {
                     SampleMemory(ref managedPeak, ref workingSetPeak);
@@ -674,41 +655,38 @@ internal static class OfflineCombat
             {
                 roundWatch.Stop();
                 string detail = $"region={error.Region} {error.Message}";
-                return ValueTask.FromResult(new WideningRoundMeasurement(null, "capacity", detail,
+                return ValueTask.FromResult(new SearchMemberMeasurement(null, "capacity", detail,
                     roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
             }
             catch (UnsupportedException error)
             {
                 roundWatch.Stop();
-                return ValueTask.FromResult(new WideningRoundMeasurement(null, "unsupported",
+                return ValueTask.FromResult(new SearchMemberMeasurement(null, "unsupported",
                     error.Message, roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
             }
             catch (NotSupportedException error)
             {
                 roundWatch.Stop();
-                return ValueTask.FromResult(new WideningRoundMeasurement(null, "unsupported",
+                return ValueTask.FromResult(new SearchMemberMeasurement(null, "unsupported",
                     error.Message, roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
             }
             catch (InvalidDataException error)
             {
                 roundWatch.Stop();
-                return ValueTask.FromResult(new WideningRoundMeasurement(null, "invalid_data",
+                return ValueTask.FromResult(new SearchMemberMeasurement(null, "invalid_data",
                     error.Message, roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
             }
             catch (InvalidOperationException error)
             {
                 roundWatch.Stop();
-                return ValueTask.FromResult(new WideningRoundMeasurement(null,
+                return ValueTask.FromResult(new SearchMemberMeasurement(null,
                     "invalid_operation", error.Message, roundWatch.ElapsedMilliseconds, managedPeak,
                     workingSetPeak));
             }
             roundWatch.Stop();
-            return ValueTask.FromResult(new WideningRoundMeasurement(beam, "ok", null,
+            return ValueTask.FromResult(new SearchMemberMeasurement(beam, "ok", null,
                 roundWatch.ElapsedMilliseconds, managedPeak, workingSetPeak));
         }
-
-        private SearchStorage RoundStorage()
-            => _roundStorage ?? throw new InvalidOperationException("多轮搜索没有建立共享存储。");
 
         private void StorageCheck(SearchCase searchCase, CancellationToken token)
         {

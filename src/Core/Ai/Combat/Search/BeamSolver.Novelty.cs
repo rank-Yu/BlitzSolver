@@ -278,7 +278,7 @@ internal sealed partial class BeamSolver
                 reachableHandValue, zeroCostPlayableCount, initialRetainedAttackValue: _scorer.InitialRetainedAttackValue);
             next.Clear();
             ended.Clear();
-            if (_expanded < int.MaxValue) _expanded++;
+            CountExpanded();
             int count = Kernel.LegalActions(parent, _rules, _actions);
             for (int actionIndex = 0; actionIndex < count; actionIndex++)
             {
@@ -368,6 +368,7 @@ internal sealed partial class BeamSolver
             bestVictory, _noveltyBest?.Score ?? double.NegativeInfinity,
             _expanded, _transitions, _duplicates, turnLayers, _pruned, watch.Elapsed)
         {
+            ExpandedNodesTotal = _expandedTotal,
             CapacityPruned = _capacityPruned,
             CapacityDroppedChildren = _capacityDropped.Count == 0
                 ? BeamResult.NoCapacityDrops

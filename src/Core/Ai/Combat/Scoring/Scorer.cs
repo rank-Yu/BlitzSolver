@@ -23,7 +23,15 @@ internal sealed class Scorer
 {
     private readonly ScoreRules _score;
 
-    public Scorer(ScoreRules score) => _score = score;
+    private readonly bool _baseOnly;
+    private readonly bool _offensive;
+
+    public Scorer(ScoreRules score, bool baseOnly = false, bool offensive = false)
+    {
+        _score = score;
+        _baseOnly = baseOnly;
+        _offensive = offensive;
+    }
 
     /// <summary>
     /// Default-off test hook, set by <see cref="BeamSolver.Solve"/> from
@@ -2689,7 +2697,7 @@ internal sealed class Scorer
     {
         // the existing search's BeamRankScore: the base-score member ranks by the base score alone (the
         // development strategy that could adjust it is rejected at admission).
-        if (_score.BaseScoreOnly)
+        if (_score.BaseScoreOnly || _baseOnly)
             return features.Score;
         int persistentBuffCap = _score.IsActEndingBoss
             ? ScoreWeights.PersistentBuffDeltaBeamCap
@@ -2767,6 +2775,8 @@ internal sealed class Scorer
             };
             score += (perturbation.Scale - 1d) * term;
         }
+        if (_offensive && !terminal)
+            score -= features.EnemyHp * 5_000d;
         score += ContextualAdjustment(battle, features, terminal);
         return score;
     }

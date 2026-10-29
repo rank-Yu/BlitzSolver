@@ -22,50 +22,28 @@ public enum SearchPerformanceTier
     ExtraHigh,
 }
 
-/// <summary>
-/// The performance tiers exposed by the Flash solver settings. A decision starts at
-/// <see cref="StartWidth"/> and doubles the beam until <see cref="MaxWidth"/>; every round's node
-/// cap is <c>width × MaxExpandedNodesPerWidth</c>, and all rounds of one decision share
-/// <see cref="TotalTimeBudgetMilliseconds"/> in the game. The branch caps are carried for the
-/// report and for parity with <c>SolverSearchProfile</c>; Sts2Solver enforces the same fixed
-/// 32-selection branch cap in the kernel, so no <see cref="BeamOptions"/> field receives them.
-/// </summary>
+/// <summary>Frozen widths and the total time for one combat decision.</summary>
 public readonly record struct SearchPerformanceProfile(
-    int StartWidth,
-    int MaxWidth,
-    int MaxExpandedNodesPerWidth,
-    int TotalTimeBudgetMilliseconds,
-    int MaxCardBranchesPerNode,
-    int MaxPileChoiceBranchesPerAction,
-    int MaxHandChoiceBranchesPerAction)
+    int BaselineWidth, int NarrowWidth, int WideWidth, int OffensiveWidth,
+    int TotalTimeBudgetMilliseconds)
 {
-    /// <summary>The fixed turn cap of the primary member (<c>FlashRouteMaterializer.cs:360</c>).</summary>
+    /// <summary>Legacy deterministic capture retains its historical turn boundary.</summary>
     public const int MaxTurns = 64;
-
-    public int StartMaxExpandedNodes
-    {
-        get
-        {
-            long nodes = (long)StartWidth * MaxExpandedNodesPerWidth;
-            return nodes <= int.MaxValue
-                ? (int)nodes
-                : throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                    $"起始宽度 {StartWidth} × 每宽节点 {MaxExpandedNodesPerWidth} 超过 32 位上限。");
-        }
-    }
+    private const int LegacyCaptureNodeLimit = 512_000;
+    internal int StartMaxExpandedNodes => LegacyCaptureNodeLimit;
 
     public static SearchPerformanceProfile For(SearchPerformanceTier tier) => tier switch
     {
-        SearchPerformanceTier.Low => new(
-            256, 256, 2_000, 60_000, 24, 12, 16),
-        SearchPerformanceTier.Medium => new(
-            256, 512, 2_000, 120_000, 32, 18, 24),
-        SearchPerformanceTier.High => new(
-            256, 1_024, 2_000, 180_000, 48, 28, 36),
-        SearchPerformanceTier.ExtraHigh => new(
-            256, 2_048, 2_000, 240_000, 72, 42, 54),
+        SearchPerformanceTier.Low => new(225, 150, 338, 90, 60_000),
+        SearchPerformanceTier.Medium => new(300, 200, 450, 120, 120_000),
+        SearchPerformanceTier.High => new(450, 300, 675, 180, 180_000),
+        SearchPerformanceTier.ExtraHigh => new(675, 450, 1013, 270, 300_000),
         _ => throw new ArgumentOutOfRangeException(nameof(tier)),
     };
+
+    internal SearchPlan ToSearchPlan(long memoryBytes)
+        => new(BaselineWidth, NarrowWidth, WideWidth, OffensiveWidth,
+            TotalTimeBudgetMilliseconds, memoryBytes);
 
     public static SearchPerformanceTier ParseTier(string text)
     {
@@ -97,12 +75,9 @@ internal static class SearchRequestCompiler
         bool deterministic,
         long searchMemoryBudgetBytes = 0)
     {
-        if (profile.StartWidth <= 0 || profile.MaxWidth < profile.StartWidth)
-            throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"Beam 宽度范围无效：{profile.StartWidth}..{profile.MaxWidth}");
-        if (profile.MaxExpandedNodesPerWidth <= 0)
-            throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"每轮节点上限系数必须为正：{profile.MaxExpandedNodesPerWidth}");
+        if (profile.BaselineWidth <= 0 || profile.NarrowWidth <= 0
+            || profile.WideWidth <= 0 || profile.OffensiveWidth <= 0)
+            throw new UnsupportedImportException(ImportReason.UnsupportedPolicy, "搜索宽度必须为正。");
         if (!deterministic && profile.TotalTimeBudgetMilliseconds <= 0)
             throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
                 $"决策总时间必须为正：{profile.TotalTimeBudgetMilliseconds}");
@@ -119,7 +94,7 @@ internal static class SearchRequestCompiler
             ? TimeSpan.MaxValue
             : TimeSpan.FromMilliseconds(profile.TotalTimeBudgetMilliseconds);
         BeamOptions options = new(
-            profile.StartWidth,
+            profile.BaselineWidth,
             profile.StartMaxExpandedNodes,
             SearchPerformanceProfile.MaxTurns,
             softTime,
@@ -142,9 +117,11 @@ internal static class SearchRequestCompiler
             Act3BossStrategy = policy.Act3BossStrategy,
             InitialPlayerTurn = root.PlayerTurn,
             InitialSearchTurn = root.PlayerTurn,
-            SecondRankBandWidth = profile.StartWidth,
+            SecondRankBandWidth = profile.BaselineWidth,
             PreserveReplayAllocatorOpening = HasUnusedCardReplayAllocator(player),
             SearchMemoryBudgetBytes = searchMemoryBudgetBytes,
+            PowerCommitments = PowerCatalogBuilder.Build(root, rules, scorer, state.RunState.TotalFloor),
+            HasUnboundedGrowthTargets = policy.HasUnboundedGrowthTargets && !policy.IgnoreLongTermRewards,
         };
         return new SearchCase(rules, [root], options);
     }

@@ -115,7 +115,7 @@ internal static class ActOneBoundaryFixture
         LiveCombatTracker tracker = new(combat); Battle opening = tracker.ImportRoot(combat, player, rules); tracker.Observe(opening);
         TerminalBattleCapture.Install();
         NativePilotHost native = new(loop, combat, player, rules, tracker, opening, SearchPolicyCapture.Capture(combat, player),
-            SearchPerformanceProfile.For(SearchPerformanceTier.Low), OfflineCombatSettings.DefaultMemoryBudgetBytes, widening: true);
+            SearchPerformanceProfile.For(SearchPerformanceTier.Low), OfflineCombatSettings.DefaultMemoryBudgetBytes);
         var fight = CombatPilot.RunAsync(native, "boss-direct", default); Wait(fight);
         if (fight.Result.Outcome != "victory" || fight.Result.Deviations != 0 || fight.Result.DeploymentFailures != 0)
             throw new InvalidDataException("boss-direct-native-combat");

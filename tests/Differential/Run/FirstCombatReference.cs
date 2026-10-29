@@ -67,7 +67,7 @@ internal static class FirstCombatReference
         tracker.Observe(opening);
         NativePilotHost host = new(loop, combat, player, rules, tracker, opening,
             SearchPolicyCapture.Capture(combat, player), SearchPerformanceProfile.For(SearchPerformanceTier.Low),
-            OfflineCombatSettings.DefaultMemoryBudgetBytes, widening: true);
+            OfflineCombatSettings.DefaultMemoryBudgetBytes);
         CombatPilotResult result = CombatPilot.RunAsync(host, "first-combat-reference", default).GetAwaiter().GetResult();
         loop.RunUntilCompleted(RunManager.Instance.ActionExecutor.FinishedExecutingActions(),
             TimeSpan.FromSeconds(300), "reference-post-combat-queue");

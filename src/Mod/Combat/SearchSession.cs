@@ -113,7 +113,7 @@ internal static class SearchSession
         SearchPerformanceTier tier,
         string? resultDirectory,
         int? cancelAfterMilliseconds,
-        SearchStorage? storage = null)
+        SearchStorage? storage = null, CancellationToken token = default)
     {
         if (!NGame.IsMainThread())
             throw new InvalidOperationException("搜索必须从游戏主线程启动。");
@@ -127,7 +127,7 @@ internal static class SearchSession
             Volatile.Write(ref _running, 0);
             throw new InvalidOperationException("搜索请求不得包含宿主回调。");
         }
-        CancellationTokenSource cancellation = new();
+        CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
         Task<BeamResult>? worker = null;
         BeamSolver? solver = null;
         _root = root;

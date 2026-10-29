@@ -245,7 +245,7 @@ internal static class Program
             || poolStateBudgetMb != null || memoryBudgetMb != null || memoryBudgetBytes != null)
         {
             Console.Error.WriteLine(
-                "--beam-width/--max-width/--max-nodes/--nodes-per-width/--pool-state-budget-mb/"
+                "--pool-state-budget-mb/"
                 + "--memory-budget-mb 只能与 --offline-combat 一起使用。");
             return 2;
         }
@@ -884,24 +884,9 @@ internal static class Program
             Console.Error.WriteLine("--jobs 必须在 1 到 8 之间。");
             return 2;
         }
-        if (beamWidth is <= 0)
+        if (beamWidth is not null || maxWidth is not null || maxNodes is not null || nodesPerWidth is not null)
         {
-            Console.Error.WriteLine("--beam-width 必须是正整数。");
-            return 2;
-        }
-        if (maxWidth is <= 0)
-        {
-            Console.Error.WriteLine("--max-width 必须是正整数。");
-            return 2;
-        }
-        if (maxNodes is <= 0)
-        {
-            Console.Error.WriteLine("--max-nodes 必须是正整数。");
-            return 2;
-        }
-        if (nodesPerWidth is <= 0)
-        {
-            Console.Error.WriteLine("--nodes-per-width 必须是正整数。");
+            Console.Error.WriteLine("旧加宽和节点上限参数已移除；请使用 --search-tier。 ");
             return 2;
         }
         if (poolStateBudgetMb is <= 0)
@@ -930,17 +915,6 @@ internal static class Program
             return 2;
         }
         SearchPerformanceProfile profile = SearchPerformanceProfile.For(tier);
-        if (beamWidth is { } width)
-            profile = profile with { StartWidth = width, MaxWidth = maxWidth ?? width };
-        else if (maxWidth is { } maximum)
-            profile = profile with { MaxWidth = maximum };
-        if (nodesPerWidth is { } perWidth)
-            profile = profile with { MaxExpandedNodesPerWidth = perWidth };
-        if (profile.MaxWidth < profile.StartWidth)
-        {
-            Console.Error.WriteLine("--max-width 不能小于起始宽度。");
-            return 2;
-        }
         long memoryBudgetBytes = memoryBudgetBytesOverride
             ?? (memoryBudgetMb is { } budgetMb
                 ? (long)budgetMb * 1024 * 1024

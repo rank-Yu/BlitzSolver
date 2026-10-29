@@ -19,6 +19,7 @@ try
     {
         case "k0":
             RulesCodecContract.Run();
+            SearchV2Contracts.Run();
             string magics = FormatContract.Run();
             Console.WriteLine($"K0 Passed fields={Rules.SchemaFieldCount} "
                 + $"battleBytes={Unsafe.SizeOf<Battle>()} formatVersion={Codec.FormatVersion} "

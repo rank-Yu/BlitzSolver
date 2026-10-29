@@ -155,7 +155,7 @@ internal sealed class RunProbe
                 DrainPending("开局事件初始化");
             }
             Telemetry.Write("configuration", new { _settings.Character, _settings.Seed, tier = _settings.Tier.ToString(),
-                search = SearchPerformanceProfile.For(_settings.Tier), widening = "Core WideningSearch deterministic all widths, time insurance recorded only",
+                search = SearchPerformanceProfile.For(_settings.Tier), searchPolicy = "Core CombatSearchCoordinator",
                 memoryBudgetBytes = OfflineCombatSettings.DefaultMemoryBudgetBytes,
                 ascension = 0, unlock = "all", tutorial = false, policy = "visible-first-v1", fixture = _settings.Fixture });
             using IDisposable selector = CardSelectCmd.PushSelector(new VisibleSelector(this));
@@ -313,12 +313,12 @@ internal sealed class RunProbe
             tracker.Observe(opening);
         }
         NativePilotHost host = new(_loop, combat, _player, rules, tracker, opening,
-            SearchPolicyCapture.Capture(combat, _player), SearchPerformanceProfile.For(_settings.Tier), OfflineCombatSettings.DefaultMemoryBudgetBytes, MeasureCombat, widening: true, CaptureDifference, CaptureSearchRequest);
+            SearchPolicyCapture.Capture(combat, _player), SearchPerformanceProfile.For(_settings.Tier), OfflineCombatSettings.DefaultMemoryBudgetBytes, MeasureCombat, CaptureDifference, CaptureSearchRequest);
         using CancellationTokenSource budget = new(TimeSpan.FromSeconds(Math.Max(1, _settings.MaxSeconds - _wall.Elapsed.TotalSeconds)));
         CombatPilotResult result = CombatPilot.RunAsync(host, $"{_settings.Seed}-{_combats}", budget.Token).GetAwaiter().GetResult();
         if (result.Status == "cancelled" && budget.IsCancellationRequested) throw new ProbeBudgetException("combat-time");
 
-        Telemetry.Write("combat", new { result.Status, result.Outcome, result.Turns, result.PlayerHp, result.PlayerMaxHp, result.Searches, result.ReusedTurns, result.Deviations, result.DeploymentFailures, result.PotionsUsed, result.PauseReason, rounds = result.SearchLog.Select(s => new { s.Turn, s.Reason, s.ExpandedNodes, s.RoundsRun, s.BestRound, rounds = s.Rounds.Select(r => new { r.Width, r.MaxExpandedNodes, r.ExpandedNodes, r.RouteActions, r.Victory }) }) });
+        Telemetry.Write("combat", new { result.Status, result.Outcome, result.Turns, result.PlayerHp, result.PlayerMaxHp, result.Searches, result.ReusedTurns, result.Deviations, result.DeploymentFailures, result.PotionsUsed, result.PauseReason, searches = result.SearchLog.Select(s => new { s.Turn, s.Reason, s.ExpandedNodes, s.MembersRun, s.SelectedMember, s.Members }) });
         if (result.DeploymentFailures != 0 || result.Deviations != 0 || result.Status is not ("victory" or "defeat"))
             throw new InvalidDataException($"CombatPilot status={result.Status}, failures={JsonSerializer.Serialize(result.FailureLog)}, diff={JsonSerializer.Serialize(result.DeviationLog)}");
         using (Telemetry.Measure("native_run")) DrainPending("战后奖励");

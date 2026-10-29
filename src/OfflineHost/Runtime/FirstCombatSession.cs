@@ -164,8 +164,7 @@ internal static class FirstCombatSession
                 tracker.Observe(opening);
                 NativePilotHost host = new(loop, combat, player, rules, tracker, opening,
                     SearchPolicyCapture.Capture(combat, player),
-                    SearchPerformanceProfile.For(SearchPerformanceProfile.ParseTier(options.SearchTier)), options.MemoryBudgetBytes,
-                    widening: true);
+                    SearchPerformanceProfile.For(SearchPerformanceProfile.ParseTier(options.SearchTier)), options.MemoryBudgetBytes);
                 CombatPilotResult result = await CombatPilot.RunAsync(host, "first-combat", ct);
                 finalState = Summarize(run, player);
                 Battle? terminal = TerminalBattleCapture.Value;

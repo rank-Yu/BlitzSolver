@@ -112,7 +112,7 @@ internal static class RoomsReference
                     Rules rules = RulesCompiler.Compile(combat, player, run);
                     LiveCombatTracker tracker = new(combat); Battle opening = tracker.ImportRoot(combat, player, rules); tracker.Observe(opening);
                     NativePilotHost host = new(loop, combat, player, rules, tracker, opening, SearchPolicyCapture.Capture(combat, player),
-                        SearchPerformanceProfile.For(SearchPerformanceTier.Low), OfflineCombatSettings.DefaultMemoryBudgetBytes, widening: true);
+                        SearchPerformanceProfile.For(SearchPerformanceTier.Low), OfflineCombatSettings.DefaultMemoryBudgetBytes);
                     Task<CombatPilotResult> fight = CombatPilot.RunAsync(host, "rooms-reference-" + n, default); Wait(fight);
                     CombatPilotResult result = fight.Result;
                     Wait(RunManager.Instance.ActionExecutor.FinishedExecutingActions());

@@ -23,15 +23,12 @@ internal sealed class NativePilotHost(
     SearchPerformanceProfile profile,
     long memoryBudgetBytes,
     Func<string, IDisposable>? measure = null,
-    bool widening = false,
     Action<Battle, Battle>? onDifference = null,
     Action<SearchCase>? onSearchRequest = null) : ICombatPilotHost
 {
     private readonly NativeActionExecutor _executor = new(loop, combat, player, rules, tracker);
     private readonly List<string> _potionsUsed = [];
     private Battle _current = opening;
-    private readonly int _combatStartHp = opening.Player.CurrentHp;
-    private readonly int _combatStartMaxHp = opening.Player.MaxHp;
 
     internal Battle Current => _current;
 
@@ -71,43 +68,29 @@ internal sealed class NativePilotHost(
             SearchCase searchCase = SearchRequestCompiler.CompileRequest(
                 live, livePlayer, rules, _current, policy, EvaluationRootFacts.Default, profile,
                 deterministic: true, memoryBudgetBytes);
-            WideningSearchOutcome? widened = null;
-            BeamResult beam;
-            if (widening)
+            SearchStorage storage = new();
+            SearchPlan plan = profile.ToSearchPlan(memoryBudgetBytes);
+            ValueTask<SearchMemberMeasurement> RunMember(SearchCase member, SearchStorage shared, CancellationToken ct)
             {
-                SearchStorage storage = new();
-                WideningSearchPlan plan = new(profile.StartWidth, profile.MaxWidth,
-                    profile.MaxExpandedNodesPerWidth, profile.TotalTimeBudgetMilliseconds,
-                    EnforceTimeBudget: false)
-                {
-                    CombatStartPlayerHp = _combatStartHp,
-                    CombatStartPlayerMaxHp = _combatStartMaxHp,
-                };
-                ValueTask<WideningRoundMeasurement> Round(WideningRoundRequest request)
-                {
-                    onSearchRequest?.Invoke(request.Case);
-                    System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
-                    BeamResult result = new BeamSolver(request.Case.Rules, request.Case.Options)
-                        .Solve(request.Case.Battles, storage, token);
-                    return ValueTask.FromResult(new WideningRoundMeasurement(result, "ok", null,
-                        watch.ElapsedMilliseconds, 0, 0));
-                }
-                widened = WideningSearch.RunAsync(searchCase, plan, storage, Round, token)
-                    .AsTask().GetAwaiter().GetResult();
-                beam = widened.Beam ?? throw new InvalidDataException(
-                    $"widening {widened.FailureStatus}: {widened.FailureError}");
+                onSearchRequest?.Invoke(member);
+                System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+                BeamResult result = new BeamSolver(member.Rules, member.Options).Solve(member.Battles, shared, ct);
+                return ValueTask.FromResult(new SearchMemberMeasurement(result, "ok", null,
+                    watch.ElapsedMilliseconds));
             }
-            else beam = new BeamSolver(searchCase.Rules, searchCase.Options)
-                .Solve(searchCase.Battles, token);
+            CombatSearchResult outcome = CombatSearchCoordinator.RunAsync(new(searchCase, plan), storage, RunMember, token)
+                .AsTask().GetAwaiter().GetResult();
+            BeamResult beam = outcome.Beam ?? throw new InvalidDataException(
+                $"search {outcome.FailureStatus}: {outcome.FailureError}");
             ReplayedRoute route = ReplayedRoute.Build(_current, rules, beam.BestRoute,
                 beam.BestIsVictory);
-            return ValueTask.FromResult(new CombatPilotSearch(route, "ok", widened?.ElapsedMs ?? 0,
-                widened?.TotalExpandedNodes ?? beam.ExpandedNodes, beam.BestRoute.Length,
+            return ValueTask.FromResult(new CombatPilotSearch(route, "ok", outcome.ElapsedMs,
+                outcome.TotalExpandedNodes, beam.BestRoute.Length,
                 beam.BestIsVictory, null, null, null, 0, 0)
             {
-                Rounds = widened?.Rounds ?? [], RoundsRun = widened?.RoundsRun ?? 1,
-                BestRound = widened?.BestRound ?? 0,
-                DamageFreeVictory = widened?.DamageFreeVictory ?? false,
+                Members = outcome.Members, MembersRun = outcome.MembersRun,
+                MembersSkippedByTime = outcome.MembersSkippedByTime,
+                SelectedMember = outcome.SelectedMember, SearchStatus = outcome.Status,
             });
         }
         catch (UnsupportedImportException error)

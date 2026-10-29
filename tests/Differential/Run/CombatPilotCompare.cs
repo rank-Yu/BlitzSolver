@@ -276,7 +276,7 @@ internal static class CombatPilotCompare
             tracker.Observe(opening);
             SearchPolicy policy = SearchPolicyCapture.Capture(combat, combatPlayer);
             NativePilotHost host = new(loop, combat, combatPlayer, nativeRules, tracker, opening,
-                policy, SearchPerformanceProfile.For(SearchPerformanceTier.Low), 0);
+                policy, SearchPerformanceProfile.For(SearchPerformanceTier.Low), OfflineCombatSettings.DefaultMemoryBudgetBytes);
             CombatPilotResult result = CombatPilot.RunAsync(host, root, CancellationToken.None)
                 .GetAwaiter().GetResult();
             if (result.DeploymentFailures != 0 || result.Deviations != 0

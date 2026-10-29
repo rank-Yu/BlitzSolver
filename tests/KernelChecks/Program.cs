@@ -32,6 +32,7 @@ RunChecks.Check();
 RunPilotChecks.Check();
 CheckGrowthRewards();
 Rules rules = SliceRules();
+SearchV2Checks.Check(rules);
 CheckHookDeactivation(rules);
 bool lateRegistrationThrew = false;
 try

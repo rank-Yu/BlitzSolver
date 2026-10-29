@@ -14,7 +14,7 @@ internal sealed record CombatPilotSearchEntry(
     string Reason,
     string Status,
     long ElapsedMs,
-    int ExpandedNodes,
+    long ExpandedNodes,
     int RouteActions,
     bool Victory,
     string? Error,
@@ -29,11 +29,11 @@ internal sealed record CombatPilotSearchEntry(
     long RouteNodeStorageBytes = 0,
     int RouteNodePeakCount = 0)
 {
-    public int BestRound { get; init; }
-    public bool DamageFreeVictory { get; init; }
-    public WideningRoundLog[] Rounds { get; init; } = [];
-    public int RoundsRun { get; init; }
-    public int RoundsSkippedByTime { get; init; }
+    public int SelectedMember { get; init; } = -1;
+    public CombatSearchStatus SearchStatus { get; init; }
+    public SearchMemberResult[] Members { get; init; } = [];
+    public int MembersRun { get; init; }
+    public int MembersSkippedByTime { get; init; }
 }
 
 /// <summary>One predicted/live boundary deviation.</summary>
@@ -76,7 +76,7 @@ internal sealed record CombatPilotSearch(
     ReplayedRoute? Route,
     string Status,
     long ElapsedMs,
-    int ExpandedNodes,
+    long ExpandedNodes,
     int RouteActions,
     bool Victory,
     string? Error,
@@ -93,20 +93,11 @@ internal sealed record CombatPilotSearch(
     long RouteNodeStorageBytes = 0,
     int RouteNodePeakCount = 0)
 {
-    /// <summary>The widening round whose route was kept; 0 for a single search.</summary>
-    public int BestRound { get; init; }
-
-    /// <summary>The kept route is a victory with no HP or max-HP loss from the combat opening.</summary>
-    public bool DamageFreeVictory { get; init; }
-
-    /// <summary>Every round of this decision, including rounds the game would skip or truncate.</summary>
-    public WideningRoundLog[] Rounds { get; init; } = [];
-
-    /// <summary>Rounds actually run by this host.</summary>
-    public int RoundsRun { get; init; }
-
-    /// <summary>Rounds the in-game time insurance refused to start.</summary>
-    public int RoundsSkippedByTime { get; init; }
+    public int SelectedMember { get; init; } = -1;
+    public CombatSearchStatus SearchStatus { get; init; }
+    public SearchMemberResult[] Members { get; init; } = [];
+    public int MembersRun { get; init; }
+    public int MembersSkippedByTime { get; init; }
 }
 
 /// <summary>A boundary projection comparison at a reused turn start.</summary>
@@ -230,11 +221,11 @@ internal static class CombatPilot
                         search.SearchMemoryUsedBytes, search.SearchMemoryPeakBytes,
                         search.RouteNodeStorageBytes, search.RouteNodePeakCount)
                     {
-                        BestRound = search.BestRound,
-                        DamageFreeVictory = search.DamageFreeVictory,
-                        Rounds = search.Rounds,
-                        RoundsRun = search.RoundsRun,
-                        RoundsSkippedByTime = search.RoundsSkippedByTime,
+                        SelectedMember = search.SelectedMember,
+                        SearchStatus = search.SearchStatus,
+                        Members = search.Members,
+                        MembersRun = search.MembersRun,
+                        MembersSkippedByTime = search.MembersSkippedByTime,
                     });
                     if (search.Route == null)
                     {

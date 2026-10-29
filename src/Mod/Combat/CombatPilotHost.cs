@@ -135,17 +135,10 @@ internal sealed class CombatPilotHost(
                 "request_invalid", error.Message, 0, 0);
         }
         SearchPerformanceProfile profile = SearchPerformanceProfile.For(tier);
-        WideningSearchPlan plan = new(profile.StartWidth, profile.MaxWidth,
-            profile.MaxExpandedNodesPerWidth, profile.TotalTimeBudgetMilliseconds,
-            EnforceTimeBudget: true)
-        {
-            CombatStartPlayerHp = _combatStartHp,
-            CombatStartPlayerMaxHp = _combatStartMaxHp,
-        };
+        SearchPlan plan = profile.ToSearchPlan(searchCase.Options.SearchMemoryBudgetBytes);
         SearchStorage storage = new();
-        WideningSearchOutcome outcome = await WideningSearch.RunAsync(
-            searchCase, plan, storage, RunRound, token);
-        WideningRoundLog[] rounds = outcome.Rounds;
+        CombatSearchResult outcome = await CombatSearchCoordinator.RunAsync(
+            new(searchCase, plan), storage, RunMember, token);
         if (outcome.Beam is not { } beam)
         {
             string status = outcome.FailureStatus.Length > 0 ? outcome.FailureStatus : "failed";
@@ -153,7 +146,7 @@ internal sealed class CombatPilotHost(
             string detail = $"search {status}: {error}";
             ModLog.Error(
                 $"[Sts2Solver] AUTO_SEARCH_FAILED turn={turn} reason={reason} " +
-                $"status={status} error={error} rounds={rounds.Length}");
+                $"status={status} error={error} members={outcome.Members.Length}");
             return new CombatPilotSearch(null, status, outcome.ElapsedMs,
                 outcome.TotalExpandedNodes, 0, false, error, "search_failed", detail,
                 outcome.ManagedHeapPeakBytes, outcome.WorkingSetPeakBytes, outcome.SoftTimeRisk,
@@ -162,9 +155,11 @@ internal sealed class CombatPilotHost(
                 outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
                 outcome.RouteNodePeakCount)
             {
-                Rounds = rounds,
-                RoundsRun = outcome.RoundsRun,
-                RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+                SelectedMember = outcome.SelectedMember,
+                SearchStatus = outcome.Status,
+                Members = outcome.Members,
+                MembersRun = outcome.MembersRun,
+                MembersSkippedByTime = outcome.MembersSkippedByTime,
             };
         }
         ReplayedRoute route;
@@ -197,9 +192,9 @@ internal sealed class CombatPilotHost(
         ModLog.Info(
             $"[Sts2Solver] AUTO_SEARCH turn={turn} reason={reason} ms={outcome.ElapsedMs} " +
             $"expanded={outcome.TotalExpandedNodes} route={beam.BestRoute.Length} " +
-            $"victory={beam.BestIsVictory} score={beam.BestScore} rounds={rounds.Length} " +
-            $"best_round={outcome.BestRound} damage_free={outcome.DamageFreeVictory} " +
-            $"soft_time_risk={outcome.SoftTimeRisk} skipped={outcome.RoundsSkippedByTime}");
+            $"victory={beam.BestIsVictory} score={beam.BestScore} members={outcome.Members.Length} " +
+            $"selected_member={outcome.SelectedMember} " +
+            $"soft_time_risk={outcome.SoftTimeRisk} skipped={outcome.MembersSkippedByTime}");
         return new CombatPilotSearch(route, "ok", outcome.ElapsedMs, outcome.TotalExpandedNodes,
             beam.BestRoute.Length, beam.BestIsVictory, null, null, null,
             outcome.ManagedHeapPeakBytes, outcome.WorkingSetPeakBytes, outcome.SoftTimeRisk,
@@ -208,31 +203,28 @@ internal sealed class CombatPilotHost(
             outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
             outcome.RouteNodePeakCount)
         {
-            BestRound = outcome.BestRound,
-            DamageFreeVictory = outcome.DamageFreeVictory,
-            Rounds = rounds,
-            RoundsRun = outcome.RoundsRun,
-            RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+            SelectedMember = outcome.SelectedMember,
+            SearchStatus = outcome.Status,
+            Members = outcome.Members,
+            MembersRun = outcome.MembersRun,
+            MembersSkippedByTime = outcome.MembersSkippedByTime,
         };
 
-        async ValueTask<WideningRoundMeasurement> RunRound(WideningRoundRequest round)
+        async ValueTask<SearchMemberMeasurement> RunMember(SearchCase member, SearchStorage shared, CancellationToken ct)
         {
-            token.ThrowIfCancellationRequested();
+            ct.ThrowIfCancellationRequested();
             SearchRunResult result = await SearchSession.RunAsync(
-                host, _root, round.Case, deterministic: false, tier, resultDirectory: null,
-                cancelAfterMilliseconds: null, storage);
-            ModLog.Info(
-                $"[Sts2Solver] AUTO_WIDEN_ROUND turn={turn} reason={reason} round={round.Round} " +
-                $"width={round.Width} remaining_ms={round.RemainingMilliseconds} " +
-                $"soft_ms={round.SoftTimeMilliseconds} status={result.Status} " +
+                host, _root, member, deterministic: false, tier, resultDirectory: null,
+                cancelAfterMilliseconds: null, shared, ct);
+            ModLog.Info($"[Sts2Solver] AUTO_SEARCH_MEMBER turn={turn} reason={reason} " +
+                $"width={member.Options.BeamWidth} status={result.Status} " +
                 $"ms={result.ElapsedMilliseconds} expanded={result.ExpandedNodes}");
-            return new WideningRoundMeasurement(result.Beam, result.Status, result.Error,
-                result.ElapsedMilliseconds, result.ManagedHeapPeakBytes,
-                result.WorkingSetPeakBytes);
+            return new(result.Beam, result.Status, result.Error, result.ElapsedMilliseconds,
+                result.ManagedHeapPeakBytes, result.WorkingSetPeakBytes);
         }
     }
 
-    private static CombatPilotSearch InvalidRoute(WideningSearchOutcome outcome, BeamResult beam,
+    private static CombatPilotSearch InvalidRoute(CombatSearchResult outcome, BeamResult beam,
         string status, string reason, string detail)
         => new(null, status, outcome.ElapsedMs, outcome.TotalExpandedNodes,
             beam.BestRoute.Length, beam.BestIsVictory, detail, reason, detail,
@@ -242,9 +234,11 @@ internal sealed class CombatPilotHost(
             outcome.SearchMemoryPeakBytes, outcome.RouteNodeStorageBytes,
             outcome.RouteNodePeakCount)
         {
-            Rounds = outcome.Rounds,
-            RoundsRun = outcome.RoundsRun,
-            RoundsSkippedByTime = outcome.RoundsSkippedByTime,
+            SelectedMember = outcome.SelectedMember,
+            SearchStatus = outcome.Status,
+            Members = outcome.Members,
+            MembersRun = outcome.MembersRun,
+            MembersSkippedByTime = outcome.MembersSkippedByTime,
         };
 
     public ValueTask<CombatPilotBoundary> CheckBoundaryAsync(ReplayedAction expected, int turn,
