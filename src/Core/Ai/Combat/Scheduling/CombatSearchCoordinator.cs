@@ -73,6 +73,7 @@ internal static class CombatSearchCoordinator
                 BeamWidth = member.Width,
                 MaxTurns = int.MaxValue,
                 UnlimitedNodes = true,
+                DeadlineExpired = budget.Expired,
                 SoftTimeBudget = TimeSpan.FromMilliseconds(searchMs),
                 SearchMemoryBudgetBytes = plan.MemoryBytes,
                 PoolStateBudgetBytes = initial.Options.PoolStateBudgetBytes > 0

@@ -266,11 +266,14 @@ internal sealed partial class BeamSolver
         Array.Fill(map, -1, 0, count);
         for (int index = 0; index < roots.Count; index++)
         {
+            if (_options.UnlimitedNodes && (index & 1023) == 0) SearchCheckpoint();
             int cursor = roots[index];
             if ((uint)cursor >= (uint)count)
                 throw new InvalidOperationException($"路线节点根越界：{cursor}/{count}。");
+            int traversed = 0;
             while (cursor >= 0 && map[cursor] == -1)
             {
+                if (_options.UnlimitedNodes && (traversed++ & 1023) == 0) SearchCheckpoint();
                 map[cursor] = -2;
                 cursor = _nodes.ParentAt(cursor);
             }
@@ -279,6 +282,7 @@ internal sealed partial class BeamSolver
         int live = 0;
         for (int index = 0; index < count; index++)
         {
+            if (_options.UnlimitedNodes && (index & 1023) == 0) SearchCheckpoint();
             if (map[index] == -2)
                 map[index] = live++;
         }
@@ -338,6 +342,7 @@ internal sealed partial class BeamSolver
 
         CompactCommitments(live);
         CompactRoutingMetadata();
+        if (_options.UnlimitedNodes) SearchCheckpoint();
     }
 
     private void CompactCommitments(int liveNodes)

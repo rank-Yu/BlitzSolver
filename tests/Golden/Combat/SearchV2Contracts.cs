@@ -58,6 +58,47 @@ internal static class SearchV2Contracts
         BeamResult second = new BeamSolver(original.Rules, batched).Solve(original.Battles, storage, CancellationToken.None);
         Assert(SearchCodec.EncodeResult(first).AsSpan().SequenceEqual(SearchCodec.EncodeResult(second)),
             "compacted pools and route references survive storage reuse");
+        long clock = 0;
+        ValueTask<SearchMemberMeasurement> DelayedStart(SearchCase member, SearchStorage shared, CancellationToken token)
+        {
+            clock = 10_001;
+            BeamResult delayed = new BeamSolver(member.Rules, member.Options).Solve(member.Battles, shared, token);
+            Assert(delayed.SoftTimeBudgetReached && delayed.ExpandedNodesTotal == 0
+                && !delayed.PotionPolicySatisfied, "expired member must not start");
+            return ValueTask.FromResult(new SearchMemberMeasurement(delayed, "ok", null, 0));
+        }
+        CombatSearchResult delayedOutcome = CombatSearchCoordinator.RunAsync(new(original, plan),
+            new SearchStorage(), DelayedStart, CancellationToken.None, () => clock)
+            .AsTask().GetAwaiter().GetResult();
+        Assert(delayedOutcome.Beam == null && delayedOutcome.ExpandedNodes == 0
+            && delayedOutcome.Status == CombatSearchStatus.Incomplete,
+            "shared deadline covers host queue before member starts");
+        int retentionChecks = 0;
+        bool expired = false;
+        BeamOptions interruptedOptions = batched with
+        {
+            UnlimitedNodes = true,
+            DeadlineExpired = () => expired,
+            RetentionCheckpoint = () => { if (++retentionChecks == 2) expired = true; },
+        };
+        BeamResult interrupted = new BeamSolver(original.Rules, interruptedOptions)
+            .Solve(original.Battles, CancellationToken.None);
+        Assert(retentionChecks >= 2 && interrupted.ExpandedNodesTotal > 0
+            && interrupted.SoftTimeBudgetReached && interrupted.StopReason == "time",
+            "deadline interrupts retention at a safe checkpoint");
+        _ = ReplayedRoute.Build(original.Battles[interrupted.BestRootIndex], original.Rules,
+            interrupted.BestRoute, interrupted.BestIsVictory);
+        using CancellationTokenSource cancel = new();
+        int cancellationChecks = 0;
+        BeamOptions cancelOptions = batched with
+        {
+            UnlimitedNodes = true,
+            RetentionCheckpoint = () => { if (++cancellationChecks == 2) cancel.Cancel(); },
+        };
+        bool cancelled = false;
+        try { _ = new BeamSolver(original.Rules, cancelOptions).Solve(original.Battles, cancel.Token); }
+        catch (OperationCanceledException) { cancelled = true; }
+        Assert(cancelled, "user cancellation propagates independently of time stops");
         bool smallPool = false;
         try
         {

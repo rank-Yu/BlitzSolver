@@ -45,6 +45,8 @@ internal sealed record ProgressSnapshot(
 /// attached to the layer/expansion loops in the same places the existing search reads
 /// <c>_interaction?.CurrentTakeoverRequest</c> and publishes <c>SolverProgress</c>.
 /// </summary>
+internal sealed class SearchDeadlineException : Exception;
+
 internal sealed partial class BeamSolver
 {
     private const int ProgressIntervalMilliseconds = 100;
@@ -70,7 +72,18 @@ internal sealed partial class BeamSolver
     private void SearchCheckpoint()
     {
         _cancellationToken.ThrowIfCancellationRequested();
+        if (DeadlineExpired())
+        {
+            _deadlineReached = true;
+            throw new SearchDeadlineException();
+        }
         _options.Pacer?.YieldIfNeeded();
+        _cancellationToken.ThrowIfCancellationRequested();
+        if (DeadlineExpired())
+        {
+            _deadlineReached = true;
+            throw new SearchDeadlineException();
+        }
     }
 
     private TakeoverAction PollTakeover()

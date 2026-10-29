@@ -19,6 +19,8 @@ internal sealed partial class BeamSolver
         private readonly int _maxCapacity;
         private readonly bool _lazyScratch;
         private readonly CancellationToken _cancellationToken;
+        private readonly Action? _checkpoint;
+        private readonly Action? _retentionObserver;
         private int _auxSeats;
         public readonly record struct PoolLabel(
             int PotionCount, int PotionStrategicCost, int FutureSoldHp,
@@ -139,11 +141,14 @@ internal sealed partial class BeamSolver
             ChunkedList<PowerCommitmentState> commitmentStates, RouteNodeStore routeNodes,
             ChunkedList<RoutingSignature> routingSignatures, bool checkPotionQuota, int initialActionCount,
             bool preserveReplayAllocatorOpening, BeamTrace? trace, SearchStorage storage,
-            bool lazyScratch = false, CancellationToken cancellationToken = default)
+            bool lazyScratch = false, CancellationToken cancellationToken = default,
+            Action? checkpoint = null, Action? retentionObserver = null)
         {
             _maxCapacity = maxCapacity;
             _lazyScratch = lazyScratch;
             _cancellationToken = cancellationToken;
+            _checkpoint = checkpoint;
+            _retentionObserver = retentionObserver;
             _preserveTheft = preserveTheft;
             _scorer = scorer;
             _planCommitment = planCommitment;

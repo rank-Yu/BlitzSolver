@@ -19,6 +19,12 @@ internal sealed record BeamOptions(
     /// <summary>Production searches share time and memory, without a node ceiling.</summary>
     public bool UnlimitedNodes { get; init; }
 
+    /// <summary>Request deadline shared by every member; host-only, never encoded in SREQ.</summary>
+    public Func<bool>? DeadlineExpired { get; init; }
+
+    /// <summary>Optional test observer called at retention checkpoints.</summary>
+    public Action? RetentionCheckpoint { get; init; }
+
     /// <summary>Unbounded growth goals preclude proving an early stop.</summary>
     public bool HasUnboundedGrowthTargets { get; init; }
 
@@ -647,6 +653,7 @@ internal sealed partial class BeamSolver
     private SearchIncumbent? _incumbent;
     private int _expanded;
     private long _expandedTotal;
+    private bool _deadlineReached;
     private int _transitions;
     private int _duplicates;
     private bool _memoryBudgetExceeded;
@@ -783,8 +790,11 @@ internal sealed partial class BeamSolver
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(storage);
+        cancellationToken.ThrowIfCancellationRequested();
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
+        if (DeadlineExpired()) return DeadlineBeforeStart(storage);
+        _deadlineReached = false;
         _storage = storage;
         _storage.BeginSolve(_options.SearchMemoryBudgetBytes,
             releaseTransient: _options.EndedBatchTrigger > 0);
@@ -837,6 +847,7 @@ internal sealed partial class BeamSolver
         _endTurnPrefixExtraTurnUnshared = 0;
         _endTurnPrefixNotInProgress = 0;
         _scoutLayers.Clear();
+        if (DeadlineExpired()) return DeadlineBeforeStart(storage);
         if (_options.Novelty is { } novelty)
             return SolveNovelty(roots, novelty, watch, cancellationToken);
         _hpTargetReached = false;
@@ -885,25 +896,33 @@ internal sealed partial class BeamSolver
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
             _options.PreserveReplayAllocatorOpening, _options.Trace, _storage,
             lazyScratch: _options.EndedBatchTrigger > 0,
-            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default);
+            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default,
+            checkpoint: _options.UnlimitedNodes ? SearchCheckpoint : null,
+            retentionObserver: _options.RetentionCheckpoint);
         Pool next = new(initialChildren, poolLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
             _options.PreserveReplayAllocatorOpening, _options.Trace, _storage,
             lazyScratch: _options.EndedBatchTrigger > 0,
-            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default);
+            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default,
+            checkpoint: _options.UnlimitedNodes ? SearchCheckpoint : null,
+            retentionObserver: _options.RetentionCheckpoint);
         Pool ended = new(Math.Min(initialChildren, endedLimit), endedLimit, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
             _options.PreserveReplayAllocatorOpening, _options.Trace, _storage,
             lazyScratch: _options.EndedBatchTrigger > 0,
-            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default);
+            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default,
+            checkpoint: _options.UnlimitedNodes ? SearchCheckpoint : null,
+            retentionObserver: _options.RetentionCheckpoint);
         Pool turnFrontier = new(frontierCapacity, frontierCapacity, preserveTheft, _scorer, _planCommitment,
             _options.SecondRankBand, bandWidth, _aggressivePowerCommitment, _powerCommitments, _commitments,
             _nodes, _routingSignatures, checkPotionQuota, _options.InitialActionCount,
             _options.PreserveReplayAllocatorOpening, _options.Trace, _storage,
             lazyScratch: _options.EndedBatchTrigger > 0,
-            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default);
+            cancellationToken: _options.UnlimitedNodes ? cancellationToken : default,
+            checkpoint: _options.UnlimitedNodes ? SearchCheckpoint : null,
+            retentionObserver: _options.RetentionCheckpoint);
 
         RouteKey? best = null;
         int bestNode = 0;
@@ -978,6 +997,8 @@ internal sealed partial class BeamSolver
         _routingSignatureIds.Clear();
         for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (DeadlineExpired()) return DeadlineBeforeStart(storage);
             Battle root = roots[rootIndex];
             (double rootScore, double rootRank, double rootPureRank, int rootPotionCost,
                 ScoreFeatures rootFeatures) =
@@ -996,6 +1017,7 @@ internal sealed partial class BeamSolver
             turnFrontier.Add(root, rootIndex, rootScore, rootRank, rootPureRank, rootPotionCost, rootFacts,
                 0, _options.InitialPlanPayoffCount, 0);
         }
+        if (DeadlineExpired()) return DeadlineBeforeStart(storage);
         TerminalSink terminal = ConsiderTerminal;
         PublishProgress(0, 0, turnFrontier.Count, 0, "初始化", force: true, routeNode: -1);
         int turns = 0;
@@ -1101,6 +1123,10 @@ internal sealed partial class BeamSolver
                 break;
         }
         }
+        catch (SearchDeadlineException)
+        {
+            _deadlineReached = true;
+        }
         catch (SearchMemoryBudgetException error)
         {
             _memoryBudgetExceeded = true;
@@ -1131,6 +1157,11 @@ internal sealed partial class BeamSolver
             // victory already exists, so the boundary states are always collected here.
             for (int index = 0; index < turnFrontier.Count; index++)
             {
+                if (_options.UnlimitedNodes && (index & 63) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (DeadlineExpired()) { _deadlineReached = true; break; }
+                }
                 int node = turnFrontier.Node(index);
                 int actionCount = Depth(node);
                 ref Battle state = ref turnFrontier.State(index);
@@ -1198,6 +1229,11 @@ internal sealed partial class BeamSolver
         {
             for (int index = 0; index < turnFrontier.Count; index++)
             {
+                if (_options.UnlimitedNodes && (index & 63) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (DeadlineExpired()) { _deadlineReached = true; break; }
+                }
                 int node = turnFrontier.Node(index);
                 int actionCount = Depth(node);
                 ref Battle state = ref turnFrontier.State(index);
@@ -1725,6 +1761,15 @@ internal sealed partial class BeamSolver
         return true;
     }
 
+    private bool DeadlineExpired() => _options.DeadlineExpired?.Invoke() == true;
+
+    private static BeamResult DeadlineBeforeStart(SearchStorage storage) => new([], [], false,
+        double.NegativeInfinity, 0, 0, 0, 0, 0, TimeSpan.Zero)
+    {
+        SoftTimeBudgetReached = true, PotionPolicySatisfied = false, StopReason = "time",
+        SearchMemoryUsedBytes = storage.Memory.UsedBytes, SearchMemoryPeakBytes = storage.Memory.PeakBytes,
+    };
+
     private void CountExpanded()
     {
         if (_expanded < int.MaxValue) _expanded++;
@@ -1734,7 +1779,7 @@ internal sealed partial class BeamSolver
     private bool NodeBudgetAvailable => _options.UnlimitedNodes || _expanded < _options.MaxExpandedNodes;
 
     private bool OutOfBudget(Stopwatch watch)
-        => _memoryBudgetExceeded || !NodeBudgetAvailable
+        => _memoryBudgetExceeded || !NodeBudgetAvailable || DeadlineExpired()
             || watch.Elapsed >= _options.SoftTimeBudget;
 
     /// <summary>
@@ -1743,10 +1788,10 @@ internal sealed partial class BeamSolver
     /// flag is diagnostic and never enters the result codec.
     /// </summary>
     private bool SoftTimeReached(Stopwatch watch)
-        => _options.SoftTimeBudget != TimeSpan.MaxValue
-            && !_memoryBudgetExceeded
-            && NodeBudgetAvailable
-            && watch.Elapsed >= _options.SoftTimeBudget;
+        => !_memoryBudgetExceeded && NodeBudgetAvailable
+            && (_deadlineReached || DeadlineExpired()
+                || _options.SoftTimeBudget != TimeSpan.MaxValue
+                    && watch.Elapsed >= _options.SoftTimeBudget);
 
     private int Depth(int node) => _nodes[node].Depth;
 

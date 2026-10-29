@@ -89,8 +89,11 @@ internal sealed partial class BeamSolver
                 _taken[index] = false;
                 _required[index] = false;
             }
+            _retentionObserver?.Invoke();
+            _checkpoint?.Invoke();
             _cancellationToken.ThrowIfCancellationRequested();
             SortByRank(count);
+            _checkpoint?.Invoke();
             _cancellationToken.ThrowIfCancellationRequested();
             int seats = Math.Min(width, count);
             // BeamRetentionPolicy.RankBest: a band member rotates the score-leading width to the tail
@@ -111,6 +114,7 @@ internal sealed partial class BeamSolver
             // so the score leaders and then the required set are preserved. The collection limits
             // scale with the requested width exactly as before.
             CollectRepresentatives(required, count, width, turnBoundary);
+            _checkpoint?.Invoke();
             _cancellationToken.ThrowIfCancellationRequested();
             // BeamRetentionPolicy.RankBest: every required candidate not already ranked replaces the
             // last ordinary seat, so all required members survive without widening the layer.
