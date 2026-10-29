@@ -9,12 +9,17 @@
   怪物的（槽位、进阶）规则组合、遭遇、角色卡池/药水池、未知点概率与开战 setup Hook 掩码。
   奖励池、商店价格、新局静态数据与对应 Hook 掩码已删除。
 - `Decisions/`：`RunDecisionImporter` 从原版真实待选模型导入 MapPoint、Event、RestSite、
-  CardSelect。`NativeDecisionSnapshot<T>` 按值提供纯 Request，封装只读原实例绑定；
+  CardSelect、CombatReward、CardReward、PotionDiscard 与 Shop。`NativeDecisionSnapshot<T>` 按值提供纯 Request，封装只读原实例绑定；
   `Resolve` 完整校验回答后返回有序原实例，`ValidateCurrent` 重核来源、当前候选身份与可见负载。
   Import 不执行游戏、不生成页面/选项、不管理 Token 生命周期，不引用 TestHost。
   地图要求宿主实时提供实际待选入口是否启用；选牌要求真实 pending 回调的完整 prefs 和
   原命令种类，自动选择不制造请求。事件 typed 事实首批仅 ThisOrThat.PLAIN 与
-  FieldOfManSizedHoles.RESIST；未知效果保持 Unknown。奖励、商店与其他选择类型尚未接入。
+  FieldOfManSizedHoles.RESIST；未知效果保持 Unknown。
+  奖励列表只接受已生成且已 Begin 的原版当前集合与宿主实时可见按钮；不读取未打开卡牌容器的牌组。
+  选牌奖励只读原版 callback 中的牌与 Alternative，支持标准 Skip/Reroll，其他替代效果显式拒绝。
+  PotionDiscard 是宿主显式整理药水步骤，丢弃后返回原列表，不自动领取奖励。
+  商店保留买不起/满槽等禁用在售行，价格取原版 Entry.Cost；补货后的 model 新实例使旧快照失效。
+  bundle 与通用 RelicSelect 仍未接入。
   正式宿主执行仍待落地，Differential 中的生命周期与回调桥接仅用于测试。
   接口、取消/确认、过期与覆盖限制见[局外决策](../../../docs/run-decisions.md#7-原版首批导入与绑定)。
 

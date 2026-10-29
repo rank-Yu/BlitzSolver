@@ -23,7 +23,7 @@ namespace BlitzSolver.Import;
 public enum NativeCardSelectionKind { DeckGeneric, DeckUpgrade, SimpleGrid }
 
 /// <summary>Read-only native choices. Host tokens must be fresh; importing does not reserve or consume them.</summary>
-public static class RunDecisionImporter
+public static partial class RunDecisionImporter
 {
     private static readonly FieldInfo EventOptions = typeof(EventModel).GetField("_currentOptions", BindingFlags.NonPublic | BindingFlags.Instance)!;
     private static readonly FieldInfo EventVars = typeof(EventModel).GetField("_dynamicVars", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -136,7 +136,8 @@ public static class RunDecisionImporter
             if (!Registry.TryCard(card.Id.Entry, out _))
                 throw new UnsupportedException("decision-card: unknown card " + card.Id.Entry);
             if (!ReferenceEquals(card.Owner, player) || deck != null && !deck.Any(c => ReferenceEquals(c, card))
-                || kind == NativeCardSelectionKind.DeckUpgrade && !card.IsUpgradable)
+                || kind == NativeCardSelectionKind.DeckUpgrade && !card.IsUpgradable
+                || purpose == RunSelectionPurpose.Remove && !card.IsRemovable)
                 throw new UnsupportedException("decision-card: candidate is not eligible in current source");
         }
         RunDecisionRequest request = New(RunDecision.CardSelect, token);

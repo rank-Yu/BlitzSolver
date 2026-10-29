@@ -10,7 +10,7 @@
 ## 1. 请求、回答与共享负载
 
 Core 提供有界、无托管引用的可见协议；`RunDecisionImporter` 已支持首批原版地图、事件、
-休息与选牌待选请求。协议能表达一种界面不代表已有该界面的执行桥接。`RunState`/`RunCodec v3` 的 49912 字节
+休息、选牌、奖励列表/选牌奖励、药水整理与商店待选请求。协议能表达一种界面不代表已有该界面的执行桥接。`RunState`/`RunCodec v3` 的 49912 字节
 布局不变，`RunDecision` 的既有数字不变。
 
 | 类型 | 内容与预算 |
@@ -227,7 +227,7 @@ Core 只比较回答与给定请求的完整 Token，不保存已消费历史；
 
 ## 7. 原版首批导入与绑定
 
-`src/Import/Run/Decisions/RunDecisionImporter.cs` 只读原版当前模型。四个入口返回
+`src/Import/Run/Decisions/RunDecisionImporter*.cs` 只读原版当前模型。各入口返回
 `NativeDecisionSnapshot<T>`；`Request` 按值返回纯 Core 数据，私有绑定数组不向策略暴露。
 `Resolve` 先完整 `ValidateAction`，再按回答顺序返回只读原实例列表；不执行游戏、不消费 Token。
 候选实例不可重复引用，同模型不同实例保留各自升级、附魔与不同 OptionId。
@@ -266,8 +266,35 @@ sortingOrder 不由 Import 重新运行；正式宿主在其他游戏状态改�
 完整 prefs，作用域在调用返回/异常后恢复；这不是通用异步上下文桥接。测试串行且没有外部
 并发游戏动作，不代表 Mod UI 或生产离线宿主已经接入。
 
-奖励、商店、bundle、RelicSelect、PotionDiscard 仍未接入此 Importer；正式 OfflineHost/Mod
-共享执行协议与 RunPilot 也尚未落地。已冻结 Core 协议能表达这些类型，不代表本批实现。
+奖励与商店入口使用 `NativeDecisionSnapshot<object>` 混合绑定真实 Reward/RewardsSet、CardModel/
+CardRewardAlternative、PotionModel/当前奖励、MerchantEntry/MerchantInventory，不新建身份包装对象。
+
+| 入口 | 原版依据与限制 |
+| --- | --- |
+| `Rewards(set, visible, active, canLeave, token)` | 只读检查原版 `_isGenerated`、同步器当前栈顶集合及其 Id；不调用 Generate/Begin。`visible` 必须实时读取 UI 按钮或实际 callback 中仍显示的集合，`active` 与 `canLeave` 来自当前画面。Gold 导入当前 Amount 为 GoldGain；遗物/药水携带模型，Card 仅容器，不暴露内部候选。强制奖励还有可见行时没有 Leave；已完成集合只允许当前 CombatRoom 终端画面的空列表 Proceed，其余由宿主收尾。 |
+| `CardReward(reward, cards, alternatives, active, token)` | 从原版 OnSelect 的实际回调集合读取，校验牌集合就是原 `_cards`。只支持实际标准 Skip 与 REROLL，校验 AfterSelected；不自行调用 Alternative.Generate，不用 default 冒充 Skip。原 while 在重抽后再次回调，每次需要新 Token。 |
+| `PotionDiscard(reward, active, token)` | 原版 TooFull 不会自动弹出丢弃屏幕；这是宿主明确进入的整理步骤。只接受当前 pending 满槽且允许领取的 PotionReward；各槽保留 Potion 原实例，已入队药水禁用、死亡玩家拒绝。Skip 仅返回奖励列表，选药水仅丢弃，不自动重试领取。 |
+| `Shop(room, player, active, canLeave, token)` | 只读当前 MerchantRoom 的本地库存；售罄普通物品按原 UI 隐藏，已用删牌牌匾保留且 Disabled。买不起、满药水或当前药水 Hook 禁止等保留禁用行；删牌同时核对 Hook 与可移除牌。价格只取 Entry.Cost（已含折扣），GoldLoss 使用正数；0 价为 Complete 空 Costs，负价拒绝。Leave 只关闭库存，不 PopRoom/跳地图。 |
+
+原版 NRewardButton.GetReward 在 SelectLocalReward 返回 false 时重新启用按钮并发 RewardSkipped，
+NRewardsScreen 只据此更新脉冲状态，不移除按钮。因此选牌 Skip 与满槽失败后奖励仍可见、可重试；
+PotionReward 在 NotAllowed 时反而返回 true 并消费奖励，不能与 TooFull 混为一谈。
+
+原版 CardReward.OnSelect 在 TestMode 的同步 ICardSelector 回调中复用首次生成的 alternatives；
+Reroll 后原 UI 的 RefreshOptions 会重建按钮并去掉 REROLL。导入器据 CanReroll=false 剔除回调列表内
+过期的 REROLL，其他未知替代效果仍显式拒绝，包含 PaelsWing 的 SACRIFICE。当前不支持 bundle 与
+通用 RelicSelect。完整本地化仍未实现。
+
+快照额外捕获集合 Id、父奖励集合原实例与 Id、商店 Entry 对应 model 原实例；同一个 Entry 补货成
+同模型新对象也必须失效。每次父/子请求与返回列表由宿主生成新 revision，非法回答与旧 Token 不派发，
+失效的子请求必须使原等待链失败并释放 busy。Import 不依赖 TestHost，不生成/执行原版动作。
+
+奖励与商店 Differential 通过原版 RewardsSet.Offer(testSelector) 与 MerchantRoom.Enter 验证。
+其 CardReward 测试接口同步返回，所以测试在真实 callback 中提交回答，由原版 while 负责重入；
+它只在新 CLI 内撤掉旧 bootstrap 对 alternatives 的整体屏蔽，并严格匹配替换构造器三处 Godot 热键
+读取，保留原版 Generate/Hook/OnSelect/AfterSelected。药水丢弃通过 PotionCmd.Discard 的等价模型入口，
+未覆盖 NPotionPopup 的 DiscardPotionGameAction 入队/UI 链；删牌成功后只补原 UI 的 SetUsed 职责，
+取消不扣费/不标 Used。正式 OfflineHost/Mod 共享执行协议与 RunPilot 仍未落地。
 
 ## 8. 验证
 

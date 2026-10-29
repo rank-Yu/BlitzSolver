@@ -19,7 +19,7 @@ using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 
 namespace Differential;
 
-internal sealed class NativeDecisionTestSession
+internal sealed partial class NativeDecisionTestSession
 {
     private static long _nextSession;
     private readonly ulong _session = checked((ulong)Interlocked.Increment(ref _nextSession));
@@ -68,7 +68,8 @@ internal sealed class NativeDecisionTestSession
     {
         TaskCompletionSource<IEnumerable<CardModel>> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Begin(token => RunDecisionImporter.CardSelect(player, cards, prefs, kind, token,
-            kind == NativeCardSelectionKind.DeckUpgrade ? RunSelectionPurpose.Upgrade : RunSelectionPurpose.None),
+            kind == NativeCardSelectionKind.DeckUpgrade ? RunSelectionPurpose.Upgrade :
+                InShopRemoval ? RunSelectionPurpose.Remove : RunSelectionPurpose.None),
             (selected, action) =>
             {
                 // Native deck UI cancellation resolves CardsSelected to Array.Empty<CardModel>().

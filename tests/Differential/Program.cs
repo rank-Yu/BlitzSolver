@@ -43,6 +43,8 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--run-reward-shop-compare")
+            return RunRewardShopCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-decision-compare")
             return RunDecisionCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-probe")
@@ -1040,6 +1042,7 @@ internal static class Program
               dotnet Differential.dll --map-step-compare [--map-step-seeds N] [--map-step-jobs 1..4]
                   [--map-step-shard i/n] [--map-step-acts 1..3] [--map-step-saves empty,all]
                   [--map-step-tutorial both|on|off]
+              dotnet Differential.dll --run-reward-shop-compare
               dotnet Differential.dll --run-decision-compare
               dotnet Differential.dll --content-table-report
               dotnet Differential.dll --rules-build-compare (--build-kind d1|natural|encounter [--build-seeds N]

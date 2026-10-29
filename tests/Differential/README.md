@@ -93,7 +93,28 @@ Smith 嵌套升级/取消。负例检查非法回答、旧 Token、重放、候�
 callback 结合三个受支持命令的完整 prefs 作用域导入；不会由 min/max 猜 Cancelable，也不为
 自动全选或零候选建立请求。只绕过无 Godot 进程的资源/路径/hover UI 调用，原版效果保留。
 测试串行且没有外部并发动作；不代表生产 OfflineHost、RunPilot 或 Mod UI 已实现，也不覆盖
-奖励、商店、bundle、RelicSelect、PotionDiscard。
+bundle 与通用 RelicSelect。
+
+## 奖励与商店原版决策闭环
+
+```bash
+dotnet artifacts/bin/Differential/release/Differential.dll --run-reward-shop-compare
+```
+
+独立定向 fixture 模式通过原版 RewardsSet.Offer 的 testSelector 与真实 MerchantRoom.Enter 入口，
+复用测试 session 的 Token、消费/失效与嵌套回调；不声称自然通关。覆盖已 Begin 集合只读、强制奖励、
+重复模型不同实例、实际 Skip/Reroll 及重抽后的再次 callback、真实 PaelsWing 未知替代项拒绝、容量、
+奖励父/子/返回列表、满槽失败/整理返回/另行领取与 NotAllowed 消费、商店禁用/售罄/折扣/补货身份、
+卡牌/遗物/药水购买、真实删牌子请求成功/取消与失效等待链。代表性动作同种子分别从新局 fixture
+独立直接调用原版，对比 NativeRunDump、公开奖励/库存字段与 RNG；导入及非法回答无副作用。
+
+仅本模式撤销旧 bootstrap 对 CardRewardAlternative.Generate 的屏蔽，保留真实 Generate/Hook，
+构造器只严格替换三处 Godot 热键展示读取。原同步 TestMode callback 在自身 while 中多次进入，
+每次新 Token；不伪称异步 UI 等待接口。PotionDiscard 是宿主显式整理视图，Skip 返回原奖励列表、
+Discard 只调用 PotionCmd.Discard，领取需新列表动作，未覆盖 NPotionPopup 的动作入队/UI 链。
+商店 Leave 只关闭库存，不退出房间；删牌成功后的 SetUsed 仅补原 UI 职责，不重写扣费/移牌。
+MerchantPotionEntry.CalcCost 周围用局部 prefix/finalizer 还原真实随机价路径并检查异常恢复；
+旧 probe/测试默认模式不安装这些新增桥接。正式 OfflineHost/Mod 与通用 bundle/RelicSelect 仍未落地。
 
 ## 战斗边界建局
 
