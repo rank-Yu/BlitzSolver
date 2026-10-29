@@ -329,7 +329,7 @@ Sts2Solver 的 `BeamOptions` 没有分支上限字段；Flash 路径本身也固
 `ForcedPotionDirectives=None`、`MinimumPotionUses=0`、`PlanCommitment=null`、
 `EarlyTurnScoutDepth=0`、`Novelty=null`、`PowerCommitments=null`、`SecondRankBand=false`、
 `AggressivePowerCommitment=false`。完整来源表与理由见 M2b-1 报告
-（`.local/tool-tasks/sts2-solver/M2b1-report.md`）。
+（`.local/tool-tasks/solver/M2b1-report.md`）。
 
 ## 8. 启动脚本与命令
 

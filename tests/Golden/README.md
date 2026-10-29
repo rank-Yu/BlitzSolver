@@ -54,4 +54,4 @@ D2 读取 `d2/requests/*.request.br`（`SREQ`），把软时间预算改成 `Tim
 容量丢弃、终态压缩、药水审计、侦察层与接管动作。当前 1,983 个请求全部相等；期望结果在 M3b
 合并时用 `refreeze` 重算过。
 
-数据格式、计数和 Search 外部类型清单见 `.local/tool-tasks/sts2-solver/M0-report.md`。
+数据格式、计数和 Search 外部类型清单见 `.local/tool-tasks/solver/M0-report.md`。

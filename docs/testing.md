@@ -118,16 +118,16 @@ D1 不证明：未捕获的状态、实机导入、任意第三方内容。
 ```bash
 # 1. 在未改语义的代码上证明工具可复现旧录制：全部 410 个根逐字节相同
 dotnet run --project tests/Golden -c Release --no-build -- \
-  rerecord tests/Golden/data .local/tool-tasks/sts2-solver/rerecord-fidelity \
-  --roots .local/tool-tasks/sts2-solver/rerecord-roots-all.txt --reason "fidelity check" --jobs 6
-diff -r tests/Golden/data/d1 .local/tool-tasks/sts2-solver/rerecord-fidelity/d1
+  rerecord tests/Golden/data .local/tool-tasks/solver/rerecord-fidelity \
+  --roots .local/tool-tasks/solver/rerecord-roots-all.txt --reason "fidelity check" --jobs 6
+diff -r tests/Golden/data/d1 .local/tool-tasks/solver/rerecord-fidelity/d1
 
 # 2. 语义修正后只重录失配可归因的根
 dotnet run --project tests/Golden -c Release --no-build -- \
-  rerecord tests/Golden/data .local/tool-tasks/sts2-solver/rerecord-d1 \
-  --roots .local/tool-tasks/sts2-solver/rerecord-roots.txt --reason "<批次与语义修正>" --jobs 6
+  rerecord tests/Golden/data .local/tool-tasks/solver/rerecord-d1 \
+  --roots .local/tool-tasks/solver/rerecord-roots.txt --reason "<批次与语义修正>" --jobs 6
 dotnet run --project tests/Golden -c Release --no-build -- \
-  verify .local/tool-tasks/sts2-solver/rerecord-d1 --only d1 --jobs 6
+  verify .local/tool-tasks/solver/rerecord-d1 --only d1 --jobs 6
 ```
 
 第一项是阶段 C 的门槛：`rerecord` 解出旧记录，保留根状态、`config.br` 与 `meta.json` 的
@@ -160,8 +160,8 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 # 3. Golden 用载荷替换根与 config.br，再按 M0 策略重算 K1/K2 与派生哈希
 dotnet run --project tests/Golden -c Release --no-build -- \
-  rerecord tests/Golden/data .local/tool-tasks/sts2-solver/rerecord-root \
-  --roots .local/tool-tasks/sts2-solver/rerecord-root.txt \
+  rerecord tests/Golden/data .local/tool-tasks/solver/rerecord-root \
+  --roots .local/tool-tasks/solver/rerecord-root.txt \
   --recapture-root .local/recapture --reason "<批次与语义修正>" --jobs 4
 ```
 
@@ -256,9 +256,9 @@ D2/D1 数据没有幕字段；`quality-*` 根名只带角色，`a3-*` 根可确�
 
 ```bash
 dotnet run --project tests/Golden -c Release --no-build -- \
-  refreeze tests/Golden/data .local/tool-tasks/sts2-solver/refreeze-data-fill --jobs 6
+  refreeze tests/Golden/data .local/tool-tasks/solver/refreeze-data-fill --jobs 6
 dotnet run --project tests/Golden -c Release --no-build -- \
-  verify .local/tool-tasks/sts2-solver/refreeze-data-fill --jobs 6
+  verify .local/tool-tasks/solver/refreeze-data-fill --jobs 6
 ```
 
 `refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。普通 `manifest` 现在保留已有的 `provenance.refreeze` 与 `provenance.d1Rerecord`；在重冻或重录后的数据上重写清单应逐字节不变。
@@ -266,7 +266,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 本次副本演示输出：
 
 ```text
-REFREEZE_OK source=.../tests/Golden/data target=.../.local/tool-tasks/sts2-solver/refreeze-data-fill
+REFREEZE_OK source=.../tests/Golden/data target=.../.local/tool-tasks/solver/refreeze-data-fill
   requests=1983 captured=2802 jobs=6
   refreeze=M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6
 MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
@@ -290,7 +290,7 @@ MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
 ```bash
 STS2_SOLVER_VERIFY_SEARCH_EQUIVALENCE=1 \
   dotnet run --project tests/Golden -c Release --no-build -- \
-  verify .local/tool-tasks/sts2-solver/refreeze-data-fill --only d2 --jobs 6
+  verify .local/tool-tasks/solver/refreeze-data-fill --only d2 --jobs 6
 ```
 
 ```text
@@ -557,7 +557,7 @@ HEADLESS_DONE instance=m2b2-final-b ok=10 failed=0 total_ms=297313.871
 ```
 
 16 胜 4 负，合计搜索 20 次、沿用回合 88 次、预测偏差 0、部署失败 0；逐场数据见
-`.local/tool-tasks/sts2-solver/M2b2-report.md`。取消验证用
+`.local/tool-tasks/solver/M2b2-report.md`。取消验证用
 `--full-combat --search-cancel-after-ms 5000`，得到 `fullCombatStatus=cancelled`、
 `AutoCombatSession.IsRunning=false`，随后正常返回主菜单。
 
@@ -678,7 +678,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 ```bash
 tools/testing/offline-combat-table.py \
   --results .local/offline-combat/Medium \
-  --baseline ~/sts2/sts2-solver/.local/q120/baseline.tsv
+  --baseline ~/ss/solver/.local/q120/baseline.tsv
 ```
 
 它按角色、幕与房间类型对照 CombatSolver 基线，并列出胜负不同的根与异常（非胜负结果、偏差、
@@ -712,7 +712,7 @@ done
 让分层 JIT 在测得的搜索前达到游戏进程的热状态。环境变量
 `STS2_SOLVER_OFFLINE_WARMUP_NODES` 可改节点数，0 关闭；测内存对照时应设为 0，避免热身堆残留
 抬高 `managedHeapPeakBytes`。计时口径：同一个 120 根、默认 Medium、`--jobs 6`；对照
-`~/sts2/sts2-solver/.local/q120c` 的 3 lane 无头游戏结果，只取旧离线 `w240` 中
+`~/ss/solver/.local/q120c` 的 3 lane 无头游戏结果，只取旧离线 `w240` 中
 `elapsedMs >= 500` 的 117 次搜索，逐次算 `gameMs / offlineMs`，取中位数。
 
 同一请求复用存储可单独验证：

@@ -9,7 +9,7 @@
 
 ## 1. 范围与事实来源
 
-唯一事实来源是 `~/sts2/CombatSolver/.local/decompiled/sts2-v0.111.0/` 的原版代码：
+唯一事实来源是 `~/ss/CombatSolver/.local/decompiled/sts2-v0.111.0/` 的原版代码：
 
 - `MegaCrit.Sts2.Core.Runs.RunState`、`RunManager`；
 - `MegaCrit.Sts2.Core.Entities.Players.Player`；
@@ -376,7 +376,7 @@ RNG、属性包或未来序列。正例与嵌套数组/托管引用反例、Kern
 - 商店：自然 187 局 + D1 401 局逐字段与逐动作相同，0 diff；拒绝 9 例均有原因码（R2c-2 报告）。
 - D1：**410/410** 输入逐字段相同（含 120 个质量根）；战斗一致性 **410/410** 相同；15 条流 × 64 次抽取 0 偏差；地图 **410/410** 相同。
 - 负例：多人、非标准模式、Modifier、未知事件、未知解锁、无地图、牌组容量共 7 类均返回稳定拒绝码。
-- 复跑命令见[测试与验证](testing.md)第 6.10 节；本批报告在 `.local/tool-tasks/sts2-solver/R1b-report.md`；商店对照在 `.local/tool-tasks/sts2-solver/R2c2-report.md`。
+- 复跑命令见[测试与验证](testing.md)第 6.10 节；本批报告在 `.local/tool-tasks/solver/R1b-report.md`；商店对照在 `.local/tool-tasks/solver/R2c2-report.md`。
 
 ## 9. 未完成与未验证
 

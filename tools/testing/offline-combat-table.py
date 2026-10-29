@@ -7,7 +7,7 @@ so the same report can be regenerated after any search change.
 
 Usage:
   tools/testing/offline-combat-table.py --results .local/offline-combat/default \
-      --baseline ~/sts2/sts2-solver/.local/q120/baseline.tsv
+      --baseline ~/ss/solver/.local/q120/baseline.tsv
 
 The baseline is a tab-separated file with columns:
   root  win|death  turns  playerHp  playerMaxHp  searches
