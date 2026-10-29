@@ -53,7 +53,7 @@ NativeKey 与可选 PageKey 保存原版 `TextKey`、休息选项 `OptionId` 等
 
 `RunView.From` 目前只填状态里的决策提示与选项数，Request 保持 default，不能作为可执行
 请求。地图合法点仍由 `RunTravel.Collect` 独立枚举；`RunMapEntry.Enter` 仍接受坐标，不是第二个
-请求执行器。正式宿主、策略与全内容导入仍未落地；测试桥接见第 7 节。
+请求执行器。正式 OfflineRunHost/RunExecutor 已执行 Map/Event/Rest/CardSelect，策略估值与全内容导入仍未落地；测试桥接见第 7 节。
 
 `RunStepStatus`/`RunStepResult`/`RunStepReject` 是旧局外内核的结果类型，已随 `RunKernel` 删除。
 仍保留的拒绝原因是 `RunStepReason` 的四个字符串，供 `RunMapEntry`/`RunUnknownPoint` 抛
@@ -294,7 +294,7 @@ Reroll 后原 UI 的 RefreshOptions 会重建按钮并去掉 REROLL。导入器�
 它只在新 CLI 内撤掉旧 bootstrap 对 alternatives 的整体屏蔽，并严格匹配替换构造器三处 Godot 热键
 读取，保留原版 Generate/Hook/OnSelect/AfterSelected。药水丢弃通过 PotionCmd.Discard 的等价模型入口，
 未覆盖 NPotionPopup 的 DiscardPotionGameAction 入队/UI 链；删牌成功后只补原 UI 的 SetUsed 职责，
-取消不扣费/不标 Used。正式 OfflineHost/Mod 共享执行协议与 RunPilot 仍未落地。
+取消不扣费/不标 Used。奖励/商店的正式 OfflineHost 执行及 Mod 整局执行仍未接入；共享 RunPilot 与 Map/Event/Rest/CardSelect 正式执行见第 10 节。
 
 ## 8. 验证
 
@@ -306,7 +306,7 @@ Reroll 后原 UI 的 RefreshOptions 会重建按钮并去掉 REROLL。导入器�
 
 ## 9. 原版证据与后续桥接边界
 
-第 1、6 节协议已在 Core 落地；第 7 节实现首批真实模型导入与测试执行闭环，正式宿主执行仍待接入。R3a 的 `--run-probe` 与 `RunProbe` JSON
+第 1、6 节协议已在 Core 落地；第 7 节实现首批真实模型导入与测试执行闭环，第 10 节接入正式 Map/Event/Rest/CardSelect 执行；奖励/商店的正式宿主执行仍待接入。R3a 的 `--run-probe` 与 `RunProbe` JSON
 记录只用于收集证据，不是 `RunDecisionImporter`、`RunPilot` 或正式策略接口。
 
 ### 已观察的入口
@@ -354,3 +354,15 @@ Reroll 后原 UI 的 RefreshOptions 会重建按钮并去掉 REROLL。导入器�
 
 探针命令、计量定义与覆盖限制见 [Differential 使用说明](../tests/Differential/README.md)。
 具体自然种子与夹具证据留在 R3a 归档报告，不把运行产物作为协议实现提交。
+
+## 10. 正式执行与异步子选择
+
+`OfflineRunHost` 持有原版快照，`RunExecutor` 通过公开同步器/命令执行 Map/Event/Rest；
+原版 CardSelect 异步 callback 使用同一 RunPilot policy 回调，child 也计入预算。
+每个请求先重新导入 RunState→RunView.WithRequest，回答完整校验、确认授权、ValidateCurrent 与实例绑定
+通过后才消费并 dispatch。失效/取消/Dispose 使等待链结束，迟到回答不得派发，不转换成用户 Cancel。
+Session 唯一、Revision 单调；已消费请求不能为重试而复活。
+
+正式 Rewards/Shop 仍未接入。尤其同步 CardReward 的 TestMode selector 不能等待任意异步策略，
+本库显式 Unsupported；前面的协议与测试 reward/shop 执行证明不代表正式库已经支持。
+详细边界注入、资源生命周期与运行限制见 [OfflineHost](../src/OfflineHost/README.md)。

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>BlitzSolver.OfflineHost</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)/../../tests/Differential/GameReferences.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../Core/BlitzSolver.Core.csproj" />
+    <ProjectReference Include="../Import/BlitzSolver.Import.csproj" />
+  </ItemGroup>
+</Project>

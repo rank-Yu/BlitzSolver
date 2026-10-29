@@ -2,8 +2,10 @@
 
 离线宿主的目标是在普通 .NET 9 控制台进程里加载原版 `sts2.dll`，由原版 `RunManager` 推进整局。
 它不启动 Godot 可执行文件，也不需要场景树；战斗通过 `CombatPilot` 交给 Blitz，局外每一步都从
-原版重新导入 `RunState`。R3-0 只建立目录与 README，离线宿主、`RunPilot`、`RunExecutor` 与
-`NewRunFactory` 都还没有实现；整局尚未跑通，下面的启动顺序是 R3b 的设计。代码骨架见
+原版重新导入 `RunState`。现已有独立 `OfflineHost` 库、共享 `RunPilot` 与真实 Map/Event/Rest/CardSelect
+执行，验证到首战边界；没有正式 CLI、NewRunFactory、完整 Runtime/Combat 迁移或整局通关。
+调用方注入初始化后的真实 run/player 与边界提供器，尚未自主发现地图 readiness、奖励/商店或终局。
+下面的完整启动顺序与目录表仍是后续目标；当前 API 和限制见
 [`src/OfflineHost`](../src/OfflineHost/README.md)。
 
 ## 1. 职责与目录
@@ -17,7 +19,7 @@
 离线宿主只依赖 `Core`、`Import`、`sts2.dll`、`GodotSharp`、`0Harmony`；不引用 `TestHost`，
 也不被 `Mod` 引用。原版整局推进，Blitz 只拿到导入后的 `RunState`/`Battle` 与决策请求。
 
-## 2. 启动顺序
+## 2. 完整宿主的目标启动顺序
 
 1. 解析并加载游戏程序集（`AssemblyBootstrap`）；
 2. 初始化原版静态状态与 Godot 旁路（`GameBootstrap`）；
@@ -49,8 +51,7 @@ TestMode 是进程级全局设置；任何需要真实游戏分支的对照都�
 
 ## 4. 验证
 
-- 进程内差分（[`tests/Differential`](../tests/Differential/README.md)）：只用于导入与建局，
-  不用于局外逐步对账。
+- 进程内差分（[`tests/Differential`](../tests/Differential/README.md)）：`--run-host-compare` 使用正式库执行自然 Neow→地图→首战，以及真实 Smith 异步父子链，与独立原版调用比较。
 - 两个宿主之间的一致性：同一种子、同一策略，逐步比较导入的 `RunState`。
 - 实机：Mod 在真实游戏里跑同一策略，比较战斗逐动作边界。
 

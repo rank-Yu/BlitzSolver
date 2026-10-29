@@ -29,6 +29,7 @@ Check(execCoverageError == null, $"Exec 字段覆盖合同失败：{execCoverage
 
 CheckRng();
 RunChecks.Check();
+RunPilotChecks.Check();
 CheckGrowthRewards();
 Rules rules = SliceRules();
 CheckHookDeactivation(rules);

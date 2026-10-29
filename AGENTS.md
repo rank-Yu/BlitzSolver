@@ -12,11 +12,11 @@ BlitzSolver（极速求解器）是《杀戮尖塔 2》的单人自动游玩 Mod
 | `src/Core/Simulation/Run` | `BlitzSolver.Simulation.Run` | 局外状态与建局：定长 `RunState`、编码 `RunCodec`、转储 `RunDump`、可见投影与决策请求 `RunView`/`RunDecisionRequest`、合法地图点 `RunTravel`、进点 `RunMapEntry`、开战选择预测 `RunCombatSetup`、进程内内容表 `ContentTable` 与 `RulesBuilder`；局外由原版推进，不含 `RunKernel`/奖励/商店/写回/新局生成 |
 | `src/Core/Content` | `BlitzSolver.Content.*` | 卡牌、Power、遗物、药水、球、附魔、怪物与遭遇生成定义 |
 | `src/Core/Ai/Combat` | `BlitzSolver.Ai.Combat`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
-| `src/Core/Ai/Run` | `BlitzSolver.Ai.Run` | 局外决策；R1a 只有目录说明，规则与估值随 R4 落地 |
-| `src/Core/Autoplay` | `BlitzSolver.Autoplay` | `CombatPilot` 整场战斗决策循环；Mod 与离线宿主共用 |
+| `src/Core/Ai/Run` | `BlitzSolver.Ai.Run` | 局外决策；`IRunPolicy`/`RunPilotAnswer` 可见决策接口，规则与估值随 R4 落地 |
+| `src/Core/Autoplay` | `BlitzSolver.Autoplay` | `CombatPilot` 整场战斗与 `RunPilot` 整局边界/决策循环；Mod 与离线宿主共用 |
 | `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏；子目录 `Combat/`（战斗导入）、`Run/`（整局导入 `RunStateImporter`、内容表导出 `ContentTableExporter`）、`Run/Decisions/`（R3b 的 `RunDecisionImporter`） |
 | `src/TestHost` | `BlitzSolver.TestHost` | 差分宿主的建局、注入与原生状态转储；只在测试中使用，会写游戏状态；子目录 `Combat/`、`Run/`（新局入口、原生合法地图点枚举、快照恢复、独立原生整局转储与原版商店/奖励驱动，后者是 R3b `RunExecutor` 的起点） |
-| `src/OfflineHost` | 无（R3b 建项目） | 离线宿主骨架：普通 .NET 进程运行原版整局，战斗交给 Blitz；`Runtime/`、`Combat/`、`Run/`；R3-0 只有 README |
+| `src/OfflineHost` | `BlitzSolver.OfflineHost.Run` | 局外执行库：`OfflineRunHost`/`RunExecutor` 执行 Map/Event/Rest/CardSelect，`Runtime/` 捕获必要原版回调；嵌入方初始化运行时并提供边界信号，完整 Runtime/Combat 与新局入口待迁移 |
 | `src/Mod` | `BlitzSolver` | RitsuLib `ModInitializer` 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Testing/`、`UI/`、`Patches/`；不加入 `BlitzSolver.sln` |
 | `tests/KernelChecks` | | 内核合同（K0）；战斗合同在 `Combat/`，整局合同在 `Run/` |
 | `tests/Golden` | | 冻结快照校验器与数据；战斗校验器在 `Combat/` |

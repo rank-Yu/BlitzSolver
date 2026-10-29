@@ -9,5 +9,6 @@
     <InternalsVisibleTo Include="BlitzSolver.Golden" />
     <InternalsVisibleTo Include="BlitzSolver.Import" />
     <InternalsVisibleTo Include="Differential" />
+    <InternalsVisibleTo Include="BlitzSolver.OfflineHost" />
   </ItemGroup>
 </Project>

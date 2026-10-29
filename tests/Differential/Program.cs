@@ -43,6 +43,8 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--run-host-compare")
+            return RunHostCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-reward-shop-compare")
             return RunRewardShopCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-decision-compare")

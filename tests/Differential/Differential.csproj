@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Import/BlitzSolver.Import.csproj" />
     <ProjectReference Include="../../src/TestHost/BlitzSolver.TestHost.csproj" />
+    <ProjectReference Include="../../src/OfflineHost/BlitzSolver.OfflineHost.csproj" />
     <Compile Include="../Golden/GoldenHash.cs" Link="GoldenHash.cs" />
   </ItemGroup>
 </Project>

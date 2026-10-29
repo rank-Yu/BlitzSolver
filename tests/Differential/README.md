@@ -279,3 +279,11 @@ v3格式与字段校验不变；覆盖合同位于KernelChecks。探针已删除
 正式编码，保留 `semanticStateHash` 为相同值的日志兼容别名。跨进程复跑必须逐条严格比较完整
 trace（包括两个hash字段）与summary全部非时间/内存facts。`BLITZ_PROBE_CAPTURE_RUNSTATE=0/12`
 可额外保存幕0层12决策边界的正式RunState二进制和完整字段转储，供独立定位。
+
+## 正式局外执行库回归
+
+`dotnet run --project tests/Differential -c Release -- --run-host-compare` 调用正式
+`OfflineRunHost`/`RunExecutor`，不与旧 decision/probe callback hooks 同时安装。
+自然新局只验证 EnterAct→Neow→地图→首战第一回合，返回 Paused(combat-boundary)；
+Smith 的成功/取消、stale、失效/外部取消/Dispose 与迟到答案使用真实异步 native 父子链。
+独立原版调用用于对照 native dump、导入状态与 RNG；fake/定向 fixture 不作为完整通关证据。

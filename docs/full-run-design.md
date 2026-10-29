@@ -60,7 +60,7 @@ Core 按两个维度交叉组织：**模拟 / 决策 / 托管** × **战斗 / �
 src/
 ├─ Core/ (Simulation/{Combat,Run}, Content/, Ai/{Combat,Run}, Autoplay/)
 ├─ Import/ (Combat/, Run/, Run/Decisions/ 由 R3b 新增)
-├─ OfflineHost/  README（R3b 落地：Runtime/、Combat/、Run/）
+├─ OfflineHost/  局外执行库（Run/、Runtime/必要回调；完整Runtime/Combat待迁移）
 ├─ Mod/ (Combat/, Run/ 由 R3c 落地, UI/, Testing/, Patches/)
 └─ TestHost/ (Combat/, Run/)
 tests/ (Differential/{Combat,Run}, KernelChecks/, Golden/, Architecture/, corpora/{quality,fixtures,runs})
@@ -141,7 +141,7 @@ Core 以外的项目与引用：
 完整类型、容量、Kind 矩阵与拒绝码见[局外决策协议](run-decisions.md)。Core 只比较给定请求与回答的
 Token；唯一身份、单调修订、原版实例映射与消费/失效必须由宿主维护，不能宣称纯校验提供防重放
 存储。Ai.Run 可见白名单对嵌套字段递归检查，不含隐藏 RNG、属性包、预生成序列或游戏引用。
-本批协议没有接入正式 Importer/RunPilot，也不实现事件效果或通用局外模拟。
+正式 RunDecisionImporter、共享 RunPilot 与 OfflineRunHost/RunExecutor 已接入 Map/Event/Rest/CardSelect；奖励/商店正式执行、完整 runtime 与整局通关尚未接入。事件效果仍由原版结算，不实现通用局外模拟。
 
 请求来源是原版当前界面/模型。执行按宿主分开：
 
