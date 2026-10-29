@@ -4,8 +4,10 @@
 它不启动 Godot 可执行文件，也不需要场景树；战斗通过 `CombatPilot` 交给 Blitz，局外每一步都从
 原版重新导入 `RunState`。现已有独立 `OfflineHost` 库、共享 `RunPilot` 与真实 Map/Event/Rest/CardSelect
 执行。Runtime/NewRunFactory/Combat 已迁移，tools/run-eval 通过纯 DTO 接口从独立进程正常启动，
-完成首场真实战斗并在领奖前以 Paused / first-combat-complete 停止。它只支持这一里程碑，
-尚无领奖、商店及后续整局自动推进。独立入口只把明确已结束事件报告为地图边界；
+默认完成首场真实战斗并在领奖前以 Paused / first-combat-complete 停止；显式
+--stop-after next-room 支持原版战后奖励/异步选卡/满药水管理及合法进入下一房间，
+以通用 Paused / next-room-entered 停止。尚无商店及后续整局自动推进。独立入口只把明确已结束事件
+或已实际 Proceed 的战后奖励展示报告为地图边界；
 原版终局清理前捕获、逐步比较和结算后队列稳定均是完成的前提。
 当前 API、无界面设施差异与验证范围见
 [src/OfflineHost](../src/OfflineHost/README.md) 和 [CLI](../tools/run-eval/README.md)。
@@ -44,6 +46,7 @@
 | `MerchantRoom.Exit` 的地图历史 | 跳过 `CardChoices`/`RelicChoices`/`PotionChoices` 的 `wasPicked=false` 写入 | 写入这些玩家统计 | `RunState` 不保存选择历史；R3b 以原版真实写入为准 |
 | `RunManager.ClearScreens` 等 UI 调用 | 无界面，直接返回 | 关闭原生界面 | 离线宿主不读界面；选择通过模型层执行 |
 | 教学发现顺序 | 默认 `ShouldApplyTutorialModifications()==false` | 实机测试会话用补丁同样返回 false | 两边都走 `UpFront` RNG 分支，第三幕 Boss 结构对齐 |
+| 战后奖励与选卡 | testSelector 受会话租约控制展示；选卡使用原版 OnSelect 的 awaited UI 通道托管桥 | 原生界面 | 生成/同步器/发牌/hook/history/Reroll 保持原版；terminal Proceed 与 EnterMap 清理顺序一致 |
 | 战斗内选择 | 测试 `ICardSelector`/`CardSelectCmd` 选择器直接给答案 | 原生界面 | 选择器只回答原版请求，不改变结算 |
 | 进度保存 | `MemorySaveStore` 桩，保存失败只记录 | 写真实存档 | 不影响 `RunState` 与战斗状态 |
 

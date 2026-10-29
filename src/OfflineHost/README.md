@@ -1,4 +1,4 @@
-# OfflineHost 原版首战宿主
+# OfflineHost 原版战后宿主
 
 普通 .NET 9 库，不加入 solution。依赖 Core、Import、原版游戏、GodotSharp 和 Harmony；
 不引用 TestHost/Differential，不链接其源文件。公开 FirstCombat 接口只有 BCL DTO。
@@ -16,7 +16,8 @@ Runtime 自建单线程 SynchronizationContext，驱动原版 async 续体。Off
 处理可见 Neow、合法地图和真实异步选牌子请求。first-combat-smoke-v1 策略只接收 RunView：
 只接受 Neow 事件、地图及其选牌请求；过滤 Disabled/Locked，优先可见 LAVA_ROCK，
 否则选第一个合法选项。它只是烟测策略，没有 R4 局外估值，也不读取 seed、RNG 或未来内容。
-输出地图坐标和点类型。未知事件、房间和未支持奖励入口显式失败。
+输出地图坐标和点类型。next-room-smoke-v1 还选择可见奖励、首张合法卡及合法 Leave；满药水时丢弃首个合法槽，
+回到奖励列表后重新选择领取。两个策略都只读可见 DTO。未知事件、房间和未授权奖励入口显式失败。
 
 Combat 接入既有 RulesCompiler、LiveCombatTracker、CombatPilot、SearchRequestCompiler、
 BeamSolver 和 WideningSearch。默认 Low：256 起始/最大宽、每宽 2000 节点、原有 60000ms 档位，
@@ -29,7 +30,37 @@ ProcessPendingLoss 清理前捕获终局，按既有 TerminalBattleProjection �
 gold、potions、relics、全部战斗 RNG 和原版结束路径。缺捕获、捕获失败和差异均阻止完成；
 预测 action.After 不能自行宣告原版胜利。终局验证成功、原版动作完成且队列空闲后，
 另报结算后的真实 RunState 摘要。首战完成返回 Paused / first-combat-complete，随后停止，
-尚未领取奖励；死亡为 Death，部署偏差为 Failed，取消和超时有独立状态。没有整局通关声明。
+尚未领取奖励。显式 StopAfter="next-room" 则继续处理奖励并进入下一房间，
+返回通用 Paused / next-room-entered；死亡为 Death，部署偏差为 Failed，取消和超时有独立状态。没有整局通关声明。
+
+## 战后领奖与下一房间
+
+新模式在原版首战终局核对、战后队列稳定后，由原版 CombatRoom.OfferRoomEndRewards →
+RewardsCmd.GenerateForRoomEnd → BeforeCombatRewardOffered → RewardsSet.Offer 生成并展示一次。
+host 持有单一 owner/player/room/set 租约，受限 testSelector 替代 TestMode 默认自动全领；
+保留原始 generation/Offer Task，观察原版 TaskHelper.RunSafely 会吞掉的异常。
+未授权嵌套或其他奖励 set 在 Offer 进入生成前失败。
+
+每次奖励列表都是新的 snapshot/token。CardReward.OnSelect 保持原样，原版 ShowScreen 返回
+只包含托管身份的 UI surrogate，OptionSelected 异步等待同一 RunPilot 的 child policy。
+实例绑定、确认、stale、replay、取消及迟到回答使用共享宿主合同；原版继续负责同步器、
+发牌、history、hook 和 Reroll 循环。RefreshOptions/GetCardHolder 仅处理展示，不执行 Godot。
+surrogate 不调用 Godot 构造或 Dispose，创建后立即抑制终结器；弱身份表保证已关闭 surrogate
+的 OptionSelected/RefreshOptions/GetCardHolder 迟到调用也不能进入 Godot。只替换 alternatives 构造中的 hotkey 字符串读取，
+不抑制 Generate 或奖励 hook；Reroll 后按原版最初 alternatives 实例解释返回索引，
+新请求隐藏已用 Reroll。
+
+满药水的原版领取返回 false 后，host 提供显式 PotionDiscard child。丢弃经过原版
+DiscardPotionGameAction 的队列与完成等待，返回保留库存；两者都回奖励列表，必须新操作领取。
+terminal Leave 调用原版 ProceedFromTerminalRewardsScreen 打开地图。原版并不在此跳过未领奖励，
+所以 host 继续持有 OfferTask；实际 EnterMapCoord 的 BeforeLeavingRoom 才写入 OnSkipped/history
+并完成同步器 stack。新房间稳定后等待原始 Offer 完成，返回通用 Paused，不调用第二场战斗。
+新增 AfterRewards/NextRoom 摘要与 next-room-smoke-v1 可见选择；默认 first-combat 模式兼容。
+
+取消不能回滚原版已发生效果。原版 CardReward.OnSelect 在 await 被取消时可能保留未完成的
+screen 引用及模型自己的 RelicObtained 订阅，host 不写它的私有 gameplay 状态来伪装完成；
+host 的 selector/事件订阅/租约全部释放，已知 surrogate 的 OptionSelected/RefreshOptions/GetCardHolder 迟到调用显式拒绝。
+该局不可恢复，独立 CLI 一进程一局提供最终隔离。
 
 ## 初始化与无界面设施
 
@@ -60,8 +91,13 @@ Runtime 只在明确已结束的事件且原版队列稳定时报告地图可旅
 已验证 Ironclad A0：R3B2-DECISION 和 R3B5-SECOND；Silent A0：R3B2-DECISION，均为 neow-epoch-v1、Low。角色由 CLI 显式指定；profile 控制内容，Silent 夹具不声称来自已解锁存档的自然角色菜单流程。
 主 seed 两个独立 CLI 进程结果完全一致；旧 Differential runtime + RunTestHost + NativePilotHost
 独立原版参考的起始/开战/终局/结算后摘要、动作与搜索计数完全一致。
+新增主 seed next-room 模式由独立旧 Differential runtime/同步 selector 直接驱动原版领奖和进图，
+对照起始、战后、领奖后、下一房间的 RunDump、独立 NativeRunDump（含 RNG）加独立序列化的完整 MapPointHistory（含 CardChoices）及可见候选。
+定向生产宿主夹具覆盖异步挂起、Reroll/Skip、未领 Leave、空奖励、满药水、取消/Dispose/late、
+stale、replay、嵌套拒绝及原始 Offer 异常。夹具中的 EndCombatInternal 只建立战后边界，
+不作为战斗胜利或自然游玩证据。
 测试专用 Harmony 负向夹具验证实际 runner 遇 HP 差异/缺捕获不能给出 milestone，
 并在原版首动作完成后取消，检查 selector/订阅释放及单进程单局限制。生产不包含测试环境变量后门。
 
-不支持领奖、商店、后续房间/三幕通关、批量评估、策略质量或全内容覆盖。
+不支持商店、下一房间内的后续推进、三幕通关、批量评估、策略质量或全内容覆盖。
 使用方式见 tools/run-eval/README.md；共享执行协议见 docs/autoplay.md。

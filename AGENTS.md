@@ -16,8 +16,8 @@ BlitzSolver（极速求解器）是《杀戮尖塔 2》的单人自动游玩 Mod
 | `src/Core/Autoplay` | `BlitzSolver.Autoplay` | `CombatPilot` 整场战斗与 `RunPilot` 整局边界/决策循环；Mod 与离线宿主共用 |
 | `src/Import` | `BlitzSolver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏；子目录 `Combat/`（战斗导入）、`Run/`（整局导入 `RunStateImporter`、内容表导出 `ContentTableExporter`）、`Run/Decisions/`（R3b 的 `RunDecisionImporter`） |
 | `src/TestHost` | `BlitzSolver.TestHost` | 差分宿主的建局、注入与原生状态转储；只在测试中使用，会写游戏状态；子目录 `Combat/`、`Run/`（新局入口、原生合法地图点枚举、快照恢复、独立原生整局转储与原版商店/奖励驱动，后者是 R3b `RunExecutor` 的起点） |
-| `src/OfflineHost` | `BlitzSolver.OfflineHost.Run` | 局外执行库：`OfflineRunHost`/`RunExecutor` 执行 Map/Event/Rest/CardSelect，`Runtime/` 捕获必要原版回调；Runtime 提供独立消息泵/内存存档/无界面初始化，NewRunFactory 正常启动；Combat 复用既有求解和原版动作逐步/终局比较；FirstCombat DTO 入口完成首战后领奖前停止 |
-| `tools/run-eval` | | 独立首战烟测 CLI，仅引用 OfflineHost 公开 DTO；显式配置与紧凑 JSON，不加入 solution |
+| `src/OfflineHost` | `BlitzSolver.OfflineHost.Run` | 局外执行库：`OfflineRunHost`/`RunExecutor` 执行 Map/Event/Rest/CardSelect，`Runtime/` 捕获必要原版回调；Runtime 提供独立消息泵/内存存档/无界面初始化，NewRunFactory 正常启动；Combat 复用既有求解和原版动作逐步/终局比较；FirstCombat DTO 默认首战后领奖前停止；显式 next-room 接原版奖励/异步选卡/药水丢弃与下一房稳定暂停 |
+| `tools/run-eval` | | 独立首战/战后下一房烟测 CLI，仅引用 OfflineHost 公开 DTO；显式配置与紧凑 JSON，不加入 solution |
 | `src/Mod` | `BlitzSolver` | RitsuLib `ModInitializer` 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Testing/`、`UI/`、`Patches/`；不加入 `BlitzSolver.sln` |
 | `tests/KernelChecks` | | 内核合同（K0）；战斗合同在 `Combat/`，整局合同在 `Run/` |
 | `tests/Golden` | | 冻结快照校验器与数据；战斗校验器在 `Combat/` |

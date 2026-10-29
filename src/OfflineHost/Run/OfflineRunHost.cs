@@ -15,7 +15,7 @@ using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 namespace BlitzSolver.OfflineHost.Run;
 
 /// <summary>Single native session. The embedding runtime owns game initialization and boundary discovery.</summary>
-public sealed class OfflineRunHost : IRunPilotHost, IAsyncDisposable
+public sealed partial class OfflineRunHost : IRunPilotHost, IAsyncDisposable
 {
     private static long _nextSession;
     private static OfflineRunHost? _owner;
@@ -35,6 +35,7 @@ public sealed class OfflineRunHost : IRunPilotHost, IAsyncDisposable
     private bool _disposed;
     private bool _waiting;
     private bool _combatPending;
+    private bool _inCombatCallback;
     private CancellationTokenSource? _operation;
     private CancellationTokenSource? _boundaryOperation;
     private sealed record Execution(OfflineRunHost Host, RunDecisionCallback Decide, CancellationToken Token)
@@ -97,6 +98,8 @@ public sealed class OfflineRunHost : IRunPilotHost, IAsyncDisposable
             {
                 CheckAvailable(executing: true); linked.Token.ThrowIfCancellationRequested();
                 if (_pending != null || _combatPending) throw new InvalidDataException("host-pending");
+                if (boundary.Kind == OfflineBoundaryKind.Paused)
+                { ValidateRun(); return new(RunBoundaryKind.Paused, Detail: boundary.Detail); }
                 if (boundary.Kind == OfflineBoundaryKind.Terminal)
                     return new(RunBoundaryKind.Terminal, Terminal: boundary.Terminal, Detail: boundary.Detail);
                 ValidateRun();
@@ -104,7 +107,8 @@ public sealed class OfflineRunHost : IRunPilotHost, IAsyncDisposable
                 { _combatPending = true; return new(RunBoundaryKind.Combat); }
                 if (boundary.Event != null && !ReferenceEquals(boundary.Event.Owner?.RunState, _run))
                     throw new InvalidDataException("host-event-run-changed");
-                RunExecutor.Pending pending = _executor.Import(boundary, _run, _player, NextToken());
+                RunExecutor.Pending pending = boundary.Kind == OfflineBoundaryKind.Rewards
+                    ? RewardPending(NextToken()) : _executor.Import(boundary, _run, _player, NextToken());
                 RunView view = Fresh(pending.Request); _pending = pending;
                 return new(RunBoundaryKind.Decision, view);
             }
@@ -208,8 +212,8 @@ public sealed class OfflineRunHost : IRunPilotHost, IAsyncDisposable
     {
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
         lock (_gate) { _operation = linked; }
-        try { linked.Token.ThrowIfCancellationRequested(); RunCombatResult result = await _combat(linked.Token); linked.Token.ThrowIfCancellationRequested(); return result; }
-        finally { lock (_gate) { _operation = null; } settled.TrySetResult(); }
+        try { linked.Token.ThrowIfCancellationRequested(); _inCombatCallback = true; RunCombatResult result = await _combat(linked.Token); linked.Token.ThrowIfCancellationRequested(); return result; }
+        finally { lock (_gate) { _inCombatCallback = false; _operation = null; } settled.TrySetResult(); }
     }
     public void InvalidatePending()
     {
@@ -222,7 +226,11 @@ public sealed class OfflineRunHost : IRunPilotHost, IAsyncDisposable
         try { _lifetime.Cancel(); }
         finally
         {
-            try { if (execution != null) await execution; }
+            try
+            {
+                try { if (execution != null) await execution; }
+                finally { if (_rewards != null) await _rewards.DisposeAsync(); }
+            }
             finally { _lifetime.Dispose(); Interlocked.CompareExchange(ref _owner, null, this); }
         }
     }

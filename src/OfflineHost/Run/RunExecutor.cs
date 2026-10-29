@@ -12,7 +12,7 @@ using NativeRun = MegaCrit.Sts2.Core.Runs.RunState;
 
 namespace BlitzSolver.OfflineHost.Run;
 
-public enum OfflineBoundaryKind { Map, Event, Rest, Combat, Terminal }
+public enum OfflineBoundaryKind { Map, Event, Rest, Combat, Terminal, Rewards, Paused }
 /// <summary>Runtime signals: the library does not infer UI readiness, map enablement or victory from HP.</summary>
 public sealed record OfflineRunBoundary(OfflineBoundaryKind Kind, EventModel? Event = null,
     RestSiteRoom? Rest = null, Func<bool>? TravelEnabled = null,

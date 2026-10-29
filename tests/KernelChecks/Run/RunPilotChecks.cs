@@ -112,6 +112,11 @@ internal static class RunPilotChecks
             bool rejected = false; try { await RunPilot.RunAsync(host, policy); } catch (InvalidDataException) { rejected = true; }
             Assert(rejected && host.Invalidations == 1, "combat cannot claim whole-run victory or unknown stop");
         }
+        host = new(); host.Boundaries.Enqueue(new(RunBoundaryKind.Paused, Detail: "next-room-entered"));
+        result = await RunPilot.RunAsync(host, policy);
+        Assert(result.Reason == RunStopReason.Paused && result.Detail == "next-room-entered"
+            && result.Steps == 0 && result.Decisions == 0 && host.Combats == 0 && host.Invalidations == 1,
+            "general pause neither dispatches combat nor claims terminal victory");
         host = new(); for (int i = 0; i < 3; i++) host.Boundaries.Enqueue(new(RunBoundaryKind.Combat));
         result = await RunPilot.RunAsync(host, policy, maximumSteps: 2);
         Assert(result.Reason == RunStopReason.Budget && host.Combats == 2, "repeated combat bounded by steps");

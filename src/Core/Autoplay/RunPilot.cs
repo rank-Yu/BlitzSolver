@@ -3,7 +3,7 @@ using BlitzSolver.Ai.Run;
 
 namespace BlitzSolver.Autoplay;
 
-public enum RunBoundaryKind { Decision, Combat, Terminal }
+public enum RunBoundaryKind { Decision, Combat, Terminal, Paused }
 public enum RunStopReason { Victory, Death, Budget, Cancelled, Paused, Failed }
 public sealed record RunPilotBoundary(RunBoundaryKind Kind, RunView View = default,
     RunStopReason Terminal = RunStopReason.Failed, string? Detail = null);
@@ -62,6 +62,7 @@ public static class RunPilot
                         throw new InvalidDataException("run-invalid-terminal");
                     return Result(boundary.Terminal, boundary.Detail);
                 }
+                if (boundary.Kind == RunBoundaryKind.Paused) return Result(RunStopReason.Paused, boundary.Detail);
                 if (steps >= maximumSteps) return Result(RunStopReason.Budget, "step-budget");
                 steps++;
                 switch (boundary.Kind)

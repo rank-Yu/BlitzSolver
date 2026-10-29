@@ -307,3 +307,15 @@ negative 仅由测试程序集 Harmony 修改生产 observer 的捕获结果，�
 HP 差异/缺捕获都 Failed 且没有 milestone；生产无测试环境变量后门。
 cancel 在生产首个原版动作完成后取消 token，验证至少一个部署动作、Cancelled、无 milestone、
 selector/动作订阅归零，且同进程第二局被拒绝。
+
+
+战后生产宿主与独立参考：
+
+    dotnet artifacts/bin/Differential/release/Differential.dll --postcombat-host-checks
+    dotnet artifacts/bin/Differential/release/Differential.dll --postcombat-production-capture
+    dotnet artifacts/bin/Differential/release/Differential.dll --first-combat-reference --next-room
+
+第一项为定向原版 fixture（包括托管 UI surrogate 的 GC/关闭后拒绝），不宣称自然战斗已通过。
+第二项只给正式 FirstCombat.Run 增加只读 NativeRunDump 阶段 hash，第三项使用旧测试 runtime、
+旧 NativePilotHost 及同步测试 selector 直接驱动原版，对照全部阶段 RunDump、NativeRunDump 加独立序列化的完整 MapPointHistory 与可见候选。
+生产实现与独立参考均保留原版 alternatives/hooks；参考没有调用正式奖励桥。

@@ -25,11 +25,13 @@ internal static class FirstCombatSession
         MainLoopContext loop = new();
         SynchronizationContext? previous = SynchronizationContext.Current;
         SynchronizationContext.SetSynchronizationContext(loop);
-        StateSummary? starting = null, after = null;
+        StateSummary? starting = null, after = null, afterRewards = null;
+        NextRoomSummary? nextRoom = null;
         CombatSummary? summary = null;
         SmokePolicy policy = new();
         FirstCombatResult Result(string status, string? milestone, string? detail)
-            => new(status, milestone, detail, options, "first-combat-smoke-v1", [.. policy.Choices], starting, after, summary);
+            => new(status, milestone, detail, options, options.StopAfter == "next-room" ? "next-room-smoke-v1" : "first-combat-smoke-v1",
+                [.. policy.Choices], starting, after, summary, afterRewards, nextRoom);
         try
         {
             token.ThrowIfCancellationRequested();
@@ -41,21 +43,40 @@ internal static class FirstCombatSession
             loop.RunUntilCompleted(create, TimeSpan.FromSeconds(options.TimeoutSeconds), "new-run", token);
             (NativeRun run, Player player) = create.GetAwaiter().GetResult();
             starting = Summarize(run, player);
-            ValueTask<OfflineRunBoundary> Boundary(CancellationToken ct)
+            OfflineRunHost? runHost = null;
+            CombatRoom? firstRoom = null;
+            async ValueTask<OfflineRunBoundary> Boundary(CancellationToken ct)
             {
                 ct.ThrowIfCancellationRequested();
+                if (firstRoom != null)
+                {
+                    if (!ReferenceEquals(run.CurrentRoom, firstRoom))
+                    {
+                        await runHost!.ConfirmRewardsRoomExitAsync(ct);
+                        await RunManager.Instance.ActionExecutor.FinishedExecutingActions().WaitAsync(ct);
+                        if (run.CurrentRoom is CombatRoom) WaitPlayable(loop, run, player, ct);
+                        var coord = run.CurrentMapCoord ?? throw new InvalidDataException("next-room-coordinate-missing");
+                        AbstractRoom next = run.CurrentRoom ?? throw new InvalidDataException("next-room-missing");
+                        nextRoom = new(next.RoomType.ToString(), next.ModelId?.Entry ?? "",
+                            coord.col, coord.row, Summarize(run, player));
+                        return new(OfflineBoundaryKind.Paused, Detail: "next-room-entered");
+                    }
+                    if (!runHost!.RewardsProceedConfirmed) return new(OfflineBoundaryKind.Rewards);
+                    afterRewards ??= Summarize(run, player);
+                    return new(OfflineBoundaryKind.Map, TravelEnabled: () => runHost.RewardsTravelEnabled);
+                }
                 if (run.CurrentRoom is CombatRoom)
                 {
                     WaitPlayable(loop, run, player, ct);
-                    return ValueTask.FromResult(new OfflineRunBoundary(OfflineBoundaryKind.Combat));
+                    return new OfflineRunBoundary(OfflineBoundaryKind.Combat);
                 }
                 if (run.CurrentRoom is EventRoom room && !room.LocalMutableEvent.IsFinished)
-                    return ValueTask.FromResult(new OfflineRunBoundary(OfflineBoundaryKind.Event, Event: room.LocalMutableEvent));
+                    return new OfflineRunBoundary(OfflineBoundaryKind.Event, Event: room.LocalMutableEvent);
                 if (run.CurrentRoom is EventRoom finished && finished.LocalMutableEvent.IsFinished)
-                    return ValueTask.FromResult(new OfflineRunBoundary(OfflineBoundaryKind.Map,
+                    return new OfflineRunBoundary(OfflineBoundaryKind.Map,
                         TravelEnabled: () => finished.LocalMutableEvent.IsFinished
                             && !CombatManager.Instance.IsInProgress
-                            && RunManager.Instance.ActionExecutor.FinishedExecutingActions().IsCompleted));
+                            && RunManager.Instance.ActionExecutor.FinishedExecutingActions().IsCompleted);
                 throw new BlitzSolver.Simulation.Combat.UnsupportedException("unsupported-run-boundary:" + run.CurrentRoom?.GetType().Name);
             }
             async ValueTask<RunCombatResult> Combat(CancellationToken ct)
@@ -88,20 +109,26 @@ internal static class FirstCombatSession
                     loop.RunUntilCompleted(RunManager.Instance.ActionExecutor.FinishedExecutingActions(),
                         TimeSpan.FromSeconds(options.TimeoutSeconds), "post-combat-queue", ct);
                     after = Summarize(run, player);
+                    if (result.Outcome == "victory" && options.StopAfter == "next-room")
+                    {
+                        firstRoom = run.CurrentRoom as CombatRoom ?? throw new InvalidDataException("reward-room-missing");
+                        await runHost!.OfferCombatRewardsAsync(firstRoom, ct);
+                        return new();
+                    }
                     return result.Outcome == "victory"
                         ? new(RunStopReason.Paused, "first-combat-complete")
                         : new(RunStopReason.Death, "combat-death");
                 }
                 return new(RunStopReason.Failed, result.PauseReason ?? "combat-incomplete");
             }
-            OfflineRunHost runHost = new(run, player, Boundary, Combat);
+            runHost = new(run, player, Boundary, Combat);
             try
             {
                 Task<RunPilotResult> task = RunPilot.RunAsync(runHost, policy, token: token);
                 loop.RunUntilCompleted(task, TimeSpan.FromSeconds(options.TimeoutSeconds), "run-pilot", token);
                 RunPilotResult result = task.GetAwaiter().GetResult();
                 if (timeout.IsCancellationRequested) return Result("Timeout", null, "overall-timeout");
-                return Result(result.Reason.ToString(), result.Detail == "first-combat-complete" ? result.Detail : null, result.Detail);
+                return Result(result.Reason.ToString(), result.Detail is "first-combat-complete" or "next-room-entered" ? result.Detail : null, result.Detail);
             }
             finally
             {
@@ -158,7 +185,9 @@ internal static class FirstCombatSession
             for (int i = 0; i < names.Length; i++)
             {
                 RunDecisionOption option = request.Options[i];
-                names[i] = option.Model.Kind == RunRefKind.Relic ? Registry.Relic(option.Model.Id).NativeId
+                names[i] = option.Kind == RunDecisionOptionKind.Reward ? "Reward:" + option.RewardType
+                    : option.Kind == RunDecisionOptionKind.Card ? "Card:" + Registry.Card(option.Card.Id).NativeId
+                    : option.Model.Kind == RunRefKind.Relic ? Registry.Relic(option.Model.Id).NativeId
                     : option.Kind == RunDecisionOptionKind.MapPoint
                         ? $"MapPoint:{option.Coord.Col},{option.Coord.Row}:{option.PointType}"
                         : option.Kind + ":" + option.OptionId;
@@ -168,7 +197,8 @@ internal static class FirstCombatSession
                     if (chosen < 0 || names[i] == "LAVA_ROCK") chosen = i;
                 }
             }
-            if (request.Kind is not (RunDecision.Event or RunDecision.MapPoint or RunDecision.CardSelect))
+            if (request.Kind is not (RunDecision.Event or RunDecision.MapPoint or RunDecision.CardSelect
+                or RunDecision.CombatReward or RunDecision.CardReward or RunDecision.PotionDiscard))
                 throw new InvalidDataException("smoke-policy-unsupported-decision:" + request.Kind);
             int count = Math.Max(1, (int)request.MinSelect);
             if (count > request.MaxSelect || count > legal.Count)

@@ -43,6 +43,8 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--postcombat-production-capture") return FirstCombatReference.ProductionPostCombat();
+        if (args.Length == 1 && args[0] == "--postcombat-host-checks") return PostCombatHostChecks.Run();
         if (args.Length > 0 && args[0] == "--run-host-compare")
             return RunHostCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-reward-shop-compare")

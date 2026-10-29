@@ -41,10 +41,14 @@ internal static class NativeCallbacks
             harmony.Patch(AccessTools.Method(typeof(RelicSelectCmd), nameof(RelicSelectCmd.FromChooseARelicScreen)),
                 prefix: new HarmonyMethod(typeof(NativeCallbacks), nameof(RejectUnsupported)));
             harmony.Patch(AccessTools.Method(typeof(RewardsSet), nameof(RewardsSet.Offer)),
-                prefix: new HarmonyMethod(typeof(NativeCallbacks), nameof(RejectUnsupported)));
+                prefix: new HarmonyMethod(typeof(NativeCallbacks), nameof(RewardOfferPrefix)),
+                postfix: new HarmonyMethod(typeof(NativeCallbacks), nameof(RewardOfferPostfix)));
+            RewardCardScreen.Install(harmony);
             _installed = true;
         }
     }
+    private static void RewardOfferPrefix(RewardsSet __instance) => RewardPresentation.CheckOffer(__instance);
+    private static void RewardOfferPostfix(RewardsSet __instance, Task __result) => RewardPresentation.TrackOffer(__instance, __result);
     private static void RejectUnsupported(MethodBase __originalMethod)
     {
         if (OfflineRunHost.IsExecuting)

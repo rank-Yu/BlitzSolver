@@ -30,8 +30,10 @@ internal static class FirstCombatReference
 {
     internal static int Run(string[] args)
     {
-        if (args.Length > 1) throw new InvalidDataException("reference accepts at most one seed");
-        string seed = args.Length == 1 ? args[0] : "R3B2-DECISION";
+        bool nextRoom = args.Contains("--next-room");
+        string[] seeds = args.Where(a => a != "--next-room").ToArray();
+        if (seeds.Length > 1) throw new InvalidDataException("reference accepts at most one seed and --next-room");
+        string seed = seeds.Length == 1 ? seeds[0] : "R3B2-DECISION";
         MainLoopContext loop = new();
         SynchronizationContext.SetSynchronizationContext(loop);
         GameBootstrap.ApplyGodotBypasses();
@@ -50,8 +52,11 @@ internal static class FirstCombatReference
         loop.RunUntilCompleted(create, TimeSpan.FromSeconds(300), "reference-new-run");
         (NativeRun run, Player player) = create.GetAwaiter().GetResult();
         object starting = Summary(run, player);
+        string nativeStarting = NativeSnapshot(run, player);
         EventRoom neow = run.CurrentRoom as EventRoom ?? throw new InvalidDataException("reference-neow");
-        loop.RunUntilCompleted(neow.LocalMutableEvent.CurrentOptions.Single(o => o.Relic is LavaRock).Chosen(),
+        int neowIndex = neow.LocalMutableEvent.CurrentOptions.ToList().FindIndex(o => o.Relic is LavaRock);
+        RunManager.Instance.EventSynchronizer.ChooseLocalOption(neowIndex);
+        loop.RunUntilCompleted(RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks(),
             TimeSpan.FromSeconds(300), "reference-neow-choice");
         loop.RunUntilCompleted(RunManager.Instance.EnterMapCoord(RunTestHost.GetTravelablePoints(run)[0].coord),
             TimeSpan.FromSeconds(300), "reference-map-choice");
@@ -67,11 +72,49 @@ internal static class FirstCombatReference
         loop.RunUntilCompleted(RunManager.Instance.ActionExecutor.FinishedExecutingActions(),
             TimeSpan.FromSeconds(300), "reference-post-combat-queue");
         Battle? terminal = TerminalBattleCapture.Value;
+        object afterCombat = Summary(run, player);
+        string nativeAfterCombat = NativeSnapshot(run, player);
+        object? afterRewards = null, next = null;
+        string? nativeAfterRewards = null, nativeNextRoom = null;
+        ReferenceSelector selector = new();
+        if (nextRoom && result.Status == "victory")
+        {
+            GameBootstrap.Harmony.Unpatch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative), "Generate"),
+                AccessTools.Method(typeof(GameBootstrap), "NoCardRewardAlternativesPrefix"));
+            GameBootstrap.Harmony.Patch(AccessTools.Constructor(typeof(MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative),
+                [typeof(string), typeof(Func<Task>), typeof(MegaCrit.Sts2.Core.Entities.Rewards.PostAlternateCardRewardAction)]),
+                transpiler: new HarmonyMethod(AccessTools.Method(typeof(RunRewardShopCompare), "AlternativeHotkeys")));
+            GameBootstrap.Harmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet), "Offer"),
+                postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(TrackReferenceOffer)));
+            using IDisposable scope = MegaCrit.Sts2.Core.Commands.CardSelectCmd.UseSelector(selector);
+            MegaCrit.Sts2.Core.Rewards.RewardsSet.testSelector = async set =>
+            {
+                foreach (var reward in set.Rewards) await RunManager.Instance.RewardsSetSynchronizer.SelectLocalReward(reward);
+            };
+            try
+            {
+                loop.RunUntilCompleted(((CombatRoom)run.CurrentRoom!).OfferRoomEndRewards(), TimeSpan.FromSeconds(60), "reference-offer-generate");
+                loop.RunUntilCompleted(_referenceOffer ?? throw new InvalidDataException("reference-offer-missing"), TimeSpan.FromSeconds(60), "reference-raw-offer");
+                loop.RunUntilCompleted(RunManager.Instance.ProceedFromTerminalRewardsScreen(), TimeSpan.FromSeconds(60), "reference-proceed");
+                afterRewards = Summary(run, player);
+                nativeAfterRewards = NativeSnapshot(run, player);
+                loop.RunUntilCompleted(RunManager.Instance.EnterMapCoord(RunTestHost.GetTravelablePoints(run)[0].coord), TimeSpan.FromSeconds(60), "reference-next-map");
+                loop.RunUntilCompleted(RunManager.Instance.ActionExecutor.FinishedExecutingActions(), TimeSpan.FromSeconds(60), "reference-next-queue");
+                if (run.CurrentRoom is CombatRoom) new OfflineCombatWaiter(loop).WaitForPlayableCombatAsync().GetAwaiter().GetResult();
+                var coord = run.CurrentMapCoord!.Value;
+                next = new { roomType = run.CurrentRoom!.RoomType.ToString(), model = run.CurrentRoom.ModelId?.Entry ?? "",
+                    col = coord.col, row = coord.row, state = Summary(run, player) };
+                nativeNextRoom = NativeSnapshot(run, player);
+            }
+            finally { MegaCrit.Sts2.Core.Rewards.RewardsSet.testSelector = null; }
+        }
+
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             seed, character = "Ironclad", ascension = 0, unlockProfile = "neow-epoch-v1",
             searchTier = "Low", memoryBudgetBytes = OfflineCombatSettings.DefaultMemoryBudgetBytes,
-            starting, afterCombat = Summary(run, player),
+            starting, afterCombat, afterRewards, nextRoom = next, selector.Candidates,
+            nativeStarting, nativeAfterCombat, nativeAfterRewards, nativeNextRoom,
             combat = new
             {
                 status = result.Status, outcome = result.Outcome, turns = result.Turns,
@@ -86,6 +129,38 @@ internal static class FirstCombatReference
         }));
         return result.Status == "victory" && result.Deviations == 0 && result.DeploymentFailures == 0 && terminal != null ? 0 : 1;
     }
+
+    private static Task? _referenceOffer;
+    private static void TrackReferenceOffer(Task __result) => _referenceOffer = __result;
+    private sealed class ReferenceSelector : MegaCrit.Sts2.Core.TestSupport.ICardSelector
+    {
+        public List<string[]> Candidates { get; } = [];
+        public MegaCrit.Sts2.Core.TestSupport.CardRewardSelection GetSelectedCardReward(
+            IReadOnlyList<MegaCrit.Sts2.Core.Entities.Cards.CardCreationResult> cards,
+            IReadOnlyList<MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative> alternatives)
+        {
+            Candidates.Add(cards.Select(c => c.Card.Id.Entry).ToArray());
+            return new() { card = cards[0].Card };
+        }
+        public Task<IEnumerable<CardModel>> GetSelectedCards(IEnumerable<CardModel> cards, int min, int max)
+            => throw new InvalidDataException("reference unexpected selector");
+    }
+    private static string NativeSnapshot(NativeRun run, Player player)
+        => Hash(NativeRunDump.Capture(run, player) + "\nhistory=" +
+            JsonSerializer.Serialize(run.MapPointHistory, new JsonSerializerOptions { IncludeFields = true }));
+    private static readonly List<string> NativeSnapshots = [];
+    private static void CaptureNative(NativeRun run, Player player) => NativeSnapshots.Add(NativeSnapshot(run, player));
+    internal static int ProductionPostCombat()
+    {
+        new Harmony("BlitzSolver.Differential.ProductionPostCombat").Patch(
+            AccessTools.Method(typeof(BlitzSolver.OfflineHost.Runtime.FirstCombatSession), "Summarize"),
+            postfix: new HarmonyMethod(typeof(FirstCombatReference), nameof(CaptureNative)));
+        var result = BlitzSolver.OfflineHost.FirstCombat.Run(new(AssemblyBootstrap.Sts2DataDir, StopAfter: "next-room"));
+        Console.WriteLine(JsonSerializer.Serialize(new { result, nativeSnapshots = NativeSnapshots },
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        return result.Milestone == "next-room-entered" ? 0 : 1;
+    }
+
     private static object Summary(NativeRun run, Player player) => new
     {
         sha256 = Hash(RunDump.Capture(RunStateImporter.Import(run, player))),
@@ -236,6 +311,7 @@ internal static class FirstCombatReference
             new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, UnlockProfile: "unknown"),
             new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, SearchTier: "unknown"),
             new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, MemoryBudgetBytes: 0),
+            new BlitzSolver.OfflineHost.FirstCombatOptions(AssemblyBootstrap.Sts2DataDir, StopAfter: "unknown"),
         })
         {
             rejected = false;

@@ -1,7 +1,8 @@
 # run-eval 首战烟测 CLI
 
 普通 .NET 9 独立进程，不加入 solution。当前只从原版新局推进到第一场真实战斗结束，
-首战完成后、领奖之前停止；不代表整局胜利。后续批量整局评估仍未实现。
+默认首战完成后、领奖之前停止；显式 --stop-after next-room 继续领取奖励并进入下一房间后暂停。
+两个里程碑都不代表整局胜利。后续批量整局评估仍未实现。
 
 ## 运行
 
@@ -19,7 +20,10 @@
     --unlocks neow-epoch-v1
     --tier Low
     --timeout-seconds 300
+    --stop-after first-combat
 
+--stop-after 接受 first-combat（默认）或 next-room。next-room 使用 next-room-smoke-v1 可见策略，
+按可见顺序领奖、选择首张合法卡、必要时管理满药水后显式再领取、Leave，然后选首个合法地图点。
 --game-data 必填。默认角色 Ironclad、A0、seed R3B2-DECISION。
 角色接受 Ironclad/Silent/Regent/Necrobinder/Defect，但这不是所有角色/内容已验证的声明。
 tier 接受 Low/Medium/High/ExtraHigh；使用既有确定性 widening 配置和 2576980377 bytes 内存预算。
@@ -39,11 +43,12 @@ stdout 只有一行紧凑 JSON；原版初始化诊断在 stderr。默认不生�
 JSON 包含完整配置、版本化 first-combat-smoke-v1 可见选择、起始/结算后 RunState SHA-256 和
 HP/金币/牌组/遗物/药水摘要、开战/原版清理前终局 Battle SHA-256、原版结束路径、
 动作数/搜索数/展开量以及部署/边界偏差数。原版终局 HP 与结算后 HP 分开报告，
-因此可以观察 BurningBlood 等正常战后 hook。
+因此可以观察 BurningBlood 等正常战后 hook。next-room 另报 afterRewards 和 nextRoom
+（房间类型/模型、地图坐标、状态摘要）。配置增加 stopAfter；原有首战输出字段与行为保留。
 
 | exit | 含义 |
 | --- | --- |
-| 0 | Paused，milestone=first-combat-complete，原版终局比较成功 |
+| 0 | Paused，milestone=first-combat-complete 或 next-room-entered，原版终局比较成功 |
 | 1 | Failed、Death 或其他未达首战完成的结果 |
 | 2 | 参数无效、游戏路径/程序集缺失 |
 | 4 | 总体超时 |
@@ -52,4 +57,5 @@ HP/金币/牌组/遗物/药水摘要、开战/原版清理前终局 Battle SHA-2
 缺捕获/终局差异不产生 milestone。first-combat-complete 不是整局 Victory。
 已验证 Ironclad A0 的 R3B2-DECISION、R3B5-SECOND，以及 Silent A0 的 R3B2-DECISION，所有部署/终局比较通过。
 主 seed 经两次独立 CLI 进程与独立旧 Differential 原版参考对照通过。
+next-room 主 seed 两次独立进程结果一致，并与独立旧 runtime 原版参考逐段一致。
 初始化/迁移差异、生命周期与当前边界详见 src/OfflineHost/README.md。

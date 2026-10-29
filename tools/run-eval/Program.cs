@@ -7,13 +7,14 @@ internal static class Program
     {
         if (args.Length == 1 && args[0] is "--help" or "-h")
         {
-            Console.WriteLine("run-eval --game-data PATH [--seed R3B2-DECISION] [--character Ironclad] [--ascension 0] [--unlocks neow-epoch-v1] [--tier Low|Medium|High|ExtraHigh] [--timeout-seconds 300]");
-            Console.WriteLine("Starts one native run and stops after the first verified combat, before claiming rewards. JSON output; Ctrl+C cancels.");
+            Console.WriteLine("run-eval --game-data PATH [--seed R3B2-DECISION] [--character Ironclad] [--ascension 0] [--unlocks neow-epoch-v1] [--tier Low|Medium|High|ExtraHigh] [--timeout-seconds 300] [--stop-after first-combat|next-room]");
+            Console.WriteLine("Starts one native run; default stops before rewards, next-room claims rewards and pauses in the next room. JSON output; Ctrl+C cancels.");
             return 0;
         }
         try
         {
             string? data = null;
+            string stopAfter = "first-combat";
             string seed = "R3B2-DECISION", character = "Ironclad", unlocks = "neow-epoch-v1", tier = "Low";
             int ascension = 0, seconds = 300;
             HashSet<string> seen = [];
@@ -24,6 +25,7 @@ internal static class Program
                 string value = args[++i];
                 switch (name)
                 {
+                    case "--stop-after": stopAfter = value; break;
                     case "--game-data": data = value; break;
                     case "--seed": seed = value; break;
                     case "--character": character = value; break;
@@ -42,6 +44,7 @@ internal static class Program
             if (unlocks != "neow-epoch-v1") throw new InvalidDataException("Unknown unlock profile: " + unlocks);
             if (tier is not ("Low" or "Medium" or "High" or "ExtraHigh"))
                 throw new InvalidDataException("Unknown tier: " + tier);
+            if (stopAfter is not ("first-combat" or "next-room")) throw new InvalidDataException("Unknown stop-after: " + stopAfter);
             using CancellationTokenSource cancellation = new();
             void Cancel(object? sender, ConsoleCancelEventArgs eventArgs) { eventArgs.Cancel = true; cancellation.Cancel(); }
             Console.CancelKeyPress += Cancel;
@@ -50,11 +53,11 @@ internal static class Program
             try
             {
                 Console.SetOut(Console.Error); // Native assembly initialization can print diagnostics.
-                result = FirstCombat.Run(new(data, seed, character, ascension, unlocks, tier, seconds), cancellation.Token);
+                result = FirstCombat.Run(new(data, seed, character, ascension, unlocks, tier, seconds, StopAfter: stopAfter), cancellation.Token);
             }
             finally { Console.SetOut(output); Console.CancelKeyPress -= Cancel; }
             Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-            return result.Milestone == "first-combat-complete" ? 0
+            return result.Milestone is "first-combat-complete" or "next-room-entered" ? 0
                 : result.Status == "Timeout" ? 4 : result.Status == "Cancelled" ? 130 : 1;
         }
         catch (InvalidDataException error) { Console.Error.WriteLine(error.Message); return 2; }
