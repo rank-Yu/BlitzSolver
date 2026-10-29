@@ -72,6 +72,7 @@ TestMode仍无法覆盖所有选择屏幕：RelicSelectCmd直接打开Godot遗�
 CardSelectCmd的bundle测试分支自动选第一组，探针观察并记录完整候选。未知内容不跳过，具体已测
 自然路径、定向夹具和阻塞必须分开统计；目前不能据此宣称全内容或三幕通关已验证。
 
-原始RunCodec的跨进程字节确定性还有一个前置缺口：RunRef的隐式对齐字节没有被规范化。
-R3a保留原始hash，另以仅清全部RunRef确定padding的probe-only语义hash比较复跑；不能把语义
-相同说成原始字节完全相同。正式宿主落地前需独立修正并完整验证Core codec，不在本批修改布局或快照。
+R3a曾定位原始RunCodec跨进程字节差异为RunRef隐式对齐字节，当时保留原始hash，另用
+probe-only语义hash诊断。后续独立Core修复已在编码输出边界规范化RunState全部隐式padding，
+保留v3布局与旧输入兼容；见[整局状态布局](run-state-layout.md)第5节。探针的semanticStateHash
+现仅为正式stateHash的兼容别名，复跑须严格比较完整原始hash轨迹。

@@ -67,25 +67,13 @@ internal static class RunProbeContracts
         Console.WriteLine("CONTRACT native event repeat/once cases=2 passed");
     }
 
-    internal static void CheckRunPadding(BlitzSolver.Simulation.Run.RunState run)
+    internal static void CheckRunCodec(BlitzSolver.Simulation.Run.RunState run)
     {
         byte[] bytes = BlitzSolver.Simulation.Run.RunCodec.Encode(run);
-        string semantic = RunProbeStateHash.Semantic(bytes);
-        byte[] changed = (byte[])bytes.Clone();
-        foreach (int offset in RunProbeStateHash.RunRefPaddingOffsets)
-            changed[BlitzSolver.Simulation.Run.RunCodec.HeaderSize + offset] = 0xA5;
-        if (semantic != RunProbeStateHash.Semantic(changed) || bytes.AsSpan().SequenceEqual(changed))
-            throw new InvalidDataException("RunRef padding semantic合同失败");
-        // Check every other encoded byte, including header and all declared-field bytes.
-        HashSet<int> padding = [.. RunProbeStateHash.RunRefPaddingOffsets.Select(i => i + BlitzSolver.Simulation.Run.RunCodec.HeaderSize)];
-        for (int i = 0; i < bytes.Length; i++)
-        {
-            if (padding.Contains(i)) continue;
-            changed = (byte[])bytes.Clone(); changed[i] ^= 1;
-            if (semantic == RunProbeStateHash.Semantic(changed))
-                throw new InvalidDataException($"semantic hash错误忽略非RunRef-padding字节{i}");
-        }
-        Console.WriteLine($"CONTRACT RunRef padding={padding.Count} other bytes strict={bytes.Length-padding.Count}");
+        var decoded = BlitzSolver.Simulation.Run.RunCodec.Decode(bytes);
+        if (!bytes.AsSpan().SequenceEqual(BlitzSolver.Simulation.Run.RunCodec.Encode(decoded)))
+            throw new InvalidDataException("正式 RunCodec 编码往返合同失败");
+        Console.WriteLine("CONTRACT official RunCodec canonical roundtrip passed; padding coverage in KernelChecks");
     }
 
     private static void CheckPair(string label, Battle before, bool same)

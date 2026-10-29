@@ -376,10 +376,10 @@ internal sealed class RunProbe
         {
             NativeRewardSession? reward = _rewardSessions.LastOrDefault();
             var imported = RunStateImporter.Import(_run, _player, reward?.Set, reward?.RemainingRewards);
-            // Preserve raw codec hash, including its observed RunRef alignment bytes.
+            // Hash the official canonical codec bytes. Keep the old semantic field as an alias.
             byte[] encoded = BlitzSolver.Simulation.Run.RunCodec.Encode(imported);
             hash = Convert.ToHexString(SHA256.HashData(encoded));
-            semanticHash = RunProbeStateHash.Semantic(encoded);
+            semanticHash = hash;
             if (Environment.GetEnvironmentVariable("BLITZ_PROBE_CAPTURE_RUNSTATE") == $"{_run.CurrentActIndex}/{_run.ActFloor}")
             {
                 using (Telemetry.Measure("logging"))
@@ -554,7 +554,7 @@ internal sealed class RunProbe
             Battle basis = new LiveCombatTracker(combat).ImportRoot(combat, _player, rules);
             RunProbeContracts.Check(basis);
             RunProbeContracts.CheckEventOptions(ModelDb.Event<Trial>().ToMutable());
-            RunProbeContracts.CheckRunPadding(RunStateImporter.Import(_run, _player));
+            RunProbeContracts.CheckRunCodec(RunStateImporter.Import(_run, _player));
             Telemetry.Write("fixture", new { name, cases = 9 });
             return;
         }

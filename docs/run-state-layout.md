@@ -172,7 +172,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `RunOdds`/`RunPlayerOdds` | 概率当前值 |
 | `RunExtraFields`/`RunExtraPlayerFields` | `StartedWithNeow`、`TestSubjectKills`、删牌次数、Wongo 点数 |
 
-`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 144 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 7536`（R2b-2 加入完整决策请求，R2c-1 加入奖励阶段与卡牌选项字段，R2c-2 扩大选牌选项容量并加入商店投影）。
+`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 148 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 7536`（R2b-2 加入完整决策请求，R2c-1 加入奖励阶段与卡牌选项字段，R2c-2 扩大选牌选项容量并加入商店投影）。
 
 ### 3.1 容量
 
@@ -261,8 +261,26 @@ payload byte[]  RunState 的规范字节镜像
 ```
 
 - `Encode` 先复制状态、`Canonicalize()`、`Validate()`；`Canonicalize` 清零所有超出计数的槽位，排序地图节点/子节点/起始点/事件 RNG，并清掉解锁/已访问位图中超出内容表的位。
-- 同一语义只有一种字节表示：顺序无关集合被排序，未使用槽位为零。
+- 完整结构体写入输出后，`RunCodecPadding` 清零所有隐式 CLR 对齐字节；只改输出，不依赖结构体复制或构造器是否保留 padding。元数据仅在首次编码时递归计算并合并为连续清零区间，后续编码不反射、不扫描字段；战斗搜索不使用这一步。
+- 元数据只接受固定宽度 blittable 数值叶类型、枚举、顺序布局结构与步长经过 `Unsafe.SizeOf` 校验的 `InlineArray`；拒绝 bool、char、平台宽度整数、指针、引用、自动/显式布局、MarshalAs/FixedBuffer 字段和重叠字段。`Marshal.OffsetOf` 仅用于这些与 managed 布局一致的类型。每个声明字段都覆盖其完整尺寸，包括名称为 `_padding` 的显式保留字段，绝不按名称删字段。
+- v3 / 49,912 字节布局共 2,452 个隐式 padding 字节，其中 `RunRef` 的 392 个实例各有 `+1` 对齐字节。其他局部间隙见下表；内联数组按实际元素步长展开。KernelChecks 独立覆盖标量字段并断言此盘点，新增字段占用旧间隙时必须更新合同并复审。
+
+| 结构 | 局部隐式 padding 偏移 |
+| --- | --- |
+| `RunState` | 18–19、44–47、37558–37559 |
+| `RunUnlockState` / `RunPlayer` | 36–39 / 2–3、58–59 |
+| `RunCard` / `RunRelic` | 5、10–11、146–147 / 6–7、81–83 |
+| `RunShopCard` / `RunShopModel` | 157–159 / 13–15 |
+| `RunDeck` / `RunRelics` | 2–3 / 1–3 |
+| `RunAct` / `RunActs` | 3、9、18–19 / 2–3 |
+| `RunRef` / `RunHistoryRoom` | 1 / 1、7 |
+| `RunHistoryEntry` / `RunHistory` | 3 / 2–3 |
+| `RunRoom` / `RunRooms` | 1、14–15 / 1–3 |
+| `RunVisited` / `RunEventRng` / `RunRngState` | 129–135 / 4–7 / 781–783 |
+
+- 同一逻辑字段及显式保留字段只有一种规范字节表示：顺序无关集合被排序，未使用槽位和隐式 padding 为零。显式保留字段维持现有 v3 字段合同，不在本次修复中改变。
 - `Decode` 校验魔数、版本、长度、结构计数、内容 id、属性包结构与 `ExpectedSize`；任何不一致抛 `InvalidDataException`。
+- 旧的有效 v3 输入即使隐式 padding 非零也可解码；重新 `Encode` 得到规范字节。字段/枚举/容量验证保持严格，格式版本、目录 id 与布局不变。
 - 内容目录顺序变化（新增原版内容）会改变 id，必须同时递增 `RunCodec.FormatVersion`；`RunState.ExpectedSize` 变化也必须递增版本。R2c-1 因 `RunRewards`/`RunRoom.GoldProportion` 升到 2；R2c-2 因 `RunShop`/`RunCard.Flags`/`DecisionOptions` 升到 3。
 - 不写时间戳、非确定性字典遍历或运行时相关值。
 

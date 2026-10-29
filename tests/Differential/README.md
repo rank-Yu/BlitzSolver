@@ -232,10 +232,10 @@ Godot旁路仅限预加载、悬浮说明展示与存档路径；Trial另对两�
 CalcCost临时关闭TestMode并由Harmony finalizer恢复，异常同样恢复。原版其余TestMode差别仍见
 [离线宿主](../../docs/offline-host.md)，本探针不证明所有事件/界面或三幕通关。
 
-R3a发现原始 `RunCodec` 字节哈希跨进程不总相同：`RunRef` 是4字节布局，Kind在0、Id在2，
-中间1字节是CLR隐式padding；现有Canonicalize没有清它。探针同时保留原始 `stateHash` 与
-`semanticStateHash`。后者通过实际CLR布局枚举所有RunRef出现位置，只清这个经证实的padding，
-不删字段、不改Core；合同扰动全部392个RunRef padding保持语义hash，逐一扰动其余49,530字节
-都必须改变语义hash。复跑报告必须分别报告原始字节轨迹与去此padding的语义轨迹，不能宣称所有
-非时间字段完全相同。`BLITZ_PROBE_CAPTURE_RUNSTATE=0/12` 可额外保存幕0层12决策边界的原始
-RunState二进制和完整字段转储，供独立定位；`RunCodec` 本身的确定性补全留待后续独立工作。
+R3a曾发现原始 `RunCodec` 字节哈希跨进程不总相同：`RunRef` 是4字节布局，Kind在0、Id在2，
+中间1字节是CLR隐式padding。当时探针临时清理392处RunRef padding计算语义hash作为诊断，原始
+hash差异保持公开。此后独立Core修复在正式编码输出边界清零所有2,452个隐式padding字节，布局、
+v3格式与字段校验不变；覆盖合同位于KernelChecks。探针已删除临时掩码实现，`stateHash` 直接哈希
+正式编码，保留 `semanticStateHash` 为相同值的日志兼容别名。跨进程复跑必须逐条严格比较完整
+trace（包括两个hash字段）与summary全部非时间/内存facts。`BLITZ_PROBE_CAPTURE_RUNSTATE=0/12`
+可额外保存幕0层12决策边界的正式RunState二进制和完整字段转储，供独立定位。

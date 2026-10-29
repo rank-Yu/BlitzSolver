@@ -38,6 +38,7 @@ internal static class RunChecks
             "RunCatalog 的原版内容数量与 0.111.0 目录不一致。");
         CheckRng();
         CheckCodec();
+        RunCodecChecks.Check(SampleState());
         CheckCapacity();
         CheckView();
         CheckTravel();

@@ -9,7 +9,7 @@ namespace BlitzSolver.Simulation.Run;
 /// <summary>
 /// Whole-block <see cref="RunState"/> file: magic, format version, exact struct size and the
 /// canonical byte image. The state is unmanaged and reference-free, so the byte image is the whole
-/// state once inactive slots and order-independent collections are canonicalized.
+/// state once inactive slots, order-independent collections and implicit alignment bytes are canonicalized.
 /// </summary>
 public static class RunCodec
 {
@@ -33,7 +33,9 @@ public static class RunCodec
         BinaryPrimitives.WriteUInt32LittleEndian(header, Magic);
         BinaryPrimitives.WriteUInt16LittleEndian(header[4..], FormatVersion);
         BinaryPrimitives.WriteInt32LittleEndian(header[6..], size);
-        MemoryMarshal.Write(bytes.AsSpan(HeaderSize), in canonical);
+        Span<byte> payload = bytes.AsSpan(HeaderSize);
+        MemoryMarshal.Write(payload, in canonical);
+        RunCodecPadding.Clear(payload);
         return bytes;
     }
 
