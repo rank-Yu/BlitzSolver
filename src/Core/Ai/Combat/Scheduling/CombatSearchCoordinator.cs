@@ -77,9 +77,8 @@ internal static class CombatSearchCoordinator
                 DeadlineExpired = () => budget.Now >= memberDeadline || budget.Expired(),
                 SoftTimeBudget = TimeSpan.FromMilliseconds(searchMs),
                 SearchMemoryBudgetBytes = plan.MemoryBytes,
-                PoolStateBudgetBytes = initial.Options.PoolStateBudgetBytes > 0
-                    ? initial.Options.PoolStateBudgetBytes
-                    : (int)Math.Min(int.MaxValue, plan.MemoryBytes == 0 ? int.MaxValue : plan.MemoryBytes),
+                StatePoolBudgetBytes = initial.Options.PoolStateBudgetBytes > 0
+                    ? initial.Options.PoolStateBudgetBytes : plan.MemoryBytes,
                 EndedBatchTarget = checked(member.Width * plan.EndedKeepWidths),
                 EndedBatchTrigger = checked(member.Width * plan.EndedTriggerWidths),
                 Scorer = new Scorer(scorer.RulesForCodec,

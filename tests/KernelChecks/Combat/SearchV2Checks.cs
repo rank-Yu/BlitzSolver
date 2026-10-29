@@ -25,6 +25,16 @@ internal static class SearchV2Checks
         Assert((extra.BaselineWidth, extra.NarrowWidth, extra.WideWidth, extra.OffensiveWidth, extra.TotalMilliseconds)
             == (675, 450, 1013, 270, 300_000), "extra preset");
 
+        int twoGiB = SearchMemoryBudget.PoolStateCapacity(int.MaxValue, Battle.ExpectedSize, 64);
+        int threeGiB = SearchMemoryBudget.PoolStateCapacity(3_000_000_000L, Battle.ExpectedSize, 64);
+        Assert(threeGiB > twoGiB && threeGiB % 64 == 0
+            && (long)threeGiB * Battle.ExpectedSize <= 3_000_000_000L,
+            "state pool planning supports budgets above two GiB");
+        bool unrepresentable = false;
+        try { _ = SearchMemoryBudget.PoolStateCapacity(long.MaxValue, Battle.ExpectedSize, 64); }
+        catch (InvalidDataException) { unrepresentable = true; }
+        Assert(unrepresentable, "unrepresentable pool capacity is rejected explicitly");
+
         SearchStorage legacy = new();
         legacy.BeginSolve(1000);
         legacy.Memory.Charge(100, "pool-aux");

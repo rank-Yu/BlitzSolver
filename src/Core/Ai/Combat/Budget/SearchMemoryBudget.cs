@@ -115,3 +115,22 @@ internal sealed class SearchMemoryLedger
     }
 }
 
+
+/// <summary>Capacity planning for one chunked state pool; all byte arithmetic is 64-bit.</summary>
+internal static class SearchMemoryBudget
+{
+    // A power-of-two deduplication table needs two slots per state and uses signed int indexes.
+    internal const int MaximumPoolStates = 1 << 29;
+
+    internal static int PoolStateCapacity(long budgetBytes, int stateBytes, int chunkStates)
+    {
+        if (budgetBytes <= 0 || stateBytes <= 0 || chunkStates <= 0
+            || (chunkStates & (chunkStates - 1)) != 0)
+            throw new InvalidDataException("状态池预算或分块无效。");
+        long chunks = budgetBytes / stateBytes / chunkStates;
+        long states = Math.Max(chunkStates, chunks * chunkStates);
+        if (states > MaximumPoolStates)
+            throw new InvalidDataException("状态池预算超过可表示容量。");
+        return checked((int)states);
+    }
+}

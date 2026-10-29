@@ -24,7 +24,9 @@ internal static class SearchV2Contracts
             CustomMembers = [new(8, SearchEvaluation.Base, SearchRetention.SecondBand, SearchPotionLimit.None),
                              new(12, SearchEvaluation.Offensive, SearchRetention.Standard, SearchPotionLimit.Allowed)],
         };
+        original = original with { Options = original.Options with { PoolStateBudgetBytes = 123_456_789 } };
         CombatSearchRequest decoded = CombatSearchCodec.Decode(CombatSearchCodec.Encode(new(original, plan)));
+        Assert(decoded.Case.Options.PoolStateBudgetBytes == 123_456_789, "pool override survives SCV2");
         Assert(decoded.Plan with { CustomMembers = plan.CustomMembers } == plan
             && decoded.Plan.CustomMembers.SequenceEqual(plan.CustomMembers), "versioned plan round trip");
         Assert(SearchCodec.EncodeRequest(original).AsSpan().SequenceEqual(SearchCodec.EncodeRequest(decoded.Case)),

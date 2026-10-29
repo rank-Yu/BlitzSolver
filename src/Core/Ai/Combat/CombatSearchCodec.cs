@@ -6,7 +6,7 @@ namespace Sts2Solver.Ai.Combat;
 internal static class CombatSearchCodec
 {
     private const uint Magic = 0x32564353; // SCV2
-    private const ushort Version = 1;
+    private const ushort Version = 2;
 
     internal static byte[] Encode(CombatSearchRequest request) => Codec.ToBytes(writer =>
     {
@@ -34,11 +34,15 @@ internal static class CombatSearchCodec
         }
         writer.Write(request.Case.Options.PotionFreeBaseline?.OutstandingStolenResource ?? int.MaxValue);
         writer.Write(request.Case.Options.HasUnboundedGrowthTargets);
+        writer.Write(request.Case.Options.PoolStateBudgetBytes);
     });
 
     internal static CombatSearchRequest Decode(byte[] bytes) => Codec.Read(bytes, "组合搜索请求", reader =>
     {
-        if (reader.ReadUInt32() != Magic || reader.ReadUInt16() != Version)
+        if (reader.ReadUInt32() != Magic)
+            throw new InvalidDataException("组合搜索请求魔数不符。");
+        ushort version = reader.ReadUInt16();
+        if (version is not (1 or Version))
             throw new InvalidDataException("组合搜索请求版本不受支持。");
         int length = Codec.ReadCount(reader, 1 << 28, "搜索根字节");
         byte[] root = reader.ReadBytes(length);
@@ -59,8 +63,10 @@ internal static class CombatSearchCodec
         plan = plan with { CustomMembers = members.MoveToImmutable() };
         int outstanding = reader.ReadInt32();
         bool unboundedGrowth = Codec.ReadBool(reader);
+        int poolStateBudget = version >= 2 ? reader.ReadInt32() : 0;
+        if (poolStateBudget < 0) throw new InvalidDataException("状态池预算不能为负。");
         searchCase = searchCase with { Options = searchCase.Options with
-            { HasUnboundedGrowthTargets = unboundedGrowth } };
+            { HasUnboundedGrowthTargets = unboundedGrowth, PoolStateBudgetBytes = poolStateBudget } };
         if (searchCase.Options.PotionFreeBaseline is { } baseline)
             searchCase = searchCase with { Options = searchCase.Options with
                 { PotionFreeBaseline = baseline with { OutstandingStolenResource = outstanding } } };

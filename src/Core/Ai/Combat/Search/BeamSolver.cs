@@ -49,6 +49,9 @@ internal sealed record BeamOptions(
     /// </summary>
     public int PoolStateBudgetBytes { get; init; }
 
+    /// <summary>New-path state-pool budget in bytes; zero uses the legacy pool setting.</summary>
+    public long StatePoolBudgetBytes { get; init; }
+
     /// <summary>Which root potions may be used and what each use costs; disabled unless the caller sets it.</summary>
     public PotionPolicy Potions { get; init; } = PotionPolicy.Disabled;
 
@@ -868,9 +871,10 @@ internal sealed partial class BeamSolver
         // from its memory budget because choice branches can exceed the legal-action count.
         // Round down to a chunk so state storage stays within that budget.
         int chunkStates = ChunkedArray<Battle>.ChunkSize;
-        int poolStateBudgetBytes = EffectivePoolStateBudgetBytes;
-        int budgetStates = poolStateBudgetBytes / Unsafe.SizeOf<Battle>() / chunkStates * chunkStates;
-        int poolLimit = Math.Min(maxChildren, Math.Max(chunkStates, budgetStates));
+        long poolStateBudgetBytes = EffectivePoolStateBudgetBytes;
+        int budgetStates = SearchMemoryBudget.PoolStateCapacity(poolStateBudgetBytes,
+            Unsafe.SizeOf<Battle>(), chunkStates);
+        int poolLimit = Math.Min(maxChildren, budgetStates);
         if (_options.EndedBatchTrigger > 0 && poolLimit <= width)
             throw new SearchMemoryBudgetException("ended-pool-capacity", _storage.Memory.UsedBytes,
                 _storage.Memory.LimitBytes);
@@ -3170,7 +3174,7 @@ internal sealed partial class BeamSolver
         public ChunkedArray(int maxCapacity, SearchStorage? storage = null)
         {
             _storage = storage;
-            int chunks = (maxCapacity + ChunkSize - 1) >> Shift;
+            int chunks = checked((int)(((long)maxCapacity + ChunkSize - 1) >> Shift));
             _chunks = storage?.RentArray<T[]?>(chunks) ?? new T[]?[chunks];
         }
 
