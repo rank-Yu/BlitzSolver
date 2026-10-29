@@ -1,0 +1,242 @@
+// Adapted from tests/Differential/Combat/NativePilotHost.cs at 6a5f645 (BlitzSolver, MIT).
+// Native CombatPilot adapter for the standalone runtime. Search uses the same request
+// compiler and BeamSolver as the offline whole-combat host; deployment goes through
+// NativeActionExecutor so each route action is checked against the original game.
+using BlitzSolver.Ai.Combat;
+using BlitzSolver.Autoplay;
+using BlitzSolver.Import;
+using BlitzSolver.Simulation.Combat;
+using BlitzSolver.OfflineHost.Runtime;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Context;
+using MegaCrit.Sts2.Core.Entities.Players;
+
+namespace BlitzSolver.OfflineHost.Combat;
+
+internal sealed class NativePilotHost(
+    MainLoopContext loop,
+    CombatState combat,
+    Player player,
+    Rules rules,
+    LiveCombatTracker tracker,
+    Battle opening,
+    SearchPolicy policy,
+    SearchPerformanceProfile profile,
+    long memoryBudgetBytes,
+    Func<string, IDisposable>? measure = null,
+    bool widening = false,
+    Action<Battle, Battle>? onDifference = null,
+    Action<SearchCase>? onSearchRequest = null) : ICombatPilotHost
+{
+    private readonly NativeActionExecutor _executor = new(loop, combat, player, rules, tracker);
+    private readonly List<string> _potionsUsed = [];
+    private Battle _current = opening;
+    private readonly int _combatStartHp = opening.Player.CurrentHp;
+    private readonly int _combatStartMaxHp = opening.Player.MaxHp;
+
+    internal Battle Current => _current;
+
+    internal int Actions { get; private set; }
+
+    public ValueTask<CombatPilotTurn?> WaitForTurnAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (_current.Outcome != Outcome.None)
+            return ValueTask.FromResult<CombatPilotTurn?>(null);
+        return ValueTask.FromResult<CombatPilotTurn?>(new CombatPilotTurn(
+            _current.PlayerTurn, _current.Player.CurrentHp, _current.Player.MaxHp));
+    }
+
+    public ValueTask<CombatPilotSearch> SearchAsync(int turn, string reason,
+        CancellationToken token)
+    {
+        using IDisposable? timing = measure?.Invoke("combat_search");
+        token.ThrowIfCancellationRequested();
+        CombatState live = CombatManager.Instance.DebugOnlyGetState()
+            ?? throw new OfflineDeploymentException("live_missing", "搜索时找不到原生战斗。");
+        Player livePlayer = LocalContext.GetMe(live)
+            ?? throw new OfflineDeploymentException("live_player_missing", "搜索时找不到本地玩家。");
+        try
+        {
+            using (measure?.Invoke("import_check"))
+            {
+            Battle liveRoot = tracker.ImportForComparison(live, livePlayer, rules, _current);
+            if (!BattleReconciler.Same(_current, liveRoot))
+            {
+                string[] rootDiff = BattleReconciler.Diff(_current, liveRoot);
+                return ValueTask.FromResult(new CombatPilotSearch(null, "diff", 0, 0, 0, false,
+                    string.Join(" | ", rootDiff.Take(8)), "root_deviation",
+                    string.Join('\n', rootDiff), 0, 0));
+            }
+            }
+            SearchCase searchCase = SearchRequestCompiler.CompileRequest(
+                live, livePlayer, rules, _current, policy, EvaluationRootFacts.Default, profile,
+                deterministic: true, memoryBudgetBytes);
+            WideningSearchOutcome? widened = null;
+            BeamResult beam;
+            if (widening)
+            {
+                SearchStorage storage = new();
+                WideningSearchPlan plan = new(profile.StartWidth, profile.MaxWidth,
+                    profile.MaxExpandedNodesPerWidth, profile.TotalTimeBudgetMilliseconds,
+                    EnforceTimeBudget: false)
+                {
+                    CombatStartPlayerHp = _combatStartHp,
+                    CombatStartPlayerMaxHp = _combatStartMaxHp,
+                };
+                ValueTask<WideningRoundMeasurement> Round(WideningRoundRequest request)
+                {
+                    onSearchRequest?.Invoke(request.Case);
+                    System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+                    BeamResult result = new BeamSolver(request.Case.Rules, request.Case.Options)
+                        .Solve(request.Case.Battles, storage, token);
+                    return ValueTask.FromResult(new WideningRoundMeasurement(result, "ok", null,
+                        watch.ElapsedMilliseconds, 0, 0));
+                }
+                widened = WideningSearch.RunAsync(searchCase, plan, storage, Round, token)
+                    .AsTask().GetAwaiter().GetResult();
+                beam = widened.Beam ?? throw new InvalidDataException(
+                    $"widening {widened.FailureStatus}: {widened.FailureError}");
+            }
+            else beam = new BeamSolver(searchCase.Rules, searchCase.Options)
+                .Solve(searchCase.Battles, token);
+            ReplayedRoute route = ReplayedRoute.Build(_current, rules, beam.BestRoute,
+                beam.BestIsVictory);
+            return ValueTask.FromResult(new CombatPilotSearch(route, "ok", widened?.ElapsedMs ?? 0,
+                widened?.TotalExpandedNodes ?? beam.ExpandedNodes, beam.BestRoute.Length,
+                beam.BestIsVictory, null, null, null, 0, 0)
+            {
+                Rounds = widened?.Rounds ?? [], RoundsRun = widened?.RoundsRun ?? 1,
+                BestRound = widened?.BestRound ?? 0,
+                DamageFreeVictory = widened?.DamageFreeVictory ?? false,
+            });
+        }
+        catch (UnsupportedImportException error)
+        {
+            string detail = $"reason={error.Reason} {error.Detail}";
+            return ValueTask.FromResult(Failed("rejected", detail, "import_failed", detail));
+        }
+        catch (BlitzSolver.Simulation.Combat.UnsupportedException error)
+        {
+            return ValueTask.FromResult(Failed("rejected", error.Message, "import_unsupported",
+                error.Message));
+        }
+        catch (CapacityException error)
+        {
+            string detail = $"region={error.Region} {error.Message}";
+            return ValueTask.FromResult(Failed("rejected", detail, "import_capacity", detail));
+        }
+        catch (InvalidDataException error)
+        {
+            return ValueTask.FromResult(Failed("rejected", error.Message, "request_invalid",
+                error.Message));
+        }
+    }
+
+    public ValueTask<CombatPilotBoundary> CheckBoundaryAsync(ReplayedAction expected, int turn,
+        int index, CancellationToken token)
+    {
+        using IDisposable? timing = measure?.Invoke("import_check");
+        token.ThrowIfCancellationRequested();
+        CombatState live = CombatManager.Instance.DebugOnlyGetState()
+            ?? throw new OfflineDeploymentException("live_missing", "边界检查时找不到原生战斗。");
+        Player livePlayer = LocalContext.GetMe(live)
+            ?? throw new OfflineDeploymentException("live_player_missing", "边界检查时找不到本地玩家。");
+        Battle liveRoot = tracker.ImportForComparison(live, livePlayer, rules, expected.Before);
+        bool same = BattleReconciler.Same(expected.Before, liveRoot);
+        return ValueTask.FromResult(new CombatPilotBoundary(same,
+            CombatPilotAction.Describe(expected),
+            same ? [] : BattleReconciler.Diff(expected.Before, liveRoot)));
+    }
+
+    public void BeginDeployment(int turn)
+    {
+    }
+
+    public ValueTask<CombatPilotDeployment> DeployAsync(ReplayedAction action, int turn,
+        CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        Actions++;
+        try
+        {
+            Battle live;
+            using (measure?.Invoke("native_combat"))
+                live = _executor.Execute(action, token);
+            using IDisposable? timing = measure?.Invoke("import_check");
+            if (action.After.Outcome != Outcome.None)
+            {
+                string? terminalDiff = TerminalBattleCapture.Compare(action.After);
+                if (terminalDiff != null)
+                {
+                    return ValueTask.FromResult(new CombatPilotDeployment(false, false,
+                        "terminal_diff", terminalDiff,
+                        CombatPilotAction.Describe(action), terminalDiff.Split('\n')));
+                }
+            }
+            else if (!BattleReconciler.Same(action.After, live))
+            {
+                onDifference?.Invoke(action.After, live);
+                string[] diff = BattleReconciler.Diff(action.After, live);
+                return ValueTask.FromResult(new CombatPilotDeployment(false, false,
+                    "boundary_diff", string.Join('\n', diff),
+                    CombatPilotAction.Describe(action), diff));
+            }
+            _current = action.After;
+            return ValueTask.FromResult(new CombatPilotDeployment(true, true, null, null,
+                CombatPilotAction.Describe(action), []));
+        }
+        catch (OfflineDeploymentException error)
+        {
+            return ValueTask.FromResult(new CombatPilotDeployment(false, false, error.Reason,
+                error.Message, CombatPilotAction.Describe(action), []));
+        }
+    }
+
+    public void OnActionDeployed(ReplayedAction action)
+    {
+        if (action.Action.Kind == PlayerActionKind.UsePotion)
+        {
+            ushort stored = action.Before.Potions[action.Action.PotionSlot];
+            if (stored != 0)
+                _potionsUsed.Add(Registry.Potion((ushort)(stored - 1)).NativeId);
+        }
+    }
+
+    public void OnRouteAccepted(ReplayedRoute route)
+    {
+    }
+
+    public CombatPilotFinal Final(bool cancelled)
+    {
+        string outcome;
+        string status;
+        if (_current.Outcome == Outcome.Victory)
+        {
+            outcome = "victory";
+            status = "victory";
+        }
+        else if (_current.Outcome == Outcome.Defeat)
+        {
+            outcome = "defeat";
+            status = "defeat";
+        }
+        else if (_current.Outcome == Outcome.EventDefeat)
+        {
+            outcome = _current.Player.IsDead ? "defeat" : "ended";
+            status = outcome == "ended" ? "failed" : "defeat";
+        }
+        else
+        {
+            outcome = "in_progress";
+            status = cancelled ? "cancelled" : "paused";
+        }
+        return new CombatPilotFinal(outcome, status, _current.PlayerTurn,
+            _current.Player.CurrentHp, _current.Player.MaxHp, [.. _potionsUsed]);
+    }
+
+    private static CombatPilotSearch Failed(string status, string error, string reason,
+        string detail)
+        => new(null, status, 0, 0, 0, false, error, reason, detail, 0, 0);
+
+}

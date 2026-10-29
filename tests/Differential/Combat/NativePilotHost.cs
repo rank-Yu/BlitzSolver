@@ -166,7 +166,6 @@ internal sealed class NativePilotHost(
             if (action.After.Outcome != Outcome.None)
             {
                 string? terminalDiff = TerminalBattleCapture.Compare(action.After);
-                _current = action.After;
                 if (terminalDiff != null)
                 {
                     return ValueTask.FromResult(new CombatPilotDeployment(false, false,

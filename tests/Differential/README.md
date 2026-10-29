@@ -92,7 +92,7 @@ Smith 嵌套升级/取消。负例检查非法回答、旧 Token、重放、候�
 该模式自己的测试 session 管理 session/revision、消费/失效及嵌套 pending，原版选牌实际
 callback 结合三个受支持命令的完整 prefs 作用域导入；不会由 min/max 猜 Cancelable，也不为
 自动全选或零候选建立请求。只绕过无 Godot 进程的资源/路径/hover UI 调用，原版效果保留。
-测试串行且没有外部并发动作；不代表生产 OfflineHost、RunPilot 或 Mod UI 已实现，也不覆盖
+测试串行且没有外部并发动作；此模式自身不覆盖生产 OfflineHost/RunPilot 集成或 Mod UI，也不覆盖
 bundle 与通用 RelicSelect。
 
 ## 奖励与商店原版决策闭环
@@ -114,7 +114,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll --run-reward-shop-com
 Discard 只调用 PotionCmd.Discard，领取需新列表动作，未覆盖 NPotionPopup 的动作入队/UI 链。
 商店 Leave 只关闭库存，不退出房间；删牌成功后的 SetUsed 仅补原 UI 职责，不重写扣费/移牌。
 MerchantPotionEntry.CalcCost 周围用局部 prefix/finalizer 还原真实随机价路径并检查异常恢复；
-旧 probe/测试默认模式不安装这些新增桥接。正式 OfflineHost/Mod 与通用 bundle/RelicSelect 仍未落地。
+旧 probe/测试默认模式不安装这些新增桥接。正式 OfflineHost 的奖励/商店执行、Mod 桥接与通用 bundle/RelicSelect 仍未落地。
 
 ## 战斗边界建局
 
@@ -216,7 +216,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll --compare-only .local
 
 ## R3a 原版整局可行性探针
 
-这是可复用的流程验证工具与流程基线，正式 OfflineHost/RunPilot/策略接口留待 R3b。探针使用正常原版
+这是可复用的流程验证工具与流程基线，正式首战 OfflineHost/RunPilot 已独立落地，完整整局策略尚未实现。探针使用正常原版
 `EnterAct(0)` 新局入口、全解锁、A0、关闭教学修改；地图取第一个合法点，事件优先合法继续否则
 第一项，奖励/卡牌取第一项，满药水槽跳过新药水，商店按原版合法选项顺序购买，休息在半血以下
 优先治疗，否则升级。策略只读取当前公开选项；战斗读取真实 RNG 是既定战斗例外。
@@ -287,3 +287,23 @@ trace（包括两个hash字段）与summary全部非时间/内存facts。`BLITZ_
 自然新局只验证 EnterAct→Neow→地图→首战第一回合，返回 Paused(combat-boundary)；
 Smith 的成功/取消、stale、失效/外部取消/Dispose 与迟到答案使用真实异步 native 父子链。
 独立原版调用用于对照 native dump、导入状态与 RNG；fake/定向 fixture 不作为完整通关证据。
+
+
+## 独立首战原版参考与负向合同
+
+正式入口是 tools/run-eval，运行目录不含测试程序集。以下入口仅在 Differential 中：
+
+    dotnet artifacts/bin/Differential/release/Differential.dll --first-combat-reference
+    dotnet artifacts/bin/Differential/release/Differential.dll --first-combat-contracts
+    dotnet artifacts/bin/Differential/release/Differential.dll --first-combat-negative hp
+    dotnet artifacts/bin/Differential/release/Differential.dll --first-combat-negative missing
+    dotnet artifacts/bin/Differential/release/Differential.dll --first-combat-cancel
+
+reference 使用旧 GameBootstrap/RunTestHost/NativePilotHost 独立正常启动同配置原版，
+直接选择可见 LavaRock 与首个合法地图点，输出起始/开战/终局/结算后摘要和搜索动作计数；
+不调用生产 runtime 或 combat adapter 作为 oracle。可追加一个 seed 参数。
+contracts 检查终局投影、缺捕获、捕获原异常和消息泵取消。
+negative 仅由测试程序集 Harmony 修改生产 observer 的捕获结果，经真实 FirstCombat.Run 验证
+HP 差异/缺捕获都 Failed 且没有 milestone；生产无测试环境变量后门。
+cancel 在生产首个原版动作完成后取消 token，验证至少一个部署动作、Cancelled、无 milestone、
+selector/动作订阅归零，且同进程第二局被拒绝。

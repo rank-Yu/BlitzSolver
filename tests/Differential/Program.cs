@@ -65,6 +65,14 @@ internal static class Program
             return MapStepCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--run-import-negative")
             return RunImportNegative.Run();
+        if (args.Length == 1 && args[0] == "--first-combat-cancel")
+            return FirstCombatReference.CancelInCombat();
+        if (args.Length == 2 && args[0] == "--first-combat-negative")
+            return FirstCombatReference.Negative(args[1]);
+        if (args.Length > 0 && args[0] == "--first-combat-reference")
+            return FirstCombatReference.Run(args[1..]);
+        if (args.Length == 1 && args[0] == "--first-combat-contracts")
+            return FirstCombatReference.Contracts();
         string data = DefaultData;
         string corpora = DefaultCorpora;
         string output = DefaultOutput;

@@ -65,6 +65,9 @@ internal static class TerminalBattleCapture
         _path = TerminalCapturePath.None;
     }
 
+    internal static Battle? Value => _value;
+    internal static TerminalCapturePath Path => _path;
+
     internal static void End()
     {
         _capture = null;
