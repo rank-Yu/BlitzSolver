@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Sts2Solver.Ai.Combat.Policy;
+using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Ai.Combat;
 
@@ -20,14 +21,55 @@ internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWi
 }
 
 /// <summary>A frozen root and policy with the complete decision budget.</summary>
-internal sealed record CombatSearchRequest(SearchCase Case, SearchPlan Plan);
+internal sealed class CombatSearchRequest
+{
+    private readonly SearchCase _case;
+
+    internal CombatSearchRequest(SearchCase searchCase, SearchPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(searchCase);
+        ArgumentNullException.ThrowIfNull(plan);
+        _case = CopyCase(searchCase);
+        Plan = plan;
+    }
+
+    // Rules and scoring tables are root-frozen by their compilers. Copy the mutable root and
+    // request-policy arrays both on entry and on access so callers cannot mutate the request.
+    internal SearchCase Case => CopyCase(_case);
+    internal SearchPlan Plan { get; }
+
+    private static SearchCase CopyCase(SearchCase source)
+    {
+        BeamOptions options = source.Options;
+        ForcedPotionDirectives forced = options.ForcedPotionDirectives;
+        PowerCommitmentCatalog? power = options.PowerCommitments;
+        return source with
+        {
+            Battles = (Battle[])source.Battles.Clone(),
+            Options = options with
+            {
+                Potions = options.Potions with { Strategy = options.Potions.Strategy.Copy() },
+                ForcedPotionDirectives = forced with
+                {
+                    Slots = (int[])forced.Slots.Clone(),
+                    PotionIds = (ushort[])forced.PotionIds.Clone(),
+                    StrategicHpCosts = (int[])forced.StrategicHpCosts.Clone(),
+                },
+                PowerCommitments = power is null ? null
+                    : power with { Rules = (PowerCommitmentRule[])power.Rules.Clone() },
+            },
+        };
+    }
+}
 
 internal enum CombatSearchStatus { Victory, Defeat, Incomplete, Cancelled, Invalid }
 
 internal sealed record SearchMemberResult(SearchMember Member, bool Ran, string? SkippedReason,
     long ElapsedMilliseconds, long ExpandedNodes, string StopReason, bool Victory,
-    int? HpLost, int PotionUses, bool Adopted, long MemoryPeakBytes, int EndedCompactions)
+    int? HpLost, int? PotionUses, bool Adopted, long MemoryPeakBytes, int EndedCompactions)
 {
+    public CombatSearchStatus? ResultStatus { get; init; }
+    public bool? PolicyEligible { get; init; }
     public int CandidatePoolPeakCount { get; init; }
     public int ActualWidth => Ran ? Member.Width : 0;
     public long MemoryUsedBytes { get; init; }

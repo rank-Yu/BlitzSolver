@@ -52,7 +52,7 @@ internal static class CombatSearchCoordinator
             bool potionPhase = !forced && member.Potions != SearchPotionLimit.None;
             if (potionPhase && !canUsePotions)
             {
-                logs.Add(new(member, false, "no-allowed-potions", 0, 0, "skipped", false, null, 0, false, 0, 0));
+                logs.Add(new(member, false, "no-allowed-potions", 0, 0, "skipped", false, null, null, false, 0, 0));
                 continue;
             }
             long remaining = budget.Remaining(potionPhase);
@@ -62,7 +62,7 @@ internal static class CombatSearchCoordinator
                     phaseRemaining++;
             if (remaining <= 1 || Expired())
             {
-                logs.Add(new(member, false, "time", 0, 0, "skipped", false, null, 0, false, 0, 0));
+                logs.Add(new(member, false, "time", 0, 0, "skipped", false, null, null, false, 0, 0));
                 continue;
             }
             // Leave a small part of each share for replay, bookkeeping and cancellation checkpoints.
@@ -110,7 +110,9 @@ internal static class CombatSearchCoordinator
             expanded += beam?.ExpandedNodesTotal ?? 0;
             bool adopted = false;
             int? hpLost = null;
-            int potionCount = 0;
+            int? potionCount = null;
+            bool? policyEligible = null;
+            CombatSearchStatus? memberStatus = null;
             string stop = beam == null ? measurement.Status
                 : beam.SearchMemoryBudgetExceeded ? "memory"
                 : beam.SoftTimeBudgetReached ? "time" : beam.StopReason;
@@ -122,10 +124,14 @@ internal static class CombatSearchCoordinator
                         token, Expired, out Outcome outcome, out int rawHpLost, out bool meetsGoal);
                     hpLost = rawHpLost;
                     potionCount = candidate.ExplicitPotionUseCount;
+                    memberStatus = outcome == Outcome.Victory ? CombatSearchStatus.Victory
+                        : outcome is Outcome.Defeat or Outcome.EventDefeat ? CombatSearchStatus.Defeat
+                        : CombatSearchStatus.Incomplete;
                     if (!forced && member.Potions == SearchPotionLimit.None
                         && (free is null || quality.ComparePolicyResults(candidate, free.Value) < 0))
                         free = candidate;
-                    if (quality.IsPolicyEligible(candidate, forced ? null : free)
+                    policyEligible = quality.IsPolicyEligible(candidate, forced ? null : free);
+                    if (policyEligible.Value
                         && (selected is null || quality.ComparePolicyResults(candidate, selected.Value) < 0))
                     {
                         selected = candidate;
@@ -145,6 +151,8 @@ internal static class CombatSearchCoordinator
                 adopted, beam?.SearchMemoryPeakBytes ?? storage.Memory.PeakBytes,
                 beam?.EndedCompactions ?? 0)
             {
+                ResultStatus = memberStatus,
+                PolicyEligible = policyEligible,
                 CandidatePoolPeakCount = beam?.CandidatePoolPeakCount ?? 0,
                 MemoryUsedBytes = beam?.SearchMemoryUsedBytes ?? storage.Memory.UsedBytes,
                 MemoryBudgetExceeded = beam?.SearchMemoryBudgetExceeded ?? stop == "memory",
@@ -158,7 +166,7 @@ internal static class CombatSearchCoordinator
             if (error != null || cancelled || stop == "memory" || goalReached) break;
         }
         while (logs.Count < members.Length)
-            logs.Add(new(members[logs.Count], false, error != null ? "invalid" : cancelled ? "cancelled" : goalReached ? "target-reached" : "memory", 0, 0, "skipped", false, null, 0, false, 0, 0));
+            logs.Add(new(members[logs.Count], false, error != null ? "invalid" : cancelled ? "cancelled" : goalReached ? "target-reached" : "memory", 0, 0, "skipped", false, null, null, false, 0, 0));
         if (bestIndex >= 0)
             for (int i = 0; i < logs.Count; i++) logs[i] = logs[i] with { Adopted = i == bestIndex };
         CombatSearchStatus status = cancelled ? CombatSearchStatus.Cancelled

@@ -39,6 +39,9 @@ internal sealed class PotionStrategySnapshot
             .ToArray();
     }
 
+    internal PotionStrategySnapshot Copy()
+        => new(DefaultPolicy, Directives, _onlyForcedUses);
+
     public PotionUseMode DefaultPolicy { get; }
     public IReadOnlyList<PotionSlotDirective> Directives { get; }
 

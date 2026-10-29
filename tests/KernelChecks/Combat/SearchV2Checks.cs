@@ -61,6 +61,13 @@ internal static class SearchV2Checks
         root.Potions[0] = (ushort)(fire + 1);
         SearchCase search = new(rules, [root], options);
         SearchPlan tiny = new(3, 2, 4, 1, 1000, 100_000_000);
+        search.Battles[0].Player.CurrentHp = 42;
+        CombatSearchRequest frozen = new(search, tiny);
+        search.Battles[0].Player.CurrentHp = 7;
+        SearchCase leaked = frozen.Case;
+        Assert(leaked.Battles[0].Player.CurrentHp == 42, "request owns the root snapshot");
+        leaked.Battles[0].Player.CurrentHp = 3;
+        Assert(frozen.Case.Battles[0].Player.CurrentHp == 42, "request does not expose its mutable root");
         CombatSearchRequest request = new(search, tiny);
         List<BeamOptions> observed = [];
         long time = 100;
@@ -100,8 +107,23 @@ internal static class SearchV2Checks
         {
             Strategy = new(PotionUseMode.Smart, [new(0, "FIRE_POTION", PotionDirective.Force)]),
         };
+        int[] forceSlots = [0];
+        ushort[] forceIds = [fire];
+        int[] forceCosts = [9];
         BeamOptions forced = options with { Potions = forcedPolicy, EnforceForcedPotionDirectives = true,
-            ForcedPotionDirectives = new([0], [fire], [9], 0, 0) };
+            ForcedPotionDirectives = new(forceSlots, forceIds, forceCosts, 0, 0) };
+        CombatSearchRequest frozenPolicy = new(search with { Options = forced }, tiny);
+        forceSlots[0] = 1;
+        forceCosts[0] = 99;
+        Assert(frozenPolicy.Case.Options.ForcedPotionDirectives.Slots[0] == 0
+            && frozenPolicy.Case.Options.ForcedPotionDirectives.StrategicHpCosts[0] == 9,
+            "request owns forced policy arrays");
+        SearchCase policyCopy = frozenPolicy.Case;
+        policyCopy.Options.ForcedPotionDirectives.PotionIds[0] = ushort.MaxValue;
+        Assert(frozenPolicy.Case.Options.ForcedPotionDirectives.PotionIds[0] == fire,
+            "request does not expose its forced policy arrays");
+        forceSlots[0] = 0;
+        forceCosts[0] = 9;
         Assert(PotionSearchSchedule.HasForcedDirectives(forced), "forced directive accepted");
         Assert(PortfolioBuilder.Build(tiny, power: false, forced: true).All(m => m.Potions == SearchPotionLimit.Allowed),
             "force survives every member limit");
