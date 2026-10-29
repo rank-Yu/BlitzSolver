@@ -173,3 +173,69 @@ dotnet artifacts/bin/Differential/release/Differential.dll --compare-only .local
 
 请求 DTO 覆盖当前 410 个输入、生成场景 spec 与评估政策实际用到的字段；未知字段、非空
 `checkpointArchivePath`/`replayPolicyOverridePath` 以及不支持的搜索/部署值会显式失败。
+
+## R3a 原版整局可行性探针
+
+这是可复用的流程验证工具与流程基线，正式 OfflineHost/RunPilot/策略接口留待 R3b。探针使用正常原版
+`EnterAct(0)` 新局入口、全解锁、A0、关闭教学修改；地图取第一个合法点，事件优先合法继续否则
+第一项，奖励/卡牌取第一项，满药水槽跳过新药水，商店按原版合法选项顺序购买，休息在半血以下
+优先治疗，否则升级。策略只读取当前公开选项；战斗读取真实 RNG 是既定战斗例外。
+它不修改自然局的 HP、牌组、金币、敌人或未来序列，不代表有质量的局外策略。
+
+```bash
+# 仓库根目录；local.props 与 .NET 环境沿用上文配置。
+dotnet build tests/Differential -c Release
+dotnet artifacts/bin/Differential/release/Differential.dll --run-probe \
+  --character Ironclad --seed R3A-0 --tier Medium --out .local/r3a/one
+# 每局独立子进程；固定 R3A-0、R3A-1，五角色 A0，共十局。
+dotnet artifacts/bin/Differential/release/Differential.dll --run-probe \
+  --batch --seeds 2 --jobs 4 --max-seconds 90 --out .local/r3a/matrix
+# 单独标记的定向夹具，不计入自然跑局成绩。
+dotnet artifacts/bin/Differential/release/Differential.dll --run-probe \
+  --fixture rooms --out .local/r3a/rooms
+```
+
+`--max-rooms` 默认100，`--max-actions` 默认10000（局外请求、战斗搜索请求与部署动作合计），
+`--max-seconds` 默认1800。房间数包括正常地图进入，不把夹具注入计入自然房间数。
+`--jobs` 只能1..4，批次默认4。每局主进程有时长预算与战斗取消 token，父进程额外在预算+60秒
+强制终止卡死子进程；Core 内部一次深层动作展开未必及时响应取消，因此必须保留父硬限。
+非法参数退出2，真实不支持退出3，等待超时4，预算5；父批次任何子进程非零都返回1，崩溃不会
+变成死亡/胜利。自然死亡是合法终局，死亡前没有到达的内容不算已覆盖。
+
+探针默认复用完整 `WideningSearch`：Medium 宽256..512，每轮节点上限为宽×2000，固定内存预算
+为16GiB×15%。和既有离线战斗相同，为可复现运行全部宽度，`EnforceTimeBudget=false`，不会按
+机器速度跳过轮次；它不是实机120秒保险的墙钟复刻。Low只有256宽。每局记录档位、每次搜索轮次、
+实际展开节点、所选轮次与重搜次数；不能把早期单轮调试结果当完整Medium性能。
+
+每局目录包含 `trace.jsonl`（probe-only可见请求、选择、原版RunState的规范编码SHA256与摘要）、
+`summary.json`（状态、互斥耗时、峰值内存）、`progress.json`（最近推进/搜索/部署阶段），以及
+父进程保存的 stdout/stderr。每轮进入求解前覆盖保存 `search-request.bin` 与 `search-root.txt`，
+便于定位搜索阻塞；差异时另存未经比较规范化的 predicted/native Battle 二进制和文本。
+`batch.json` 记录并发度、父测逐进程墙钟、批次墙钟、退出码和吞吐量。
+
+耗时互斥归类：initialization包含游戏初始化和正常开局；combat_search包含请求编译、完整翻倍
+搜索及路线回放；native_combat是原版部署和边界等待；native_run是原版局外推进及异步消息泵等待；
+import_check是RunState导入、战斗导入与逐边界核对；policy是有显式计时的选择规则；logging包括
+JSON/进度/搜索证据文件；other包括剩余驱动与计时开销。嵌套进入新类别暂停旧类别，按活动scope
+标识处理非LIFO异步完成，summary给出分段之和与未归类余量。policy中未单独包裹的常数时间选项
+索引操作归other。进程CLR启动/JIT早于探针构造的开销由父测processWallMs覆盖，不混入分段。
+不要用并行批次墙钟除各进程耗时推算局外占比。
+
+可选夹具：`shop-price`验证真实Shops随机价消耗和TestMode正常/异常恢复；`telemetry`强制真实
+RewardsSet选择器跨Task.Yield，验证父计时scope先退出时仍保持奖励类别；`contracts`验证永久离场
+敌人的SkipNextMove比较规范化及严格负例；`rooms`覆盖Trial多页、SelfHelpBook选牌、休息升级、
+商店购买/删牌、宝箱、奖励跳过/满槽药水、幕切换与原版WinRun终局。`unsupported`实际调用尚无
+离线桥接的RelicSelectCmd入口，必须非零。夹具显式通过公开入口注入内容/物品，不能作为自然通关证据。
+
+Godot旁路仅限预加载、悬浮说明展示与存档路径；Trial另对两段无TestMode保护的本地UI分支及
+纯肖像VFX做定点旁路，原版事件RNG/选项/结算保留。原版奖励Offer只生成一次；商店药水
+CalcCost临时关闭TestMode并由Harmony finalizer恢复，异常同样恢复。原版其余TestMode差别仍见
+[离线宿主](../../docs/offline-host.md)，本探针不证明所有事件/界面或三幕通关。
+
+R3a发现原始 `RunCodec` 字节哈希跨进程不总相同：`RunRef` 是4字节布局，Kind在0、Id在2，
+中间1字节是CLR隐式padding；现有Canonicalize没有清它。探针同时保留原始 `stateHash` 与
+`semanticStateHash`。后者通过实际CLR布局枚举所有RunRef出现位置，只清这个经证实的padding，
+不删字段、不改Core；合同扰动全部392个RunRef padding保持语义hash，逐一扰动其余49,530字节
+都必须改变语义hash。复跑报告必须分别报告原始字节轨迹与去此padding的语义轨迹，不能宣称所有
+非时间字段完全相同。`BLITZ_PROBE_CAPTURE_RUNSTATE=0/12` 可额外保存幕0层12决策边界的原始
+RunState二进制和完整字段转储，供独立定位；`RunCodec` 本身的确定性补全留待后续独立工作。

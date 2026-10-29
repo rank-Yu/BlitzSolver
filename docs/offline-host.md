@@ -55,3 +55,23 @@ TestMode 是进程级全局设置；任何需要真实游戏分支的对照都�
 - 实机：Mod 在真实游戏里跑同一策略，比较战斗逐动作边界。
 
 R3-0 的差分结果与 `683bc03` 相同；最后一次包含完整局外模拟器的提交是 `683bc03`。
+
+## 5. R3a 可运行探针
+
+普通 .NET 原版流程探针已放在 `tests/Differential/Run/RunProbe*`，使用说明见
+[Differential](../tests/Differential/README.md#r3a-原版整局可行性探针)。它复用原版正常启动、公开房间
+与选择入口、现有逐动作 CombatPilot 核对，逐边界导入RunState；每局独立子进程，未知/错误/预算
+都非零。它仍是测试探针，不是正式 `src/OfflineHost` 实现。
+
+R3a已经暴露两类额外边界：事件悬浮说明可能触发Godot原生层；Trial.Accept有无TestMode保护的
+肖像UI调用。探针只绕过展示，保留原版页生成与结算。存档使用公开InitProfileId(1)配MemorySaveStore，
+把原版路径拼接桥接成内存路径，保存逻辑继续运行。药水商店价格的真实分支由仅作用于CalcCost的
+prefix/finalizer局部切换，独立夹具核查Shops消费及true/false入口正常/异常恢复。
+
+TestMode仍无法覆盖所有选择屏幕：RelicSelectCmd直接打开Godot遗物选择界面，R3a显式拒绝；
+CardSelectCmd的bundle测试分支自动选第一组，探针观察并记录完整候选。未知内容不跳过，具体已测
+自然路径、定向夹具和阻塞必须分开统计；目前不能据此宣称全内容或三幕通关已验证。
+
+原始RunCodec的跨进程字节确定性还有一个前置缺口：RunRef的隐式对齐字节没有被规范化。
+R3a保留原始hash，另以仅清全部RunRef确定padding的probe-only语义hash比较复跑；不能把语义
+相同说成原始字节完全相同。正式宿主落地前需独立修正并完整验证Core codec，不在本批修改布局或快照。

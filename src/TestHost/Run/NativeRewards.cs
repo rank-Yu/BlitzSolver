@@ -58,14 +58,14 @@ public sealed class NativeRewardSession
     private Reward? _potionReward;
     private Task _completion;
 
-    private NativeRewardSession(RewardsSet set, Player player, bool useSynchronizer)
+    private NativeRewardSession(RewardsSet set, Player player, bool useSynchronizer, bool alreadyBegun = false)
     {
         _set = set;
         _player = player;
         _useSynchronizer = useSynchronizer;
         _stage = NativeRewardStage.List;
         LocalContext.NetId = player.NetId;
-        _completion = useSynchronizer
+        _completion = useSynchronizer && !alreadyBegun
             ? RunManager.Instance.RewardsSetSynchronizer.BeginRewardsSet(set)
             : Task.CompletedTask;
     }
@@ -84,6 +84,10 @@ public sealed class NativeRewardSession
     public static NativeRewardSession Attach(RewardsSet set, Player player,
         bool useSynchronizer = true)
         => new(set, player, useSynchronizer);
+
+    /// <summary>Attach inside RewardsSet.testSelector, after Offer has begun synchronization.</summary>
+    public static NativeRewardSession AttachAlreadyBegun(RewardsSet set)
+        => new(set, set.Player, useSynchronizer: true, alreadyBegun: true);
 
     public RewardsSet Set => _set;
 
@@ -262,7 +266,7 @@ public sealed class NativeRewardSession
 
     public void Leave()
     {
-        if (_useSynchronizer && !_completion.IsCompleted)
+        if (_useSynchronizer && !IsCompleted)
         {
             RunManager.Instance.RewardsSetSynchronizer.SkipLocalRewardsSet();
         }
@@ -284,7 +288,9 @@ public sealed class NativeRewardSession
             ? RunManager.Instance.RewardsSetSynchronizer.SelectLocalReward(reward)
             : reward.SelectUnsynchronized();
 
-    public bool IsCompleted => _completion.IsCompleted;
+    public bool IsCompleted => _useSynchronizer
+        ? RunManager.Instance.RewardsSetSynchronizer.IsRewardsSetCompleted(_set)
+        : _completion.IsCompleted;
 
     public NativeRewardStage Stage => _stage;
 

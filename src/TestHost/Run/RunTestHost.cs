@@ -66,6 +66,24 @@ internal static class RunTestHost
         return (run, player);
     }
 
+    /// <summary>Normal native startup with explicit unlocks, including EnterAct and its hooks.</summary>
+    public static async Task<(RunState Run, Player Player)> StartNewRunWithUnlocksAsync(
+        CharacterModel character, int ascension, string seed, UnlockState unlock)
+    {
+        if (RunManager.Instance.IsInProgress)
+            throw new InvalidOperationException("已经有进行中的跑局。");
+        RunState run = RunState.CreateForNewRun(
+            [Player.CreateForNewRun(character, unlock, 1uL)],
+            ActModel.GetDefaultList().Select(act => act.ToMutable()).ToList(), [],
+            GameMode.Standard, ascension, seed);
+        RunManager.Instance.SetUpNewSingleplayer(run, shouldSave: false);
+        await RunManager.Instance.FinalizeStartingRelics();
+        RunManager.Instance.Launch();
+        await RunManager.Instance.EnterAct(0, doTransition: false);
+        return (run, MegaCrit.Sts2.Core.Context.LocalContext.GetMe(run)
+            ?? throw new InvalidOperationException("新局找不到本地玩家。"));
+    }
+
     /// <summary>Native <c>RunManager.SetActInternal</c>: switch act and regenerate its map.</summary>
     public static Task SetActAsync(int actIndex) => RunManager.Instance.SetActInternal(actIndex);
 

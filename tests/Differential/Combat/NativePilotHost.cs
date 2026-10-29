@@ -21,11 +21,17 @@ internal sealed class NativePilotHost(
     Battle opening,
     SearchPolicy policy,
     SearchPerformanceProfile profile,
-    long memoryBudgetBytes) : ICombatPilotHost
+    long memoryBudgetBytes,
+    Func<string, IDisposable>? measure = null,
+    bool widening = false,
+    Action<Battle, Battle>? onDifference = null,
+    Action<SearchCase>? onSearchRequest = null) : ICombatPilotHost
 {
     private readonly NativeActionExecutor _executor = new(loop, combat, player, rules, tracker);
     private readonly List<string> _potionsUsed = [];
     private Battle _current = opening;
+    private readonly int _combatStartHp = opening.Player.CurrentHp;
+    private readonly int _combatStartMaxHp = opening.Player.MaxHp;
 
     internal Battle Current => _current;
 
@@ -43,6 +49,7 @@ internal sealed class NativePilotHost(
     public ValueTask<CombatPilotSearch> SearchAsync(int turn, string reason,
         CancellationToken token)
     {
+        using IDisposable? timing = measure?.Invoke("combat_search");
         token.ThrowIfCancellationRequested();
         CombatState live = CombatManager.Instance.DebugOnlyGetState()
             ?? throw new OfflineDeploymentException("live_missing", "搜索时找不到原生战斗。");
@@ -50,6 +57,8 @@ internal sealed class NativePilotHost(
             ?? throw new OfflineDeploymentException("live_player_missing", "搜索时找不到本地玩家。");
         try
         {
+            using (measure?.Invoke("import_check"))
+            {
             Battle liveRoot = tracker.ImportForComparison(live, livePlayer, rules, _current);
             if (!BattleReconciler.Same(_current, liveRoot))
             {
@@ -58,16 +67,48 @@ internal sealed class NativePilotHost(
                     string.Join(" | ", rootDiff.Take(8)), "root_deviation",
                     string.Join('\n', rootDiff), 0, 0));
             }
+            }
             SearchCase searchCase = SearchRequestCompiler.CompileRequest(
                 live, livePlayer, rules, _current, policy, EvaluationRootFacts.Default, profile,
                 deterministic: true, memoryBudgetBytes);
-            BeamResult beam = new BeamSolver(searchCase.Rules, searchCase.Options)
+            WideningSearchOutcome? widened = null;
+            BeamResult beam;
+            if (widening)
+            {
+                SearchStorage storage = new();
+                WideningSearchPlan plan = new(profile.StartWidth, profile.MaxWidth,
+                    profile.MaxExpandedNodesPerWidth, profile.TotalTimeBudgetMilliseconds,
+                    EnforceTimeBudget: false)
+                {
+                    CombatStartPlayerHp = _combatStartHp,
+                    CombatStartPlayerMaxHp = _combatStartMaxHp,
+                };
+                ValueTask<WideningRoundMeasurement> Round(WideningRoundRequest request)
+                {
+                    onSearchRequest?.Invoke(request.Case);
+                    System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+                    BeamResult result = new BeamSolver(request.Case.Rules, request.Case.Options)
+                        .Solve(request.Case.Battles, storage, token);
+                    return ValueTask.FromResult(new WideningRoundMeasurement(result, "ok", null,
+                        watch.ElapsedMilliseconds, 0, 0));
+                }
+                widened = WideningSearch.RunAsync(searchCase, plan, storage, Round, token)
+                    .AsTask().GetAwaiter().GetResult();
+                beam = widened.Beam ?? throw new InvalidDataException(
+                    $"widening {widened.FailureStatus}: {widened.FailureError}");
+            }
+            else beam = new BeamSolver(searchCase.Rules, searchCase.Options)
                 .Solve(searchCase.Battles, token);
             ReplayedRoute route = ReplayedRoute.Build(_current, rules, beam.BestRoute,
                 beam.BestIsVictory);
-            return ValueTask.FromResult(new CombatPilotSearch(route, "ok", 0,
-                beam.ExpandedNodes, beam.BestRoute.Length, beam.BestIsVictory, null, null, null,
-                0, 0));
+            return ValueTask.FromResult(new CombatPilotSearch(route, "ok", widened?.ElapsedMs ?? 0,
+                widened?.TotalExpandedNodes ?? beam.ExpandedNodes, beam.BestRoute.Length,
+                beam.BestIsVictory, null, null, null, 0, 0)
+            {
+                Rounds = widened?.Rounds ?? [], RoundsRun = widened?.RoundsRun ?? 1,
+                BestRound = widened?.BestRound ?? 0,
+                DamageFreeVictory = widened?.DamageFreeVictory ?? false,
+            });
         }
         catch (UnsupportedImportException error)
         {
@@ -94,6 +135,7 @@ internal sealed class NativePilotHost(
     public ValueTask<CombatPilotBoundary> CheckBoundaryAsync(ReplayedAction expected, int turn,
         int index, CancellationToken token)
     {
+        using IDisposable? timing = measure?.Invoke("import_check");
         token.ThrowIfCancellationRequested();
         CombatState live = CombatManager.Instance.DebugOnlyGetState()
             ?? throw new OfflineDeploymentException("live_missing", "边界检查时找不到原生战斗。");
@@ -117,7 +159,10 @@ internal sealed class NativePilotHost(
         Coverage.CountAction(action.Action.Kind);
         try
         {
-            Battle live = _executor.Execute(action);
+            Battle live;
+            using (measure?.Invoke("native_combat"))
+                live = _executor.Execute(action);
+            using IDisposable? timing = measure?.Invoke("import_check");
             if (action.After.Outcome != Outcome.None)
             {
                 string? terminalDiff = TerminalBattleCapture.Compare(action.After);
@@ -131,6 +176,7 @@ internal sealed class NativePilotHost(
             }
             else if (!BattleReconciler.Same(action.After, live))
             {
+                onDifference?.Invoke(action.After, live);
                 string[] diff = BattleReconciler.Diff(action.After, live);
                 return ValueTask.FromResult(new CombatPilotDeployment(false, false,
                     "boundary_diff", string.Join('\n', diff),

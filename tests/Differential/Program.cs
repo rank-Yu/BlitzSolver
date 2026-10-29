@@ -43,6 +43,8 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--run-probe")
+            return RunProbe.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--content-table-report")
             return ContentTableReport.Run();
         if (args.Length > 0 && args[0] == "--rules-build-compare")
