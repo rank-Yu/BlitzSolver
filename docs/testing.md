@@ -12,6 +12,25 @@
 
 ## 2. 构建
 
+Linux/Bash 本地完整验收统一使用：
+
+```bash
+tools/testing/verify-core.sh --jobs 8
+```
+
+脚本先构建整个 `BlitzSolver.sln`，构建成功后依次运行 KernelChecks、Architecture、Golden
+K0 与完整 D1/D2；任一步失败立即非零退出。它打印当前提交、工作区是否有未提交改动、SDK、
+并行度与数据目录绝对路径；`dirty` 时提交号不代表全部受测源码。默认并行度为 8，不能通过
+参数跳过构建。审核候选快照时可显式使用
+`tools/testing/verify-core.sh --jobs 8 --data-dir .local/<candidate>`，日志会打印实际数据目录；
+默认始终验证 `tests/Golden/data`。
+
+`dotnet run --no-build` 会使用该测试项目产物目录里的 `BlitzSolver.Core.dll` 副本。只构建
+`tests/Differential` 不会刷新 Golden 或 KernelChecks 的副本，改 Core 后必须重新构建整个
+solution，再运行下文的单项命令；不能把旧产物的通过结果当作当前源码的验证。
+
+单独构建：
+
 ```bash
 dotnet build BlitzSolver.sln -c Release -t:Rebuild
 ```

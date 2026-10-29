@@ -6,8 +6,8 @@
     "d2": "75217006903195bc94654680423bb9ca580ec48a",
     "d1Config": "66a43838d89e7a03b05c0f04d5e4941ff555baec",
     "formatMigration": "v1\u2192v2 \u53EA\u6539\u4E86\u6570\u636E\u683C\u5F0F\u91CC\u7684\u540D\u5B57\uFF08\u9B54\u6570\u3001\u7248\u672C\u3001\u5BB9\u91CF\u952E\u4E0E\u6839\u540D\uFF09\uFF0C\u5B57\u6BB5\u503C\u4E0D\u53D8\u3002",
-    "refreeze": "M3b current-code results sha256=cb997d98483ed02142457abf2a15d0836fc540d411335efa5680fb657052456a",
-    "d1Rerecord": "roots=qf2-gradient-failure,ts-a-toasty reason=R2a-5 no-pause turn-start choices sha256=08600f3c873ed53d2966d3d3f6239cc9b1fa82c0f8bec736880fa41ef221c1d3"
+    "refreeze": "M3b current-code results sha256=f50a3893e647df97d4889726f6222f09a6a68b0f1e4e6d6d1d2b9e94ae3f6a5f",
+    "d1Rerecord": "roots=quality-DEFECT-023,quality-SILENT-022 reason=R3-0 deactivate player hook listeners after TheGambit death sha256=96a7127221ea174834be5bbbb3683e395cd46835e871c5c3199df82942864116"
   },
   "compression": "brotli",
   "counts": {
@@ -29,7 +29,7 @@
       "timeAffected": 0
     }
   },
-  "totalBytes": 23691211,
+  "totalBytes": 23691187,
   "targetBytes": 52428800,
   "files": [
     {
@@ -4299,8 +4299,8 @@
     },
     {
       "path": "d1/quality-DEFECT-023/golden.br",
-      "bytes": 14563,
-      "sha256": "ccb66525a927b9a38830752b67ee4a61bba18dcda83bc1eb1550f626179b362a"
+      "bytes": 14566,
+      "sha256": "cd5e31df5ff25db02ba8ad4b290a1c5d356320505ef426e7b123e4079dfc2d76"
     },
     {
       "path": "d1/quality-DEFECT-023/meta.json",
@@ -5724,8 +5724,8 @@
     },
     {
       "path": "d1/quality-SILENT-022/golden.br",
-      "bytes": 19651,
-      "sha256": "d316b02fea649b7c672eb5087c944289ae31cc7094337e9feeb492310412b096"
+      "bytes": 19628,
+      "sha256": "f8e0d737d4d9adb6123fb4dd58ce4b3056c3aa832d110cdcbf16bfe296ee4f95"
     },
     {
       "path": "d1/quality-SILENT-022/meta.json",
@@ -6555,7 +6555,7 @@
     {
       "path": "d2/expected/09eebe4eb2c6273fd7603da6a952c3ebdfc0575cd132902ee158fdeb063ad6ff.result.br",
       "bytes": 82,
-      "sha256": "e072a4b9c0fef28f033aded2afb55ce7334cb8ef8a614f0a7957e9f0768e8c8b"
+      "sha256": "971f226aef0d1a7f2470343ed33d6d78d1ce83add1ad7c4efc9f1ba26fbd3eaf"
     },
     {
       "path": "d2/expected/09fb1cf385e5f668439665278cfc97c7340331e74c561a2d0b22cb5e1b1f91af.result.br",
@@ -11335,7 +11335,7 @@
     {
       "path": "d2/expected/830ae8ce3ec40da23427d8187a5f5eb873ffab58126a537c4da40e39f9e7057b.result.br",
       "bytes": 82,
-      "sha256": "e072a4b9c0fef28f033aded2afb55ce7334cb8ef8a614f0a7957e9f0768e8c8b"
+      "sha256": "971f226aef0d1a7f2470343ed33d6d78d1ce83add1ad7c4efc9f1ba26fbd3eaf"
     },
     {
       "path": "d2/expected/8317b4a80d18d8e416ee6c37394990f448055559c1711393b5d41560865b895f.result.br",
@@ -13379,8 +13379,8 @@
     },
     {
       "path": "d2/expected/b9fc97204086ce684dcda2902df69e93eff51c1c4652def885aa9145e7e84cb6.result.br",
-      "bytes": 83,
-      "sha256": "a6c0c896146e9a05c82ac2c7864e3d171d87947142845819ab18fc7971462958"
+      "bytes": 81,
+      "sha256": "f1b4f4112135dd7bdb8b0fafd07f0cee32f8b025d326b8879fffd72796e9930e"
     },
     {
       "path": "d2/expected/ba16c705e10d6af39f60cd4769cf3c88f638d3265b0a226b09d55726677295b4.result.br",
@@ -15334,8 +15334,8 @@
     },
     {
       "path": "d2/expected/e9a9d4ae1e835bab748c309a4f6729ad2cf1d3294598a7b06d6d84b271899b09.result.br",
-      "bytes": 83,
-      "sha256": "a6c0c896146e9a05c82ac2c7864e3d171d87947142845819ab18fc7971462958"
+      "bytes": 81,
+      "sha256": "f1b4f4112135dd7bdb8b0fafd07f0cee32f8b025d326b8879fffd72796e9930e"
     },
     {
       "path": "d2/expected/e9c4d30dd2efae054000234d4f60d60b4bfbf6390d0483dedff69a95667f6744.result.br",
