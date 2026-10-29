@@ -7,21 +7,53 @@
 描述仍保留的协议与 `RunMapEntry` 边界。战斗房间的建局见[战斗边界](run-combat-boundary.md)，
 状态字段与可见性见[整局状态布局](run-state-layout.md)。
 
-## 1. 保留的类型
+## 1. 请求、回答与共享负载
 
-`RunKernel.Step` 已删除；请求不再由 Core 生成。保留：
+Core 提供有界、无托管引用的可见协议；请求由未来 `RunDecisionImporter` 从原版真实待选界面
+导入。协议能表达一种界面不代表已有该界面的执行桥接。`RunState`/`RunCodec v3` 的 49912 字节
+布局不变，`RunDecision` 的既有数字不变。
 
-| 类型 | 内容 |
+| 类型 | 内容与预算 |
 | --- | --- |
-| `RunDecisionRequest` | 当前决策种类 `Kind`、选项数 `OptionCount`、固定容量 129 的 `RunDecisionOptionArray Options` |
-| `RunDecisionOption` | `Kind`（`MapPoint` / `EventOption` / `Reward` / `Skip` / `Card` / `Potion` / `Relic` / `ShopEntry` / `CardRemoval` / `RestSiteOption` / `BossRelic` / `Reroll`）、`Index`、`Coord`、点类型、`RewardType`、卡牌的 `Upgrade`/附魔字段、`Model`（`RunRef`）、`Amount` |
-| `RunAction` | `Kind`（与决策种类对应）、`Option`（请求里的下标）、`Coord`（地图点） |
-| `RunActionKind` | `SelectMapPoint`、事件/奖励/商店/休息处/选卡/选遗物等动作 |
-| `RunView.Request` | 投影中的当前请求；R3b 的 `RunDecisionImporter` 填充 |
+| `RunDecisionToken` | 非零 `ulong SessionId` 与非零 `ulong Revision`，16 字节 |
+| `RunDecisionRequest` | Token、可见 `Source`、`PageKey`、Kind、独立数量/取消/确认约束、选牌用途及共享池，15960 字节 |
+| `RunDecisionOption` | 非零请求内 `OptionId`、Kind、明确 `PayloadKind`、可见锁定/禁用 flags、NativeKey、typed 代价/效果及 bundle 切片，44 字节 |
+| `RunDecisionFact` | 正数 `Amount`、FactKind；只有 AddCard 带完整可见 CardView，16 字节 |
+| `RunDecisionSlice` | `ushort Start/Count`，4 字节；空切片必须为 default |
+| `RunAction` | 完整 Token、`Select/Cancel`、有序 OptionId 列表，536 字节 |
+| `RunView.Request` | 当前请求；`WithRequest` 先校验再返回同步 Request/Decision/DecisionOptionCount 的新投影，投影共 20912 字节 |
 
-`RunDecisionImporter` 放在 `src/Import/Run/Decisions/`，从原版当前界面/模型读出完整选项。
-`RunView.From` 暂时只填 `Decision` 与 `DecisionOptionCount`，`Request` 留空，等 R3b 接入；
-在此之前，导入后的地图选项由 `RunTravel.Collect` 独立枚举，用于差分。
+请求保留 129 个选项，Cancel 独立于选项。`RunDecisionLimits` 设定共享 Facts 256 条、bundle
+Cards 256 张、机器键 UTF-8 字节池 4096 字节。129 沿用现有工程预算；新共享池也是明确的工程
+上限，不是原版上限或全内容覆盖承诺。原版无限增长的候选/组合/文本超过容量时显式拒绝。
+各选项只携带切片，不各自内嵌大数组；共享切片可复用，但必须完全落在已填充池内。
+
+`OptionId` 对应请求中的可选实例，不能用数组下标、模型 id 或机器键替代。两张同模型牌可有
+不同 id、升级和附魔；重排后同一 id 仍指同一个选项。bundle 内允许重复模型，选择一次取得
+整个组合，不把组内牌数计入 SelectCount。原版实例映射由宿主持有，Core 不保存游戏引用。
+
+`PayloadKind` 是 None/Map/Card/Model/Reward/CardBundle 的互斥联合；没有激活的字段必须为空。
+Map 带坐标与点类型；Card 带 CardView；Model 带 RunRef；Reward 带奖励种类和可见模型，
+卡牌奖励容器不冒充选牌子请求；CardBundle 带共享牌池切片。Source 可为 None/Event/Relic，
+只表达玩家可见的请求来源；EventOption 的 Model 允许 Event/Relic（含 Neow 的可见遗物选项）。
+
+Costs 与 Effects 分别标注 `Unknown/Partial/Complete`。Unknown 只能有零条目，Partial 必须有
+已知条目，Complete 可为零以明确表示已知为空。不能把默认的零条目理解为确定无代价/效果。
+当前最小事实集只支持 Costs 的 GoldLoss/HpLoss，以及 Effects 的 GoldGain/RemoveCards/AddCard；
+每条 Amount 必须为正数，AddCard 还包含可见升级/附魔。事实是当前可见说明或数量，不是实际
+结算预测；Complete 只承诺这类可见描述完整，不保证原版 hooks/条件结算后的净损益仍等于这些
+数值。未映射的附魔、随机遗物、条件结算等
+保持未知或部分已知，不放入预测结果、隐藏随机值或策略评分。Facts 不是执行指令，原版负责结算。
+
+NativeKey 与可选 PageKey 保存原版 `TextKey`、休息选项 `OptionId` 等机器键的原样 UTF-8，
+空键表示未提供。构造与校验都严格拒绝坏 UTF-8、分裂码点和越界，不截断。它们帮助未来策略
+区分选项，但不作为执行身份，不解析文本推断效果。本批不保存完整本地化文案或动态参数；
+后续导入器负责读取这些公开材料及具体语义适配。`SelectionPurpose` 仅用于 CardSelect，
+可为 None/Remove/Upgrade/Transform/Enchant；None 表示用途未描述，不能猜测。
+
+`RunView.From` 目前只填状态里的决策提示与选项数，Request 保持 default，不能作为可执行
+请求。地图合法点仍由 `RunTravel.Collect` 独立枚举；`RunMapEntry.Enter` 仍接受坐标，不是第二个
+请求执行器。本批没有增加宿主、策略或全内容导入器。
 
 `RunStepStatus`/`RunStepResult`/`RunStepReject` 是旧局外内核的结果类型，已随 `RunKernel` 删除。
 仍保留的拒绝原因是 `RunStepReason` 的四个字符串，供 `RunMapEntry`/`RunUnknownPoint` 抛
@@ -147,22 +179,51 @@
 - 先古点 `PullAncient` 只取本幕 `Act.AncientId`，不写 `Visited.Events`；事件 RNG 仍按同一
   公式预置。
 
-## 6. 后续决策的接法
+## 6. Kind 兼容与严格回答校验
 
-R3b 的 `RunDecisionImporter` 为每种界面填同一个 `RunDecisionRequest`：
+| 请求 Kind | 允许的选项 Kind（括号为负载） |
+| --- | --- |
+| MapPoint | MapPoint(Map) |
+| Event | EventOption(None 或 Event/Relic Model)、Leave(None) |
+| CombatReward | Reward(Reward)、Leave(None) |
+| CardReward | Card(Card) 或 CardBundle(CardBundle)、Skip(None)、Reroll(None)；同一请求不能混 Card 和 CardBundle |
+| Shop | ShopEntry(Card 或 Potion/Relic Model)、CardRemoval(None)、Leave(None) |
+| RestSite | RestSiteOption(None)、Leave(None) |
+| CardSelect | 只有 Card(Card)，不能混 Leave/Skip/Cancel/Reroll |
+| RelicSelect | Relic/BossRelic(Relic Model)、Skip(None) |
+| PotionDiscard | Potion(Potion Model)、Skip(None) |
 
-| 阶段 | 决策 | 选项 |
-| --- | --- | --- |
-| R3b | 地图选点 | `Kind=MapPoint`，坐标与点类型 |
-| R3b | 战后奖励、离开 | 每条奖励 `Kind=Reward/Skip`、模型与金币 |
-| R3b | 选牌、药水满槽 | `Kind=Card/Potion`，下标即原版界面下标；可重抽时 `Kind=Reroll` |
-| R3b | 商店、删牌 | `Kind=ShopEntry/CardRemoval`，`Amount` 放价格；删牌选卡 `Kind=Card/Cancel` |
-| R3b | 宝箱、遗物选择 | `Kind=Relic` |
-| R3b | 事件页、多页 | `Kind=EventOption`，`Index` 是当前页选项下标 |
-| R3b | 休息处 | `Kind=RestSiteOption` |
-| R3b | 先古之民、Boss 遗物 | `Kind=EventOption/BossRelic` |
+控制行只在原版确实展示时导入；表格表示合同可表达的范围，不授权虚构 Skip/Leave/Reroll。
+强制奖励没有 Skip/Leave。None、GameOver 和未知 Kind 不是可执行选择请求。所有非 CardSelect
+请求必须 MinSelect=MaxSelect=1；CardSelect 支持 0..129 的精确/区间多选，且可选数量至少满足 Min。
 
-导入层只读原版当前界面，不读随机数状态或未来生成序列；请求里也不放这些信息。
+回答只能是 Select 或 Cancel。Select 保留 OptionId 顺序、禁止重复；空列表仅在 Min=0 时有效，
+不代表取消。Cancel 只在 Cancelable=1 且列表为空时有效。Cancelable、Min/Max 与
+RequireConfirmation 彼此独立；确认是宿主/UI 的执行约束，Core 校验成功不代表玩家已确认。
+
+`RunDecisionProtocol.ValidateRequest` 与 `ValidateAction(request, action)` 是统一入口，后者首先
+完整校验请求，再检查 Token、回答种类、选择数量、重复/不存在 id 与禁用/锁定行。请求校验在
+任何计数或切片索引之前检查容量，拒绝重复 id、非法枚举/flags、错误 payload、Kind 不匹配、
+越界切片与启用项不足 Min；所有失败不修改输入、不执行部分回答。`Select/Cancel` 构造辅助
+使用同一入口，`ResolveOptionIndex` 在校验后按 id 查找。`RunDecisionBuilder` 只负责有界填充池，
+最终请求仍须完整校验；容量失败在写入前拒绝。
+
+格式错误抛 `InvalidDataException`，消息冒号前是稳定原因码：`request-token/request-flags`、
+`selection-purpose/selection-bounds`、`source-kind/model-ref`、`option-id/option-flags/option-kind`、
+`payload-kind/payload-unused/payload-model/payload-slice/kind-payload`、`knowledge/cost-kind/effect-kind`、
+`fact-kind/fact-amount/fact-card`、`card-flags/card-enchantment`、`map-point-type/reward-type/reward-model`、
+`bundle-empty/reward-entity/enabled-count/key-utf8`、`action-token/action-kind/action-count/action-cancel`、
+`action-duplicate/action-option/action-disabled`。容量不足抛 `CapacityException`；未知内容或不支持的
+请求种类抛 `UnsupportedException`，不截断或猜测。
+
+宿主必须生成不透明 SessionId、维护单调 Revision、持有当前待选请求、重新核对原版候选实例并
+在执行/取消/换页后消费或失效 Token。不得仅由种子、内容 hash 或隐藏 RNG 推导身份。
+Core 只比较回答与给定请求的完整 Token，不保存已消费历史；再次传入旧请求与旧回答仍可能
+通过纯校验，宿主必须承担防重放及生命周期。推荐模式同样使用这些规则。
+
+原版 FromSimpleGrid/FromDeckGeneric 在候选不多于 Min 且不需手动确认时可能自动全选，
+根本不产生 pending 请求。未来导入器须区分此路径与真实待选请求，依据真实可选数量形成
+有效约束，不能照抄 prefs 后制造无法满足 Min 的请求。本批不改变原版自动行为。
 
 ## 7. 验证
 
@@ -172,10 +233,10 @@ R3b 的 `RunDecisionImporter` 为每种界面填同一个 `RunDecisionRequest`�
 （事件 RNG 单独验证）。这是"保留的对照必须与 `683bc03` 相同"的一部分；结果见
 [测试与验证](testing.md)。
 
-## 8. R3a 原版探针证据与 R3b 协议草案
+## 8. 原版证据与后续桥接边界
 
-本节是 **R3b 拟议设计**，没有修改当前 Core 类型。R3a 的 `--run-probe` 与
-`RunProbe` JSON 记录只用于收集证据；不是 `RunDecisionImporter`、`RunPilot` 或正式策略接口。
+第 1、6 节协议已在 Core 落地，仍未接入原版执行。R3a 的 `--run-probe` 与 `RunProbe` JSON
+记录只用于收集证据，不是 `RunDecisionImporter`、`RunPilot` 或正式策略接口。
 
 ### 已观察的入口
 
@@ -191,17 +252,16 @@ R3b 的 `RunDecisionImporter` 为每种界面填同一个 `RunDecisionRequest`�
 `DoNormalRewards`、`PickRelicLocally`、`DoExtraRewardsIfNeeded`。战后继续首先调用
 `ProceedFromTerminalRewardsScreen` 恢复父事件；普通 Boss 后的幕切换仍由 `EnterNextAct` 完成。
 
-### 拟议请求与回答
+### 证据如何进入协议
 
-统一入口仍为 `Decide(可见投影, Request) -> Action`。请求公共头只需要种类、请求版本/修订号、
-当前请求内的选项标识、选择数量约束、取消语义；Kind 决定明确的负载类型，避免让一个
-`Amount` 同时承担价格、HP、金币、数量与效果。
+未来统一入口为 `Decide(可见投影, Request) -> Action`；当前公共头、互斥负载与 typed 事实
+见前文。下表追溯原版依据，完整本地化导入和执行桥接仍是后续工作。
 
-| 拟议字段或负载 | 实际请求/代码证据 | 含义与边界 |
+| 字段或负载及后续内容 | 实际请求/代码证据 | 含义与边界 |
 | --- | --- | --- |
 | `Selection.Min/Max`、回答中的选项标识列表 | `ICardSelector.GetSelectedCards(options,minSelect,maxSelect)`；`SmithRestSiteOption.OnSelect`；`PrecariousShears.AfterObtained` 要选多张 | 多选是同一个请求的一次回答，不能拆成若干无约束的单选 |
 | 独立 `Cancelable`，必要时 `RequireConfirmation` | `CardSelectorPrefs` 明确分开这些字段；Smith 与商店删牌可取消 | `min=0` 不能推导为可取消；测试选择器只收到 min/max，R3b 必须从原版 prefs 入口导入取消事实 |
-| `RequestRevision` 与请求内 `OptionId` | 事件每页的 `CurrentOptions`、`TextKey`、`WasChosen`；共享事件同步器用 pageIndex 拒绝旧页投票 | 动作须携带请求版本并重新校验。下标仅在这次请求有效，TextKey 也不能独自充当跨页动作令牌 |
+| 完整 `RunDecisionToken` 与请求内 `OptionId` | 事件每页的 `CurrentOptions`、`TextKey`、`WasChosen`；共享事件同步器用 pageIndex 拒绝旧页投票 | 动作须携带请求版本并重新校验。下标仅在这次请求有效，TextKey 也不能独自充当跨页动作令牌 |
 | 事件负载的 `ModelId/PageKey/Options`，可见标题/描述及参数 | Neow、Trial 多页、SelfHelpBook 选牌等公开 `EventModel`/`EventOption` 属性 | 记录当前页、锁定和继续按钮；锁定的可见行不得成为合法动作。公开描述能保留，不能靠猜测描述重建结算 |
 | `Costs[]` 与 `VisibleEffects[]`，由具体事件语义适配器填写 | 原版 `ThisOrThat.Plain` 同时付 HpLoss、得到 Gold；`FieldOfManSizedHoles.Resist` 移除 Cards 张并加 Curse；商店价格来自 `MerchantEntry.Cost` | 一个标量不够。这里只是确切代码证据，未声称自然矩阵已触发所有内容；不能把隐藏随机结果、策略评分或收益预测放进这些字段 |
 | 卡牌选项的实例标识、模型、升级/附魔等可见差异 | 奖励卡牌与删牌/升级选项可能同模型、多实例；R3a 用原请求索引执行 | 只用 ModelId 无法区别同名牌，执行器必须回到该请求的原实例，拒绝过期回答 |
@@ -213,13 +273,13 @@ R3b 的 `RunDecisionImporter` 为每种界面填同一个 `RunDecisionRequest`�
 请求只表达玩家可见事实和当前合法动作。事件消耗、奖励生成、商店补货、页切换、随机结果与
 异步选择后的结算全部继续由原版执行。未知种类、第三方内容和没有正确桥接的界面应明确失败。
 
-### 仍由 R3b 决定
+### 后续导入器与宿主仍需完成
 
-- 公共头与按 Kind 负载的定长布局、容量、跨 Mod/离线的请求修订号规则；R3a 没有变更 Core。
+- 公共头、共享池与严格合同已实现；跨 Mod/离线的 Token 生成、消费、失效和原版实例映射仍由宿主落实。
 - 事件可见说明参数如何保留，以及哪些事件需要机械语义适配才能给策略提供明确的多个代价/效果。
 - 推荐模式的确认/取消、嵌套请求展示和原版选择同步桥接；不能将 TestMode 的自动选第一组当正式接口。
 - `RunState` 导入在终局清理后的边界限制。R3a 单独记录原版 `OnEnded(isVictory)`、HP 和 IsGameOver；
   `WinRun` 后会杀死玩家，因此必须优先采用明确胜利事实，不能只按最终 HP 分类。
 
 探针命令、计量定义与覆盖限制见 [Differential 使用说明](../tests/Differential/README.md)。
-具体自然种子与夹具证据留在工作树 `.local/r3a/REPORT.md`，不把运行产物作为协议实现提交。
+具体自然种子与夹具证据留在 R3a 归档报告，不把运行产物作为协议实现提交。

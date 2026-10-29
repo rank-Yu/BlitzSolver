@@ -132,9 +132,16 @@ Core 以外的项目与引用：
 
 保留的协议类型：
 
-- `RunDecisionRequest` 与 `RunDecisionOption*`：请求种类与全部合法选项；
-- `RunAction`/`RunActionKind`：对请求的回答；
-- `RunView.Request`：投影里的当前请求，由导入层填充。
+- `RunDecisionRequest` 与 `RunDecisionOption*`：非零会话/修订 Token、可见来源、Min/Max、独立 Cancelable/RequireConfirmation、选牌用途，以及带稳定请求内 OptionId 的可见行；
+- 共享有界 Facts/Cards/严格 UTF-8 机器键池：明确的 payload 与 typed 代价/效果，Unknown/Partial/Complete 区分未知和已知为空；bundle 一次选整组；
+- `RunAction`/`RunActionKind`：携完整 Token 的 Select/Cancel 与有序唯一 OptionId 列表；空 Select 与取消不同；
+- `RunDecisionProtocol.ValidateRequest/ValidateAction`：执行前完整校验数量、身份、Kind、flags、切片与候选资格，失败不修改输入；
+- `RunView.Request`：From 暂留 default，WithRequest 校验后同步请求与提示字段；整个投影 20912 字节，不改变 RunState/Codec。
+
+完整类型、容量、Kind 矩阵与拒绝码见[局外决策协议](run-decisions.md)。Core 只比较给定请求与回答的
+Token；唯一身份、单调修订、原版实例映射与消费/失效必须由宿主维护，不能宣称纯校验提供防重放
+存储。Ai.Run 可见白名单对嵌套字段递归检查，不含隐藏 RNG、属性包、预生成序列或游戏引用。
+本批协议没有接入正式 Importer/RunPilot，也不实现事件效果或通用局外模拟。
 
 请求来源是原版当前界面/模型。执行按宿主分开：
 

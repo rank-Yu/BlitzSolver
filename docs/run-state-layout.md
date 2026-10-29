@@ -172,7 +172,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `RunOdds`/`RunPlayerOdds` | 概率当前值 |
 | `RunExtraFields`/`RunExtraPlayerFields` | `StartedWithNeow`、`TestSubjectKills`、删牌次数、Wongo 点数 |
 
-`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 148 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 7536`（R2b-2 加入完整决策请求，R2c-1 加入奖励阶段与卡牌选项字段，R2c-2 扩大选牌选项容量并加入商店投影）。
+`RunPropertyBag` 的布局是 `byte Length + byte[64]`；`RunCard` 148 字节、`RunRelic` 84 字节。`RunView` 是独立投影，`Unsafe.SizeOf<RunView>() == 20912`；R3b-1 的请求为 15960 字节、选项 44 字节、事实 16 字节、回答 536 字节。请求共享 129 个选项、256 个事实、256 张 bundle 牌与 4096 字节严格 UTF-8 机器键；这些是工程预算，超限显式拒绝。请求不进入 RunState/RunCodec，后者布局与版本不变。
 
 ### 3.1 容量
 
@@ -298,7 +298,7 @@ payload byte[]  RunState 的规范字节镜像
 | 遗物：id、状态、Wax/Melted、显示计数 | 是 | `RunRelic` 的可见子集 |
 | 地图：节点、连线、类型、已走、起始/Boss/第二 Boss | 是（未知点显示为未知） | `Map`、`Visited` |
 | 当前房间类型/模型 | 是 | `Rooms` |
-| 当前决策请求：种类、完整选项与每个选项的坐标/模型/数量 | 是 | R3b 的 `RunDecisionImporter` 从原版界面读取；`RunView.From` 目前只填 `Decision` 与选项数 |
+| 当前决策请求：Token、来源、数量/取消/确认约束、用途、选项实例及 typed 可见事实 | 是 | R3b 的 `RunDecisionImporter` 从原版界面读取；`RunView.From` 目前只填 `Decision` 与选项数 |
 | 奖励界面阶段与剩余奖励数 | 是 | `RunRewards.Stage/Count` |
 | 卡牌奖励的 id、升级、附魔 | 是（卡面） | `RunRewards.Choices` 投影；请求由 R3b 的 `RunDecisionImporter` 填充 |
 | 商店货架：每格 id/升级/附魔、价格、打折、库存，删牌价格与是否已用 | 是 | `RunShop` 投影到 `ShopView`；请求由 R3b 的 `RunDecisionImporter` 填充 |
@@ -309,14 +309,21 @@ payload byte[]  RunState 的规范字节镜像
 | 解锁位图、已见遭遇位图、跑局数 | 否（界面只显示已解锁内容，不显示内部集合） | 不进入 |
 | 模型私有 `SavedProperties` | 否（卡面只显示派生数字；内部属性不可见） | 不进入 |
 | `FreedRepy`、成就、图鉴统计 | 部分可见但只影响界面 | 不进入 |
-| 房间内部奖励/事件页/选牌页 | 是 | R2c–R2f 的同一请求类型；本批填奖励、商店与删牌选卡 |
+| 房间内部奖励/事件页/选牌页 | 是 | 共享有界请求 DTO；正式导入器与宿主后续接入 |
 
 `RunView` 只带当前幕的 `Act/Boss/SecondBoss/Ancient`，不带后续幕的对应值；`CardView` 不含
 `Private`/属性包；`RelicView` 不含属性包；`MapView` 不含 `CanBeModified`（内部规则）；`RunView` 不含任何 `RunRng*`、`RunRelicBag`、`RunAct`、`RunUnlockState`、`RunHistory`、`RunPropertyBag` 字段。
-`RunDecisionRequest`/`RunDecisionOption`/`RunDecisionOptionKind`/`RunAction`/`RunActionKind`
-`RunShopStage`/`RunShopEntryFlags`/`RunView+Shop*` 也登记为 `Ai.Run` 可见类型；请求里只有可见的坐标、点类型、模型 id 与数量，
-没有随机数或未来序列。`tests/Architecture` 同时用正例（`VisibleRunReferenceFixture`）和反例
-（`UnregisteredRunReferenceFixture`）锁定。
+`RunDecisionRequest`、选项、事实、切片、Token、枚举、共享池、回答以及必要的构造/校验辅助均逐项
+登记为 Ai.Run 可见类型，RunShopStage/RunShopEntryFlags/RunView+Shop* 也在白名单内。机器键只
+保留公开的 TextKey/休息选项 key，不带完整本地化描述或内部属性；typed 事实只表达当前公开
+的已知语义，Unknown/Partial/Complete 区分未知与已知为空。具体 Kind 表与宿主职责见
+[决策协议](run-decisions.md)。`RunView.From` 的 Request 仍为 default；WithRequest 先完整校验，
+成功才生成同步请求与提示字段的新投影。
+
+`tests/Architecture` 递归检查所有登记可见 DTO 的实例字段，包含 private InlineArray 元素；嵌套
+类型也必须在精确白名单内，拒绝托管引用及指针间接访问，不能用一个已登记外壳藏入 RunState、
+RNG、属性包或未来序列。正例与嵌套数组/托管引用反例、KernelChecks 的无引用与尺寸合同共同
+锁定这一边界，不把整个 Simulation.Run 命名空间放开。
 
 ## 7. 原版导入
 

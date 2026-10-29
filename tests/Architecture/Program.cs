@@ -45,4 +45,25 @@ if (visible.Any(violation => violation.Source == visibleSource && violation.Targ
     return 1;
 }
 Console.WriteLine("ARCHITECTURE_VISIBLE_OK RunView 对 Ai.Run 可见");
+HashSet<string> recursiveTypes = new(StringComparer.Ordinal)
+{
+    "BlitzSolver.Simulation.Run.VisibleNestedFixture",
+    "BlitzSolver.Simulation.Run.VisibleInlineFixture",
+    "BlitzSolver.Simulation.Run.ManagedVisibleFixture",
+    "BlitzSolver.Simulation.Run.IndirectVisibleFixture",
+};
+IReadOnlyList<Violation> recursive = DependencyChecker.Check(self, recursiveTypes);
+if (!recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.VisibleNestedFixture"
+        && v.Target == "BlitzSolver.Simulation.Run.HiddenNestedFixture")
+    || !recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.ManagedVisibleFixture"
+        && v.Target == "System.String")
+    || !recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.IndirectVisibleFixture"
+        && v.Target == "System.IntPtr")
+    || !recursive.Any(v => v.Source == "BlitzSolver.Simulation.Run.IndirectVisibleFixture"
+        && v.Target == "System.UIntPtr"))
+{
+    Console.WriteLine("ARCHITECTURE_RECURSIVE_FAILED 未拒绝嵌套隐藏负载、托管引用或地址");
+    return 1;
+}
+Console.WriteLine("ARCHITECTURE_RECURSIVE_OK 内联数组隐藏负载、托管引用与native-sized地址均被拒绝");
 return 0;

@@ -36,7 +36,47 @@ internal static class DependencyChecker
                     violations.Add(new Violation(sourceName, targetName, via));
             }
         }
+        foreach (Type root in assembly.GetTypes())
+        {
+            if (!visibleRunTypes.Contains(ArchitectureRules.TypeName(root))
+                || root.IsAbstract && root.IsSealed)
+                continue;
+            CheckVisibleFields(root, root, visibleRunTypes, new HashSet<Type>(), violations, "visible DTO");
+        }
         return violations;
+    }
+
+    private static void CheckVisibleFields(Type root, Type type, IReadOnlySet<string> visible,
+        HashSet<Type> visited, List<Violation> violations, string via)
+    {
+        if (!visited.Add(type))
+            return;
+        if (!type.IsValueType || type.IsPointer || type.IsByRef || type.IsByRefLike
+            || type == typeof(IntPtr) || type == typeof(UIntPtr))
+        {
+            violations.Add(new Violation(ArchitectureRules.TypeName(root), ArchitectureRules.TypeName(type),
+                via + " (managed or indirection)"));
+            return;
+        }
+        if (type.IsPrimitive)
+            return;
+        if (ArchitectureRules.LayerOf(type.Namespace) == Layer.SimulationRun
+            && !visible.Contains(ArchitectureRules.TypeName(type)))
+        {
+            violations.Add(new Violation(ArchitectureRules.TypeName(root), ArchitectureRules.TypeName(type),
+                via + " (unregistered nested payload)"));
+            return;
+        }
+        if (type.IsEnum)
+            return;
+        if (ArchitectureRules.LayerOf(type.Namespace) != Layer.SimulationRun)
+        {
+            violations.Add(new Violation(ArchitectureRules.TypeName(root), ArchitectureRules.TypeName(type),
+                via + " (non-visible payload type)"));
+            return;
+        }
+        foreach (FieldInfo field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            CheckVisibleFields(root, field.FieldType, visible, visited, violations, via + "." + field.Name);
     }
 }
 
@@ -60,7 +100,7 @@ internal static class ArchitectureRules
 {
     /// <summary>
     /// <c>Simulation.Run</c> types that <c>Ai.Run</c> may see: only visible projections and
-    /// decision requests, registered explicitly. R1a has no such type yet.
+    /// decision requests and their protocol helpers, registered explicitly.
     /// </summary>
     internal static readonly IReadOnlySet<string> VisibleRunTypes = new HashSet<string>(
         StringComparer.Ordinal)
@@ -103,6 +143,21 @@ internal static class ArchitectureRules
         "BlitzSolver.Simulation.Run.RunDecisionOptionArray",
         "BlitzSolver.Simulation.Run.RunAction",
         "BlitzSolver.Simulation.Run.RunActionKind",
+        "BlitzSolver.Simulation.Run.RunDecisionToken",
+        "BlitzSolver.Simulation.Run.RunDecisionSlice",
+        "BlitzSolver.Simulation.Run.RunDecisionKnowledge",
+        "BlitzSolver.Simulation.Run.RunDecisionOptionFlags",
+        "BlitzSolver.Simulation.Run.RunDecisionPayloadKind",
+        "BlitzSolver.Simulation.Run.RunSelectionPurpose",
+        "BlitzSolver.Simulation.Run.RunDecisionFactKind",
+        "BlitzSolver.Simulation.Run.RunDecisionFact",
+        "BlitzSolver.Simulation.Run.RunDecisionFactArray",
+        "BlitzSolver.Simulation.Run.RunDecisionCardArray",
+        "BlitzSolver.Simulation.Run.RunDecisionKeyArray",
+        "BlitzSolver.Simulation.Run.RunDecisionLimits",
+        "BlitzSolver.Simulation.Run.RunOptionIdArray",
+        "BlitzSolver.Simulation.Run.RunDecisionProtocol",
+        "BlitzSolver.Simulation.Run.RunDecisionBuilder",
         "BlitzSolver.Simulation.Run.RunMapPointType",
         "BlitzSolver.Simulation.Run.RunRoomType",
         "BlitzSolver.Simulation.Run.RunRelicStatus",

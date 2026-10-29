@@ -5,8 +5,8 @@ namespace BlitzSolver.Simulation.Run;
 
 /// <summary>
 /// Player-visible projection of <see cref="RunState"/>. The run decision layer
-/// (<c>BlitzSolver.Ai.Run</c>) may reference this type and its nested element types and nothing else
-/// from <c>Simulation.Run</c>. It deliberately contains no RNG state, no pre-generated act room
+/// (<c>BlitzSolver.Ai.Run</c>) may reference explicitly registered visible DTOs and protocol helpers
+/// from <c>Simulation.Run</c>; nested payload visibility is checked recursively. It deliberately contains no RNG state, no pre-generated act room
 /// sequences, no grab-bag order, no unlock state and no per-model private saved properties: those
 /// are not visible on the native screen and cannot be derived from the history the player has seen.
 /// The hidden reward pity counters are included because the player can derive them from that
@@ -51,6 +51,17 @@ public struct RunView
     public RelicViewSet Relics;
     public MapView Map;
     public RoomViewSet Rooms;
+
+    /// <summary>Validate before attaching; the original view is unchanged on failure.</summary>
+    public readonly RunView WithRequest(in RunDecisionRequest request)
+    {
+        RunDecisionProtocol.ValidateRequest(request);
+        RunView view = this;
+        view.Request = request;
+        view.Decision = request.Kind;
+        view.DecisionOptionCount = checked((byte)request.OptionCount);
+        return view;
+    }
 
     public static RunView From(in RunState state)
     {

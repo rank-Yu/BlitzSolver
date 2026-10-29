@@ -29,3 +29,17 @@ namespace BlitzSolver.Ai.Run
         internal static BlitzSolver.Simulation.Run.RunView Make() => default;
     }
 }
+
+namespace BlitzSolver.Simulation.Run
+{
+    internal readonly record struct VisibleNestedFixture(VisibleInlineFixture Payload);
+
+    [System.Runtime.CompilerServices.InlineArray(2)]
+    internal struct VisibleInlineFixture { private HiddenNestedFixture _first; }
+
+    internal readonly record struct HiddenNestedFixture(RunState State);
+
+    internal readonly record struct ManagedVisibleFixture(string Text);
+
+    internal readonly record struct IndirectVisibleFixture(nint SignedAddress, nuint UnsignedAddress);
+}

@@ -40,6 +40,7 @@ internal static class RunChecks
         CheckCodec();
         RunCodecChecks.Check(SampleState());
         CheckCapacity();
+        RunDecisionChecks.Check();
         CheckView();
         CheckTravel();
         CheckTutorialUnknown();
@@ -207,8 +208,8 @@ internal static class RunChecks
 
     private static void CheckView()
     {
-        Check(Unsafe.SizeOf<RunView>() == 7536,
-            $"RunView 应为 7536 字节，实际 {Unsafe.SizeOf<RunView>()}");
+        Check(Unsafe.SizeOf<RunView>() == 20912,
+            $"RunView 应为 20912 字节，实际 {Unsafe.SizeOf<RunView>()}");
         RunState state = SampleState();
         RunView view = RunView.From(state);
         Check(view.Player.CurrentHp == state.Player.CurrentHp, "RunView HP 不一致。");

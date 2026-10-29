@@ -21,7 +21,8 @@
 | `RunCodec.cs` | `RUNS` 魔数、版本与规范字节镜像；结构校验 |
 | `RunDump.cs` | 行式状态转储，供对照使用 |
 | `RunView.cs` | 只读玩家可见投影；`RunView.Request` 留给 R3b 的 `RunDecisionImporter` 填充 |
-| `RunDecisions.cs` | `RunDecisionRequest`/`RunDecisionOption`/`RunAction`/`RunActionKind` 与进点拒绝码 |
+| `RunDecisionProtocol.cs` | 请求/回答的严格纯校验、Select/Cancel 与 id 解析辅助 |
+| `RunDecisions.cs` | 有界请求/回答、Token、可见负载共享池、构造辅助与进点拒绝码 |
 | `RunTravel.cs` | 合法地图点：起点、普通子点、Boss、第二 Boss |
 | `RunUnknownPoint.cs` | 未知点首次跑局保底、黑名单、浮点掷骰与概率成长；教学未知点 |
 | `RunMapEntry.cs` | 进点前半段：房间类型、遭遇/事件、历史；战斗房间继续建局，非战斗房间停在进入前边界 |

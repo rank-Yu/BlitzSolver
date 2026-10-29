@@ -106,7 +106,8 @@ public static class RunLimits
 
     /// <summary>
     /// Options in one decision request. The largest native screen is deck card selection, which
-    /// lists every removable deck card; one more slot is reserved for cancel.
+    /// lists every removable deck card. Keep the existing 129-row engineering budget; cancel is
+    /// an independent answer and does not occupy an option slot.
     /// </summary>
     public const int DecisionOptions = DeckCards + 1;
 
