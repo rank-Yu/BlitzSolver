@@ -107,4 +107,3 @@ internal static class RegentPowerRoutePolicy
             _ => default,
         };
 }
-

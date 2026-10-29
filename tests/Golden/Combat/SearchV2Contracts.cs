@@ -55,6 +55,7 @@ internal static class SearchV2Contracts
         BeamResult first = new BeamSolver(original.Rules, batched).Solve(original.Battles, storage, CancellationToken.None);
         Assert(capped.ExpandedNodes <= 1 && unbounded.ExpandedNodesTotal > 1, "new search has no hidden node cap");
         Assert(first.EndedCompactions > 0, "end-turn batch actually compacts");
+        Assert(first.Duplicates > 0, "candidate deduplication is exercised");
         _ = ReplayedRoute.Build(original.Battles[first.BestRootIndex], original.Rules,
             first.BestRoute, first.BestIsVictory);
         BeamResult second = new BeamSolver(original.Rules, batched).Solve(original.Battles, storage, CancellationToken.None);

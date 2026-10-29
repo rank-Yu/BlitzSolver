@@ -71,4 +71,3 @@ internal static class ColorlessPowerRoutePolicy
             _ => default,
         };
 }
-

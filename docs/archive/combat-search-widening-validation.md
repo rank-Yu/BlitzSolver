@@ -168,4 +168,3 @@ STS2_SOLVER_STORAGE_CHECK=1 dotnet artifacts/bin/Differential/release/Differenti
 `chunk`/`array` 两类在第二次求解不再增长，说明大块已从 `SearchStorage` 复用；第二次仍会
 为池选择结构、路由签名字典与标签列表分配小块。`--emit-live-requests` 与
 `run-headless.sh --cleanup-instance-on-exit` 的 28 根核对见第 7 节，不随本批改变。
-

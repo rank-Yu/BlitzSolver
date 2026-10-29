@@ -503,8 +503,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 ### 6.5 实机搜索请求/结果对照
 
-测试模式在捕获后默认用中档确定性选项求解一次（软时间关闭，起始宽度 256、第一轮节点上限
-512,000），写
+单次捕获测试默认用中档确定性旧格式选项求解一次（软时间关闭、宽度 300、节点上限 512,000），写
 `SREQ`/`SRES`/`search.json`。离线宿主：
 
 ```bash
@@ -524,7 +523,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 `search-compare roots=N same=... diff=... reject=... skipped=...`。非确定性测量结果计为
 `skipped reason=measure-only`，回合准备根计为 `skipped reason=turn-setup-root`。
 
-M2b-1 的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=same sres=same`，
+旧 M2b-1 配置的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=same sres=same`，
 `diff=0 reject=0 skipped=0`。`quality-REGENT-013` 的“中”档正常搜索（120s 软时间）实测
 63.3s、142,048 个展开节点、托管堆峰值约 1.96GB、工作集峰值约 3.21GB；另外两个 PF1 重根
 `quality-IRONCLAD-013`、`quality-DEFECT-012` 在本请求下分别 2.8s / 2.1s。取消测试用
@@ -537,7 +536,7 @@ M2b-1 的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=sam
 并关闭确定性。测试模式捕获根后立刻进入 `AutoCombatSession`，由共享的 `CombatPilot`
 每回合搜索/沿用路线、逐动作核对、回合对账，直到胜利、失败、暂停或取消。结果写 `full-combat.json`，并在 `status.json`
 增加 `fullCombatStatus/outcome/turns/playerHp/playerMaxHp/searches/reusedTurns/deviations/
-deploymentFailures`。整场搜索的每一轮使用该次决策剩余的正常软时间（见 6.7 的多轮规则）；`src/Mod` 还会把
+deploymentFailures`。整场搜索的成员共用该次决策的绝对截止时间（见 6.7）；`src/Mod` 还会把
 `headlessFastModeForTest` 覆盖为 `Instant`（默认）并在结束后恢复。
 
 命令：
@@ -549,7 +548,7 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
   --cleanup-instance-on-exit --timeout-seconds 480
 ```
 
-M2b-2 的 20 个固定根分两条命令执行，全部结束：
+旧 M2b-2 配置的 20 个固定根分两条命令执行，全部结束：
 
 ```text
 HEADLESS_DONE instance=m2b2-final-a ok=10 failed=0 total_ms=272809.2872
@@ -584,7 +583,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 旧逐轮加宽验证记录保存在 [历史逐轮加宽搜索验证](archive/combat-search-widening-validation.md)。
 
-搜索账本统计状态、路由、辅助数组和标签等逻辑存储；进程托管堆与工作集峰值另行记录。极小预算合同检查分配拒绝、可回放的回退路线和复用；分批压缩合同单独对照启用与关闭。账本不是游戏进程 RSS 限制。搜索实现和档位的详细语义见 [战斗搜索](combat-ai.md)。
+搜索账本统计状态、路由、辅助数组和标签等逻辑存储；进程托管堆与工作集峰值另行记录。极小预算合同检查分配拒绝、可回放的回退路线和复用；分批压缩合同单独对照启用与关闭。账本不是游戏进程 RSS 限制。搜索实现和档位的详细语义见 [战斗搜索](combat-ai.md)；本次组合搜索的实测与差异调查见 [局内组合搜索验证](combat-search-v2-validation.md)。
 
 ### 6.9 负例
 

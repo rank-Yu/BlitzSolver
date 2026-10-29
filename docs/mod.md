@@ -340,8 +340,7 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
 整场循环的决策段由 `CombatPilot`（`src/Core/Autoplay/CombatPilot.cs`）持有：它决定
 何时搜索、沿用哪条路线、路线何时算用完，以及连续失败/回合上限的暂停。`Mod` 的
 `CombatPilotHost` 只在驱动要求时做原生 I/O；`Differential` 的 `--offline-combat` 用同一个
-驱动和同一个 `ReplayedRoute` 在内核里执行。新增搜索时机、加宽参数或重搜策略只改驱动与请求
-编译入口，离线测到的就是实机跑的。
+驱动和同一个 `ReplayedRoute` 在内核里执行。两端共用组合调度与回放规则，但墙钟截断可能使结果因运行环境不同。
 
 ### 9.1 路线回放
 

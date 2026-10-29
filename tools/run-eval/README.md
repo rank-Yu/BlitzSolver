@@ -64,8 +64,8 @@ HP/金币/牌组/遗物/药水摘要、开战/原版清理前终局 Battle SHA-2
 | 130 | 外部取消 |
 
 缺捕获/终局差异不产生 milestone。first-combat-complete 与 act1-complete 都不是整局 Victory。rooms 遇第一幕末端但房预算未满时为 Paused / scope-act-end（exit 1）。
-已验证 Ironclad A0 的 R3B2-DECISION、R3B5-SECOND，以及 Silent A0 的 R3B2-DECISION，所有部署/终局比较通过。
-主 seed 经两次独立 CLI 进程与独立旧 Differential 原版参考对照通过。
-next-room 主 seed 两次独立进程结果一致，并与独立旧 runtime 原版参考逐段一致。
-主 seed rooms4 两个独立新进程完全一致，并与独立原版 oracle 四个完成房间和三场战斗逐字段一致。
+旧搜索配置下已验证 Ironclad A0 的 R3B2-DECISION、R3B5-SECOND，以及 Silent A0 的 R3B2-DECISION，所有部署/终局比较通过。
+旧搜索配置的主 seed 经两次独立 CLI 进程与独立旧 Differential 原版参考对照通过。
+旧搜索配置的 next-room 主 seed 两次独立进程结果一致，并与独立旧 runtime 原版参考逐段一致。
+旧搜索配置的主 seed rooms4 两个独立新进程完全一致，并与独立原版 oracle 四个完成房间和三场战斗逐字段一致。
 初始化/迁移差异、生命周期与当前边界详见 src/OfflineHost/README.md。
