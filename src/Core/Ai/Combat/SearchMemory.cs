@@ -57,6 +57,12 @@ internal sealed class SearchMemoryLedger
 
     internal void BeginSolve(long limitBytes)
     {
+        // Per-solve structures are no longer reachable after the previous solve.
+        foreach (string region in new[] { "pool-aux", "candidate-routes", "pool-labels", "routing-signature" })
+        {
+            UsedBytes -= _byRegion.GetValueOrDefault(region);
+            _byRegion.Remove(region);
+        }
         LimitBytes = Math.Max(0, limitBytes);
         SolveStartBytes = UsedBytes;
         PeakBytes = UsedBytes;
@@ -89,6 +95,12 @@ internal sealed class SearchMemoryLedger
         _byRegion[region] = _byRegion.GetValueOrDefault(region) + bytes;
         if (UsedBytes > PeakBytes)
             PeakBytes = UsedBytes;
+    }
+
+    internal void ReleaseArray(long bytes)
+    {
+        UsedBytes -= bytes;
+        _byRegion["array"] -= bytes;
     }
 
     /// <summary>Releases a retained block that was replaced; used only for the growable int scratch.</summary>
@@ -151,6 +163,8 @@ internal sealed class SearchStorage
         for (int index = 0; index < _chunks.Count; index++)
         {
             Array chunk = _chunks[index];
+            if (!chunk.GetType().GetElementType()!.IsValueType)
+                Array.Clear(chunk);
             Push(_freeChunks, (chunk.GetType().GetElementType()!, chunk.Length), chunk);
         }
         _freeArrays.Clear();
@@ -159,6 +173,16 @@ internal sealed class SearchStorage
             (Type type, int length, Array array) = _arrays[index];
             Push(_freeArrays, (type, length), array);
         }
+    }
+
+    /// <summary>Forget a replaced scratch array so its logical allocation no longer remains reserved.</summary>
+    internal void DiscardArray<T>(T[] array)
+    {
+        int index = _arrays.FindIndex(item => ReferenceEquals(item.Array, array));
+        if (index < 0)
+            throw new InvalidOperationException("搜索存储没有该数组。");
+        _arrays.RemoveAt(index);
+        Memory.ReleaseArray((long)array.Length * Unsafe.SizeOf<T>());
     }
 
     /// <summary>Rents a fixed-size chunk, reusing a retained block of the same element type and length.</summary>

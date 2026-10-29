@@ -249,7 +249,7 @@ internal sealed partial class BeamSolver
             SearchCheckpoint();
             if (TryHandleTakeover(ended))
                 break;
-            if (_expanded >= _options.MaxExpandedNodes)
+            if (!NodeBudgetAvailable)
             {
                 _noveltyStop = "node_limit";
                 break;
@@ -278,7 +278,7 @@ internal sealed partial class BeamSolver
                 reachableHandValue, zeroCostPlayableCount, initialRetainedAttackValue: _scorer.InitialRetainedAttackValue);
             next.Clear();
             ended.Clear();
-            _expanded++;
+            if (_expanded < int.MaxValue) _expanded++;
             int count = Kernel.LegalActions(parent, _rules, _actions);
             for (int actionIndex = 0; actionIndex < count; actionIndex++)
             {
