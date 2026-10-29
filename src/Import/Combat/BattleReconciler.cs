@@ -71,6 +71,14 @@ internal static class BattleReconciler
             ref Enemy enemy = ref copy.Enemies[index];
             if (!IsPermanentTombstone(in enemy))
                 continue;
+            // A removed permanent corpse cannot take another move. Native drops its transient
+            // stun skip bit; preserve that bit everywhere it is still observable.
+            bool inRoster = false;
+            for (int position = 0; position < copy.RosterCount; position++)
+                inRoster |= copy.Roster[position] == index;
+            if (enemy.DeathPhase == DeathPhase.PermanentlyDead && enemy.Creature.CurrentHp <= 0
+                && (enemy.Flags & EnemyFlags.InCombat) == 0 && !inRoster)
+                enemy.Flags &= ~EnemyFlags.SkipNextMove;
             enemy.Move = 0;
             enemy.ForcedMove = byte.MaxValue;
             enemy.LoggedMoves = 0;
