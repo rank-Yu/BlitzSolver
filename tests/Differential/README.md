@@ -76,6 +76,25 @@ dotnet artifacts/bin/Differential/release/Differential.dll --run-import-negative
 `RunState`，与独立原生转储逐字段比较；每条随机流抽 64 次；比较当前幕地图；D1 还检查
 9 条战斗流、HP、牌组、遗物与药水。
 
+## 原版决策导入首批
+
+```bash
+dotnet artifacts/bin/Differential/release/Differential.dll --run-decision-compare
+```
+
+独立模式读取真实原版模型，经过 `RunDecisionImporter`、Core 回答校验、请求内原实例解析，
+再调用原版地图/事件/休息入口并重新导入。输出分开标记自然 Neow→地图与定向原版 fixture；
+fixture 通过原版 EnterRoomDebug 进入事件/休息，候选替换、禁用与容量负例会显式修改测试状态。
+关键效果与同输入独立直接原版调用比较，包含实际事件换页、Field 多选移除与加诅咒、休息和
+Smith 嵌套升级/取消。负例检查非法回答、旧 Token、重放、候选替换、牌组/可见负载变化和缺少
+确认均无原版副作用；原版派发 Task 异常必须向调用者传播。导入前后比较独立原生转储与 RNG。
+
+该模式自己的测试 session 管理 session/revision、消费/失效及嵌套 pending，原版选牌实际
+callback 结合三个受支持命令的完整 prefs 作用域导入；不会由 min/max 猜 Cancelable，也不为
+自动全选或零候选建立请求。只绕过无 Godot 进程的资源/路径/hover UI 调用，原版效果保留。
+测试串行且没有外部并发动作；不代表生产 OfflineHost、RunPilot 或 Mod UI 已实现，也不覆盖
+奖励、商店、bundle、RelicSelect、PotionDiscard。
+
 ## 战斗边界建局
 
 ```bash

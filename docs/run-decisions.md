@@ -3,14 +3,14 @@
 [返回文档索引](README.md)
 
 本文记录局外决策的类型、地图合法点、未知点掷骰，以及从地图选点走到"房间已建好、历史已追加、
-尚未进入房间"的原版步骤。2026-10-27 起局外由原版推进，决策请求由导入层读出（R3b）；本文只
-描述仍保留的协议与 `RunMapEntry` 边界。战斗房间的建局见[战斗边界](run-combat-boundary.md)，
+尚未进入房间"的原版步骤。2026-10-27 起局外由原版推进，决策请求由导入层读出（R3b）；本文
+描述协议、原版决策导入首批与 `RunMapEntry` 边界。战斗房间的建局见[战斗边界](run-combat-boundary.md)，
 状态字段与可见性见[整局状态布局](run-state-layout.md)。
 
 ## 1. 请求、回答与共享负载
 
-Core 提供有界、无托管引用的可见协议；请求由未来 `RunDecisionImporter` 从原版真实待选界面
-导入。协议能表达一种界面不代表已有该界面的执行桥接。`RunState`/`RunCodec v3` 的 49912 字节
+Core 提供有界、无托管引用的可见协议；`RunDecisionImporter` 已支持首批原版地图、事件、
+休息与选牌待选请求。协议能表达一种界面不代表已有该界面的执行桥接。`RunState`/`RunCodec v3` 的 49912 字节
 布局不变，`RunDecision` 的既有数字不变。
 
 | 类型 | 内容与预算 |
@@ -29,8 +29,8 @@ Cards 256 张、机器键 UTF-8 字节池 4096 字节。129 沿用现有工程�
 各选项只携带切片，不各自内嵌大数组；共享切片可复用，但必须完全落在已填充池内。
 
 `OptionId` 对应请求中的可选实例，不能用数组下标、模型 id 或机器键替代。两张同模型牌可有
-不同 id、升级和附魔；重排后同一 id 仍指同一个选项。bundle 内允许重复模型，选择一次取得
-整个组合，不把组内牌数计入 SelectCount。原版实例映射由宿主持有，Core 不保存游戏引用。
+不同 id、升级和附魔；旧快照的 id 始终指捕获的原实例；候选重排使快照过期，新导入必须换 Token。bundle 内允许重复模型，选择一次取得
+整个组合，不把组内牌数计入 SelectCount。原版实例映射封装在 Import 快照中，由宿主持有快照，Core 不保存游戏引用。
 
 `PayloadKind` 是 None/Map/Card/Model/Reward/CardBundle 的互斥联合；没有激活的字段必须为空。
 Map 带坐标与点类型；Card 带 CardView；Model 带 RunRef；Reward 带奖励种类和可见模型，
@@ -48,12 +48,12 @@ Costs 与 Effects 分别标注 `Unknown/Partial/Complete`。Unknown 只能有零
 NativeKey 与可选 PageKey 保存原版 `TextKey`、休息选项 `OptionId` 等机器键的原样 UTF-8，
 空键表示未提供。构造与校验都严格拒绝坏 UTF-8、分裂码点和越界，不截断。它们帮助未来策略
 区分选项，但不作为执行身份，不解析文本推断效果。本批不保存完整本地化文案或动态参数；
-后续导入器负责读取这些公开材料及具体语义适配。`SelectionPurpose` 仅用于 CardSelect，
+首批导入器读取机器键及两个已映射事件的 typed 事实；完整本地化参数仍未接入。`SelectionPurpose` 仅用于 CardSelect，
 可为 None/Remove/Upgrade/Transform/Enchant；None 表示用途未描述，不能猜测。
 
 `RunView.From` 目前只填状态里的决策提示与选项数，Request 保持 default，不能作为可执行
 请求。地图合法点仍由 `RunTravel.Collect` 独立枚举；`RunMapEntry.Enter` 仍接受坐标，不是第二个
-请求执行器。本批没有增加宿主、策略或全内容导入器。
+请求执行器。正式宿主、策略与全内容导入仍未落地；测试桥接见第 7 节。
 
 `RunStepStatus`/`RunStepResult`/`RunStepReject` 是旧局外内核的结果类型，已随 `RunKernel` 删除。
 仍保留的拒绝原因是 `RunStepReason` 的四个字符串，供 `RunMapEntry`/`RunUnknownPoint` 抛
@@ -222,10 +222,54 @@ Core 只比较回答与给定请求的完整 Token，不保存已消费历史；
 通过纯校验，宿主必须承担防重放及生命周期。推荐模式同样使用这些规则。
 
 原版 FromSimpleGrid/FromDeckGeneric 在候选不多于 Min 且不需手动确认时可能自动全选，
-根本不产生 pending 请求。未来导入器须区分此路径与真实待选请求，依据真实可选数量形成
+根本不产生 pending 请求。导入器区分此路径与真实待选请求，依据真实可选数量形成
 有效约束，不能照抄 prefs 后制造无法满足 Min 的请求。本批不改变原版自动行为。
 
-## 7. 验证
+## 7. 原版首批导入与绑定
+
+`src/Import/Run/Decisions/RunDecisionImporter.cs` 只读原版当前模型。四个入口返回
+`NativeDecisionSnapshot<T>`；`Request` 按值返回纯 Core 数据，私有绑定数组不向策略暴露。
+`Resolve` 先完整 `ValidateAction`，再按回答顺序返回只读原实例列表；不执行游戏、不消费 Token。
+候选实例不可重复引用，同模型不同实例保留各自升级、附魔与不同 OptionId。
+`ValidateCurrent` 重读可见请求并逐项比较，再按 `ReferenceEquals` 检查实例与顺序；不能用
+`RestSiteOption.Equals`，原版该方法按 OptionId 与 Owner 比较。
+
+| 入口 | 原版依据与限制 |
+| --- | --- |
+| `Map(run, token, isTravelEnabled)` | `isTravelEnabled` 是宿主当前已到地图待选阶段的实时只读回调，不由 Import 猜测；同时检查 `Hook.ShouldProceedToNextMapPoint`。合法点按原版起点、第二 Boss、末行 Boss 与 `MapTravel.GetTravelablePointsFrom` 枚举，保留免费移动 Hook。重核 room、已走坐标与候选身份。 |
+| `Event(model, token)` | 必须是当前 `EventRoom.LocalMutableEvent`，已初始化 Description、CurrentOptions 与 DynamicVars。不启动事件、不生成页面。保留原序、锁定、IsProceed、TextKey、可见 Source/Relic；仅 `WasChosen && DisableOnChosen` 禁用，允许再次选择的按钮保留。 |
+| `Rest(room, player, token)` | 只读当前 `RestSiteRoom.Options`，保留原实例、IsEnabled 与 OptionId 机器键；不调用会耗 RNG 的 Generate，不重写休息/升级数值。 |
+| `CardSelect(player, options, prefs, kind, token, purpose)` | 由原版实际 pending 回调提供真实候选、完整 prefs 与原命令种类，不能只由 ICardSelector 的 min/max 推导取消。支持 DeckGeneric、DeckUpgrade 与 SimpleGrid；升级预览首批要求 Min=Max，其他范围显式拒绝。用途默认 None，仅来源明确时指定。 |
+
+ThisOrThat 的 PLAIN 从当前 DynamicVars.HpLoss/Gold 导入 HpLoss 与 GoldGain；
+FieldOfManSizedHoles 的 RESIST 从当前 DynamicVars.Cards 和原版 Normality 模型导入
+RemoveCards 与 AddCard。两者 Complete 仅描述当前可见语义，不预测 Hooks 后净收益；其余
+事件保持 Unknown，不扫描未来随机结果或解析本地化文本。
+
+已完成事件没有模型内待选行时显式拒绝：`NEventRoom.SetOptions` 另外生成的 UI PROCEED
+不在 CurrentOptions 内，不能伪造为模型选项。已有模型内 IsProceed 行可映射 Leave。
+原版自动全选、零候选提前返回不产生请求；手动确认且 Min 大于实际候选数时显式拒绝，
+不缩小 Min。Max 只按实际候选数形成可选上界。Cancel 与 Min=0 的空 Select 在协议内分开。
+原版 deck UI 的 CloseSelection 把 CardsSelected 完成为空列表；取消适配仅在宿主回调边界
+返回该原版结果。RequireConfirmation 要求 Select 已确认，Cancel 沿原版关闭行为无需确认。
+
+快照检查当前 RunManager 的同一个 active run、当前来源、候选和已投影可见约束；Deck
+入口还检查当前完整 Deck 实例顺序、候选 Owner/成员与升级资格。DeckGeneric 的任意 filter、
+sortingOrder 不由 Import 重新运行；正式宿主在其他游戏状态改变时仍须主动失效并重新获取
+真实 pending。快照不保存 replay 历史，不能替代宿主的 session 唯一性、revision 单调性、
+执行前消费、过期失效、busy 与嵌套生命周期。
+
+`tests/Differential/Run/NativeDecisionTestSession.cs` 是独立测试桥接，执行原版地图、事件与
+休息同步器并回答原版选牌回调；父请求消费后，嵌套选牌使用新 revision，异常后旧请求不能
+复用。普通事件走 EventSynchronizer，模型内 IsProceed 走原版 EventOption.Chosen；捕获
+实际 Chosen Task 传播异常。选牌测试在三个当前支持命令的同步进入 callback 路径上捕获
+完整 prefs，作用域在调用返回/异常后恢复；这不是通用异步上下文桥接。测试串行且没有外部
+并发游戏动作，不代表 Mod UI 或生产离线宿主已经接入。
+
+奖励、商店、bundle、RelicSelect、PotionDiscard 仍未接入此 Importer；正式 OfflineHost/Mod
+共享执行协议与 RunPilot 也尚未落地。已冻结 Core 协议能表达这些类型，不代表本批实现。
+
+## 8. 验证
 
 `tests/Differential` 的 `--map-step-compare` 从新局出发，用原版推进到每个地图选点；对每个
 合法选项先从同一份 `SerializableRun` 快照恢复，再分别执行原版 `EnterMapCoord` 与
@@ -233,9 +277,9 @@ Core 只比较回答与给定请求的完整 Token，不保存已消费历史；
 （事件 RNG 单独验证）。这是"保留的对照必须与 `683bc03` 相同"的一部分；结果见
 [测试与验证](testing.md)。
 
-## 8. 原版证据与后续桥接边界
+## 9. 原版证据与后续桥接边界
 
-第 1、6 节协议已在 Core 落地，仍未接入原版执行。R3a 的 `--run-probe` 与 `RunProbe` JSON
+第 1、6 节协议已在 Core 落地；第 7 节实现首批真实模型导入与测试执行闭环，正式宿主执行仍待接入。R3a 的 `--run-probe` 与 `RunProbe` JSON
 记录只用于收集证据，不是 `RunDecisionImporter`、`RunPilot` 或正式策略接口。
 
 ### 已观察的入口
@@ -255,7 +299,7 @@ Core 只比较回答与给定请求的完整 Token，不保存已消费历史；
 ### 证据如何进入协议
 
 未来统一入口为 `Decide(可见投影, Request) -> Action`；当前公共头、互斥负载与 typed 事实
-见前文。下表追溯原版依据，完整本地化导入和执行桥接仍是后续工作。
+见前文。下表追溯原版依据，完整本地化导入和正式宿主执行桥接仍是后续工作。
 
 | 字段或负载及后续内容 | 实际请求/代码证据 | 含义与边界 |
 | --- | --- | --- |
@@ -275,7 +319,7 @@ Core 只比较回答与给定请求的完整 Token，不保存已消费历史；
 
 ### 后续导入器与宿主仍需完成
 
-- 公共头、共享池与严格合同已实现；跨 Mod/离线的 Token 生成、消费、失效和原版实例映射仍由宿主落实。
+- 公共头、共享池、严格合同与首批只读原实例快照已实现；跨 Mod/离线的 Token 生成、消费和失效仍由正式宿主落实。
 - 事件可见说明参数如何保留，以及哪些事件需要机械语义适配才能给策略提供明确的多个代价/效果。
 - 推荐模式的确认/取消、嵌套请求展示和原版选择同步桥接；不能将 TestMode 的自动选第一组当正式接口。
 - `RunState` 导入在终局清理后的边界限制。R3a 单独记录原版 `OnEnded(isVictory)`、HP 和 IsGameOver；
