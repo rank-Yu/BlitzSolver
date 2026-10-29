@@ -325,6 +325,9 @@ internal static class TestSession
             $"[Sts2Solver] TEST_DONE requests={files.Length} ok={ok} failed={failed} " +
             $"total_ms={total.Elapsed.TotalMilliseconds:0}");
         Active = false;
+        // Use the game's normal shutdown to release cached text/font resources before Godot exits.
+        // NGame.Quit requests exit code 0; preserve a failed test's nonzero status afterwards.
+        host.Quit();
         host.GetTree().Quit(failed == 0 ? 0 : 1);
     }
 

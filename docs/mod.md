@@ -300,9 +300,18 @@ tools/testing/run-headless.sh --instance m2b0-coexist --coexist-combat-solver \
 ```
 
 脚本在 `.local/headless-instances/<实例>` 下复制整份游戏、RitsuLib、打包好的 Sts2Solver
-与种子 `XDG_DATA_HOME`；默认不复制 CombatSolver。`--cleanup-instance-on-exit` 用 trap 在
-正常/异常/信号退出时终止自己启动的进程并删除整个实例，随后打印
-`INSTANCE_REMOVED path=...`。没有该参数时保留实例供排查。
+与种子 `XDG_DATA_HOME`；默认不复制 CombatSolver。普通测试写出 `done.json` 后，Mod
+调用游戏的正常退出入口清理缓存；脚本等待进程退出并检查真实退出码，打印
+`HEADLESS_EXIT code=...`。测试无失败且进程退出码为 0，整次检查才成功。
+`--shutdown-timeout-seconds N` 控制结果写出后的退出等待时间，默认 30 秒；超时或异常
+退出均判失败。已写出的结果会先复制到 `--results`，方便排查，不能仅凭 `HEADLESS_DONE`
+判断检查成功。
+
+`--cleanup-instance-on-exit` 在正常/异常/信号退出时删除整个实例，随后打印
+`INSTANCE_REMOVED path=...`。仍在运行的进程只在异常、超时、信号中断或初始化探针
+收尾时才由 trap 发送 TERM，必要时再发送 KILL；普通测试成功时不发送终止信号。
+没有该参数时保留实例供排查。启动器退出合同可用
+`python3 tools/testing/test_run_headless.py` 验证，不需要游戏程序集。
 
 `--requests DIR`/`--request FILE` 可直接提供已生成的请求；`--probe-only` 只验证 Mod 初始化
 或共存禁用；`--no-launch` 只准备实例。Windows 的 `.ps1` 入口是后续项，本批不提供。

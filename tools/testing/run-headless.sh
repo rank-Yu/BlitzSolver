@@ -26,6 +26,7 @@ offline_host="$repo_root/artifacts/bin/Differential/release/Differential.dll"
 requests_dir=""
 results_dir=""
 timeout_seconds=600
+shutdown_timeout_seconds=30
 cleanup_instance=0
 coexist=0
 probe_only=0
@@ -50,6 +51,7 @@ usage() {
   --request FILE               直接复制单个请求 JSON（文件名即结果根名，可重复）
   --results DIR                完成后把结果目录复制到 DIR
   --timeout-seconds N          等待 results/done.json 的秒数（默认 600）
+  --shutdown-timeout-seconds N  结果写出后等待正常退出的秒数（默认 30）
   --cleanup-instance-on-exit   结束后删除整个实例目录
   --coexist-combat-solver      把 CombatSolver 也放进实例（只用于共存检查）
   --probe-only                 只等到 Mod 初始化/禁用日志，不要求 results/done.json
@@ -83,6 +85,7 @@ while (($#)); do
         --request) request_files+=("${2:-}"); shift 2 ;;
         --results) results_dir="${2:-}"; shift 2 ;;
         --timeout-seconds) timeout_seconds="${2:-}"; shift 2 ;;
+        --shutdown-timeout-seconds) shutdown_timeout_seconds="${2:-}"; shift 2 ;;
         --cleanup-instance-on-exit) cleanup_instance=1; shift ;;
         --coexist-combat-solver) coexist=1; shift ;;
         --probe-only) probe_only=1; shift ;;
@@ -103,6 +106,7 @@ done
 [[ -n $instance ]] || die "缺少 --instance。"
 [[ $instance =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]] || die "非法实例名：$instance"
 [[ $timeout_seconds =~ ^[1-9][0-9]*$ ]] || die "--timeout-seconds 必须是正整数"
+[[ $shutdown_timeout_seconds =~ ^[1-9][0-9]*$ ]] || die "--shutdown-timeout-seconds 必须是正整数"
 [[ -x $game_root/SlayTheSpire2 ]] || die "找不到游戏：$game_root/SlayTheSpire2"
 [[ -f $mod_dir/Sts2Solver.json && -f $mod_dir/Sts2Solver.dll ]] || die "找不到打包好的 Mod：$mod_dir"
 [[ -d $seed_data/SlayTheSpire2/default/1 ]] || die "种子数据缺少 settings：$seed_data"
@@ -146,7 +150,9 @@ cleanup() {
             kill -0 "$game_pid" 2>/dev/null || break
             sleep 0.1
         done
-        kill -KILL -- "-$game_pid" 2>/dev/null || kill -KILL "$game_pid" 2>/dev/null || true
+        if kill -0 "$game_pid" 2>/dev/null; then
+            kill -KILL -- "-$game_pid" 2>/dev/null || kill -KILL "$game_pid" 2>/dev/null || true
+        fi
         wait "$game_pid" 2>/dev/null || true
     fi
     game_pid=""
@@ -159,7 +165,9 @@ cleanup() {
     fi
     exit "$code"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 info "copying game to $instance_dir/game"
 cp -aL --reflink=auto -- "$game_root/." "$instance_dir/game/" || die "复制游戏失败"
@@ -263,12 +271,6 @@ launcher_log="$instance_dir/launcher.log"
 ) </dev/null >"$launcher_log" 2>&1 &
 game_pid=$!
 info "started headless game pid=$game_pid"
-sleep 0.5
-kill -0 "$game_pid" 2>/dev/null || {
-    tail -80 "$launcher_log" >&2 || true
-    tail -80 "$log_path" >&2 || true
-    die "无头游戏没有保持运行"
-}
 
 deadline=$((SECONDS + timeout_seconds))
 if (( probe_only == 1 )); then
@@ -343,5 +345,18 @@ if [[ -n $results_dir ]]; then
 fi
 info "mod log: $instance_dir/run/mod.log"
 info "game log: $log_path"
+# done.json describes the tests; success also requires the game's own shutdown to finish.
+shutdown_deadline=$((SECONDS + shutdown_timeout_seconds))
+while kill -0 "$game_pid" 2>/dev/null && (( SECONDS < shutdown_deadline )); do
+    sleep 0.1
+done
+if kill -0 "$game_pid" 2>/dev/null; then
+    die "游戏写出结果后 ${shutdown_timeout_seconds} 秒仍未退出"
+fi
+wait "$game_pid"
+game_exit=$?
+game_pid=""
+echo "HEADLESS_EXIT code=$game_exit"
+(( game_exit == 0 )) || die "无头游戏异常退出（code=$game_exit）"
 (( failed == 0 )) || exit 1
 exit 0
