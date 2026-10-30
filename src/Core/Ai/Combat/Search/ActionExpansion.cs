@@ -904,9 +904,10 @@ internal sealed partial class BeamSolver
             && left.AfflictionId == right.AfflictionId
             && left.AfflictionAmount == right.AfflictionAmount;
 
-    /// <summary>Per-pool state budget: the request override, or the original 200 MiB.</summary>
-    private int EffectivePoolStateBudgetBytes
-        => _options.PoolStateBudgetBytes > 0
-            ? _options.PoolStateBudgetBytes : DefaultPoolStateBudgetBytes;
+    /// <summary>Per-pool budget: new request budget, legacy override, or the original 200 MiB.</summary>
+    private long EffectivePoolStateBudgetBytes
+        => _options.StatePoolBudgetBytes > 0 ? _options.StatePoolBudgetBytes
+            : _options.PoolStateBudgetBytes > 0 ? _options.PoolStateBudgetBytes
+            : DefaultPoolStateBudgetBytes;
 
 }

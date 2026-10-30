@@ -155,6 +155,29 @@ internal static class SearchV2Contracts
         }
         catch (SearchMemoryBudgetException error) when (error.Region == "ended-pool-capacity") { smallPool = true; }
         Assert(smallPool, "too-small pool is an explicit budget failure");
+        bool longPoolLimit = false;
+        try
+        {
+            BeamOptions tinyNew = batched with { BeamWidth = 100,
+                StatePoolBudgetBytes = (long)Battle.ExpectedSize * 64,
+                PoolStateBudgetBytes = 20_000_000 };
+            _ = new BeamSolver(original.Rules, tinyNew).Solve(original.Battles, CancellationToken.None);
+        }
+        catch (SearchMemoryBudgetException error) when (error.Region == "ended-pool-capacity") { longPoolLimit = true; }
+        Assert(longPoolLimit, "actual beam obeys long pool budget ahead of legacy override");
+        BeamResult largePool = new BeamSolver(original.Rules, batched with
+        {
+            MaxExpandedNodes = 1, StatePoolBudgetBytes = 3_000_000_000,
+            PoolStateBudgetBytes = Battle.ExpectedSize * 64,
+        }).Solve(original.Battles, CancellationToken.None);
+        Assert(largePool.ExpandedNodesTotal > 0, "actual beam supports long pool budget above 2 GiB");
+        BeamResult noveltyLargePool = new BeamSolver(original.Rules, legacy with
+        {
+            StatePoolBudgetBytes = 3_000_000_000,
+            Novelty = new NoveltyOptions(1, 0, 64, 256, 100, 2),
+        }).Solve(original.Battles, CancellationToken.None);
+        Assert(noveltyLargePool.ExpandedNodesTotal > 0, "novelty handles long pool capacity without overflow");
+
         Assert(Registry.TryPotion("FIRE_POTION", out ushort fire), "forced potion fixture");
         Assert(first.BestRoute.All(a => a.Kind != PlayerActionKind.UsePotion), "fixture has a potion-free route");
         int forcedSlot = Limits.PotionSlots - 1;

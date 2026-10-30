@@ -186,8 +186,8 @@ internal sealed partial class BeamSolver
         int frontierCapacity = Math.Max(width, roots.Count);
         int maxChildren = checked(frontierCapacity * (Kernel.MaxLegalActions + 1));
         int chunkStates = ChunkedArray<Battle>.ChunkSize;
-        int budgetStates = EffectivePoolStateBudgetBytes / Unsafe.SizeOf<Battle>()
-            / chunkStates * chunkStates;
+        int budgetStates = SearchMemoryBudget.PoolStateCapacity(EffectivePoolStateBudgetBytes,
+            Unsafe.SizeOf<Battle>(), chunkStates);
         int poolLimit = Math.Min(maxChildren, Math.Max(chunkStates, budgetStates));
         // A novelty parent expands every legal successor at once (choice branches multiply), so its
         // scratch pools are not bounded by the beam. They are cleared after each parent and therefore
