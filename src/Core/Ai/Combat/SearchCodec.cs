@@ -68,6 +68,8 @@ internal static class SearchCodec
                 battles[index] = BattleCodec.Decode(battleBytes);
             }
             BeamOptions options = DecodeOptions(reader, rules);
+            if (options.Scorer?.QueenPolicy is { } queen)
+                foreach (Battle battle in battles) queen.ValidateRoot(battle);
             return new SearchCase(rules, battles, options);
         });
 
@@ -150,6 +152,11 @@ internal static class SearchCodec
         if (options.PollTakeover != null) hooks |= 4;
         if (options.Trace != null) hooks |= 8;
         writer.Write(hooks);
+        if (options.Scorer?.QueenPolicy is { } queen)
+        {
+            writer.Write(0x31505351u); // QSP1, optional experimental request extension.
+            queen.Encode(writer);
+        }
     }
 
     private static BeamOptions DecodeOptions(BinaryReader reader, Rules rules)
@@ -220,6 +227,12 @@ internal static class SearchCodec
         byte hooks = reader.ReadByte();
         if ((hooks & ~0x0F) != 0)
             throw new InvalidDataException($"Sts2Solver 搜索请求的宿主回调位 {hooks:X} 非法。");
+        if (reader.BaseStream.Position < reader.BaseStream.Length)
+        {
+            if (reader.ReadUInt32() != 0x31505351u || scorer is null)
+                throw new InvalidDataException("Unknown search request extension.");
+            scorer = new Scorer(scorer.RulesForCodec, baseOnly: true, queen: QueenSearchPolicy.Decode(reader));
+        }
         return new BeamOptions(beamWidth, maxExpanded, maxTurns, budget, initialHp)
         {
             CandidateScanCount = scan,

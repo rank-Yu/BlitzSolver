@@ -804,6 +804,8 @@ internal sealed partial class BeamSolver
         cancellationToken.ThrowIfCancellationRequested();
         if (roots.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(roots), "至少需要一个搜索根。");
+        if (_scorer.QueenPolicy is { } queen)
+            foreach (Battle root in roots) queen.ValidateRoot(root);
         if (DeadlineExpired()) return DeadlineBeforeStart(storage);
         _deadlineReached = false;
         _storage = storage;

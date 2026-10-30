@@ -37,6 +37,17 @@ internal static class CombatSearchCoordinator
                 || initial.Options.EffectivePotionPolicy == PotionUseMode.RequireAtLeastOne);
         SearchMember[] members = PortfolioBuilder.Build(plan,
             initial.Options.PowerCommitments is { Rules.Length: > 0 }, requiredPlan);
+        QueenSearchPolicy? queen = plan.ExperimentalQueenSupplement && !requiredPlan && !forced
+            && plan.CustomMembers.IsDefaultOrEmpty && initial.Battles.Length == 1 && initial.Options.Novelty is null
+            ? QueenSearchPolicy.Capture(initial.Battles[0], initial.Rules) : null;
+        if (queen is not null)
+        {
+            int firstPotion = Array.FindIndex(members, m => m.Potions != SearchPotionLimit.None);
+            int insertion = firstPotion < 0 ? members.Length : firstPotion;
+            members = [.. members.Take(insertion),
+                new(plan.BaselineWidth, SearchEvaluation.QueenSetup, SearchRetention.Standard, SearchPotionLimit.None),
+                .. members.Skip(insertion)];
+        }
         // Resolve all limits before dividing time so skipped and duplicate layers receive no share.
         PotionPolicy[] policies = new PotionPolicy[members.Length];
         string?[] skips = new string?[members.Length];
@@ -100,7 +111,9 @@ internal static class CombatSearchCoordinator
             long remaining = budget.Remaining(potionPhase);
             int phaseRemaining = 0;
             for (int i = index; i < members.Length; i++)
-                if (skips[i] is null && (!requiredPlan && !forced && members[i].Potions != SearchPotionLimit.None) == potionPhase)
+                if (skips[i] is null
+                    && (member.Evaluation == SearchEvaluation.QueenSetup || members[i].Evaluation != SearchEvaluation.QueenSetup)
+                    && (!requiredPlan && !forced && members[i].Potions != SearchPotionLimit.None) == potionPhase)
                     phaseRemaining++;
             if (remaining <= 1 || Expired())
             {
@@ -125,8 +138,9 @@ internal static class CombatSearchCoordinator
                 EndedBatchTarget = checked(member.Width * plan.EndedKeepWidths),
                 EndedBatchTrigger = checked(member.Width * plan.EndedTriggerWidths),
                 Scorer = new Scorer(scorer.RulesForCodec,
-                    baseOnly: member.Evaluation == SearchEvaluation.Base,
-                    offensive: member.Evaluation == SearchEvaluation.Offensive),
+                    baseOnly: member.Evaluation is SearchEvaluation.Base or SearchEvaluation.QueenSetup,
+                    offensive: member.Evaluation == SearchEvaluation.Offensive,
+                    queen: member.Evaluation == SearchEvaluation.QueenSetup ? queen : null),
                 SecondRankBand = member.Retention == SearchRetention.SecondBand,
                 SecondRankBandWidth = member.Width,
                 AggressivePowerCommitment = member.Retention == SearchRetention.Power,

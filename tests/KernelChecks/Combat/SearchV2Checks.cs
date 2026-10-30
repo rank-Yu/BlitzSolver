@@ -225,6 +225,94 @@ internal static class SearchV2Checks
         try { _ = CombatSearchCoordinator.RunAsync(request, new(), Run, cancel.Token, () => time).AsTask().GetAwaiter().GetResult(); }
         catch (OperationCanceledException) { cancelled = true; }
         Assert(cancelled, "cancellation propagates");
+        CheckQueenSupplement(rules, options, tiny, forced);
         Console.WriteLine("COMBAT_SEARCH_V2 basic contracts=pass");
     }
+    private static void CheckQueenSupplement(Rules rules, BeamOptions options, SearchPlan plan, BeamOptions forced)
+    {
+        Assert(Registry.TryMonster("QUEEN", out ushort queenId)
+            && Registry.TryMonster("TORCH_HEAD_AMALGAM", out _), "queen ids");
+        Registry.TryMonster("TORCH_HEAD_AMALGAM", out ushort torchId);
+        Battle root = default;
+        root.PlayerTurn = 1; root.Player.CurrentHp = root.Player.MaxHp = 75;
+        root.EnemyCount = root.RosterCount = 2;
+        root.Roster[0] = 0; root.Roster[1] = 1;
+        root.Enemies[0].MonsterId = torchId;
+        root.Enemies[1].MonsterId = queenId;
+        for (int i = 0; i < 2; i++)
+        {
+            root.Enemies[i].Creature.CurrentHp = root.Enemies[i].Creature.MaxHp = 419;
+            root.Enemies[i].Flags = EnemyFlags.InCombat;
+        }
+        QueenSearchPolicy policy = QueenSearchPolicy.Capture(root, rules)
+            ?? throw new InvalidDataException("queen opening not detected");
+        Battle advanced = root; advanced.PlayerTurn = 2;
+        Assert(QueenSearchPolicy.Capture(advanced, rules) is null, "no midcombat opening strategy");
+        advanced = root; advanced.SetCounter(Counter.CardsPlayedThisTurn, 1);
+        Assert(QueenSearchPolicy.Capture(advanced, rules) is null, "no partly played opening strategy");
+        advanced = root; advanced.Enemies[0].Creature.CurrentHp = 0;
+        Assert(!policy.Accepts(advanced), "early torch death rejected only by supplement");
+        advanced.Enemies[1].Creature.CurrentHp = QueenSearchPolicy.QueenHpThreshold;
+        Assert(policy.Accepts(advanced), "threshold opens torch kill");
+        SearchCase search = new(rules, [root], options);
+        SearchCase coded = search with { Options = options with
+            { Scorer = new Scorer(options.Scorer!.RulesForCodec, baseOnly: true, queen: policy) } };
+        SearchCase decoded = SearchCodec.DecodeRequest(SearchCodec.EncodeRequest(coded));
+        Assert(decoded.Options.Scorer!.QueenPolicy == policy, "supplement survives single-search transport");
+        Assert(SearchCodec.EncodeRequest(decoded).SequenceEqual(SearchCodec.EncodeRequest(coded)),
+            "supplement request round trip stable");
+        SearchPlan enabled = plan with { ExperimentalQueenSupplement = true };
+        Assert(CombatSearchCodec.Decode(CombatSearchCodec.Encode(new(search, enabled))).Plan.ExperimentalQueenSupplement,
+            "supplement survives combination transport");
+        Assert(!CombatSearchCodec.Decode(CombatSearchCodec.Encode(new(search, plan))).Plan.ExperimentalQueenSupplement,
+            "legacy/default requests remain disabled");
+        List<BeamOptions> observed = [];
+        long now = 0;
+        ValueTask<SearchMemberMeasurement> Run(SearchCase item, SearchStorage _, CancellationToken __)
+        {
+            observed.Add(item.Options); now += 10;
+            return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, 10));
+        }
+        CombatSearchCoordinator.RunAsync(new(search, plan), new(), Run, CancellationToken.None, () => now)
+            .AsTask().GetAwaiter().GetResult();
+        TimeSpan firstShare = observed[0].SoftTimeBudget;
+        observed.Clear(); now = 0;
+        var result = CombatSearchCoordinator.RunAsync(new(search, enabled), new(), Run, CancellationToken.None, () => now)
+            .AsTask().GetAwaiter().GetResult();
+        Assert(observed.Count == 6 && observed.Take(5).All(o => o.Scorer!.QueenPolicy is null)
+            && observed[5].Scorer!.QueenPolicy == policy, "only one supplement after ordinary searches");
+        Assert(observed[0].SoftTimeBudget == firstShare, "supplement does not take ordinary time shares");
+        Assert(observed.All(o => o.SearchMemoryBudgetBytes == plan.MemoryBytes
+            && o.DeadlineExpired is not null), "supplement retains memory and deadline contracts");
+        observed.Clear(); now = 0;
+        ValueTask<SearchMemberMeasurement> Exhaust(SearchCase item, SearchStorage _, CancellationToken __)
+        {
+            observed.Add(item.Options);
+            now += observed.Count == 5 ? plan.TotalMilliseconds : 10;
+            return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, 10));
+        }
+        result = CombatSearchCoordinator.RunAsync(new(search, enabled), new(), Exhaust, CancellationToken.None, () => now)
+            .AsTask().GetAwaiter().GetResult();
+        Assert(observed.Count == 5 && result.Members.Single(m => m.Member.Evaluation == SearchEvaluation.QueenSetup)
+            .SkippedReason == "time", "expired budget skips supplemental search");
+        observed.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Battles = [default] }, enabled),
+            new(), Run, CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.All(m => m.Member.Evaluation != SearchEvaluation.QueenSetup),
+            "non-queen encounters get no extra member");
+        observed.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = forced }, enabled),
+            new(), Run, CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.All(m => m.Member.Evaluation != SearchEvaluation.QueenSetup),
+            "forced potion policy does not receive a no-potion supplement");
+        var custom = enabled with { CustomMembers = [
+            new(2, SearchEvaluation.Base, SearchRetention.Standard, SearchPotionLimit.None),
+            new(2, SearchEvaluation.Base, SearchRetention.Standard, SearchPotionLimit.Allowed)] };
+        observed.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search, custom), new(), Run, CancellationToken.None, () => now)
+            .AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.All(m => m.Member.Evaluation != SearchEvaluation.QueenSetup),
+            "explicit custom portfolio stays authoritative");
+    }
+
 }

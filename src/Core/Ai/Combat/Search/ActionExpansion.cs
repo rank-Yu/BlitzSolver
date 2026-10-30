@@ -361,6 +361,7 @@ internal sealed partial class BeamSolver
                 }
                 return;
             }
+            if (_scorer.QueenPolicy is { } queen && !queen.Accepts(child)) return;
             int depth = _nodes[parentNode].Depth + 1;
             bool isTerminal = !Kernel.IsInProgress(child);
             int traceStep = _trace?.Match(parentNode, action) ?? 0;

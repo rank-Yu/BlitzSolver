@@ -26,12 +26,16 @@ internal sealed class Scorer
     private readonly bool _baseOnly;
     private readonly bool _offensive;
 
-    public Scorer(ScoreRules score, bool baseOnly = false, bool offensive = false)
+    public Scorer(ScoreRules score, bool baseOnly = false, bool offensive = false, QueenSearchPolicy? queen = null)
     {
         _score = score;
         _baseOnly = baseOnly;
         _offensive = offensive;
+        QueenPolicy = queen;
     }
+
+    /// <summary>Frozen opt-in policy applied only to the supplemental member.</summary>
+    internal QueenSearchPolicy? QueenPolicy { get; }
 
     /// <summary>
     /// Default-off test hook, set by <see cref="BeamSolver.Solve"/> from
@@ -547,6 +551,7 @@ internal sealed class Scorer
         if (won)
             score += ScoreWeights.VictoryBonus;
         score += enemyHp * ScoreWeights.EnemyHp;
+        if (QueenPolicy is { } queen) score += queen.Bonus(battle);
         int liveDeckClutter = 0;
         int liveCardCount = battle.HandCount + battle.DrawCount + battle.DiscardCount;
         int retainedAttackValue = 0;

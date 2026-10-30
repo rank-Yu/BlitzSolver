@@ -4,7 +4,7 @@ using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Ai.Combat;
 
-internal enum SearchEvaluation { Standard, Base, Offensive }
+internal enum SearchEvaluation { Standard, Base, Offensive, QueenSetup }
 internal enum SearchRetention { Standard, Power, SecondBand }
 internal enum SearchPotionLimit { None = 0, One = 1, Allowed = 2, Two = 3, Three = 4 }
 
@@ -18,6 +18,8 @@ internal sealed record SearchMember(int Width, SearchEvaluation Evaluation,
 internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWidth,
     int OffensiveWidth, int TotalMilliseconds, long MemoryBytes)
 {
+    /// <summary>Opt-in experimental queen opening supplement; defaults off.</summary>
+    public bool ExperimentalQueenSupplement { get; init; }
     public ImmutableArray<SearchMember> CustomMembers { get; init; } = [];
     public DefaultPotionSchedule DefaultPotionSchedule { get; init; } = DefaultPotionSchedule.StagedPortfolio;
     public int EndedKeepWidths { get; init; } = 8;

@@ -14,7 +14,7 @@ internal static class PortfolioBuilder
             bool seenAllowed = false, baseline = false;
             foreach (SearchMember member in custom)
             {
-                if (member.Width <= 0 || !Enum.IsDefined(member.Evaluation)
+                if (member.Width <= 0 || member.Evaluation == SearchEvaluation.QueenSetup || !Enum.IsDefined(member.Evaluation)
                     || !Enum.IsDefined(member.Retention) || !Enum.IsDefined(member.Potions))
                     throw new InvalidDataException("自定义组合成员无效。");
                 if (forced && member.Potions != SearchPotionLimit.Allowed)
