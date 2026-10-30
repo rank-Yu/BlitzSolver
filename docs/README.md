@@ -66,6 +66,7 @@ Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场�
 | [局内组合搜索规格](combat-search-v2-spec.md) | 本次搜索重构的目标、参数与验收范围 |
 | [局内组合搜索验证](combat-search-v2-validation.md) | 兼容回归、原版重放、120 场质量与差异调查 |
 | [用药上限逐层搜索验证](potion-layers-validation.md) | 分层合同、原版重放及 120 场中档新旧对照 |
+| [用药调度三组离线对照](potion-schedule-experiment.md) | 同预算比较 1→放开、1→2→3 与 1→2→放开 |
 | [原生状态导入](import.md) | `CombatState` → `Battle`/`Rules`/评估配置的编译、拒绝码与离线对照 |
 | [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
 | [Mod 入口与无头捕获](mod.md) | 打包、RitsuLib 入口、共存、部署与对账、测试协议、启动脚本与实机对照 |
