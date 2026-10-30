@@ -47,7 +47,7 @@ Costs 与 Effects 分别标注 `Unknown/Partial/Complete`。Unknown 只能有零
 
 NativeKey 与可选 PageKey 保存原版 `TextKey`、休息选项 `OptionId` 等机器键的原样 UTF-8，
 空键表示未提供。构造与校验都严格拒绝坏 UTF-8、分裂码点和越界，不截断。它们帮助未来策略
-区分选项，但不作为执行身份，不解析文本推断效果。本批不保存完整本地化文案或动态参数；
+区分选项，但不作为执行身份，不解析文本推断效果。协议不保存完整本地化文案或动态参数；
 首批导入器读取机器键及两个已映射事件的 typed 事实；完整本地化参数仍未接入。`SelectionPurpose` 仅用于 CardSelect，
 可为 None/Remove/Upgrade/Transform/Enchant；None 表示用途未描述，不能猜测。
 SelectionPreviewKnowledge 目前必须为 Unknown：它不承诺变牌/附魔后的卡牌预览，不能把当前 CardView 当作预测结果。
@@ -100,7 +100,7 @@ Treasure=11 与 Open=15 追加到既有请求/选项枚举；GameOver=10 仍不�
 | 2 | `EnterMapCoordInternal` | — | — |
 | 3 | `UpdatePlayerStatsInMapPointHistory`（历史非空时） | 只写历史里的玩家金币/HP，不在 `RunState` | — |
 | 4 | `State.ActFloor = coord.row + 1` | `ActFloor` | — |
-| 5 | `ExitCurrentRooms` | 逐个弹出 `Rooms` 并执行 `Exit`；本批在进点后为空栈 | — |
+| 5 | `ExitCurrentRooms` | 逐个弹出 `Rooms` 并执行 `Exit`；此边界在进点后为空栈 | — |
 | 6 | `BuildRoomTypeBlacklist(上一历史项, CurrentMapPoint.Children)` | — | — |
 | 7 | `RollRoomTypeFor(pointType, blacklist)` | 未知点更新 `Odds` | 未知点：`UnknownMapPoint` 流一次 `NextFloat` |
 | 8 | `CreateRoom(roomType, pointType)` | 事件：`PullNextEvent` 标记已访问事件；战斗：取下一遭遇 | 事件 RNG 在进入事件时创建 |
@@ -226,7 +226,7 @@ Core 只比较回答与给定请求的完整 Token，不保存已消费历史；
 
 原版 FromSimpleGrid/FromDeckGeneric 在候选不多于 Min 且不需手动确认时可能自动全选，
 根本不产生 pending 请求。导入器区分此路径与真实待选请求，依据真实可选数量形成
-有效约束，不能照抄 prefs 后制造无法满足 Min 的请求。本批不改变原版自动行为。
+有效约束，不能照抄 prefs 后制造无法满足 Min 的请求。宿主保留原版自动行为。
 
 ## 7. 原版首批导入与绑定
 

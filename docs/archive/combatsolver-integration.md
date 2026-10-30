@@ -101,7 +101,6 @@ Search 只通过注入的 `SearchDiagnosticsSink` 写事件、发布改用记录
 
 原 `potion-audit-boundary:*` 与 `can-take-over:*` 原因码已删除：这些请求现在由 Flash 执行同一请求，或（非法药水上下界）按参数校验抛出同一异常。仅有的无路线结论仍是药水策略/审计没有可接受路线；仅有的显式拒绝是上表。
 
-
 固定前缀续接的搜索口径：
 
 1. 现有引擎从请求根按 `ApplyFixedPrefix` 的同一规则回放 `ContinuationSearchRequest.Prefix`，得到前缀末尾的 `SimulationSnapshot`（`OpeningProbe.ReplayFixedPrefixForFlash`）。前缀无法回放按 `UnsupportedRequest` 拒绝；开启模式写 `FLASH_SEARCH_FAILED reason=admission-unsupported-request` 并停止部署，不回落。

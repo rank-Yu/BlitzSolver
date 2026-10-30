@@ -182,8 +182,6 @@ Wriggler、Myte、PhantasmalGardener 等）在导出时按真实槽位解析；�
 - 自然开局第一场战斗：5 角色 × 进阶 0/10 × 20 种子 = 200，经 `RunTestHost.StartNewRunAsync` 后用 `RunManager.EnterMapCoord` 进入第一排战斗点；
 - `RunCatalog` 的 89 个遭遇各一次，外加 Ruby Raiders 的第二个种子（它的 setup 从 5 个 raider 中随机取 3 个，默认种子只覆盖 3 个）。
 
-当前结果：D1 `same=420 diff=0 reject=0 skip=0`，自然 `same=200`，遭遇 `same=90`；没有任何拒绝。内容覆盖：1078/1078 个卡牌升级等级、108/108 个 `Registry` 怪物（含 `EXOSKELETON` 的遭遇变体）、12 个有变量的 Power、100 个有变量的遗物、65 个药水；未用到项为 0。
-
 复跑命令见 [测试与验证](testing.md) 第 6.11 节。
 ## 8. 已删除的区块
 

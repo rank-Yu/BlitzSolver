@@ -337,7 +337,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 - `SimulatedCombatState.IsStatefulRelic` 的 19 种遗物。
 
 每个条目必须由 `ProjectPower`/`ProjectRelic` 认领。例如 `SoulboundPower`/`CacophonyPower`
-虽然会被旧桥捕获，但本批没有投影实现，因此根会被 `unclaimed-private-state` 拒绝，而不是
+虽然会被旧桥捕获，但当前没有投影实现，因此根会被 `unclaimed-private-state` 拒绝，而不是
 丢掉状态。没有捕获条目的怪物私有整数也要么被 `MonsterDef.AiRegisterNames`/惰性名单认领，
 要么拒绝。
 
@@ -404,35 +404,9 @@ R2a-5 的建局开战选择不改变这个导入合同：Core 侧用 `ChoiceRequ
 `RunState` 重放，原版侧对照工具按完整序列各自重新进点；3 个回合准备 fixture 仍按原生准备页
 的每个选项重建整场战斗，用于冻结的导入/配置对照。
 
-## 7. 当前结果与限制
+## 7. 检查入口与限制
 
-`--all --jobs 8 --rules-compare` 当前：
-
-```text
-rules-objects distinct=388 roots=410
-rules same=410 diff=0 reject=0
-```
-
-410 个输入覆盖全部 388 个冻结规则对象。`--rules-table-check` 当前：
-
-```text
-RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
-  missing_cards=0 extra_cards=0 missing_powers=0 extra_powers=0 registry_missing=0
-```
-
-`--all --jobs 8 --import-compare` 与 `--compiled-rules` 当前：
-
-```text
-import same=410 diff=0 reject=0
-```
-
-`--all --jobs 8 --config-compare` 当前：
-
-```text
-config same=410 diff=0 reject=0 full=410 subparts=0
-```
-
-410 个输入整份请求逐字节相同；418 个根的 `scoreHash`/`boundHash` 都与 D1 一致。
+使用 `--rules-compare`、`--rules-table-check`、`--import-compare`（可加 `--compiled-rules`）和 `--config-compare` 分别检查规则覆盖、状态导入及请求编译。各入口报告逐根差异与稳定拒绝码，使用方法见 [测试与验证](testing.md)。
 
 3 类负例由 `--import-negative` 验证：
 
@@ -460,12 +434,7 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
 - `Component`/`KnownNativeCertificate`/`HasOnlyPostCombatHealing` 的第三方 run/combat
   订阅者、BaseLib card modifier、AdaptedOnPlay 按离线宿主的固定“无第三方”口径处理；实机 Mod
   根需要另行拒绝或补证据。
-- 实机捕获与单 Beam 搜索已接入（`src/Mod`）：20 个普通根的 `BATL`/`RULE`/`SREQ.capture` 与
-  `NativeStateDump` 均与冻结快照/离线宿主逐字节相同；同样的 20 根在确定性求解后，游戏
-  `SREQ` 与离线组装的请求逐字节相同、游戏 `SRES` 与离线重解逐字节相同。3 个回合准备 fixture
-  的 `BATL`/`RULE`/`NativeStateDump` 相同，`SREQ.capture` 为评分/下界子部件比较，搜索跳过。
-  前缀根与完整准备阶段多根排序仍只在离线宿主验证。实机与离线建局的第三幕幕结构曾有偏差（教学发现顺序），已在测试会话中对齐，5 个受影响根复跑相同。见 [Mod 入口与无头捕获](mod.md)。
-
+- 实机测试支持捕获状态与确定性单成员搜索对照；回合准备 fixture 只比较评分/下界子部件并跳过搜索。前缀根与完整准备阶段多根排序仍由离线工具检查，测试会话的幕结构处理见 [Mod 入口与无头捕获](mod.md)。
 
 ## 8. 整局状态导入（R1b）
 
@@ -497,6 +466,4 @@ dotnet artifacts/bin/Differential/release/Differential.dll --run-import-compare 
 dotnet artifacts/bin/Differential/release/Differential.dll --run-import-negative
 ```
 
-2026-10 结果：自然开局 200/200、D1 410/410（含 120 个质量根）逐字段相同；战斗一致性
-410/410；15 条流 × 64 次抽取 0 偏差；地图 410/410；7 类负例 0 失败。详细结果见
-[测试与验证](testing.md)第 6.10 节。
+局外导入的比较范围与结果字段见 [测试与验证](testing.md) 第 6.10 节。

@@ -201,13 +201,13 @@ dotnet run --project tests/Golden -c Release -- \
   SHA-256 汇总>`。普通 `manifest` 与 `refreeze` 都保留这一字段，不会把它丢掉。
 - 仓库数据在 M2c 合并时重录了 23 个根（原因 `M2c semantic corrections`）：EchoingSlash/Omnislice 攻击计数 8 个、临时敏捷行顺序 3 个、Power 的 Target/Applier 12 个。名单见清单的 `provenance.d1Rerecord`；游走条数、状态数与转移数都不变。
 
-## 9. 导出时核对过什么
+## 9. 校验范围
 
-- D1 的 410 个 `golden.br` 与 410 个 `config.br` 来自同一套根输入；每个根的 `meta.json` 记录输入映射、规则哈希与计数。
-- D1 重放：状态、合法动作、选择、K1/K2、`scoreHash`/`boundHash`/`traitHash` 与导出值一致；当前实测 `mismatched=0`。
-- D2 全量：1,983 个请求在去掉软时间预算后重新求解，路线、分数、计数、容量丢弃、审计与接管逐字段等于 `expected`；当前实测 `1983/1983`（展开 15,568,469）。`expected` 最初由 M0 宿主捕获，M3b 合并时用 `refreeze` 按当前搜索重算，见 [测试与验证](testing.md) 的 4.2–4.3。
-- manifest：5,589 个文件的大小与 SHA-256、`totalBytes`、D1/D2 计数与 `provenance` 全部自洽。M3b 重冻前是 5,592 个文件、24,338,737 B；重冻把 4 份 `replay-report-*-of-4.json` 合并为一份 `replay-report-1-of-1.json`。
-- 没有把时间、GC、帧压力或运行期路径写进确定性结果；这些字段只存在于旧宿主的诊断里。
+- D1 的 `golden.br` 与 `config.br` 应来自同一套根输入；`meta.json` 记录输入映射、规则哈希与计数。
+- D1 重放比较状态、合法动作、选择、K1/K2 与特征哈希。
+- D2 对冻结请求重新求解，逐字段比较路线、分数、计数、容量丢弃、审计与接管结果。确定性重放不使用墙钟截止。
+- manifest 核对逐文件大小与 SHA-256、总字节数、D1/D2 计数及来源；数据更新记录保留在 `provenance`。
+- 时间、GC、帧压力或运行期路径仅用于诊断，不写入确定性结果。
 
 ## 10. 格式 v2 迁移
 
@@ -225,13 +225,7 @@ v2 只改数据格式和对外标识里的名字，不改任何字段值：
 | D1 根名 | `flash-<name>` | `<name>` |
 | manifest 键 | `flashBattleSize` | `battleSize` |
 
-迁移由 `.local/tool-tasks/solver/migrate-v2/` 的一次性工具完成，工具不进入提交。工具使用冻结的 v1 读取器解码旧文件，用 v2 写入器生成新文件，再分别用 v1/v2 读取器逐字段比较：
-
-- 45,175,779 次比较，`mismatches=0`；覆盖规则表、`Battle` 字节、K1/K2 记录、请求选项、期望结果、meta 与 replay 报告/index。
-- 文件数与各类计数不变：D1 410 个根目录、418 个记录根、5,062 个 K1、15,296 条游走、482,227 个游走状态、469,352 个转移；D2 1,983 个请求/期望；规则对象 388 个；总文件 5,592。
-- 规则对象与 D2 请求按内容 SHA-256 命名，期望结果沿用请求哈希；名字随格式字节变化；`meta.json` 的 `rulesSha256`、`d2/rules-index-*` 与 `d2/replay-report-*` 中的哈希同步换成新值。
-- v1 读取器显式拒绝 v2 文件，v2 读取器显式拒绝 v1 文件；仓库不保留 v1 读取兼容代码。
-- 替换后用 `Golden manifest` 重写两次 `manifest.json`，两次 SHA-256 相同。
+格式迁移需分别解码新旧载荷并逐字段核对。规则对象与 D2 请求按内容 SHA-256 命名，格式字节变化后，应同步更新引用它们的索引和 manifest。当前 v2 读取器显式拒绝 v1 文件。
 
 必须保留的旧名字：
 

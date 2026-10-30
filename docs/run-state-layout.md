@@ -112,7 +112,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `ShouldReplaceTreasureWithElites`、`_pointTypeCounts` | 2/3 | 地图生成参数；生成后的地图已保存 |
 | `AbstractRoom.RoomType/ModelId/ParentEventId/IsPreFinished` | 1 | `Rooms` |
 | `AbstractRoom.Id` | 3 | 地图点内房间编号，可推导；不进入 |
-| 房间内的奖励列表/商店货架/事件页面/选牌页面/宝箱内容 | 未完成 | R2；本批只表示当前房间身份 |
+| 房间内的奖励列表/商店货架/事件页面/选牌页面/宝箱内容 | 未完成 | 交互页面使用独立决策协议；此处表示当前房间身份 |
 
 ### 2.4 随机数、概率、遗物袋与解锁
 
@@ -212,7 +212,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 | `ShopColorlessCards` | 2 | 原版 `_colorlessCardRarities.Length` |
 | `ShopRelics` | 3 | 原版 `PopulateRelicEntries` 固定 3 格 |
 | `ShopPotions` | 3 | 原版 `CreateRandomPotionsOutOfCombat(..., 3, ...)` |
-| `Rewards` | 16 | 单个战后奖励集合的项数上限；原版无硬上限，本批超限显式 `CapacityException` |
+| `Rewards` | 16 | 单个战后奖励集合的项数上限；原版无硬上限，超限显式 `CapacityException` |
 | `RewardCardOptions` | 16 | 所有待处理卡牌/特殊卡奖励的选项总数；单个卡牌奖励通常 3，LastingCandy 4 |
 
 ## 4. 局外随机数
@@ -245,7 +245,7 @@ R1b 只覆盖单人、标准模式、原版内容。多人状态、第三方内�
 - 事件 RNG：`seed + (shared ? 0 : slot) + Hash(event id)`；单人 slot 0。`Rng.Events` 保存当前事件链的已消费状态。
 - 遭遇 RNG：`seed + TotalFloor + Hash(encounter id)`；`TotalFloor` 由 `History.Count` 得到。
 - 每幕地图 RNG：`seed + Hash("act_N_map")`；`Rng.Map` 保存初始状态，`MapConsumed` 标记该幕地图是否已在原版生成。当前幕地图已导入，R2 不应再用该初始状态重生成；未来幕从 `MapConsumed=0` 开始。
-- `RunRng.NewRun(runSeed, playerSeed)` 生成 15 条初始状态，是本批离线建局与导入的唯一构造入口。
+- `RunRng.NewRun(runSeed, playerSeed)` 生成 15 条初始状态，是离线建局与导入的构造入口。
 
 `tests/KernelChecks/Run/RunChecks.cs` 用从原版导出的固定种子前 8 次抽取锁死所有 15 条命名流、事件、遭遇与地图派生；`--run-import-compare` 对每个自然开局/战斗根再从原版与 Sts2Solver 各抽 64 次（`NextInt(1000)`/`NextFloat`/`NextDouble`/`NextInt(-5,100)`/`NextBool` 轮换）。
 
@@ -278,7 +278,7 @@ payload byte[]  RunState 的规范字节镜像
 | `RunRoom` / `RunRooms` | 1、14–15 / 1–3 |
 | `RunVisited` / `RunEventRng` / `RunRngState` | 129–135 / 4–7 / 781–783 |
 
-- 同一逻辑字段及显式保留字段只有一种规范字节表示：顺序无关集合被排序，未使用槽位和隐式 padding 为零。显式保留字段维持现有 v3 字段合同，不在本次修复中改变。
+- 同一逻辑字段及显式保留字段只有一种规范字节表示：顺序无关集合被排序，未使用槽位和隐式 padding 为零。显式保留字段维持现有 v3 字段合同，编码时不改变其含义。
 - `Decode` 校验魔数、版本、长度、结构计数、内容 id、属性包结构与 `ExpectedSize`；任何不一致抛 `InvalidDataException`。
 - 旧的有效 v3 输入即使隐式 padding 非零也可解码；重新 `Encode` 得到规范字节。字段/枚举/容量验证保持严格，格式版本、目录 id 与布局不变。
 - 内容目录顺序变化（新增原版内容）会改变 id，必须同时递增 `RunCodec.FormatVersion`；`RunState.ExpectedSize` 变化也必须递增版本。R2c-1 因 `RunRewards`/`RunRoom.GoldProportion` 升到 2；R2c-2 因 `RunShop`/`RunCard.Flags`/`DecisionOptions` 升到 3。
@@ -369,21 +369,13 @@ RNG、属性包或未来序列。正例与嵌套数组/托管引用反例、Kern
 `RunPropertyBag` 解码出同样文本。两边只有名字哈希函数 `RunHash.XxHash64` 共用，属性编码器
 本身不参与对照；卡牌、附魔与遗物的属性包都走这条路径。
 
-## 8. 验证结果
+## 8. 校验方法
 
-- `tests/KernelChecks`：`RunState` 尺寸、15 条流派生固定值、编码往返、全部容量溢出、`RunView` 可见性合同。
-- 自然开局：5 角色 × A0/A10 × 20 个种子 = **200/200** 逐字段相同；每局 15 条流 × 64 次抽取 = 0 偏差；第一幕地图节点/连线/类型 = **200/200** 相同。
-- 商店：自然 187 局 + D1 401 局逐字段与逐动作相同，0 diff；拒绝 9 例均有原因码（R2c-2 报告）。
-- D1：**410/410** 输入逐字段相同（含 120 个质量根）；战斗一致性 **410/410** 相同；15 条流 × 64 次抽取 0 偏差；地图 **410/410** 相同。
-- 负例：多人、非标准模式、Modifier、未知事件、未知解锁、无地图、牌组容量共 7 类均返回稳定拒绝码。
-- 复跑命令见[测试与验证](testing.md)第 6.10 节；本批报告在 `.local/tool-tasks/solver/R1b-report.md`；商店对照在 `.local/tool-tasks/solver/R2c2-report.md`。
+- `tests/KernelChecks` 检查 `RunState` 尺寸、随机流派生、编码往返、容量溢出与 `RunView` 可见性。
+- `--run-import-compare` 比较自然开局与冻结根的完整导入、战斗一致性、随机流和地图。
+- `--run-import-negative` 检查多人、非标准模式、Modifier、未知内容、无地图及容量不足的拒绝码。
+- 命令与字段说明见 [测试与验证](testing.md) 第 6.10 节；逐次结果保存在本地 `.local/`。
 
-## 9. 未完成与未验证
+## 9. 边界
 
-- 事件当前页/选项、休息处选项、宝箱内容与通用选牌页面仍不在本批；奖励与商店货架已进入 `RunState`。
-- 房间 `EncounterState` 与 Heist 金币来源未表示；依赖它们的奖励生成显式拒绝。
-- 玩家地图点历史统计（金币、卡牌增减、选择记录）未表示；`FakeMerchant` 等事件需要的当前历史属 R2 事件状态。
-- `MapPoint.Quests` 未显式存储，计划由 `FurCoat`/`SpoilsMap` 私有属性在 R2 重建；持有 `SpoilsMap` 时商人删牌/商店 Hook 会以 `shop-hook-listener` 拒绝。
-- 商店房间的 `BeforeRoomEntered`/`AfterRoomEntered` 只有 32 个已验证的遗物效果实现；`LordsParasol`、`FRESNEL_LENS`、`BING_BONG` 等名单外监听者以 `shop-hook-listener` 拒绝。
-- 未合成第三方模型做负例；第三方路径由 `NativeAccess.RequireOriginal` 统一覆盖，与战斗导入同一实现。
-- 未跑无头游戏；本批不影响 Mod 行为。
+`RunState` 保存导入状态；房间内的可见交互和选择由 [局外决策协议](run-decisions.md) 表示，执行由 [离线宿主](offline-host.md) 交给原版推进。数据布局覆盖不等于全内容自动游玩覆盖；第三方内容、未知模型与容量不足仍由导入层显式拒绝。

@@ -6,7 +6,7 @@
 
 ## 1. 环境
 
-- .NET SDK 9.0.300 或更高补丁版本；当前 `global.json` 固定 9.0.300，实测 9.0.318。
+- .NET SDK 9.0.300 或更高补丁版本；SDK 版本以 `global.json` 为准。
 - Linux 或 Windows 的普通 .NET 控制台环境；K0、D1、D2 都不需要游戏、Godot、Harmony、RitsuLib 或第三方 Mod。
 - 所有命令在仓库根目录执行，`dotnet` 需要在 `PATH` 上。
 
@@ -35,7 +35,7 @@ solution，再运行下文的单项命令；不能把旧产物的通过结果当
 dotnet build Sts2Solver.sln -c Release -t:Rebuild
 ```
 
-当前结果：`0 个警告，0 个错误`。产物在 `artifacts/bin/`：
+构建产物在 `artifacts/bin/`：
 
 - `Sts2Solver.Core.dll`
 - `Sts2Solver.KernelChecks.dll`
@@ -93,12 +93,7 @@ dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/d
 
 ### 4.1 D1
 
-当前结果：
-
-```text
-D1_OK files=410 roots=418 k1=5062 walks=15296 states=482227 transitions=469352
-  features=474832 traits=474414 rules=388 mismatched=0
-```
+输出 `D1_OK` 汇总文件、根、游走、状态、特征与差异计数。校验失败时返回非零退出码。
 
 D1 对每个根重放：
 
@@ -184,14 +179,14 @@ D2 对 `d2/requests/*.request.br` 的 1,983 个唯一请求：
 
 分片权重取第 4 步所比较的同一个 `ExpandedNodes` 字段。它是确定性计数，与机器无关；全量运行和分片运行都不依赖目录枚举顺序。
 
-`D2_OK` 还输出 `playDeduped`、`playVerifiedExact/Approx`、`choiceByClassRequests`、`choiceVerifiedExact/Approx` 与未决计数；关闭校验开关时 `*Verified*` 项为 0，打开后的实测见 4.4。
+`D2_OK` 还输出 `playDeduped`、`playVerifiedExact/Approx`、`choiceByClassRequests`、`choiceVerifiedExact/Approx` 与未决计数；关闭校验开关时 `*Verified*` 项为 0，自检方式见 4.4。
 
 D2 证明：1,983 个请求在去软时间预算后可复现完整搜索结果。
 D2 不证明：请求集合之外的根、实机运行、界面与部署行为。
 
 完整 `verify` 的最后一行是 `GOLDEN_VERIFY ... mismatched=0`。解码失败或字段不一致输出 `GOLDEN_INVALID <原因>`，非预期异常输出 `GOLDEN_FAILED <类型>: <消息>`，两者都以非零退出。
 
-### 4.3 M3b 对照、校验与重冻
+### 4.3 对照、校验与重冻
 
 #### `compare`：只报告、不判失败
 
@@ -208,50 +203,6 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 - 质量用 `BeamSolver.TryCompareResultQuality`：把冻结路线与当前路线分别从同一根重放，按求解器自己的终局比较键（胜负、存活、死亡保护、战略失血、成长、回合、资源、可选药水、敌人 HP、分数、动作数）分类为更好/相同/更差。无法重放时计 `unknown`。
 - 本命令不修改 `tests/Golden/data`，也不更新 manifest。
 
-M3b 在 1,983 个 D2 请求上的 `--jobs 6` 四片合计（`solveMsSum` 是逐请求求解时间之和，墙钟是四片顺序运行的合计；基线 `none` 的第一片同时含慢请求 `40e330…`）：
-
-| 配置 | 更好/相同/更差 | 胜利 +/− | 展开 | 转移 | 求解 ms 合计 | 四片墙钟 | 最慢片 |
-| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `none`（冻结基线） | 0 / 1,983 / 0 | 0 / 0 | 15,739,416 | 89,023,995 | 1,013,005 | 295.1s | 177.4s |
-| `play`（完全等价出牌） | 0 / 1,983 / 0 | 0 / 0 | 15,739,416 | 84,595,399（−4.98%） | 1,012,406 | 292.6s | 176.2s |
-| `choice`（旧版选牌等价类） | 97 / 1,816 / 70 | +11 / −5 | 15,627,412（−0.71%） | 80,329,530（−9.77%） | 912,795 | 196.8s | 82.7s |
-| `all`（`play + choice`） | 97 / 1,816 / 70 | +11 / −5 | 15,627,412（−0.71%） | 75,891,681（−14.75%） | 888,978 | 193.7s | 82.3s |
-| `choice-fill` | 29 / 1,941 / 13 | +5 / −4 | 15,568,469（−1.09%） | 77,836,748（−12.57%） | 859,367 | 157.6s | 39.9s |
-| `all-fill`（正式默认） | 29 / 1,941 / 13 | +5 / −4 | 15,568,469（−1.09%） | 73,395,937（−17.56%） | 843,219 | 154.8s | 39.2s |
-
-`all-fill` 与 `all` 的质量差异集中在“位置变体是否被保留”：
-
-| 配置 | 更差（截断请求/未截断） | 更好（截断/未截断） | 胜利变失败（截断/未截断） | 失败变胜利（截断/未截断） |
-| --- | --- | --- | --- | --- |
-| `all` | 70（15 / 55） | 97（47 / 50） | 5（2 / 3） | 11（5 / 6） |
-| `all-fill` | 13（13 / 0） | 29（29 / 0） | 4（4 / 0） | 5（5 / 0） |
-
-旧版 `choice` 在未截断请求上虽然集合相同（32 个名额足够），但把类代表顺序放在前面，会改变池的插入/同分顺序；`all-fill` 对未截断请求直接使用原 `Enumerate`，把所有这类变化清零。截断请求里 `choice-fill` 先保留不同内容选法，再补位置变体，13 个变差和 29 个变好全部落在这一子集。
-
-慢请求 `40e330…`（REGENT-013）：
-
-| 配置 | 展开 | 转移 | 求解时间 | 路线/质量 |
-| --- | ---: | ---: | ---: | --- |
-| `none` | 283,539 | 12,430,403 | 177.1s | 冻结 |
-| `choice` | 143,643 | 6,105,755 | 82.4s | 逐动作相同，相同 |
-| `all` | 143,643 | 6,072,056 | 82.0s | 逐动作相同，相同 |
-| `all-fill` | 132,270 | 1,573,784 | 23.0s | 逐动作相同，相同 |
-
-`play` 完全等价出牌只改变转移/去重计数，路线、展开与质量全部相同；`all-fill` 与 `choice-fill` 的质量完全相同，说明完全等价出牌没有叠入质量变化。`all-fill` 的 29 个更好对 13 个更差、净多 1 次胜利（+5/−4）；旧 `all` 虽然净多 6 次胜利（+11/−5），但其中 55 个变差、3 个胜利变失败发生在未截断请求，纯粹来自类代表顺序/位置变体的丢失。按“未截断请求零变化”的标准，正式默认选 `all-fill`。近似出牌去重评估后已撤掉，不在当前 `compare` 配置中。
-
-按 D1 根匹配（`Fingerprint.Hash` + 完整字节比较，1,315/1,983 个请求命中 D1 根；其余 668 个无法定位根），`all-fill`：
-
-| 角色 | 请求 | 更好 | 相同 | 更差 | 胜利 +/− | 展开 | 转移 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| REGENT | 255 | 11 | 237 | 7 | +5 / −4 | −9.89% | −59.16% |
-| DEFECT | 276 | 2 | 274 | 0 | 0 / 0 | −0.28% | −4.66% |
-| NECROBINDER | 254 | 7 | 247 | 0 | 0 / 0 | +0.03% | −3.78% |
-| SILENT | 252 | 0 | 252 | 0 | 0 / 0 | +0.01% | −12.11% |
-| IRONCLAD | 278 | 0 | 278 | 0 | 0 / 0 | −0.00% | −5.13% |
-| 未匹配 | 668 | 9 | 653 | 6 | 0 / 0 | −0.23% | −5.66% |
-
-D2/D1 数据没有幕字段；`quality-*` 根名只带角色，`a3-*` 根可确定为第三幕。上表只按角色汇总，不按幕拆分。变差集中在未匹配根（6）、`quality-REGENT-015`（4）、`quality-REGENT-008`（2）与 `quality-REGENT-002`（1）；4 个胜利变失败全部在截断请求里，分别是 `22850c40`/`e690d0fa`（REGENT-015）、`a7e0e220`（REGENT-002）、`0e87f3a0`（REGENT-008）。
-
 #### `refreeze`：在副本上重算并重写清单
 
 ```bash
@@ -263,16 +214,7 @@ dotnet run --project tests/Golden -c Release --no-build -- \
 
 `refreeze` 先拒绝源/目标互相包含或目标非空，再复制整棵数据目录，用当前代码重解全部 1,983 个 D2 请求，写回 `d2/expected`；旧的 `replay-report-*.json` 合并为一份新报告，最后调用 `ManifestBuilder` 重写清单，并在 `provenance.refreeze` 写入新结果集的 SHA-256。源目录只读。普通 `manifest` 现在保留已有的 `provenance.refreeze` 与 `provenance.d1Rerecord`；在重冻或重录后的数据上重写清单应逐字节不变。
 
-本次副本演示输出：
-
-```text
-REFREEZE_OK source=.../tests/Golden/data target=.../.local/tool-tasks/solver/refreeze-data-fill
-  requests=1983 captured=2802 jobs=6
-  refreeze=M3b current-code results sha256=682e89f0e6855fcd303a4f7270986d6aa2dcafbd5c637ae094d78713ecfde8f6
-MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
-```
-
-副本上严格 `verify` 通过：D1 0 不一致；D2 `selected=1983 equal=1983 mismatch=0 expanded=15568469`，wall 122.3s（jobs 6）。用户同意后，M3b 合并到 main 时在合并后的代码上对 `tests/Golden/data` 重跑同一命令，结果集 SHA-256 与副本相同（`682e89f0…`），随后替换仓库数据；替换后严格 `verify` 为 D1 0 不一致、D2 1983/1983，等价开关下的计数与 4.4 相同。
+输出 `REFREEZE_OK` 记录源、目标、请求数和结果哈希；`MANIFEST_WRITTEN` 汇总文件大小与来源。逐次输出保存在本地。
 
 ### 4.4 搜索等价自检（`Exec` 覆盖合同 + 原地投影）
 
@@ -285,50 +227,15 @@ MANIFEST_WRITTEN files=5589 totalBytes=23692454 d1Files=410 d1Roots=418 ...
 - 每个被跳过的完全等价出牌从父状态执行代表与被跳过的动作，按同一确定策略续完后续选择，逐字节比较 `Battle`；完全等价必须相同，否则抛 `同名出牌完全等价校验失败`；
 - 每个选牌输出（类代表或补位物理选择）取一个同类但不同位置的物理选择（各类最后一次出现）与它比较；判定为完全等价时必须相同，判定为近似时只统计实际相同的比例。每请求最多抽样 8 个输出，容量/选择深度失败的比较计未决。
 
-在副本上全量 D2 打开开关的命令与结果：
+在副本上全量 D2 打开开关：
 
 ```bash
 STS2_SOLVER_VERIFY_SEARCH_EQUIVALENCE=1 \
   dotnet run --project tests/Golden -c Release --no-build -- \
-  verify .local/tool-tasks/solver/refreeze-data-fill --only d2 --jobs 6
+  verify .local/golden-copy --only d2 --jobs 6
 ```
 
-```text
-D2_OK selected=1983 equal=1983 mismatch=0 expanded=15568469
-  prefixChecks=1881251 threatChecks=73033078
-  playDeduped=4404006 playVerifiedExact=4403604 playVerifiedApprox=0
-  playVerifiedApproxEqual=0 playVerifiedUnresolved=402
-  choiceByClassRequests=2046332 choiceVerifiedExact=500305
-  choiceVerifiedApprox=1992813 choiceVerifiedApproxEqual=175350
-  choiceVerifiedUnresolved=6221 wall=132.7s jobs=6
-```
-
-完全等价的断言（出牌 4,403,604 次、选牌 500,305 次）全部成立；近似选牌比较 1,992,813 次，其中实际完全相同 175,350 次（8.80%），未决 6,221 次。`playVerifiedApprox=0` 是因为正式代码只保留完全等价的出牌去重，近似出牌去重已撤。
-
-### 4.5 计时
-
-本机 24 逻辑处理器，M3b 以 `--jobs 6` 测量：
-
-| 运行 | 墙钟 | 备注 |
-| --- | ---: | --- |
-| Release 重建 | 约 5.8s | 0 警告 |
-| D1 | 10.6–11.2s | 410 文件 / 482,227 状态 / 474,832 特征 |
-| D2（副本，严格 verify，全量一次运行） | 122.3s | 1,983/1,983，展开 15,568,469 |
-| D2（副本，等价开关，全量一次运行） | 132.7s | 1,983/1,983，prefix/threat 与等价检查 |
-| 副本 refreeze | 127.4s | 复制 + 重解 + 清单 |
-| manifest | 小于 1s | 5,589 文件 / 23,692,497 B |
-
-D2 四片 `compare --config all`（依次运行，`--jobs 6`）：
-
-| 分片 | 请求 | equal/质量 | 墙钟 |
-| ---: | ---: | --- | ---: |
-| 0/4 | 494 | 11 更好 / 482 相同 / 1 更差 | 38.5s |
-| 1/4 | 495 | 6 / 483 / 6 | 38.7s |
-| 2/4 | 496 | 4 / 488 / 4 | 39.2s |
-| 3/4 | 498 | 8 / 488 / 2 | 38.4s |
-| 合计 | 1,983 | 29 / 1,941 / 13 | 154.8s |
-
-慢请求 `40e330…` 从冻结基线的 177.1s 降到 23.0s（−87.0%），展开 283,539→132,270（−53.3%），转移 12,430,403→1,573,784（−87.3%），路线逐动作相同；单进程 `--jobs 1` 实测 17.2s。M3a 的计时（前缀共享）不再与 M3b 直接相加：本批的收益来自选择分支数，而 D1 与内核路径未改。
+完全等价检查失败会直接报错；近似项和未决项只统计。用输出的计数判断实际覆盖范围，逐次结果保存在本地实验记录中。
 
 ## 5. manifest
 
@@ -394,17 +301,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --im
 dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --import-compare --compiled-rules
 ```
 
-每根输出 `same`、`diff` 或 `reject`。`diff` 随后打印 `BattleDump.Diff` 的前 24 行，每行带
-`+偏移 字段: golden=[...] import=[...]`；`reject` 打印稳定原因码与 detail。`--all` 汇总三类
-计数，并按首个差异字段、拒绝原因分组。当前：
-
-```text
-import same=410 diff=0 reject=0
-```
-
-`qf2-gradient-failure`、`ts-b-toolbox`、`ts-a-toasty` 共 11 个根全部对照。前缀根是
-“导入前缀前状态 + 内核回放”，回合准备 fixture 是“SetupPlayerTurn 前缀捕获 Start 卡牌集合 +
-逐个原生准备选项重建”。实现与字段来源见 [原生状态导入](import.md)。
+每根输出 `same`、`diff` 或 `reject`。`diff` 打印 `BattleDump.Diff` 的前 24 行，`reject` 打印稳定原因码与 detail；`--all` 汇总计数并按首个差异字段、拒绝原因分组。前缀根通过“导入前缀前状态 + 内核回放”比较，回合准备 fixture 按原生准备选项逐个重建。字段来源见 [原生状态导入](import.md)。
 
 ### 6.2 规则编译对照
 
@@ -419,15 +316,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --ru
 dotnet artifacts/bin/Differential/release/Differential.dll   --rules-table-check
 ```
 
-每根输出 `same`、`diff` 或 `reject`。`diff` 随后打印 `RulesDiff` 的第一处表/项及前 16 行差异；
-`reject` 打印稳定原因码与 detail。`--all` 同时打印 410 个输入覆盖的不同冻结规则对象数。当前：
-
-```text
-rules-objects distinct=388 roots=410
-rules same=410 diff=0 reject=0
-RULES-TABLES cards=603 powers=283 native_cards=603 native_powers=283 \
-  missing_cards=0 extra_cards=0 missing_powers=0 extra_powers=0 registry_missing=0
-```
+每根输出 `same`、`diff` 或 `reject`。`diff` 打印 `RulesDiff` 的第一处表/项及前 16 行差异；`reject` 打印稳定原因码与 detail。`--all` 汇总不同冻结规则对象数，`--rules-table-check` 报告规则覆盖与缺项。
 
 ### 6.3 评估配置对照
 
@@ -439,13 +328,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll   --root kg2-b-stomp 
 dotnet artifacts/bin/Differential/release/Differential.dll   --all --jobs 8 --config-compare
 ```
 
-410 个输入整份请求逐字节相同，包括 3 个回合准备 fixture 的全部准备根。`diff` 依次比较规则、
-根、评分表、下界与其余选项，打印第一处字段。当前同时通过 `GoldenHash` 校验 418 个根的
-`scoreHash`/`boundHash`：
-
-```text
-config same=410 diff=0 reject=0 full=410 subparts=0
-```
+比较整份请求及回合准备 fixture 的全部准备根；依次核对规则、根、评分表、下界与其余选项，并打印第一处差异。同时用 `GoldenHash` 检查 `scoreHash`/`boundHash`。
 
 ### 6.4 实机捕获结果对照
 
@@ -464,28 +347,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
   旧结果没有 `SREQ.capture` 时回退到 `SREQ`）；
 - `native.txt` 与离线宿主用同一请求重建的 `NativeStateDump`。
 
-输出逐根 `live ... status=same ... native=same`，最后汇总
-`live roots=N same=... diff=... reject=... native=...`。M2b-0 的 20 个普通根在 M2b-1 复跑仍
-全部相同：两部分各 10 根，`same=10 diff=0 reject=0 native=10`；3 个回合准备 fixture 另行
-捕获，`sreq=subparts`、`native=same`；共存探针输出 `COEXISTENCE check=passed`。启动脚本、
-协议与限制见 [Mod 入口与无头捕获](mod.md)。
-
-M2b-0b 修复了实机与离线的第三幕幕结构偏差：实机测试模式没有打开游戏 `TestMode`，
-`RunManager.ShouldApplyTutorialModifications()` 返回 true，`RunManager.GenerateRooms` 用
-`ActModel.ApplyDiscoveryOrderModifications` 把第三幕首个 Boss 覆盖为 `QUEEN_BOSS`，随后
-第二个 Boss 的排除集合也随之改变；离线宿主打开 `TestMode`，走 RNG 分支。修法是只对
-`RunManager.ShouldApplyTutorialModifications()` 加测试会话补丁，不全局改游戏 `TestMode`。
-5 个受影响根与 23 根复跑结果：
-
-```text
-# 5 个第三幕 A10 Boss 根
-live roots=5 same=5 diff=0 reject=0 native=5
-# 20 个固定普通根 + 3 个回合准备 fixture
-live roots=23 same=23 diff=0 reject=0 native=23
-```
-
-`BATL`/`RULE`/`SREQ` 与冻结快照相同，`native.txt` 与离线重建相同。根因与证据见
-[Mod 入口与无头捕获](mod.md) 第 5.1 节。
+输出逐根 `live ... status=same ... native=same`，最后汇总 `live roots=N same=... diff=... reject=... native=...`。回合准备 fixture 的请求比较范围为 `scope=subparts`。启动脚本、协议与测试会话的幕结构处理见 [Mod 入口与无头捕获](mod.md)。
 
 生成实机请求：
 
@@ -523,13 +385,6 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 `search-compare roots=N same=... diff=... reject=... skipped=...`。非确定性测量结果计为
 `skipped reason=measure-only`，回合准备根计为 `skipped reason=turn-setup-root`。
 
-旧 M2b-1 配置的 20 个普通根分两部分执行，20/20 得到 `search=same sreq=same sres=same`，
-`diff=0 reject=0 skipped=0`。`quality-REGENT-013` 的“中”档正常搜索（120s 软时间）实测
-63.3s、142,048 个展开节点、托管堆峰值约 1.96GB、工作集峰值约 3.21GB；另外两个 PF1 重根
-`quality-IRONCLAD-013`、`quality-DEFECT-012` 在本请求下分别 2.8s / 2.1s。取消测试用
-`quality-REGENT-013` 在 1s 时取消，输出 `searchStatus=cancelled, workerExited=true`，随后
-返回主菜单，没有后台任务残留。完整数值与字段来源见 M2b-1 报告。
-
 ### 6.6 实机整场自动战斗
 
 `OfflineRequest` 增加 `fullCombatForTest`；`--emit-live-requests` 的 `--full-combat` 把它置位
@@ -548,17 +403,7 @@ tools/testing/run-headless.sh --instance m2b2-full-1 \
   --cleanup-instance-on-exit --timeout-seconds 480
 ```
 
-旧 M2b-2 配置的 20 个固定根分两条命令执行，全部结束：
-
-```text
-HEADLESS_DONE instance=m2b2-final-a ok=10 failed=0 total_ms=272809.2872
-HEADLESS_DONE instance=m2b2-final-b ok=10 failed=0 total_ms=297313.871
-```
-
-16 胜 4 负，合计搜索 20 次、沿用回合 88 次、预测偏差 0、部署失败 0；逐场数据见
-`.local/tool-tasks/solver/M2b2-report.md`。取消验证用
-`--full-combat --search-cancel-after-ms 5000`，得到 `fullCombatStatus=cancelled`、
-`AutoCombatSession.IsRunning=false`，随后正常返回主菜单。
+取消检查可使用 `--full-combat --search-cancel-after-ms 5000`，检查返回状态、工作任务退出和主菜单恢复。
 
 ### 6.7 离线整场自动战斗
 
@@ -581,9 +426,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 ### 6.8 搜索内存与计时
 
-旧逐轮加宽验证记录保存在 [历史逐轮加宽搜索验证](archive/combat-search-widening-validation.md)。
-
-搜索账本统计状态、路由、辅助数组和标签等逻辑存储；进程托管堆与工作集峰值另行记录。极小预算合同检查分配拒绝、可回放的回退路线和复用；分批压缩合同单独对照启用与关闭。账本不是游戏进程 RSS 限制。搜索实现和档位的详细语义见 [战斗搜索](combat-ai.md)；本次组合搜索的实测与差异调查见 [局内组合搜索验证](combat-search-v2-validation.md)。
+搜索账本统计状态、路由、辅助数组和标签等逻辑存储；进程托管堆与工作集峰值另行记录。极小预算合同检查分配拒绝、可回放的回退路线和复用；分批压缩合同单独对照启用与关闭。账本不是游戏进程 RSS 限制。搜索实现和档位见 [战斗搜索](combat-ai.md)；测量结果保存在本地 `.local/`。
 
 ### 6.9 负例
 
@@ -638,10 +481,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll   --run-import-compar
 dotnet artifacts/bin/Differential/release/Differential.dll --run-import-negative
 ```
 
-2026-10 结果：自然开局 `same=200 diff=0 reject=0`；D1 `same=410 diff=0 reject=0`；战斗一致性
-`same=410`；RNG `same=610`（每类都 15 条 × 64 次 + 地图/事件）；地图 `same=610`；负例
-`failed=0`。逐字段比较包含地图、预生成序列、遗物袋顺序、解锁位图、RNG 五元组与模型私有
-属性包。
+逐字段比较包含地图、预生成序列、遗物袋顺序、解锁位图、RNG 五元组与模型私有属性包。
 
 ### 6.11 内容表与 RulesBuilder 对照（R2a-1）
 
@@ -661,13 +501,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll   --rules-build-compa
 准备根，共 420 个根）；自然开局是 5 角色 × A0/A10 × 20 种子，经 `RunManager.EnterMapCoord`
 进入第一排战斗点；遭遇是 89 个 `RunCatalog` 遭遇各一次，另加 Ruby Raiders 的第二个种子。
 
-加 `--build-content` 可让子进程输出本根实际用到的卡牌等级与怪物 id，父进程汇总后打印
-`BUILD-CONTENT-SUMMARY`。当前覆盖 1078/1078 个卡牌升级等级、108/108 个 `Registry` 怪物；
-未用项为 0。`--content-table-report` 同时用 `CONTENT-UNSUPPORTED type=...` 列出所有没有
-规范模型/无法编译的条目及原因；当前为 1 个 `EXOSKELETON` 召唤变体和 37 个卡池缺失候选。
-
-2026-10 结果：D1 `same=420 diff=0 reject=0 skip=0`；自然 `same=200`；遭遇 `same=90`；所有
-拒绝码分布为空。内容表一次导出约 0.42 秒、保留约 2.4 MB。
+加 `--build-content` 可让子进程输出本根实际用到的卡牌等级与怪物 id，父进程汇总后打印 `BUILD-CONTENT-SUMMARY`。`--content-table-report` 用 `CONTENT-UNSUPPORTED type=...` 列出没有规范模型或无法编译的条目及原因。
 
 分片：
 
@@ -708,20 +542,12 @@ dotnet artifacts/bin/Differential/release/Differential.dll --content-table-repor
 
 原版侧的选择器用 `CardSelectCmd.PushSelector`（不带 `localOnly`），和 Mod
 `ActionDeployer` 的 `PlannedNativeSelector.Activate` 一样走全局选择器、不暂停；`ScenarioBuilder`
-给 Golden 回合准备 fixture 的 `localOnly` 选择器保持不变，`--import-compare`/`--config-compare`
-仍 410/410。
+给 Golden 回合准备 fixture 的 `localOnly` 选择器保持不变，导入和配置分别由 `--import-compare` 与 `--config-compare` 核对。
 
 每个用例在独立子进程里跑两条路径：原版 `RunManager.EnterMapCoord` 到可出牌，导入 `Battle`、
 编译 `Rules`、转储进点后 `RunState`；Sts2Solver 侧导入同一进点前 `RunState`，调用
 `RunCombatSetup.EnterMapCoord`，再用 `RulesBuilder` 和 `RunDump`。`Battle` 逐字节、`RulesCodec`
 逐字节、`RunState` 逐字段比较；失败打印第一处差异路径和值。
-
-2026-10-29 R3-0 结果：自然 `same=1000 diff=0 reject=0`；遭遇 `same=3560 diff=0 reject=0`；D1
-`same=1616 diff=0 reject=24`，拒绝分布为 `setup-hook-listener=4`、
-`unsupported-relic-state=20`。拒绝的根都是遗物开战效果需要玩家选择/生成整副牌组以外内容，或
-D1 请求给遗物注入了不进入 `RunState` 的整数字段；没有对比差异。`--setup-cover` 在 D1 一次运行
-中覆盖 378 个可建局根，记录每个使用的遗物/Power/附魔；完整数量见 `R2a2-report.md`。
-内容表导出约 0.82 秒、保留约 17 MB，encounter 级 unsupported 为 0。
 
 ### 6.13 整场战斗 pilot 对照（R3-0）
 
@@ -754,23 +580,9 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 非零 child 即使打印了 `same` 或 `reject` 也不会被计入正常结果（有明确 `executor-diff` 计 diff，
 否则计 crash）。`actions` 是真实部署动作数，`turns` 是回合数。
 
-2026-10-29 R3-0 结果：120 个根 `same=120 diff=0 reject=0 crash=0`，82 胜 38 负，2,863 个
-部署动作。此前第一版终局检查先得到 118 same / 2 diff；定位到两处都是 `TheGambitPower` 的
-`AfterDamageReceived` 杀死玩家后，原版 `CombatState.Contains` 用 `Owner.IsActiveForHooks`
-逐项过滤，后续 LavaLamp/BeatingRemnant 不再调用，而 Core `HookDispatch.TryResolve` 只按 id
-重定位、没有重新检查玩家监听资格。最小修正是在 `TryResolve` 中按 `PlayerHooksActive` 过滤
-玩家所有的 Power/Relic/Potion/Card/Affliction/Enchantment/Orb 监听；死亡阻止/复活期间
-`PlayerHooksActive` 保持，`BeforeDeath`/`AfterDeath` 不受影响。`tests/KernelChecks` 新增
-TheGambit 死亡后不调用 LavaLamp、LizardTail 阻止死亡后 LavaLamp 仍调用的定向合同。
-修正后 D1 418 根 `mismatched=0`、D2 1,983/1,983 全部不变。
-
+定向合同覆盖 TheGambit 导致玩家死亡后不再调用后续玩家监听，以及 LizardTail 阻止死亡后仍允许监听执行的边界。
 负例：`STS2_SOLVER_PILOT_TAMPER=hp`、`outcome`、`event` 篡改预测终局，检查分别报告
 `player.hp`、`outcome`、`event-defeat is not covered`，退出码均为 1。
-
-Core 修正后的中档离线 120 与 `r2a5-683bc03` 基线比较为 `same=119 diff=1`：
-`quality-SILENT-022` 的第二轮展开节点数从 42,424 变为 42,258（路线动作数、胜负与 HP 相同），
-这是 TheGambit 死亡后监听失效修正改变该根搜索树的预期影响；基线不更新，也不把该根写成
-same。其余 119 根逐字段相同。
 
 ### 6.14 遗物开战矩阵（R2a-3）
 
@@ -788,23 +600,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 路径的建局结果。`SETUP-RELQ` 行给出房间、玩家状态、目标遗物状态与是否触发；
 `SETUP-RELIC-SUMMARY` 汇总 `same/diff/triggered/missing`。触发判据：非状态型遗物比较
 （清零遗物表后的）`Battle` 签名是否与基线不同；状态型遗物比较目标遗物 status/display。
-覆盖 Anchor、FakeAnchor、Pantograph、RedSkull、SlingOfCourage、BeltBuckle、SneckoEye/Osty、
-BagOfMarbles/RedMask/TwistedFunnel、BloodVial、Lantern、VeryHotCocoa、FurCoat、GhostSeed、
-StoneCracker、Bellows、PetrifiedToad、FuneraryMask、FencingManual、Akabeko、FestivePopper、
-CrackedCore、RingOfTheSnake，首回合状态遗物与 MeatOnTheBone，以及本批的 Toolbox、
-GamblingChip、ToastyMittens、ChoicesParadox、DelicateFrond、VexingPuzzlebox、JeweledMask、
-BigHat、OrangeDough、TeaOfDiscourtesy、RoyalPoison、FakeBloodVial、BoomingConch、
-InfusedCore、MawBank、MysticLighter、TinyMailbox、PaelsLegion。2026-10 结果：
-`cases=126 seeds=20 runs=2520 diff=0 missing=0`（4 片各 630 runs、各 `diff=0`；126 个 Implemented 遗物
-各 20 种子，无效果的也跑；MysticLighter/TinyMailbox 为预期不触发，PaelsLegion 的
-`NextCombatId` 账本会改变签名）。8 张 Implemented 卡（BANSHEES_CRY、FLATTEN、
-KINGLY_KICK、KINGLY_PUNCH、PINPOINT、ROCKET_PUNCH、STOMP、VOID）用
-`--setup-card` 各 20 种子，2 个附魔（PERFECT_FIT、SLITHER）用
-`--setup-card STRIKE_IRONCLAD --setup-enchant <id>` 各 20 种子，全部 same。Power 掩码
-当前 50 个 fully implemented + 2 个部分不支持；建局可达的 Plating/Galvanic/Rampart/
-Slow/VitalSpark/Focus 等由遗物矩阵/D1 覆盖，其余是出牌/抽牌后才有来源的 Power。
-矩阵发现并修正了 SwordOfJade 的 Applier、
-RedSkull 的 `StrengthApplied` 计数和 Pantograph/BloodVial 的战后 HP/`RecoveredHp`。
+遗物名单由建局 Hook 掩码生成；同时可用 `--setup-card <id>` 和 `--setup-card STRIKE_IRONCLAD --setup-enchant <id>` 检查卡牌与附魔的开战行为。覆盖项、实际触发和拒绝原因以本次输出为准。
 
 ### 6.15 地图选点与进房间对照（R2b-2）
 
@@ -831,37 +627,28 @@ dotnet artifacts/bin/Differential/release/Differential.dll --map-step-compare   
 恢复后的导入以恢复后的原版状态为准；事件 RNG 用原生 `new Rng(seed + hash(event id))`
 单独比较。每局最后一幕的 Boss 之后停止；A10 的最后一幕会走第二 Boss。
 
-2026-10-28 R3-0 结果（用例数与 `683bc03` 相同的全量）：
+## 7. 各层校验范围
 
-- 合法选项：`same=15360 diff=0`；单步 `same=19220 diff=0`，`reject=1853 error=0`。
-- 拒绝只有一种：`event-allowed-check`（未知点拉到的候选事件其原版 `IsAllowed` 依赖跑局状态，
-  R2e 接管前显式拒绝），全部发生在 `Unknown` 点。
-- 按点类型：Monster 8,970、RestSite 2,769、Elite 1,964、Unknown 1,702、Treasure 1,143、
-  Boss 1,120、Shop 912、Ancient 640。
-- Unknown 的结果：Monster 753、Event 673、Shop 150、Treasure 126；标准模式 Elite 基础概率为负，
-  不会出现；休息处不是 Unknown 的候选。
-- 按幕：第 1 幕 6,642、第 2 幕 6,439、第 3 幕 6,139。按楼层见 R2b-2 报告。
+以下说明检查通过时的含义，具体批次是否通过以本地报告为准。
 
-## 7. 每层证明什么
-
-| 层 | 证明 | 不证明 |
+| 层 | 校验内容 | 不覆盖 |
 | --- | --- | --- |
-| 构建 | 源码可编译、无警告、只有 BCL 依赖 | 运行时正确性 |
-| K0 | 布局、RNG、编码、容量与注册表合同 | 搜索与冻结输入 |
-| D1 | 410 个冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
-| D2 | 1,983 个冻结请求的完整搜索结果 | 未捕获请求、实机部署 |
+| 构建与架构检查 | 编译、警告及依赖边界 | 运行时正确性 |
+| K0 | 布局、RNG、编码、容量与注册表合同 | 完整搜索与实机部署 |
+| D1 | 冻结输入的逐步重放与特征哈希 | 未捕获状态、实机导入 |
+| D2 | 冻结请求的完整确定性搜索结果 | 未捕获请求、生产时间预算下的搜索质量 |
 | manifest | 快照完整性与来源声明 | 语义正确性 |
-| 差分宿主（手动） | 410 个原生 `CombatState` 与参考转储逐字节相同；410 个输入（418 个根）导入 `Battle` 与 GOLD 逐字节相同，编译 `Rules` 与冻结规则对象逐字节相同，编译 `ScoreRules`/`Bound` 与 `config.br` 相同且特征哈希一致；R1b 的 200 个自然开局与 410 个战斗根的 `RunState` 逐字段相同，15 条流 × 64 抽取与地图相同；开战建局、遗物矩阵、地图进点与战斗 pilot 的保留对照与 `683bc03` 相同 | 实机部署、任意 Mod、语料外前缀/准备阶段、事件/休息/宝箱负载、离线原版整局 |
-| Mod 无头捕获（手动） | 20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/差分宿主逐字节相同；M2b-0b 的 5 个第三幕 A10 Boss 根与 3 个回合准备 fixture 亦相同；共存检查通过 | 部署、界面、397 根全量、Windows 脚本、第三方 Mod |
-| 实机单 Beam（手动） | 同样 20 根的确定性 `SREQ` 与离线组装逐字节相同，`SRES` 与离线重解逐字节相同；中档重根有耗时/内存；取消后 worker 退出 | 界面、语料外根、重根结果与 CombatSolver 主成员的对比 |
-| 实机整场（手动） | 20 个固定根在无头游戏里自动打完（16 胜 4 负），逐动作核对与回合对账均为 0 偏差/0 部署失败；至少一个根实际走过选牌、抽牌堆/弃牌堆选择与药水目标；取消测试无残留 | 120 根全量、界面、未捕获前缀/准备根、第三方 Mod |
+| 差分宿主 | 选定输入的原生状态、规则、导入、请求、随机流及边界执行对照 | 界面、任意第三方内容 |
+| Mod 无头捕获 | 实机捕获与冻结快照、离线重建的比较 | 路线执行、界面 |
+| 实机确定性搜索 | 游戏与离线宿主的请求和结果比较 | 生产组合调度的搜索质量 |
+| 实机整场 | 自动执行、逐动作核对、回合对账、选牌与取消清理 | 语料外内容、界面、未捕获前缀与准备根 |
 
-这些层合起来证明：当前源码对 `tests/Golden/data` 的冻结证据是可复现的，能在真实游戏中导入状态、搜索并在无头战斗里自动打完固定 20 根。它们不证明：全部 397 个普通根都能结束、界面可用，或支持任意第三方 Mod。
+冻结回归、搜索质量评估和实机部署是不同检查；其中一项通过不能替代其它项。数据来源与更新条件见 [冻结快照](golden-data.md)。
 
-## 8. 未验证项
+## 8. 适用边界
 
-- **实机全量**：M2b-0 验证了 20 个普通根与 3 个回合准备 fixture，M2b-0b 追加 5 个第三幕 A10 Boss 根与 23 根复跑，M2b-1 验证了 20 个普通根的确定性搜索与 3 个 PF1 重根的中档测量，M2b-2 只验证了 20 个固定根的整场自动战斗。397 个普通根的捕获与确定性搜索、120 根质量语料的整场运行由协调者执行，不在本仓库计时的 8 分钟窗口内。
-- **离线原版整局**：R3b 才落地；R3-0 只建立目录骨架，未在离线进程里跑完整局，也未验证两个宿主的逐步 `RunState` 一致性。
+- **覆盖范围**：每次运行只覆盖命令选定的根与配置，不能从局部样本推断全部普通根、全部质量语料或整局都已验证。
+- **离线原版整局**：第一幕流程与停止边界见 [离线宿主](offline-host.md)；完整多幕流程和两个宿主的一致性需分别验证。
 - **界面**：没有设置页、进度、路线预览或失败提示；普通玩家只有 `F8` 开关与日志。
 - **非选牌模态**：选择驱动只覆盖 `CardSelectCmd` 的 `ICardSelector` 路径；未验证未来/第三方 Mod 的其它模态请求。
 - **前缀根**：实机测试模式显式拒绝前缀动作；继续由离线宿主的 `PrefixReplay` 覆盖。
@@ -869,4 +656,4 @@ dotnet artifacts/bin/Differential/release/Differential.dll --map-step-compare   
 - **第三方 Mod**：没有实机 Mod 根；导入层只显式拒绝非 `sts2` 程序集的模型，未做兼容层。
 - **Windows/Steam**：当前计时与验证在 Linux；Windows `.ps1` 启动脚本留待后续。
 
-这些项目在接入层完成前不应被文档或提交信息描述为已验证。冻结快照的更新条件见 [冻结快照](golden-data.md) 第 11 节。
+未覆盖的内容不应被文档或提交信息描述为已验证。冻结快照的更新条件见 [冻结快照](golden-data.md) 第 11 节。

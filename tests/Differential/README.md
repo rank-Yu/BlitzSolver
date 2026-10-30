@@ -199,7 +199,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll --offline-combat --ro
 `<out>/<root>/full-combat.json`，父进程写 `<out>/summary.json`；`--search-tier` 默认
 `Medium`，`--memory-budget-mb` 覆盖搜索内存预算。
 
-离线实验可选 `--potion-schedule one-allowed|one-two-three|one-two-allowed`；不指定时沿用默认计划。三组口径和验证见 [用药调度三组离线对照](../../docs/potion-schedule-experiment.md)。
+离线实验可选 `--potion-schedule one-allowed|one-two-three|one-two-allowed`；不指定时沿用默认计划。各组的结果、原请求约束与测量记录写入 `--out` 指定的本地目录，不提交实验报告。
 
 ## 与参考转储对照
 

@@ -81,7 +81,6 @@ Power 顺序见 [状态布局](combat-state-layout.md#23-power-顺序)。
 - **四个附魔的派发位置。** `Slither` 在 `AfterCardDrawn` 中按 `CombatEnergyCosts.NextInt(4)` 给刚抽到的手牌追加绝对本场费用（`AfterCardDrawnMirrors.HandleSlither`）；`SlumberingEssence` 在玩家回合末清手牌前的 `BeforeFlush` 给每张自身手牌追加 `WhenPlayed` −1（`EnchantmentLifecycleSupport.BeforeFlush`）；`PerfectFit` 在非初始洗牌的 `ModifyShuffleOrder` 中把自己的牌移到合并列表最前（`ModifyShuffleOrderMirrors.HandlePerfectFit`）；`Imbued` 在玩家第 1 回合的自动预打出阶段按 `AllCards` 顺序自动打出（`EnchantmentLifecycleSupport.TriggerAutoPrePlay`，在 Mayhem 之后）。`Imbued` 的快照与显式边界见[准入](archive/admission-and-verification.md)。
 - **本节涉及的 Power 与怪物。** 当前实现 Plow、Ringing、Tangled、Smoggy、Vital Spark、Tainted、Hex 七个 Power，以及 Ceremonial Beast、Vine Shambler、Infested Prism、Living Fog、Gas Bomb 的移动效果。Living Fog 的 BLOAT 在攻击前生成 Gas Bomb（`MonsterDef.BeforeMove`），Gas Bomb 的 EXPLODE 攻击后自毁。MysticLighter 是遗物定义：带附魔卡牌的 powered attack 加 `Damage`。Hexed 的 Ethereal 由上面的 `HasKeyword` 惰性提供；HexPower 被移除或施加者死亡后不再提供，卡牌本地关键字不变。
 
-
 ## 4. 出牌管线
 
 来源：`Q/SimulatedCombatState.cs:1552`、`S/CombatPredictionSimulator.Card.cs:122-330`、`S/CombatPredictionSimulator.CardExecutionContinuation.cs:29-127`、`S/CombatPredictionSimulator.CardTailContinuation.cs:16-125`、`P/CorePowerSupport.cs:21-407`。

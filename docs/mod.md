@@ -230,7 +230,7 @@ $STS2_SOLVER_TEST_DIR/
   - `searchCancelAfterMillisecondsForTest`：单次搜索到点取消；整场测试时作为全自动取消
     时点。测试把 `searchStatus=cancelled`/`fullCombatStatus=cancelled` 与任务已退出视为预期
     的取消验证。
-- 回合准备 fixture 的 `SREQ.capture` 仍只做评分/下界子部件比较；本批不对准备根做单 Beam
+- 回合准备 fixture 的 `SREQ.capture` 仍只做评分/下界子部件比较；准备根不做单 Beam
   搜索，`searchStatus=skipped`。前缀根在实机测试模式显式拒绝。
 - 捕获前等待 1.5s，让回合开始的可视/计时协程（例如 `FakeHappyFlower` 的 1 秒激活）结束。
   这些协程会临时改变原生公开状态；离线宿主在消息泵里会立即走完，实机若不等，会把瞬态的
@@ -314,7 +314,7 @@ tools/testing/run-headless.sh --instance m2b0-coexist --coexist-combat-solver \
 `python3 tools/testing/test_run_headless.py` 验证，不需要游戏程序集。
 
 `--requests DIR`/`--request FILE` 可直接提供已生成的请求；`--probe-only` 只验证 Mod 初始化
-或共存禁用；`--no-launch` 只准备实例。Windows 的 `.ps1` 入口是后续项，本批不提供。
+或共存禁用；`--no-launch` 只准备实例。Windows 的 `.ps1` 入口是后续项，尚未提供。
 
 为测量/取消生成请求时使用 `--emit-live-requests` 的搜索选项：
 
@@ -473,25 +473,6 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 汇总行是 `live roots=N same=... diff=... reject=... native=...`；任何 diff/reject 都非零退出。
 
-M2b-0b 复跑（同一游戏版本、同一 RitsuLib）：
-
-```text
-# 5 个第三幕 A10 Boss 根
-live roots=5 same=5 diff=0 reject=0 native=5
-
-# 20 个固定普通根 + 3 个回合准备 fixture
-live roots=23 same=23 diff=0 reject=0 native=23
-```
-
-`qf2-gradient-failure`、`ts-a-toasty`、`ts-b-toolbox` 的 `SREQ` 仍是 `sreq=subparts`，
-其余 20 根为 `sreq=full`；`BATL`/`RULE`/`native` 全部相同。
-
-397 个普通根全量（`--emit-live-requests --all`，4 条通道并行，构建与 M2b-0b 合并后的 `main` 相同）：
-
-```text
-live roots=397 same=397 diff=0 reject=0 native=397
-```
-
 ### 10.2 搜索请求/结果对照
 
 ```bash
@@ -511,26 +492,14 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 `SREQ`/`SRES`）计为 `skipped reason=measure-only`；回合准备根计为
 `skipped reason=turn-setup-root`。
 
-同一次 397 根运行里，每个根都做了确定性中档搜索：
-
-```text
-search-compare roots=397 same=393 diff=0 reject=1 skipped=3
-```
-
-`skipped` 是 3 个回合准备 fixture。`reject` 是 `sk-a-discard-sly`：搜索在根节点第一次展开时就以
-内核不支持停止（`Kernel.Discard.cs`：被弃的 TACTICIAN+1 在自动打出前失去瞬态标记）。这是内核
-语义缺口，不是捕获或请求编译的问题，留给后续语义批次。
-
 ## 11. 当前边界
 
 - 已部署、逐步核对、回合对账并自动打完整场；没有界面，普通玩家只有 `F8` 开关与日志。
 - 测试模式的整场请求使用正常档软时间；单次确定性搜索仍写 `SREQ`/`SRES` 供离线重放。
-- 只做单根 `BeamSolver.Solve`；前缀根不在实机测试模式执行，回合准备根只捕获不搜索。
+- 正常整场模式使用组合协调器，生产用药阶段为最多一次后按原策略放开；确定性快照对照仍使用旧单成员路径。前缀根不在实机测试模式执行，回合准备根只捕获不搜索。
 - 选择驱动覆盖原版 `CardSelectCmd` 的 `ICardSelector` 路径；不覆盖未来的非选牌模态请求，
   也不猜测未知选项。
-- 搜索选项不覆盖 novelty、计划承诺、早期侦察、能力承诺与 incumbent；这些成员保持默认。
-- `PowerCommitments`、`HpTargetStop`、药水审计等高级成员未接入，路线可能与本仓库外的
-  CombatSolver 主搜索成员不同；本批的对照只要求游戏与离线宿主使用同一个请求编译器。
+- 组合成员、目标约束和兼容边界见 [战斗搜索](combat-ai.md)；游戏与离线宿主共用请求编译器和组合协调器。
 - 未做 Windows `.ps1` 启动脚本、Steam Workshop 打包、Mod 设置页、第三方 Mod 兼容层。
 - 实机捕获与搜索依赖同一游戏版本与同一 RitsuLib 版本；版本不符时导入层会以稳定原因码
   拒绝，而不是返回默认值。

@@ -181,7 +181,7 @@ BoomingConch），不进入 `Battle` 布局。
   - `SneckoEye`/`FakeSneckoEye` 的 `ConfusedPower=1`：原生方法体字面量，不是 DynamicVar；
   - `FurCoat` 的 `SpawnHp=1`：原生 `BeforeCombatStart` 的 `SetCurrentHp(..., 1m)`；
   - `DecimillipedeSegment` 的唯一 HP 步长 `2`：原生 `AfterAddedToRoom` 的算法常量。
-  这三项在 [内容表](content-table.md) 与本批报告第 0 节列出，游戏版本变更时需人工核对。
+  这三项在 [内容表](content-table.md) 中标明原版来源，游戏版本变更时需人工核对。
 - **WaterfallGiant**：导出器在 `ScratchAscension` 下反射读取原版
   `BasePressureGunDamage` 并写 `_currentPressureGunDamage`；字段/属性缺失直接抛异常。
 - **结构常数**：遭遇生成里的 `rng.NextInt(3)`、`NextInt(2, 10)` 等是原版调用参数，仍留在
@@ -237,8 +237,7 @@ BoomingConch），不进入 `Battle` 布局。
 - `d1`：D1 的 410 个输入 × 4 个种子，用 `ScenarioBuilder.PrepareRunAsync` 建到进房间之前，
   再走真实地图点路径，不做开战后的测试注入。
 
-结果与复跑命令见 [测试与验证](testing.md) 第 6.12 节；本批的数量与拒绝分布见
-`R2a2-report.md`。
+命令与比较范围见 [测试与验证](testing.md) 第 6.12 节；具体结果与拒绝分布保存在本地 `.local/`。
 
 ## 7. 写回已删除
 

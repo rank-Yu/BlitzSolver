@@ -65,8 +65,6 @@ TestMode 是进程级全局设置；任何需要真实游戏分支的对照都�
 - 两个宿主之间的一致性：同一种子、同一策略，逐步比较导入的 `RunState`。
 - 实机：Mod 在真实游戏里跑同一策略，比较战斗逐动作边界。
 
-R3-0 的差分结果与 `683bc03` 相同；最后一次包含完整局外模拟器的提交是 `683bc03`。
-
 正式有界会话对照入口 --rooms-production 4 / --rooms-reference 4 在独立进程使用生产实现与旧 runtime、
 旧 NativePilotHost/原版直接推进，逐房比较完整 RunDump、NativeRunDump（含 RNG）、完整 MapPointHistory
 与全部战斗证据。--shop-host-checks、--multiroom-host-checks、--postcombat-host-checks 分别覆盖

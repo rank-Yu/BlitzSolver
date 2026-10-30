@@ -2,7 +2,7 @@
 
 Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场战斗保存在固定大小、不含对象引用的结构体里，分叉只需复制内存，在受支持的战斗上以较低开销展开 Beam 搜索，并用冻结快照校验搜索与结算结果。项目的目标是整局自动游玩：局外由原版 `sts2.dll` 推进，Sts2Solver 负责战斗与局外策略，架构见 [整局设计](full-run-design.md)。
 
-本目录是 Sts2Solver 的设计与验证文档。CombatSolver 时期的宿主接入、Bridge 与离线回放等材料收在 [`archive/`](archive/)。
+本目录保留架构、接口、使用说明和测试方法。实验记录、跑分结果、验证流水与任务规格保存在本地 `.local/`，不提交到仓库。CombatSolver 的接入与准入设计参考收在 [`archive/`](archive/)。
 
 ## 1. 设计目标
 
@@ -63,10 +63,6 @@ Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场�
 | [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
 | [战斗药水与遗物](combat-potions-relics.md) | 额外回合管线、药水与遗物机制 |
 | [战斗搜索](combat-ai.md) | 组合调度、四维配置、路线比较、内存与兼容语义 |
-| [局内组合搜索规格](combat-search-v2-spec.md) | 本次搜索重构的目标、参数与验收范围 |
-| [局内组合搜索验证](combat-search-v2-validation.md) | 兼容回归、原版重放、120 场质量与差异调查 |
-| [用药上限逐层搜索验证](potion-layers-validation.md) | 分层合同、原版重放及 120 场中档新旧对照 |
-| [用药调度三组离线对照](potion-schedule-experiment.md) | 同预算比较 1→放开、1→2→3 与 1→2→放开 |
 | [原生状态导入](import.md) | `CombatState` → `Battle`/`Rules`/评估配置的编译、拒绝码与离线对照 |
 | [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
 | [Mod 入口与无头捕获](mod.md) | 打包、RitsuLib 入口、共存、部署与对账、测试协议、启动脚本与实机对照 |
@@ -76,22 +72,11 @@ Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场�
 
 | 文档 | 内容 |
 | --- | --- |
-| [逐轮加宽历史验证](archive/combat-search-widening-validation.md) | 被组合搜索替换的旧搜索命令、计时和内存对照 |
 | [CombatSolver 接入方式](archive/combatsolver-integration.md) | CombatSolver 的接入分派与旧引擎回放物化，仅作历史参考 |
 | [CombatSolver 准入与校验](archive/admission-and-verification.md) | CombatSolver 里对接原引擎的 Bridge 准入与运行时核对 |
-| [CombatSolver 时期测试记录](archive/combatsolver-flash-testing.md) | 旧回归工具、批次数值与实机整场记录 |
 
-## 4. 当前状态
+## 4. 文档维护
 
-- Core 独立编译，只有 BCL 依赖；构建 0 警告；`tests/Architecture` 的层依赖检查 0 违反。
-- K0 纯内核合同通过；`Golden` 的 D1 重放与 D2 全量求解通过。D2 期望结果已按 M3b 的默认搜索重冻（`provenance.refreeze`）。
-- 冻结快照 `tests/Golden/data` 由 `manifest.json` 逐文件校验；校验入口见 [测试与验证](testing.md)。
-- 离线宿主 `--rules-compare`：410 个输入编译出的 `Rules` 与 388 个冻结规则对象全部逐字节相同；`--import-compare`（含 `--compiled-rules`）对照 410 个输入/418 个根全部相同；`--config-compare` 的 410 份整请求全部相同，418 个根的特征哈希一致。
-- Mod 已在无头游戏中加载；20 个普通根（五角色、三幕、普通/精英/Boss、私有状态）的实机 `BATL`/`RULE`/`SREQ.capture` 与 `NativeStateDump` 均与冻结快照/离线宿主逐字节相同。
-- R1b 新增：`RunState`（49,912 字节）与 `RunView`；15 条随机流的派生与 64 次抽取和原版一致；自然开局 200/200、D1 410/410（含 120 个质量根）逐字段相同；7 类局外导入负例显式拒绝。见 [整局状态布局](run-state-layout.md)。
-- R2a-1 新增：进程内内容表与 `RulesBuilder`。D1 全部 410 个输入、自然第一场战斗 200、全部 89 个遭遇加 Ruby Raiders 覆盖种子，`RulesBuilder` 与 `RulesCompiler` 的 `RulesCodec` 编码全部逐字节相同；内容覆盖 1078/1078 个卡牌等级、108/108 个怪物。见 [内容表与 RulesBuilder](content-table.md)。
-- R2a-2 新增：地图进点到首个出牌阶段的战斗边界 `RunCombatSetup`；R2a-3 至 R2c-2 的局外模拟、奖励与商店已按 2026-10-27 的决定删除，最后包含它们的提交是 `683bc03`。
-- R3-0：删除局外模拟器、奖励/商店对照、写回与新局生成；原离线宿主工程改名为 `tests/Differential`；保留的导入/建局/地图进点/战斗对照与 `683bc03` 相同。终局独立检查发现 `TheGambitPower` 在 `AfterDamageReceived` 中杀死玩家后，原版按 `IsActiveForHooks` 逐项过滤后续监听，而 Sts2Solver 仍调用后续遗物；已按此最小修正 `HookDispatch.TryResolve`，KernelChecks 新增定向合同，D1/D2 不变。中档离线 120 根因此有 1 根（`quality-SILENT-022`）搜索展开数变化，其余 119 根与基线逐字段相同。见 [离线宿主](offline-host.md) 与 [测试与验证](testing.md) 6.13。
-- **未验证**：界面、离线原版整局、两个宿主的一致性、语料外的多段准备阶段与未捕获前缀、第三方 Mod 内容、Windows 启动脚本。
+行为与接口变更同步更新对应设计文档；测试命令和结果字段的含义记在 [测试与验证](testing.md)。具体实验的版本、输入、机器环境、指标与日志放在本地 `.local/`，公开文档不保存批次进度和跑分表。
 
-内核语义以 [战斗状态布局](combat-state-layout.md)、[战斗内核语义](combat-semantics.md)、[战斗角色机制](combat-characters.md) 与 [战斗药水与遗物](combat-potions-relics.md) 为准；搜索行为以 [战斗搜索](combat-ai.md) 为准；快照与证据以 [冻结快照](golden-data.md) 和 [测试与验证](testing.md) 为准。
+内核语义以 [战斗状态布局](combat-state-layout.md)、[战斗内核语义](combat-semantics.md)、[战斗角色机制](combat-characters.md) 与 [战斗药水与遗物](combat-potions-relics.md) 为准；搜索行为以 [战斗搜索](combat-ai.md) 为准；冻结数据来源与更新规则见 [冻结快照](golden-data.md)。

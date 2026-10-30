@@ -101,7 +101,6 @@ Flash 的正确性由三道关口保证：搜索前的**准入**、开发期的*
 - **Possess**：`_stolenStrength`/`_stolenDexterity` 的键必须是已知敌人与玩家，值投影到对应 Possess Power 的 Aux0；没有条目即构造器的 0。Power 死亡时按该值返还，条目随现有引擎的返还删除。
 - **Nemesis**：`_nemesisShouldApplyIntangible` 按生物投影到 `NEMESIS_POWER.Aux0`；键必须是已知敌人。Power 归零后条目仍按生物保留，重新获得同一 Power 时读同一值，因此不是丢弃状态。
 
-
 **退役状态的玩家死亡前提**：上面的惰性规则要求 `model.Amount == 0`、`model.Owner.Player` 存在且该玩家生物在模拟状态里已经死亡；存活玩家的退役 Power 状态仍被拒绝，不把“暂时归零但仍可能被读”的情况放宽。
 
 Knowledge Demon、Automation、Sloth 与 EntropicBrew 的投影与惰性规则：
@@ -166,13 +165,11 @@ Knowledge Demon、Automation、Sloth 与 EntropicBrew 的投影与惰性规则�
 
 ### 2.3 附魔与 MELANCHOLY 准入
 
-
 - **局外牌组副本的准入例外**：现有引擎的 `AfterDeath` 等 Hook 走 `RunHookListeners`（不可变的根牌组前缀 + 战斗监听表），因此牌组里的卡也会被派发。`FlashCardDef.DeckCopyOutsideCombatIsInert` 只允许“该卡在战斗牌堆之外时每个局外监听 Hook 都证明无效果”的定义通过：`Melancholy` 的 `AfterDeathMirrors.HandleMelancholy` 用 `State.FindCard(card)` 取战斗副本，牌组副本取不到就直接返回，所以 Flash 只导入战斗副本、不为牌组副本造时机。其余带局外监听 Hook 的牌组卡仍按 `UnsupportedCard` 拒绝。
 - **附魔**：`Imbued`、`Slither`、`SlumberingEssence`、`PerfectFit` 现在都有 Flash 定义，导入时不再按 `UnsupportedEnchantment` 拒绝。`Imbued` 的自动预打出按现有引擎的 `EnchantmentLifecycleSupport.TriggerAutoPrePlay` 在玩家第 1 回合、Mayhem 的计划自动打出之后执行；现有引擎持有 `PredictedCard` 对象快照，Flash 没有卡牌身份，改为“绝对位置 + 稳定键（Id/附魔/苦难/`IsClone`）”的快照并跟踪每次自动打出的净移动。位置或牌数不再匹配（卡被其他效果移走、生成/移除、转化）时显式抛 `FlashUnsupportedException`，不按值猜一张牌；K0 合同覆盖“牌被前一张自动打出移出战斗”的牌数不匹配分支。根快照固定在玩家出牌阶段，第 1 回合的自动预打出在根捕获前已经发生，所以这条路径只能由 K0 合同驱动，游走里不会出现。
 - **无需新投影**：四个附魔的私有值都在既有 `FlashCard` 附魔字段里（`EnchantmentId/Amount/Status/Private`），没有新增 `PredictionStateStore` 条目、计数器或布局字段。
 
 ### 2.4 药水与遗物投影
-
 
 - **遗物状态**：`MusicBoxPredictionState.WasUsedThisTurn` → `FlashRelic.Counter`（`CardBeingPlayed` 在稳定边界必须为空，否则 `UnrepresentableState`）；`ThrowingAxePredictionState.UsedThisCombat` → `Counter`；`MetronomePredictionState.OrbsChanneled` → `Counter`；`PaelsLegionPredictionState.Cooldown` → `Counter`，`TriggeredBlockLastTurn` → `FlashRelicFlags.UsedThisCombat`（只驱动动画），`AffectedCardPlay`/`HasCompletedAffectedCardPlay` 必须为空；`EmotionChip` 与 `PaelsEye` 的 `StatefulRelicState` → `Counter`/`Aux`。这些投影都取条目，没有条目时取构造器会读的模型字段（`_wasUsedThisTurn`、`_usedThisCombat`、`_orbsChanneled`、`_cooldown`、`_triggeredBlockLastTurn`）。
 - **额外回合的失血标记**：`AdvancePlayerTurn` 只清空 `_unblockedDamageThisTurn` 缓存，旧引擎随后从不可变根历史重算 `HasLostHpThisTurn`，预测期伤害不再计入。Bridge 在根捕获时把每个 owner 的答案冻结为 `FlashRules.RootLostHpMask`；额外回合恢复这些标记，普通换轮清零。`FlashStateImporter` 的逐步投影仍按 `HasLostHpThisTurn` 读取，因此差分逐字节比较覆盖该恢复规则。
@@ -202,7 +199,7 @@ Project(Old.Step(s, a)) == Flash.Step(Project(s), a)     （逐字节）
 | K4 评估一致 | K1/K2 中投影一致的每个状态，`FlashScorer` 的评估值必须等于现有引擎同一状态的 `SimulationSnapshot` 对应成员；`Score` 按 double 精确比较。药水计数除 `PotionUseCount`/`PotionStrategicCost`/`AutomaticPotionUseCount`/`ExplicitPotionStrategicCost` 外还逐字段比较 `ExplicitPotionUseCount`。成长额度或遗物计数目标开启时，`GrowthRewards` 的十个来源、`GrowthHpCredit`、`GrowthRewardCount`、`StrategyGoalHpCredit`、`StrategicHpCredit`、`StrategyGoalCount` 与 `RelicCounters` 的 `SatisfiedMask`/`TargetMask`/`CounterValues`/`TargetMinimums`/`TargetMaximums`/`HpCredit`/`Distance`/`SatisfiedPriority`/`HealingHpCredit` 也逐字段比较；`Turn` 始终比较。第三幕首领策略开启时，`Act3BossInteractions`、`FirstAttackDamage`、`EtherealDrawTriggers`、`PagestormBonusDrawCapacity`、`HighEnergyPlays`、`DemesneEnergyGain`、`DemesneDrawGain` 也逐字段比较（参考值由 `SimulationSnapshot` 保存同一状态的战略上下文）。`ContinuousThreatRanking` 或 `ContextualRanking` 开启时，同一状态的 `BeamRankScore` 也按 double 逐位比较（汇总 `rankChecked`/`rankFailed`） | 同一探针；字段表与比较在 `FlashScoreFeatures`、`FlashScoreProjection`。现有引擎停在搜索边界的状态（`BoundaryReason` 非 None）不比较 |
 | K5 下界一致 | K1/K2 中投影一致的每个状态，`FlashBoundFeatures` 的 `FutureHealPotential`、`HasRisk`、`RemainingHealingPotential`、`FutureHealUsed`、`CumulativePlayerHpLost`、`RecoveredPlayerHp`、`PlayerHp`、`PlayerMaxHp`、`DeathSaveHpRestored`、`ExplicitPotionStrategicCost` 与 `StrategicHpLowerBound` 必须等于现有主搜索成员同一状态的取值。下界无法精确移植的根整体禁用剪枝，汇总行写 `bound=disabled(<原因>)` | 同一探针；比较在 `FlashBoundFeatures.Diff`。现有侧只读访问器在 `CombatBeamSolver.Flash.cs`（`PrimaryIncumbentRemainingHealingPotential`、`PrimaryIncumbentFutureHealPotential`、`PrimaryIncumbentHpLowerBound`） |
 
-复跑命令与当前证据见 [测试记录](combatsolver-flash-testing.md)。
+当前仓库的检查入口见 [测试与验证](../testing.md)；历史实验记录保存在本地 `.local/`。
 
 比较失败时输出第一处差异的字段路径（例如 `Enemies[1].Powers[VULNERABLE].Amount: old=2 flash=3`）、动作序列与种子，便于直接复现。
 
