@@ -37,10 +37,12 @@ internal static class CombatSearchCoordinator
                 || initial.Options.EffectivePotionPolicy == PotionUseMode.RequireAtLeastOne);
         SearchMember[] members = PortfolioBuilder.Build(plan,
             initial.Options.PowerCommitments is { Rules.Length: > 0 }, requiredPlan);
-        QueenSearchPolicy? queen = plan.ExperimentalQueenSupplement && !requiredPlan && !forced
+        QueenSearchPolicy? queen = (plan.QueenStrategies || plan.ExperimentalQueenSupplement && !requiredPlan && !forced)
             && plan.CustomMembers.IsDefaultOrEmpty && initial.Battles.Length == 1 && initial.Options.Novelty is null
             ? QueenSearchPolicy.Capture(initial.Battles[0], initial.Rules) : null;
-        if (queen is not null)
+        if (queen is not null && plan.QueenStrategies)
+            members = QueenPortfolio.AppendToStages(members, plan);
+        else if (queen is not null)
         {
             int firstPotion = Array.FindIndex(members, m => m.Potions != SearchPotionLimit.None);
             int insertion = firstPotion < 0 ? members.Length : firstPotion;
@@ -48,6 +50,7 @@ internal static class CombatSearchCoordinator
                 new(plan.BaselineWidth, SearchEvaluation.QueenSetup, SearchRetention.Standard, SearchPotionLimit.None),
                 .. members.Skip(insertion)];
         }
+        QueenSearchPolicy? timing = queen is null ? null : queen with { PreserveKillTiming = true };
         // Resolve all limits before dividing time so skipped and duplicate layers receive no share.
         PotionPolicy[] policies = new PotionPolicy[members.Length];
         string?[] skips = new string?[members.Length];
@@ -112,7 +115,7 @@ internal static class CombatSearchCoordinator
             int phaseRemaining = 0;
             for (int i = index; i < members.Length; i++)
                 if (skips[i] is null
-                    && (member.Evaluation == SearchEvaluation.QueenSetup || members[i].Evaluation != SearchEvaluation.QueenSetup)
+                    && (QueenPortfolio.IsSupplement(member) || !QueenPortfolio.IsSupplement(members[i]))
                     && (!requiredPlan && !forced && members[i].Potions != SearchPotionLimit.None) == potionPhase)
                     phaseRemaining++;
             if (remaining <= 1 || Expired())
@@ -140,7 +143,8 @@ internal static class CombatSearchCoordinator
                 Scorer = new Scorer(scorer.RulesForCodec,
                     baseOnly: member.Evaluation is SearchEvaluation.Base or SearchEvaluation.QueenSetup,
                     offensive: member.Evaluation == SearchEvaluation.Offensive,
-                    queen: member.Evaluation == SearchEvaluation.QueenSetup ? queen : null),
+                    queen: member.Evaluation == SearchEvaluation.QueenSetup ? queen
+                        : member.Retention == SearchRetention.QueenKillTiming ? timing : null),
                 SecondRankBand = member.Retention == SearchRetention.SecondBand,
                 SecondRankBandWidth = member.Width,
                 AggressivePowerCommitment = member.Retention == SearchRetention.Power,

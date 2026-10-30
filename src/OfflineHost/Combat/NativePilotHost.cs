@@ -70,7 +70,7 @@ internal sealed class NativePilotHost(
                 live, livePlayer, rules, _current, policy, EvaluationRootFacts.Default, profile,
                 deterministic: true, memoryBudgetBytes);
             SearchStorage storage = new();
-            SearchPlan plan = profile.ToSearchPlan(memoryBudgetBytes);
+            SearchPlan plan = profile.ToSearchPlan(memoryBudgetBytes, live.Encounter?.RoomType == MegaCrit.Sts2.Core.Rooms.RoomType.Boss);
             CombatSearchRequest request = new(searchCase, plan);
             onSearchRequest?.Invoke(request);
             ValueTask<SearchMemberMeasurement> RunMember(SearchCase member, SearchStorage shared, CancellationToken ct)

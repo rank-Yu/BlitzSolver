@@ -32,7 +32,7 @@
 | `tests/Differential` | 进程内差分；战斗对照与离线整场在 `Combat/`，导入/建局/地图进点在 `Run/` |
 | `tools/testing` | Linux 无头实例启动与请求/结果轮询 |
 | `tools/run-eval` | 独立首战/下一房间/有界多房间/第一幕烟测 CLI；批量整局评估待 R5 |
-| `tests/corpora/quality` | 120 根质量语料（五个角色 × 三幕） |
+| `tests/corpora/quality` | 122 根质量语料（原 120 根＋两场固定女王回归） |
 | `docs` | 架构、接口、使用与测试方法，从 [docs/README.md](docs/README.md) 进入 |
 
 ## 构建与验证

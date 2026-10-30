@@ -755,6 +755,26 @@ internal static class Program
 
     internal static OfflineRequest LoadRequest(string data, string corpora, string root)
     {
+        if (root.StartsWith("quality-", StringComparison.Ordinal))
+        {
+            string name = root["quality-".Length..];
+            if (name.Length == 0 || Path.GetFileName(name) != name)
+                throw new InvalidDataException("质量语料名称无效。");
+            string directory = Path.Combine(corpora, "quality", name);
+            string requestPath = Path.Combine(directory, "request.json");
+            OfflineRequest quality = JsonSerializer.Deserialize<OfflineRequest>(
+                File.ReadAllText(requestPath), OfflineJson.Options)
+                ?? throw new InvalidDataException($"quality request 为空：{requestPath}。");
+            if (quality.GeneratedScenarioPath is not { Length: > 0 })
+            {
+                if (quality.OwnedLoadoutForTest is null)
+                    throw new InvalidDataException("固定质量语料必须声明已有牌组恢复。");
+                return quality;
+            }
+            string spec = Path.Combine(directory, "spec.json");
+            if (!File.Exists(spec)) throw new FileNotFoundException("质量语料缺少生成规格。", spec);
+            return quality with { GeneratedScenarioPath = spec };
+        }
         string metaPath = Path.Combine(data, "d1", root, "meta.json");
         using JsonDocument meta = JsonDocument.Parse(File.ReadAllText(metaPath));
         JsonElement inputElement = meta.RootElement.GetProperty("input");
@@ -791,26 +811,6 @@ internal static class Program
                         specPath);
                 request = request with { GeneratedScenarioPath = specPath };
             }
-        }
-        else if (kind == "quality")
-        {
-            string name = root.StartsWith("quality-", StringComparison.Ordinal)
-                ? root["quality-".Length..]
-                : throw new InvalidDataException($"quality 根名不以 quality- 开头：{root}。");
-            string specSource = input.GetProperty("spec").GetString()
-                ?? throw new InvalidDataException($"{metaPath} 的 input.spec 为空。");
-            if (!specSource.EndsWith("/" + name + "/spec.json", StringComparison.Ordinal))
-                throw new InvalidDataException(
-                    $"{metaPath} 的 spec 路径 {specSource} 与根名 {root} 不对应。");
-            string directory = Path.Combine(corpora, "quality", name);
-            string requestPath = Path.Combine(directory, "request.json");
-            string specPath = Path.Combine(directory, "spec.json");
-            if (!File.Exists(requestPath) || !File.Exists(specPath))
-                throw new FileNotFoundException($"质量语料不完整：{directory}");
-            request = JsonSerializer.Deserialize<OfflineRequest>(
-                File.ReadAllText(requestPath), OfflineJson.Options)
-                ?? throw new InvalidDataException($"quality request 为空：{requestPath}。");
-            request = request with { GeneratedScenarioPath = specPath };
         }
         else
         {

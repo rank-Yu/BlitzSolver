@@ -109,13 +109,22 @@ internal static class ScenarioBuilder
             foreach (RelicModel relic in player.Relics.ToArray())
                 player.RemoveRelicInternal(relic, silent: true);
         }
-        foreach (UnattendedRelicInjection injection in request.Relics)
-            await InjectRelicAsync(player, injection);
+        if (request.OwnedLoadoutForTest is null)
+            foreach (UnattendedRelicInjection injection in request.Relics)
+                await InjectRelicAsync(player, injection);
         if (request.ClearRunDeck)
             ClearRunDeck(runState, player);
         await PrepareAscendersBaneAsync(runState, player, generated);
         foreach (UnattendedCardInjection injection in request.RunCards)
             await InjectRunCardAsync(runState, player, injection);
+        if (request.OwnedLoadoutForTest is { } owned)
+        {
+            foreach (UnattendedRelicInjection injection in request.Relics)
+                await InjectRelicAsync(player, injection);
+            await CreatureCmd.SetMaxHp(player.Creature, owned.MaxHp);
+            player.Creature.SetCurrentHpInternal(owned.Hp);
+            player.Gold = owned.Gold;
+        }
         PreparePotionSlots(player, request, generated);
         if (request.PreserveNativeCombatStateForTest)
         {
@@ -164,6 +173,13 @@ internal static class ScenarioBuilder
 
     private static void ValidateSupported(OfflineRequest request)
     {
+        if (request.OwnedLoadoutForTest is { } owned
+            && (!request.PreserveNativeCombatStateForTest || !request.ClearRunDeck
+                || request.GeneratedScenarioPath is not null || request.InitialPlayerHp is not null
+                || request.InitialPlayerMaxHp is not null
+                || owned.MaxHp <= 0 || owned.Hp <= 0 || owned.Hp > owned.MaxHp || owned.Gold < 0
+                || request.Relics.Any(r => !r.AddWithoutObtainedEffects)))
+            throw new InvalidDataException("已有牌组恢复需要原版开局、完整牌组、有效生命金币及无获取效果的遗物。");
         if (request.SchemaVersion != 1)
             throw new NotSupportedException($"不支持的请求 schemaVersion：{request.SchemaVersion}。");
         if (!string.IsNullOrWhiteSpace(request.CheckpointArchivePath))

@@ -3,12 +3,13 @@ using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Ai.Combat.Policy;
 
-/// <summary>Explicit experimental opening policy; immutable and carried by the search request.</summary>
+/// <summary>Frozen queen opening context, shared by delay-kill and kill-timing members.</summary>
 internal sealed record QueenSearchPolicy(byte QueenSlot, byte TorchSlot, ushort QueenId, ushort TorchId,
     ushort StrengthId, ushort DexterityId, ushort AfterimageId, ushort AccuracyId, ushort ToolsId,
     int StrengthThreshold, int InitialDexterity, int ProwessDexterity, int FootworkGain)
 {
     internal const int QueenHpThreshold = 200;
+    internal bool PreserveKillTiming { get; init; }
     private const int SetupHpValue = 10;
 
     internal static QueenSearchPolicy? Capture(in Battle root, Rules rules)
@@ -55,11 +56,12 @@ internal sealed record QueenSearchPolicy(byte QueenSlot, byte TorchSlot, ushort 
     }
 
     internal bool Accepts(in Battle battle)
-        => battle.Enemies[TorchSlot].Creature.IsAlive
+        => PreserveKillTiming || battle.Enemies[TorchSlot].Creature.IsAlive
             || battle.Enemies[QueenSlot].Creature.CurrentHp <= QueenHpThreshold;
 
     internal double Bonus(in Battle battle)
     {
+        if (PreserveKillTiming) return 0;
         int active = 0;
         if (Amount(battle, AfterimageId) > 0) active++;
         if (Amount(battle, AccuracyId) > 0) active++;

@@ -81,7 +81,9 @@ internal static class OfflineCombat
         Console.WriteLine(
             $"offline-combat roots={roots.Length} jobs={jobs} tier={settings.Tier} " +
             $"widths={settings.Profile.BaselineWidth}/{settings.Profile.NarrowWidth}/{settings.Profile.WideWidth}/{settings.Profile.OffensiveWidth} " +
-            $"time_ms={settings.Profile.TotalTimeBudgetMilliseconds} potion_schedule={settings.PotionSchedule ?? "default"} out={settings.Output}");
+            $"normal_time_ms={settings.Profile.TotalTimeBudgetMilliseconds} "
+            + $"boss_time_ms={settings.Profile.ToSearchPlan(settings.MemoryBudgetBytes, true).TotalMilliseconds} "
+            + $"potion_schedule={settings.PotionSchedule ?? "default"} out={settings.Output}");
         Stopwatch wall = Stopwatch.StartNew();
         List<OfflineCombatRootResult> results = [];
         object gate = new();
@@ -121,16 +123,28 @@ internal static class OfflineCombat
         return failed == 0 ? 0 : 1;
     }
 
+    private static void CheckQualityExpectation(string corpora, string root, SearchPerformanceTier tier, CombatPilotResult result)
+    {
+        if (!root.StartsWith("quality-", StringComparison.Ordinal)) return;
+        string path = Path.Combine(corpora, "quality", root["quality-".Length..], "expectations.json");
+        if (!File.Exists(path)) return;
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+        JsonElement expected = document.RootElement;
+        if (expected.GetProperty("tier").GetString() != tier.ToString()) return;
+        if (result.Outcome != expected.GetProperty("outcome").GetString()
+            || result.PlayerHp < expected.GetProperty("minimumFinalHp").GetInt32()
+            || result.Deviations != 0 || result.DeploymentFailures != 0)
+            throw new InvalidDataException($"质量回归失败：{root}，outcome={result.Outcome} hp={result.PlayerHp}。");
+    }
+
     private static string[] EnumerateQualityRoots(OfflineCombatSettings settings)
     {
         string quality = Path.Combine(settings.Corpora, "quality");
         if (!Directory.Exists(quality))
             return [];
         return Directory.EnumerateDirectories(quality)
-            .Where(directory => File.Exists(Path.Combine(directory, "spec.json")))
+            .Where(directory => File.Exists(Path.Combine(directory, "request.json")))
             .Select(directory => "quality-" + Path.GetFileName(directory))
-            .Where(name => File.Exists(
-                Path.Combine(settings.Data, "d1", name, "meta.json")))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
     }
@@ -164,6 +178,7 @@ internal static class OfflineCombat
             CombatPilotResult result = CombatPilot.RunAsync(host, root, CancellationToken.None)
                 .GetAwaiter().GetResult();
             long wallMs = stopwatch.ElapsedMilliseconds;
+            CheckQualityExpectation(settings.Corpora, root, settings.Tier, result);
             WriteResult(settings.Output, root, result);
             if (settings.PotionSchedule != null)
                 WriteSchedule(settings.Output, root, settings.PotionSchedule, host.ScheduleObservations);
@@ -319,6 +334,7 @@ internal static class OfflineCombat
             wideWidth = settings.Profile.WideWidth,
             offensiveWidth = settings.Profile.OffensiveWidth,
             totalTimeBudgetMilliseconds = settings.Profile.TotalTimeBudgetMilliseconds,
+            bossTotalTimeBudgetMilliseconds = settings.Profile.ToSearchPlan(settings.MemoryBudgetBytes, true).TotalMilliseconds,
             poolStateBudgetMb = settings.PoolStateBudgetMb,
             memoryBudgetBytes = settings.MemoryBudgetBytes,
             roots,
@@ -533,7 +549,7 @@ internal static class OfflineCombat
             if (PoolStateBudgetMb is { } poolMb)
                 searchCase = searchCase with { Options = searchCase.Options with
                     { PoolStateBudgetBytes = checked(poolMb * 1024 * 1024) } };
-            SearchPlan plan = profile.ToSearchPlan(MemoryBudgetBytes);
+            SearchPlan plan = profile.ToSearchPlan(MemoryBudgetBytes, combat.Encounter?.RoomType == MegaCrit.Sts2.Core.Rooms.RoomType.Boss);
             if (PotionSchedule is { } schedule)
             {
                 bool forced = PotionSearchSchedule.HasForcedDirectives(searchCase.Options);

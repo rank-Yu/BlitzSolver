@@ -25,6 +25,15 @@ internal static class SearchV2Checks
         Assert((extra.BaselineWidth, extra.NarrowWidth, extra.WideWidth, extra.OffensiveWidth, extra.TotalMilliseconds)
             == (675, 450, 1013, 270, 300_000), "extra preset");
 
+        foreach (SearchPlan preset in new[] { low, medium, high, extra })
+        {
+            SearchPlan boss = preset.ForEncounter(true);
+            Assert(boss.TotalMilliseconds == checked(preset.TotalMilliseconds * 2)
+                && boss with { TotalMilliseconds = preset.TotalMilliseconds } == preset,
+                "boss doubles time only, for every tier");
+            Assert(preset.ForEncounter(false) == preset, "ordinary encounter budget unchanged");
+        }
+
         Assert(new[] { low, medium, high, extra }.All(p => p.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio),
             "production presets use staged portfolio");
         Assert(PortfolioBuilder.Build(medium, power: true, forced: false).Length == 18
@@ -313,6 +322,94 @@ internal static class SearchV2Checks
             .AsTask().GetAwaiter().GetResult();
         Assert(result.Members.All(m => m.Member.Evaluation != SearchEvaluation.QueenSetup),
             "explicit custom portfolio stays authoritative");
+
+        CheckQueenPortfolio(rules, root, options, plan, forced, policy);
+    }
+
+    private static void CheckQueenPortfolio(Rules rules, Battle root, BeamOptions options,
+        SearchPlan plan, BeamOptions forced, QueenSearchPolicy policy)
+    {
+        Registry.TryPotion("FIRE_POTION", out ushort fire);
+        root.PotionSlotCount = 2;
+        root.Potions[0] = root.Potions[1] = (ushort)(fire + 1);
+        options = options with { PowerCommitments = new([default], 1) };
+        SearchPlan enabled = plan with { QueenStrategies = true, ExperimentalQueenSupplement = false,
+            DefaultPotionSchedule = DefaultPotionSchedule.StagedPortfolio, TotalMilliseconds = 120_000 };
+        SearchCase search = new(rules, [root], options);
+        List<BeamOptions> observed = [];
+        long now = 0;
+        ValueTask<SearchMemberMeasurement> Run(SearchCase item, SearchStorage _, CancellationToken __)
+        {
+            observed.Add(item.Options); now += 10;
+            return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, 10));
+        }
+        CombatSearchResult baseline = CombatSearchCoordinator.RunAsync(
+            new(search, enabled with { QueenStrategies = false }), new(), Run, CancellationToken.None, () => now)
+            .AsTask().GetAwaiter().GetResult();
+        TimeSpan[] originalShares = observed.Take(6).Select(o => o.SoftTimeBudget).ToArray();
+        observed.Clear(); now = 0;
+        CombatSearchResult result = CombatSearchCoordinator.RunAsync(new(search, enabled), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.Length == 24 && observed.Count == 24, "queen runs eight members in each potion stage");
+        for (int stage = 0; stage < 3; stage++)
+        {
+            int at = stage * 8;
+            Assert(result.Members.Skip(at).Take(6).Select(m => m.Member)
+                .SequenceEqual(baseline.Members.Skip(stage * 6).Take(6).Select(m => m.Member)),
+                "queen keeps original stage members");
+            Assert(result.Members[at + 6].Member == new SearchMember(enabled.BaselineWidth,
+                SearchEvaluation.QueenSetup, SearchRetention.Standard, result.Members[at].Member.Potions),
+                "delay-kill member follows each stage");
+            Assert(result.Members[at + 7].Member == new SearchMember(enabled.NarrowWidth,
+                SearchEvaluation.Standard, SearchRetention.QueenKillTiming, result.Members[at].Member.Potions),
+                "kill-timing member follows delay-kill at narrow width");
+            Assert(observed[at + 6].Scorer!.QueenPolicy is { PreserveKillTiming: false }
+                && observed[at + 7].Scorer!.QueenPolicy is { PreserveKillTiming: true },
+                "supplement mode is frozen on each request");
+        }
+        Assert(observed.Take(6).Select(o => o.SoftTimeBudget).SequenceEqual(originalShares),
+            "queen additions do not divide original no-potion time shares");
+        Assert(observed.All(o => o.SearchMemoryBudgetBytes == enabled.MemoryBytes && o.DeadlineExpired != null),
+            "all queen members share the configured memory ceiling and deadline");
+        CombatSearchRequest decodedPlan = CombatSearchCodec.Decode(CombatSearchCodec.Encode(new(search, enabled.ForEncounter(true))));
+        Assert(decodedPlan.Plan.QueenStrategies && decodedPlan.Plan.TotalMilliseconds == 240_000,
+            "v7 preserves queen defaults and resolved boss budget without doubling again");
+        QueenSearchPolicy timing = policy with { PreserveKillTiming = true };
+        Battle deadTorch = root; deadTorch.Enemies[policy.TorchSlot].Creature.CurrentHp = 0;
+        Assert(timing.Accepts(deadTorch) && timing.Accepts(root) && timing.Bonus(root) == 0,
+            "timing preservation allows either kill order and adds no score reward");
+        SearchCase coded = search with { Options = options with {
+            Scorer = new Scorer(options.Scorer!.RulesForCodec, queen: timing) } };
+        byte[] bytes = SearchCodec.EncodeRequest(coded);
+        SearchCase decoded = SearchCodec.DecodeRequest(bytes);
+        Assert(decoded.Options.Scorer!.QueenPolicy == timing
+            && SearchCodec.EncodeRequest(decoded).SequenceEqual(bytes), "QSP2 timing policy round trip");
+
+        observed.Clear(); now = 0;
+        BeamOptions limited = options with { Potions = options.Potions with { MaximumUses = 1 } };
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = limited }, enabled),
+            new(), Run, CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members[22].SkippedReason == "duplicate-limit" && result.Members[23].SkippedReason == "duplicate-limit",
+            "both queen members deduplicate one versus allowed when effective potion limits match");
+
+        observed.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = forced with {
+            PowerCommitments = options.PowerCommitments } }, enabled), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(observed.Count == 8 && result.Members.All(m => m.Member.Potions == SearchPotionLimit.Allowed)
+            && observed.All(o => o.EnforceForcedPotionDirectives),
+            "forced potions get both supplements without losing forced directives");
+
+        observed.Clear(); now = 0;
+        ValueTask<SearchMemberMeasurement> Exhaust(SearchCase item, SearchStorage _, CancellationToken __)
+        {
+            observed.Add(item.Options); now += observed.Count == 6 ? enabled.TotalMilliseconds : 10;
+            return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, 10));
+        }
+        result = CombatSearchCoordinator.RunAsync(new(search, enabled), new(), Exhaust,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(observed.Count == 6 && result.Members.Skip(6).All(m => !m.Ran),
+            "neither queen supplement extends an exhausted global deadline");
     }
 
 }

@@ -135,7 +135,8 @@ internal sealed class CombatPilotHost(
                 "request_invalid", error.Message, 0, 0);
         }
         SearchPerformanceProfile profile = SearchPerformanceProfile.For(tier);
-        SearchPlan plan = profile.ToSearchPlan(searchCase.Options.SearchMemoryBudgetBytes);
+        SearchPlan plan = profile.ToSearchPlan(searchCase.Options.SearchMemoryBudgetBytes,
+            _combat.Encounter?.RoomType == MegaCrit.Sts2.Core.Rooms.RoomType.Boss);
         SearchStorage storage = new();
         CombatSearchResult outcome = await CombatSearchCoordinator.RunAsync(
             new(searchCase, plan), storage, RunMember, token);

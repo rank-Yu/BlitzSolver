@@ -5,7 +5,7 @@ using Sts2Solver.Simulation.Combat;
 namespace Sts2Solver.Ai.Combat;
 
 internal enum SearchEvaluation { Standard, Base, Offensive, QueenSetup }
-internal enum SearchRetention { Standard, Power, SecondBand }
+internal enum SearchRetention { Standard, Power, SecondBand, QueenKillTiming }
 internal enum SearchPotionLimit { None = 0, One = 1, Allowed = 2, Two = 3, Three = 4 }
 
 /// <summary>Default schedule semantics preserved across versioned requests.</summary>
@@ -18,7 +18,14 @@ internal sealed record SearchMember(int Width, SearchEvaluation Evaluation,
 internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWidth,
     int OffensiveWidth, int TotalMilliseconds, long MemoryBytes)
 {
-    /// <summary>Opt-in experimental queen opening supplement; defaults off.</summary>
+    /// <summary>Encounter-specific default portfolio; disabled when decoding historical plans.</summary>
+    public bool QueenStrategies { get; init; }
+
+    /// <summary>Apply the encounter budget once, when assembling a fresh host plan.</summary>
+    internal SearchPlan ForEncounter(bool isBoss)
+        => isBoss ? this with { TotalMilliseconds = checked(TotalMilliseconds * 2) } : this;
+
+    /// <summary>Historical v6 single-supplement switch, retained for replay compatibility.</summary>
     public bool ExperimentalQueenSupplement { get; init; }
     public ImmutableArray<SearchMember> CustomMembers { get; init; } = [];
     public DefaultPotionSchedule DefaultPotionSchedule { get; init; } = DefaultPotionSchedule.StagedPortfolio;

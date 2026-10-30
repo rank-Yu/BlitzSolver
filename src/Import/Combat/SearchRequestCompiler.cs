@@ -47,9 +47,9 @@ public readonly record struct SearchPerformanceProfile(
             preset.OffensiveWidth, preset.TotalMilliseconds);
     }
 
-    internal SearchPlan ToSearchPlan(long memoryBytes)
-        => new(BaselineWidth, NarrowWidth, WideWidth, OffensiveWidth,
-            TotalTimeBudgetMilliseconds, memoryBytes);
+    internal SearchPlan ToSearchPlan(long memoryBytes, bool isBoss)
+        => new SearchPlan(BaselineWidth, NarrowWidth, WideWidth, OffensiveWidth,
+            TotalTimeBudgetMilliseconds, memoryBytes) { QueenStrategies = true }.ForEncounter(isBoss);
 
     public static SearchPerformanceTier ParseTier(string text)
     {

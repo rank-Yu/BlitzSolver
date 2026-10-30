@@ -11,7 +11,7 @@ internal static class CombatSearchCodec
     internal static byte[] Encode(CombatSearchRequest request) => Codec.ToBytes(writer =>
     {
         writer.Write(Magic);
-        writer.Write(request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
+        writer.Write(request.Plan.QueenStrategies ? (ushort)7 : request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
         byte[] root = SearchCodec.EncodeRequest(request.Case);
         writer.Write(root.Length);
         writer.Write(root);
@@ -38,7 +38,8 @@ internal static class CombatSearchCodec
         if (!Enum.IsDefined(plan.DefaultPotionSchedule))
             throw new InvalidDataException("默认用药调度无效。");
         writer.Write((int)plan.DefaultPotionSchedule);
-        if (plan.ExperimentalQueenSupplement) writer.Write(true);
+        if (plan.QueenStrategies || plan.ExperimentalQueenSupplement) writer.Write(plan.ExperimentalQueenSupplement);
+        if (plan.QueenStrategies) writer.Write(true);
     });
 
     internal static CombatSearchRequest Decode(byte[] bytes) => Codec.Read(bytes, "组合搜索请求", reader =>
@@ -46,7 +47,7 @@ internal static class CombatSearchCodec
         if (reader.ReadUInt32() != Magic)
             throw new InvalidDataException("组合搜索请求魔数不符。");
         ushort version = reader.ReadUInt16();
-        if (version is not (1 or 2 or 3 or 4 or Version or 6))
+        if (version is not (1 or 2 or 3 or 4 or Version or 6 or 7))
             throw new InvalidDataException("组合搜索请求版本不受支持。");
         int length = Codec.ReadCount(reader, 1 << 28, "搜索根字节");
         byte[] root = reader.ReadBytes(length);
@@ -76,7 +77,8 @@ internal static class CombatSearchCodec
         if (!Enum.IsDefined(schedule) || version < 5 && schedule == DefaultPotionSchedule.StagedPortfolio)
             throw new InvalidDataException("默认用药调度无效。");
         plan = plan with { DefaultPotionSchedule = schedule,
-            ExperimentalQueenSupplement = version >= 6 && Codec.ReadBool(reader) };
+            ExperimentalQueenSupplement = version >= 6 && Codec.ReadBool(reader),
+            QueenStrategies = version >= 7 && Codec.ReadBool(reader) };
         searchCase = searchCase with { Options = searchCase.Options with
             { HasUnboundedGrowthTargets = unboundedGrowth, PoolStateBudgetBytes = poolStateBudget } };
         if (searchCase.Options.PotionFreeBaseline is { } baseline)

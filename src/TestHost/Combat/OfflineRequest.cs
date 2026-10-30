@@ -33,6 +33,8 @@ internal sealed record OfflineRequest
     public string? CheckpointArchivePath { get; init; }
     public string? ReplayPolicyOverridePath { get; init; }
     public bool PreserveNativeCombatStateForTest { get; init; }
+    /// <summary>Restore an already owned deck and relics before the native opening, without acquisition upgrades.</summary>
+    public OfflineOwnedLoadout? OwnedLoadoutForTest { get; init; }
     public int Ascension { get; init; }
     public int ActIndexForTest { get; init; }
     public RoomType TargetRoomType { get; init; } = RoomType.Monster;
@@ -204,4 +206,12 @@ internal sealed class OfflineRelicCounterRule
     public int Maximum { get; init; }
     public int HpAllowance { get; init; }
     public int Priority { get; init; } = 1;
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record OfflineOwnedLoadout
+{
+    public int Hp { get; init; }
+    public int MaxHp { get; init; }
+    public int Gold { get; init; }
 }

@@ -154,7 +154,7 @@ internal static class SearchCodec
         writer.Write(hooks);
         if (options.Scorer?.QueenPolicy is { } queen)
         {
-            writer.Write(0x31505351u); // QSP1, optional experimental request extension.
+            writer.Write(queen.PreserveKillTiming ? 0x32505351u : 0x31505351u); // QSP1 delay / QSP2 retention.
             queen.Encode(writer);
         }
     }
@@ -229,9 +229,11 @@ internal static class SearchCodec
             throw new InvalidDataException($"Sts2Solver 搜索请求的宿主回调位 {hooks:X} 非法。");
         if (reader.BaseStream.Position < reader.BaseStream.Length)
         {
-            if (reader.ReadUInt32() != 0x31505351u || scorer is null)
+            uint extension = reader.ReadUInt32();
+            if (extension is not (0x31505351u or 0x32505351u) || scorer is null)
                 throw new InvalidDataException("Unknown search request extension.");
-            scorer = new Scorer(scorer.RulesForCodec, baseOnly: true, queen: QueenSearchPolicy.Decode(reader));
+            QueenSearchPolicy queen = QueenSearchPolicy.Decode(reader) with { PreserveKillTiming = extension == 0x32505351u };
+            scorer = new Scorer(scorer.RulesForCodec, baseOnly: !queen.PreserveKillTiming, queen: queen);
         }
         return new BeamOptions(beamWidth, maxExpanded, maxTurns, budget, initialHp)
         {

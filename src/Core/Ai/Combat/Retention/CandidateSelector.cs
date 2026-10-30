@@ -140,6 +140,8 @@ internal sealed partial class BeamSolver
                 AdmitPowerCommitmentSeats(selected, required, width);
             if (_planCommitment is { CopyPowerSeats: true })
                 AdmitPlanCommitmentSeats(selected, required, width);
+            if (_scorer.QueenPolicy is { PreserveKillTiming: true } queen)
+                AdmitQueenPhaseSeats(selected, width, queen);
             if (_checkPotionQuota)
                 ApplyPotionUseQuota(selected, width);
             CollectionsMarshal.AsSpan(selected).Sort(new RankPositionComparer(_rankPosition));
@@ -158,6 +160,40 @@ internal sealed partial class BeamSolver
                 }
             }
             return selected;
+        }
+
+        private void AdmitQueenPhaseSeats(List<int> selected, int width, QueenSearchPolicy queen)
+        {
+            bool aliveSeen = false, deadSeen = false;
+            for (int i = 0; i < Count && !(aliveSeen && deadSeen); i++)
+                if (_states[i].Enemies[queen.TorchSlot].Creature.IsAlive) aliveSeen = true;
+                else deadSeen = true;
+            if (!(aliveSeen && deadSeen)) return;
+            int quota = Math.Max(1, width / 8);
+            for (int phase = 0; phase < 2; phase++)
+            {
+                int retained = 0;
+                for (int position = 0; position < Count && retained < quota; position++)
+                {
+                    int candidate = _rankOrder[position];
+                    bool alive = _states[candidate].Enemies[queen.TorchSlot].Creature.IsAlive;
+                    if (alive != (phase == 0)) continue;
+                    int at = selected.IndexOf(candidate);
+                    if (at < 0)
+                    {
+                        for (int j = selected.Count - 1; j >= 0; j--)
+                            if (!_required[selected[j]])
+                            {
+                                _taken[selected[j]] = false;
+                                selected[j] = candidate;
+                                _taken[candidate] = true;
+                                at = j;
+                                break;
+                            }
+                    }
+                    if (at >= 0) { _required[candidate] = true; retained++; }
+                }
+            }
         }
 
         /// <summary>
