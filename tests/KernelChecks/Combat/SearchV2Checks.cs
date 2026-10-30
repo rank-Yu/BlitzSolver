@@ -25,6 +25,12 @@ internal static class SearchV2Checks
         Assert((extra.BaselineWidth, extra.NarrowWidth, extra.WideWidth, extra.OffensiveWidth, extra.TotalMilliseconds)
             == (675, 450, 1013, 270, 300_000), "extra preset");
 
+        Assert(new[] { low, medium, high, extra }.All(p => p.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio),
+            "production presets use staged portfolio");
+        Assert(PortfolioBuilder.Build(medium, power: true, forced: false).Length == 18
+            && PortfolioBuilder.Build(medium, power: false, forced: false).Length == 15,
+            "staged preset covers six or five members in each phase");
+
         int twoGiB = SearchMemoryBudget.PoolStateCapacity(int.MaxValue, Battle.ExpectedSize, 64);
         int threeGiB = SearchMemoryBudget.PoolStateCapacity(3_000_000_000L, Battle.ExpectedSize, 64);
         Assert(threeGiB > twoGiB && threeGiB % 64 == 0
@@ -70,7 +76,8 @@ internal static class SearchV2Checks
         root.PotionSlotCount = 1;
         root.Potions[0] = (ushort)(fire + 1);
         SearchCase search = new(rules, [root], options);
-        SearchPlan tiny = new(3, 2, 4, 1, 1000, 100_000_000);
+        SearchPlan tiny = new(3, 2, 4, 1, 1000, 100_000_000)
+        { DefaultPotionSchedule = DefaultPotionSchedule.OneAllowed };
         search.Battles[0].Player.CurrentHp = 42;
         CombatSearchRequest frozen = new(search, tiny);
         search.Battles[0].Player.CurrentHp = 7;

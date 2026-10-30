@@ -32,13 +32,26 @@ internal static class PortfolioBuilder
         List<SearchMember> members = [];
         if (power)
             members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Power, primary));
-        members.Add(new(plan.NarrowWidth, SearchEvaluation.Standard, SearchRetention.Standard, primary));
+        int ordinaryIndex = members.Count;
+        int ordinaryWidth = forced && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+            ? plan.BaselineWidth : plan.NarrowWidth;
+        members.Add(new(ordinaryWidth, SearchEvaluation.Standard, SearchRetention.Standard, primary));
         members.Add(new(plan.WideWidth, SearchEvaluation.Standard, SearchRetention.Standard, primary));
         members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.SecondBand, primary));
         members.Add(new(plan.BaselineWidth, SearchEvaluation.Base, SearchRetention.Standard, primary));
         members.Add(new(plan.OffensiveWidth, SearchEvaluation.Offensive, SearchRetention.Standard, primary));
         if (!forced)
         {
+            if (plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio)
+            {
+                int primaryCount = members.Count;
+                for (int i = 0; i < primaryCount; i++)
+                    members.Add(members[i] with { Potions = SearchPotionLimit.One });
+                for (int i = 0; i < primaryCount; i++)
+                    members.Add(members[i] with { Potions = SearchPotionLimit.Allowed,
+                        Width = i == ordinaryIndex ? plan.BaselineWidth : members[i].Width });
+                return [.. members];
+            }
             members.Add(new(plan.NarrowWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.One));
             if (plan.DefaultPotionSchedule == DefaultPotionSchedule.OneTwoThree)
             {

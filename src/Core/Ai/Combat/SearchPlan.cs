@@ -9,7 +9,7 @@ internal enum SearchRetention { Standard, Power, SecondBand }
 internal enum SearchPotionLimit { None = 0, One = 1, Allowed = 2, Two = 3, Three = 4 }
 
 /// <summary>Default schedule semantics preserved across versioned requests.</summary>
-internal enum DefaultPotionSchedule { OneAllowed = 0, OneTwoThree = 1 }
+internal enum DefaultPotionSchedule { OneAllowed = 0, OneTwoThree = 1, StagedPortfolio = 2 }
 
 /// <summary>Each member describes the four independent search dimensions.</summary>
 internal sealed record SearchMember(int Width, SearchEvaluation Evaluation,
@@ -19,7 +19,7 @@ internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWi
     int OffensiveWidth, int TotalMilliseconds, long MemoryBytes)
 {
     public ImmutableArray<SearchMember> CustomMembers { get; init; } = [];
-    public DefaultPotionSchedule DefaultPotionSchedule { get; init; } = DefaultPotionSchedule.OneAllowed;
+    public DefaultPotionSchedule DefaultPotionSchedule { get; init; } = DefaultPotionSchedule.StagedPortfolio;
     public int EndedKeepWidths { get; init; } = 8;
     public int EndedTriggerWidths { get; init; } = 16;
 }

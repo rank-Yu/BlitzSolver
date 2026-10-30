@@ -58,8 +58,9 @@ internal static class SearchV2Contracts
         try { _ = CombatSearchCodec.Decode(newBytes); }
         catch (InvalidDataException) { rejectedNewLimit = true; }
         Assert(rejectedNewLimit, "v2 cannot silently read v3 limits");
-        SearchPlan defaultPlan = plan with { CustomMembers = [] };
-        CombatSearchRequest v4Default = CombatSearchCodec.Decode(CombatSearchCodec.Encode(new(original, defaultPlan)));
+        SearchPlan defaultPlan = plan with { CustomMembers = [], DefaultPotionSchedule = DefaultPotionSchedule.OneAllowed };
+        byte[] v4Bytes = CombatSearchCodec.Encode(new(original, defaultPlan)); v4Bytes[4] = 4;
+        CombatSearchRequest v4Default = CombatSearchCodec.Decode(v4Bytes);
         Assert(v4Default.Plan.DefaultPotionSchedule == DefaultPotionSchedule.OneAllowed
             && v4Default.Plan.CustomMembers.IsDefaultOrEmpty, "v4 default schedule round trip");
         SearchPlan triplePlan = defaultPlan with { DefaultPotionSchedule = DefaultPotionSchedule.OneTwoThree };
@@ -74,7 +75,31 @@ internal static class SearchV2Contracts
         Assert(v3RoundTrip with { CustomMembers = v3.Plan.CustomMembers } == v3.Plan
             && v3RoundTrip.CustomMembers.SequenceEqual(v3.Plan.CustomMembers),
             "v3 schedule survives v4 re-encoding");
-        byte[] unknownVersion = (byte[])tripleBytes.Clone(); unknownVersion[4] = 5;
+        SearchPlan staged = plan with { CustomMembers = [], DefaultPotionSchedule = DefaultPotionSchedule.StagedPortfolio };
+        byte[] stagedBytes = CombatSearchCodec.Encode(new(original, staged));
+        Assert(CombatSearchCodec.Decode(stagedBytes).Plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio,
+            "v5 staged schedule round trip");
+        byte[] invalidV4 = (byte[])stagedBytes.Clone(); invalidV4[4] = 4;
+        bool rejectsV5ScheduleInV4 = false;
+        try { _ = CombatSearchCodec.Decode(invalidV4); }
+        catch (InvalidDataException) { rejectsV5ScheduleInV4 = true; }
+        Assert(rejectsV5ScheduleInV4, "v4 rejects the v5 schedule value");
+        SearchMember[] stagedMembers = PortfolioBuilder.Build(staged, power: true, forced: false);
+        Assert(stagedMembers.Length == 18
+            && stagedMembers.Take(6).All(m => m.Potions == SearchPotionLimit.None)
+            && stagedMembers.Skip(6).Take(6).All(m => m.Potions == SearchPotionLimit.One)
+            && stagedMembers.Skip(12).All(m => m.Potions == SearchPotionLimit.Allowed)
+            && stagedMembers.Take(6).Select(m => m.Width).SequenceEqual(new[] { 12, 8, 16, 12, 12, 5 })
+            && stagedMembers.Skip(12).Select(m => m.Width).SequenceEqual(new[] { 12, 12, 16, 12, 12, 5 })
+            && Enumerable.Range(0, 6).All(i => stagedMembers[i] with { Potions = SearchPotionLimit.One } == stagedMembers[i + 6]
+                && stagedMembers[i] with { Potions = SearchPotionLimit.Allowed,
+                    Width = i == 1 ? staged.BaselineWidth : stagedMembers[i].Width } == stagedMembers[i + 12]),
+            "staged portfolio repeats all six dimensions in stage order");
+        Assert(PortfolioBuilder.Build(staged, false, false).Length == 15
+            && PortfolioBuilder.Build(staged, true, true).Length == 6
+            && PortfolioBuilder.Build(staged, true, true).SequenceEqual(stagedMembers.Skip(12)),
+            "power-free and forced staged portfolios");
+        byte[] unknownVersion = (byte[])tripleBytes.Clone(); unknownVersion[4] = 6;
         bool invalidVersion = false;
         try { _ = CombatSearchCodec.Decode(unknownVersion); }
         catch (InvalidDataException) { invalidVersion = true; }
@@ -276,6 +301,7 @@ internal static class SearchV2Contracts
         Assert(fallback, "low-memory search returns a replayable fallback");
         Assert(new BeamSolver(original.Rules, legacy).TryCompareResultQuality(original.Battles,
             first, uncompressed, out int compactionComparison), "batch comparison replays both routes");
+        PotionStageContracts.Run(original, plan);
         CheckPotionCandidates();
         Console.WriteLine($"COMBAT_SEARCH_V2 compaction comparison={compactionComparison} " +
             $"batched={first.BestIsVictory} uncompressed={uncompressed.BestIsVictory}");

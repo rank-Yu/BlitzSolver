@@ -31,19 +31,24 @@ internal static class CombatSearchCoordinator
         if (initial.Options.Scorer is not { } scorer) throw new InvalidDataException("缺少评分配置。");
         bool forced = PotionSearchSchedule.HasForcedDirectives(initial.Options);
         bool canUsePotions = PotionSearchSchedule.HasAllowedUse(initial.Battles, initial.Rules, initial.Options);
+        bool requiredPlan = forced || plan.CustomMembers.IsDefaultOrEmpty
+            && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+            && (initial.Options.MinimumPotionUses > 0
+                || initial.Options.EffectivePotionPolicy == PotionUseMode.RequireAtLeastOne);
         SearchMember[] members = PortfolioBuilder.Build(plan,
-            initial.Options.PowerCommitments is { Rules.Length: > 0 }, forced);
+            initial.Options.PowerCommitments is { Rules.Length: > 0 }, requiredPlan);
         // Resolve all limits before dividing time so skipped and duplicate layers receive no share.
         PotionPolicy[] policies = new PotionPolicy[members.Length];
         string?[] skips = new string?[members.Length];
         HashSet<int?> seenLimits = [];
+        HashSet<(int Width, SearchEvaluation Evaluation, SearchRetention Retention, int? Limit)> seenMembers = [];
         for (int i = 0; i < members.Length; i++)
         {
             SearchMember item = members[i];
             PotionPolicy policy = PotionSearchSchedule.Limit(initial.Options.Potions, item.Potions,
                 initial.Options.InitialExplicitPotionUses);
             policies[i] = policy;
-            bool potionPhase = !forced && item.Potions != SearchPotionLimit.None;
+            bool potionPhase = !requiredPlan && !forced && item.Potions != SearchPotionLimit.None;
             if (policy.MaximumUses is { } cap && cap < initial.Options.MinimumPotionUses)
                 skips[i] = "minimum-exceeds-limit";
             else if (potionPhase && !canUsePotions)
@@ -51,10 +56,15 @@ internal static class CombatSearchCoordinator
             else if (potionPhase && policy.MaximumUses is { } limit
                 && limit <= initial.Options.InitialExplicitPotionUses)
                 skips[i] = "limit-already-used";
-            else if (potionPhase && plan.CustomMembers.IsDefaultOrEmpty && !seenLimits.Add(policy.MaximumUses))
+            else if (potionPhase && plan.CustomMembers.IsDefaultOrEmpty
+                && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+                && !seenMembers.Add((item.Width, item.Evaluation, item.Retention, policy.MaximumUses)))
+                skips[i] = "duplicate-limit";
+            else if (potionPhase && plan.CustomMembers.IsDefaultOrEmpty
+                && plan.DefaultPotionSchedule != DefaultPotionSchedule.StagedPortfolio && !seenLimits.Add(policy.MaximumUses))
                 skips[i] = "duplicate-limit";
         }
-        budget.ReservePotionPhase(!forced && Enumerable.Range(0, members.Length)
+        budget.ReservePotionPhase(!requiredPlan && !forced && Enumerable.Range(0, members.Length)
             .Any(i => members[i].Potions != SearchPotionLimit.None && skips[i] is null));
         bool Expired() => budget.Expired();
         BeamSolver quality = new(initial.Rules, initial.Options with { AuditPotionPolicy = true });
@@ -71,7 +81,16 @@ internal static class CombatSearchCoordinator
         {
             token.ThrowIfCancellationRequested();
             SearchMember member = members[index];
-            bool potionPhase = !forced && member.Potions != SearchPotionLimit.None;
+            bool potionPhase = !requiredPlan && !forced && member.Potions != SearchPotionLimit.None;
+            bool stageStart = index == 0 || members[index - 1].Potions != member.Potions;
+            if (potionPhase && stageStart && !requiredPlan && plan.CustomMembers.IsDefaultOrEmpty
+                && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+                && PotionStageGate.CanSkip(initial.Battles, initial.Rules, initial.Options, selected, free))
+            {
+                for (int j = index; j < members.Length && members[j].Potions == member.Potions; j++)
+                    if (PotionStageGate.HasRunCombination(logs, members[j]))
+                        skips[j] ??= "stage-economy";
+            }
             if (skips[index] is { } reason)
             {
                 logs.Add(new SearchMemberResult(member, false, reason, 0, 0, "skipped", false, null, null, false, 0, 0)
@@ -81,7 +100,7 @@ internal static class CombatSearchCoordinator
             long remaining = budget.Remaining(potionPhase);
             int phaseRemaining = 0;
             for (int i = index; i < members.Length; i++)
-                if (skips[i] is null && (!forced && members[i].Potions != SearchPotionLimit.None) == potionPhase)
+                if (skips[i] is null && (!requiredPlan && !forced && members[i].Potions != SearchPotionLimit.None) == potionPhase)
                     phaseRemaining++;
             if (remaining <= 1 || Expired())
             {
@@ -112,9 +131,10 @@ internal static class CombatSearchCoordinator
                 SecondRankBandWidth = member.Width,
                 AggressivePowerCommitment = member.Retention == SearchRetention.Power,
                 Potions = potions,
-                AuditPotionPolicy = potionPhase || forced || initial.Options.InitialExplicitPotionUses > 0
+                AuditPotionPolicy = potionPhase || requiredPlan || initial.Options.InitialExplicitPotionUses > 0
                     || initial.Options.MinimumPotionUses > 0,
-                CollectPotionCandidates = potionPhase || forced,
+                CollectPotionCandidates = potionPhase || forced
+                    || requiredPlan && member.Potions != SearchPotionLimit.None,
                 PotionFreeBaseline = free is { } freeCandidate ? BeamSolver.PotionBaseline(freeCandidate) : null,
             };
             long memberStarted = budget.Now;
