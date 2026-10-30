@@ -6,6 +6,8 @@ internal static class PortfolioBuilder
 {
     internal static SearchMember[] Build(SearchPlan plan, bool power, bool forced)
     {
+        if (!Enum.IsDefined(plan.DefaultPotionSchedule))
+            throw new InvalidDataException("默认用药调度无效。");
         if (!plan.CustomMembers.IsDefaultOrEmpty)
         {
             SearchMember[] custom = [.. plan.CustomMembers];
@@ -38,8 +40,13 @@ internal static class PortfolioBuilder
         if (!forced)
         {
             members.Add(new(plan.NarrowWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.One));
-            members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Two));
-            members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Three));
+            if (plan.DefaultPotionSchedule == DefaultPotionSchedule.OneTwoThree)
+            {
+                members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Two));
+                members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Three));
+            }
+            else
+                members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Allowed));
         }
         return [.. members];
     }

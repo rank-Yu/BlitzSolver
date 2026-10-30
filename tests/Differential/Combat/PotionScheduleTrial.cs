@@ -17,14 +17,15 @@ internal static class PotionScheduleTrial
     internal static SearchPlan Build(SearchPlan plan, BeamOptions options, string name, bool forced)
     {
         if (!IsValid(name)) throw new InvalidDataException("未知实验用药调度。");
-        // Keep the stock default plan and its duplicate-limit skipping exactly as production does.
-        if (forced || name == "one-two-three") return plan;
+        if (forced) return plan;
+        // Both defaults keep the coordinator's existing duplicate-limit handling.
+        if (name == "one-allowed") return plan with { DefaultPotionSchedule = DefaultPotionSchedule.OneAllowed };
+        if (name == "one-two-three") return plan with { DefaultPotionSchedule = DefaultPotionSchedule.OneTwoThree };
         SearchMember[] defaults = PortfolioBuilder.Build(plan,
             options.PowerCommitments is { Rules.Length: > 0 }, forced: false);
         List<SearchMember> members = [.. defaults.Where(m => m.Potions == SearchPotionLimit.None)];
         members.Add(new(plan.NarrowWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.One));
-        if (name == "one-two-allowed")
-            members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Two));
+        members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Two));
         members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Allowed));
         return plan with { CustomMembers = ImmutableArray.CreateRange(members) };
     }

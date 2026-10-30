@@ -32,6 +32,7 @@ internal static class SearchV2Contracts
         Assert(SearchCodec.EncodeRequest(original).AsSpan().SequenceEqual(SearchCodec.EncodeRequest(decoded.Case)),
             "versioned request keeps legacy root and policy");
         byte[] oldDefault = CombatSearchCodec.Encode(new(original, plan with { CustomMembers = [] }));
+        oldDefault = oldDefault[..^4]; // v1–v3 predate the v4 schedule field.
         oldDefault[4] = 2; oldDefault[5] = 0;
         CombatSearchRequest oldDecoded = CombatSearchCodec.Decode(oldDefault);
         Assert(oldDecoded.Plan.CustomMembers.TakeLast(2).Select(m => m.Potions)
@@ -50,12 +51,72 @@ internal static class SearchV2Contracts
             new(8, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Three)] };
         byte[] newBytes = CombatSearchCodec.Encode(new(original, newLimits));
         Assert(CombatSearchCodec.Decode(newBytes).Plan.CustomMembers.SequenceEqual(newLimits.CustomMembers),
-            "v3 limits round trip");
+            "v4 limits round trip");
+        newBytes = newBytes[..^4];
         newBytes[4] = 2; newBytes[5] = 0;
         bool rejectedNewLimit = false;
         try { _ = CombatSearchCodec.Decode(newBytes); }
         catch (InvalidDataException) { rejectedNewLimit = true; }
         Assert(rejectedNewLimit, "v2 cannot silently read v3 limits");
+        SearchPlan defaultPlan = plan with { CustomMembers = [] };
+        CombatSearchRequest v4Default = CombatSearchCodec.Decode(CombatSearchCodec.Encode(new(original, defaultPlan)));
+        Assert(v4Default.Plan.DefaultPotionSchedule == DefaultPotionSchedule.OneAllowed
+            && v4Default.Plan.CustomMembers.IsDefaultOrEmpty, "v4 default schedule round trip");
+        SearchPlan triplePlan = defaultPlan with { DefaultPotionSchedule = DefaultPotionSchedule.OneTwoThree };
+        byte[] tripleBytes = CombatSearchCodec.Encode(new(original, triplePlan));
+        Assert(CombatSearchCodec.Decode(tripleBytes).Plan.DefaultPotionSchedule == DefaultPotionSchedule.OneTwoThree,
+            "v4 three-layer schedule round trip");
+        byte[] v3Bytes = tripleBytes[..^4]; v3Bytes[4] = 3; v3Bytes[5] = 0;
+        CombatSearchRequest v3 = CombatSearchCodec.Decode(v3Bytes);
+        Assert(v3.Plan.DefaultPotionSchedule == DefaultPotionSchedule.OneTwoThree
+            && v3.Plan.CustomMembers.IsDefaultOrEmpty, "v3 default keeps three layers and default deduplication");
+        SearchPlan v3RoundTrip = CombatSearchCodec.Decode(CombatSearchCodec.Encode(v3)).Plan;
+        Assert(v3RoundTrip with { CustomMembers = v3.Plan.CustomMembers } == v3.Plan
+            && v3RoundTrip.CustomMembers.SequenceEqual(v3.Plan.CustomMembers),
+            "v3 schedule survives v4 re-encoding");
+        byte[] unknownVersion = (byte[])tripleBytes.Clone(); unknownVersion[4] = 5;
+        bool invalidVersion = false;
+        try { _ = CombatSearchCodec.Decode(unknownVersion); }
+        catch (InvalidDataException) { invalidVersion = true; }
+        Assert(invalidVersion, "unknown codec version rejected");
+        byte[] unknownSchedule = (byte[])tripleBytes.Clone(); unknownSchedule[^4] = 99;
+        bool invalidSchedule = false;
+        try { _ = CombatSearchCodec.Decode(unknownSchedule); }
+        catch (InvalidDataException) { invalidSchedule = true; }
+        Assert(invalidSchedule, "unknown schedule rejected");
+        bool encodeInvalidSchedule = false;
+        try { _ = CombatSearchCodec.Encode(new(original, defaultPlan with { DefaultPotionSchedule = (DefaultPotionSchedule)99 })); }
+        catch (InvalidDataException) { encodeInvalidSchedule = true; }
+        Assert(encodeInvalidSchedule, "invalid schedule cannot be encoded");
+        Assert(Registry.TryPotion("FIRE_POTION", out ushort schedulePotion), "schedule fixture potion");
+        Battle scheduleRoot = original.Battles[0];
+        scheduleRoot.PotionSlotCount = 1; scheduleRoot.Potions[0] = (ushort)(schedulePotion + 1);
+        BeamOptions scheduleOptions = original.Options with
+        {
+            InitialExplicitPotionUses = 0, MinimumPotionUses = 0,
+            EnforceForcedPotionDirectives = false, ForcedPotionDirectives = ForcedPotionDirectives.None,
+            Potions = new(int.MinValue, 2, new(PotionUseMode.Smart, []), PotionUseMode.Smart, false),
+        };
+        SearchCase scheduleCase = original with { Battles = [scheduleRoot], Options = scheduleOptions };
+        long scheduleClock = 0;
+        ValueTask<SearchMemberMeasurement> ScheduleRun(SearchCase _, SearchStorage __, CancellationToken ___)
+        { scheduleClock += 10; return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, 10)); }
+        CombatSearchResult v3Run = CombatSearchCoordinator.RunAsync(new(scheduleCase, v3.Plan), new(), ScheduleRun,
+            CancellationToken.None, () => scheduleClock).AsTask().GetAwaiter().GetResult();
+        Assert(v3Run.Members[^3].Ran && v3Run.Members[^2].Ran
+            && v3Run.Members[^1].SkippedReason == "duplicate-limit", "decoded v3 max two skips duplicate Three");
+        scheduleClock = 0;
+        SearchCase maxOneCase = scheduleCase with { Options = scheduleOptions with
+            { Potions = scheduleOptions.Potions with { MaximumUses = 1 } } };
+        CombatSearchResult oldRun = CombatSearchCoordinator.RunAsync(new(maxOneCase, oldDecoded.Plan), new(), ScheduleRun,
+            CancellationToken.None, () => scheduleClock).AsTask().GetAwaiter().GetResult();
+        Assert(oldRun.Members[^2].Ran && oldRun.Members[^1].Ran,
+            "v1/v2 materialized custom schedule retains historical no-dedup behavior");
+        scheduleClock = 0;
+        CombatSearchResult v4Run = CombatSearchCoordinator.RunAsync(new(maxOneCase, v4Default.Plan), new(), ScheduleRun,
+            CancellationToken.None, () => scheduleClock).AsTask().GetAwaiter().GetResult();
+        Assert(v4Run.Members[^2].Ran && v4Run.Members[^1].SkippedReason == "duplicate-limit",
+            "v4 default max one deduplicates");
         Scorer standardScorer = original.Options.Scorer ?? throw new InvalidDataException("夹具没有评分器。");
         ScoreFeatures rootFeatures = standardScorer.Features(original.Battles[0], 0);
         double standardRank = standardScorer.BeamRankScore(original.Battles[0], rootFeatures, false, false);

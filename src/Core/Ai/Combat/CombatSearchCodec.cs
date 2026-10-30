@@ -6,7 +6,7 @@ namespace Sts2Solver.Ai.Combat;
 internal static class CombatSearchCodec
 {
     private const uint Magic = 0x32564353; // SCV2
-    private const ushort Version = 3;
+    private const ushort Version = 4;
 
     internal static byte[] Encode(CombatSearchRequest request) => Codec.ToBytes(writer =>
     {
@@ -35,6 +35,9 @@ internal static class CombatSearchCodec
         writer.Write(request.Case.Options.PotionFreeBaseline?.OutstandingStolenResource ?? int.MaxValue);
         writer.Write(request.Case.Options.HasUnboundedGrowthTargets);
         writer.Write(request.Case.Options.PoolStateBudgetBytes);
+        if (!Enum.IsDefined(plan.DefaultPotionSchedule))
+            throw new InvalidDataException("默认用药调度无效。");
+        writer.Write((int)plan.DefaultPotionSchedule);
     });
 
     internal static CombatSearchRequest Decode(byte[] bytes) => Codec.Read(bytes, "组合搜索请求", reader =>
@@ -42,7 +45,7 @@ internal static class CombatSearchCodec
         if (reader.ReadUInt32() != Magic)
             throw new InvalidDataException("组合搜索请求魔数不符。");
         ushort version = reader.ReadUInt16();
-        if (version is not (1 or 2 or Version))
+        if (version is not (1 or 2 or 3 or Version))
             throw new InvalidDataException("组合搜索请求版本不受支持。");
         int length = Codec.ReadCount(reader, 1 << 28, "搜索根字节");
         byte[] root = reader.ReadBytes(length);
@@ -67,21 +70,22 @@ internal static class CombatSearchCodec
         bool unboundedGrowth = Codec.ReadBool(reader);
         int poolStateBudget = version >= 2 ? reader.ReadInt32() : 0;
         if (poolStateBudget < 0) throw new InvalidDataException("状态池预算不能为负。");
+        DefaultPotionSchedule schedule = version >= 4 ? (DefaultPotionSchedule)reader.ReadInt32()
+            : version == 3 ? DefaultPotionSchedule.OneTwoThree : DefaultPotionSchedule.OneAllowed;
+        if (!Enum.IsDefined(schedule)) throw new InvalidDataException("默认用药调度无效。");
+        plan = plan with { DefaultPotionSchedule = schedule };
         searchCase = searchCase with { Options = searchCase.Options with
             { HasUnboundedGrowthTargets = unboundedGrowth, PoolStateBudgetBytes = poolStateBudget } };
         if (searchCase.Options.PotionFreeBaseline is { } baseline)
             searchCase = searchCase with { Options = searchCase.Options with
                 { PotionFreeBaseline = baseline with { OutstandingStolenResource = outstanding } } };
         // A legacy default request represents the historical One + Allowed schedule. Materialize
-        // it so re-encoding as v3 cannot silently change its meaning.
+        // it so re-encoding cannot silently change its historical custom-member behavior.
         if (version < 3 && plan.CustomMembers.IsDefaultOrEmpty)
         {
             bool forced = PotionSearchSchedule.HasForcedDirectives(searchCase.Options);
             SearchMember[] legacy = PortfolioBuilder.Build(plan,
                 searchCase.Options.PowerCommitments is { Rules.Length: > 0 }, forced);
-            if (!forced)
-                legacy = [.. legacy[..^2], new SearchMember(plan.BaselineWidth, SearchEvaluation.Standard,
-                    SearchRetention.Standard, SearchPotionLimit.Allowed)];
             plan = plan with { CustomMembers = System.Collections.Immutable.ImmutableArray.CreateRange(legacy) };
         }
         return new CombatSearchRequest(searchCase, plan);
