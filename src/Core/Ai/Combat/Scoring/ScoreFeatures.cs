@@ -97,6 +97,8 @@ internal readonly record struct ScoreFeatures
     public int PersistentBuffValue { get; init; }
     public int StrategicRetentionValue { get; init; }
 
+    public double SetupPotentialHp { get; init; }
+
     /// <summary><c>Snapshot.StrategicEffects.DamagePotential</c>; novelty facts read the five components.</summary>
     public int StrategicDamagePotential { get; init; }
 
@@ -274,6 +276,7 @@ internal readonly record struct ScoreFeatures
         Check(nameof(ZeroCostPlayableCount), expected.ZeroCostPlayableCount, actual.ZeroCostPlayableCount);
         Check(nameof(PlayableAttackCount), expected.PlayableAttackCount, actual.PlayableAttackCount);
         Check(nameof(PersistentBuffValue), expected.PersistentBuffValue, actual.PersistentBuffValue);
+        Check(nameof(SetupPotentialHp), expected.SetupPotentialHp, actual.SetupPotentialHp);
         Check(nameof(StrategicRetentionValue), expected.StrategicRetentionValue, actual.StrategicRetentionValue);
         Check(nameof(StrategicDamagePotential), expected.StrategicDamagePotential, actual.StrategicDamagePotential);
         Check(nameof(StrategicPreventionPotential), expected.StrategicPreventionPotential, actual.StrategicPreventionPotential);

@@ -4,7 +4,7 @@ using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Ai.Combat;
 
-internal enum SearchEvaluation { Standard, Base, Offensive, QueenSetup }
+internal enum SearchEvaluation { Standard, Base, Offensive, QueenSetup, Setup, FocusedSetup }
 internal enum SearchRetention { Standard, Power, SecondBand, QueenKillTiming }
 internal enum SearchPotionLimit { None = 0, One = 1, Allowed = 2, Two = 3, Three = 4 }
 
@@ -21,9 +21,15 @@ internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWi
     /// <summary>Encounter-specific default portfolio; disabled when decoding historical plans.</summary>
     public bool QueenStrategies { get; init; }
 
+    /// <summary>Generic setup members replace the historical QueenSetup member.</summary>
+    public bool SetupStrategies { get; init; }
+
+    internal static bool IsLongEncounter(bool isBoss, bool isElite, int actIndex)
+        => isBoss || isElite && actIndex is 1 or 2;
+
     /// <summary>Apply the encounter budget once, when assembling a fresh host plan.</summary>
-    internal SearchPlan ForEncounter(bool isBoss)
-        => isBoss ? this with { TotalMilliseconds = checked(TotalMilliseconds * 2) } : this;
+    internal SearchPlan ForEncounter(bool longEncounter)
+        => longEncounter ? this with { TotalMilliseconds = checked(TotalMilliseconds * 2) } : this;
 
     /// <summary>Historical v6 single-supplement switch, retained for replay compatibility.</summary>
     public bool ExperimentalQueenSupplement { get; init; }

@@ -235,6 +235,7 @@ internal static class SearchV2Checks
         catch (OperationCanceledException) { cancelled = true; }
         Assert(cancelled, "cancellation propagates");
         CheckQueenSupplement(rules, options, tiny, forced);
+        CheckSetupPortfolio(rules, options, tiny, forced);
         Console.WriteLine("COMBAT_SEARCH_V2 basic contracts=pass");
     }
     private static void CheckQueenSupplement(Rules rules, BeamOptions options, SearchPlan plan, BeamOptions forced)
@@ -323,10 +324,10 @@ internal static class SearchV2Checks
         Assert(result.Members.All(m => m.Member.Evaluation != SearchEvaluation.QueenSetup),
             "explicit custom portfolio stays authoritative");
 
-        CheckQueenPortfolio(rules, root, options, plan, forced, policy);
+        CheckSupplementPortfolio(rules, root, options, plan, forced, policy);
     }
 
-    private static void CheckQueenPortfolio(Rules rules, Battle root, BeamOptions options,
+    private static void CheckSupplementPortfolio(Rules rules, Battle root, BeamOptions options,
         SearchPlan plan, BeamOptions forced, QueenSearchPolicy policy)
     {
         Registry.TryPotion("FIRE_POTION", out ushort fire);
@@ -410,6 +411,111 @@ internal static class SearchV2Checks
             CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
         Assert(observed.Count == 6 && result.Members.Skip(6).All(m => !m.Ran),
             "neither queen supplement extends an exhausted global deadline");
+    }
+
+    private static void CheckSetupPortfolio(Rules rules, BeamOptions options, SearchPlan plan, BeamOptions forced)
+    {
+        for (int act = 0; act < 3; act++)
+        {
+            Assert(SearchPlan.IsLongEncounter(true, false, act), "all act bosses have setup");
+            Assert(SearchPlan.IsLongEncounter(false, true, act) == (act > 0), "only late act elites have setup");
+            Assert(!SearchPlan.IsLongEncounter(false, false, act), "normal rooms unchanged");
+        }
+        Registry.TryPotion("FIRE_POTION", out ushort fire);
+        Battle root = default;
+        root.PotionSlotCount = 3;
+        root.Potions[0] = root.Potions[1] = root.Potions[2] = (ushort)(fire + 1);
+        options = options with { PowerCommitments = new([default], 1) };
+        SearchCase search = new(rules, [root], options);
+        SearchPlan enabled = plan with { SetupStrategies = true, QueenStrategies = true,
+            DefaultPotionSchedule = DefaultPotionSchedule.StagedPortfolio, TotalMilliseconds = 240_000 };
+        List<BeamOptions> seen = [];
+        long now = 0;
+        ValueTask<SearchMemberMeasurement> Run(SearchCase item, SearchStorage _, CancellationToken __)
+        {
+            seen.Add(item.Options); now += 10;
+            return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, 10));
+        }
+        CombatSearchResult baseline = CombatSearchCoordinator.RunAsync(new(search, enabled with { SetupStrategies = false }),
+            new(), Run, CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        TimeSpan[] shares = seen.Take(6).Select(o => o.SoftTimeBudget).ToArray();
+        seen.Clear(); now = 0;
+        CombatSearchResult result = CombatSearchCoordinator.RunAsync(new(search, enabled), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.Length == 24 && seen.Count == 24, "six generic supplements across three stages");
+        for (int stage = 0; stage < 3; stage++)
+        {
+            int at = stage * 8;
+            Assert(result.Members.Skip(at).Take(6).Select(m => m.Member).SequenceEqual(
+                baseline.Members.Skip(stage * 6).Take(6).Select(m => m.Member)), "original six preserved");
+            Assert(result.Members.Skip(at + 6).Take(2).Select(m => m.Member.Width)
+                .SequenceEqual(new[] { enabled.NarrowWidth, enabled.WideWidth }), "narrow then wide setup");
+            Assert(seen.Skip(at).Take(6).All(o => !o.Scorer!.SetupPreference)
+                && seen.Skip(at + 6).Take(2).All(o => o.Scorer!.SetupPreference && o.Scorer.QueenPolicy is null),
+                "only added members use generic setup scoring");
+        }
+        Assert(seen.Take(6).Select(o => o.SoftTimeBudget).SequenceEqual(shares), "original no-potion shares preserved");
+        byte[] bytes = CombatSearchCodec.Encode(new(search, enabled));
+        CombatSearchRequest decoded = CombatSearchCodec.Decode(bytes);
+        Assert(decoded.Plan.SetupStrategies && decoded.Plan.TotalMilliseconds == 240_000
+            && CombatSearchCodec.Encode(decoded).SequenceEqual(bytes), "v8 frozen plan round trip");
+        SearchCase setup = search with { Options = options with { Scorer = new(options.Scorer!.RulesForCodec, setup: SetupSearchPolicy.Capture(root, rules)) } };
+        byte[] single = SearchCodec.EncodeRequest(setup);
+        Assert(SearchCodec.DecodeRequest(single).Options.Scorer!.SetupPreference
+            && SearchCodec.EncodeRequest(SearchCodec.DecodeRequest(single)).SequenceEqual(single), "SUP1 single-member replay");
+        Battle multi = root;
+        multi.EnemyCount = multi.RosterCount = 2;
+        multi.Roster[0] = 0; multi.Roster[1] = 1;
+        multi.Enemies[0].CombatId = 11; multi.Enemies[1].CombatId = 22;
+        multi.Enemies[0].Creature.CurrentHp = multi.Enemies[0].Creature.MaxHp = 100;
+        multi.Enemies[1].Creature.CurrentHp = 80; multi.Enemies[1].Creature.MaxHp = 200;
+        SetupSearchPolicy focus = SetupSearchPolicy.Capture(multi, rules, focused: true);
+        Assert(focus.FocusSlot == 1 && focus.FocusHp(multi) == 80,
+            "focused setup chooses original maximum HP, not current attack threat or character");
+        SearchCase focusedCase = search with { Battles = [multi], Options = options with {
+            Scorer = new(options.Scorer!.RulesForCodec, baseOnly: true, setup: focus) } };
+        byte[] focusedBytes = SearchCodec.EncodeRequest(focusedCase);
+        Scorer restoredFocus = SearchCodec.DecodeRequest(focusedBytes).Options.Scorer!;
+        Assert(restoredFocus.SetupPolicy!.Focused && restoredFocus.SetupPolicy.FocusHp(multi) == 80
+            && SearchCodec.EncodeRequest(SearchCodec.DecodeRequest(focusedBytes)).SequenceEqual(focusedBytes),
+            "focused rank and frozen target survive single-member transport");
+        multi.Enemies[1].CombatId = 33;
+        Assert(focus.FocusHp(multi) == 0, "recycled enemy slot does not inherit focus");
+        Assert(SetupSearchPolicy.Capture(root, rules, focused: true).FocusSlot == -1,
+            "single/no-enemy roots do not gain an extra target weight");
+        ScoreFeatures terminal = new() { Score = 123, SetupPotentialHp = 100 };
+        Assert(setup.Options.Scorer!.BeamRankScore(root, terminal, true, false) == 123, "setup never rewards terminal results");
+
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = options with {
+            Potions = options.Potions with { MaximumUses = 1 } } }, enabled), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.Skip(22).All(m => !m.Ran && m.SkippedReason == "duplicate-limit"),
+            "same effective potion limit is not searched twice");
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = forced with {
+            PowerCommitments = options.PowerCommitments } }, enabled), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(seen.Count == 8 && seen.All(o => o.EnforceForcedPotionDirectives)
+            && result.Members.All(m => m.Member.Potions == SearchPotionLimit.Allowed),
+            "forced potion stage retains both setup members and directives");
+
+        // The generic members replace QueenSetup; only kill-timing retention is retained.
+        SearchMember[] queen = SupplementPortfolio.AppendToStages(
+            PortfolioBuilder.Build(enabled, true, false), enabled, queen: true);
+        Assert(queen.Length == 27 && queen.Count(m => m.Evaluation is SearchEvaluation.Setup or SearchEvaluation.FocusedSetup) == 6
+            && queen.Count(m => m.Retention == SearchRetention.QueenKillTiming) == 3
+            && queen.All(m => m.Evaluation != SearchEvaluation.QueenSetup), "old queen setup replaced");
+
+        seen.Clear(); now = 0;
+        ValueTask<SearchMemberMeasurement> Exhaust(SearchCase item, SearchStorage _, CancellationToken __)
+        {
+            seen.Add(item.Options); now += enabled.TotalMilliseconds;
+            return ValueTask.FromResult(new SearchMemberMeasurement(null, "none", null, enabled.TotalMilliseconds));
+        }
+        result = CombatSearchCoordinator.RunAsync(new(search, enabled), new(), Exhaust,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(seen.Count == 1 && result.Members.Skip(1).All(m => !m.Ran), "supplements respect global deadline");
     }
 
 }

@@ -40,8 +40,12 @@ internal static class CombatSearchCoordinator
         QueenSearchPolicy? queen = (plan.QueenStrategies || plan.ExperimentalQueenSupplement && !requiredPlan && !forced)
             && plan.CustomMembers.IsDefaultOrEmpty && initial.Battles.Length == 1 && initial.Options.Novelty is null
             ? QueenSearchPolicy.Capture(initial.Battles[0], initial.Rules) : null;
-        if (queen is not null && plan.QueenStrategies)
-            members = QueenPortfolio.AppendToStages(members, plan);
+        bool setup = plan.SetupStrategies && plan.CustomMembers.IsDefaultOrEmpty
+            && initial.Options.Novelty is null && initial.Battles.Length == 1;
+        SetupSearchPolicy? setupPolicy = setup ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules) : null;
+        SetupSearchPolicy? focusedSetup = setup ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules, focused: true) : null;
+        if (setup || queen is not null && plan.QueenStrategies)
+            members = SupplementPortfolio.AppendToStages(members, plan, queen is not null && plan.QueenStrategies);
         else if (queen is not null)
         {
             int firstPotion = Array.FindIndex(members, m => m.Potions != SearchPotionLimit.None);
@@ -115,7 +119,7 @@ internal static class CombatSearchCoordinator
             int phaseRemaining = 0;
             for (int i = index; i < members.Length; i++)
                 if (skips[i] is null
-                    && (QueenPortfolio.IsSupplement(member) || !QueenPortfolio.IsSupplement(members[i]))
+                    && (SupplementPortfolio.IsSupplement(member) || !SupplementPortfolio.IsSupplement(members[i]))
                     && (!requiredPlan && !forced && members[i].Potions != SearchPotionLimit.None) == potionPhase)
                     phaseRemaining++;
             if (remaining <= 1 || Expired())
@@ -141,10 +145,12 @@ internal static class CombatSearchCoordinator
                 EndedBatchTarget = checked(member.Width * plan.EndedKeepWidths),
                 EndedBatchTrigger = checked(member.Width * plan.EndedTriggerWidths),
                 Scorer = new Scorer(scorer.RulesForCodec,
-                    baseOnly: member.Evaluation is SearchEvaluation.Base or SearchEvaluation.QueenSetup,
+                    baseOnly: member.Evaluation is SearchEvaluation.Base or SearchEvaluation.QueenSetup or SearchEvaluation.FocusedSetup,
                     offensive: member.Evaluation == SearchEvaluation.Offensive,
                     queen: member.Evaluation == SearchEvaluation.QueenSetup ? queen
-                        : member.Retention == SearchRetention.QueenKillTiming ? timing : null),
+                        : member.Retention == SearchRetention.QueenKillTiming ? timing : null,
+                    setup: member.Evaluation == SearchEvaluation.Setup ? setupPolicy
+                        : member.Evaluation == SearchEvaluation.FocusedSetup ? focusedSetup : null),
                 SecondRankBand = member.Retention == SearchRetention.SecondBand,
                 SecondRankBandWidth = member.Width,
                 AggressivePowerCommitment = member.Retention == SearchRetention.Power,

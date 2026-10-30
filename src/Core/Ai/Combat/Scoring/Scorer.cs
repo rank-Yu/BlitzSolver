@@ -26,16 +26,19 @@ internal sealed class Scorer
     private readonly bool _baseOnly;
     private readonly bool _offensive;
 
-    public Scorer(ScoreRules score, bool baseOnly = false, bool offensive = false, QueenSearchPolicy? queen = null)
+    public Scorer(ScoreRules score, bool baseOnly = false, bool offensive = false, QueenSearchPolicy? queen = null, SetupSearchPolicy? setup = null)
     {
         _score = score;
         _baseOnly = baseOnly;
         _offensive = offensive;
         QueenPolicy = queen;
+        SetupPolicy = setup;
     }
 
     /// <summary>Frozen opt-in policy applied only to the supplemental member.</summary>
     internal QueenSearchPolicy? QueenPolicy { get; }
+    internal SetupSearchPolicy? SetupPolicy { get; }
+    internal bool SetupPreference => SetupPolicy is not null;
 
     /// <summary>
     /// Default-off test hook, set by <see cref="BeamSolver.Solve"/> from
@@ -629,6 +632,7 @@ internal sealed class Scorer
         // Strategic effects over the powers that contribute (player-side buffs, positive amount, not
         // temporary), in the existing engine's listener order.
         StrategicEffectVector strategicEffects = default;
+        double setupPotentialHp = 0;
         int offensivePersistentBuffValue = 0;
         SetupTraits persistentSetupTraits = SetupTraits.None;
         StrategicRequirements requirements = StrategicRequirements.None;
@@ -738,9 +742,14 @@ internal sealed class Scorer
             }
             StrategicEffectVector effect = EvaluateStrategic(rules.Kind, power.Amount, effectContext);
             strategicEffects += effect;
+            if (SetupPolicy is { } setup)
+                setupPotentialHp += setup.ActivationHp(power, effect.RetentionValue);
             offensivePersistentBuffValue += effect.DamagePotential + effect.ScalingPotential;
             persistentSetupTraits |= rules.Trait;
         }
+        if (SetupPolicy is {} setupPolicy && !dead && battle.Outcome == Outcome.None)
+            score += Math.Min(48d, setupPotentialHp) * ScoreWeights.Hp
+                + setupPolicy.FocusHp(battle) * ScoreWeights.EnemyHp;
         int persistentBuffValue = strategicEffects.RetentionValue;
         if (battle.OrbCount > 0)
         {
@@ -990,6 +999,7 @@ internal sealed class Scorer
             PlayableAttackCount = playableAttackCount,
             PersistentBuffValue = persistentBuffValue,
             StrategicRetentionValue = strategicRetentionValue,
+            SetupPotentialHp = setupPotentialHp,
             StrategicDamagePotential = strategicEffects.DamagePotential,
             StrategicPreventionPotential = strategicEffects.PreventionPotential,
             StrategicResourcePotential = strategicEffects.ResourcePotential,
@@ -2700,6 +2710,9 @@ internal sealed class Scorer
     public double BeamRankScore(in Battle battle, in ScoreFeatures features,
         bool terminal, bool isEndTurn)
     {
+        // Setup is an alternative ranking only. Actual terminal scores and route quality stay intact.
+        if (SetupPreference && terminal)
+            return features.Score;
         // the existing search's BeamRankScore: the base-score member ranks by the base score alone (the
         // development strategy that could adjust it is rejected at admission).
         if (_score.BaseScoreOnly || _baseOnly)

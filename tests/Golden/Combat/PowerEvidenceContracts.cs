@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using Sts2Solver.Ai.Combat;
 using Sts2Solver.Ai.Combat.Scoring;
+using Sts2Solver.Ai.Combat.Policy;
 using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Golden;
@@ -71,6 +72,7 @@ internal static class PowerEvidenceContracts
         CheckMasterPlanner();
         CheckSubroutine();
         CheckBuffer();
+        CheckSetupRanking();
         Console.WriteLine("POWER_EVIDENCE actual transitions/identity/admission/threat=pass");
     }
 
@@ -279,4 +281,56 @@ internal static class PowerEvidenceContracts
         Assert(skipped.IncomingAttackHits(false) == 0 && skipped.IncomingAttackHits(true) == 0,
             "skipped moves do not invent threats");
     }
+    private static void CheckSetupRanking()
+    {
+        SearchCase transientCase = Read("DEFECT-011");
+        Battle transientRoot = transientCase.Battles[0], transient = transientRoot;
+        Assert(Registry.TryPower("DRAW_CARDS_NEXT_TURN_POWER", out ushort delayedDraw), "draw-next-turn power registered");
+        Kernel.SetPowerAmount(ref transient, Limits.PlayerOwner, delayedDraw, 2);
+        Scorer activation = new(transientCase.Options.Scorer!.RulesForCodec,
+            setup: SetupSearchPolicy.Capture(transientRoot, transientCase.Rules));
+        Assert(activation.Features(transient, 0).SetupPotentialHp == 0,
+            "one-shot next-turn draw is not a power-card activation");
+        foreach (string character in new[] { "IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT" })
+        {
+            bool foundGain = false;
+            for (int n = 0; n < 24 && !foundGain; n++)
+            {
+                SearchCase item = Read($"{character}-{n:000}");
+                Battle root = item.Battles[0];
+                Scorer plain = item.Options.Scorer!;
+                Scorer setup = new(plain.RulesForCodec, setup: SetupSearchPolicy.Capture(root, item.Rules));
+                ScoreFeatures start = setup.Features(root, 0);
+                Assert(start.SetupPotentialHp == 0 && start.Score == plain.Features(root, 0).Score,
+                    character + " starting buffs do not earn setup reward");
+                for (int i = 0; i < root.HandCount && !foundGain; i++)
+                {
+                    if (item.Rules.Card(root.Cards[i].Id, root.Cards[i].Upgrade).Type != CardType.Power) continue;
+                    PlayerAction[] actions = new PlayerAction[Kernel.MaxLegalActions];
+                    int count = Kernel.LegalActions(root, item.Rules, actions);
+                    for (int a = 0; a < count && !foundGain; a++)
+                    {
+                        if (actions[a].Kind != PlayerActionKind.PlayCard || actions[a].HandIndex != i) continue;
+                        Battle child = root;
+                        if (Kernel.Step(ref child, actions[a], item.Rules, out _, out _) != StepResult.Completed
+                            || child.Outcome != Outcome.None) continue;
+                        ScoreFeatures gain = setup.Features(child, 1);
+                        if (gain.SetupPotentialHp <= 0) continue;
+                        Assert(gain.Score > plain.Features(child, 1).Score, character + " effective power changes candidate ordering");
+                        SearchCase encoded = item with { Options = item.Options with { Scorer = setup } };
+                        Scorer restored = SearchCodec.DecodeRequest(SearchCodec.EncodeRequest(encoded)).Options.Scorer!;
+                        Assert(restored.Features(child, 1).Score == gain.Score
+                            && restored.Features(child, 1).SetupPotentialHp == gain.SetupPotentialHp,
+                            character + " frozen baseline survives single-member transport");
+                        Battle terminal = child; terminal.Outcome = Outcome.Victory;
+                        Assert(setup.Features(terminal, 1).Score == plain.Features(terminal, 1).Score,
+                            character + " setup does not alter final score");
+                        foundGain = true;
+                    }
+                }
+            }
+            Assert(foundGain, character + " has a supported real power transition");
+        }
+    }
+
 }

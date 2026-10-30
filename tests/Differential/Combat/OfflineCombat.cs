@@ -549,7 +549,8 @@ internal static class OfflineCombat
             if (PoolStateBudgetMb is { } poolMb)
                 searchCase = searchCase with { Options = searchCase.Options with
                     { PoolStateBudgetBytes = checked(poolMb * 1024 * 1024) } };
-            SearchPlan plan = profile.ToSearchPlan(MemoryBudgetBytes, combat.Encounter?.RoomType == MegaCrit.Sts2.Core.Rooms.RoomType.Boss);
+            SearchPlan plan = profile.ToSearchPlan(MemoryBudgetBytes, combat.Encounter?.RoomType == MegaCrit.Sts2.Core.Rooms.RoomType.Boss,
+            combat.Encounter?.RoomType == MegaCrit.Sts2.Core.Rooms.RoomType.Elite, combat.RunState.CurrentActIndex);
             if (PotionSchedule is { } schedule)
             {
                 bool forced = PotionSearchSchedule.HasForcedDirectives(searchCase.Options);

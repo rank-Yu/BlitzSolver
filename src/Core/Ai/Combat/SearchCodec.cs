@@ -70,6 +70,11 @@ internal static class SearchCodec
             BeamOptions options = DecodeOptions(reader, rules);
             if (options.Scorer?.QueenPolicy is { } queen)
                 foreach (Battle battle in battles) queen.ValidateRoot(battle);
+            if (options.Scorer?.SetupPolicy is { } setup)
+            {
+                if (battles.Length != 1) throw new InvalidDataException("Setup requires one frozen root.");
+                setup.ValidateRoot(battles[0], rules);
+            }
             return new SearchCase(rules, battles, options);
         });
 
@@ -157,6 +162,13 @@ internal static class SearchCodec
             writer.Write(queen.PreserveKillTiming ? 0x32505351u : 0x31505351u); // QSP1 delay / QSP2 retention.
             queen.Encode(writer);
         }
+        if (options.Scorer?.SetupPreference == true)
+        {
+            if (options.Scorer.QueenPolicy is not null)
+                throw new InvalidDataException("Setup and queen scoring cannot be combined.");
+            writer.Write(0x31505553u); // SUP1
+            options.Scorer.SetupPolicy!.Encode(writer);
+        }
     }
 
     private static BeamOptions DecodeOptions(BinaryReader reader, Rules rules)
@@ -230,10 +242,19 @@ internal static class SearchCodec
         if (reader.BaseStream.Position < reader.BaseStream.Length)
         {
             uint extension = reader.ReadUInt32();
-            if (extension is not (0x31505351u or 0x32505351u) || scorer is null)
-                throw new InvalidDataException("Unknown search request extension.");
-            QueenSearchPolicy queen = QueenSearchPolicy.Decode(reader) with { PreserveKillTiming = extension == 0x32505351u };
-            scorer = new Scorer(scorer.RulesForCodec, baseOnly: !queen.PreserveKillTiming, queen: queen);
+            if (scorer is null)
+                throw new InvalidDataException("Search extension requires a scorer.");
+            if (extension == 0x31505553u)
+                {
+                SetupSearchPolicy setup = SetupSearchPolicy.Decode(reader);
+                scorer = new Scorer(scorer.RulesForCodec, baseOnly: setup.Focused, setup: setup);
+            }
+            else if (extension is 0x31505351u or 0x32505351u)
+            {
+                QueenSearchPolicy queen = QueenSearchPolicy.Decode(reader) with { PreserveKillTiming = extension == 0x32505351u };
+                scorer = new Scorer(scorer.RulesForCodec, baseOnly: !queen.PreserveKillTiming, queen: queen);
+            }
+            else throw new InvalidDataException("Unknown search request extension.");
         }
         return new BeamOptions(beamWidth, maxExpanded, maxTurns, budget, initialHp)
         {
