@@ -9,7 +9,7 @@ internal static class PortfolioBuilder
         if (!plan.CustomMembers.IsDefaultOrEmpty)
         {
             SearchMember[] custom = [.. plan.CustomMembers];
-            bool seenAllowed = false, broad = false, baseline = false;
+            bool seenAllowed = false, baseline = false;
             foreach (SearchMember member in custom)
             {
                 if (member.Width <= 0 || !Enum.IsDefined(member.Evaluation)
@@ -21,9 +21,8 @@ internal static class PortfolioBuilder
                     throw new InvalidDataException("无药基线必须先于用药阶段。");
                 baseline |= member.Potions == SearchPotionLimit.None;
                 seenAllowed |= member.Potions != SearchPotionLimit.None;
-                broad |= member.Potions == SearchPotionLimit.Allowed;
             }
-            if (!forced && (!baseline || !broad))
+            if (!forced && (!baseline || !seenAllowed))
                 throw new InvalidDataException("Smart 组合需要无药基线及允许用药的成员。");
             return custom;
         }
@@ -39,7 +38,8 @@ internal static class PortfolioBuilder
         if (!forced)
         {
             members.Add(new(plan.NarrowWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.One));
-            members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Allowed));
+            members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Two));
+            members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Three));
         }
         return [.. members];
     }

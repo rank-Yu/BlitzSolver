@@ -6,7 +6,7 @@ namespace Sts2Solver.Ai.Combat;
 
 internal enum SearchEvaluation { Standard, Base, Offensive }
 internal enum SearchRetention { Standard, Power, SecondBand }
-internal enum SearchPotionLimit { None, One, Allowed }
+internal enum SearchPotionLimit { None = 0, One = 1, Allowed = 2, Two = 3, Three = 4 }
 
 /// <summary>Each member describes the four independent search dimensions.</summary>
 internal sealed record SearchMember(int Width, SearchEvaluation Evaluation,
@@ -68,6 +68,9 @@ internal sealed record SearchMemberResult(SearchMember Member, bool Ran, string?
     long ElapsedMilliseconds, long ExpandedNodes, string StopReason, bool Victory,
     int? HpLost, int? PotionUses, bool Adopted, long MemoryPeakBytes, int EndedCompactions)
 {
+    public int? EffectivePotionLimit { get; init; }
+    public IReadOnlyList<PotionCandidateSummary> PotionCandidates { get; init; } = [];
+    public bool PotionCandidatesComplete { get; init; } = true;
     public CombatSearchStatus? ResultStatus { get; init; }
     public bool? PolicyEligible { get; init; }
     public int CandidatePoolPeakCount { get; init; }

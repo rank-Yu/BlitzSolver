@@ -31,6 +31,31 @@ internal static class SearchV2Contracts
             && decoded.Plan.CustomMembers.SequenceEqual(plan.CustomMembers), "versioned plan round trip");
         Assert(SearchCodec.EncodeRequest(original).AsSpan().SequenceEqual(SearchCodec.EncodeRequest(decoded.Case)),
             "versioned request keeps legacy root and policy");
+        byte[] oldDefault = CombatSearchCodec.Encode(new(original, plan with { CustomMembers = [] }));
+        oldDefault[4] = 2; oldDefault[5] = 0;
+        CombatSearchRequest oldDecoded = CombatSearchCodec.Decode(oldDefault);
+        Assert(oldDecoded.Plan.CustomMembers.TakeLast(2).Select(m => m.Potions)
+            .SequenceEqual(new[] { SearchPotionLimit.One, SearchPotionLimit.Allowed }),
+            "v2 default retains historical schedule");
+        byte[] v1Default = oldDefault[..^4];
+        v1Default[4] = 1;
+        Assert(CombatSearchCodec.Decode(v1Default).Plan.CustomMembers.SequenceEqual(oldDecoded.Plan.CustomMembers),
+            "v1 default retains historical schedule");
+        CombatSearchRequest oldReencoded = CombatSearchCodec.Decode(CombatSearchCodec.Encode(oldDecoded));
+        Assert(oldReencoded.Plan.CustomMembers.SequenceEqual(oldDecoded.Plan.CustomMembers),
+            "legacy default stays stable when re-encoded");
+        SearchPlan newLimits = plan with { CustomMembers = [
+            new(8, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.None),
+            new(8, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Two),
+            new(8, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Three)] };
+        byte[] newBytes = CombatSearchCodec.Encode(new(original, newLimits));
+        Assert(CombatSearchCodec.Decode(newBytes).Plan.CustomMembers.SequenceEqual(newLimits.CustomMembers),
+            "v3 limits round trip");
+        newBytes[4] = 2; newBytes[5] = 0;
+        bool rejectedNewLimit = false;
+        try { _ = CombatSearchCodec.Decode(newBytes); }
+        catch (InvalidDataException) { rejectedNewLimit = true; }
+        Assert(rejectedNewLimit, "v2 cannot silently read v3 limits");
         Scorer standardScorer = original.Options.Scorer ?? throw new InvalidDataException("夹具没有评分器。");
         ScoreFeatures rootFeatures = standardScorer.Features(original.Battles[0], 0);
         double standardRank = standardScorer.BeamRankScore(original.Battles[0], rootFeatures, false, false);
@@ -167,9 +192,64 @@ internal static class SearchV2Contracts
         Assert(fallback, "low-memory search returns a replayable fallback");
         Assert(new BeamSolver(original.Rules, legacy).TryCompareResultQuality(original.Battles,
             first, uncompressed, out int compactionComparison), "batch comparison replays both routes");
+        CheckPotionCandidates();
         Console.WriteLine($"COMBAT_SEARCH_V2 compaction comparison={compactionComparison} " +
             $"batched={first.BestIsVictory} uncompressed={uncompressed.BestIsVictory}");
         Console.WriteLine($"COMBAT_SEARCH_V2 real expanded={first.ExpandedNodesTotal} compactions={first.EndedCompactions} victory={first.BestIsVictory}");
+    }
+
+    private static void CheckPotionCandidates()
+    {
+        using FileStream input = File.OpenRead("tests/Golden/data/d2/requests/023d47d587f3c92f1784abbeb0d4bcbf43f69012f1cfb5c8d6cea34ff99da775.request.br");
+        using BrotliStream compressed = new(input, CompressionMode.Decompress);
+        using MemoryStream bytes = new();
+        compressed.CopyTo(bytes);
+        SearchCase fixture = SearchCodec.DecodeRequest(bytes.ToArray());
+        BeamOptions options = fixture.Options with
+        {
+            BeamWidth = 20, MaxExpandedNodes = 3000, SoftTimeBudget = TimeSpan.MaxValue,
+            CandidateScanCount = 0, AuditPotionPolicy = true, CollectPotionCandidates = true,
+            MinimumPotionUses = 0, Potions = fixture.Options.Potions with
+                { MaximumUses = 2, ForceAllDisabled = false },
+            EnforceForcedPotionDirectives = false, ForcedPotionDirectives = ForcedPotionDirectives.None,
+            SearchMemoryBudgetBytes = 100_000_000,
+        };
+        BeamResult Search(BeamOptions settings) => new BeamSolver(fixture.Rules, settings)
+            .Solve(fixture.Battles, CancellationToken.None);
+        BeamResult result = Search(options);
+        Assert(result.PotionPolicySatisfied && result.PotionCandidatesComplete
+            && result.PotionCandidates.Select(c => c.ExplicitUses).Order().SequenceEqual(new[] { 1, 2 })
+            && result.PotionCandidates.All(c => c.PolicyEligible),
+            "one search records distinct visited candidates by actual potion count");
+        Assert(options.InitialExplicitPotionUses == 1
+            && result.BestRoute.Select((a, i) => (a, i)).Any(x => x.a.Kind == PlayerActionKind.UsePotion
+                && result.BestRoute.Take(x.i).Any(a => a.Kind == PlayerActionKind.PlayCard))
+            && options.InitialExplicitPotionUses + result.BestRoute.Count(a => a.Kind == PlayerActionKind.UsePotion) <= 2,
+            "playing before potion is allowed and cumulative limit is respected");
+        _ = ReplayedRoute.Build(fixture.Battles[result.BestRootIndex], fixture.Rules,
+            result.BestRoute, result.BestIsVictory);
+        BeamResult one = Search(options with { Potions = options.Potions with { MaximumUses = 1 } });
+        Assert(one.PotionCandidates.All(c => c.ExplicitUses <= 1)
+            && one.BestRoute.All(a => a.Kind != PlayerActionKind.UsePotion), "one-use cap includes the initial use");
+
+        long summaryCharge = 64L * result.PotionCandidates.Count;
+        BeamResult memory = Search(options with { SearchMemoryBudgetBytes = result.SearchMemoryUsedBytes - summaryCharge });
+        Assert(memory.SearchMemoryBudgetExceeded && !memory.PotionCandidatesComplete
+            && memory.PotionCandidates.Count == 0 && memory.BestRoute.Length > 0,
+            "summary allocation failure retains the route and marks diagnostics incomplete");
+        _ = ReplayedRoute.Build(fixture.Battles[memory.BestRootIndex], fixture.Rules,
+            memory.BestRoute, memory.BestIsVictory);
+        int checks = 0;
+        BeamResult counted = Search(options with { DeadlineExpired = () => { checks++; return false; } });
+        int limit = checks - 2;
+        checks = 0;
+        BeamResult deadline = Search(options with { DeadlineExpired = () => ++checks >= limit });
+        Assert(counted.PotionCandidatesComplete && deadline.SoftTimeBudgetReached
+            && !deadline.PotionCandidatesComplete && deadline.BestRoute.Length > 0,
+            "deadline during summary marks it incomplete without losing the route");
+        _ = ReplayedRoute.Build(fixture.Battles[deadline.BestRootIndex], fixture.Rules,
+            deadline.BestRoute, deadline.BestIsVictory);
+        Console.WriteLine("COMBAT_SEARCH_V2 real potion candidate/limit/summary contracts=pass");
     }
 
 }

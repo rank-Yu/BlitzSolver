@@ -91,8 +91,11 @@ internal sealed record BeamOptions(
     /// <summary>Whether the forced directives are part of the final policy filter (<c>potionPolicyOverride == null</c>).</summary>
     public bool EnforceForcedPotionDirectives { get; init; }
 
-    /// <summary>The request's minimum explicit potion uses; the primary member passes 0.</summary>
+    /// <summary>The request's cumulative minimum explicit potion uses.</summary>
     public int MinimumPotionUses { get; init; }
+
+    /// <summary>Include bounded per-count audited candidate diagnostics for SCV2.</summary>
+    internal bool CollectPotionCandidates { get; init; }
 
     /// <summary>
     /// Explicit potion uses already spent by the fixed prefix (included in the request's cumulative
@@ -354,6 +357,9 @@ internal sealed record ForcedPotionDirectives(
     public int Count => Slots.Length;
 }
 
+internal sealed record PotionCandidateSummary(int ExplicitUses, bool Victory, int StrategicHpDeficit,
+    int PlayerHp, bool ForcedSatisfied, bool PolicyEligible);
+
 internal sealed record BeamResult(
     PlayerAction[] BestRoute,
     IReadOnlyList<PlayerAction[]> TopRoutes,
@@ -366,6 +372,8 @@ internal sealed record BeamResult(
     int PrunedIncumbents,
     TimeSpan Elapsed)
 {
+    public IReadOnlyList<PotionCandidateSummary> PotionCandidates { get; init; } = [];
+    public bool PotionCandidatesComplete { get; init; } = true;
     public long ExpandedNodesTotal { get; init; }
     public int CandidatePoolPeakCount { get; init; }
     public string StopReason { get; init; } = "unknown";
@@ -1178,6 +1186,7 @@ internal sealed partial class BeamSolver
                 bestNode = auditedNode;
                 bestVictory = auditedVictory;
             }
+            PotionCandidateSummary[] summaries = CandidateSummaries(out bool summariesComplete);
             _trace?.Finish(TraceFinishReason(hpTargetReached, zeroDamageVictory, watch, turns),
                 turns, _expanded);
             BeamResult audited = new(_auditPotionPolicy && best is null ? [] : Route(bestNode),
@@ -1200,6 +1209,8 @@ internal sealed partial class BeamSolver
                 EndedCompressedStates = _endedCompressedStates,
                 SmartPotionPruned = _smartPruned,
                 PotionPolicySatisfied = best is not null,
+                PotionCandidates = summaries,
+                PotionCandidatesComplete = summariesComplete,
                 BestPayoffCount = _nodes[bestNode].PayoffCount,
                 BestRootIndex = RootIndex(bestNode),
                 ScoutLayers = _scoutLayers,
@@ -1436,24 +1447,12 @@ internal sealed partial class BeamSolver
     /// </summary>
     private bool SelectAudited(out int node, out RouteKey key, out bool victory)
     {
-        bool hasPotionFree = _potionFreeBaseline is not null || _bestPotionFree is not null;
-        bool potionFreeWon = _potionFreeBaseline?.Won ?? _bestPotionFree?.Key.Won ?? false;
-        int potionFreeDeficit = _potionFreeBaseline?.HpDeficit
-            ?? _bestPotionFree?.Key.StrategicHpDeficit
-            ?? _ordering.InitialPlayerHp;
-        int potionFreePlayerHp = _potionFreeBaseline?.PlayerHp ?? _bestPotionFree?.PlayerHp ?? 0;
-        int potionFreeDeathSaves = _potionFreeBaseline?.DeathSaveUseCount
-            ?? (_bestPotionFree is { } free ? free.ProjectedDeathSaveUseCount : int.MaxValue);
-        int potionFreeOutstanding = _potionFreeBaseline?.OutstandingStolenResource
-            ?? _bestPotionFree?.Key.OutstandingStolenResource ?? int.MaxValue;
-        bool anyRouteWon = potionFreeWon || _anyAuditedVictory;
         Candidate? selected = null;
         if (_auditBestByPotionCount is { } bestByCount)
         {
             foreach (Candidate candidate in bestByCount.Values)
             {
-                if (!IsAuditedPolicyEligible(candidate, hasPotionFree, potionFreeWon, potionFreeDeficit,
-                        potionFreePlayerHp, potionFreeDeathSaves, potionFreeOutstanding, anyRouteWon))
+                if (!IsCurrentAuditedPolicyEligible(candidate))
                 {
                     continue;
                 }
@@ -1472,6 +1471,51 @@ internal sealed partial class BeamSolver
         key = bestCandidate.Key;
         victory = bestCandidate.Key.Won;
         return true;
+    }
+
+    private bool IsCurrentAuditedPolicyEligible(Candidate candidate)
+    {
+        bool hasPotionFree = _potionFreeBaseline is not null || _bestPotionFree is not null;
+        bool potionFreeWon = _potionFreeBaseline?.Won ?? _bestPotionFree?.Key.Won ?? false;
+        int potionFreeDeficit = _potionFreeBaseline?.HpDeficit
+            ?? _bestPotionFree?.Key.StrategicHpDeficit
+            ?? _ordering.InitialPlayerHp;
+        int potionFreePlayerHp = _potionFreeBaseline?.PlayerHp ?? _bestPotionFree?.PlayerHp ?? 0;
+        int potionFreeDeathSaves = _potionFreeBaseline?.DeathSaveUseCount
+            ?? (_bestPotionFree is { } free ? free.ProjectedDeathSaveUseCount : int.MaxValue);
+        int potionFreeOutstanding = _potionFreeBaseline?.OutstandingStolenResource
+            ?? _bestPotionFree?.Key.OutstandingStolenResource ?? int.MaxValue;
+        bool anyRouteWon = potionFreeWon || _anyAuditedVictory;
+        return IsAuditedPolicyEligible(candidate, hasPotionFree, potionFreeWon, potionFreeDeficit,
+            potionFreePlayerHp, potionFreeDeathSaves, potionFreeOutstanding, anyRouteWon);
+    }
+
+    private PotionCandidateSummary[] CandidateSummaries(out bool complete)
+    {
+        complete = true;
+        if (!_options.CollectPotionCandidates || _auditBestByPotionCount is not { } candidates) return [];
+        const int maxSummaries = 16;
+        int count = Math.Min(candidates.Count, maxSummaries);
+        if (count == 0) return [];
+        try { _storage.Memory.Charge(checked(64L * count), "potion-candidate-summaries"); }
+        catch (SearchMemoryBudgetException error)
+        {
+            _memoryBudgetExceeded = true;
+            _memoryBudgetExceededAtBytes = error.UsedBytes;
+            complete = false;
+            return [];
+        }
+        List<PotionCandidateSummary> summaries = new(count);
+        foreach (Candidate candidate in candidates.Values)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            if (DeadlineExpired()) { _deadlineReached = true; complete = false; break; }
+            if (summaries.Count == count) { complete = false; break; }
+            summaries.Add(new(candidate.ExplicitPotionUseCount, candidate.Key.Won,
+                candidate.Key.StrategicHpDeficit, candidate.PlayerHp, candidate.ForcedUsesSatisfied,
+                IsCurrentAuditedPolicyEligible(candidate)));
+        }
+        return [.. summaries];
     }
 
     private bool IsAuditedPolicyEligible(Candidate candidate, bool hasPotionFree, bool potionFreeWon,

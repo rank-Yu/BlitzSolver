@@ -90,10 +90,10 @@ internal static class SearchV2Checks
         CombatSearchResult result = CombatSearchCoordinator.RunAsync(request, new(), Run,
             CancellationToken.None, () => time).AsTask().GetAwaiter().GetResult();
         Assert(result.Status == CombatSearchStatus.Incomplete && result.Beam == null, "no result is incomplete");
-        Assert(observed.Count == 7 && result.Members.All(m => m.Ran), "all applicable members run");
+        Assert(observed.Count == 8 && result.Members.All(m => m.Ran), "all applicable members run");
         Assert(observed.All(o => o.UnlimitedNodes && o.SecondRankBandWidth == o.BeamWidth), "unlimited and member retention width");
         Assert(observed.Take(5).All(o => o.Potions.ForceAllDisabled), "true potion-free baseline");
-        Assert(observed[5].Potions.MaximumUses == 1 && !observed[6].Potions.ForceAllDisabled, "bounded then broad potions");
+        Assert(observed.Skip(5).Select(o => o.Potions.MaximumUses).SequenceEqual(new int?[] { 1, 2, 3 }), "bounded potion layers");
         Assert(observed[2].SecondRankBand && observed[3].Scorer != observed[0].Scorer, "evaluation and retention dimensions");
         long firstShare = (long)observed[0].SoftTimeBudget.TotalMilliseconds;
         Assert((long)observed[1].SoftTimeBudget.TotalMilliseconds > firstShare,
@@ -103,10 +103,57 @@ internal static class SearchV2Checks
         CombatSearchResult noPotion = CombatSearchCoordinator.RunAsync(
             new(search with { Battles = [default] }, tiny), new(), Run, CancellationToken.None,
             () => time).AsTask().GetAwaiter().GetResult();
-        Assert(noPotion.Members.Count(m => m.SkippedReason == "no-allowed-potions") == 2
+        Assert(noPotion.Members.Count(m => m.SkippedReason == "no-allowed-potions") == 3
             && observed.Count == 5, "unavailable potion members skip");
         Assert((long)observed[0].SoftTimeBudget.TotalMilliseconds > firstShare,
             "unneeded potion reserve transfers to main members");
+        SearchMember[] defaults = PortfolioBuilder.Build(tiny, power: false, forced: false);
+        Assert(defaults.TakeLast(3).Select(m => (m.Width, m.Potions)).SequenceEqual(new[]
+            { (2, SearchPotionLimit.One), (3, SearchPotionLimit.Two), (3, SearchPotionLimit.Three) }),
+            "default potion limits and widths");
+        Assert(observed.All(o => o.DeadlineExpired != null), "each member has a deadline");
+        observed.Clear(); time = 100;
+        BeamOptions counted = options with { InitialExplicitPotionUses = 1, MinimumPotionUses = 2,
+            Potions = options.Potions with { MaximumUses = 2 } };
+        CombatSearchResult countedResult = CombatSearchCoordinator.RunAsync(
+            new(search with { Options = counted }, tiny), new(), Run, CancellationToken.None,
+            () => time).AsTask().GetAwaiter().GetResult();
+        Assert(observed.Count == 1 && observed[0].Potions.MaximumUses == 2
+            && observed[0].InitialExplicitPotionUses == 1 && observed[0].MinimumPotionUses == 2,
+            "initial and minimum counts are preserved");
+        Assert(countedResult.Members.Take(6).All(m => m.SkippedReason == "minimum-exceeds-limit")
+            && countedResult.Members[6].Ran && countedResult.Members[7].SkippedReason == "duplicate-limit",
+            "infeasible and duplicate limits skip before allocating shares");
+        observed.Clear(); time = 100;
+        counted = counted with { MinimumPotionUses = 0, Potions = counted.Potions with { MaximumUses = 1 } };
+        CombatSearchResult alreadyUsed = CombatSearchCoordinator.RunAsync(
+            new(search with { Options = counted }, tiny), new(), Run, CancellationToken.None,
+            () => time).AsTask().GetAwaiter().GetResult();
+        Assert(observed.Count == 5 && observed.All(o => o.Potions.ForceAllDisabled
+            && o.Potions.MaximumUses == 1) && alreadyUsed.Members.Skip(5).All(m => !m.Ran),
+            "initially used maximum still permits no-new-potion search");
+        observed.Clear(); time = 100;
+        SearchPlan custom = tiny with { CustomMembers = [
+            new(2, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.None),
+            new(2, SearchEvaluation.Base, SearchRetention.Standard, SearchPotionLimit.One),
+            new(3, SearchEvaluation.Standard, SearchRetention.SecondBand, SearchPotionLimit.One)] };
+        CombatSearchResult customResult = CombatSearchCoordinator.RunAsync(
+            new(search, custom), new(), Run, CancellationToken.None, () => time)
+            .AsTask().GetAwaiter().GetResult();
+        Assert(observed.Count == 3 && customResult.Members.All(m => m.Ran),
+            "custom members with the same limit retain distinct dimensions");
+        RulesDraft generatedDraft = new();
+        generatedDraft.SetPotionPool([fire]);
+        Battle emptySlot = root; emptySlot.Potions[0] = 0;
+        Assert(PotionSearchSchedule.HasAllowedUse([emptySlot], generatedDraft.Build(), options),
+            "empty root inventory does not exclude generated potions");
+        Assert(!PotionSearchSchedule.HasAllowedUse([root], rules,
+            options with { Potions = options.Potions with { ForceAllDisabled = true } }), "disabled potions skip");
+        SearchBudget fixedBudget = new(1000, true, () => time);
+        Assert(fixedBudget.Remaining(false) == 700 && fixedBudget.Remaining(true) == 1000,
+            "one deadline and reserved potion phase");
+        time += 1000;
+        Assert(fixedBudget.Expired() && fixedBudget.Remaining(true) == 0, "absolute deadline");
         PotionPolicy protectedPolicy = options.Potions with
         {
             Strategy = new(PotionUseMode.Smart, [new(0, "FIRE_POTION", PotionDirective.Disabled)]),

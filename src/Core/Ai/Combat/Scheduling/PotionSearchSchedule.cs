@@ -66,11 +66,13 @@ internal static class PotionSearchSchedule
         return false;
     }
 
-    internal static PotionPolicy Limit(PotionPolicy original, SearchPotionLimit limit) => limit switch
+    internal static PotionPolicy Limit(PotionPolicy original, SearchPotionLimit limit, int initialUses = 0) => limit switch
     {
-        SearchPotionLimit.None => original with { ForceAllDisabled = true, MaximumUses = 0 },
+        SearchPotionLimit.None => original with { ForceAllDisabled = true, MaximumUses = Math.Min(original.MaximumUses ?? initialUses, initialUses) },
         SearchPotionLimit.One => original with { MaximumUses = Math.Min(original.MaximumUses ?? 1, 1) },
         SearchPotionLimit.Allowed => original,
+        SearchPotionLimit.Two => original with { MaximumUses = Math.Min(original.MaximumUses ?? 2, 2) },
+        SearchPotionLimit.Three => original with { MaximumUses = Math.Min(original.MaximumUses ?? 3, 3) },
         _ => throw new ArgumentOutOfRangeException(nameof(limit)),
     };
 }

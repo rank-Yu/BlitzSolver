@@ -6,7 +6,7 @@ namespace Sts2Solver.Ai.Combat;
 internal static class CombatSearchCodec
 {
     private const uint Magic = 0x32564353; // SCV2
-    private const ushort Version = 2;
+    private const ushort Version = 3;
 
     internal static byte[] Encode(CombatSearchRequest request) => Codec.ToBytes(writer =>
     {
@@ -42,7 +42,7 @@ internal static class CombatSearchCodec
         if (reader.ReadUInt32() != Magic)
             throw new InvalidDataException("组合搜索请求魔数不符。");
         ushort version = reader.ReadUInt16();
-        if (version is not (1 or Version))
+        if (version is not (1 or 2 or Version))
             throw new InvalidDataException("组合搜索请求版本不受支持。");
         int length = Codec.ReadCount(reader, 1 << 28, "搜索根字节");
         byte[] root = reader.ReadBytes(length);
@@ -60,6 +60,8 @@ internal static class CombatSearchCodec
         for (int i = 0; i < memberCount; i++)
             members.Add(new SearchMember(reader.ReadInt32(), (SearchEvaluation)reader.ReadInt32(),
                 (SearchRetention)reader.ReadInt32(), (SearchPotionLimit)reader.ReadInt32()));
+        if (version < 3 && members.Any(m => (int)m.Potions > (int)SearchPotionLimit.Allowed))
+            throw new InvalidDataException("旧版本不支持此用药上限。");
         plan = plan with { CustomMembers = members.MoveToImmutable() };
         int outstanding = reader.ReadInt32();
         bool unboundedGrowth = Codec.ReadBool(reader);
@@ -70,6 +72,18 @@ internal static class CombatSearchCodec
         if (searchCase.Options.PotionFreeBaseline is { } baseline)
             searchCase = searchCase with { Options = searchCase.Options with
                 { PotionFreeBaseline = baseline with { OutstandingStolenResource = outstanding } } };
+        // A legacy default request represents the historical One + Allowed schedule. Materialize
+        // it so re-encoding as v3 cannot silently change its meaning.
+        if (version < 3 && plan.CustomMembers.IsDefaultOrEmpty)
+        {
+            bool forced = PotionSearchSchedule.HasForcedDirectives(searchCase.Options);
+            SearchMember[] legacy = PortfolioBuilder.Build(plan,
+                searchCase.Options.PowerCommitments is { Rules.Length: > 0 }, forced);
+            if (!forced)
+                legacy = [.. legacy[..^2], new SearchMember(plan.BaselineWidth, SearchEvaluation.Standard,
+                    SearchRetention.Standard, SearchPotionLimit.Allowed)];
+            plan = plan with { CustomMembers = System.Collections.Immutable.ImmutableArray.CreateRange(legacy) };
+        }
         return new CombatSearchRequest(searchCase, plan);
     });
 }
