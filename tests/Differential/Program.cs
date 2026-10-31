@@ -43,6 +43,12 @@ internal static class Program
 
     private static int Run(string[] args)
     {
+        if (args is ["--list-quality-roots"] or ["--list-quality-roots", "--corpora", _])
+        {
+            foreach (string name in OfflineCombat.EnumerateQualityRoots(args.Length == 3 ? args[2] : DefaultCorpora))
+                Console.WriteLine(name);
+            return 0;
+        }
         if (args.Length == 2 && args[0] == "--act1-boss-fixture") return ActOneBoundaryFixture.Run(args[1]);
         if (args.Length == 2 && args[0] == "--act1-reference") return RoomsReference.Run(50, args[1], act1: true);
         if (args.Length == 2 && args[0] == "--act1-production") return RoomsReference.Production(50, args[1]);
@@ -1074,6 +1080,7 @@ internal static class Program
               dotnet Differential.dll --emit-live-requests <dir> (--root <name> | --roots-file <file> | --all)
                   [--search-tier Low|Medium|High|ExtraHigh] [--search-normal]
                   [--search-cancel-after-ms N] [--full-combat]
+              dotnet Differential.dll --list-quality-roots [--corpora <dir>]
               dotnet Differential.dll --offline-combat [--root <name> | --roots-file <file> | --corpora <dir>]
                   [--search-tier Low|Medium|High|ExtraHigh] [--jobs 1..8] [--out <dir>]
                   [--potion-schedule one-allowed|one-two-three|one-two-allowed]

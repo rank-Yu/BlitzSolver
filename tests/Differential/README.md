@@ -188,6 +188,8 @@ dotnet artifacts/bin/Differential/release/Differential.dll --search-compare .loc
 
 ## 离线整场自动战斗
 
+默认质量集合由 `tests/corpora/quality/default-roots.txt` 指定，共108场（105个生成牌组、2场女王、1场沙漏）。用 `--list-quality-roots` 可以只列出名单。
+
 ```bash
 dotnet artifacts/bin/Differential/release/Differential.dll --offline-combat --corpora tests/corpora --jobs 4 \
   --out .local/offline-combat/default

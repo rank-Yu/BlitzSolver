@@ -71,7 +71,7 @@ internal static class OfflineCombat
         }
         else
         {
-            roots = EnumerateQualityRoots(settings);
+            roots = EnumerateQualityRoots(settings.Corpora);
         }
         if (roots.Length == 0)
         {
@@ -136,16 +136,24 @@ internal static class OfflineCombat
             throw new InvalidDataException($"质量回归失败：{root}，outcome={result.Outcome} hp={result.PlayerHp}。");
     }
 
-    private static string[] EnumerateQualityRoots(OfflineCombatSettings settings)
+    internal static string[] EnumerateQualityRoots(string corpora)
     {
-        string quality = Path.Combine(settings.Corpora, "quality");
+        string quality = Path.Combine(corpora, "quality");
         if (!Directory.Exists(quality))
             return [];
-        return Directory.EnumerateDirectories(quality)
+        string[] available = Directory.EnumerateDirectories(quality)
             .Where(directory => File.Exists(Path.Combine(directory, "request.json")))
             .Select(directory => "quality-" + Path.GetFileName(directory))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
+        string manifest = Path.Combine(quality, "default-roots.txt");
+        if (!File.Exists(manifest)) return available;
+        string[] selected = File.ReadAllLines(manifest).Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !line.StartsWith('#')).ToArray();
+        if (selected.Distinct(StringComparer.Ordinal).Count() != selected.Length
+            || selected.Except(available, StringComparer.Ordinal).Any())
+            throw new InvalidDataException("默认质量评测名单包含重复或缺失的请求。");
+        return selected.OrderBy(name => name, StringComparer.Ordinal).ToArray();
     }
 
     private static int RunRoot(OfflineCombatSettings settings, string root)
