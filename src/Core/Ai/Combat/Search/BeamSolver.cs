@@ -142,8 +142,8 @@ internal sealed record BeamOptions(
     public int InitialActionCount { get; init; }
 
     /// <summary>
-    /// <c>SearchPolicySnapshot.Act3BossStrategy</c>. Enables the existing first-turn commitment
-    /// expansion of a fetched, payable power before the layer is ranked.
+    /// <c>SearchPolicySnapshot.Act3BossStrategy</c>. Adds a direct play of a fetched, payable
+    /// power before layer selection on every searched turn, retaining the ordinary fetched state.
     /// </summary>
     public bool Act3BossStrategy { get; init; }
 
@@ -714,13 +714,6 @@ internal sealed partial class BeamSolver
     private string _tracePhase = "next";
     private bool _singleRoot;
 
-    /// <summary>
-    /// True only on the first completed turn layer when the three-act boss policy is frozen on. The
-    /// existing search expands a fetched, payable power's next decision before ranking that layer
-    /// (<c>the existing search's Phases.cs</c>, <c>searchedTurnLayers == 0</c>).
-    /// </summary>
-    private bool _expandFetchedPowers;
-
     /// <summary>The existing search's HP-target stop, so a commitment batch stops like its parent layer.</summary>
     private bool _hpTargetReached;
 
@@ -1054,8 +1047,6 @@ internal sealed partial class BeamSolver
             _tracePhase = "turn-frontier";
             turnFrontier.TracePhase = _tracePhase;
             turnFrontier.CopyTopTo(current, turns == 1 ? frontierCapacity : width);
-            // Turn one is the existing search's searchedTurnLayers == 0.
-            _expandFetchedPowers = _options.Act3BossStrategy && turns == 1;
             PublishProgressWithPreview(turns - 1, 0, current.Count, 0, "展开回合", force: true,
                 best is null ? -1 : bestNode, best, current);
             int playDepth = 0;

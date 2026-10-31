@@ -25,10 +25,12 @@ internal sealed class Scorer
 
     private readonly bool _baseOnly;
     private readonly bool _offensive;
+    private readonly ushort _witherCardId;
 
     public Scorer(ScoreRules score, bool baseOnly = false, bool offensive = false, QueenSearchPolicy? queen = null, SetupSearchPolicy? setup = null)
     {
         _score = score;
+        _witherCardId = Registry.TryCard("WITHER", out ushort wither) ? wither : ushort.MaxValue;
         _baseOnly = baseOnly;
         _offensive = offensive;
         QueenPolicy = queen;
@@ -63,7 +65,7 @@ internal sealed class Scorer
 
     /// <summary>
     /// The played card's primary <c>CardChoiceSupport</c> effect is <c>MoveToHand</c>. Root-frozen
-    /// with the rest of the score table; used by the first-turn fetched-power commitment.
+    /// with the rest of the score table; used by the fetched-power commitment on every searched turn.
     /// </summary>
     public bool IsPrimaryMoveToHandCard(ushort id, int upgrade)
         => _score.Card(id, upgrade).PrimaryMoveToHandChoice;
@@ -555,6 +557,7 @@ internal sealed class Scorer
             score += ScoreWeights.VictoryBonus;
         score += enemyHp * ScoreWeights.EnemyHp;
         if (QueenPolicy is { } queen) score += queen.Bonus(battle);
+        double handWitherDamage = 0;
         int liveDeckClutter = 0;
         int liveCardCount = battle.HandCount + battle.DrawCount + battle.DiscardCount;
         int retainedAttackValue = 0;
@@ -581,6 +584,8 @@ internal sealed class Scorer
                 ref readonly Card card = ref battle.Cards[start + offset];
                 CardStats stats = Rules.Card(card.Id, card.Upgrade);
                 CardScore cardScore = _score.Card(card.Id, card.Upgrade);
+                if (segment == Pile.Hand && card.Id == _witherCardId)
+                    handWitherDamage += Math.Max(0, (double)Var(battle, card, stats, 0));
                 CardType cardType = ResolveCardType(battle, card, stats);
                 if ((cardType is CardType.Status or CardType.Curse)
                     && !LeavesHandAtTurnEnd(battle, segment, card, cardScore))
@@ -614,6 +619,12 @@ internal sealed class Scorer
                 latentSetupTraits |= trait;
             }
         }
+        // Rank outstanding hand Wither damage without changing actual EndTurn resolution.
+        // This is a heuristic: intent projection has already consumed its share of block;
+        // end-turn relic triggers and damage-prevention ordering are not replayed here.
+        if (!won && !dead && !eventDefeat)
+            score -= Math.Max(0, handWitherDamage - Math.Max(0, battle.Player.Block - blockConsumed))
+                * hpWeight;
         score += liveDeckClutter * ScoreWeights.LiveDeckClutterPenalty;
 
         // SimulatedCombatState's outstanding-stolen-resource counters. Only theft roots carry them; the

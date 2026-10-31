@@ -301,7 +301,7 @@ internal sealed class ScoreRules
 
     /// <summary>
     /// <c>SearchPolicySnapshot.Act3BossStrategy</c>, frozen at the root. Gates the existing engine's
-    /// three-act boss interaction requirements/evaluation and the first-turn fetched-power commitment.
+    /// three-act boss interaction requirements/evaluation and the fetched-power commitment on every searched turn.
     /// </summary>
     public required bool Act3BossStrategy { get; init; }
 

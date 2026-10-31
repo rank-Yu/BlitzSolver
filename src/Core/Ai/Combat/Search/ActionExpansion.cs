@@ -428,18 +428,20 @@ internal sealed partial class BeamSolver
                 return;
             }
             if (allowFetchedPowerCommit
-                && _expandFetchedPowers
+                && _options.Act3BossStrategy
+                && child.PlayerTurn == parent.PlayerTurn
                 && primaryEffect == ChoiceEffect.MoveToHand
                 && HasPlayableFetchedPower(child, selectedPowers)
                 && CommitmentBudgetAvailable())
             {
-                // the existing search's Phases.cs: settle the fetched, payable power's next decision before
-                // ranking the intermediate selection. The intermediate state is not committed; every
-                // successor goes through the normal transition/dedup/pool accounting.
+                // Keep the ordinary fetched state, and also rank the direct play of the fetched
+                // power without pruning the intermediate state first. The helper snapshots the
+                // reserved slot before any pool mutation can overwrite it.
                 ExpandFetchedPowerSuccessors(ref child, node, next, ended, terminal, childTraits,
-                    childPocketwatchThreshold, childPocketwatchPlayed, parentRank, parentScore,
-                    parentFacts.EnemyBlock, parentFacts.EnemyHp, parentFacts.FutureResourceValue,
-                    parentFacts.StrategicResourcePotential);
+                    childPocketwatchThreshold, childPocketwatchPlayed, childPocketwatchLastTurn,
+                    parentRank, parentScore, parentFacts.EnemyBlock, parentFacts.EnemyHp,
+                    parentFacts.FutureResourceValue, parentFacts.StrategicResourcePotential,
+                    selectedPowers, score, rank, pureRank, potionCost);
                 return;
             }
             // The retention-only hand values are computed by the pool only when the state is actually
@@ -809,22 +811,21 @@ internal sealed partial class BeamSolver
             && (_solveWatch is not { } watch || watch.Elapsed < _options.SoftTimeBudget);
 
     /// <summary>
-    /// The existing search's <c>Expand(commitment)</c>: every legal successor of the fetched-power
-    /// state enters the current layer through the normal path. The commitment state itself is dropped
-    /// (<c>nextPlays.Remove(commitment)</c>). The action buffer is separate because the enclosing layer
-    /// loop still iterates its own actions.
+    /// Preserve the normal fetched state, then add only legal plays of the fetched powers as
+    /// direct two-action continuations. This extends the upstream first-turn commitment without
+    /// removing ordinary choices such as drinking a potion before playing the power.
     /// </summary>
     private void ExpandFetchedPowerSuccessors(ref Battle commitment, int commitmentNode,
         Pool next, Pool ended, TerminalSink terminal, SearchRouteTraits traits,
-        int pocketwatchThreshold, int pocketwatchPlayed, int parentRank, double parentScore,
-        int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
-        int parentStrategicResourcePotential)
+        int pocketwatchThreshold, int pocketwatchPlayed, int pocketwatchLastTurn,
+        int parentRank, double parentScore, int parentEnemyBlock, int parentEnemyHp,
+        int parentFutureResourceValue, int parentStrategicResourcePotential,
+        scoped ReadOnlySpan<Card> selectedPowers, double score, double rank, double pureRank, int potionCost)
     {
-        CountExpanded();
-        _expandGeneration++;
+        // CommitReserved and recursive ExpandAction both reuse pool storage. Keep an independent
+        // snapshot even when deduplication rejects the ordinary fetched state.
         Battle state = commitment;
-        // The intermediate selection state is the parent of every successor. Its retention facts are
-        // computed once; the retained state itself is never committed.
+        // Both the ordinary state and its direct successors use the same retention context.
         int commitmentDepth = Depth(commitmentNode);
         ScoreFeatures commitmentFeatures =
             _scorer.Features(state, commitmentDepth, includeRetentionOnly: true);
@@ -833,12 +834,23 @@ internal sealed partial class BeamSolver
             commitmentReachable, commitmentZeroCost, traits, pocketwatchThreshold, pocketwatchPlayed,
             _scorer.InitialRetainedAttackValue, parentEnemyBlock, parentEnemyHp,
             parentFutureResourceValue, parentStrategicResourcePotential);
+        RouteNode route = _nodes[commitmentNode];
+        if (!next.CommitReserved(commitmentNode, score, rank, pureRank, potionCost,
+                commitmentFeatures, commitmentDepth, route.Lineage, route.PayoffCount,
+                route.Commitment, traits, pocketwatchThreshold, pocketwatchPlayed, pocketwatchLastTurn,
+                parentEnemyBlock, parentEnemyHp, parentFutureResourceValue, parentStrategicResourcePotential))
+            _duplicates++;
+        if (!CommitmentBudgetAvailable())
+            return;
+        CountExpanded();
+        _expandGeneration++;
         int count = Kernel.LegalActions(state, _rules, _commitmentActions);
         for (int index = 0; index < count; index++)
         {
             _cancellationToken.ThrowIfCancellationRequested();
             PlayerAction action = _commitmentActions[index];
-            if (action.Kind == PlayerActionKind.UsePotion && !PotionAllowed(state, action.PotionSlot))
+            if (action.Kind != PlayerActionKind.PlayCard
+                || !IsSelectedFetchedPower(state, action.HandIndex, selectedPowers))
                 continue;
             // ExpandAction handles a capacity overflow for this successor as its own child; a
             // sibling's overflow never cancels the rest of the commitment batch.
@@ -858,19 +870,23 @@ internal sealed partial class BeamSolver
         if (selectedPowers.Length == 0)
             return false;
         for (int index = 0; index < battle.HandCount; index++)
-        {
-            ref readonly Card card = ref battle.Cards[index];
-            if (Kernel.ResolveCardType(battle, _rules, card) != CardType.Power
-                || !Kernel.CanPlayCard(battle, _rules, index))
-            {
-                continue;
-            }
-            for (int selected = 0; selected < selectedPowers.Length; selected++)
-            {
-                if (SameCardIdentity(card, selectedPowers[selected]))
-                    return true;
-            }
-        }
+            if (IsSelectedFetchedPower(battle, index, selectedPowers)
+                && Kernel.CanPlayCard(battle, _rules, index))
+                return true;
+        return false;
+    }
+
+    private bool IsSelectedFetchedPower(in Battle battle, int handIndex,
+        scoped ReadOnlySpan<Card> selectedPowers)
+    {
+        if ((uint)handIndex >= (uint)battle.HandCount)
+            return false;
+        ref readonly Card card = ref battle.Cards[handIndex];
+        if (Kernel.ResolveCardType(battle, _rules, card) != CardType.Power)
+            return false;
+        for (int selected = 0; selected < selectedPowers.Length; selected++)
+            if (SameCardIdentity(card, selectedPowers[selected]))
+                return true;
         return false;
     }
 
