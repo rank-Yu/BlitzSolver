@@ -108,6 +108,7 @@ internal static class CombatSearchCoordinator
         string? error = null;
         bool cancelled = false;
         bool goalReached = false;
+        SortedDictionary<string, int>? capacityDrops = null;
         for (int index = 0; index < members.Length; index++)
         {
             token.ThrowIfCancellationRequested();
@@ -207,6 +208,12 @@ internal static class CombatSearchCoordinator
             string stop = beam == null ? measurement.Status
                 : beam.SearchMemoryBudgetExceeded ? "memory"
                 : beam.SoftTimeBudgetReached ? "time" : beam.StopReason;
+            if (beam != null && stop == "frontier-empty" && beam.CapacityPruned > 0)
+            {
+                capacityDrops ??= new(StringComparer.Ordinal);
+                foreach ((string region, int count) in beam.CapacityDroppedChildren)
+                    capacityDrops[region] = capacityDrops.GetValueOrDefault(region) + count;
+            }
             if (beam != null && beam.PotionPolicySatisfied)
             {
                 try
@@ -265,7 +272,13 @@ internal static class CombatSearchCoordinator
                 { EffectivePotionLimit = policies[logs.Count].MaximumUses });
         if (bestIndex >= 0)
             for (int i = 0; i < logs.Count; i++) logs[i] = logs[i] with { Adopted = i == bestIndex };
+        bool capacityBounded = !cancelled && error == null && capacityDrops != null
+            && (best == null || bestOutcome != Outcome.Victory);
+        if (capacityBounded)
+            error = "成员丢弃超出状态容量的分支后前沿耗尽，且没有胜利路线（"
+                + string.Join(", ", capacityDrops!.Select(d => $"{d.Key}={d.Value}")) + "）。";
         CombatSearchStatus status = cancelled ? CombatSearchStatus.Cancelled
+            : capacityBounded ? CombatSearchStatus.CapacityBounded
             : error != null ? CombatSearchStatus.Invalid
             : best == null ? CombatSearchStatus.Incomplete
             : bestOutcome == Outcome.Victory ? CombatSearchStatus.Victory

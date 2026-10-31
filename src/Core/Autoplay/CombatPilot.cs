@@ -236,6 +236,12 @@ internal static class CombatPilot
                             failureLog.Add(new CombatPilotFailureEntry(turn.Turn, failureReason,
                                 search.FailureDetail ?? ""));
                         }
+                        // The same root hits the same capacity again; retrying cannot help.
+                        if (search.SearchStatus == CombatSearchStatus.CapacityBounded)
+                        {
+                            pauseReason = $"第 {turn.Turn} 回合搜索超出战斗状态容量";
+                            break;
+                        }
                         if (consecutiveFailures >= MaximumConsecutiveFailures)
                         {
                             pauseReason = $"第 {turn.Turn} 回合连续 {consecutiveFailures} 次搜索/部署失败";

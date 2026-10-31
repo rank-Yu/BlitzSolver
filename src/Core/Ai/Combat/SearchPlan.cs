@@ -97,7 +97,12 @@ internal sealed class CombatSearchRequest
     }
 }
 
-internal enum CombatSearchStatus { Victory, Defeat, Incomplete, Cancelled, Invalid }
+/// <summary>
+/// <see cref="CapacityBounded"/>: a member emptied its frontier after dropping children at a
+/// <see cref="Battle"/> capacity and no member found a victory, so the best non-victory line may
+/// only have survived because better lines were cut. The request returns no route.
+/// </summary>
+internal enum CombatSearchStatus { Victory, Defeat, Incomplete, Cancelled, Invalid, CapacityBounded }
 
 internal sealed record SearchMemberResult(SearchMember Member, bool Ran, string? SkippedReason,
     long ElapsedMilliseconds, long ExpandedNodes, string StopReason, bool Victory,

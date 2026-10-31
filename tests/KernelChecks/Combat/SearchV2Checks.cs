@@ -113,6 +113,20 @@ internal static class SearchV2Checks
         long firstShare = (long)observed[0].SoftTimeBudget.TotalMilliseconds;
         Assert((long)observed[1].SoftTimeBudget.TotalMilliseconds > firstShare,
             "unused member time transfers to later members");
+        ValueTask<SearchMemberMeasurement> CapacityRun(SearchCase item, SearchStorage _, CancellationToken __)
+        {
+            time += 20;
+            BeamResult cut = new([], [], false, 0, 0, 0, 0, 0, 0, TimeSpan.Zero)
+            {
+                StopReason = "frontier-empty", PotionPolicySatisfied = false, CapacityPruned = 2,
+                CapacityDroppedChildren = new Dictionary<string, int> { ["Cards"] = 2 },
+            };
+            return ValueTask.FromResult(new SearchMemberMeasurement(cut, "ok", null, 20));
+        }
+        CombatSearchResult bounded = CombatSearchCoordinator.RunAsync(request, new(), CapacityRun,
+            CancellationToken.None, () => time).AsTask().GetAwaiter().GetResult();
+        Assert(bounded.Status == CombatSearchStatus.CapacityBounded && bounded.Beam == null
+            && bounded.Error!.Contains("Cards="), "capacity-emptied frontier without victory returns no route");
         Assert(!PotionSearchSchedule.HasAllowedUse([default], rules, options), "empty roots have no potion stage");
         observed.Clear(); time = 100;
         CombatSearchResult noPotion = CombatSearchCoordinator.RunAsync(
