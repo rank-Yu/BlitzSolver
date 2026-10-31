@@ -17,8 +17,10 @@ internal static class SupplementPortfolio
             if (i + 1 < members.Length && members[i + 1].Potions == member.Potions) continue;
             if (plan.SetupStrategies)
             {
-                result.Add(new(plan.NarrowWidth, SearchEvaluation.Setup, SearchRetention.Standard, member.Potions));
-                result.Add(new(plan.WideWidth, SearchEvaluation.FocusedSetup, SearchRetention.Standard, member.Potions));
+                result.Add(new(plan.LegacySetupPortfolio ? plan.NarrowWidth : plan.WideWidth,
+                    SearchEvaluation.Setup, SearchRetention.Standard, member.Potions));
+                if (plan.LegacySetupPortfolio)
+                    result.Add(new(plan.WideWidth, SearchEvaluation.FocusedSetup, SearchRetention.Standard, member.Potions));
             }
             else if (queen)
                 result.Add(new(plan.BaselineWidth, SearchEvaluation.QueenSetup, SearchRetention.Standard, member.Potions));

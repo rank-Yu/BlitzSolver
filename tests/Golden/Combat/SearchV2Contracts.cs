@@ -99,7 +99,7 @@ internal static class SearchV2Contracts
             && PortfolioBuilder.Build(staged, true, true).Length == 6
             && PortfolioBuilder.Build(staged, true, true).SequenceEqual(stagedMembers.Skip(12)),
             "power-free and forced staged portfolios");
-        byte[] unknownVersion = (byte[])tripleBytes.Clone(); unknownVersion[4] = 9;
+        byte[] unknownVersion = (byte[])tripleBytes.Clone(); unknownVersion[4] = 255;
         bool invalidVersion = false;
         try { _ = CombatSearchCodec.Decode(unknownVersion); }
         catch (InvalidDataException) { invalidVersion = true; }

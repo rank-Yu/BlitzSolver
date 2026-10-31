@@ -24,8 +24,11 @@ internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWi
     /// <summary>Generic setup members replace the historical QueenSetup member.</summary>
     public bool SetupStrategies { get; init; }
 
+    /// <summary>Historical v8 narrow/focused pair, retained only for replay.</summary>
+    public bool LegacySetupPortfolio { get; init; }
+
     internal static bool IsLongEncounter(bool isBoss, bool isElite, int actIndex)
-        => isBoss || isElite && actIndex is 1 or 2;
+        => isBoss || isElite && actIndex == 2;
 
     /// <summary>Apply the encounter budget once, when assembling a fresh host plan.</summary>
     internal SearchPlan ForEncounter(bool longEncounter)

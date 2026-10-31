@@ -11,7 +11,7 @@ internal static class CombatSearchCodec
     internal static byte[] Encode(CombatSearchRequest request) => Codec.ToBytes(writer =>
     {
         writer.Write(Magic);
-        writer.Write(request.Plan.SetupStrategies ? (ushort)8 : request.Plan.QueenStrategies ? (ushort)7 : request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
+        writer.Write(request.Plan.SetupStrategies ? (request.Plan.LegacySetupPortfolio ? (ushort)8 : (ushort)9) : request.Plan.QueenStrategies ? (ushort)7 : request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
         byte[] root = SearchCodec.EncodeRequest(request.Case);
         writer.Write(root.Length);
         writer.Write(root);
@@ -48,7 +48,7 @@ internal static class CombatSearchCodec
         if (reader.ReadUInt32() != Magic)
             throw new InvalidDataException("组合搜索请求魔数不符。");
         ushort version = reader.ReadUInt16();
-        if (version is not (1 or 2 or 3 or 4 or Version or 6 or 7 or 8))
+        if (version is not (1 or 2 or 3 or 4 or Version or 6 or 7 or 8 or 9))
             throw new InvalidDataException("组合搜索请求版本不受支持。");
         int length = Codec.ReadCount(reader, 1 << 28, "搜索根字节");
         byte[] root = reader.ReadBytes(length);
@@ -80,7 +80,8 @@ internal static class CombatSearchCodec
         plan = plan with { DefaultPotionSchedule = schedule,
             ExperimentalQueenSupplement = version >= 6 && Codec.ReadBool(reader),
             QueenStrategies = version >= 7 && Codec.ReadBool(reader),
-            SetupStrategies = version >= 8 && Codec.ReadBool(reader) };
+            SetupStrategies = version >= 8 && Codec.ReadBool(reader),
+            LegacySetupPortfolio = version == 8 };
         searchCase = searchCase with { Options = searchCase.Options with
             { HasUnboundedGrowthTargets = unboundedGrowth, PoolStateBudgetBytes = poolStateBudget } };
         if (searchCase.Options.PotionFreeBaseline is { } baseline)

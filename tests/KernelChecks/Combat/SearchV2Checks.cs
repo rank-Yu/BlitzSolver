@@ -418,8 +418,12 @@ internal static class SearchV2Checks
         for (int act = 0; act < 3; act++)
         {
             Assert(SearchPlan.IsLongEncounter(true, false, act), "all act bosses have setup");
-            Assert(SearchPlan.IsLongEncounter(false, true, act) == (act > 0), "only late act elites have setup");
+            Assert(SearchPlan.IsLongEncounter(false, true, act) == (act == 2), "only act three elites have setup");
             Assert(!SearchPlan.IsLongEncounter(false, false, act), "normal rooms unchanged");
+            Assert(plan.ForEncounter(SearchPlan.IsLongEncounter(false, true, act)).TotalMilliseconds
+                == plan.TotalMilliseconds * (act == 2 ? 2 : 1), "elite budget follows supplement scope");
+            Assert(plan.ForEncounter(SearchPlan.IsLongEncounter(true, false, act)).TotalMilliseconds
+                == plan.TotalMilliseconds * 2, "all bosses retain double budget");
         }
         Registry.TryPotion("FIRE_POTION", out ushort fire);
         Battle root = default;
@@ -442,23 +446,35 @@ internal static class SearchV2Checks
         seen.Clear(); now = 0;
         CombatSearchResult result = CombatSearchCoordinator.RunAsync(new(search, enabled), new(), Run,
             CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
-        Assert(result.Members.Length == 24 && seen.Count == 24, "six generic supplements across three stages");
+        Assert(result.Members.Length == 21 && seen.Count == 21, "one generic supplement per stage");
         for (int stage = 0; stage < 3; stage++)
         {
-            int at = stage * 8;
+            int at = stage * 7;
             Assert(result.Members.Skip(at).Take(6).Select(m => m.Member).SequenceEqual(
                 baseline.Members.Skip(stage * 6).Take(6).Select(m => m.Member)), "original six preserved");
-            Assert(result.Members.Skip(at + 6).Take(2).Select(m => m.Member.Width)
-                .SequenceEqual(new[] { enabled.NarrowWidth, enabled.WideWidth }), "narrow then wide setup");
+            Assert(result.Members[at + 6].Member == new SearchMember(enabled.WideWidth,
+                SearchEvaluation.Setup, SearchRetention.Standard, (SearchPotionLimit)stage), "ordinary wide setup only");
             Assert(seen.Skip(at).Take(6).All(o => !o.Scorer!.SetupPreference)
-                && seen.Skip(at + 6).Take(2).All(o => o.Scorer!.SetupPreference && o.Scorer.QueenPolicy is null),
+                && seen.Skip(at + 6).Take(1).All(o => o.Scorer!.SetupPreference && o.Scorer.QueenPolicy is null),
                 "only added members use generic setup scoring");
         }
         Assert(seen.Take(6).Select(o => o.SoftTimeBudget).SequenceEqual(shares), "original no-potion shares preserved");
         byte[] bytes = CombatSearchCodec.Encode(new(search, enabled));
         CombatSearchRequest decoded = CombatSearchCodec.Decode(bytes);
         Assert(decoded.Plan.SetupStrategies && decoded.Plan.TotalMilliseconds == 240_000
-            && CombatSearchCodec.Encode(decoded).SequenceEqual(bytes), "v8 frozen plan round trip");
+            && CombatSearchCodec.Encode(decoded).SequenceEqual(bytes), "v9 frozen plan round trip");
+        SearchPlan legacy = enabled with { LegacySetupPortfolio = true };
+        byte[] legacyBytes = CombatSearchCodec.Encode(new(search, legacy));
+        CombatSearchRequest legacyDecoded = CombatSearchCodec.Decode(legacyBytes);
+        SearchMember[] legacyMembers = SupplementPortfolio.AppendToStages(
+            PortfolioBuilder.Build(legacyDecoded.Plan, true, false), legacyDecoded.Plan, queen: false);
+        Assert(BitConverter.ToUInt16(legacyBytes, 4) == 8 && legacyDecoded.Plan.LegacySetupPortfolio
+            && CombatSearchCodec.Encode(legacyDecoded).SequenceEqual(legacyBytes)
+            && legacyMembers.Length == 24
+            && legacyMembers[6].Evaluation == SearchEvaluation.Setup && legacyMembers[6].Width == enabled.NarrowWidth
+            && legacyMembers[7].Evaluation == SearchEvaluation.FocusedSetup && legacyMembers[7].Width == enabled.WideWidth,
+            "historical v8 retains the narrow and focused pair");
+        Assert(BitConverter.ToUInt16(bytes, 4) == 9 && !decoded.Plan.LegacySetupPortfolio, "fresh plans use v9");
         SearchCase setup = search with { Options = options with { Scorer = new(options.Scorer!.RulesForCodec, setup: SetupSearchPolicy.Capture(root, rules)) } };
         byte[] single = SearchCodec.EncodeRequest(setup);
         Assert(SearchCodec.DecodeRequest(single).Options.Scorer!.SetupPreference
@@ -490,20 +506,21 @@ internal static class SearchV2Checks
         result = CombatSearchCoordinator.RunAsync(new(search with { Options = options with {
             Potions = options.Potions with { MaximumUses = 1 } } }, enabled), new(), Run,
             CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
-        Assert(result.Members.Skip(22).All(m => !m.Ran && m.SkippedReason == "duplicate-limit"),
+        Assert(result.Members.Skip(20).All(m => !m.Ran && m.SkippedReason == "duplicate-limit"),
             "same effective potion limit is not searched twice");
         seen.Clear(); now = 0;
         result = CombatSearchCoordinator.RunAsync(new(search with { Options = forced with {
             PowerCommitments = options.PowerCommitments } }, enabled), new(), Run,
             CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
-        Assert(seen.Count == 8 && seen.All(o => o.EnforceForcedPotionDirectives)
+        Assert(seen.Count == 7 && seen.All(o => o.EnforceForcedPotionDirectives)
             && result.Members.All(m => m.Member.Potions == SearchPotionLimit.Allowed),
-            "forced potion stage retains both setup members and directives");
+            "forced potion stage retains ordinary setup and directives");
 
         // The generic members replace QueenSetup; only kill-timing retention is retained.
         SearchMember[] queen = SupplementPortfolio.AppendToStages(
             PortfolioBuilder.Build(enabled, true, false), enabled, queen: true);
-        Assert(queen.Length == 27 && queen.Count(m => m.Evaluation is SearchEvaluation.Setup or SearchEvaluation.FocusedSetup) == 6
+        Assert(queen.Length == 24 && queen.Count(m => m.Evaluation == SearchEvaluation.Setup) == 3
+            && queen.All(m => m.Evaluation != SearchEvaluation.FocusedSetup)
             && queen.Count(m => m.Retention == SearchRetention.QueenKillTiming) == 3
             && queen.All(m => m.Evaluation != SearchEvaluation.QueenSetup), "old queen setup replaced");
 

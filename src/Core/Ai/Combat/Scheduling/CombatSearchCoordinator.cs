@@ -43,7 +43,7 @@ internal static class CombatSearchCoordinator
         bool setup = plan.SetupStrategies && plan.CustomMembers.IsDefaultOrEmpty
             && initial.Options.Novelty is null && initial.Battles.Length == 1;
         SetupSearchPolicy? setupPolicy = setup ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules) : null;
-        SetupSearchPolicy? focusedSetup = setup ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules, focused: true) : null;
+        SetupSearchPolicy? focusedSetup = setup && plan.LegacySetupPortfolio ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules, focused: true) : null;
         if (setup || queen is not null && plan.QueenStrategies)
             members = SupplementPortfolio.AppendToStages(members, plan, queen is not null && plan.QueenStrategies);
         else if (queen is not null)
