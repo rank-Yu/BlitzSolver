@@ -32,7 +32,7 @@ internal static class CombatSearchCoordinator
         bool forced = PotionSearchSchedule.HasForcedDirectives(initial.Options);
         bool canUsePotions = PotionSearchSchedule.HasAllowedUse(initial.Battles, initial.Rules, initial.Options);
         bool requiredPlan = forced || plan.CustomMembers.IsDefaultOrEmpty
-            && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+            && plan.UsesStagedPortfolio
             && (initial.Options.MinimumPotionUses > 0
                 || initial.Options.EffectivePotionPolicy == PotionUseMode.RequireAtLeastOne);
         SearchMember[] members = PortfolioBuilder.Build(plan,
@@ -75,11 +75,11 @@ internal static class CombatSearchCoordinator
                 && limit <= initial.Options.InitialExplicitPotionUses)
                 skips[i] = "limit-already-used";
             else if (potionPhase && plan.CustomMembers.IsDefaultOrEmpty
-                && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+                && plan.UsesStagedPortfolio
                 && !seenMembers.Add((item.Width, item.Evaluation, item.Retention, policy.MaximumUses)))
                 skips[i] = "duplicate-limit";
             else if (potionPhase && plan.CustomMembers.IsDefaultOrEmpty
-                && plan.DefaultPotionSchedule != DefaultPotionSchedule.StagedPortfolio && !seenLimits.Add(policy.MaximumUses))
+                && !plan.UsesStagedPortfolio && !seenLimits.Add(policy.MaximumUses))
                 skips[i] = "duplicate-limit";
         }
         budget.ReservePotionPhase(!requiredPlan && !forced && Enumerable.Range(0, members.Length)
@@ -102,7 +102,7 @@ internal static class CombatSearchCoordinator
             bool potionPhase = !requiredPlan && !forced && member.Potions != SearchPotionLimit.None;
             bool stageStart = index == 0 || members[index - 1].Potions != member.Potions;
             if (potionPhase && stageStart && !requiredPlan && plan.CustomMembers.IsDefaultOrEmpty
-                && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+                && plan.UsesStagedPortfolio
                 && PotionStageGate.CanSkip(initial.Battles, initial.Rules, initial.Options, selected, free))
             {
                 for (int j = index; j < members.Length && members[j].Potions == member.Potions; j++)

@@ -20,6 +20,7 @@ internal static class SearchV2Contracts
         SearchCase original = SearchCodec.DecodeRequest(bytes.ToArray());
         SearchPlan plan = new(12, 8, 16, 5, 10_000, 100_000_000)
         {
+            DefaultPotionSchedule = DefaultPotionSchedule.StagedPortfolio,
             EndedKeepWidths = 2, EndedTriggerWidths = 4,
             CustomMembers = [new(8, SearchEvaluation.Base, SearchRetention.SecondBand, SearchPotionLimit.None),
                              new(12, SearchEvaluation.Offensive, SearchRetention.Standard, SearchPotionLimit.Allowed)],

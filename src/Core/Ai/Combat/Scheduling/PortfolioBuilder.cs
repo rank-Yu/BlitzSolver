@@ -33,7 +33,7 @@ internal static class PortfolioBuilder
         if (power)
             members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Power, primary));
         int ordinaryIndex = members.Count;
-        int ordinaryWidth = forced && plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio
+        int ordinaryWidth = forced && plan.UsesStagedPortfolio
             ? plan.BaselineWidth : plan.NarrowWidth;
         members.Add(new(ordinaryWidth, SearchEvaluation.Standard, SearchRetention.Standard, primary));
         members.Add(new(plan.WideWidth, SearchEvaluation.Standard, SearchRetention.Standard, primary));
@@ -42,11 +42,18 @@ internal static class PortfolioBuilder
         members.Add(new(plan.OffensiveWidth, SearchEvaluation.Offensive, SearchRetention.Standard, primary));
         if (!forced)
         {
-            if (plan.DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio)
+            if (plan.UsesStagedPortfolio)
             {
                 int primaryCount = members.Count;
-                for (int i = 0; i < primaryCount; i++)
-                    members.Add(members[i] with { Potions = SearchPotionLimit.One });
+                if (plan.DefaultPotionSchedule == DefaultPotionSchedule.CompactOnePortfolio)
+                {
+                    if (power)
+                        members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Power, SearchPotionLimit.One));
+                    members.Add(new(plan.WideWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.One));
+                }
+                else
+                    for (int i = 0; i < primaryCount; i++)
+                        members.Add(members[i] with { Potions = SearchPotionLimit.One });
                 for (int i = 0; i < primaryCount; i++)
                     members.Add(members[i] with { Potions = SearchPotionLimit.Allowed,
                         Width = i == ordinaryIndex ? plan.BaselineWidth : members[i].Width });
