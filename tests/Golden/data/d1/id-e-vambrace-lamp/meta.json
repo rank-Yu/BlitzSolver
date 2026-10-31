@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "id-e-vambrace-lamp",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-id-e-vambrace-lamp.json\u0022}",
-  "rulesSha256": "ab96d9dd74b9324d5b56ec9f976757315b032fc67007bd06e200ffc17ba83ca3",
+  "rulesSha256": "1478c8407f453f4f5e228978088646d88143c7c73a68178778631e391255bb52",
   "counts": {
     "roots": 1,
     "k1": 8,

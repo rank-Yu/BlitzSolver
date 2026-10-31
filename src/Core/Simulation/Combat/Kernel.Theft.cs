@@ -20,13 +20,14 @@ public static partial class Kernel
     public static int MinimumOutstandingStolenResource(in Battle battle)
     {
         int outstanding = OutstandingStolenResource(battle);
+        ref Battle mutable = ref System.Runtime.CompilerServices.Unsafe.AsRef(in battle);
         long recoverable = 0;
         for (int index = 0; index < battle.PowerCount; index++)
         {
             ref readonly Power power = ref battle.Powers[index];
             if (power.Amount <= 0 || !IsEnemyOwner(power.Owner))
                 continue;
-            if (!InRoster(battle, power.Owner) || !battle.Creature(power.Owner).IsAlive)
+            if (!InRoster(battle, power.Owner) || !mutable.Creature(power.Owner).IsAlive)
                 continue;
             string nativeId = Registry.Power(power.Id).NativeId;
             if (nativeId == "SWIPE_POWER")

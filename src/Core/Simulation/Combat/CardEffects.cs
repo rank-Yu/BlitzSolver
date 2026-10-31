@@ -314,8 +314,8 @@ public static class CardEffects
     /// </summary>
     public static void ExhaustAllStatusCards(ref Exec x)
     {
-        Span<Card> cards = stackalloc Card[Limits.Cards];
-        Span<byte> sourcePile = stackalloc byte[Limits.Cards];
+        Span<Card> cards = stackalloc Card[x.B.CardCount];
+        Span<byte> sourcePile = stackalloc byte[x.B.CardCount];
         int count = 0;
         ReadOnlySpan<Pile> piles = [Pile.Hand, Pile.Draw, Pile.Discard, Pile.Play];
         for (int pileIndex = 0; pileIndex < piles.Length; pileIndex++)

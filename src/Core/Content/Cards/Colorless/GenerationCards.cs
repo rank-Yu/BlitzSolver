@@ -131,8 +131,8 @@ public sealed class Catastrophe : CardDef
     public override void OnPlay(ref Exec x)
     {
         int count = (int)CardEffects.Var(x, 0);
-        Span<Card> buffer = stackalloc Card[Limits.Cards];
-        Span<int> origins = stackalloc int[Limits.Cards];
+        Span<Card> buffer = stackalloc Card[x.B.CardCount];
+        Span<int> origins = stackalloc int[x.B.CardCount];
         for (int item = 0; item < count; item++)
         {
             int pileCount = x.B.DrawCount;

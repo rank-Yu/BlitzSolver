@@ -75,7 +75,20 @@ internal sealed class SearchStorage
         if (index < 0)
             throw new InvalidOperationException("搜索存储没有该数组。");
         _arrays.RemoveAt(index);
-        Memory.ReleaseArray((long)array.Length * Unsafe.SizeOf<T>());
+        Memory.ReleaseBlock((long)array.Length * Unsafe.SizeOf<T>(), "array");
+    }
+
+    /// <summary>
+    /// Returns a chunk to the allocator after a state-arena compaction. The block is removed from the
+    /// retained set and its bytes leave the ledger, so later solves must rent a new block.
+    /// </summary>
+    internal void DiscardChunk<T>(T[] chunk)
+    {
+        int index = _chunks.FindIndex(item => ReferenceEquals(item, chunk));
+        if (index < 0)
+            throw new InvalidOperationException("搜索存储没有该区块。");
+        _chunks.RemoveAt(index);
+        Memory.ReleaseBlock((long)chunk.Length * Unsafe.SizeOf<T>(), "chunk");
     }
 
     /// <summary>Rents a fixed-size chunk, reusing a retained block of the same element type and length.</summary>

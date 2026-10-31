@@ -13,7 +13,7 @@ namespace Sts2Solver.Simulation.Combat;
 /// </summary>
 internal static class Codec
 {
-    internal const ushort FormatVersion = 2;
+    internal const ushort FormatVersion = 3;
 
     internal static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
@@ -152,7 +152,7 @@ internal static class Codec
 
     internal static string Sha256Hex(ReadOnlySpan<byte> bytes) => Convert.ToHexString(Sha256(bytes)).ToLowerInvariant();
 
-    /// <summary>The truncated SHA-256 of the complete <see cref="Battle"/> byte image (64 bits).</summary>
+    /// <summary>The truncated SHA-256 of the packed <see cref="Battle"/> prefix (64 bits).</summary>
     internal static ulong BattleHash(in Battle battle)
     {
         Span<byte> hash = stackalloc byte[32];
@@ -169,8 +169,8 @@ internal static class Codec
 }
 
 /// <summary>
-/// Whole-block <see cref="Battle"/> file: version, the exact struct size and the complete byte
-/// image. The struct is unmanaged and reference-free, so the byte image is the complete state.
+/// Packed <see cref="Battle"/> file: version, the packed prefix length and the packed byte image.
+/// Only the header and the cards at <c>[0, CardCount)</c> are stored; the struct suffix is undefined.
 /// </summary>
 public static class BattleCodec
 {
@@ -185,12 +185,13 @@ public static class BattleCodec
         if (size != Battle.ExpectedSize)
             throw new InvalidOperationException(
                 $"Battle 大小 {size} 与布局断言 {Battle.ExpectedSize} 不符。");
-        byte[] bytes = new byte[HeaderSize + size];
+        ReadOnlySpan<byte> packed = Fingerprint.Bytes(battle);
+        byte[] bytes = new byte[HeaderSize + packed.Length];
         Span<byte> header = bytes.AsSpan(0, HeaderSize);
         BinaryPrimitives.WriteUInt32LittleEndian(header, Magic);
         BinaryPrimitives.WriteUInt16LittleEndian(header[4..], Codec.FormatVersion);
-        BinaryPrimitives.WriteInt32LittleEndian(header[6..], size);
-        Fingerprint.Bytes(battle).CopyTo(bytes.AsSpan(HeaderSize));
+        BinaryPrimitives.WriteInt32LittleEndian(header[6..], packed.Length);
+        packed.CopyTo(bytes.AsSpan(HeaderSize));
         return bytes;
     }
 
@@ -206,14 +207,20 @@ public static class BattleCodec
             throw new InvalidDataException($"Battle 格式版本 {version} 不受支持（当前 {Codec.FormatVersion}）。");
         int declared = BinaryPrimitives.ReadInt32LittleEndian(bytes[6..]);
         int current = Unsafe.SizeOf<Battle>();
-        if (declared != current || current != Battle.ExpectedSize)
+        if (current != Battle.ExpectedSize)
             throw new InvalidDataException(
-                $"Battle 大小 {declared} 与当前 {current}（布局断言 {Battle.ExpectedSize}）不符。");
+                $"Battle 大小 {current} 与布局断言 {Battle.ExpectedSize} 不符。");
+        if (declared < Battle.HeaderSize || declared > current)
+            throw new InvalidDataException(
+                $"Battle 打包长度 {declared} 不在 {Battle.HeaderSize}..{current} 内。");
         if (bytes.Length != HeaderSize + declared)
             throw new InvalidDataException(
                 $"Battle 数据长度 {bytes.Length} 与声明 {HeaderSize + declared} 不符。");
         Battle battle = default;
         bytes[HeaderSize..].CopyTo(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref battle, 1)));
+        if (Battle.PackedSize(in battle) != declared)
+            throw new InvalidDataException(
+                $"Battle 打包长度 {declared} 与计数推出的 {Battle.PackedSize(in battle)} 不符。");
         Validate(in battle);
         return battle;
     }

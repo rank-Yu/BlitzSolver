@@ -248,11 +248,15 @@ internal static class RecaptureRoot
     }
 
     private static bool SameRoot(GoldenBattleRoot left, GoldenBattleRoot right)
-        => left.ScoreHash == right.ScoreHash
+    {
+        Battle leftBattle = left.Battle;
+        Battle rightBattle = right.Battle;
+        return left.ScoreHash == right.ScoreHash
             && left.BoundStatus == right.BoundStatus
             && left.BoundHash == right.BoundHash
             && string.Equals(left.Choices, right.Choices, StringComparison.Ordinal)
-            && BattleCodec.Encode(left.Battle).AsSpan().SequenceEqual(BattleCodec.Encode(right.Battle));
+            && Fingerprint.Equal(in leftBattle, in rightBattle);
+    }
 
     private static string FieldOf(string line)
     {

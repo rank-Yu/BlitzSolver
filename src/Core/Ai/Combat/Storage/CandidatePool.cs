@@ -10,9 +10,10 @@ namespace Sts2Solver.Ai.Combat;
 internal sealed partial class BeamSolver
 {
     /// <summary>
-    /// State pool with byte-exact deduplication keeping the best score. State and parallel metadata
-    /// live in fixed-size chunks that are allocated on demand and never reallocated; exceeding
-    /// <c>maxCapacity</c> is a capacity rejection.
+    /// State pool with packed-prefix deduplication keeping the best score. States live in byte
+    /// blocks rented through <see cref="SearchStorage"/> and are addressed by per-seat offsets; the
+    /// parallel metadata arrays remain fixed-size chunks. Exceeding <c>maxCapacity</c> is a
+    /// capacity rejection, while actual bytes are bounded by the search-memory ledger.
     /// </summary>
     private sealed partial class Pool
     {
@@ -34,7 +35,7 @@ internal sealed partial class BeamSolver
                 && left.ActionCount <= right.ActionCount
                 && left.Score >= right.Score;
 
-        private readonly ChunkedArray<Battle> _states;
+        private readonly PackedStateArena _states;
         private readonly ChunkedArray<List<PoolLabel>?> _labels;
         private readonly ChunkedArray<int> _nodes;
         private readonly ChunkedArray<ulong> _lineages;
@@ -52,8 +53,6 @@ internal sealed partial class BeamSolver
         private int[] _rankPosition;
         private bool[] _taken;
         private bool[] _required;
-        private Battle _scratch;
-        private bool _scratchReserved;
         private readonly List<int> _selected = new();
         private readonly List<int> _requiredScratch = new();
         private readonly Dictionary<ulong, LineageLeaders> _lineageLeaders = new();
@@ -166,7 +165,7 @@ internal sealed partial class BeamSolver
             _preserveReplayAllocatorOpening = preserveReplayAllocatorOpening;
             _trace = trace;
             _policyWidth = secondRankBandWidth > 0 ? secondRankBandWidth : maxCapacity;
-            _states = new ChunkedArray<Battle>(maxCapacity, storage);
+            _states = new PackedStateArena(maxCapacity, storage);
             _labels = new ChunkedArray<List<PoolLabel>?>(maxCapacity, storage);
             _nodes = new ChunkedArray<int>(maxCapacity, storage);
             _lineages = new ChunkedArray<ulong>(maxCapacity, storage);
@@ -266,7 +265,7 @@ internal sealed partial class BeamSolver
         public int Count { get; private set; }
         public int PeakCount { get; private set; }
 
-        public ref Battle State(int index) => ref _states[index];
+        public ref readonly Battle State(int index) => ref _states[index];
 
         public int Node(int index) => _nodes[index];
 
@@ -299,10 +298,10 @@ internal sealed partial class BeamSolver
 
         public RetentionFacts Facts(int index) => _facts[index];
 
-        /// <summary>Copies one retained entry to a lower slot; used by the incumbent compaction.</summary>
+        /// <summary>Moves one retained entry's offset/metadata to a lower slot; used by incumbent compaction.</summary>
         public void Move(int from, int to)
         {
-            _states[to] = _states[from];
+            _states.Move(from, to);
             _labels[to] = _labels[from];
             _nodes[to] = _nodes[from];
             _lineages[to] = _lineages[from];
@@ -325,6 +324,7 @@ internal sealed partial class BeamSolver
             if (_lazyScratch)
                 for (int index = count; index < Count; index++) _labels[index] = null;
             Count = count;
+            _states.Truncate(count);
             RebuildTable();
         }
 
@@ -341,6 +341,7 @@ internal sealed partial class BeamSolver
             for (int index = 0; index < Count; index++)
                 _labels[index] = null;
             Count = 0;
+            _states.Clear();
             _hasCommitments = false;
             Array.Clear(_table);
         }
@@ -349,10 +350,10 @@ internal sealed partial class BeamSolver
         public bool IsFull => Count >= _maxCapacity;
 
         /// <summary>
-        /// The first free slot, for building a state in place before <see cref="CommitReserved"/>. A
-        /// chunk boundary or the capacity bound uses the scratch slot instead, so a duplicate or a
-        /// terminal child never allocates a chunk. Any other call on this pool invalidates the
-        /// returned reference.
+        /// Reserves the arena tail for building one child in place before <see cref="CommitReserved"/>.
+        /// The block tail always keeps a complete <see cref="Battle"/> of room, so the child has the
+        /// full workspace capacity. A duplicate or a terminal child never advances the tail. Any
+        /// other call on this pool invalidates the returned reference.
         /// </summary>
         public ref Battle Reserve()
         {
@@ -362,13 +363,8 @@ internal sealed partial class BeamSolver
             // end-turn pool is compacted in AddEndTurnChild instead.
             if (Count >= _maxCapacity)
                 throw new CapacityException("Beam.Pool", _maxCapacity);
-            if ((Count & ChunkedArray<Battle>.ChunkMask) != 0)
-            {
-                _scratchReserved = false;
-                return ref _states[Count];
-            }
-            _scratchReserved = true;
-            return ref _scratch;
+            _states.Reserve();
+            return ref _states.ReservedState;
         }
 
         /// <summary>Adds the state built in the reserved slot; returns false when an identical state was already present.</summary>
@@ -378,17 +374,11 @@ internal sealed partial class BeamSolver
             int pocketwatchLastTurn, int parentEnemyBlock, int parentEnemyHp, int parentFutureResourceValue,
             int parentStrategicResourcePotential)
         {
-            if (_scratchReserved)
-            {
-                return Insert(ref _scratch, inPlace: false, node, score, rank, pureRank, potionCost,
-                    features, default, factsReady: false, depth, lineage, payoffCount, commitment, traits,
-                    pocketwatchThreshold, pocketwatchPlayed, pocketwatchLastTurn, parentEnemyBlock,
-                    parentEnemyHp, parentFutureResourceValue, parentStrategicResourcePotential);
-            }
-            return Insert(ref _states[Count], inPlace: true, node, score, rank, pureRank, potionCost,
-                features, default, factsReady: false, depth, lineage, payoffCount, commitment, traits,
-                pocketwatchThreshold, pocketwatchPlayed, pocketwatchLastTurn, parentEnemyBlock,
-                parentEnemyHp, parentFutureResourceValue, parentStrategicResourcePotential);
+            return Insert(ref _states.ReservedState, inPlace: true,
+                node, score, rank, pureRank, potionCost, features, default, factsReady: false, depth,
+                lineage, payoffCount, commitment, traits, pocketwatchThreshold, pocketwatchPlayed,
+                pocketwatchLastTurn, parentEnemyBlock, parentEnemyHp, parentFutureResourceValue,
+                parentStrategicResourcePotential);
         }
 
         /// <summary>Adds a scored state and computes its retention-only values when it is stored.</summary>
@@ -562,6 +552,7 @@ internal sealed partial class BeamSolver
                             _facts[existing].EnemyHp, _facts[existing].ProjectedPlayerHp,
                             targetInfo, existingInfo);
                     }
+                    _states.DiscardReserved();
                     return false;
                 }
                 slot = (slot + 1) & mask;
@@ -584,9 +575,6 @@ internal sealed partial class BeamSolver
             }
             if ((Count + 1) * 2 > _table.Length)
                 GrowTable();
-            ref Battle destination = ref _states[Count];
-            if (!inPlace)
-                destination = state;
             _nodes[Count] = node;
             _lineages[Count] = lineage;
             _scores[Count] = score;
@@ -601,6 +589,10 @@ internal sealed partial class BeamSolver
             _potionCosts[Count] = potionCost;
             _commitment[Count] = commitment;
             _hasCommitments |= commitment > 0;
+            if (inPlace)
+                _states.CommitReserved();
+            else
+                _states.Add(in state);
             _table[FreeSlot(hash, _table.Length - 1)] = Count + 1;
             Count++;
             PeakCount = Math.Max(PeakCount, Count);

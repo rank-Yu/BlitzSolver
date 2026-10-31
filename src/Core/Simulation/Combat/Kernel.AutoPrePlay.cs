@@ -55,7 +55,7 @@ public static partial class Kernel
     {
         if (!Registry.TryCard(BombardmentId, out ushort bombardment))
             return;
-        Span<Card> captured = stackalloc Card[Limits.Cards];
+        Span<Card> captured = stackalloc Card[x.B.ExhaustCount];
         int count = 0;
         int exhaustStart = Piles.Start(x.B, Pile.Exhaust);
         for (int offset = 0; offset < x.B.ExhaustCount; offset++)
@@ -227,8 +227,8 @@ public static partial class Kernel
         if (x.B.PlayerTurn > 1 || !Registry.TryEnchantment(ImbuedEnchantmentId, out ushort imbued))
             return;
         int count = 0;
-        Span<ImbuedCardKey> keys = stackalloc ImbuedCardKey[Limits.Cards];
-        Span<int> positions = stackalloc int[Limits.Cards];
+        Span<ImbuedCardKey> keys = stackalloc ImbuedCardKey[x.B.CardCount];
+        Span<int> positions = stackalloc int[x.B.CardCount];
         byte enchantment = (byte)(imbued + 1);
         for (int position = 0; position < x.B.CardCount; position++)
         {

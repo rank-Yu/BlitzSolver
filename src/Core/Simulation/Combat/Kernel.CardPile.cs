@@ -222,8 +222,7 @@ public static partial class Kernel
         int drawCount = x.B.DrawCount;
         int discardCount = x.B.DiscardCount;
         int total = drawCount + discardCount;
-        Span<Card> list = stackalloc Card[Limits.Cards];
-        list = list[..total];
+        Span<Card> list = stackalloc Card[total];
         Piles.ReadCards(x.B, Pile.Discard).CopyTo(list);
         Piles.ReadCards(x.B, Pile.Draw).CopyTo(list[discardCount..]);
 

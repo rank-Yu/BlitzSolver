@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "sk-e-powers",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-sk-e-powers.json\u0022}",
-  "rulesSha256": "87a9684ca048343c0f68dca8455be00dbad749e7fa46c7735a2b084121e174ee",
+  "rulesSha256": "bfb80e7ac68691d67396ecfb01ded4e0b853fc7840fd4f64f28be1308ffeccf4",
   "counts": {
     "roots": 1,
     "k1": 21,

@@ -131,7 +131,8 @@ public sealed partial class TheForgotten : MonsterDef
     public override int ModifyAttackDamage(in Battle battle, Rules rules, byte owner, int moveNode,
         int attackIndex, int damage)
     {
-        MonsterRules machine = rules.MonsterRule(battle.Enemy(owner).Rules);
+        ref Battle mutable = ref System.Runtime.CompilerServices.Unsafe.AsRef(in battle);
+        MonsterRules machine = rules.MonsterRule(mutable.Enemy(owner).Rules);
         if (machine.Nodes[moveNode].NativeId != "DREAD")
             return damage;
         int current = Kernel.GetAmount(battle, owner, Registry.PowerId<Powers.DexterityPower>());

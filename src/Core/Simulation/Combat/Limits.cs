@@ -6,7 +6,8 @@ namespace Sts2Solver.Simulation.Combat;
 /// </summary>
 public static class Limits
 {
-    public const int Cards = 96;
+    /// <summary>Cards across every pile. A pile count is still a byte, so 255 is the ceiling.</summary>
+    public const int Cards = 255;
 
     /// <summary>
     /// Known enemies, including dead and escaped ones. The native combat state has no roster cap;

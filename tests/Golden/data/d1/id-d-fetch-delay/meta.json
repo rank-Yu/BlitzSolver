@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "id-d-fetch-delay",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-id-d-fetch-delay.json\u0022}",
-  "rulesSha256": "31e9d01767b09ccce8292875bf9399368326e5269c1268df4d3c77e9ec45babf",
+  "rulesSha256": "e32346f31d13f1cd6b82b7783fc08e9ee6aa2f96e8699f3f67d13364371a68c8",
   "counts": {
     "roots": 1,
     "k1": 7,

@@ -4,7 +4,7 @@
 
 `tests/Golden/data` 是 Sts2Solver 的冻结证据。它由 CombatSolver 时期的 M0 宿主在固定输入上导出，当前仓库只读取、校验和重放，不依赖游戏程序集。本文说明目录、格式、来源与更新条件；如何复跑见 [测试与验证](testing.md)。
 
-数据格式本身不带产品名：魔数、版本、JSON 键和根名在 v2 中都不含 `Flash` 或 `Sts2Solver`。类型名在文中按当前代码写作 `Battle`、`Rules`、`ScoreRules` 等。`meta.json` 的 `input` 仍保存 CombatSolver 时期的 fixture/语料路径（例如 `coverage/fixtures/cards/flash-dx5-pen-nib-sly.json`），那是出处，不是当前格式的一部分。
+数据格式本身不带产品名：魔数、版本、JSON 键和根名从 v2 起都不含 `Flash` 或 `Sts2Solver`。类型名在文中按当前代码写作 `Battle`、`Rules`、`ScoreRules` 等。`meta.json` 的 `input` 仍保存 CombatSolver 时期的 fixture/语料路径（例如 `coverage/fixtures/cards/flash-dx5-pen-nib-sly.json`），那是出处，不是当前格式的一部分。
 
 ## 1. 目录结构
 
@@ -28,12 +28,12 @@ tests/Golden/data/
 | 项 | 数量 |
 | --- | ---: |
 | 文件总数（不含 `manifest.json`） | 5,589 |
-| 总字节 | 23,692,497 |
+| 总字节 | 23,684,198 |
 | D1 文件/根目录 | 410（每个目录一份 `config.br`/`golden.br`/`meta.json`） |
 | D1 记录根（`counts.d1.roots`） | 418（与 410 个文件目录不是同一计数） |
 | D1 K1 动作 | 5,062 |
-| D1 游走 / 状态 / 转移 | 15,296 / 482,227 / 469,352 |
-| D1 特征 / trait | 474,832 / 474,414 |
+| D1 游走 / 状态 / 转移 | 15,296 / 482,209 / 469,334 |
+| D1 特征 / trait | 474,814 / 474,396 |
 | D1 规则对象 | 388 |
 | D2 请求 / 期望 | 1,983 / 1,983 |
 
@@ -42,24 +42,24 @@ tests/Golden/data/
 - 所有 `.br` 文件用 `System.IO.Compression.BrotliStream` + `CompressionLevel.SmallestSize` 压缩。
 - 文件内容不含时间戳；同数据两次编码字节相同。
 - `manifest.json` 的 `sha256` 是对压缩后文件字节计的；校验器逐文件比较大小与 SHA-256。
-- 状态哈希是整块 `Battle` 字节的 SHA-256 截断到 64 位（`Codec.BattleHash`）。
+- 状态哈希是打包前缀（`Fingerprint.Bytes`）的 SHA-256 截断到 64 位（`Codec.BattleHash`）。v3 迁移时，D1 的每个 `stateHash`/`childHash` 都先用旧定长镜像算法重算并比对存储值，确认一致后才改写为新的打包前缀哈希。
 - `SREQ` 请求按完整请求字节的 SHA-256 去重；`RULE` 按完整规则字节的 SHA-256 去重。规则对象与 D2 请求的文件名是内容 SHA-256，期望结果沿用对应请求的哈希作为文件名；格式版本变化会改变这些名字。
-- 搜索指纹只用于分桶；去重在指纹命中后仍比较完整字节，不允许仅凭哈希合并。
+- 搜索指纹只用于分桶；去重在指纹命中后仍比较打包前缀，不允许仅凭哈希合并。
 
 ## 3. `BATL`：Battle
 
 ```text
-u32 magic="BATL" | u16 version=2 | i32 Unsafe.SizeOf<Battle>() | raw bytes
+u32 magic="BATL" | u16 version=3 | i32 PackedSize | packed bytes
 ```
 
-魔数常量为 `0x4C544142`；按小端字节解出的 ASCII 是 `BATL`。解码要求 magic、version、声明大小与当前 `Unsafe.SizeOf<Battle>()`（12,696）一致，且数据长度正好等于 `HeaderSize + size`；否则抛 `InvalidDataException`。v1 的 `FBAT` 或 version 1 会被显式拒绝，不保留 v1 读取路径。解码后校验各计数上限（卡牌、敌人、Power、遗物、球、药水槽、decimal 变量）、卡牌 Id 与敌人规则下标。
+魔数常量为 `0x4C544142`；按小端字节解出的 ASCII 是 `BATL`。v3 只写打包前缀：头部（`Battle.HeaderSize = 3,860` 字节）加 `CardCount × 92` 张牌，满牌 27,320 字节。解码要求 magic、version、声明长度在 `HeaderSize..Unsafe.SizeOf<Battle>()` 内，数据长度正好等于 `HeaderSize + declared`，且解码后的计数推出的 `Battle.PackedSize` 与声明一致；否则抛 `InvalidDataException`。解码先把工作区清零再写入前缀，后缀保持零。v1 的 `FBAT`/version 1 与 v2 的全量镜像都会被显式拒绝。解码后校验各计数上限（卡牌、敌人、Power、遗物、球、药水槽、decimal 变量）、卡牌 Id 与敌人规则下标。
 
-`BATL` 是整块状态的容器；字段布局、容量与规范化见 [状态布局](combat-state-layout.md)。
+`BATL` 是打包状态的容器；字段布局、容量与规范化见 [状态布局](combat-state-layout.md)。
 
 ## 4. `RULE`：Rules
 
 ```text
-u32 magic="RULE" | u16 version=2 | i32 fieldCount=30
+u32 magic="RULE" | u16 version=3 | i32 fieldCount=30
 cards[id][upgrade] | powerVars[id] | potions[id] | relicVars[id] | monsters[id]
 spawnRules（按 ushort id 排序） | cardPools（按 key ordinal 排序）
 potionPool | outOfCombatPotionPool | rootPotions | powerDeathHistoryRisk
@@ -80,7 +80,7 @@ furCoatSpawnHpOne | rootLostHpMask | hasHistoryCourse | penNibRelicIndex
 ## 5. `GOLD`：D1 文件
 
 ```text
-u32 magic="GOLD" | u16 version=2
+u32 magic="GOLD" | u16 version=3
 string inputJson | string rulesSha256
 rootCount | 每个根：i32 BATL 长度 + BATL 字节 + string choices
           + u64 scoreHash + u8 boundStatus + u64 boundHash
@@ -103,14 +103,14 @@ walkCount | 每条游走：i32 rootIndex + i32 seed + stateCount
 - `immediateStatus`：0 = 动作不需要选择；1 = 需要且并行请求有效；2 = 内核边界（`UnsupportedException`/`CapacityException`）。
 - K1 对每个合法动作记录完整补全的请求序列；K2 每个状态记录枚举顺序的合法动作、第一次选择请求与随机采用动作的完整请求序列。
 - K4 `scoreHash` 是 `ScoreFeatures` 全部字段的确定性 SHA-256 截断；`boundHash` 是 `BoundValues`；`traitHash` 是 `SearchRouteTraits + pure + declined + pocketwatch threshold/played`。D1 校验器只验证内核可复现部分（K1/K2）。
-- `meta.json` 记录 `formatVersion`（2）、`battleSize`（12,696）、`root`、`input`、`rulesSha256` 与 roots/K1/walks/walkStates/transitions 计数。
+- `meta.json` 记录 `formatVersion`（3）、`battleSize`（27,320）、`root`、`input`、`rulesSha256` 与 roots/K1/walks/walkStates/transitions 计数。
 
 ## 6. `SREQ` / `SRES`：D2 请求与结果
 
 ### 6.1 `SREQ`
 
 ```text
-u32 magic="SREQ" | u16 version=2 | rules 长度 + RULE | battles 数量 + 每个 BATL | options
+u32 magic="SREQ" | u16 version=3 | rules 长度 + RULE | battles 数量 + 每个 BATL | options
 ```
 
 魔数常量为 `0x51455253`；按小端字节解出的 ASCII 是 `SREQ`。v1 的 `FRS1` 或 version 1 会被显式拒绝。
@@ -134,7 +134,7 @@ u32 magic="SREQ" | u16 version=2 | rules 长度 + RULE | battles 数量 + 每个
 ### 6.2 `SRES`
 
 ```text
-u32 magic="SRES" | u16 version=2
+u32 magic="SRES" | u16 version=3
 BestRoute | TopRoutes | BestIsVictory | BestScore(double bits)
 ExpandedNodes | Transitions | Duplicates | TurnsSearched | PrunedIncumbents
 CapacityPruned | CapacityDroppedChildren（按 key 排序） | EndedCompactions
@@ -160,11 +160,11 @@ GOLD 只冻结 `Rules`（`objects/rules` 的 SHA-256），没有冻结 `ScoreRul
 
 | 字段 | 内容 |
 | --- | --- |
-| `formatVersion` | 当前为 2 |
-| `battleSize` | 12,696，`Unsafe.SizeOf<Battle>()` |
+| `formatVersion` | 当前为 3 |
+| `battleSize` | 27,320，`Unsafe.SizeOf<Battle>()` |
 | `provenance.d1` / `.d2` | M0 宿主捕获提交 `75217006903195bc94654680423bb9ca580ec48a` |
 | `provenance.d1Config` | D1 配置导出提交 `66a43838d89e7a03b05c0f04d5e4941ff555baec` |
-| `provenance.formatMigration` | v1→v2 迁移说明：只改数据格式里的名字（魔数、版本、容量键与根名），字段值不变 |
+| `provenance.formatMigration` | v2→v3 迁移说明：`Battle` 改为打包牌区（头部 + 前 `CardCount` 张牌，容量 96→255）；D1 `stateHash`/`childHash` 逐状态核对旧镜像后改写为打包前缀哈希 |
 | `provenance.refreeze` | 由 `Golden refreeze` 写入并更新：当前代码重算后的 D2 结果集 SHA-256。仓库数据自 M3b 重冻起带有该字段；普通 `manifest` 保留已有的值 |
 | `provenance.d1Rerecord` | 由 `Golden rerecord` 写入：重录的 D1 根、原因与新记录的内容 SHA-256；普通 `manifest` 保留已有的值 |
 | `compression` | `brotli` |
@@ -209,7 +209,7 @@ dotnet run --project tests/Golden -c Release -- \
 - manifest 核对逐文件大小与 SHA-256、总字节数、D1/D2 计数及来源；数据更新记录保留在 `provenance`。
 - 时间、GC、帧压力或运行期路径仅用于诊断，不写入确定性结果。
 
-## 10. 格式 v2 迁移
+## 10. 格式迁移
 
 v2 只改数据格式和对外标识里的名字，不改任何字段值：
 
@@ -225,7 +225,21 @@ v2 只改数据格式和对外标识里的名字，不改任何字段值：
 | D1 根名 | `flash-<name>` | `<name>` |
 | manifest 键 | `flashBattleSize` | `battleSize` |
 
-格式迁移需分别解码新旧载荷并逐字段核对。规则对象与 D2 请求按内容 SHA-256 命名，格式字节变化后，应同步更新引用它们的索引和 manifest。当前 v2 读取器显式拒绝 v1 文件。
+v3 把 `Battle` 从 96 张定长镜像改为打包前缀，并把 `Codec.FormatVersion` 加到 3：
+
+| 项 | v2 | v3 |
+| --- | --- | --- |
+| `BATL` 载荷 | 完整 12,696 B 结构体 | 头部 3,860 B + 前 `CardCount` 张牌，最大 27,320 B |
+| `Battle` 容量 | 96 | 255 |
+| `Cards` 位置 | 头部之后、`HistoryCourseCard` 之前 | 头部最末，`HistoryCourseCard` 紧挨其前 |
+| 状态身份/编码 | 完整结构体字节 | `Fingerprint.Bytes` 打包前缀 |
+| 所有编解码版本 | 2 | 3 |
+
+v3 迁移只重排字节：旧头部、旧 `HistoryCourseCard`（旧偏移 = 3,768 + 96 × 92 = 12,600）、前 `CardCount` 张牌，按新布局写成打包前缀；`meta.json` 的 `formatVersion`/`battleSize`、D1 内嵌 `rulesSha256`、`objects/rules` 文件名、D2 请求/期望结果文件名与 `rules-index` 随格式字节同步更新。
+
+D1 的 `stateHash`/`childHash` 必须随状态身份定义一起迁移。一次性工具用新内核重放每个根的 K1 与 K2 游走：对每个重放状态先按旧 12,696 B 镜像算法计算旧哈希，必须等于文件中的存储值；核对通过后才写入打包前缀哈希。全部 410 个根核对通过后一次性写回，核对数量为 482,209 个游走状态、469,334 个转移、5,062 个 K1 子状态；任何一处不符就停止且不写回。K1/K2 的动作、选择、分数与展开结果不重算。迁移工具一次性运行，运行后由 `Golden manifest` 重写清单。
+
+格式迁移需分别解码新旧载荷并逐字段核对。规则对象与 D2 请求按内容 SHA-256 命名，格式字节变化后，应同步更新引用它们的索引和 manifest。当前 v3 读取器显式拒绝 v1/v2 文件。
 
 必须保留的旧名字：
 

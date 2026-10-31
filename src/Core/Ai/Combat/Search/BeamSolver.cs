@@ -870,13 +870,12 @@ internal sealed partial class BeamSolver
         // the setup choice set; the existing search also expands its whole root frontier.
         int maxChildren = _options.EndedBatchTrigger > 0 ? int.MaxValue
             : checked(frontierCapacity * (Kernel.MaxLegalActions + 1));
-        // Legacy requests retain their historical action-layer cap. New requests size the pool
-        // from its memory budget because choice branches can exceed the legal-action count.
-        // Round down to a chunk so state storage stays within that budget.
-        int chunkStates = ChunkedArray<Battle>.ChunkSize;
+        // Legacy requests retain their historical action-layer cap. New requests size the seat
+        // bound from the pre-packed state geometry (the arena ledger accounts actual packed bytes);
+        // choice branches can exceed the legal-action count.
         long poolStateBudgetBytes = EffectivePoolStateBudgetBytes;
         int budgetStates = SearchMemoryBudget.PoolStateCapacity(poolStateBudgetBytes,
-            Unsafe.SizeOf<Battle>(), chunkStates);
+            SearchMemoryBudget.PlanningBlockBytes, SearchMemoryBudget.PlanningBlockStates);
         int poolLimit = Math.Min(maxChildren, budgetStates);
         if (_options.EndedBatchTrigger > 0 && poolLimit <= width)
             throw new SearchMemoryBudgetException("ended-pool-capacity", _storage.Memory.UsedBytes,
@@ -1067,7 +1066,7 @@ internal sealed partial class BeamSolver
                     SearchCheckpoint();
                     CountExpanded();
                     _expandGeneration++;
-                    ref Battle parent = ref current.State(index);
+                    ref readonly Battle parent = ref current.State(index);
                     int parentNode = current.Node(index);
                     int count = Kernel.LegalActions(parent, _rules, _actions);
                     scoped ReadOnlySpan<PlayerAction> legal = _actions.AsSpan(0, count);
@@ -1090,7 +1089,7 @@ internal sealed partial class BeamSolver
                             }
                             continue;
                         }
-                        ExpandAction(ref parent, parentNode, action, next, ended, terminal,
+                        ExpandAction(in parent, parentNode, action, next, ended, terminal,
                             current.Facts(index), current.RankPosition(index), current.Rank(index));
                     }
                     PublishProgressWithPreview(turns - 1, playDepth,
@@ -1169,7 +1168,7 @@ internal sealed partial class BeamSolver
                 }
                 int node = turnFrontier.Node(index);
                 int actionCount = Depth(node);
-                ref Battle state = ref turnFrontier.State(index);
+                ref readonly Battle state = ref turnFrontier.State(index);
                 ScoreFeatures features = _scorer.Features(state, actionCount, includeRetentionOnly: false);
                 ConsiderCandidate(state, node, features, Key(state, features, actionCount));
             }
@@ -1244,7 +1243,7 @@ internal sealed partial class BeamSolver
                 }
                 int node = turnFrontier.Node(index);
                 int actionCount = Depth(node);
-                ref Battle state = ref turnFrontier.State(index);
+                ref readonly Battle state = ref turnFrontier.State(index);
                 ScoreFeatures features =
                     _scorer.Features(state, actionCount, includeRetentionOnly: false);
                 Consider(state, node, Key(state, features, actionCount), features);
@@ -1909,7 +1908,7 @@ internal sealed partial class BeamSolver
         List<ScoutEntry> entries = new(ended.Count);
         for (int index = 0; index < ended.Count; index++)
         {
-            ref Battle state = ref ended.State(index);
+            ref readonly Battle state = ref ended.State(index);
             if (state.PlayerTurn != _initialSearchTurn + completedTurns)
                 continue;
             int node = ended.Node(index);
@@ -3234,10 +3233,6 @@ internal sealed partial class BeamSolver
             int shift = 0;
             while ((1 << shift) * size < 85_000)
                 shift++;
-            // Battle is 12,600 bytes. 64 states (806,400 bytes) halve the LOH object count of
-            // the 32-state variant while remaining small enough to place as one block.
-            if (typeof(T) == typeof(Battle) && shift < 6)
-                shift = 6;
             return shift;
         }
     }

@@ -33,8 +33,8 @@ internal static class FormatContract
                     $"格式魔数 {magic:X8} 按小端字节是 {actual}，不是 {expected}。");
             labels[index] = actual;
         }
-        if (Codec.FormatVersion != 2)
-            throw new InvalidOperationException($"数据格式版本应为 2，实际为 {Codec.FormatVersion}。");
+        if (Codec.FormatVersion != 3)
+            throw new InvalidOperationException($"数据格式版本应为 3，实际为 {Codec.FormatVersion}。");
 
         // The battle header is the innermost format: reject the old magic and version explicitly.
         byte[] current = BattleCodec.Encode(default);

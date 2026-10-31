@@ -446,8 +446,7 @@ internal static class ConfigCompare
         }
         for (int index = 0; index < expected.Battles.Length; index++)
         {
-            if (!BattleCodec.Encode(expected.Battles[index]).AsSpan()
-                .SequenceEqual(BattleCodec.Encode(actual.Battles[index])))
+            if (!Fingerprint.Equal(in expected.Battles[index], in actual.Battles[index]))
             {
                 List<string> differences = BattleDump.Diff(expected.Battles[index],
                     actual.Battles[index], "golden", "compiled");

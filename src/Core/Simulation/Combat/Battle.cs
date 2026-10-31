@@ -262,7 +262,18 @@ public enum Counter : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct Battle
 {
-    public const int ExpectedSize = 12696;
+    /// <summary>
+    /// Offset of <see cref="Cards"/>: the end of the packed header. The complete header (including
+    /// <see cref="HistoryCourseCard"/>) is <c>PackedSize</c> bytes for an empty state.
+    /// </summary>
+    public const int HeaderSize = 3860;
+
+    /// <summary>
+    /// <see cref="System.Runtime.CompilerServices.Unsafe.SizeOf{T}"/> of the complete struct. The
+    /// packed prefix of a full deck is <c>HeaderSize + Limits.Cards * 92 = 27320</c> bytes, exactly
+    /// the struct size.
+    /// </summary>
+    public const int ExpectedSize = 27320;
 
     public int Round;
     public int PlayerTurn;
@@ -333,19 +344,41 @@ public struct Battle
     public PowerArray Powers;
     public RelicArray Relics;
     public OrbArray Orbs;
-    public CardArray Cards;
 
     /// <summary>
     /// The last attack the player finished this turn, as a full card value
     /// (<c>SimulatedCombatState._lastAttackThisTurn</c>; HistoryCourse clones it at the next player turn's
     /// AutoPrePlay). One cross-turn slot; <see cref="BattleFlags.HistoryCourseCardPresent"/> says
-    /// whether it is live. Sized as one <see cref="Card"/> at the end of the struct so the rest of
-    /// the layout is unchanged. Imported from the existing engine's per-turn dictionary (never from the
-    /// retired previous-turn dictionary: AutoPrePlay already ran before every search root).
+    /// whether it is live. It sits at <see cref="HeaderSize"/> - <c>sizeof(Card)</c>, immediately
+    /// before the variable-length card storage. Imported from the existing engine's per-turn dictionary
+    /// (never from the retired previous-turn dictionary: AutoPrePlay already ran before every search root).
     /// </summary>
     public Card HistoryCourseCard;
 
+    /// <summary>
+    /// The five pile segments. Only <c>[0, CardCount)</c> is defined; storage at and after
+    /// <see cref="CardCount"/> is undefined and must never be read. This is the last field so a
+    /// packed state ends with the cards actually in use.
+    /// </summary>
+    public CardArray Cards;
+
     public readonly int CardCount => HandCount + DrawCount + DiscardCount + ExhaustCount + PlayCount;
+
+    /// <summary>Number of bytes a packed copy of <paramref name="battle"/> occupies.</summary>
+    public static int PackedSize(in Battle battle)
+        => HeaderSize + battle.CardCount * Unsafe.SizeOf<Card>();
+
+    /// <summary>
+    /// Copies only the packed prefix of <paramref name="source"/> into <paramref name="destination"/>.
+    /// The destination suffix is left untouched and undefined. Hot-path forks use this instead of a
+    /// struct assignment so a state pays for the cards it actually holds.
+    /// </summary>
+    public static void CopyPacked(in Battle source, ref Battle destination)
+    {
+        int bytes = PackedSize(in source);
+        MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in source, 1))[..bytes]
+            .CopyTo(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref destination, 1)));
+    }
 
     public readonly bool IsOver => Outcome != Outcome.None;
 
@@ -424,10 +457,12 @@ public static class Piles
     }
 
     public static Span<Card> Cards(ref Battle battle, Pile pile)
-        => MemoryMarshal.CreateSpan(ref battle.Cards[0], Limits.Cards).Slice(Start(battle, pile), Count(battle, pile));
+        => MemoryMarshal.CreateSpan(ref battle.Cards[0], battle.CardCount)
+            .Slice(Start(battle, pile), Count(battle, pile));
 
     public static ReadOnlySpan<Card> ReadCards(in Battle battle, Pile pile)
-        => MemoryMarshal.CreateReadOnlySpan(in battle.Cards[0], Limits.Cards).Slice(Start(battle, pile), Count(battle, pile));
+        => MemoryMarshal.CreateReadOnlySpan(in battle.Cards[0], battle.CardCount)
+            .Slice(Start(battle, pile), Count(battle, pile));
 
     public static ref Card At(ref Battle battle, Pile pile, int index)
     {
@@ -444,10 +479,9 @@ public static class Piles
             throw new ArgumentOutOfRangeException(nameof(index), index, $"{pile} 牌堆没有这个位置。");
         int total = battle.CardCount;
         int position = Start(battle, pile) + index;
-        Span<Card> all = MemoryMarshal.CreateSpan(ref battle.Cards[0], Limits.Cards);
+        Span<Card> all = MemoryMarshal.CreateSpan(ref battle.Cards[0], total);
         Card card = all[position];
         all.Slice(position + 1, total - position - 1).CopyTo(all.Slice(position));
-        all[total - 1] = default;
         SetCount(ref battle, pile, count - 1);
         return card;
     }
@@ -462,7 +496,7 @@ public static class Piles
         if (total >= Limits.Cards)
             throw new CapacityException("Cards", Limits.Cards);
         int position = Start(battle, pile) + index;
-        Span<Card> all = MemoryMarshal.CreateSpan(ref battle.Cards[0], Limits.Cards);
+        Span<Card> all = MemoryMarshal.CreateSpan(ref battle.Cards[0], total + 1);
         all.Slice(position, total - position).CopyTo(all.Slice(position + 1));
         all[position] = card;
         SetCount(ref battle, pile, count + 1);

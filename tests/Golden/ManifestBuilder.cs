@@ -11,7 +11,9 @@ internal static class ManifestProvenance
     internal const string D1 = "75217006903195bc94654680423bb9ca580ec48a";
     internal const string D2 = "75217006903195bc94654680423bb9ca580ec48a";
     internal const string D1Config = "66a43838d89e7a03b05c0f04d5e4941ff555baec";
-    internal const string FormatMigration = "v1→v2 只改了数据格式里的名字（魔数、版本、容量键与根名），字段值不变。";
+    internal const string FormatMigration =
+        "v2→v3 把 Battle 改为打包牌区（头部 + 前 CardCount 张牌，容量 96→255）；"
+        + "D1 stateHash/childHash 逐状态核对旧镜像后改写为打包前缀哈希，只改格式。";
 
     /// <summary>
     /// Set only by the refreeze command for the manifest it writes: a content hash of the newly

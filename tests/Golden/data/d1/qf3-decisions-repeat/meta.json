@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "qf3-decisions-repeat",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-qf3-decisions-repeat.json\u0022}",
-  "rulesSha256": "2079a4f001183f840a9769bb51d1fffa28680d342bfdec1dd273095ecb5cca25",
+  "rulesSha256": "ce5445694400282aeedff7a2b58dc776ae515f928cad3228a15e80f7f6c1f81f",
   "counts": {
     "roots": 1,
     "k1": 3,

@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "ec-c-ancient",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-ec-c-ancient.json\u0022}",
-  "rulesSha256": "a8213045287b78a53aeb0ba0d0ed8cd7c92250a0fc8688e70897d25c13e26d1a",
+  "rulesSha256": "ca47dccd5f1c29654df9235cd3e6efc256b949144170173d7575712424b0a892",
   "counts": {
     "roots": 1,
     "k1": 29,

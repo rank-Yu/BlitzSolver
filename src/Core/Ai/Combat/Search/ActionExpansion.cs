@@ -182,7 +182,7 @@ internal sealed partial class BeamSolver
                     continue;
                 }
                 int position = request.Options[option];
-                if ((uint)position >= Limits.Cards)
+                if ((uint)position >= (uint)state.CardCount)
                 {
                     result = default;
                     return false;
@@ -212,13 +212,13 @@ internal sealed partial class BeamSolver
             _playVerifiedUnresolved, _choiceByClassRequests, _choiceVerifiedExact,
             _choiceVerifiedApprox, _choiceVerifiedApproxEqual, _choiceVerifiedUnresolved);
 
-    private void ExpandAction(ref Battle parent, int parentNode, PlayerAction action, Pool next,
+    private void ExpandAction(in Battle parent, int parentNode, PlayerAction action, Pool next,
         Pool ended, TerminalSink terminal, in RetentionFacts parentFacts, int parentRank,
         double parentScore)
-        => ExpandAction(ref parent, parentNode, action, next, ended, terminal, parentFacts,
+        => ExpandAction(in parent, parentNode, action, next, ended, terminal, parentFacts,
             parentRank, parentScore, null, default, null, allowFetchedPowerCommit: true);
 
-    private void ExpandAction(ref Battle parent, int parentNode, PlayerAction action, Pool next, Pool ended,
+    private void ExpandAction(in Battle parent, int parentNode, PlayerAction action, Pool next, Pool ended,
         TerminalSink terminal, in RetentionFacts parentFacts, int parentRank, double parentScore,
         ChoiceEffect? primaryEffect, scoped ReadOnlySpan<Card> selectedPowers,
         RoutingChoice? routingChoice, bool allowFetchedPowerCommit)
@@ -242,7 +242,7 @@ internal sealed partial class BeamSolver
             // transition. It is committed to next, copied to ended, or dropped as a terminal; the slot is not
             // touched by anything else until then (a choice re-expansion reuses it from the start).
             ref Battle child = ref next.Reserve();
-            child = parent;
+            Battle.CopyPacked(in parent, ref child);
             _transitions++;
             StepResult stepResult;
             ChoiceRequest request;
@@ -253,7 +253,7 @@ internal sealed partial class BeamSolver
                 stepResult = Kernel.StepEndTurnFromPrefix(ref child, action, _rules, in _endTurnPrefix,
                     out request, out historyRisk);
                 if (_verifySearchEquivalence)
-                    VerifyPreparedEndTurn(ref parent, action, ref child, stepResult, in request, historyRisk);
+                    VerifyPreparedEndTurn(in parent, action, ref child, stepResult, in request, historyRisk);
             }
             else if (action.Kind == PlayerActionKind.EndTurn && IsFirstEndTurnLeaf(parentNode))
             {
@@ -280,9 +280,9 @@ internal sealed partial class BeamSolver
                         continue;
                     }
                     int position = request.Options[option];
-                    if ((uint)position >= Limits.Cards)
+                    if ((uint)position >= (uint)child.CardCount)
                         throw new InvalidOperationException(
-                            $"选择选项 {option} 的卡牌位置 {position} 超出牌数组容量。");
+                            $"选择选项 {option} 的卡牌位置 {position} 超出当前牌数 {child.CardCount}。");
                     optionCards[option] = child.Cards[position];
                 }
                 // Every executed selection is exact; the cap only bounds how many are explored. With
@@ -350,7 +350,7 @@ internal sealed partial class BeamSolver
                         {
                             answered = choiceFacts;
                         }
-                        ExpandAction(ref parent, parentNode, action.WithChoice(selections[index]), next, ended,
+                        ExpandAction(in parent, parentNode, action.WithChoice(selections[index]), next, ended,
                             terminal, parentFacts, parentRank, parentScore, effect, chosenPowers, answered,
                             allowFetchedPowerCommit);
                     }
@@ -515,10 +515,11 @@ internal sealed partial class BeamSolver
     /// observable result of the prefix continuation against it. Only enabled by
     /// <see cref="SearchVerificationHooks.VerifySearchEquivalence"/>.
     /// </summary>
-    private void VerifyPreparedEndTurn(ref Battle parent, in PlayerAction action, ref Battle actual,
+    private void VerifyPreparedEndTurn(in Battle parent, in PlayerAction action, ref Battle actual,
         StepResult actualResult, in ChoiceRequest actualRequest, bool actualHistoryRisk)
     {
-        Battle expected = parent;
+        Unsafe.SkipInit(out Battle expected);
+        Battle.CopyPacked(in parent, ref expected);
         StepResult expectedResult = Kernel.Step(ref expected, action, _rules, out ChoiceRequest expectedRequest,
             out bool expectedHistoryRisk);
         if (expectedResult == actualResult && expectedHistoryRisk == actualHistoryRisk
@@ -541,13 +542,7 @@ internal sealed partial class BeamSolver
     }
 
     private static bool BattleBytesEqual(in Battle expected, in Battle actual)
-    {
-        ReadOnlySpan<byte> left = MemoryMarshal.AsBytes(
-            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in expected), 1));
-        ReadOnlySpan<byte> right = MemoryMarshal.AsBytes(
-            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in actual), 1));
-        return left.SequenceEqual(right);
-    }
+        => Fingerprint.Equal(in expected, in actual);
 
     private static bool RequestEquals(in ChoiceRequest expected, in ChoiceRequest actual)
         => RequestDifference(expected, actual) is null;
@@ -824,7 +819,8 @@ internal sealed partial class BeamSolver
     {
         // CommitReserved and recursive ExpandAction both reuse pool storage. Keep an independent
         // snapshot even when deduplication rejects the ordinary fetched state.
-        Battle state = commitment;
+        Unsafe.SkipInit(out Battle state);
+        Battle.CopyPacked(in commitment, ref state);
         // Both the ordinary state and its direct successors use the same retention context.
         int commitmentDepth = Depth(commitmentNode);
         ScoreFeatures commitmentFeatures =
@@ -854,7 +850,7 @@ internal sealed partial class BeamSolver
                 continue;
             // ExpandAction handles a capacity overflow for this successor as its own child; a
             // sibling's overflow never cancels the rest of the commitment batch.
-            ExpandAction(ref state, commitmentNode, action, next, ended, terminal, commitmentFacts,
+            ExpandAction(in state, commitmentNode, action, next, ended, terminal, commitmentFacts,
                 parentRank, parentScore, null, default, null, allowFetchedPowerCommit: false);
             if (!CommitmentBudgetAvailable())
                 break;

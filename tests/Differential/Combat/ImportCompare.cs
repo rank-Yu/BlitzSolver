@@ -247,11 +247,7 @@ internal static class ImportCompare
     }
 
     public static bool SameBytes(in Battle left, in Battle right)
-    {
-        byte[] leftBytes = BattleCodec.Encode(left);
-        byte[] rightBytes = BattleCodec.Encode(right);
-        return leftBytes.AsSpan(BattleCodec.HeaderSize).SequenceEqual(rightBytes.AsSpan(BattleCodec.HeaderSize));
-    }
+        => Fingerprint.Equal(in left, in right);
 
     private static string FieldOf(string diffLine)
     {

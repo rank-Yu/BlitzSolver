@@ -50,7 +50,7 @@ public sealed class Snap : CardDef
 
     public override void OwnChoice(ref Exec x)
     {
-        Span<int> options = stackalloc int[Limits.Cards];
+        Span<int> options = stackalloc int[x.B.HandCount];
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {
@@ -218,7 +218,7 @@ public sealed class SculptingStrike : CardDef
 
     public override void OwnChoice(ref Exec x)
     {
-        Span<int> options = stackalloc int[Limits.Cards];
+        Span<int> options = stackalloc int[x.B.HandCount];
         int count = 0;
         for (int index = 0; index < x.B.HandCount; index++)
         {

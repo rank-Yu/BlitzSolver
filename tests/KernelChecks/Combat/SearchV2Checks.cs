@@ -39,13 +39,19 @@ internal static class SearchV2Checks
             && PortfolioBuilder.Build(medium, power: false, forced: false).Length == 10,
             "compact preset retains power and ordinary wide in the one-potion stage");
 
-        int twoGiB = SearchMemoryBudget.PoolStateCapacity(int.MaxValue, Battle.ExpectedSize, 64);
-        int threeGiB = SearchMemoryBudget.PoolStateCapacity(3_000_000_000L, Battle.ExpectedSize, 64);
-        Assert(threeGiB > twoGiB && threeGiB % 64 == 0
-            && (long)threeGiB * Battle.ExpectedSize <= 3_000_000_000L,
+        int twoGiB = SearchMemoryBudget.PoolStateCapacity(int.MaxValue,
+            SearchMemoryBudget.PlanningBlockBytes, SearchMemoryBudget.PlanningBlockStates);
+        int threeGiB = SearchMemoryBudget.PoolStateCapacity(3_000_000_000L,
+            SearchMemoryBudget.PlanningBlockBytes, SearchMemoryBudget.PlanningBlockStates);
+        Assert(threeGiB > twoGiB && threeGiB % SearchMemoryBudget.PlanningBlockStates == 0
+            && (long)threeGiB * SearchMemoryBudget.PlanningStateBytes <= 3_000_000_000L,
             "state pool planning supports budgets above two GiB");
         bool unrepresentable = false;
-        try { _ = SearchMemoryBudget.PoolStateCapacity(long.MaxValue, Battle.ExpectedSize, 64); }
+        try
+        {
+            _ = SearchMemoryBudget.PoolStateCapacity(long.MaxValue,
+                SearchMemoryBudget.PlanningBlockBytes, SearchMemoryBudget.PlanningBlockStates);
+        }
         catch (InvalidDataException) { unrepresentable = true; }
         Assert(unrepresentable, "unrepresentable pool capacity is rejected explicitly");
 

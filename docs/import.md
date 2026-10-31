@@ -2,7 +2,7 @@
 
 [返回文档索引](README.md)
 
-`src/Import` 把游戏原生的 `CombatState` 直接投影成定长 `Battle`，不建 CombatSolver 的
+`src/Import` 把游戏原生的 `CombatState` 直接投影成 `Battle`，不建 CombatSolver 的
 `SimulatedCombatState` 影子状态。它是只读的导入/规则编译层，集中读取游戏模型私有字段；
 `Core` 不引用它，`Sts2Solver.sln` 也不包含它（CI 没有游戏文件）。建局、注入与原生状态转储
 在独立的 `src/TestHost`，该层也会引用 `sts2.dll`/Harmony 并通过 publicizer 访问原生内部成员，

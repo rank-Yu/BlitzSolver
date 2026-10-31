@@ -23,6 +23,14 @@ Check(Unsafe.SizeOf<Orb>() == 8, $"Orb 应为 8 字节，实际 {Unsafe.SizeOf<O
 Check(Unsafe.SizeOf<RngState>() == 40, $"RngState 应为 40 字节，实际 {Unsafe.SizeOf<RngState>()}");
 Check(Unsafe.SizeOf<Battle>() == Battle.ExpectedSize,
     $"Battle 应为 {Battle.ExpectedSize} 字节，实际 {Unsafe.SizeOf<Battle>()}");
+Check((int)System.Runtime.InteropServices.Marshal.OffsetOf<Battle>(nameof(Battle.Cards))
+        == Battle.HeaderSize,
+    $"Cards 偏移应为 {Battle.HeaderSize}，实际 {System.Runtime.InteropServices.Marshal.OffsetOf<Battle>(nameof(Battle.Cards))}");
+Check((int)System.Runtime.InteropServices.Marshal.OffsetOf<Battle>(nameof(Battle.HistoryCourseCard))
+        + Unsafe.SizeOf<Card>() == Battle.HeaderSize,
+    "HistoryCourseCard 应紧挨在 Cards 之前");
+Check(Battle.HeaderSize + Limits.Cards * Unsafe.SizeOf<Card>() == Battle.ExpectedSize,
+    "满牌打包大小应等于 Battle 结构体大小");
 string? execCoverageError = ExecCoverage.Validate();
 Check(execCoverageError == null, $"Exec 字段覆盖合同失败：{execCoverageError}");
 
@@ -44,6 +52,7 @@ Check(lateRegistrationThrew, "Registry 构建后仍接受测试程序集登记�
 CheckIntroSort(rules);
 CheckCapacity();
 CheckPiles();
+PackedCardsChecks.Check(rules);
 CheckMonsterForcedMoves(rules);
 CheckKm2Kernel(rules);
 CheckMonsterSpawn(SpawnRules());
@@ -250,7 +259,9 @@ static void CheckPiles()
     Piles.DrawTopToHand(ref battle);
     Check(battle.HandCount == 1 && battle.DrawCount == 2 && Piles.At(ref battle, Pile.Hand, 0).Private == 0, "抽顶牌应只移动段边界");
     Card removed = Piles.RemoveAt(ref battle, Pile.Discard, 1);
-    Check(removed.Private == 4 && battle.DiscardCount == 2 && battle.Cards[battle.CardCount].Private == 0, "移除后应前移并清零尾部");
+    Check(removed.Private == 4 && battle.DiscardCount == 2
+        && Piles.At(ref battle, Pile.Discard, 0).Private == 3
+        && Piles.At(ref battle, Pile.Discard, 1).Private == 5, "移除后应前移");
     Battle copy = battle;
     Check(Fingerprint.Equal(copy, battle) && Fingerprint.Hash(copy) == Fingerprint.Hash(battle), "复制后应字节相同");
 }

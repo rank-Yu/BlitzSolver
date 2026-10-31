@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "p1-nibbits-normal",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p1-nibbits-normal.json\u0022}",
-  "rulesSha256": "c24a85c0f2f3f5cc1818797489d338677c3d261a7233ed9bf405ecb7827ae36d",
+  "rulesSha256": "2a89c6385cb6d099a050d99ce1a932764fd562c7b0cfaef940ca32552a0fa05c",
   "counts": {
     "roots": 1,
     "k1": 11,

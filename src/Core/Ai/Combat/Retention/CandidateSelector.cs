@@ -66,6 +66,7 @@ internal sealed partial class BeamSolver
             if (_lazyScratch)
                 for (int index = selected.Count; index < count; index++) _labels[index] = null;
             Count = selected.Count;
+            _states.Truncate(selected.Count);
             RebuildTable();
             return dropped;
         }
@@ -1975,7 +1976,8 @@ internal sealed partial class BeamSolver
         /// </summary>
         private StandPatEvaluation EvaluateStandPat(int slot)
         {
-            Battle end = _states[slot];
+            Unsafe.SkipInit(out Battle end);
+            Battle.CopyPacked(in _states[slot], ref end);
             try
             {
                 // The existing stand-pat roll-out answers an unprepared turn-start selection with the
@@ -1995,7 +1997,7 @@ internal sealed partial class BeamSolver
                         || !TryAutomaticTurnStartChoice(end, request, out ulong automaticSelection))
                         return default;
                     action = action.WithChoice(automaticSelection);
-                    end = _states[slot];
+                    Battle.CopyPacked(in _states[slot], ref end);
                 }
                 RetentionFacts before = _facts[slot];
                 ScoreFeatures features = _scorer.Features(end, before.Depth + 1, includeRetentionOnly: true);

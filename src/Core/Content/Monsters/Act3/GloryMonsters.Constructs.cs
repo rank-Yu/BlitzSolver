@@ -405,9 +405,10 @@ public sealed partial class TestSubject : MonsterDef
     public override int ModifyAttackRepeats(in Battle battle, Rules rules, byte owner, int moveNode,
         int attackIndex, int repeats)
     {
-        if (rules.MonsterRule(battle.Enemy(owner).Rules).Nodes[moveNode].NativeId != "MULTI_CLAW_MOVE")
+        ref Battle mutable = ref System.Runtime.CompilerServices.Unsafe.AsRef(in battle);
+        if (rules.MonsterRule(mutable.Enemy(owner).Rules).Nodes[moveNode].NativeId != "MULTI_CLAW_MOVE")
             return repeats;
-        return repeats + battle.Enemy(owner).Ai[ExtraMultiClawRegister];
+        return repeats + mutable.Enemy(owner).Ai[ExtraMultiClawRegister];
     }
 
     public override void ApplyMoveEffects(ref Exec x, byte owner, int moveNode)

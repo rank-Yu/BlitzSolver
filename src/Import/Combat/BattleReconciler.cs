@@ -14,7 +14,7 @@ internal static class BattleReconciler
     {
         Battle left = Normalize(in expected);
         Battle right = Normalize(in actual);
-        return BattleCodec.Encode(left).AsSpan().SequenceEqual(BattleCodec.Encode(right));
+        return Fingerprint.Equal(in left, in right);
     }
 
     internal static string[] Diff(in Battle expected, in Battle actual)

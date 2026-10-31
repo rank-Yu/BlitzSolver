@@ -62,7 +62,7 @@ dotnet run --project tests/Golden -c Release --no-build -- k0
 两条命令分别检查：
 
 - `tests/KernelChecks`：`"contracts": "Passed"`。覆盖 `Battle`/`Card`/`Enemy`/`Power`/`RngState` 等布局尺寸、RNG 参考向量、牌堆与容量失败、选择协议、内容注册表与编码合同；另含 `Exec` 字段覆盖合同（反射枚举全部实例字段，见 4.3）。
-- `tests/Golden k0`：`K0 Passed fields=30 battleBytes=12696 formatVersion=2 magics=BATL,RULE,GOLD,SREQ,SRES`。检查 `RulesCodecContract` 的 30 个字段都进入编码、`decode(encode(x))` 字节稳定、`Unsafe.SizeOf<Battle>() == 12696`，`BATL`/`RULE`/`GOLD`/`SREQ`/`SRES` 五个魔数按小端字节解出的 ASCII 与格式标签一致，以及 `BATL` 的旧魔数/version 1 被显式拒绝。
+- `tests/Golden k0`：`K0 Passed fields=30 battleBytes=27320 formatVersion=3 magics=BATL,RULE,GOLD,SREQ,SRES`。检查 `RulesCodecContract` 的 30 个字段都进入编码、`decode(encode(x))` 字节稳定、`Unsafe.SizeOf<Battle>() == 27320`，`BATL`/`RULE`/`GOLD`/`SREQ`/`SRES` 五个魔数按小端字节解出的 ASCII 与格式标签一致，以及 `BATL` 的旧魔数/version 1 被显式拒绝。
 
 K0 证明：内核的布局、编码与纯函数合同在 BCL 环境下成立。
 K0 不证明：模拟回归/搜索回归 的搜索语义、冻结输入的求值路径、实机状态。
@@ -246,8 +246,8 @@ dotnet run --project tests/Golden -c Release --no-build -- manifest tests/Golden
 `manifest` 按路径 ordinal 排序，逐文件写 `path`/`bytes`/`sha256`，并写 `formatVersion`、`battleSize`、`provenance`、`compression`、`counts`、`totalBytes`、`targetBytes`。当前：
 
 ```text
-MANIFEST_WRITTEN files=5596 totalBytes=24340033 d1Files=410 d1Roots=418 d1K1=5062
-  d1Walks=15296 d1WalkStates=482227 d1Transitions=469352 d1Configs=410
+MANIFEST_WRITTEN files=5589 totalBytes=23684198 d1Files=410 d1Roots=418 d1K1=5062
+  d1Walks=15296 d1WalkStates=482209 d1Transitions=469334 d1Configs=410
   d2Requests=1983 d2Expected=1983
 ```
 

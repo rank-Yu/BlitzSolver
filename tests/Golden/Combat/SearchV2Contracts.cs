@@ -13,7 +13,7 @@ internal static class SearchV2Contracts
 
     internal static void Run()
     {
-        using FileStream input = File.OpenRead("tests/Golden/data/d2/requests/8317b4a80d18d8e416ee6c37394990f448055559c1711393b5d41560865b895f.request.br");
+        using FileStream input = File.OpenRead("tests/Golden/data/d2/requests/2e24a41bc5d846940be57d710ba8888bf0e2744a36ed2171eddfa5e4dbc0f1c0.request.br");
         using BrotliStream compressed = new(input, CompressionMode.Decompress);
         using MemoryStream bytes = new();
         compressed.CopyTo(bytes);
@@ -257,7 +257,7 @@ internal static class SearchV2Contracts
         bool smallPool = false;
         try
         {
-            BeamOptions tiny = batched with { BeamWidth = 100, PoolStateBudgetBytes = Battle.ExpectedSize * 64 };
+            BeamOptions tiny = batched with { BeamWidth = 100, PoolStateBudgetBytes = SearchMemoryBudget.PlanningStateBytes * 64 };
             _ = new BeamSolver(original.Rules, tiny).Solve(original.Battles, CancellationToken.None);
         }
         catch (SearchMemoryBudgetException error) when (error.Region == "ended-pool-capacity") { smallPool = true; }
@@ -266,7 +266,7 @@ internal static class SearchV2Contracts
         try
         {
             BeamOptions tinyNew = batched with { BeamWidth = 100,
-                StatePoolBudgetBytes = (long)Battle.ExpectedSize * 64,
+                StatePoolBudgetBytes = (long)SearchMemoryBudget.PlanningStateBytes * 64,
                 PoolStateBudgetBytes = 20_000_000 };
             _ = new BeamSolver(original.Rules, tinyNew).Solve(original.Battles, CancellationToken.None);
         }
@@ -275,7 +275,7 @@ internal static class SearchV2Contracts
         BeamResult largePool = new BeamSolver(original.Rules, batched with
         {
             MaxExpandedNodes = 1, StatePoolBudgetBytes = 3_000_000_000,
-            PoolStateBudgetBytes = Battle.ExpectedSize * 64,
+            PoolStateBudgetBytes = SearchMemoryBudget.PlanningStateBytes * 64,
         }).Solve(original.Battles, CancellationToken.None);
         Assert(largePool.ExpandedNodesTotal > 0, "actual beam supports long pool budget above 2 GiB");
         BeamResult noveltyLargePool = new BeamSolver(original.Rules, legacy with
@@ -331,7 +331,7 @@ internal static class SearchV2Contracts
 
     private static void CheckPotionCandidates()
     {
-        using FileStream input = File.OpenRead("tests/Golden/data/d2/requests/023d47d587f3c92f1784abbeb0d4bcbf43f69012f1cfb5c8d6cea34ff99da775.request.br");
+        using FileStream input = File.OpenRead("tests/Golden/data/d2/requests/0f812fdee7f7c24ddab0c7f683a72e70a10293af0e9975b6e01a50abdde12c47.request.br");
         using BrotliStream compressed = new(input, CompressionMode.Decompress);
         using MemoryStream bytes = new();
         compressed.CopyTo(bytes);

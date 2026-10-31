@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>Why an end-turn action did or did not expose a shareable player-turn-start prefix.</summary>
@@ -35,7 +37,8 @@ public readonly struct EndTurnPrefix
     internal EndTurnPrefix(in Battle battle, in ExecContinuation continuation,
         EndTurnPrefixStatus status, bool playerStartPending)
     {
-        _battle = battle;
+        Unsafe.SkipInit(out _battle);
+        Battle.CopyPacked(in battle, ref _battle);
         _continuation = continuation;
         _status = status;
         _playerStartPending = playerStartPending;
@@ -62,7 +65,8 @@ public static partial class Kernel
         prefix = default;
         if (!IsInProgress(parent))
             return EndTurnPrefixStatus.NotInProgress;
-        Battle state = parent;
+        Unsafe.SkipInit(out Battle state);
+        Battle.CopyPacked(in parent, ref state);
         Exec x = new(ref state, rules, PlayerAction.EndTurn());
         if (!AdvanceRoundToPlayerStart(ref x, out bool takingExtraTurn))
         {
@@ -140,7 +144,7 @@ public static partial class Kernel
             throw new InvalidOperationException("EndTurn 前缀尚未准备。");
         if (action.Kind != PlayerActionKind.EndTurn)
             throw new ArgumentOutOfRangeException(nameof(action), action.Kind, "前缀续跑只接受 EndTurn 动作。");
-        battle = prefix._battle;
+        Battle.CopyPacked(in prefix._battle, ref battle);
         Exec x = new(ref battle, rules, action);
         x.RestoreContinuation(prefix._continuation);
         if (prefix._playerStartPending)

@@ -151,7 +151,7 @@ internal sealed partial class BeamSolver
             // boundaries and must not be adopted as a current-turn route.
             if (_nodes[node].Parent < 0)
                 continue;
-            ref Battle state = ref boundary.State(index);
+            ref readonly Battle state = ref boundary.State(index);
             if (state.Outcome == Outcome.Defeat)
                 continue;
             if (ExplicitPotionUses(node) < _options.MinimumPotionUses)
@@ -175,13 +175,13 @@ internal sealed partial class BeamSolver
         if (selected < 0)
             return -1;
         _takeoverKey = selectedKey;
-        ref Battle selectedState = ref FindBoundaryState(boundary, selected);
+        ref readonly Battle selectedState = ref FindBoundaryState(boundary, selected);
         _takeoverVictory = selectedState.Outcome == Outcome.Victory;
         _takeoverScore = _takeoverKey.Score;
         return selected;
     }
 
-    private static ref Battle FindBoundaryState(Pool boundary, int node)
+    private static ref readonly Battle FindBoundaryState(Pool boundary, int node)
     {
         for (int index = 0; index < boundary.Count; index++)
         {
@@ -342,7 +342,7 @@ internal sealed partial class BeamSolver
             int node = pool.Node(index);
             if (node < 0 || node == selected)
                 continue;
-            ref Battle state = ref pool.State(index);
+            ref readonly Battle state = ref pool.State(index);
             ScoreFeatures nodeFeatures =
                 _scorer.Features(state, Depth(node), includeRetentionOnly: false);
             RouteKey key = Key(state, nodeFeatures, Depth(node));

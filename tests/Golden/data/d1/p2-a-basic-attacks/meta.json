@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "p2-a-basic-attacks",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p2-a-basic-attacks.json\u0022}",
-  "rulesSha256": "01047893931e2598f46914ab796aa76b097099af2c03c7358a3073aa103bc520",
+  "rulesSha256": "8f264bd357d6b41778d96d1f6e3c5d99908d68b3802d45dad48400bfa30fe6ad",
   "counts": {
     "roots": 1,
     "k1": 17,

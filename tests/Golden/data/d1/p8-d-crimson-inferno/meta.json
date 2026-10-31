@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "p8-d-crimson-inferno",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p8-d-crimson-inferno.json\u0022}",
-  "rulesSha256": "36c18308a38bce2ef4f705f231605d8dae9565cd18a69e210535bc5e5e0bef68",
+  "rulesSha256": "83c7a33227d0df39ac673765ea99d66158fd96eada6a51692066f20992bf5e13",
   "counts": {
     "roots": 1,
     "k1": 14,

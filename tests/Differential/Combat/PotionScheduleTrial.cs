@@ -34,7 +34,7 @@ internal static class PotionScheduleTrial
     {
         static void Assert(bool value, string message)
         { if (!value) throw new InvalidDataException("potion-schedule: " + message); }
-        using FileStream input = File.OpenRead("tests/Golden/data/d2/requests/023d47d587f3c92f1784abbeb0d4bcbf43f69012f1cfb5c8d6cea34ff99da775.request.br");
+        using FileStream input = File.OpenRead("tests/Golden/data/d2/requests/0f812fdee7f7c24ddab0c7f683a72e70a10293af0e9975b6e01a50abdde12c47.request.br");
         using BrotliStream compressed = new(input, CompressionMode.Decompress);
         using MemoryStream bytes = new(); compressed.CopyTo(bytes);
         SearchCase fixture = SearchCodec.DecodeRequest(bytes.ToArray());

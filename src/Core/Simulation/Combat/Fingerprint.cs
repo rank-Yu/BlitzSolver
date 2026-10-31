@@ -5,9 +5,10 @@ using System.Runtime.InteropServices;
 namespace Sts2Solver.Simulation.Combat;
 
 /// <summary>
-/// Byte-image identity of Sts2Solver values. The hash only buckets and covers the used part of each
-/// region (unused slots are zero in canonical form); equality always compares every byte, so two
-/// states are merged only when they are identical.
+/// Byte-image identity of Sts2Solver values. The packed prefix covers the header and only the cards
+/// at <c>[0, CardCount)</c>; the bytes after the last live card are undefined and never inspected.
+/// The hash covers the same logical segments in the same order as before the packed layout, so a
+/// state's hash is unchanged.
 /// </summary>
 public static class Fingerprint
 {
@@ -20,13 +21,16 @@ public static class Fingerprint
     private static readonly int RelicsOffset = Offset(static (ref Battle b) => ref Unsafe.As<Relic, byte>(ref b.Relics[0]));
     private static readonly int OrbsOffset = Offset(static (ref Battle b) => ref Unsafe.As<Orb, byte>(ref b.Orbs[0]));
     private static readonly int CardsOffset = Offset(static (ref Battle b) => ref Unsafe.As<Card, byte>(ref b.Cards[0]));
+    private static readonly int HistoryCourseOffset =
+        Offset(static (ref Battle b) => ref Unsafe.As<Card, byte>(ref b.HistoryCourseCard));
     private static readonly int DecimalVarsOffset = Offset(static (ref Battle b) => ref Unsafe.As<decimal, byte>(ref b.DecimalVars[0]));
     private static readonly int DecimalVarsEndOffset = DecimalVarsOffset + Limits.DecimalCardVars * Unsafe.SizeOf<decimal>();
 
     private delegate ref byte FieldSelector(ref Battle battle);
 
+    /// <summary>The defined prefix: the header followed by the cards in use.</summary>
     public static ReadOnlySpan<byte> Bytes(in Battle battle)
-        => MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in battle, 1));
+        => MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in battle, 1))[..Battle.PackedSize(in battle)];
 
     public static ulong Hash(in Battle battle)
     {
@@ -34,7 +38,7 @@ public static class Fingerprint
         ulong hash = Prime3;
         // Roots without decimal card content keep the table zero. Hash the header in two pieces so
         // those roots do not pay for 4 * sizeof(decimal) bytes on every state hash; equality still
-        // compares the complete byte image.
+        // compares the complete packed prefix.
         hash = Mix(hash, all[..DecimalVarsOffset]);
         int decimalBytes = battle.DecimalVarCount * Unsafe.SizeOf<decimal>();
         if (decimalBytes > 0)
@@ -45,13 +49,11 @@ public static class Fingerprint
         hash = Mix(hash, all.Slice(RelicsOffset, battle.RelicCount * Unsafe.SizeOf<Relic>()));
         hash = Mix(hash, all.Slice(OrbsOffset, battle.OrbCount * Unsafe.SizeOf<Orb>()));
         hash = Mix(hash, all.Slice(CardsOffset, battle.CardCount * Unsafe.SizeOf<Card>()));
-        // The HistoryCourse cross-turn slot sits after the card array. Skip it when absent (the
-        // canonical bytes are zero) so roots without the relic do not pay 92 extra hashed bytes.
+        // HistoryCourseCard now lives at the end of the header, before the cards. It was hashed
+        // after the card segment before the layout change, so mix it last (and skip it in the header
+        // gap above) to keep every existing hash value identical.
         if ((battle.Flags & BattleFlags.HistoryCourseCardPresent) != 0)
-        {
-            int historyCourseOffset = CardsOffset + Limits.Cards * Unsafe.SizeOf<Card>();
-            hash = Mix(hash, all.Slice(historyCourseOffset, Unsafe.SizeOf<Card>()));
-        }
+            hash = Mix(hash, all.Slice(HistoryCourseOffset, Unsafe.SizeOf<Card>()));
         hash ^= hash >> 33;
         hash *= Prime2;
         hash ^= hash >> 29;

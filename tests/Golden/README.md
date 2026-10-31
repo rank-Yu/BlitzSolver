@@ -19,7 +19,7 @@ dotnet run --project tests/Golden -c Release -- verify /tmp/sts2-solver-rerecord
 
 > `tests/Golden/data` 的 D2 期望结果已按 M3b 默认搜索重冻；之后改变搜索结果的改动先用 `compare` 做只报告对照，经用户同意后再 `refreeze`。
 
-- `k0`：运行 `RulesCodecContract`，检查 `Rules` 每个构造字段都进入编码字节、五个魔数的 ASCII 标签、`formatVersion=2` 与 `BATL` 旧魔数/version 1 的显式拒绝，并打印
+- `k0`：运行 `RulesCodecContract`，检查 `Rules` 每个构造字段都进入编码字节、五个魔数的 ASCII 标签、`formatVersion=3` 与 `BATL` 旧魔数/version 1 的显式拒绝，并打印
   字段数与 `Unsafe.SizeOf<Battle>()`。
 - `verify`：先核对 `manifest.json`（格式版本、`Battle` 大小、`provenance`（含 `formatMigration`）、每个文件的
   字节数与 SHA-256、`totalBytes`，以及 D1/D2 计数），再分别校验 D1 与 D2。

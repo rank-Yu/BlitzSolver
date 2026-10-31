@@ -171,10 +171,11 @@ public sealed class Scrape : CardDef
         CardEffects.GeneralAttack(ref x, 0);
         if (x.NeedsChoice)
             return;
-        Span<Card> drawn = stackalloc Card[Limits.Cards];
-        Span<int> positions = stackalloc int[Limits.Cards];
-        int count = Kernel.DrawInto(ref x, (int)CardEffects.Var(x, 1), fromHandDraw: false, drawn,
-            positions);
+        int request = (int)CardEffects.Var(x, 1);
+        int capacity = Math.Min(request, x.B.CardCount);
+        Span<Card> drawn = stackalloc Card[capacity];
+        Span<int> positions = stackalloc int[capacity];
+        int count = Kernel.DrawInto(ref x, request, fromHandDraw: false, drawn, positions);
         if (x.NeedsChoice)
             return;
         Span<int> chosen = stackalloc int[count];

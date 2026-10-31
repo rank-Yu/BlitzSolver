@@ -41,12 +41,13 @@ public sealed class ReattachPower : PowerDef
     // Native ReattachPower.ShouldOwnerDeathTriggerFatal: AreAllOtherSegmentsDead().
     public override bool ShouldOwnerDeathTriggerFatal(in Battle battle, Listener self)
     {
+        ref Battle mutable = ref System.Runtime.CompilerServices.Unsafe.AsRef(in battle);
         for (int position = 0; position < battle.RosterCount; position++)
         {
             byte other = Kernel.EnemyOwner(battle.Roster[position]);
             if (other == self.Owner || Kernel.GetAmount(battle, other, Id) <= 0)
                 continue;
-            if (!battle.Creature(other).IsDead)
+            if (!mutable.Creature(other).IsDead)
                 return false;
         }
         return true;

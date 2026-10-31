@@ -138,7 +138,7 @@ public sealed class Stoke : CardDef
             x.TransientMarkBase = checked((byte)markBase);
         }
         // Generation happens after the whole exhaust loop, as in the native card.
-        Span<Card> generated = stackalloc Card[Math.Min(exhaustCount, Limits.Cards)];
+        Span<Card> generated = stackalloc Card[exhaustCount];
         int count = Kernel.SampleCardPool(ref x.B, x.R, CardPools.CharacterAll, exhaustCount,
             distinct: false, RngStream.CombatCardGeneration, generated);
         for (int index = 0; index < count; index++)

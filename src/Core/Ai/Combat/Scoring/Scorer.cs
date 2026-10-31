@@ -880,12 +880,13 @@ internal sealed class Scorer
         int sandpitRemaining = 0;
         if (_score.SandpitPowerId != ushort.MaxValue)
         {
+            ref Battle mutable = ref Unsafe.AsRef(in battle);
             for (int index = 0; index < battle.PowerCount; index++)
             {
                 ref readonly Power power = ref battle.Powers[index];
                 if (power.Id != _score.SandpitPowerId
                     || power.Target != Limits.PlayerOwner
-                    || !battle.Creature(power.Owner).IsAlive)
+                    || !mutable.Creature(power.Owner).IsAlive)
                 {
                     continue;
                 }
@@ -1146,14 +1147,10 @@ internal sealed class Scorer
         ulong UnorderedFirst, ulong UnorderedSecond) CaptureShuffleAndUnorderedKeys(in Battle battle)
     {
         int total = battle.DiscardCount + battle.DrawCount + battle.HandCount;
-        Span<Card> cards = stackalloc Card[Limits.Cards];
-        cards = cards[..total];
-        Span<ulong> hashes = stackalloc ulong[Limits.Cards];
-        hashes = hashes[..total];
-        Span<int> origins = stackalloc int[Limits.Cards];
-        origins = origins[..total];
-        Span<ulong> shuffledHashes = stackalloc ulong[Limits.Cards];
-        shuffledHashes = shuffledHashes[..total];
+        Span<Card> cards = stackalloc Card[total];
+        Span<ulong> hashes = stackalloc ulong[total];
+        Span<int> origins = stackalloc int[total];
+        Span<ulong> shuffledHashes = stackalloc ulong[total];
         int discardCount = battle.DiscardCount;
         int drawCount = battle.DrawCount;
         int handCount = battle.HandCount;
@@ -1185,7 +1182,8 @@ internal sealed class Scorer
         CardSort.SortWithOrigins(cards, origins, Rules);
         for (int index = 0; index < total; index++)
             shuffledHashes[index] = hashes[origins[index]];
-        RngState shuffle = battle.RngStream(RngStream.Shuffle);
+        ref Battle mutable = ref Unsafe.AsRef(in battle);
+        RngState shuffle = mutable.RngStream(RngStream.Shuffle);
         int shuffleCounter = shuffle.Counter;
         for (int n = total; n > 1;)
         {
@@ -1346,7 +1344,8 @@ internal sealed class Scorer
     {
         if (!VerifyThreatProjection)
             return ProjectHpAfterThreatBody(in battle);
-        Battle before = battle;
+        Unsafe.SkipInit(out Battle before);
+        Battle.CopyPacked(in battle, ref before);
         ThreatProjection projection = ProjectHpAfterThreatBody(in battle);
         CheckThreatProjection(in before, in Unsafe.AsRef(in battle));
         return projection;
@@ -1408,13 +1407,7 @@ internal sealed class Scorer
     }
 
     private static bool BattleBytesEqual(in Battle left, in Battle right)
-    {
-        ReadOnlySpan<byte> leftBytes = MemoryMarshal.AsBytes(
-            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in left), 1));
-        ReadOnlySpan<byte> rightBytes = MemoryMarshal.AsBytes(
-            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in right), 1));
-        return leftBytes.SequenceEqual(rightBytes);
-    }
+        => Fingerprint.Equal(in left, in right);
 
     private ThreatProjection ProjectHpAfterThreatCore(ref Battle probe)
     {
@@ -2040,9 +2033,9 @@ internal sealed class Scorer
         int freeUses = GetAmount(battle, powerId, Limits.PlayerOwner);
         if (freeUses <= 0)
             return 0;
-        // Add-to-hand effects can put the stable hand above Limits.MaxHandSize; the battle
-        // capacity for cards is Limits.Cards.
-        Span<int> values = stackalloc int[Limits.Cards];
+        // Add-to-hand effects can put the stable hand above Limits.MaxHandSize; the hand itself is
+        // the exact bound.
+        Span<int> values = stackalloc int[battle.HandCount];
         int count = 0;
         for (int index = 0; index < battle.HandCount; index++)
         {
@@ -2094,9 +2087,9 @@ internal sealed class Scorer
         int freeUses = battle.Powers[powerIndex].Amount - battle.Powers[powerIndex].Aux0;
         if (freeUses <= 0)
             return 0;
-        // Add-to-hand effects can put the stable hand above Limits.MaxHandSize; the battle
-        // capacity for cards is Limits.Cards.
-        Span<int> values = stackalloc int[Limits.Cards];
+        // Add-to-hand effects can put the stable hand above Limits.MaxHandSize; the hand itself is
+        // the exact bound.
+        Span<int> values = stackalloc int[battle.HandCount];
         int count = 0;
         for (int hand = 0; hand < battle.HandCount; hand++)
         {
@@ -2146,7 +2139,8 @@ internal sealed class Scorer
         // PersistentPowerSupport.GetModifiedMaxEnergy: WasteAway and other ModifyMaxEnergy listeners
         // reduce the future-turn energy supply. Probe a copy because the evaluation must not mutate
         // the battle being scored.
-        Battle probe = battle;
+        Unsafe.SkipInit(out Battle probe);
+        Battle.CopyPacked(in battle, ref probe);
         Exec probeExec = new(ref probe, Rules, default);
         int maxEnergy = Math.Max(0, Kernel.ModifiedMaxEnergy(ref probeExec));
         int handCount = battle.HandCount;
@@ -2189,7 +2183,8 @@ internal sealed class Scorer
     /// </summary>
     private int ModifiedMaxEnergy(in Battle battle)
     {
-        Battle probe = battle;
+        Unsafe.SkipInit(out Battle probe);
+        Battle.CopyPacked(in battle, ref probe);
         Exec probeExec = new(ref probe, Rules, default);
         return Math.Max(0, Kernel.ModifiedMaxEnergy(ref probeExec));
     }
@@ -2204,7 +2199,8 @@ internal sealed class Scorer
     /// <summary><c>PersistentPowerSupport.GetModifiedMaxEnergy</c> for the commitment evidence port.</summary>
     internal int ModifiedMaxEnergyForEvidence(in Battle battle)
     {
-        Battle probe = battle;
+        Unsafe.SkipInit(out Battle probe);
+        Battle.CopyPacked(in battle, ref probe);
         Exec probeExec = new(ref probe, Rules, default);
         return Math.Max(0, Kernel.ModifiedMaxEnergy(ref probeExec));
     }
@@ -2249,7 +2245,8 @@ internal sealed class Scorer
 
     private int ModifiedHandDraw(in Battle battle)
     {
-        Battle probe = battle;
+        Unsafe.SkipInit(out Battle probe);
+        Battle.CopyPacked(in battle, ref probe);
         Exec probeExec = new(ref probe, Rules, default);
         return Math.Max(0, Kernel.ModifiedHandDraw(ref probeExec, 5));
     }

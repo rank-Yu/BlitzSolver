@@ -98,10 +98,12 @@ internal sealed class SearchMemoryLedger
             PeakBytes = UsedBytes;
     }
 
-    internal void ReleaseArray(long bytes)
+    internal void ReleaseBlock(long bytes, string region)
     {
-        UsedBytes -= bytes;
-        _byRegion["array"] -= bytes;
+        if (bytes <= 0)
+            return;
+        UsedBytes = Math.Max(0, UsedBytes - bytes);
+        _byRegion[region] = Math.Max(0, _byRegion.GetValueOrDefault(region) - bytes);
     }
 
     /// <summary>Releases a retained block that was replaced; used only for the growable int scratch.</summary>
@@ -116,19 +118,29 @@ internal sealed class SearchMemoryLedger
 }
 
 
-/// <summary>Capacity planning for one chunked state pool; all byte arithmetic is 64-bit.</summary>
+/// <summary>Capacity planning for one packed state arena; all byte arithmetic is 64-bit.</summary>
 internal static class SearchMemoryBudget
 {
     // A power-of-two deduplication table needs two slots per state and uses signed int indexes.
     internal const int MaximumPoolStates = 1 << 29;
 
-    internal static int PoolStateCapacity(long budgetBytes, int stateBytes, int chunkStates)
+    /// <summary>
+    /// Pre-packed seat geometry: the old 64-state block of 12,696-byte states. The seat bound only
+    /// sizes the side arrays and the per-action pool boundary; actual bytes are charged by the
+    /// packed arena ledger. Keeping the block geometry keeps every ≤96-card search decision
+    /// (including Beam.Pool drops) identical.
+    /// </summary>
+    internal const int PlanningStateBytes = 12_696;
+    internal const int PlanningBlockStates = 64;
+    internal const int PlanningBlockBytes = PlanningStateBytes * PlanningBlockStates;
+
+    internal static int PoolStateCapacity(long budgetBytes, int blockBytes, int statesPerBlock)
     {
-        if (budgetBytes <= 0 || stateBytes <= 0 || chunkStates <= 0
-            || (chunkStates & (chunkStates - 1)) != 0)
-            throw new InvalidDataException("状态池预算或分块无效。");
-        long chunks = budgetBytes / stateBytes / chunkStates;
-        long states = Math.Max(chunkStates, chunks * chunkStates);
+        if (budgetBytes <= 0 || blockBytes <= 0 || statesPerBlock <= 0
+            || (statesPerBlock & (statesPerBlock - 1)) != 0)
+            throw new InvalidDataException("状态池预算或区块无效。");
+        long blocks = budgetBytes / blockBytes;
+        long states = Math.Max(statesPerBlock, blocks * statesPerBlock);
         if (states > MaximumPoolStates)
             throw new InvalidDataException("状态池预算超过可表示容量。");
         return checked((int)states);

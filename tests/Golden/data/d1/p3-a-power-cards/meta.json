@@ -1,9 +1,9 @@
 {
-  "formatVersion": 2,
-  "battleSize": 12696,
+  "formatVersion": 3,
+  "battleSize": 27320,
   "root": "p3-a-power-cards",
   "input": "{\u0022kind\u0022:\u0022fixture\u0022,\u0022fixture\u0022:\u0022coverage/fixtures/cards/flash-p3-a-power-cards.json\u0022}",
-  "rulesSha256": "c1fa37465bb18ae8530bae067b8ba7ca2573e8013b96be495a399a720daf031e",
+  "rulesSha256": "c9789b4fefdecaa8ca2ab0f7d033ed2ed7db55e4a0195d3c5bb0a6f0249681f3",
   "counts": {
     "roots": 1,
     "k1": 11,

@@ -50,10 +50,8 @@ public static class BattleDump
         if (result.Count != 0)
             return result;
 
-        ReadOnlySpan<byte> leftBytes = MemoryMarshal.AsBytes(
-            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in expected), 1));
-        ReadOnlySpan<byte> rightBytes = MemoryMarshal.AsBytes(
-            MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in actual), 1));
+        ReadOnlySpan<byte> leftBytes = Fingerprint.Bytes(in expected);
+        ReadOnlySpan<byte> rightBytes = Fingerprint.Bytes(in actual);
         for (int index = 0; index < leftBytes.Length; index++)
         {
             if (leftBytes[index] == rightBytes[index])
