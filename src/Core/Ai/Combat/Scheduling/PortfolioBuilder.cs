@@ -37,7 +37,9 @@ internal static class PortfolioBuilder
             ? plan.BaselineWidth : plan.NarrowWidth;
         members.Add(new(ordinaryWidth, SearchEvaluation.Standard, SearchRetention.Standard, primary));
         members.Add(new(plan.WideWidth, SearchEvaluation.Standard, SearchRetention.Standard, primary));
-        members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.SecondBand, primary));
+        bool compactAllowed = plan.DefaultPotionSchedule == DefaultPotionSchedule.CompactPotionPortfolio;
+        if (!forced || !compactAllowed)
+            members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.SecondBand, primary));
         members.Add(new(plan.BaselineWidth, SearchEvaluation.Base, SearchRetention.Standard, primary));
         members.Add(new(plan.OffensiveWidth, SearchEvaluation.Offensive, SearchRetention.Standard, primary));
         if (!forced)
@@ -45,7 +47,7 @@ internal static class PortfolioBuilder
             if (plan.UsesStagedPortfolio)
             {
                 int primaryCount = members.Count;
-                if (plan.DefaultPotionSchedule == DefaultPotionSchedule.CompactOnePortfolio)
+                if (plan.UsesCompactOneStage)
                 {
                     if (power)
                         members.Add(new(plan.BaselineWidth, SearchEvaluation.Standard, SearchRetention.Power, SearchPotionLimit.One));
@@ -55,8 +57,11 @@ internal static class PortfolioBuilder
                     for (int i = 0; i < primaryCount; i++)
                         members.Add(members[i] with { Potions = SearchPotionLimit.One });
                 for (int i = 0; i < primaryCount; i++)
+                {
+                    if (compactAllowed && members[i].Retention == SearchRetention.SecondBand) continue;
                     members.Add(members[i] with { Potions = SearchPotionLimit.Allowed,
                         Width = i == ordinaryIndex ? plan.BaselineWidth : members[i].Width });
+                }
                 return [.. members];
             }
             members.Add(new(plan.NarrowWidth, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.One));

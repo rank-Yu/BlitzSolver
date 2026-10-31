@@ -34,10 +34,10 @@ internal static class SearchV2Checks
             Assert(preset.ForEncounter(false) == preset, "ordinary encounter budget unchanged");
         }
 
-        Assert(new[] { low, medium, high, extra }.All(p => p.DefaultPotionSchedule == DefaultPotionSchedule.CompactOnePortfolio),
+        Assert(new[] { low, medium, high, extra }.All(p => p.DefaultPotionSchedule == DefaultPotionSchedule.CompactPotionPortfolio),
             "production presets use compact one-potion portfolio");
-        Assert(PortfolioBuilder.Build(medium, power: true, forced: false).Length == 14
-            && PortfolioBuilder.Build(medium, power: false, forced: false).Length == 11,
+        Assert(PortfolioBuilder.Build(medium, power: true, forced: false).Length == 13
+            && PortfolioBuilder.Build(medium, power: false, forced: false).Length == 10,
             "compact preset retains power and ordinary wide in the one-potion stage");
 
         int twoGiB = SearchMemoryBudget.PoolStateCapacity(int.MaxValue, Battle.ExpectedSize, 64);
@@ -567,6 +567,60 @@ internal static class SearchV2Checks
             && compactQueen.Count(m => m.Retention == SearchRetention.QueenKillTiming) == 3
             && compactQueen.Where(m => m.Potions == SearchPotionLimit.One).Count() == 4,
             "queen keeps both supplements in all three stages");
+
+        SearchPlan compactAllowed = compact with { DefaultPotionSchedule = DefaultPotionSchedule.CompactPotionPortfolio };
+        byte[] latestBytes = CombatSearchCodec.Encode(new(search, compactAllowed));
+        CombatSearchRequest latestDecoded = CombatSearchCodec.Decode(latestBytes);
+        Assert(BitConverter.ToUInt16(latestBytes, 4) == 11
+            && latestDecoded.Plan.DefaultPotionSchedule == DefaultPotionSchedule.CompactPotionPortfolio
+            && CombatSearchCodec.Encode(latestDecoded).SequenceEqual(latestBytes), "v11 compact allowed round trip");
+        byte[] wrongLatest = (byte[])latestBytes.Clone(); wrongLatest[4] = 10;
+        bool rejectedLatest = false;
+        try { _ = CombatSearchCodec.Decode(wrongLatest); }
+        catch (InvalidDataException) { rejectedLatest = true; }
+        Assert(rejectedLatest, "v10 rejects the v11 schedule");
+
+        foreach (bool hasPower in new[] { false, true })
+        {
+            SearchMember[] previous = PortfolioBuilder.Build(compact, hasPower, false);
+            SearchMember[] latest = PortfolioBuilder.Build(compactAllowed, hasPower, false);
+            Assert(latest.SequenceEqual(previous.Where(m => m.Potions != SearchPotionLimit.Allowed
+                || m.Retention != SearchRetention.SecondBand)),
+                "only allowed second-band member is removed");
+            Assert(PortfolioBuilder.Build(compactAllowed, hasPower, true).SequenceEqual(
+                latest.Where(m => m.Potions == SearchPotionLimit.Allowed)), "forced stage uses the same five strategies");
+        }
+        SearchPlan custom = compactAllowed with { CustomMembers = [
+            new(compact.BaselineWidth, SearchEvaluation.Standard, SearchRetention.SecondBand, SearchPotionLimit.None),
+            new(compact.BaselineWidth, SearchEvaluation.Standard, SearchRetention.SecondBand, SearchPotionLimit.Allowed)] };
+        Assert(PortfolioBuilder.Build(custom, true, false).SequenceEqual(custom.CustomMembers),
+            "explicit custom second-band members remain intact");
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search, compactAllowed), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.Length == 16 && seen.Count == 16
+            && result.Members.Count(m => m.Member.Evaluation == SearchEvaluation.Setup) == 3
+            && result.Members.Count(m => m.Member.Retention == SearchRetention.SecondBand) == 1,
+            "7+3+6 keeps setup in every stage and second-band in no-potion stage");
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = options with {
+            Potions = options.Potions with { MaximumUses = 1 } } }, compactAllowed), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.Skip(10).Count(m => m.SkippedReason == "duplicate-limit") == 3
+            && result.Members.Skip(10).Count(m => m.Ran) == 3,
+            "effective cap one retains unsearched ordinary, base and offensive combinations");
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = forced with {
+            PowerCommitments = options.PowerCommitments } }, compactAllowed), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(seen.Count == 6 && seen.All(o => o.EnforceForcedPotionDirectives)
+            && result.Members.All(m => m.Member.Potions == SearchPotionLimit.Allowed
+                && m.Member.Retention != SearchRetention.SecondBand), "forced directives survive the trimmed portfolio");
+        SearchMember[] latestQueen = SupplementPortfolio.AppendToStages(
+            PortfolioBuilder.Build(compactAllowed, true, false), compactAllowed, queen: true);
+        Assert(latestQueen.Length == 19
+            && latestQueen.Count(m => m.Retention == SearchRetention.QueenKillTiming) == 3,
+            "8+4+7 retains queen supplements in all stages");
 
         // The generic members replace QueenSetup; only kill-timing retention is retained.
         SearchMember[] queen = SupplementPortfolio.AppendToStages(

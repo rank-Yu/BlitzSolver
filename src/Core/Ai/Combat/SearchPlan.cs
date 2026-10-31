@@ -9,7 +9,7 @@ internal enum SearchRetention { Standard, Power, SecondBand, QueenKillTiming }
 internal enum SearchPotionLimit { None = 0, One = 1, Allowed = 2, Two = 3, Three = 4 }
 
 /// <summary>Default schedule semantics preserved across versioned requests.</summary>
-internal enum DefaultPotionSchedule { OneAllowed = 0, OneTwoThree = 1, StagedPortfolio = 2, CompactOnePortfolio = 3 }
+internal enum DefaultPotionSchedule { OneAllowed = 0, OneTwoThree = 1, StagedPortfolio = 2, CompactOnePortfolio = 3, CompactPotionPortfolio = 4 }
 
 /// <summary>Each member describes the four independent search dimensions.</summary>
 internal sealed record SearchMember(int Width, SearchEvaluation Evaluation,
@@ -37,8 +37,9 @@ internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWi
     /// <summary>Historical v6 single-supplement switch, retained for replay compatibility.</summary>
     public bool ExperimentalQueenSupplement { get; init; }
     public ImmutableArray<SearchMember> CustomMembers { get; init; } = [];
-    public DefaultPotionSchedule DefaultPotionSchedule { get; init; } = DefaultPotionSchedule.CompactOnePortfolio;
-    internal bool UsesStagedPortfolio => DefaultPotionSchedule is DefaultPotionSchedule.StagedPortfolio or DefaultPotionSchedule.CompactOnePortfolio;
+    public DefaultPotionSchedule DefaultPotionSchedule { get; init; } = DefaultPotionSchedule.CompactPotionPortfolio;
+    internal bool UsesCompactOneStage => DefaultPotionSchedule is DefaultPotionSchedule.CompactOnePortfolio or DefaultPotionSchedule.CompactPotionPortfolio;
+    internal bool UsesStagedPortfolio => DefaultPotionSchedule == DefaultPotionSchedule.StagedPortfolio || UsesCompactOneStage;
     public int EndedKeepWidths { get; init; } = 8;
     public int EndedTriggerWidths { get; init; } = 16;
 }

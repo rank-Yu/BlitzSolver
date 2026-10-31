@@ -11,8 +11,9 @@ internal static class CombatSearchCodec
     internal static byte[] Encode(CombatSearchRequest request) => Codec.ToBytes(writer =>
     {
         writer.Write(Magic);
-        bool compact = request.Plan.DefaultPotionSchedule == DefaultPotionSchedule.CompactOnePortfolio;
-        writer.Write(compact ? (ushort)10 : request.Plan.SetupStrategies ? (request.Plan.LegacySetupPortfolio ? (ushort)8 : (ushort)9) : request.Plan.QueenStrategies ? (ushort)7 : request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
+        bool compact = request.Plan.UsesCompactOneStage;
+        bool compactAllowed = request.Plan.DefaultPotionSchedule == DefaultPotionSchedule.CompactPotionPortfolio;
+        writer.Write(compactAllowed ? (ushort)11 : compact ? (ushort)10 : request.Plan.SetupStrategies ? (request.Plan.LegacySetupPortfolio ? (ushort)8 : (ushort)9) : request.Plan.QueenStrategies ? (ushort)7 : request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
         byte[] root = SearchCodec.EncodeRequest(request.Case);
         writer.Write(root.Length);
         writer.Write(root);
@@ -50,7 +51,7 @@ internal static class CombatSearchCodec
         if (reader.ReadUInt32() != Magic)
             throw new InvalidDataException("组合搜索请求魔数不符。");
         ushort version = reader.ReadUInt16();
-        if (version is not (1 or 2 or 3 or 4 or Version or 6 or 7 or 8 or 9 or 10))
+        if (version is not (1 or 2 or 3 or 4 or Version or 6 or 7 or 8 or 9 or 10 or 11))
             throw new InvalidDataException("组合搜索请求版本不受支持。");
         int length = Codec.ReadCount(reader, 1 << 28, "搜索根字节");
         byte[] root = reader.ReadBytes(length);
@@ -79,7 +80,9 @@ internal static class CombatSearchCodec
             : version == 3 ? DefaultPotionSchedule.OneTwoThree : DefaultPotionSchedule.OneAllowed;
         if (!Enum.IsDefined(schedule) || version < 5 && schedule == DefaultPotionSchedule.StagedPortfolio
             || version < 10 && schedule == DefaultPotionSchedule.CompactOnePortfolio
-            || version == 10 && schedule != DefaultPotionSchedule.CompactOnePortfolio)
+            || version == 10 && schedule != DefaultPotionSchedule.CompactOnePortfolio
+            || version < 11 && schedule == DefaultPotionSchedule.CompactPotionPortfolio
+            || version == 11 && schedule != DefaultPotionSchedule.CompactPotionPortfolio)
             throw new InvalidDataException("默认用药调度无效。");
         plan = plan with { DefaultPotionSchedule = schedule,
             ExperimentalQueenSupplement = version >= 6 && Codec.ReadBool(reader),
