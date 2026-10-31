@@ -208,6 +208,26 @@ internal static class SearchV2Contracts
             .AsTask().GetAwaiter().GetResult();
         Assert(delayedShare.Members[0].StopReason == "time" && delayedShare.Members[0].ExpandedNodes == 0,
             "member cutoff is independent of total cutoff");
+        SearchPlan independent = plan with { TotalMilliseconds = 0, MillisecondsPerWidth = 125,
+            CustomMembers = [
+                new(8, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.None),
+                new(8, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.None),
+                new(8, SearchEvaluation.Standard, SearchRetention.Standard, SearchPotionLimit.Allowed)] };
+        clock = 0;
+        int independentCalls = 0;
+        ValueTask<SearchMemberMeasurement> StaleThenValid(SearchCase member, SearchStorage shared, CancellationToken token)
+        {
+            Assert(!member.Options.DeadlineExpired!(), "next member starts with a fresh deadline");
+            clock += independentCalls++ == 0 ? 1100 : 1;
+            return ValueTask.FromResult(new SearchMemberMeasurement(first, "ok", null, 0));
+        }
+        CombatSearchResult validated = CombatSearchCoordinator.RunAsync(new(original, independent),
+            new(), StaleThenValid, CancellationToken.None, () => clock).AsTask().GetAwaiter().GetResult();
+        Assert(validated.Members[0].StopReason == "deadline" && !validated.Members[0].Adopted
+            && validated.Members[1].Ran && validated.Members[1].HpLost.HasValue
+            && validated.Members[1].StopReason != "deadline",
+            "expired result cannot be adopted; a later member can still validate its real route");
+
         int retentionChecks = 0;
         bool expired = false;
         BeamOptions interruptedOptions = batched with

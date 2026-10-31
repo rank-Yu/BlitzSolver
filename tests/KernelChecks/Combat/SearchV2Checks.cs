@@ -16,21 +16,20 @@ internal static class SearchV2Checks
         SearchPlan medium = SearchPresets.For(CombatSearchTier.Medium, 10_000);
         SearchPlan high = SearchPresets.For(CombatSearchTier.High, 10_000);
         SearchPlan extra = SearchPresets.For(CombatSearchTier.ExtraHigh, 10_000);
-        Assert((low.BaselineWidth, low.NarrowWidth, low.WideWidth, low.OffensiveWidth, low.TotalMilliseconds)
-            == (225, 150, 338, 90, 60_000), "low preset");
-        Assert((medium.BaselineWidth, medium.NarrowWidth, medium.WideWidth, medium.OffensiveWidth, medium.TotalMilliseconds)
-            == (300, 200, 450, 120, 120_000), "medium preset");
-        Assert((high.BaselineWidth, high.NarrowWidth, high.WideWidth, high.OffensiveWidth, high.TotalMilliseconds)
-            == (450, 300, 675, 180, 180_000), "high preset");
-        Assert((extra.BaselineWidth, extra.NarrowWidth, extra.WideWidth, extra.OffensiveWidth, extra.TotalMilliseconds)
-            == (675, 450, 1013, 270, 300_000), "extra preset");
+        Assert((low.BaselineWidth, low.NarrowWidth, low.WideWidth, low.OffensiveWidth, low.BaselineWidth * low.MillisecondsPerWidth)
+            == (225, 150, 338, 90, 11_250), "low preset");
+        Assert((medium.BaselineWidth, medium.NarrowWidth, medium.WideWidth, medium.OffensiveWidth, medium.BaselineWidth * medium.MillisecondsPerWidth)
+            == (300, 200, 450, 120, 15_000), "medium preset");
+        Assert((high.BaselineWidth, high.NarrowWidth, high.WideWidth, high.OffensiveWidth, high.BaselineWidth * high.MillisecondsPerWidth)
+            == (450, 300, 675, 180, 22_500), "high preset");
+        Assert((extra.BaselineWidth, extra.NarrowWidth, extra.WideWidth, extra.OffensiveWidth, extra.BaselineWidth * extra.MillisecondsPerWidth)
+            == (675, 450, 1013, 270, 33_750), "extra preset");
 
         foreach (SearchPlan preset in new[] { low, medium, high, extra })
         {
             SearchPlan boss = preset.ForEncounter(true);
-            Assert(boss.TotalMilliseconds == checked(preset.TotalMilliseconds * 2)
-                && boss with { TotalMilliseconds = preset.TotalMilliseconds } == preset,
-                "boss doubles time only, for every tier");
+            Assert(boss == preset && boss.TotalMilliseconds == 0 && boss.MillisecondsPerWidth == 50,
+                "all tiers share the same width-based rate without boss multiplier");
             Assert(preset.ForEncounter(false) == preset, "ordinary encounter budget unchanged");
         }
 
@@ -236,6 +235,7 @@ internal static class SearchV2Checks
         Assert(cancelled, "cancellation propagates");
         CheckQueenSupplement(rules, options, tiny, forced);
         CheckSetupPortfolio(rules, options, tiny, forced);
+        IndependentSearchTimeChecks.Check(rules, options, forced);
         Console.WriteLine("COMBAT_SEARCH_V2 basic contracts=pass");
     }
     private static void CheckQueenSupplement(Rules rules, BeamOptions options, SearchPlan plan, BeamOptions forced)

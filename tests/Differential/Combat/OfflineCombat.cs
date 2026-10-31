@@ -81,8 +81,7 @@ internal static class OfflineCombat
         Console.WriteLine(
             $"offline-combat roots={roots.Length} jobs={jobs} tier={settings.Tier} " +
             $"widths={settings.Profile.BaselineWidth}/{settings.Profile.NarrowWidth}/{settings.Profile.WideWidth}/{settings.Profile.OffensiveWidth} " +
-            $"normal_time_ms={settings.Profile.TotalTimeBudgetMilliseconds} "
-            + $"boss_time_ms={settings.Profile.ToSearchPlan(settings.MemoryBudgetBytes, true).TotalMilliseconds} "
+            $"time_ms_per_width={settings.Profile.MillisecondsPerWidth} "
             + $"potion_schedule={settings.PotionSchedule ?? "default"} out={settings.Output}");
         Stopwatch wall = Stopwatch.StartNew();
         List<OfflineCombatRootResult> results = [];
@@ -333,8 +332,7 @@ internal static class OfflineCombat
             narrowWidth = settings.Profile.NarrowWidth,
             wideWidth = settings.Profile.WideWidth,
             offensiveWidth = settings.Profile.OffensiveWidth,
-            totalTimeBudgetMilliseconds = settings.Profile.TotalTimeBudgetMilliseconds,
-            bossTotalTimeBudgetMilliseconds = settings.Profile.ToSearchPlan(settings.MemoryBudgetBytes, true).TotalMilliseconds,
+            millisecondsPerWidth = settings.Profile.MillisecondsPerWidth,
             poolStateBudgetMb = settings.PoolStateBudgetMb,
             memoryBudgetBytes = settings.MemoryBudgetBytes,
             roots,

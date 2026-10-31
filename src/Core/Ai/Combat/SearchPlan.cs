@@ -13,11 +13,18 @@ internal enum DefaultPotionSchedule { OneAllowed = 0, OneTwoThree = 1, StagedPor
 
 /// <summary>Each member describes the four independent search dimensions.</summary>
 internal sealed record SearchMember(int Width, SearchEvaluation Evaluation,
-    SearchRetention Retention, SearchPotionLimit Potions);
+    SearchRetention Retention, SearchPotionLimit Potions)
+{
+    /// <summary>Whole member budget including initialization and replay; zero inherits the plan.</summary>
+    public int TimeLimitMilliseconds { get; init; }
+}
 
 internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWidth,
     int OffensiveWidth, int TotalMilliseconds, long MemoryBytes)
 {
+    /// <summary>Time per beam slot; positive selects independent member deadlines, zero retains legacy replay.</summary>
+    public int MillisecondsPerWidth { get; init; }
+
     /// <summary>Encounter-specific default portfolio; disabled when decoding historical plans.</summary>
     public bool QueenStrategies { get; init; }
 
@@ -30,9 +37,10 @@ internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWi
     internal static bool IsLongEncounter(bool isBoss, bool isElite, int actIndex)
         => isBoss || isElite && actIndex == 2;
 
-    /// <summary>Apply the encounter budget once, when assembling a fresh host plan.</summary>
+    /// <summary>Historical shared-budget encounter multiplier; independent budgets never multiply.</summary>
     internal SearchPlan ForEncounter(bool longEncounter)
-        => longEncounter ? this with { TotalMilliseconds = checked(TotalMilliseconds * 2) } : this;
+        => longEncounter && MillisecondsPerWidth == 0
+            ? this with { TotalMilliseconds = checked(TotalMilliseconds * 2) } : this;
 
     /// <summary>Historical v6 single-supplement switch, retained for replay compatibility.</summary>
     public bool ExperimentalQueenSupplement { get; init; }

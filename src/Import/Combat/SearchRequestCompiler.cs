@@ -22,10 +22,10 @@ public enum SearchPerformanceTier
     ExtraHigh,
 }
 
-/// <summary>Frozen widths and the total time for one combat decision.</summary>
+/// <summary>Frozen widths and time per beam slot for independent search members.</summary>
 public readonly record struct SearchPerformanceProfile(
     int BaselineWidth, int NarrowWidth, int WideWidth, int OffensiveWidth,
-    int TotalTimeBudgetMilliseconds)
+    int MillisecondsPerWidth)
 {
     /// <summary>Legacy deterministic capture retains its historical turn boundary.</summary>
     public const int MaxTurns = 64;
@@ -44,15 +44,16 @@ public readonly record struct SearchPerformanceProfile(
         };
         SearchPlan preset = SearchPresets.For(coreTier, 0);
         return new(preset.BaselineWidth, preset.NarrowWidth, preset.WideWidth,
-            preset.OffensiveWidth, preset.TotalMilliseconds);
+            preset.OffensiveWidth, preset.MillisecondsPerWidth);
     }
 
     internal SearchPlan ToSearchPlan(long memoryBytes, bool isBoss, bool isElite = false, int actIndex = 0)
     {
         bool longEncounter = SearchPlan.IsLongEncounter(isBoss, isElite, actIndex);
         return new SearchPlan(BaselineWidth, NarrowWidth, WideWidth, OffensiveWidth,
-            TotalTimeBudgetMilliseconds, memoryBytes)
-            { QueenStrategies = true, SetupStrategies = longEncounter }.ForEncounter(longEncounter);
+            0, memoryBytes)
+            { QueenStrategies = true, SetupStrategies = longEncounter,
+                MillisecondsPerWidth = MillisecondsPerWidth };
     }
 
     public static SearchPerformanceTier ParseTier(string text)
@@ -88,9 +89,9 @@ internal static class SearchRequestCompiler
         if (profile.BaselineWidth <= 0 || profile.NarrowWidth <= 0
             || profile.WideWidth <= 0 || profile.OffensiveWidth <= 0)
             throw new UnsupportedImportException(ImportReason.UnsupportedPolicy, "搜索宽度必须为正。");
-        if (!deterministic && profile.TotalTimeBudgetMilliseconds <= 0)
+        if (!deterministic && profile.MillisecondsPerWidth <= 0)
             throw new UnsupportedImportException(ImportReason.UnsupportedPolicy,
-                $"决策总时间必须为正：{profile.TotalTimeBudgetMilliseconds}");
+                $"单位宽度搜索时间必须为正：{profile.MillisecondsPerWidth}");
 
         Scorer scorer = EvaluationConfigCompiler.CompileScorer(
             state, player, rules, root, policy, facts);
@@ -102,7 +103,7 @@ internal static class SearchRequestCompiler
         // the first parent (`OutOfBudget` compares elapsed >= budget); MaxValue disables that clock.
         TimeSpan softTime = deterministic
             ? TimeSpan.MaxValue
-            : TimeSpan.FromMilliseconds(profile.TotalTimeBudgetMilliseconds);
+            : TimeSpan.FromMilliseconds(checked(profile.BaselineWidth * profile.MillisecondsPerWidth));
         BeamOptions options = new(
             profile.BaselineWidth,
             profile.StartMaxExpandedNodes,
