@@ -157,8 +157,8 @@ internal static class RerecordCommand
             File.Copy(payloadConfig, Path.Combine(targetDirectory, "config.br"), overwrite: true);
             configDirectory = targetDirectory;
         }
-        Rules rules = D1Verifier.LoadRules(source, oldRecord.RulesSha256);
-        SearchCase config = D1Verifier.LoadConfig(configDirectory, rootName, oldRecord.RulesSha256);
+        Rules rules = SimulationVerifier.LoadRules(source, oldRecord.RulesSha256);
+        SearchCase config = SimulationVerifier.LoadConfig(configDirectory, rootName, oldRecord.RulesSha256);
         Scorer scorer = config.Options.Scorer
             ?? throw new InvalidDataException($"根 {rootName} 的特征配置没有 Scorer。");
         BoundFeatures? bound = config.Options.Bound;
@@ -168,7 +168,7 @@ internal static class RerecordCommand
         foreach (GoldenBattleRoot root in recordedRoots)
         {
             (_, ulong scoreHash, byte boundStatus, ulong boundHash) =
-                D1Verifier.ComputeFeatures(root.Battle, rootActionCount, scorer, bound);
+                SimulationVerifier.ComputeFeatures(root.Battle, rootActionCount, scorer, bound);
             roots.Add(new GoldenBattleRoot
             {
                 Battle = root.Battle,
@@ -207,8 +207,8 @@ internal static class RerecordCommand
                     if (completion.DeadEnd)
                         continue;
                     (ScoreFeatures after, ulong scoreHash, byte boundStatus, ulong boundHash) =
-                        D1Verifier.ComputeFeatures(completion.Child, 1, scorer, bound);
-                    (bool traitPresent, ulong traitHash) = D1Verifier.ComputeTrait(root,
+                        SimulationVerifier.ComputeFeatures(completion.Child, 1, scorer, bound);
+                    (bool traitPresent, ulong traitHash) = SimulationVerifier.ComputeTrait(root,
                         rootFeatures, after, completion.Child, completion.Action, rules,
                         completion.HistoryRisk);
                     PlayerAction recorded = completion.Action;
@@ -243,7 +243,7 @@ internal static class RerecordCommand
                     $"根 {rootName} 的游走根下标 {oldWalk.RootIndex} 越界。");
             Battle root = roots[oldWalk.RootIndex].Battle;
             (ScoreFeatures rootFeatures, ulong rootScore, byte rootBoundStatus, ulong rootBound) =
-                D1Verifier.ComputeFeatures(root, rootActionCount, scorer, bound);
+                SimulationVerifier.ComputeFeatures(root, rootActionCount, scorer, bound);
             ScoreFeatures walkFeatures = rootFeatures;
             ulong walkScore = rootScore;
             byte walkBoundStatus = rootBoundStatus;
@@ -332,8 +332,8 @@ internal static class RerecordCommand
                     break;
                 }
                 (ScoreFeatures after, ulong scoreHash, byte boundStatus, ulong boundHash) =
-                    D1Verifier.ComputeFeatures(completion.Child, 1, scorer, bound);
-                (bool traitPresent, ulong traitHash) = D1Verifier.ComputeTrait(battle,
+                    SimulationVerifier.ComputeFeatures(completion.Child, 1, scorer, bound);
+                (bool traitPresent, ulong traitHash) = SimulationVerifier.ComputeTrait(battle,
                     walkFeatures, after, completion.Child, completion.Action, rules,
                     completion.HistoryRisk);
                 PlayerAction recorded = completion.Action;

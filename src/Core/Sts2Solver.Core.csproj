@@ -9,6 +9,5 @@
     <InternalsVisibleTo Include="Sts2Solver.Golden" />
     <InternalsVisibleTo Include="Sts2Solver.Import" />
     <InternalsVisibleTo Include="Differential" />
-    <InternalsVisibleTo Include="Sts2Solver.OfflineHost" />
   </ItemGroup>
 </Project>

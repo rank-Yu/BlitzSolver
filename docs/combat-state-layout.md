@@ -47,7 +47,7 @@
 
 `CardFlags.PowerAfflictionChecked`（bit 7）对应 `PredictedCard.HasCheckedPowerAfflictionEntry`：根导入时置位，根之后生成的卡清零，第一次归一化后置位；`Keywords.CreatedAfterRoot`（bit 7）不是原生关键字，对应 `_liveCardsAtSnapshot` 之外的卡，只用于一次性苦难进场检查。卡牌尺寸为 92 字节。`TransientMark` 是一次动作内的对象身份标记，占用原有尾部填充字节：`BeatDown` 使用 1..63；64..255 是共享的动态分配区间，由栈上的 `Exec.TransientMarkBase` 分配互不重叠的嵌套区间（Sly/Stoke、`DecisionsDecisions` 的重复自动打出、Mayhem 的自动预打出队列）。嵌套批次丢弃同一张已带外层标记的卡时，内层在自动打出前把外层标记写回，再让卡值随自动打出移动；0 表示未标记，动作结束前清除，稳定边界恒为 0，克隆与生成卡从 0 开始。
 
-这组内容没有新增计数器，Hook 位沿用 `HookMaskExt` 的 `1UL << 16`，`Card`/`Battle` 尺寸不变。`AmountOnTurnStart` 只对三个会被结算读取的 Power 保存（`DrawCardsNextTurnPower`、`SummonNextTurnPower`、`HelloWorldPower`），其余 Power 在导入与回合开始快照时保持 0；这是把原生模型里“镜像扣层尚未同步”的滞后值归一化，避免 Sts2Solver 立即扣层后与旧投影差异（依据见 [准入](archive/admission-and-verification.md)）。
+这组内容没有新增计数器，Hook 位沿用 `HookMaskExt` 的 `1UL << 16`，`Card`/`Battle` 尺寸不变。`AmountOnTurnStart` 只对三个会被结算读取的 Power 保存（`DrawCardsNextTurnPower`、`SummonNextTurnPower`、`HelloWorldPower`），其余 Power 在导入与回合开始快照时保持 0；这是把原生模型里“镜像扣层尚未同步”的滞后值归一化，避免 Sts2Solver 立即扣层后与旧投影差异（依据见 [准入](https://github.com/rank-Yu/sts2-solver/blob/dev/full-run/docs/archive/admission-and-verification.md)）。
 
 卡牌没有实例身份。牌堆里两张完全相同的打击字节相同，可以互换。路线和选择都按位置记录。
 

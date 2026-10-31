@@ -1,15 +1,10 @@
-// --combat-pilot-compare: drive a Low-tier CombatPilot through the original game's public action
-// entry points in one child process, and compare every play-phase action boundary by importing the
-// native combat state and comparing it with the Sts2Solver prediction byte for byte. A terminal action
-// ends combat before another playable native boundary exists, so it is not reimported; the pilot's
-// terminal outcome/status is reported instead. The run-level write-back is gone.
+// 原版战斗动作与终局对照：只通过原版建战斗，不依赖局外状态或开战预测。
 using System.Diagnostics;
 using System.Globalization;
 using Sts2Solver.Ai.Combat;
 using Sts2Solver.Autoplay;
 using Sts2Solver.Import;
 using Sts2Solver.Simulation.Combat;
-using Sts2Solver.Simulation.Run;
 using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -25,8 +20,6 @@ namespace Differential;
 
 internal static class CombatPilotCompare
 {
-    private static ContentTable? _table;
-
     public static int Run(string[] args)
     {
         string data = "tests/Golden/data";
@@ -78,7 +71,6 @@ internal static class CombatPilotCompare
         GameBootstrap.SkipGodotNodeStaticConstructors();
         GameBootstrap.InitializeStaticState();
         TerminalBattleCapture.Install();
-        _table = ContentTableExporter.Export();
         return ComparePilot(loop, data, corpora, root);
     }
 
@@ -225,56 +217,24 @@ internal static class CombatPilotCompare
     private static int ComparePilot(MainLoopContext loop, string data, string corpora, string root)
     {
         OfflineRequest request = Program.LoadRequest(data, corpora, root);
-        if (request.Relics.Any(static relic => relic.IntegerMembers.Count != 0
-            || relic.BooleanMembers.Count != 0))
-        {
-            Console.WriteLine(
-                $"PILOT root={root} status=reject reason=unsupported-relic-state " +
-                "outcome=reject actions=0");
-            return 0;
-        }
-        GeneratedScenarioSetup setup = GeneratedScenarioSetup.Prepare(request);
-        OfflineCombatWaiter waiter = new(loop);
-        Task<ScenarioBuilder.PreparedRun> prepare = ScenarioBuilder.PrepareRunAsync(
-            waiter, setup.Request, preparedSetup: setup);
-        loop.RunUntilCompleted(prepare, TimeSpan.FromSeconds(120), "pilot 建局");
-        using ScenarioBuilder.PreparedRun prepared = prepare.GetAwaiter().GetResult();
-        EncounterModel target = prepared.Encounter;
-        int actIndex = prepared.Run.CurrentActIndex;
-        ForceNextEncounter(prepared.Run, target, actIndex);
-        MapPoint point = FindPoint(prepared.Run, target.RoomType);
-        RunCoord coord = new((byte)point.coord.col, (byte)point.coord.row);
         try
         {
-            Sts2Solver.Simulation.Run.RunState before =
-                RunStateImporter.Import(prepared.Run, prepared.Player);
-            CombatSetupResult setupEntry = CombatSetupChoices.ResolveFirst(before, _table!, coord,
-                emptyGambling: true, out _, out _);
-            CombatState combat;
-            Player combatPlayer;
-            NativeRunState after;
-            Rules nativeRules;
-            Battle opening;
-            LiveCombatTracker tracker;
-            using (CardSelectCmd.PushSelector(new FirstChoiceCombatSetupSelector()))
-            {
-                Task enter = RunManager.Instance.EnterMapCoord(point.coord);
-                loop.RunUntilCompleted(enter, TimeSpan.FromSeconds(120), "pilot 原生进点");
-                combat = waiter.WaitForPlayableCombatAsync()
-                    .GetAwaiter().GetResult();
-                combatPlayer = LocalContext.GetMe(combat)
-                    ?? throw new InvalidDataException("原生战斗找不到玩家。");
-                after = combat.RunState as NativeRunState
-                    ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
-                nativeRules = RulesCompiler.Compile(combat, combatPlayer, after);
-                tracker = new LiveCombatTracker(combat);
-                opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
-            }
-            List<string> setupDiff = BattleDump.Diff(opening, setupEntry.Battle, "native", "solver");
-            if (setupDiff.Count != 0)
-                return Diff(root, -1, "setup", setupDiff, target.Id.Entry);
+            OfflineCombatWaiter waiter = new(loop);
+            Task<CombatState> build = ScenarioBuilder.BuildAsync(waiter, request);
+            loop.RunUntilCompleted(build, TimeSpan.FromSeconds(120), "pilot 战斗场景");
+            CombatState combat = build.GetAwaiter().GetResult();
+            string encounterId = combat.Encounter?.Id.Entry
+                ?? throw new InvalidDataException("原生战斗没有遭遇。");
+            Player combatPlayer = LocalContext.GetMe(combat)
+                ?? throw new InvalidDataException("原生战斗找不到玩家。");
+            NativeRunState run = combat.RunState as NativeRunState
+                ?? throw new InvalidDataException("原生战斗的 RunState 类型不对。");
+            Rules nativeRules = RulesCompiler.Compile(combat, combatPlayer, run);
+            LiveCombatTracker tracker = new(combat);
+            Battle opening = tracker.ImportRoot(combat, combatPlayer, nativeRules);
             tracker.Observe(opening);
-            SearchPolicy policy = SearchPolicyCapture.Capture(combat, combatPlayer);
+            SearchPolicy policy = SearchPolicyOverrides.ApplyOverrides(
+                SearchPolicyCapture.Capture(combat, combatPlayer), request, combatPlayer);
             NativePilotHost host = new(loop, combat, combatPlayer, nativeRules, tracker, opening,
                 policy, SearchPerformanceProfile.For(SearchPerformanceTier.Low), OfflineCombatSettings.DefaultMemoryBudgetBytes);
             CombatPilotResult result = CombatPilot.RunAsync(host, root, CancellationToken.None)
@@ -293,7 +253,7 @@ internal static class CombatPilotCompare
                 Console.WriteLine(
                     $"PILOT root={root} status={status} reason={reason} " +
                     $"outcome={result.Outcome} actions={DeployedActions(host.Coverage)} " +
-                    $"turns={result.Turns} encounter={target.Id.Entry}");
+                    $"turns={result.Turns} encounter={encounterId}");
                 Console.WriteLine("  " + detail);
                 WriteCoverage(host.Coverage);
                 return status == "reject" ? 0 : 1;
@@ -302,16 +262,8 @@ internal static class CombatPilotCompare
             Console.WriteLine(
                 $"PILOT root={root} status=same outcome={outcome} " +
                 $"actions={DeployedActions(host.Coverage)} turns={host.Current.PlayerTurn} " +
-                $"encounter={target.Id.Entry}");
+                $"encounter={encounterId}");
             WriteCoverage(host.Coverage);
-            return 0;
-        }
-        catch (ContentUnavailableException error)
-        {
-            Console.WriteLine(
-                $"PILOT root={root} status=reject reason={error.Reason} " +
-                "outcome=reject actions=0");
-            Console.WriteLine("  " + error.Detail);
             return 0;
         }
         catch (UnsupportedImportException error)
@@ -348,18 +300,6 @@ internal static class CombatPilotCompare
         _ => "in_progress",
     };
 
-    private static int Diff(string root, int actionIndex, string action,
-        List<string> diff, string? encounterName)
-    {
-        Console.WriteLine(
-            $"PILOT root={root} status=executor-diff action={actionIndex} " +
-            $"outcome=diff actions=0 encounter={encounterName ?? "-"}");
-        Console.WriteLine("  ACTION " + action);
-        foreach (string line in diff.Take(16))
-            Console.WriteLine("  BATL " + line);
-        return 1;
-    }
-
     private static int DeployedActions(CombatActionCoverage coverage)
     {
         int total = 0;
@@ -375,73 +315,8 @@ internal static class CombatPilotCompare
             $"effects={string.Join(',', coverage.Effects.Select(static pair => $"{pair.Key}:{pair.Count}"))}");
     }
 
-    private static void ForceNextEncounter(NativeRunState run, EncounterModel encounter, int actIndex)
-    {
-        ActModel act = run.Acts[actIndex];
-        RoomSet rooms = (RoomSet)(typeof(ActModel)
-            .GetField("_rooms", System.Reflection.BindingFlags.Instance
-                | System.Reflection.BindingFlags.NonPublic)
-            ?.GetValue(act) ?? throw new InvalidDataException("ActModel._rooms 不存在。"));
-        switch (encounter.RoomType)
-        {
-            case RoomType.Monster:
-                if (rooms.normalEncounters.Count == 0)
-                    throw new InvalidDataException("本幕没有普通遭遇。");
-                rooms.normalEncounters[rooms.normalEncountersVisited % rooms.normalEncounters.Count] =
-                    encounter;
-                break;
-            case RoomType.Elite:
-                if (rooms.eliteEncounters.Count == 0)
-                    throw new InvalidDataException("本幕没有精英遭遇。");
-                rooms.eliteEncounters[rooms.eliteEncountersVisited % rooms.eliteEncounters.Count] =
-                    encounter;
-                break;
-            case RoomType.Boss:
-                rooms.Boss = encounter;
-                break;
-            default:
-                throw new InvalidDataException($"不是战斗遭遇：{encounter.Id.Entry}。");
-        }
-    }
-
-    private static MapPoint FindPoint(NativeRunState run, RoomType roomType)
-    {
-        MapPointType type = roomType switch
-        {
-            RoomType.Monster => MapPointType.Monster,
-            RoomType.Elite => MapPointType.Elite,
-            RoomType.Boss => MapPointType.Boss,
-            _ => throw new InvalidDataException($"不是战斗房间：{roomType}。"),
-        };
-        if (type == MapPointType.Boss)
-            return run.Map.BossMapPoint;
-        foreach (MapPoint point in run.Map.StartingMapPoint.Children)
-        {
-            if (point.PointType == type && !run.VisitedMapCoords.Contains(point.coord))
-                return point;
-        }
-        foreach (MapPoint point in run.Map.GetAllMapPoints())
-        {
-            if (point.PointType == type && !run.VisitedMapCoords.Contains(point.coord))
-                return point;
-        }
-        throw new InvalidDataException($"地图没有可用的 {type} 点。");
-    }
-
     private static IEnumerable<string> EnumeratePilotRoots(string data, string corpora)
-    {
-        string quality = Path.Combine(corpora, "quality");
-        if (!Directory.Exists(quality))
-            yield break;
-        foreach (string name in Directory.EnumerateDirectories(quality)
-                     .Where(directory => File.Exists(Path.Combine(directory, "spec.json")))
-                     .Select(directory => "quality-" + Path.GetFileName(directory))
-                     .Where(name => File.Exists(Path.Combine(data, "d1", name, "meta.json")))
-                     .OrderBy(static name => name, StringComparer.Ordinal))
-        {
-            yield return name;
-        }
-    }
+        => OfflineCombat.EnumerateQualityRoots(corpora);
 
     private static (int Code, string Stdout, string Stderr) RunChildProcess(string data,
         string corpora, string[] caseArgs)

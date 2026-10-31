@@ -1,18 +1,14 @@
-// Single-Beam in-game driver. The main-thread capture / background worker / main-thread completion
+// In-game worker for a single member of the combat search portfolio. The main-thread capture / background worker / main-thread completion
 // split and the cancellation lifecycle are adapted from CombatSolver src/Runtime/SolverController.cs
-// at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors); only the single search
-// path is carried over, without deployment, continuation or portfolio logic.
+// at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors); each call runs one search member; CombatPilotHost owns portfolio scheduling and deployment.
 using System.Diagnostics;
 using System.Text.Json;
 using Sts2Solver.Simulation.Combat;
 using Sts2Solver.Import;
 using Sts2Solver.Ai.Combat;
-using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
-using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Nodes;
-using MegaCrit.Sts2.Core.Runs;
 
 namespace Sts2Solver;
 
@@ -24,65 +20,19 @@ namespace Sts2Solver;
 internal static class SearchSession
 {
     private static readonly object Gate = new();
+    private static readonly JsonSerializerOptions ResultJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
     private static CancellationTokenSource? _cancellation;
     private static Task<BeamResult>? _worker;
     private static string? _cancelReason;
     private static int _running;
-    private static int _starting;
     private static string _root = "";
 
     public static bool IsRunning => Volatile.Read(ref _running) != 0;
-
-    /// <summary>
-    /// Captures the imported root on the main thread, compiles the request, then runs the solver on
-    /// a worker. <paramref name="request"/> is null for the ordinary-game hotkey path.
-    /// </summary>
-    public static async Task<SearchRunResult> CaptureAndRunAsync(
-        NGame host,
-        CombatState combat,
-        OfflineRequest? request,
-        string root,
-        bool deterministic,
-        SearchPerformanceTier tier,
-        string? resultDirectory,
-        int? cancelAfterMilliseconds)
-    {
-        if (!NGame.IsMainThread())
-            throw new InvalidOperationException("搜索请求必须在游戏主线程组装。");
-        if (Interlocked.CompareExchange(ref _starting, 1, 0) != 0)
-            return SearchRunResult.Busy(root);
-        try
-        {
-            SearchCase searchCase = CaptureCase(combat, request, deterministic, tier,
-                ImportOptions.Default);
-            return await RunAsync(
-                host, root, searchCase, deterministic, tier, resultDirectory,
-                cancelAfterMilliseconds);
-        }
-        finally
-        {
-            Volatile.Write(ref _starting, 0);
-        }
-    }
-
-    /// <summary>
-    /// Captures the live root and compiles one search request without running it. The auto-combat
-    /// driver uses this for its first and every re-search root; <paramref name="importOptions"/>
-    /// carries the stable known-enemy order for a mid-combat import.
-    /// </summary>
-    public static SearchCase CaptureCase(CombatState combat, OfflineRequest? request,
-        bool deterministic, SearchPerformanceTier tier, ImportOptions importOptions)
-    {
-        if (!NGame.IsMainThread())
-            throw new InvalidOperationException("搜索请求必须在游戏主线程组装。");
-        Player player = LocalContext.GetMe(combat)
-            ?? throw new InvalidOperationException("找不到本地玩家。");
-        if (combat.RunState is not RunState runState)
-            throw new InvalidDataException("原生战斗的 RunState 不是具体 RunState。");
-        Rules rules = RulesCompiler.Compile(combat, player, runState);
-        Battle battle = BattleImporter.Import(combat, player, rules, importOptions);
-        return CompileCase(combat, player, rules, battle, request, deterministic, tier);
-    }
 
     /// <summary>
     /// Compiles a request for an already imported root and an already frozen rule table. Auto
@@ -90,12 +40,11 @@ internal static class SearchSession
     /// dead monsters, but the frozen rule table still describes the root's full monster closure.
     /// </summary>
     public static SearchCase CompileCase(CombatState combat, Player player, Rules rules, Battle battle,
-        OfflineRequest? request, bool deterministic, SearchPerformanceTier tier)
+        Func<SearchPolicy, Player, SearchPolicy>? configurePolicy, bool deterministic, SearchPerformanceTier tier)
     {
-        SearchPolicy policy = request == null
-            ? SearchPolicyCapture.Capture(combat, player)
-            : SearchPolicyOverrides.ApplyOverrides(
-                SearchPolicyCapture.Capture(combat, player), request, player);
+        SearchPolicy policy = SearchPolicyCapture.Capture(combat, player);
+        if (configurePolicy != null)
+            policy = configurePolicy(policy, player);
         return SearchRequestCompiler.CompileRequest(
             combat, player, rules, battle, policy, EvaluationRootFacts.Default,
             SearchPerformanceProfile.For(tier), deterministic, SearchMemoryBudget.Bytes);
@@ -170,7 +119,7 @@ internal static class SearchSession
 
             while (!worker.IsCompleted)
             {
-                await GodotCombatWaiter.NextFrameAsync(host);
+                await CombatFrameWaiter.NextFrameAsync(host);
                 long now = Stopwatch.GetTimestamp();
                 if (!deterministic)
                 {
@@ -298,7 +247,7 @@ internal static class SearchSession
                     + $"running={IsRunning}");
                 return false;
             }
-            await GodotCombatWaiter.NextFrameAsync(host);
+            await CombatFrameWaiter.NextFrameAsync(host);
         }
         return true;
     }
@@ -350,7 +299,7 @@ internal static class SearchSession
     private static void WriteJson<T>(string path, T value)
     {
         string temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(value, OfflineJson.Options));
+        File.WriteAllText(temporary, JsonSerializer.Serialize(value, ResultJson));
         File.Move(temporary, path, true);
     }
 }

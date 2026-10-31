@@ -20,7 +20,7 @@ instance=""
 instance_root="${STS2_SOLVER_HEADLESS_ROOT:-$repo_root/.local/headless-instances}"
 game_root="$HOME/games/sts2"
 ritsu_root="$HOME/games/sts2/steamapps/workshop/content/2868840/3747602295"
-mod_dir="$repo_root/artifacts/mod/Sts2Solver"
+mod_dir="$repo_root/artifacts/mod-testing/Sts2Solver"
 seed_data="$HOME/ss/CombatSolver/.local/headless-seed/data"
 offline_host="$repo_root/artifacts/bin/Differential/release/Differential.dll"
 requests_dir=""
@@ -61,7 +61,7 @@ usage() {
   --instance-root DIR          实例根（默认 .local/headless-instances）
   --game-root DIR              游戏目录（默认 ~/games/sts2）
   --ritsu-root DIR             RitsuLib 目录（默认 workshop 3747602295）
-  --mod-dir DIR                Sts2Solver Mod 目录（默认 artifacts/mod/Sts2Solver）
+  --mod-dir DIR                Sts2Solver Mod 目录（默认 artifacts/mod-testing/Sts2Solver）
   --seed-data DIR              种子 XDG_DATA_HOME/data（默认 CombatSolver headless-seed/data）
   --offline-host-dll FILE      Differential.dll（用于 --roots-file/--root 生成请求）
   --combat-solver-dir DIR      CombatSolver Mod 目录（默认 ~/games/sts2/mods/CombatSolver）

@@ -1,21 +1,13 @@
 using System.Reflection;
 using System.Reflection.Emit;
-using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Architecture;
 
-/// <summary>
-/// Reads the compiled <c>Sts2Solver.Core</c> assembly and checks the layer dependency rules from
-/// <c>docs/full-run-design.md</c> section 4. Type references are discovered from signatures, base
-/// types, interfaces, locals and IL operands; BCL types are always allowed and are ignored by the
-/// layer classifier.
-/// </summary>
+/// <summary>检查编译后的类型签名、字段和 IL 引用，约束战斗核心的依赖方向。</summary>
 internal static class DependencyChecker
 {
-    internal static IReadOnlyList<Violation> Check(Assembly assembly,
-        IReadOnlySet<string>? visibleRunTypes = null)
+    internal static IReadOnlyList<Violation> Check(Assembly assembly)
     {
-        visibleRunTypes ??= ArchitectureRules.VisibleRunTypes;
         List<Violation> violations = [];
         HashSet<(string Source, string Target)> seen = [];
         foreach (Type sourceType in assembly.GetTypes())
@@ -26,9 +18,7 @@ internal static class DependencyChecker
             foreach ((Type targetType, string via) in TypeReferences.Of(sourceType))
             {
                 Layer target = ArchitectureRules.LayerOf(targetType.Namespace);
-                if (target == Layer.None || target == source)
-                    continue;
-                if (ArchitectureRules.Allows(source, target, targetType, visibleRunTypes))
+                if (target == Layer.None || target == source || ArchitectureRules.Allows(source, target))
                     continue;
                 string sourceName = ArchitectureRules.TypeName(sourceType);
                 string targetName = ArchitectureRules.TypeName(targetType);
@@ -36,47 +26,7 @@ internal static class DependencyChecker
                     violations.Add(new Violation(sourceName, targetName, via));
             }
         }
-        foreach (Type root in assembly.GetTypes())
-        {
-            if (!visibleRunTypes.Contains(ArchitectureRules.TypeName(root))
-                || root.IsAbstract && root.IsSealed)
-                continue;
-            CheckVisibleFields(root, root, visibleRunTypes, new HashSet<Type>(), violations, "visible DTO");
-        }
         return violations;
-    }
-
-    private static void CheckVisibleFields(Type root, Type type, IReadOnlySet<string> visible,
-        HashSet<Type> visited, List<Violation> violations, string via)
-    {
-        if (!visited.Add(type))
-            return;
-        if (!type.IsValueType || type.IsPointer || type.IsByRef || type.IsByRefLike
-            || type == typeof(IntPtr) || type == typeof(UIntPtr))
-        {
-            violations.Add(new Violation(ArchitectureRules.TypeName(root), ArchitectureRules.TypeName(type),
-                via + " (managed or indirection)"));
-            return;
-        }
-        if (type.IsPrimitive)
-            return;
-        if (ArchitectureRules.LayerOf(type.Namespace) == Layer.SimulationRun
-            && !visible.Contains(ArchitectureRules.TypeName(type)))
-        {
-            violations.Add(new Violation(ArchitectureRules.TypeName(root), ArchitectureRules.TypeName(type),
-                via + " (unregistered nested payload)"));
-            return;
-        }
-        if (type.IsEnum)
-            return;
-        if (ArchitectureRules.LayerOf(type.Namespace) != Layer.SimulationRun)
-        {
-            violations.Add(new Violation(ArchitectureRules.TypeName(root), ArchitectureRules.TypeName(type),
-                via + " (non-visible payload type)"));
-            return;
-        }
-        foreach (FieldInfo field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-            CheckVisibleFields(root, field.FieldType, visible, visited, violations, via + "." + field.Name);
     }
 }
 
@@ -85,123 +35,30 @@ internal sealed record Violation(string Source, string Target, string Via)
     public override string ToString() => $"{Source} -> {Target} via {Via}";
 }
 
-internal enum Layer
-{
-    None,
-    SimulationCombat,
-    SimulationRun,
-    Content,
-    AiCombat,
-    AiRun,
-    Autoplay,
-}
+internal enum Layer { None, SimulationCombat, Content, AiCombat, Autoplay }
 
 internal static class ArchitectureRules
 {
-    /// <summary>
-    /// <c>Simulation.Run</c> types that <c>Ai.Run</c> may see: only visible projections and
-    /// decision requests and their protocol helpers, registered explicitly.
-    /// </summary>
-    internal static readonly IReadOnlySet<string> VisibleRunTypes = new HashSet<string>(
-        StringComparer.Ordinal)
-    {
-        "Sts2Solver.Simulation.Run.RunView",
-        "Sts2Solver.Simulation.Run.RunView+PlayerView",
-        "Sts2Solver.Simulation.Run.RunView+PotionView",
-        "Sts2Solver.Simulation.Run.RunView+PotionViewArray",
-        "Sts2Solver.Simulation.Run.RunView+CardView",
-        "Sts2Solver.Simulation.Run.RunView+CardViewArray",
-        "Sts2Solver.Simulation.Run.RunView+DeckView",
-        "Sts2Solver.Simulation.Run.RunView+RelicView",
-        "Sts2Solver.Simulation.Run.RunView+RelicViewArray",
-        "Sts2Solver.Simulation.Run.RunView+RelicViewSet",
-        "Sts2Solver.Simulation.Run.RunView+MapPointView",
-        "Sts2Solver.Simulation.Run.RunView+MapPointViewArray",
-        "Sts2Solver.Simulation.Run.RunView+MapView",
-        "Sts2Solver.Simulation.Run.RunView+RoomView",
-        "Sts2Solver.Simulation.Run.RunView+RoomViewArray",
-        "Sts2Solver.Simulation.Run.RunView+ShopView",
-        "Sts2Solver.Simulation.Run.RunView+ShopCardView",
-        "Sts2Solver.Simulation.Run.RunView+ShopCardViewArray",
-        "Sts2Solver.Simulation.Run.RunView+ShopColorlessCardViewArray",
-        "Sts2Solver.Simulation.Run.RunView+ShopModelView",
-        "Sts2Solver.Simulation.Run.RunView+ShopRelicViewArray",
-        "Sts2Solver.Simulation.Run.RunView+ShopPotionViewArray",
-        "Sts2Solver.Simulation.Run.RunShopStage",
-        "Sts2Solver.Simulation.Run.RunShopEntryFlags",
-        "Sts2Solver.Simulation.Run.RunView+RoomViewSet",
-        "Sts2Solver.Simulation.Run.RunCoord",
-        "Sts2Solver.Simulation.Run.RunRef",
-        "Sts2Solver.Simulation.Run.RunRefKind",
-        "Sts2Solver.Simulation.Run.RunDecision",
-        "Sts2Solver.Simulation.Run.RunRewardType",
-        "Sts2Solver.Simulation.Run.RunRewardStage",
-        "Sts2Solver.Simulation.Run.RunRewardFlags",
-        "Sts2Solver.Simulation.Run.RunDecisionRequest",
-        "Sts2Solver.Simulation.Run.RunDecisionOption",
-        "Sts2Solver.Simulation.Run.RunDecisionOptionKind",
-        "Sts2Solver.Simulation.Run.RunDecisionOptionArray",
-        "Sts2Solver.Simulation.Run.RunAction",
-        "Sts2Solver.Simulation.Run.RunActionKind",
-        "Sts2Solver.Simulation.Run.RunDecisionToken",
-        "Sts2Solver.Simulation.Run.RunDecisionSlice",
-        "Sts2Solver.Simulation.Run.RunDecisionKnowledge",
-        "Sts2Solver.Simulation.Run.RunDecisionOptionFlags",
-        "Sts2Solver.Simulation.Run.RunDecisionPayloadKind",
-        "Sts2Solver.Simulation.Run.RunSelectionPurpose",
-        "Sts2Solver.Simulation.Run.RunDecisionFactKind",
-        "Sts2Solver.Simulation.Run.RunDecisionFact",
-        "Sts2Solver.Simulation.Run.RunDecisionFactArray",
-        "Sts2Solver.Simulation.Run.RunDecisionCardArray",
-        "Sts2Solver.Simulation.Run.RunDecisionKeyArray",
-        "Sts2Solver.Simulation.Run.RunDecisionLimits",
-        "Sts2Solver.Simulation.Run.RunOptionIdArray",
-        "Sts2Solver.Simulation.Run.RunDecisionProtocol",
-        "Sts2Solver.Simulation.Run.RunDecisionBuilder",
-        "Sts2Solver.Simulation.Run.RunMapPointType",
-        "Sts2Solver.Simulation.Run.RunRoomType",
-        "Sts2Solver.Simulation.Run.RunRelicStatus",
-        "Sts2Solver.Simulation.Run.RunRelicFlags",
-        "Sts2Solver.Simulation.Run.RunLimits",
-        "Sts2Solver.Simulation.Run.RunOdds",
-        "Sts2Solver.Simulation.Run.RunPlayerOdds",
-        "Sts2Solver.Simulation.Run.RunMapStartArray",
-        "Sts2Solver.Simulation.Run.RunMapChildren",
-    };
-
     internal static Layer LayerOf(string? ns)
     {
-        if (ns is null)
-            return Layer.None;
-        if (ns == "Sts2Solver.Simulation.Combat" || ns.StartsWith("Sts2Solver.Simulation.Combat.", StringComparison.Ordinal))
-            return Layer.SimulationCombat;
-        if (ns == "Sts2Solver.Simulation.Run" || ns.StartsWith("Sts2Solver.Simulation.Run.", StringComparison.Ordinal))
-            return Layer.SimulationRun;
-        if (ns == "Sts2Solver.Content" || ns.StartsWith("Sts2Solver.Content.", StringComparison.Ordinal))
-            return Layer.Content;
-        if (ns == "Sts2Solver.Ai.Combat" || ns.StartsWith("Sts2Solver.Ai.Combat.", StringComparison.Ordinal))
-            return Layer.AiCombat;
-        if (ns == "Sts2Solver.Ai.Run" || ns.StartsWith("Sts2Solver.Ai.Run.", StringComparison.Ordinal))
-            return Layer.AiRun;
-        if (ns == "Sts2Solver.Autoplay" || ns.StartsWith("Sts2Solver.Autoplay.", StringComparison.Ordinal))
-            return Layer.Autoplay;
+        if (ns is null) return Layer.None;
+        if (In(ns, "Sts2Solver.Simulation.Combat")) return Layer.SimulationCombat;
+        if (In(ns, "Sts2Solver.Content")) return Layer.Content;
+        if (In(ns, "Sts2Solver.Ai.Combat")) return Layer.AiCombat;
+        if (In(ns, "Sts2Solver.Autoplay")) return Layer.Autoplay;
         return Layer.None;
     }
 
-    internal static bool Allows(Layer source, Layer target, Type targetType,
-        IReadOnlySet<string> visibleRunTypes)
-        => source switch
-        {
-            Layer.SimulationCombat => false,
-            Layer.SimulationRun => target is Layer.SimulationCombat,
-            Layer.Content => target is Layer.SimulationCombat or Layer.SimulationRun,
-            Layer.AiCombat => target is Layer.SimulationCombat,
-            Layer.AiRun => target is Layer.SimulationRun
-                && visibleRunTypes.Contains(TypeName(targetType)),
-            Layer.Autoplay => target is Layer.SimulationCombat or Layer.SimulationRun
-                or Layer.AiCombat or Layer.AiRun,
-            _ => true,
-        };
+    private static bool In(string ns, string layer)
+        => ns == layer || ns.StartsWith(layer + ".", StringComparison.Ordinal);
+
+    internal static bool Allows(Layer source, Layer target) => source switch
+    {
+        Layer.SimulationCombat => false,
+        Layer.Content or Layer.AiCombat => target == Layer.SimulationCombat,
+        Layer.Autoplay => target is Layer.SimulationCombat or Layer.AiCombat,
+        _ => false,
+    };
 
     internal static string TypeName(Type type)
         => type.IsGenericType

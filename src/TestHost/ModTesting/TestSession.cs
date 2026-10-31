@@ -100,7 +100,7 @@ internal static class TestSession
                     skipInitialInjection: request.FlashTurnSetupRootForTest);
                 ModLog.Info($"[Sts2Solver] BUILD_COMPLETED root={root}");
                 stage = "settle";
-                await GodotCombatWaiter.SettleAsync(host);
+                await CombatFrameWaiter.SettleAsync(host);
                 stage = "capture";
                 CapturedSearch? captured = Capture(resultDirectory, root, request, combat);
                 SearchPerformanceTier tier = SearchPerformanceProfile.ParseTier(request.SearchTier);
@@ -391,7 +391,8 @@ internal static class TestSession
             SaveManager.Instance.PrefsSave.FastMode = instant;
             ModLog.Info(
                 $"[Sts2Solver] FULL_COMBAT_START root={root} fast_mode={instant} tier={tier}");
-            return await AutoCombatSession.RunAsync(host, combat, request, root, tier,
+            return await AutoCombatSession.RunAsync(host, combat,
+                (policy, player) => SearchPolicyOverrides.ApplyOverrides(policy, request, player), root, tier,
                 CancellationToken.None, cancelAfterMilliseconds);
         }
         finally
@@ -441,11 +442,11 @@ internal static class TestSession
         {
             if (host.MainMenu != null && !RunManager.Instance.IsInProgress)
             {
-                await GodotCombatWaiter.NextFrameAsync(host);
-                await GodotCombatWaiter.NextFrameAsync(host);
+                await CombatFrameWaiter.NextFrameAsync(host);
+                await CombatFrameWaiter.NextFrameAsync(host);
                 return;
             }
-            await GodotCombatWaiter.NextFrameAsync(host);
+            await CombatFrameWaiter.NextFrameAsync(host);
         }
         throw new TimeoutException("等待主菜单就绪超时。");
     }
@@ -463,7 +464,7 @@ internal static class TestSession
             {
                 return;
             }
-            await GodotCombatWaiter.NextFrameAsync(host);
+            await CombatFrameWaiter.NextFrameAsync(host);
         }
         throw new TimeoutException("返回主菜单超时。");
     }

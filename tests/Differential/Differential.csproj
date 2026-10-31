@@ -21,7 +21,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Import/Sts2Solver.Import.csproj" />
     <ProjectReference Include="../../src/TestHost/Sts2Solver.TestHost.csproj" />
-    <ProjectReference Include="../../src/OfflineHost/Sts2Solver.OfflineHost.csproj" />
     <Compile Include="../Golden/GoldenHash.cs" Link="GoldenHash.cs" />
   </ItemGroup>
 </Project>

@@ -7,7 +7,6 @@ using Sts2Solver.Simulation.Combat;
 using Sts2Solver.Import;
 using Sts2Solver.Autoplay;
 using Sts2Solver.Ai.Combat;
-using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -44,11 +43,13 @@ internal static class AutoCombatSession
             ModLog.Info("[Sts2Solver] AUTO_STOP_REQUESTED reason=hotkey");
             return;
         }
+#if STS2_SOLVER_TESTING
         if (TestSession.Active)
         {
             ModLog.Info("[Sts2Solver] AUTO_REJECTED reason=test_session_active");
             return;
         }
+#endif
         CombatState? combat = CombatManager.Instance.DebugOnlyGetState();
         if (combat == null || !CombatManager.Instance.IsInProgress)
         {
@@ -70,7 +71,7 @@ internal static class AutoCombatSession
     {
         try
         {
-            CombatPilotResult result = await RunAsync(host, combat, request: null, root: "manual",
+            CombatPilotResult result = await RunAsync(host, combat, configurePolicy: null, root: "manual",
                 SearchPerformanceTier.Medium, CancellationToken.None);
             ModLog.Info(
                 $"[Sts2Solver] AUTO_DONE root=manual status={result.Status} outcome={result.Outcome} " +
@@ -114,7 +115,7 @@ internal static class AutoCombatSession
     }
 
     internal static async Task<CombatPilotResult> RunAsync(NGame host, CombatState combat,
-        OfflineRequest? request, string root, SearchPerformanceTier tier, CancellationToken external,
+        Func<SearchPolicy, Player, SearchPolicy>? configurePolicy, string root, SearchPerformanceTier tier, CancellationToken external,
         int? cancelAfterMilliseconds = null)
     {
         if (!NGame.IsMainThread())
@@ -144,7 +145,7 @@ internal static class AutoCombatSession
             ModLog.Info(
                 $"[Sts2Solver] AUTO_START root={root} turn={lastTurn} hp={lastHp}/{lastMaxHp} " +
                 $"enemies={tracker.RootEnemyCount} tier={tier}");
-            CombatPilotHost combatHost = new(host, rules, tracker, request, tier, root, combat, player);
+            CombatPilotHost combatHost = new(host, rules, tracker, configurePolicy, tier, root, combat, player);
             using Timer? cancelTimer = cancelAfterMilliseconds is { } cancelLimit
                 ? new Timer(static _ => Cancel("test_cancel_after_ms"), null, cancelLimit,
                     Timeout.Infinite)
@@ -211,7 +212,7 @@ internal static class AutoCombatSession
                 ModLog.Error($"[Sts2Solver] AUTO_CANCEL_TIMEOUT reason={reason}");
                 return false;
             }
-            await GodotCombatWaiter.NextFrameAsync(host);
+            await CombatFrameWaiter.NextFrameAsync(host);
         }
         return true;
     }

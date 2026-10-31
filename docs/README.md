@@ -1,82 +1,46 @@
-# Sts2Solver 文档
+# 架构与文档索引
 
-Sts2Solver 是一个只依赖 BCL 的战斗搜索与结算内核。它把一场战斗保存在固定大小、不含对象引用的结构体里，分叉只需复制内存，在受支持的战斗上以较低开销展开 Beam 搜索，并用冻结快照校验搜索与结算结果。项目的目标是整局自动游玩：局外由原版 `sts2.dll` 推进，Sts2Solver 负责战斗与局外策略，架构见 [整局设计](full-run-design.md)。
+主分支发布战斗求解 Mod；局外开发保存在 `dev/full-run`，不参与主分支构建。
 
-本目录保留架构、接口、使用说明和测试方法。实验记录、跑分结果、验证流水与任务规格保存在本地 `.local/`，不提交到仓库。CombatSolver 的接入与准入设计参考收在 [`archive/`](archive/)。
+## 分层
 
-## 1. 设计目标
+```text
+Mod（生命周期、UI、动作执行与核对）
+  ├── Import.Combat（只读游戏 → Battle / Rules / 搜索配置）
+  └── Autoplay.CombatPilot（整场决策循环）
+        ├── Ai.Combat（搜索与评价）
+        └── Simulation.Combat（状态与结算）
+Content ──→ Simulation.Combat（经注册表提供内容行为）
+```
 
-仍然成立的部分：
+- `Simulation.Combat` 不引用 Content、Ai、Autoplay 或游戏。
+- `Content` 与 `Ai.Combat` 只向下引用 `Simulation.Combat`，Ai 不直接引用 Content。
+- `Autoplay` 引用 Simulation 与 Ai，通过宿主接口请求搜索和执行。
+- Core 只依赖 BCL；Import 负责读取原生模型及私有字段。Mod 在游戏主线程捕获与执行，后台 worker 仅处理冻结状态。
+- `TestHost/Combat` 提供场景创建和注入，供 Differential 与测试版 Mod 使用；`TestHost/ModTesting` 仅编入测试版 Mod。
+- 正式 Mod 不引用 TestHost，不注册测试补丁。无头测试仍使用与正式版相同的搜索、执行和核对代码。
 
-- **定长结构体**：`Battle` 是 `unmanaged` 结构体，没有对象引用；容量是编译期常量，溢出显式失败，不截断、不逐出。
-- **整块复制分叉**：复制一份 `Battle` 就是分叉；没有写时复制、引用计数或分层状态。
-- **热路径零托管分配**：动作执行、状态复制与指纹计算不分配托管对象；搜索容器按块预分配，块只追加。
-- **显式失败**：不支持的语义抛 `UnsupportedException`，容量不足抛 `CapacityException`，不会静默近似或返回默认值。
-- **确定性**：同一局面只有一种字节表示；同一次搜索在同一请求上产生同一路线与同一结果字节。
+`Sts2Solver.sln` 只包含无需游戏文件的 Core、KernelChecks、Golden 和 Architecture。Import、Mod、TestHost、Differential 单独构建。游戏加载器需要单一 Mod DLL，因此 Mod 将 Core 与 Import 源码编入 `Sts2Solver.dll`；测试版才额外编入 TestHost。
 
-不再属于当前仓库的目标：
+## 设计约束
 
-- 不再维护 CombatSolver 的宿主接入、Bridge 根导入与旧引擎回放物化；这些只作为历史参考留在 `archive/`。
-- 不再以「与 CombatSolver 原引擎逐步一致」作为运行期承诺。一致性冻结在 `tests/Golden/data`，后续以快照和实机证据为准。
-- 不再自己写局外模拟器；局外由原版推进，最后一个包含完整局外模拟器的提交是 `683bc03`。
+`Battle` 是定长 unmanaged 状态，分支通过整块复制产生；热路径不分配托管对象。容量不足或不支持的语义显式失败，不截断、不返回默认值。固定预算请求的编码与重放用于确定性回归；正常搜索有墙钟截止，不保证不同机器得到同一路线。
 
-## 2. 代码布局
+药水成本、永久成长、遗物计数与战后回复仍属于战斗路线评价。读取原版幕数、楼层或随机数也仍是战斗导入的必要部分，不需要我们自己的局外状态模型。
 
-| 目录 | 内容 |
-| --- | --- |
-| `src/Core/Simulation/Combat/` | `Sts2Solver.Simulation.Combat`：状态、RNG、牌堆、出牌与回合流程、伤害/格挡/Power、Hook、选择协议、指纹 |
-| `src/Core/Simulation/Run/` | 局外状态 `RunState`、编码与投影、决策请求类型、内容表与 `RulesBuilder`、开战选择预测 `RunCombatSetup` |
-| `src/Core/Content/` | `Sts2Solver.Content.*`：卡牌、Power、遗物、药水、怪物、球、附魔、苦难定义 |
-| `src/Core/Ai/Combat/` | `Sts2Solver.Ai.Combat`：`BeamSolver`、搜索容器、根级路线标志与指纹、搜索让帧 |
-| `src/Core/Ai/Combat/Quality/` | `Sts2Solver.Ai.Combat.Quality`：路线质量比较与 incumbent 剪枝 |
-| `src/Core/Ai/Combat/Policy/` | `Sts2Solver.Ai.Combat.Policy`：药水、偷窃、成长、遗物计数与首领结算策略 |
-| `src/Core/Ai/Combat/Scoring/` | `Sts2Solver.Ai.Combat.Scoring`：状态评估、评分权重与能力牌估值 |
-| `src/Core/Ai/Combat/Novelty/` | `Sts2Solver.Ai.Combat.Novelty`：Bfws 新颖度容器、选项与遥测 |
-| `src/Core/Ai/Run/` | 局外决策：只读 `RunView` 与决策请求 |
-| `src/Core/Autoplay/` | `Sts2Solver.Autoplay`：`CombatPilot` 与 `RunPilot`（R3b） |
-| `src/Import/` | `Sts2Solver.Import`：原生 `CombatState` → `Battle`、原生 `RunState` → `RunState`、决策请求导入；唯一允许读游戏模型与私有字段的层，只读；子目录 `Combat/`、`Run/`、`Run/Decisions/`（R3b） |
-| `src/OfflineHost/` | 离线宿主（R3b）：普通 .NET 进程运行原版有界 Act1 多房间与商店；子目录 `Runtime/`、`Combat/`、`Run/` |
-| `src/TestHost/` | `Sts2Solver.TestHost`：测试用建局、注入与原生状态转储；战斗部分在 `Combat/`，整局在 `Run/` |
-| `src/Mod/` | `Sts2Solver`：RitsuLib Mod 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Run/`（R3c）、`UI/`、`Testing/`、`Patches/`；不加入 `Sts2Solver.sln` |
-| `tests/KernelChecks/` | K0 纯内核合同（程序集 `Sts2Solver.KernelChecks`）；战斗合同在 `Combat/`，整局合同在 `Run/` |
-| `tests/Golden/` | 冻结快照校验器（程序集 `Sts2Solver.Golden`）与 `data/`；战斗校验器在 `Combat/` |
-| `tests/Architecture/` | 编译后的 `Sts2Solver.Core` 层依赖检查（程序集 `Sts2Solver.Architecture`），加入 `Sts2Solver.sln` |
-| [`tests/Differential/`](../tests/Differential/README.md) | 进程内差分：不启动 Godot，建出原生 `CombatState`/`RunState`；战斗对照、进程内原版动作执行与离线整场在 `Combat/`，整局导入、建局、地图选点、内容表与 `RulesBuilder` 在 `Run/`；需要游戏文件，不在 CI 中运行 |
-| `tools/run-eval/` | 独立烟测 CLI：首战、下一房间与有界多房间；批量整局评估仍待 R5 |
-| `docs/archive/` | CombatSolver 时期的历史材料，不描述当前运行路径 |
-
-依赖方向：`Content → Simulation.Combat`（整局层还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层，`Ai.Combat` 不引用 `Content`（内容通过注册表挂到模拟上）。Core 不引用游戏、Godot、Harmony、RitsuLib 或任何 NuGet 包；`Import` 是唯一允许读取模型私有字段的层；`OfflineHost` 引用 Core、Import、游戏程序集与 Godot/Harmony，不引用 `TestHost`；`Mod` 不引用 `OfflineHost`。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `Sts2Solver.sln`，依赖规则由 `tests/Architecture` 检查。
-
-## 3. 文档索引
+## 文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [整局设计](full-run-design.md) | 整局自动游玩的目标架构：随机数分工、局外状态、导入与决策、战斗边界、托管、目录与依赖规则、验证与阶段 |
-| [战斗状态布局](combat-state-layout.md) | `Battle` 字段、容量、规范化与指纹 |
-| [整局状态布局](run-state-layout.md) | `RunState` 字段盘点、容量、局外随机数、编码、`RunView` 可见性与导入拒绝码 |
-| [内容表与 RulesBuilder](content-table.md) | 进程内内容表的范围与导出、`Rules` 30 项来源分类、根事实缺口与逐字节对照方法 |
-| [局外决策协议与地图进点](run-decisions.md) | 请求/动作类型、地图合法点、未知点掷骰、非战斗房间边界、拒绝码与 R3b 导入位置 |
-| [战斗边界](run-combat-boundary.md) | 从地图选点进入战斗点、遭遇生成、开战 Hook、第一回合、`RulesRootFacts` 与建局对照 |
-| [离线宿主](offline-host.md) | 离线宿主的启动、目录、引用规则与 TestMode 差别清单 |
-| [自动游玩](autoplay.md) | `RunPilot`、`IRunPilotHost`、两个宿主的执行方式与三种模式 |
-| [战斗内核语义](combat-semantics.md) | 结算管线、Hook 派发顺序、内容定义、选择协议、怪物 AI |
-| [战斗角色机制](combat-characters.md) | 弃牌与 Sly、充能球、星能与锻造、Osty 与 Doom |
-| [战斗药水与遗物](combat-potions-relics.md) | 额外回合管线、药水与遗物机制 |
-| [战斗搜索](combat-ai.md) | 组合调度、四维配置、路线比较、内存与兼容语义 |
-| [原生状态导入](import.md) | `CombatState` → `Battle`/`Rules`/评估配置的编译、拒绝码与离线对照 |
-| [冻结快照](golden-data.md) | `tests/Golden/data` 的格式、来源、哈希与更新条件 |
-| [Mod 入口与无头捕获](mod.md) | 打包、RitsuLib 入口、共存、部署与对账、测试协议、启动脚本与实机对照 |
-| [测试与验证](testing.md) | 构建、K0、D1/D2、manifest、每层证明与未验证项 |
+| [Mod 使用与构建](mod.md) | 安装、触发、取消、发布和测试构建 |
+| [战斗自动执行](autoplay.md) | CombatPilot、宿主与路线续用 |
+| [战斗搜索](combat-ai.md) | 多轮搜索、评分、保留与预算 |
+| [战斗状态布局](combat-state-layout.md) | Battle、容量与编码 |
+| [战斗内核语义](combat-semantics.md) | 结算、Hook、选择与怪物行为 |
+| [角色机制](combat-characters.md) | 五角色机制 |
+| [药水与遗物](combat-potions-relics.md) | 对应战斗机制 |
+| [原生导入](import.md) | Battle、规则与搜索配置的捕获 |
+| [冻结基准格式](golden-data.md) | 基准来源、磁盘格式与更新规则 |
+| [测试与验证](testing.md) | 合同、模拟回归、搜索回归与实机对照 |
 
-历史材料：
-
-| 文档 | 内容 |
-| --- | --- |
-| [CombatSolver 接入方式](archive/combatsolver-integration.md) | CombatSolver 的接入分派与旧引擎回放物化，仅作历史参考 |
-| [CombatSolver 准入与校验](archive/admission-and-verification.md) | CombatSolver 里对接原引擎的 Bridge 准入与运行时核对 |
-
-## 4. 文档维护
-
-行为与接口变更同步更新对应设计文档；测试命令和结果字段的含义记在 [测试与验证](testing.md)。具体实验的版本、输入、机器环境、指标与日志放在本地 `.local/`，公开文档不保存批次进度和跑分表。
-
-内核语义以 [战斗状态布局](combat-state-layout.md)、[战斗内核语义](combat-semantics.md)、[战斗角色机制](combat-characters.md) 与 [战斗药水与遗物](combat-potions-relics.md) 为准；搜索行为以 [战斗搜索](combat-ai.md) 为准；冻结数据来源与更新规则见 [冻结快照](golden-data.md)。
+文档只保存架构、接口、使用和测试方法。实验、跑分与任务流水放本地 `.local/`。

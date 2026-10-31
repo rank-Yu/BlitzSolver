@@ -27,35 +27,42 @@ public static class ModEntry
             return;
         }
 
+        Enabled = true;
+#if STS2_SOLVER_TESTING
         string? testDirectory = Environment.GetEnvironmentVariable(TestSession.DirectoryVariable);
         TestMode = !string.IsNullOrWhiteSpace(testDirectory);
-        Enabled = true;
         ModLog.Initialize(TestMode ? Path.Combine(testDirectory!, "mod.log") : null);
+        if (TestMode)
+        {
+            ModPatcher patcher = RitsuLibFramework.CreatePatcher(ModId, "sts2solver", DisplayName);
+            patcher.RegisterPatch<UnattendedTestIsolationPatch>();
+            patcher.RegisterPatch<UnattendedNoDiscoveryOrderPatch>();
+            patcher.RegisterPatch<UnattendedHeadlessFtuePatch>();
+            patcher.RegisterPatch<TurnSetupRootCapturePatch>();
+            RitsuLibFramework.ApplyRequiredPatcher(patcher, DisableMod);
+            if (!Enabled)
+                return;
+        }
+#else
+        ModLog.Initialize(null);
+#endif
         ModLog.Info($"[Sts2Solver] INIT id={ModId} version={Version} name={DisplayName} english={EnglishName} test_mode={TestMode}");
 
-        ModPatcher patcher = RitsuLibFramework.CreatePatcher(ModId, "sts2solver", DisplayName);
-        patcher.RegisterPatch<UnattendedTestIsolationPatch>();
-        patcher.RegisterPatch<UnattendedNoDiscoveryOrderPatch>();
-        patcher.RegisterPatch<UnattendedHeadlessFtuePatch>();
-        patcher.RegisterPatch<TurnSetupRootCapturePatch>();
-        RitsuLibFramework.ApplyRequiredPatcher(patcher, DisableMod);
-        if (!Enabled)
-        {
-            ModLog.Error("[Sts2Solver] DISABLED reason=required patch registration failed");
-            return;
-        }
-
-        // 本批只需要战斗生命周期与测试模式；普通游戏时除搜索取消外没有副作用。
+        // 战斗结束或退出时取消后台搜索和自动执行。
         RitsuLibFramework.SubscribeLifecycle<CombatStartingEvent>(
             static _ => SearchSession.OnCombatStarting());
         RitsuLibFramework.SubscribeLifecycle<CombatEndedEvent>(static _ =>
         {
             SearchSession.OnCombatEnded();
             AutoCombatSession.OnCombatEnded();
+#if STS2_SOLVER_TESTING
             TestSession.OnCombatEnded();
+#endif
         });
+#if STS2_SOLVER_TESTING
         if (TestMode)
             RitsuLibFramework.SubscribeLifecycle<GameReadyEvent>(static _ => TestSession.Start());
+#endif
 
         NGame? host = NGame.Instance;
         if (host == null)

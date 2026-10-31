@@ -6,7 +6,6 @@ using Sts2Solver.Simulation.Combat;
 using Sts2Solver.Import;
 using Sts2Solver.Autoplay;
 using Sts2Solver.Ai.Combat;
-using Sts2Solver.TestHost;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -20,7 +19,7 @@ internal sealed class CombatPilotHost(
     NGame host,
     Rules rules,
     LiveCombatTracker tracker,
-    OfflineRequest? request,
+    Func<SearchPolicy, Player, SearchPolicy>? configurePolicy,
     SearchPerformanceTier tier,
     string root,
     CombatState combat,
@@ -49,14 +48,14 @@ internal sealed class CombatPilotHost(
             Player? livePlayer = LocalContext.GetMe(liveState);
             if (livePlayer?.PlayerCombatState is not { } playerState)
             {
-                await GodotCombatWaiter.NextFrameAsync(host);
+                await CombatFrameWaiter.NextFrameAsync(host);
                 continue;
             }
             if (liveState.CurrentSide != CombatSide.Player
                 || playerState.Phase != PlayerTurnPhase.Play
                 || !RunManager.Instance.ActionExecutor.FinishedExecutingActions().IsCompleted)
             {
-                await GodotCombatWaiter.NextFrameAsync(host);
+                await CombatFrameWaiter.NextFrameAsync(host);
                 continue;
             }
             int turn = playerState.TurnNumber;
@@ -70,7 +69,7 @@ internal sealed class CombatPilotHost(
             }
             if (_settledTurn != turn)
             {
-                await GodotCombatWaiter.SettleAsync(host);
+                await CombatFrameWaiter.SettleAsync(host);
                 _settledTurn = turn;
             }
             liveState = CombatManager.Instance.DebugOnlyGetState();
@@ -100,7 +99,7 @@ internal sealed class CombatPilotHost(
             tracker.Refresh(_combat);
             searchRoot = tracker.ImportRoot(_combat, _player, rules);
             searchCase = SearchSession.CompileCase(
-                _combat, _player, rules, searchRoot, request, deterministic: false, tier);
+                _combat, _player, rules, searchRoot, configurePolicy, deterministic: false, tier);
         }
         catch (UnsupportedImportException error)
         {

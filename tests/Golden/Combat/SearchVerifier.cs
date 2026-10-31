@@ -5,22 +5,22 @@ using Sts2Solver.Ai.Combat;
 
 namespace Sts2Solver.Golden;
 
-internal sealed record D2Summary(int Selected, int Equal, int Mismatch, long Expanded, long PrefixChecks,
+internal sealed record SearchSummary(int Selected, int Equal, int Mismatch, long Expanded, long PrefixChecks,
     long ThreatChecks, long PrefixShared, long PrefixUnshared, long PrefixReuse, long PrefixChoiceUnshared,
     long PrefixExtraTurnUnshared, long PrefixNotInProgress, long PlayDeduped, long PlayVerifiedExact,
     long PlayVerifiedApprox, long PlayVerifiedApproxEqual, long PlayVerifiedUnresolved,
     long ChoiceByClassRequests, long ChoiceVerifiedExact, long ChoiceVerifiedApprox,
     long ChoiceVerifiedApproxEqual, long ChoiceVerifiedUnresolved);
 
-internal sealed record D2Request(string Hash, string Path, int Weight);
+internal sealed record SearchRequestEntry(string Hash, string Path, int Weight);
 
-internal sealed record D2ShardPlan(
-    D2Request[] Selected,
+internal sealed record SearchShardPlan(
+    SearchRequestEntry[] Selected,
     long SelectedWeight,
     int OldSelected,
     long OldSelectedWeight);
 
-internal static class D2Verifier
+internal static class SearchVerifier
 {
     /// <summary>
     /// Loads every D2 request, takes its deterministic weight from the expected result's
@@ -28,40 +28,40 @@ internal static class D2Verifier
     /// descending weight (ties by request hash ordinal), always to the currently lightest shard
     /// (ties by lower shard index). Each plan's Selected array stays in descending weight order.
     /// </summary>
-    internal static D2ShardPlan[] BuildPlans(string dataDirectory, int shards)
+    internal static SearchShardPlan[] BuildPlans(string dataDirectory, int shards)
     {
         string requestDirectory = Path.Combine(dataDirectory, "d2", "requests");
         string expectedDirectory = Path.Combine(dataDirectory, "d2", "expected");
         if (!Directory.Exists(requestDirectory) || !Directory.Exists(expectedDirectory))
-            throw new InvalidDataException("D2 requests/expected 目录不完整。");
+            throw new InvalidDataException("搜索回归 requests/expected 目录不完整。");
 
         string[] paths = Directory.EnumerateFiles(requestDirectory, "*.request.br")
             .OrderBy(static path => path, StringComparer.Ordinal)
             .ToArray();
-        D2Request[] requests = new D2Request[paths.Length];
+        SearchRequestEntry[] requests = new SearchRequestEntry[paths.Length];
         for (int index = 0; index < paths.Length; index++)
         {
             string path = paths[index];
             string hash = Path.GetFileName(path)[..^".request.br".Length];
             string expectedPath = Path.Combine(expectedDirectory, hash + ".result.br");
             if (!File.Exists(expectedPath))
-                throw new InvalidDataException($"D2 请求 {hash} 缺少期望结果。");
+                throw new InvalidDataException($"搜索回归请求 {hash} 缺少期望结果。");
             BeamResult expected = SearchCodec.DecodeResult(
                 GoldenFiles.ReadCompressed(expectedPath));
             if (expected.ExpandedNodes < 0)
-                throw new InvalidDataException($"D2 请求 {hash} 的展开节点数为负。");
-            requests[index] = new D2Request(hash, path, expected.ExpandedNodes);
+                throw new InvalidDataException($"搜索回归请求 {hash} 的展开节点数为负。");
+            requests[index] = new SearchRequestEntry(hash, path, expected.ExpandedNodes);
         }
 
-        D2Request[] ordered = requests
+        SearchRequestEntry[] ordered = requests
             .OrderByDescending(static request => request.Weight)
             .ThenBy(static request => request.Hash, StringComparer.Ordinal)
             .ToArray();
-        List<D2Request>[] buckets = new List<D2Request>[shards];
+        List<SearchRequestEntry>[] buckets = new List<SearchRequestEntry>[shards];
         long[] weights = new long[shards];
         for (int index = 0; index < shards; index++)
             buckets[index] = [];
-        foreach (D2Request request in ordered)
+        foreach (SearchRequestEntry request in ordered)
         {
             int target = 0;
             for (int candidate = 1; candidate < shards; candidate++)
@@ -73,11 +73,11 @@ internal static class D2Verifier
             weights[target] += request.Weight;
         }
 
-        D2ShardPlan[] plans = new D2ShardPlan[shards];
+        SearchShardPlan[] plans = new SearchShardPlan[shards];
         for (int index = 0; index < shards; index++)
         {
             // Both lists inherit the global descending-weight order.
-            D2Request[] selected = [.. buckets[index]];
+            SearchRequestEntry[] selected = [.. buckets[index]];
             long oldWeight = 0;
             int oldSelected = 0;
             for (int oldIndex = index; oldIndex < requests.Length; oldIndex += shards)
@@ -85,18 +85,18 @@ internal static class D2Verifier
                 oldWeight += requests[oldIndex].Weight;
                 oldSelected++;
             }
-            plans[index] = new D2ShardPlan(selected, weights[index], oldSelected, oldWeight);
+            plans[index] = new SearchShardPlan(selected, weights[index], oldSelected, oldWeight);
         }
         return plans;
     }
 
-    internal static D2Summary Run(string dataDirectory, int jobs, int shard, int shards)
+    internal static SearchSummary Run(string dataDirectory, int jobs, int shard, int shards)
     {
-        D2ShardPlan plan = BuildPlans(dataDirectory, shards)[shard];
-        D2Request[] selected = plan.Selected;
+        SearchShardPlan plan = BuildPlans(dataDirectory, shards)[shard];
+        SearchRequestEntry[] selected = plan.Selected;
         if (selected.Length == 0)
-            throw new InvalidDataException($"--shard {shard}/{shards} 没有选到 D2 请求。");
-        Console.WriteLine($"D2_SHARD shard={shard}/{shards} requests={selected.Length} "
+            throw new InvalidDataException($"--shard {shard}/{shards} 没有选到 搜索回归请求。");
+        Console.WriteLine($"SEARCH_SHARD shard={shard}/{shards} requests={selected.Length} "
             + $"weight={plan.SelectedWeight} oldRequests={plan.OldSelected} "
             + $"oldWeight={plan.OldSelectedWeight} jobs={jobs}");
 
@@ -110,18 +110,18 @@ internal static class D2Verifier
         long playVerifiedApproxEqual = 0, playVerifiedUnresolved = 0;
         long choiceByClassRequests = 0, choiceVerifiedExact = 0, choiceVerifiedApprox = 0;
         long choiceVerifiedApproxEqual = 0, choiceVerifiedUnresolved = 0;
-        void VerifyOne(D2Request request)
+        void VerifyOne(SearchRequestEntry request)
         {
             string path = request.Path;
             string hash = request.Hash;
             string expectedPath = Path.Combine(dataDirectory, "d2", "expected", hash + ".result.br");
             if (!File.Exists(expectedPath))
-                throw new InvalidDataException($"D2 请求 {hash} 缺少期望结果。");
+                throw new InvalidDataException($"搜索回归请求 {hash} 缺少期望结果。");
 
             byte[] requestBytes = GoldenFiles.ReadCompressed(path);
             string requestHash = Convert.ToHexString(SHA256.HashData(requestBytes)).ToLowerInvariant();
             if (requestHash != hash)
-                throw new InvalidDataException($"D2 请求 {hash} 的 SHA-256 是 {requestHash}。");
+                throw new InvalidDataException($"搜索回归请求 {hash} 的 SHA-256 是 {requestHash}。");
 
             SearchCase search = SearchCodec.DecodeRequest(requestBytes);
             BeamOptions options = search.Options with
@@ -140,7 +140,7 @@ internal static class D2Verifier
             if (difference != null)
             {
                 throw new InvalidDataException(
-                    $"D2 请求 {hash} 的期望结果不一致：{difference}");
+                    $"搜索回归请求 {hash} 的期望结果不一致：{difference}");
             }
             Interlocked.Increment(ref equal);
             Interlocked.Add(ref expanded, actual.ExpandedNodes);
@@ -165,7 +165,7 @@ internal static class D2Verifier
             Interlocked.Add(ref choiceVerifiedUnresolved, equivalence.ChoiceVerifiedUnresolved);
             int done = Interlocked.Increment(ref completed);
             if (done % 100 == 0)
-                Console.WriteLine($"D2 progress={done}/{selected.Length}");
+                Console.WriteLine($"SEARCH progress={done}/{selected.Length}");
         }
 
         // NoBuffering makes the orderable partitioner hand out one item at a time in enumeration
@@ -174,7 +174,7 @@ internal static class D2Verifier
             Partitioner.Create(selected, EnumerablePartitionerOptions.NoBuffering),
             new ParallelOptions { MaxDegreeOfParallelism = jobs },
             VerifyOne);
-        return new D2Summary(selected.Length, equal, selected.Length - equal, expanded, prefixChecks,
+        return new SearchSummary(selected.Length, equal, selected.Length - equal, expanded, prefixChecks,
             threatChecks, prefixShared, prefixUnshared, prefixReuse, prefixChoiceUnshared,
             prefixExtraTurnUnshared, prefixNotInProgress, playDeduped, playVerifiedExact,
             playVerifiedApprox, playVerifiedApproxEqual, playVerifiedUnresolved,

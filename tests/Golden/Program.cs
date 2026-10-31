@@ -60,7 +60,7 @@ catch (AggregateException error)
 
 static void PrintUsage()
     => Console.Error.WriteLine(
-        "用法：Golden verify <data-dir> [--jobs N] [--only d1|d2] [--shard i/n] | "
+        "用法：Golden verify <data-dir> [--jobs N] [--only simulation|search] [--shard i/n] | "
         + "compare <data-dir> [--jobs N] [--config none|play|choice|all|choice-fill|all-fill] "
         + "[--out csv] [--shard i/n] "
         + "[--only hash-prefix] [--verify] | refreeze <source-dir> <target-dir> [--jobs N] | "
@@ -89,9 +89,12 @@ internal static class VerifyCommand
                     jobs = ParsePositiveInt(Next(args, ref index, "--jobs"), "--jobs");
                     break;
                 case "--only":
-                    only = Next(args, ref index, "--only");
-                    if (only is not ("d1" or "d2"))
-                        throw new InvalidDataException($"--only 只能是 d1 或 d2，实际为 {only}。");
+                    only = Next(args, ref index, "--only") switch
+                    {
+                        "simulation" or "d1" => "simulation",
+                        "search" or "d2" => "search",
+                        var value => throw new InvalidDataException($"--only 只能是 simulation 或 search，实际为 {value}。"),
+                    };
                     break;
                 case "--shard":
                     (shard, shards) = ParseShard(Next(args, ref index, "--shard"));
@@ -107,29 +110,29 @@ internal static class VerifyCommand
         Console.WriteLine($"MANIFEST_OK files={manifest.DataFiles} totalBytes={manifest.TotalBytes} "
             + $"d1Files={manifest.D1Files} d1Roots={manifest.D1Roots} d1K1={manifest.D1K1} "
             + $"d1Walks={manifest.D1Walks} d1WalkStates={manifest.D1WalkStates} "
-            + $"d1Transitions={manifest.D1Transitions} d2Requests={manifest.D2Requests} "
+            + $"d1Transitions={manifest.D1Transitions} d2Requests={manifest.SearchRequestEntrys} "
             + $"d2Expected={manifest.D2Expected}");
 
-        D1Summary? d1 = null;
-        D2Summary? d2 = null;
-        if (only != "d2")
+        SimulationSummary? d1 = null;
+        SearchSummary? d2 = null;
+        if (only != "search")
         {
             Stopwatch watch = Stopwatch.StartNew();
-            d1 = D1Verifier.Run(dataDirectory, jobs, shard, shards);
+            d1 = SimulationVerifier.Run(dataDirectory, jobs, shard, shards);
             watch.Stop();
-            Console.WriteLine($"D1_OK files={d1.Files} roots={d1.Roots} k1={d1.K1} walks={d1.Walks} "
+            Console.WriteLine($"SIMULATION_OK files={d1.Files} roots={d1.Roots} k1={d1.K1} walks={d1.Walks} "
                 + $"states={d1.WalkStates} transitions={d1.Transitions} features={d1.FeatureStates} "
                 + $"traits={d1.FeatureTraits} rules={d1.RulesObjects} mismatched=0 "
                 + $"wall={watch.Elapsed.TotalSeconds:F1}s jobs={jobs}");
-            Console.WriteLine($"D1_TIME wall={watch.Elapsed.TotalSeconds:F3}s jobs={jobs} "
+            Console.WriteLine($"SIMULATION_TIME wall={watch.Elapsed.TotalSeconds:F3}s jobs={jobs} "
                 + $"files={d1.Files} states={d1.WalkStates} features={d1.FeatureStates}");
         }
-        if (only != "d1")
+        if (only != "simulation")
         {
             Stopwatch watch = Stopwatch.StartNew();
-            d2 = D2Verifier.Run(dataDirectory, jobs, shard, shards);
+            d2 = SearchVerifier.Run(dataDirectory, jobs, shard, shards);
             watch.Stop();
-            Console.WriteLine($"D2_OK selected={d2.Selected} equal={d2.Equal} mismatch={d2.Mismatch} "
+            Console.WriteLine($"SEARCH_OK selected={d2.Selected} equal={d2.Equal} mismatch={d2.Mismatch} "
                 + $"expanded={d2.Expanded} prefixChecks={d2.PrefixChecks} threatChecks={d2.ThreatChecks} "
                 + $"prefixShared={d2.PrefixShared} prefixUnshared={d2.PrefixUnshared} "
                 + $"prefixReuse={d2.PrefixReuse} prefixChoice={d2.PrefixChoiceUnshared} "
@@ -144,7 +147,7 @@ internal static class VerifyCommand
                 + $"choiceVerifiedApproxEqual={d2.ChoiceVerifiedApproxEqual} "
                 + $"choiceVerifiedUnresolved={d2.ChoiceVerifiedUnresolved} "
                 + $"wall={watch.Elapsed.TotalSeconds:F1}s jobs={jobs}");
-            Console.WriteLine($"D2_TIME wall={watch.Elapsed.TotalSeconds:F3}s jobs={jobs} selected={d2.Selected}");
+            Console.WriteLine($"SEARCH_TIME wall={watch.Elapsed.TotalSeconds:F3}s jobs={jobs} selected={d2.Selected}");
         }
 
         string totals = (d1, d2) switch

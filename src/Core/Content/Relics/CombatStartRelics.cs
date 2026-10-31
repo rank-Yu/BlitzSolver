@@ -1,5 +1,5 @@
 // Opening-combat effects that native models run before the captured play-phase root. These are the
-// solver-side counterparts of the pre-root imports documented in docs/content-table.md; the values
+// solver-side counterparts of the pre-root imports documented in docs/import.md; the values
 // are the native canonical bases (the same values the content table exports for the rules).
 using Sts2Solver.Simulation.Combat;
 

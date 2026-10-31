@@ -1,30 +1,20 @@
 # Sts2Solver 仓库工作指令
 
-本文件约束所有在本仓库中工作的 coding agent。开始处理任务前完整阅读。
+本文件约束所有在本仓库中工作的 coding agent。开始任务前完整阅读。
 
 ## 1. 项目边界
 
-Sts2Solver（尖塔求解器，仓库名 sts2-solver）是面向《杀戮尖塔 2》原版单人内容、同种子 SL 模式的战斗与整局求解器。战斗搜索和执行链路已经可用，搜索质量仍持续优化；目标是整局自动游玩，保留只托管战斗、只给推荐、全自动三种模式。目标目录结构（`Simulation` / `Ai` / `Autoplay` × `Combat` / `Run`）、依赖规则和验证方式见 [整局设计](docs/full-run-design.md) 第 4 节；当前目录与职责如下表，依赖规则由 `tests/Architecture` 检查。
+主分支是原版单人、同种子 SL 模式的战斗求解 Mod。局外代码保存在 `dev/full-run`，不属于主分支当前发布范围。目录与依赖详见 [架构说明](docs/README.md)。
 
-| 目录 | 命名空间 | 职责 |
-| --- | --- | --- |
-| `src/Core/Simulation/Combat` | `Sts2Solver.Simulation.Combat` | 结构体状态 `Battle`、回合与出牌管线、结算与规则表 `Rules` |
-| `src/Core/Simulation/Run` | `Sts2Solver.Simulation.Run` | 局外状态与建局：定长 `RunState`、编码 `RunCodec`、转储 `RunDump`、可见投影与决策请求 `RunView`/`RunDecisionRequest`、合法地图点 `RunTravel`、进点 `RunMapEntry`、开战选择预测 `RunCombatSetup`、进程内内容表 `ContentTable` 与 `RulesBuilder`；局外由原版推进，不含 `RunKernel`/奖励/商店/写回/新局生成 |
-| `src/Core/Content` | `Sts2Solver.Content.*` | 卡牌、Power、遗物、药水、球、附魔、怪物与遭遇生成定义 |
-| `src/Core/Ai/Combat` | `Sts2Solver.Ai.Combat`（含 `.Quality`、`.Policy`、`.Scoring`、`.Novelty`） | `BeamSolver`、状态评估、路线质量、资源策略与新颖度搜索 |
-| `src/Core/Ai/Run` | `Sts2Solver.Ai.Run` | 局外决策；`IRunPolicy`/`RunPilotAnswer` 可见决策接口，规则与估值随 R4 落地 |
-| `src/Core/Autoplay` | `Sts2Solver.Autoplay` | `CombatPilot` 整场战斗与 `RunPilot` 整局边界/决策循环；Mod 与离线宿主共用 |
-| `src/Import` | `Sts2Solver.Import` | 原生 `CombatState`/`CombatManager.History`/模型私有字段 → `Battle`；唯一允许读游戏模型与私有字段的层，只读，不改动游戏；子目录 `Combat/`（战斗导入）、`Run/`（整局导入 `RunStateImporter`、内容表导出 `ContentTableExporter`）、`Run/Decisions/`（R3b 的 `RunDecisionImporter`） |
-| `src/TestHost` | `Sts2Solver.TestHost` | 差分宿主的建局、注入与原生状态转储；只在测试中使用，会写游戏状态；子目录 `Combat/`、`Run/`（新局入口、原生合法地图点枚举、快照恢复、独立原生整局转储与原版商店/奖励驱动，后者是 R3b `RunExecutor` 的起点） |
-| `src/OfflineHost` | `Sts2Solver.OfflineHost.Run` | 局外执行库：`OfflineRunHost`/`RunExecutor` 执行 Map/Event/Rest/Shop/CardSelect/Treasure，`Runtime/` 捕获必要原版回调；Runtime 提供独立消息泵/内存存档/无界面初始化，NewRunFactory 正常启动；Combat 复用既有求解和原版动作逐步/终局比较；FirstCombat DTO 默认首战后领奖前停止；显式 next-room 接原版奖励/异步选卡/药水丢弃与下一房稳定暂停；rooms 接有界 Act1 多房间、多战奖励租约与正式原版商店；事件变牌/附魔/移除保留原版异步选牌，宝箱保留开箱/投票/领取阶段，act1 在 Boss 真实胜利和领奖完成后、换幕按钮之前停止 |
-| `tools/run-eval` | | 独立首战/战后下一房/有界多房间/第一幕烟测 CLI，仅引用 OfflineHost 公开 DTO；显式配置与紧凑 JSON，不加入 solution |
-| `src/Mod` | `Sts2Solver` | RitsuLib `ModInitializer` 入口、战斗生命周期、无头捕获测试模式；子目录 `Combat/`、`Testing/`、`UI/`、`Patches/`；不加入 `Sts2Solver.sln` |
-| `tests/KernelChecks` | | 内核合同（K0）；战斗合同在 `Combat/`，整局合同在 `Run/` |
-| `tests/Golden` | | 冻结快照校验器与数据；战斗校验器在 `Combat/` |
-| `tests/Architecture` | | 编译后的 `Sts2Solver.Core` 层依赖检查；加入 `Sts2Solver.sln` |
-| [`tests/Differential`](tests/Differential/README.md) | | 进程内差分；战斗对照、原版动作执行器、战斗 pilot 与离线整场在 `Combat/`，整局导入、内容表/`RulesBuilder`、战斗边界建局、遗物矩阵、地图选点与进房间对照在 `Run/`，入口与引导留根目录 |
+- `Core/Simulation/Combat`：战斗状态、规则与结算；不引用其他层。
+- `Core/Content` 与 `Core/Ai/Combat`：内容与搜索，各自只依赖 Simulation，Ai 不引用 Content。
+- `Core/Autoplay`：CombatPilot，通过宿主接口驱动整场战斗；依赖 Simulation 与 Ai。
+- `Import/Combat`：只读游戏模型、私有字段，生成 Battle、Rules 与搜索配置。
+- `Mod`：主线程捕获/执行/核对，后台搜索；UI 暂为 F8 快捷键。
+- `TestHost/Combat`：战斗测试场景、注入与转储；`TestHost/ModTesting`：测试版 Mod 专用入口与补丁。
+- `tests/Differential`：战斗原版差分与离线评测；不包含局外执行。
 
-依赖方向：`Content → Simulation.Combat`（整局层落地后还可用 `Simulation.Run`）、`Ai.Combat → Simulation.Combat`、`Ai.Run → Simulation.Run`（只限登记为可见投影/决策请求的类型）、`Autoplay → Simulation.*/Ai.*`、`Mod → Import → Core`。`Simulation.Combat` 不引用其他层；`Ai.Combat` 不引用 `Content`；内容通过 `Registry` 挂到模拟上。`Import` 是唯一允许读取模型私有字段的层；`Mod` 引用游戏程序集、Godot/Harmony 与 RitsuLib，负责入口与补丁，但不直接读私有字段。`Import`、`Mod`、`OfflineHost`、`tools/run-eval` 与 `tests/Differential` 都不加入 `Sts2Solver.sln`；`OfflineHost` 引用 Core/Import/游戏程序集/GodotSharp/0Harmony，不引用 `TestHost`，`Mod` 不引用 `OfflineHost`。依赖规则由 `tests/Architecture` 检查。
+正式 Mod 仅编入 Core、Import 与 Mod 源码。`-p:EnableModTesting=true` 才编入 TestHost；两种构建的中间文件和包目录隔离。生产代码不得依赖测试 DTO 或测试宿主。
 
 ## 2. 硬约束
 
@@ -36,14 +26,14 @@ Sts2Solver（尖塔求解器，仓库名 sts2-solver）是面向《杀戮尖塔 
 - 原版数值从 `Rules` 读取，不硬编码。
 - 修改 `Battle` 字段时同步 `docs/combat-state-layout.md` 与布局尺寸断言。`HookMask` 的 64 位已用满，新 Hook 加在 `HookMaskExt`，不复用、不重排已有位。
 - 搜索不读取全局可变设置，外部能力通过 `BeamOptions` 等请求参数注入。
-- 局外决策只读玩家可见信息，不读取随机数状态或未来的生成序列；战斗求解器读取真实随机数是既定例外。
+- 同种子 SL 战斗搜索允许读取真实随机数状态。
 - 不在每个节点的热路径上新增按根恒定的扫描；只在根含相关内容时才走的路径，用 `Rules` 的根级布尔跳过。
 
 ## 3. 冻结快照是回归基准
 
 `tests/Golden/data` 是从 CombatSolver 导出时逐步与原引擎核对过的期望值，来源记录在 `manifest.json` 的 `provenance`。格式见 `docs/golden-data.md`。
 
-- 改动 `src/Core` 的提交必须通过完整 `verify`（D1 与 D2）。
+- 改动 `src/Core` 的提交必须通过完整 `verify`（模拟回归与搜索回归）。
 - 不手改数据；`manifest.json` 只由 `Golden manifest` 重写。
 - 有意改变语义或搜索结果的改动会让快照失配。这类改动先取得实机证据并经用户同意，再更新快照，提交说明写清哪些根变了、为什么。
 
@@ -63,12 +53,12 @@ dotnet run --project tests/Golden -c Release --no-build -- k0
 dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data
 ```
 
-- D1 约 10 秒；D2 在 8 并行下约 6 分钟。可用 `--only d1|d2`、`--shard i/n`、`--jobs N` 拆开运行。
-- 报告完成前运行与改动相称的验证，无法执行时明确写未验证。只改文档时不跑 D2；同一输入已经通过的验证不重复跑。
+- 模拟回归通常较快；搜索回归耗时取决于机器。可用 `--only simulation|search`、`--shard i/n`、`--jobs N` 拆开运行。
+- 报告完成前运行与改动相称的验证，无法执行时明确写未验证。只改文档时不跑搜索回归；同一输入已经通过的验证不重复跑。
 
 ## 6. 提交与文档
 
-- 提交信息首行写成 `<模块>: <中文说明>`，冒号用半角加空格，说明与正文用中文。模块用英文：只改一个目录时用目录或项目名（`Simulation`、`Content`、`Ai`、`Autoplay`、`Import`、`TestHost`、`Mod`、`OfflineHost`、`Differential`、`run-eval`、`Golden`、`KernelChecks`、`Architecture`、`corpora`）；跨 `src/Core` 多个部分用 `Core`；不对应单个目录时用 `docs`、`repo`、`ci`、`license`；只改顶层文件时用文件名（`README`、`AGENTS.md`）。
+- 提交信息首行写成 `<模块>: <中文说明>`，冒号用半角加空格，说明与正文用中文。模块用英文：只改一个目录时用目录或项目名（`Simulation`、`Content`、`Ai`、`Autoplay`、`Import`、`TestHost`、`Mod`、`Differential`、`Golden`、`KernelChecks`、`Architecture`、`corpora`）；跨 `src/Core` 多个部分用 `Core`；不对应单个目录时用 `docs`、`repo`、`ci`、`license`；只改顶层文件时用文件名（`README`、`AGENTS.md`）。
 - 只提交本任务的文件；`artifacts/`、`bin/`、`obj/`、`.local/` 不进提交。
 - 一次性脚本、探针与中间产物放 `.local/`，任务结束后删除。
 - 文档用中文，每份文档只有一个职责，`docs/README.md` 是索引。

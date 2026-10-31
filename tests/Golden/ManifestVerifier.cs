@@ -14,7 +14,7 @@ internal sealed record ManifestSummary(
     int D1Walks,
     int D1WalkStates,
     int D1Transitions,
-    int D2Requests,
+    int SearchRequestEntrys,
     int D2Expected);
 
 internal static class ManifestVerifier
@@ -74,7 +74,7 @@ internal static class ManifestVerifier
         int d1Files = 0, d1Roots = 0, d1K1 = 0, d1Walks = 0, d1States = 0, d1Transitions = 0;
         string d1Directory = Path.Combine(dataDirectory, "d1");
         if (!Directory.Exists(d1Directory))
-            throw new InvalidDataException($"D1 目录不存在：{d1Directory}");
+            throw new InvalidDataException($"模拟回归目录不存在：{d1Directory}");
         foreach (string directory in Directory.EnumerateDirectories(d1Directory))
         {
             string metaPath = Path.Combine(directory, "meta.json");

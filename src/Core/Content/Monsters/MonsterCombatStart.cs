@@ -1,7 +1,5 @@
-// Opening-combat values now come from ContentTable: the exporter executes the native
-// MonsterModel.AfterAddedToRoom once per (monster, slot, ascension) and records the resulting powers
-// and HP changes. This file only keeps the structural initial-state choices that are part of the
-// state-machine compile, not content numbers.
+// Native opening-combat values are captured by the importer. These overrides keep only
+// structural initial-state choices used by the combat state-machine compiler.
 using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Content.Monsters.Act1

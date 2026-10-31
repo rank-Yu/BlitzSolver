@@ -8,7 +8,7 @@ using Sts2Solver.Ai.Combat.Scoring;
 
 namespace Sts2Solver.Golden;
 
-internal sealed record D1Summary(
+internal sealed record SimulationSummary(
     int Files,
     int Roots,
     int K1,
@@ -19,7 +19,7 @@ internal sealed record D1Summary(
     long FeatureTraits,
     long RulesObjects);
 
-internal sealed record D1FileResult(
+internal sealed record SimulationFileResult(
     int Roots,
     int K1,
     int Walks,
@@ -28,23 +28,23 @@ internal sealed record D1FileResult(
     long FeatureStates,
     long FeatureTraits);
 
-internal static class D1Verifier
+internal static class SimulationVerifier
 {
     private static readonly ConcurrentDictionary<string, Rules> RulesCache = new(StringComparer.Ordinal);
 
-    internal static D1Summary Run(string dataDirectory, int jobs, int shard, int shards)
+    internal static SimulationSummary Run(string dataDirectory, int jobs, int shard, int shards)
     {
         string d1Directory = Path.Combine(dataDirectory, "d1");
         if (!Directory.Exists(d1Directory))
-            throw new InvalidDataException($"D1 目录不存在：{d1Directory}");
+            throw new InvalidDataException($"模拟回归目录不存在：{d1Directory}");
         string[] selected = Directory.EnumerateDirectories(d1Directory)
             .OrderBy(static path => path, StringComparer.Ordinal)
             .Where((_, index) => index % shards == shard)
             .ToArray();
         if (selected.Length == 0)
-            throw new InvalidDataException($"--shard {shard}/{shards} 没有选到 D1 文件。");
+            throw new InvalidDataException($"--shard {shard}/{shards} 没有选到 模拟回归文件。");
 
-        ConcurrentDictionary<string, D1FileResult> results = new(StringComparer.Ordinal);
+        ConcurrentDictionary<string, SimulationFileResult> results = new(StringComparer.Ordinal);
         Parallel.ForEach(selected, new ParallelOptions { MaxDegreeOfParallelism = jobs }, directory =>
         {
             string name = Path.GetFileName(directory);
@@ -56,7 +56,7 @@ internal static class D1Verifier
         foreach (string directory in selected)
         {
             string name = Path.GetFileName(directory);
-            D1FileResult result = results[name];
+            SimulationFileResult result = results[name];
             roots += result.Roots;
             k1 += result.K1;
             walks += result.Walks;
@@ -68,11 +68,11 @@ internal static class D1Verifier
                 + $"states={result.WalkStates} transitions={result.Transitions} "
                 + $"features={result.FeatureStates} traits={result.FeatureTraits} OK");
         }
-        return new D1Summary(selected.Length, roots, k1, walks, states, transitions,
+        return new SimulationSummary(selected.Length, roots, k1, walks, states, transitions,
             featureStates, featureTraits, RulesCache.Count);
     }
 
-    private static D1FileResult VerifyFile(string dataDirectory, string directory)
+    private static SimulationFileResult VerifyFile(string dataDirectory, string directory)
     {
         string rootName = Path.GetFileName(directory);
         string goldenPath = Path.Combine(directory, "golden.br");
@@ -135,7 +135,7 @@ internal static class D1Verifier
             || counts.GetProperty("transitions").GetInt32() != transitions)
             throw new InvalidDataException($"根 {rootName} 的游走计数与 meta 不符。");
 
-        return new D1FileResult(record.Roots.Count, record.K1.Count, record.Walks.Count,
+        return new SimulationFileResult(record.Roots.Count, record.K1.Count, record.Walks.Count,
             walkStates, transitions, featureStates, featureTraits);
     }
 
@@ -363,7 +363,7 @@ internal static class D1Verifier
     {
         string path = Path.Combine(directory, "config.br");
         if (!File.Exists(path))
-            throw new InvalidDataException($"缺少 D1 特征配置：{path}");
+            throw new InvalidDataException($"缺少 模拟回归特征配置：{path}");
         SearchCase config = SearchCodec.DecodeRequest(GoldenFiles.ReadCompressed(path));
         string actual = Convert.ToHexString(SHA256.HashData(RulesCodec.Encode(config.Rules))).ToLowerInvariant();
         if (actual != rulesHash)
@@ -401,5 +401,5 @@ internal static class D1Verifier
     }
 
     private static InvalidDataException Mismatch(string rootName, string detail)
-        => new($"D1 {rootName}：{detail}");
+        => new($"模拟回归 {rootName}：{detail}");
 }

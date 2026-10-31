@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     测试宿主共享层：建局、注入与原生状态转储。它会写游戏状态，因此不属于只读的 Import 层。
-    tests/Differential 引用本工程；src/Mod 把同一份源码编进 Sts2Solver.dll。本工程不加入
+    tests/Differential 引用本工程；测试版 Mod 把同一份源码编进 Sts2Solver.dll。本工程不加入
     Sts2Solver.sln（CI 没有游戏文件）。
   -->
   <PropertyGroup>
@@ -15,6 +15,7 @@
   <Import Project="$(MSBuildThisFileDirectory)/../../tests/Differential/GameReferences.props" />
 
   <ItemGroup>
+    <Compile Remove="ModTesting/**/*.cs" />
     <ProjectReference Include="../Core/Sts2Solver.Core.csproj" />
     <ProjectReference Include="../Import/Sts2Solver.Import.csproj" />
   </ItemGroup>

@@ -89,7 +89,7 @@
 
 **其他计数**：`EtherealPlays` 战斗长，导入根历史后按每次打出完成时该卡本地 Ethereal 关键字加一（BansheesCry/PullFromBelow）。
 
-**Melancholy**：`AfterDeath` 用 `State.FindCard(card)` 找战斗副本，对每个战斗副本按 `Energy` 变量追加本场 −费用；牌组（局外）副本取不到战斗副本时不产生效果。Sts2Solver 只导入战斗副本，`DeckCopyOutsideCombatIsInert` 让这类牌组副本通过准入，依据与边界见[准入](archive/admission-and-verification.md)。
+**Melancholy**：`AfterDeath` 用 `State.FindCard(card)` 找战斗副本，对每个战斗副本按 `Energy` 变量追加本场 −费用；牌组（局外）副本取不到战斗副本时不产生效果。Sts2Solver 只导入战斗副本，`DeckCopyOutsideCombatIsInert` 让这类牌组副本通过准入，依据与边界见[准入](https://github.com/rank-Yu/sts2-solver/blob/dev/full-run/docs/archive/admission-and-verification.md)。
 
 **Power 时机**：DieForYou/Calcify/Lethality/Haunt/Shroud/Countdown/Neurosurge/Oblivion/SicEm/NecroMastery/Debilitate/Veilpiercer/BorrowedTime/Friendship/EnfeeblingTouch/Demesne/SleightOfFlesh/SpiritOfAsh/DevourLife 逐条对应现有引擎 `HookMirrors`、`PowerLifecycleSupport`、`TurnStartPowerSupport`、`PersistentPowerSupport` 路径。Oblivion 在 `BeforeCardPlayed` 把当次层数放进栈上 `CardPlayPairs`（`OblivionDoom`），`AfterCardPlayed` 取出施加等量 Doom；稳定边界为空。Debilitate 的易伤/虚弱倍率并入 Vulnerable/Weak。SleightOfFlesh 在 `AfterPowerAmountChanged` 对“玩家施加给敌人的非临时减益”造成自身层数的 Unpowered 伤害。
 
@@ -111,7 +111,7 @@
 这些机制由第三幕随机牌组的 K1/K2 差分覆盖；现有引擎位置逐条注在条目后。
 
 - **Globe Head / GalvanicPower**：`AfterCardPlayedMirrors.HandleGalvanicPower` 的伤害目标是**打出卡牌的所有者**（`PreviewCard.Owner`），不是 Power 的所有者；Globe Head 持 Power 而玩家出牌，因此反伤落在玩家。`PowerDef` 的 `AfterCardPlayed` 以 `Limits.PlayerOwner` 为目标（Sts2Solver 内所有卡都属于玩家）。
-- **MagiKnight / DampenPower**：升级牌降到 0 级后仍会被读取或打出，因此 `RulesCompiler` 为根上的升级牌补 0 级规则；`DowngradeCard` 在 `AfterDowngraded` 后按 `PreservesVar0OnDowngrade` 恢复 Rampage/TheScythe 的累计伤害（现有引擎的 `ExtraDamageFromPlays`/`IncreasedDamage`）。克隆与变化/替换产生的是新对象，`DampenOriginalUpgrade` 清零；离开战斗牌堆的 Dampen 记录按退役处理（见[准入](archive/admission-and-verification.md)）。卡牌在出牌中被降级后又被恢复时，`AddCurrentCardVar`/`SyncCurrentPlayCard` 以 `Exec.PlayPosition` 的实时牌值为准（`Rampage`/`TheScythe` 在攻击后同步，现有引擎读的是可变 `CardModel`）。
+- **MagiKnight / DampenPower**：升级牌降到 0 级后仍会被读取或打出，因此 `RulesCompiler` 为根上的升级牌补 0 级规则；`DowngradeCard` 在 `AfterDowngraded` 后按 `PreservesVar0OnDowngrade` 恢复 Rampage/TheScythe 的累计伤害（现有引擎的 `ExtraDamageFromPlays`/`IncreasedDamage`）。克隆与变化/替换产生的是新对象，`DampenOriginalUpgrade` 清零；离开战斗牌堆的 Dampen 记录按退役处理（见[准入](https://github.com/rank-Yu/sts2-solver/blob/dev/full-run/docs/archive/admission-and-verification.md)）。卡牌在出牌中被降级后又被恢复时，`AddCurrentCardVar`/`SyncCurrentPlayCard` 以 `Exec.PlayPosition` 的实时牌值为准（`Rampage`/`TheScythe` 在攻击后同步，现有引擎读的是可变 `CardModel`）。
 - **Queen / ChainsOfBindingPower**：`BeforeCardPlayedMirrors.HandleChainsOfBindingPower` 跳过的是 `CardModel.IsDupe`，不是 `IsClone`；复制品在准入时已拒绝，克隆（Swift、AdaptiveStrike）必须照常设置束缚标记。Aux1 是原版按玩家回合统计的 `CardAfflictedEntry` 数：回合末只清打出标记与 Bound 苦难，Aux1 保留到下一个玩家回合开始再清零，不能提前在 `BeforeSideTurnEnd` 重置，否则回合末状态与 `ChainsOfBindingPredictionState` 不一致。
 - **不宁提灯（UnsettlingLamp）**：现有引擎的 `ApplyPowerFromSource(..., cardSource: null)` 会把“当前卡牌来源”压成 null，灯的观察/翻倍都不生效。Sts2Solver 的 `ApplyPowerWithoutCardSource`/`ApplyTemporaryStrengthWithoutCardSource` 在应用期间关闭 `CardPowerSourceActive`，Envenom/Concoct 的毒与 ReaperForm/Underworld 的 Doom、MonarchsGaze 的临时力量降层都走这两个入口；否则卡牌作用域内的非卡牌来源减益会被翻倍。
 - **Vambrace**：`AfterCardPlayed` 用“触发卡的作用域序号”匹配；`OwnChoice` 弃置 Sly 牌触发的嵌套自动打出会完成自己的作用域并改写 `LastCardPowerSourceSerial`，因此 `PlayFromPlay` 在嵌套打出返回后恢复外层的序号。
@@ -124,7 +124,7 @@
 
 ## 6. 事件内容的角色无关机制
 
-事件卡不属于任何角色的初始/奖励池，但会进入牌组并参与战斗；它们的结算落在通用管线。布局与投影见[状态布局](combat-state-layout.md#27-事件内容追加的卡牌值与动态类型)，准入与缺失能力见[准入](archive/admission-and-verification.md)。
+事件卡不属于任何角色的初始/奖励池，但会进入牌组并参与战斗；它们的结算落在通用管线。布局与投影见[状态布局](combat-state-layout.md#27-事件内容追加的卡牌值与动态类型)，准入与缺失能力见[准入](https://github.com/rank-Yu/sts2-solver/blob/dev/full-run/docs/archive/admission-and-verification.md)。
 
 - **动态卡牌类型。** `MAD_SCIENCE` 的原生 `CardModel.Type` 是保存属性 `TinkerTimeType` 的覆盖（`TargetType`、结果去向和出牌计数都随之变化）。规则表仍按卡牌 Id 冻结规范数值；结算与 `Scorer` 用 `CardDef.ResolveCardType`/`CardStats.HasDynamicType` 读实时类型。`Private` 低/高字节保存类型与骑手，`StateImporter` 从原版两个保存属性投影，非法 `None` 按 `UnrepresentableState` 拒绝。评分中该卡的 `LatentCardSetupValue`/`LatentTrait` 按 Power 类型与 `Curious` 骑手照 `CombatBeamSolver.StateEvaluation` 取 10/5。
 - **实例挡格。** `TORIC_TOUGHNESS_POWER` 每个实例一行，`Amount` 是剩余回合、`Aux0` 是挡清零时的格挡量；卡与 Power 都参与 `HasIdentityContent`，因为两个实例可在同一 `AfterBlockCleared` 中先后移除。挡格量在原版是 `decimal`，投影要求非负整数，否则显式拒绝。

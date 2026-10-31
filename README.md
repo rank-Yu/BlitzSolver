@@ -1,53 +1,58 @@
 # STS2 Solver · 尖塔求解器
 
-面向《杀戮尖塔 2》SL 模式的战斗与整局求解器，开发中。基于同一种子的确定性状态搜索，覆盖战斗搜索与局外决策；Mod 当前提供战斗自动执行，离线宿主已接通第一幕流程。架构见 [整局设计](docs/full-run-design.md)。
+面向《杀戮尖塔 2》原版单人、同种子 SL 模式的战斗求解 Mod。读取当前战斗和真实随机数状态，搜索整场路线，通过原版入口自动出牌、用药并逐动作核对结果。
 
-整场战斗状态是一个 12,696 字节的定长结构体 `Battle`，不含对象引用，分支只需整块复制内存。搜索在它上面做 Beam，热路径零托管分配。
+当前以战斗功能为发布范围，局外由玩家操作。局外开发代码保存在 `dev/full-run` 分支；完整版本的存档标签为 `archive/full-run-before-combat-release`。
 
-## 当前状态
+## 使用
 
-- 搜索核心（引擎、内容、搜索）已经独立成只依赖 .NET 基础库的 `Sts2Solver.Core`，覆盖五个角色卡池、296 个遗物、65 种药水与三幕全部遭遇。
-- 冻结快照回归（`tests/Golden`）不需要游戏文件，就能证明内核与搜索的每一步都和导出时的原引擎结果一致。
-- Mod 支持状态捕获、战斗搜索、路线部署及逐动作核对，使用原版出牌、药水、结束回合和选牌入口。普通玩家用 `F8` 开关“本场全自动”；设置界面尚未提供。
-- 战斗使用组合搜索，依次搜索无新增用药、最多一次和按请求策略放开的成员组合；架构和约束见 [战斗搜索](docs/combat-ai.md)。
-- 实验记录、跑分和验证报告保存在本地 `.local/`，不提交到仓库。
+需要游戏 v0.111.0 及兼容的 RitsuLib（清单最低版本 0.6.0）。把发布包中的 `Sts2Solver/` 目录放入游戏的 `mods/` 目录，并单独安装 RitsuLib。
 
-## 目录
+- 在自己的出牌阶段按 **F8**，开启本场战斗自动执行；再次按 F8 停止。
+- 当前采用中档搜索，状态与错误写入游戏日志。设置界面尚未提供。
+- 战斗结束自动停止，下一场需要重新开启。停止时已经入队的原版动作会完成。
+- 检测到 CombatSolver 同时安装时，本 Mod 不启用，避免同时控制战斗。
+- 预测与实际状态不符时会丢弃路线并重新搜索；连续失败后停止并交还手动。不支持的内容会明确拒绝。
 
-| 目录 | 内容 |
+安装、构建与测试版说明见 [Mod 使用与构建](docs/mod.md)。
+
+## 架构
+
+| 目录 | 职责 |
 | --- | --- |
-| `src/Core/Simulation/Combat` | 状态布局、回合与出牌管线、结算、规则表 |
-| `src/Core/Simulation/Run` | 局外状态、投影、编码、内容表与开战选择预测；局外由原版推进 |
-| `src/Core/Content` | 卡牌、Power、遗物、药水、球、附魔与怪物定义 |
-| `src/Core/Ai/Combat` | `BeamSolver`、状态评估与按功能归位的路线质量、资源策略、新颖度搜索 |
-| `src/Core/Ai/Run` | 局外可见决策接口与策略 |
-| `src/Core/Autoplay` | `CombatPilot` 整场战斗决策循环；`RunPilot` 整局边界与决策循环 |
-| `src/Import` | 原生导入；战斗导入在 `Combat/`，整局与决策请求在 `Run/` |
-| `src/TestHost` | 测试共享建局与转储；战斗在 `Combat/`，整局在 `Run/` |
-| `src/OfflineHost` | 原版离线宿主：首战、下一房间、有界 Act1 多房间，事件选牌/商店/宝箱及 Boss 领奖后的换幕前停止 |
-| `src/Mod` | RitsuLib Mod 入口、战斗与测试代码；不加入 `Sts2Solver.sln` |
-| `tests/KernelChecks` | 内核合同（K0）；战斗合同在 `Combat/` |
-| `tests/Golden` | 冻结快照校验器；数据在 `tests/Golden/data`，战斗校验器在 `Combat/` |
-| `tests/Architecture` | 编译后的 Core 层依赖检查 |
-| `tests/Differential` | 进程内差分；战斗对照与离线整场在 `Combat/`，导入/建局/地图进点在 `Run/` |
-| `tools/testing` | Linux 无头实例启动与请求/结果轮询 |
-| `tools/run-eval` | 独立首战/下一房间/有界多房间/第一幕烟测 CLI；批量整局评估待 R5 |
-| `tests/corpora/quality` | 122 根质量语料（原 120 根＋两场固定女王回归） |
-| `docs` | 架构、接口、使用与测试方法，从 [docs/README.md](docs/README.md) 进入 |
+| `src/Core/Simulation/Combat` | 定长战斗状态、规则、动作和回合结算 |
+| `src/Core/Content` | 五角色卡牌、状态、怪物、遗物、药水、球与附魔效果 |
+| `src/Core/Ai/Combat` | 搜索调度、评分、分支保留、去重与预算 |
+| `src/Core/Autoplay` | `CombatPilot`：整场决策、路线续用与重搜 |
+| `src/Import/Combat` | 只读导入游戏状态、编译规则与搜索配置 |
+| `src/Mod` | 游戏入口、F8、后台搜索、动作执行与实际结果核对 |
+| `src/TestHost/Combat` | 测试场景创建、注入、原生状态转储 |
+| `src/TestHost/ModTesting` | 仅测试版 Mod 编入的实机测试入口与补丁 |
+| `tests` | 合同、架构、冻结回归、原版差分与质量语料 |
+| `tools/testing` | 本地验证与无头实机测试脚本 |
+
+Core 只依赖 .NET 基础库。`Battle` 是不含对象引用的定长结构体，搜索通过复制状态展开分支。正式发布包不包含局外模块、测试场景注入或测试补丁。完整依赖规则与文档索引见 [架构说明](docs/README.md)。
 
 ## 构建与验证
 
-需要 .NET 9 SDK。
+需要 .NET 9 SDK。无需游戏文件的完整验证：
+
+```bash
+tools/testing/verify-core.sh --jobs 8
+```
+
+也可分别执行：
 
 ```bash
 dotnet build Sts2Solver.sln -c Release
 dotnet run --project tests/KernelChecks -c Release --no-build
 dotnet run --project tests/Architecture -c Release --no-build
 dotnet run --project tests/Golden -c Release --no-build -- k0
-dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data
+dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data --only simulation --jobs 8
+dotnet run --project tests/Golden -c Release --no-build -- verify tests/Golden/data --only search --jobs 8
 ```
 
-`verify` 重放 418 个根、48 万个游走状态，并对 1,983 个搜索请求重新求解。`--only d1|d2`、`--shard i/n`、`--jobs N` 可以拆开运行。
+模拟回归检查固定操作后的战斗状态；搜索回归检查固定请求的搜索结果。它们与基准一致不代表路线最优，搜索质量另由质量语料评估。实验记录与验证流水保存在本地 `.local/`，不提交。
 
 ## 来源与许可
 

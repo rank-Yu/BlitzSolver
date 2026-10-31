@@ -1,4 +1,4 @@
-artifacts/
+artifacts
 bin/
 obj/
 .local/
@@ -7,3 +7,5 @@ tests/Differential/local.props
 
 src/Mod/local.props
 src/Mod/.godot/
+
+__pycache__/

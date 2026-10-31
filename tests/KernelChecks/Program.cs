@@ -15,7 +15,6 @@ using Sts2Solver.Content.Relics;
 // content assembly. Differential equivalence with the existing engine is checked separately by the
 // offline harness probe.
 Registry.RegisterTestAssembly(Assembly.GetExecutingAssembly());
-Registry.RegisterTestAssembly(Assembly.GetExecutingAssembly());
 
 Check(Unsafe.SizeOf<Card>() == 92, $"Card 应为 92 字节，实际 {Unsafe.SizeOf<Card>()}");
 Check(Unsafe.SizeOf<Enemy>() == 64, $"Enemy 应为 64 字节，实际 {Unsafe.SizeOf<Enemy>()}");
@@ -28,8 +27,6 @@ string? execCoverageError = ExecCoverage.Validate();
 Check(execCoverageError == null, $"Exec 字段覆盖合同失败：{execCoverageError}");
 
 CheckRng();
-RunChecks.Check();
-RunPilotChecks.Check();
 CheckGrowthRewards();
 Rules rules = SliceRules();
 SearchV2Checks.Check(rules);
@@ -79,8 +76,6 @@ Console.WriteLine(JsonSerializer.Serialize(new
 {
     contracts = "Passed",
     battleBytes = Unsafe.SizeOf<Battle>(),
-    runStateBytes = Unsafe.SizeOf<Sts2Solver.Simulation.Run.RunState>(),
-    runViewBytes = Unsafe.SizeOf<Sts2Solver.Simulation.Run.RunView>(),
     runtime = Environment.Version.ToString(),
     benchmark,
 }, new JsonSerializerOptions { WriteIndented = true }));

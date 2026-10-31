@@ -7,6 +7,5 @@
     <Sts2Dir>/path/to/Slay the Spire 2</Sts2Dir>
     <RitsuWorkshopRoot>/path/to/steamapps/workshop/content/2868840/3747602295</RitsuWorkshopRoot>
     <RitsuLibReferenceTarget>0.111.0</RitsuLibReferenceTarget>
-    <ModOutputDir>$(MSBuildThisFileDirectory)../../artifacts/mod/Sts2Solver</ModOutputDir>
   </PropertyGroup>
 </Project>

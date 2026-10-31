@@ -361,7 +361,7 @@ internal sealed class ActionDeployer(
             }
             if (expected.Outcome != Outcome.None)
             {
-                await GodotCombatWaiter.NextFrameAsync(host);
+                await CombatFrameWaiter.NextFrameAsync(host);
                 continue;
             }
             Player? current = LocalContext.GetMe(live);
@@ -380,7 +380,7 @@ internal sealed class ActionDeployer(
                     $"live_side={live.CurrentSide} live_phase={current?.PlayerCombatState?.Phase} " +
                     $"live_turn={current?.PlayerCombatState?.TurnNumber} in_progress={CombatManager.Instance.IsInProgress}");
             }
-            await GodotCombatWaiter.NextFrameAsync(host);
+            await CombatFrameWaiter.NextFrameAsync(host);
         }
     }
 
@@ -397,13 +397,13 @@ internal sealed class ActionDeployer(
         if (planned.After.Outcome == Outcome.None
             && planned.After.PlayerTurn > planned.Before.PlayerTurn)
         {
-            await GodotCombatWaiter.SettleAsync(host);
+            await CombatFrameWaiter.SettleAsync(host);
             return;
         }
         bool instant = SaveManager.Instance.PrefsSave.FastMode == FastModeType.Instant;
         double seconds = instant ? 0.05 : 0.2;
         await host.ToSignal(host.GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
-        await GodotCombatWaiter.NextFrameAsync(host);
+        await CombatFrameWaiter.NextFrameAsync(host);
     }
 
     private static string PredictedPotionName(ushort stored)

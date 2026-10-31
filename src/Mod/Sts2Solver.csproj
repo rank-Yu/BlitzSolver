@@ -1,7 +1,7 @@
 <Project Sdk="Godot.NET.Sdk/4.5.1">
   <!--
     Sts2Solver Mod 本体。游戏加载器只加载与清单 id 同名的 <id>.dll，不会加载同目录的其它
-    DLL（见 docs/mod.md 的打包结论），因此本工程把 Core、Import 与 TestHost 的源码一起编进
+    DLL（见 docs/mod.md 的打包结论），因此本工程把 Core、Import 的源码（测试构建额外包含 TestHost）一起编进
     Sts2Solver.dll；ProjectReference 只建立依赖顺序，不复制程序集。
   -->
   <Import Project="$(MSBuildProjectDirectory)/local.props" Condition="Exists('$(MSBuildProjectDirectory)/local.props')" />
@@ -22,6 +22,8 @@
     <Sts2DataDir Condition="'$(Sts2DataDir)' == ''">$(Sts2Dir)/data_sts2_linuxbsd_x86_64</Sts2DataDir>
     <RitsuLibDir Condition="'$(RitsuLibDir)' == ''">$(RitsuWorkshopRoot)/compat/$(RitsuLibReferenceTarget)</RitsuLibDir>
     <RitsuLibReferencesProps>$(RitsuWorkshopRoot)/RitsuLib.References.props</RitsuLibReferencesProps>
+    <DefineConstants Condition="'$(EnableModTesting)' == 'true'">$(DefineConstants);STS2_SOLVER_TESTING</DefineConstants>
+    <ModOutputDir Condition="'$(EnableModTesting)' == 'true'">$(MSBuildProjectDirectory)/../../artifacts/mod-testing/Sts2Solver</ModOutputDir>
     <ModOutputDir Condition="'$(ModOutputDir)' == ''">$(MSBuildProjectDirectory)/../../artifacts/mod/Sts2Solver</ModOutputDir>
   </PropertyGroup>
 
@@ -32,10 +34,10 @@
     <Publicize Include="sts2" IncludeVirtualMembers="false" IncludeCompilerGeneratedMembers="false" />
     <Compile Include="../Core/**/*.cs" Exclude="../Core/bin/**;../Core/obj/**" LinkBase="Core" />
     <Compile Include="../Import/**/*.cs" Exclude="../Import/bin/**;../Import/obj/**" LinkBase="Import" />
-    <Compile Include="../TestHost/**/*.cs" Exclude="../TestHost/bin/**;../TestHost/obj/**" LinkBase="TestHost" />
+    <Compile Condition="'$(EnableModTesting)' == 'true'" Include="../TestHost/**/*.cs" Exclude="../TestHost/bin/**;../TestHost/obj/**" LinkBase="TestHost" />
     <ProjectReference Include="../Core/Sts2Solver.Core.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../Import/Sts2Solver.Import.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="../TestHost/Sts2Solver.TestHost.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Condition="'$(EnableModTesting)' == 'true'" Include="../TestHost/Sts2Solver.TestHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

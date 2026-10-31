@@ -1,48 +1,29 @@
-# 自动游玩
+# 战斗自动执行
 
-整局自动游玩由两个宿主驱动，共用同一套整局协议；局外都由原版推进，Sts2Solver 只负责决策与战斗。
-共享 `RunPilot`、`IRunPilotHost` 与正式 `OfflineRunHost`/`RunExecutor` 的局外执行基础已经实现。
-真实自然链路验证到首个战斗边界，完整离线整局尚未实现。Mod 的整局宿主与推荐界面仍未接入。
+`src/Core/Autoplay/CombatPilot.cs` 管理一场战斗：等待出牌阶段、请求搜索、沿用路线、检查边界并逐步执行。它不读取游戏对象，所有原生操作通过 `ICombatPilotHost` 完成。
 
-## 1. 协议
+## 宿主
 
-- `RunPilot`：共享决策循环。每一步从宿主取得可见 `RunView` 与
-  `RunDecisionRequest`，选择 `RunAction`，交给宿主执行；遇到战斗时调用 `CombatPilot`。
-- `IRunPilotHost`：异步返回 Decision/Combat/Terminal 边界，执行局外动作并移交战斗；未知异常原样传播。
-- `Ai.Run.IRunPolicy`：只接收 RunView，返回 RunPilotAnswer(Action, Confirmed)。需确认的 Select 必须明确授权；Cancel 不需要确认。
-- 父动作中的 native 异步子请求调用同一个 Decide 回调，共用决策预算、trace、取消与策略；父 loop 无需等待自身处理子请求。
-- `RunPilotResult` 区分 Victory/Death/Budget/Cancelled/Paused/Failed；步数限制重复战斗，child 同样计入决策预算。
-  Terminal 的明确胜利事实优先于 HP，首战边界暂停始终是 Paused。
-- `CombatPilot`：战斗决策循环，已有实现；Mod 与离线宿主共用。
-- `RunDecisionImporter`（`src/Import/Run/Decisions/`）：从原版当前界面读出请求，是
-  `RunState` 之外的唯一决策来源。
-
-## 2. 两个宿主
-
-| 职责 | Mod | 离线宿主 |
+| 场景 | 宿主 | 执行方式 |
 | --- | --- | --- |
-| 战斗宿主 | `CombatPilotHost` | `OfflineCombatHost` |
-| 战斗执行 | `ActionDeployer` | `CombatExecutor` |
-| 整局宿主 | `RunPilotHost` | `OfflineRunHost` |
-| 局外执行 | `RunDeployer`（经界面） | `RunExecutor`（经模型层） |
-| 开新局 | — | `NewRunFactory` |
+| 游戏 Mod | `CombatPilotHost` | 原版动作队列、选牌入口，逐动作导入核对 |
+| 内核离线评测 | Differential 的离线战斗宿主 | 模拟内核回放；仅用于质量和性能评测 |
+| 原版动作对照 | Differential 的 `NativePilotHost` | 原版动作执行与原生终局检查 |
 
-- **Mod**：`RunPilotHost` 在真实游戏里运行，`RunDeployer` 通过原版界面/公开入口执行局外动作；
-  战斗由 `ActionDeployer` 逐动作部署并核对边界。
-- **离线宿主**（R3b 落地）：设计为 `OfflineRunHost` 在普通 .NET 进程里运行，`RunExecutor` 直接
-  调用原版模型层入口；战斗由 `CombatExecutor` 执行，边界导入原版 `Battle` 比较。
+内核回放通过不等于原版动作对照通过，两类报告必须区分。
 
-两边都不自己推演局外：每一步都从原版重新导入 `RunState`。离线宿主的细节见
-[离线宿主](offline-host.md)，类名与目录见 [`src/OfflineHost`](../src/OfflineHost/README.md)。
+## 路线生命周期
 
-## 3. 模式
+1. 主线程导入当前状态，编译只包含冻结数据的搜索请求。
+2. 后台执行组合搜索；完成后用模拟内核重放得到动作前后预期状态及选牌信息。
+3. 主线程通过游戏入口出牌、喝药和结束回合。
+4. 每个稳定动作边界重新导入实际状态；一致才继续，偏差则丢弃剩余路线、从实际状态重搜。
+5. 新回合状态与预测一致且路线尚有动作时，继续使用原路线。
 
-保留三种模式：
+搜索失败或路线无效时不执行半成品。连续部署失败或偏差达到上限时暂停，交还手动控制。
 
-| 模式 | 战斗 | 局外 | 用途 |
-| --- | --- | --- | --- |
-| 只托管战斗 | Sts2Solver | 玩家 | 推荐/自动出牌 |
-| 只给推荐 | Sts2Solver 给建议 | 玩家 | 观察建议 |
-| 全自动 | Sts2Solver | `RunPilot` | 整局评估 |
+## 取消
 
-共享循环与局外执行库位于正式宿主中；Mod 界面执行器计划在 R3c，策略在 R4，评估闭环在 R5。
+F8 再次按下、战斗结束或场景退出时取消搜索和自动执行。已经入队的游戏动作会完成，取消在稳定边界生效。测试清理会等待 worker 与自动战斗会话退出后再切换场景。
+
+`CombatPilotHost` 接收可选的主线程策略配置函数，测试侧用它设置固定请求参数。生产代码不接收测试场景 DTO，也不依赖 TestHost。未来设置界面同样可在请求捕获时注入配置，搜索热路径不读取全局设置。

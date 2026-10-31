@@ -12,7 +12,7 @@
 [冻结快照](golden-data.md)，复跑命令见 [测试与验证](testing.md)。
 
 本层只读原生状态与模型；建局、注入与转储会写游戏状态，放在独立的 `src/TestHost`
-（`Sts2Solver.TestHost`），由离线宿主与 Mod 共用。
+（`Sts2Solver.TestHost`），由战斗差分宿主与测试版 Mod 共用。
 
 ## 1. 入口与输入
 
@@ -156,18 +156,6 @@ Battle battle = BattleImporter.Import(combatState, player, rules, options);
 
 导出钩子提交在 CombatSolver `flash/m0` 的 `91641ff0`（环境变量 `M2A3_RULES_TABLES_DUMP`），读取 `a62f1850` 的原引擎；游戏或 CombatSolver 更新后用它重新导出，再用 `--rules-table-check` 复核。
 
-### 3.3 内容表与整局构建器
-
-R2a-1 起，内容级输入有第二个来源：`src/Import/Run/ContentTableExporter.cs` 在进程内遍历规范模型，
-导出 `src/Core/Simulation/Run/ContentTable.cs` 的内容表；整局层用 `RulesBuilder` 从内容表 +
-`RunState` + `Battle` 重建同一份 `Rules`，不读原版对象。导出的卡牌克隆/升级、Power/遗物/药水变量
-与怪物状态机直接复用本文件描述的那套 `RulesCompiler` 辅助函数，避免两份内容解释。表的范围、
-30 项来源分类、`RulesRootFacts` 缺口与逐字节对照见 [内容表与 RulesBuilder](content-table.md)。
-
-`RulesCompiler` 仍保留原生路径：它必须在导入 `Battle` 之前产出规则表，而 `RulesBuilder` 以
-`Battle` 为输入，所以不能简单改成“导出表 + 调构建器”。两条路径共享内容辅助函数，根状态读取各自
-保留；对照工具负责证明结果逐字节一致。
-
 ## 4. 评估配置编译
 
 每个 D1 根还冻结一份 `d1/<root>/config.br`：CombatSolver 的 `FlashGoldenConfigDump`
@@ -298,7 +286,7 @@ dotnet artifacts/bin/Differential/release/Differential.dll \
 
 `SearchRequestCompiler` 只读原生根、已编译的规则和 `SearchPolicy`，冻结 `SearchCase` 所需的评分、下界、根生命、药水默认策略、失窃目标、遗物/成长目标与回放状态。能力承诺目录根据根中已登记的能力牌和真实 `RunState.TotalFloor` 编译；生成闭包内的登记能力也有描述符。普通界面未设置药水指令时使用 Smart。
 
-`SearchPerformanceProfile` 提供基准、窄、宽、进攻四个最终宽度及总时间；档位值见 [战斗搜索](combat-ai.md)。Mod 与 OfflineHost 再把宿主内存预算加入 `CombatSearchRequest`，交由 `CombatSearchCoordinator` 构造成员。成员宽度、评价、保留、用药限制与软时间在协调器中设置，全部受原请求保护/强制指令约束，生产没有展开节点上限。
+`SearchPerformanceProfile` 提供基准、窄、宽、进攻四个最终宽度及每单位宽度的时限；档位值见 [战斗搜索](combat-ai.md)。Mod 与战斗差分宿主 再把宿主内存预算加入 `CombatSearchRequest`，交由 `CombatSearchCoordinator` 构造成员。成员宽度、评价、保留、用药限制与软时间在协调器中设置，全部受原请求保护/强制指令约束，生产没有展开节点上限。
 
 `SCV2` 保存组合请求及总预算，旧 `SREQ` 仍表示冻结的确定性单成员请求。宿主回调与帧压力信号只在运行时传递；worker 不再读取 live 战斗或全局搜索设置。
 
@@ -435,35 +423,3 @@ NEGATIVE case=third-party-content status=rejected reason=third-party-content
   订阅者、BaseLib card modifier、AdaptedOnPlay 按离线宿主的固定“无第三方”口径处理；实机 Mod
   根需要另行拒绝或补证据。
 - 实机测试支持捕获状态与确定性单成员搜索对照；回合准备 fixture 只比较评分/下界子部件并跳过搜索。前缀根与完整准备阶段多根排序仍由离线工具检查，测试会话的幕结构处理见 [Mod 入口与无头捕获](mod.md)。
-
-## 8. 整局状态导入（R1b）
-
-```csharp
-RunState run = RunStateImporter.Import(nativeRunState, localPlayer);
-```
-
-`src/Import/Run/RunStateImporter.cs` 从原版 `RunState` 与本地 `Player` 读取定长
-`Sts2Solver.Simulation.Run.RunState`；只读，不改动游戏状态。字段盘点、容量、编码与可见性见
-[整局状态布局](run-state-layout.md)。
-
-- 只支持单人、`GameMode.Standard`、原版内容；多人、Daily/Custom、Modifier、第三方程序集模型
-  显式拒绝。
-- 未知卡牌/遗物/药水/怪物/附魔/苦难/球/角色/幕/遭遇/事件、未知解锁 epoch 或已见遭遇，以及
-  非标准地图都返回稳定 `ImportReason` 码。
-- 牌组、遗物、卡牌与遗物私有 `SavedProperties` 统一编码为定长属性包；不复制游戏模型。
-- `CapacityException.Region` 指出溢出区块；导入从不截断。
-- 战斗开始时的 9 条战斗流与原版逐字节相同；`--run-import-compare` 还会用现有
-  `RulesCompiler`/`BattleImporter` 导入同一战斗，检查 HP、牌组身份、遗物身份/顺序/Melted、
-  药水槽与 9 条流。牌组比较取战斗中带 `DeckCard` 标记的持久牌多重集，要求与 `RunState.Deck` 完全相同；开局生成的额外卡不计入。私有属性由 `NativeRunDump` 直接从原生 `SavedProperties` 打印为
-`名字哈希:类型:值`，与 `RunDump` 从 `RunPropertyBag` 解码出的文本比较，不共用属性编码器。
-
-离线命令：
-
-```bash
-dotnet artifacts/bin/Differential/release/Differential.dll --run-import-compare --run-kind all --run-seeds 20 --run-jobs 8
-dotnet artifacts/bin/Differential/release/Differential.dll --run-import-compare --run-kind d1 --run-jobs 8
-dotnet artifacts/bin/Differential/release/Differential.dll --run-import-compare --run-kind natural --run-seeds 20 --run-jobs 8
-dotnet artifacts/bin/Differential/release/Differential.dll --run-import-negative
-```
-
-局外导入的比较范围与结果字段见 [测试与验证](testing.md) 第 6.10 节。

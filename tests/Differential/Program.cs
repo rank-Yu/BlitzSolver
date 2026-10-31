@@ -49,48 +49,8 @@ internal static class Program
                 Console.WriteLine(name);
             return 0;
         }
-        if (args.Length == 2 && args[0] == "--act1-boss-fixture") return ActOneBoundaryFixture.Run(args[1]);
-        if (args.Length == 2 && args[0] == "--act1-reference") return RoomsReference.Run(50, args[1], act1: true);
-        if (args.Length == 2 && args[0] == "--act1-production") return RoomsReference.Production(50, args[1]);
-        if (args.Length == 1 && args[0] == "--event-selection-host-checks") return EventSelectionHostChecks.Run();
-        if (args.Length == 1 && args[0] == "--treasure-host-checks") return TreasureHostChecks.Run();
-        if (args.Length == 1 && args[0] == "--rooms-later-combat-failure") return FirstCombatReference.LaterCombatFailure();
-        if (args.Length == 1 && args[0] == "--multiroom-host-checks") return MultiRoomHostChecks.Run();
-        if (args.Length == 1 && args[0] == "--shop-host-checks") return ShopHostChecks.Run();
-        if (args.Length == 2 && args[0] == "--rooms-reference") return RoomsReference.Run(int.Parse(args[1]));
-        if (args.Length == 2 && args[0] == "--rooms-production") return RoomsReference.Production(int.Parse(args[1]));
-        if (args.Length == 1 && args[0] == "--postcombat-production-capture") return FirstCombatReference.ProductionPostCombat();
-        if (args.Length == 1 && args[0] == "--postcombat-host-checks") return PostCombatHostChecks.Run();
-        if (args.Length > 0 && args[0] == "--run-host-compare")
-            return RunHostCompare.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--run-reward-shop-compare")
-            return RunRewardShopCompare.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--run-decision-compare")
-            return RunDecisionCompare.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--run-probe")
-            return RunProbe.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--content-table-report")
-            return ContentTableReport.Run();
-        if (args.Length > 0 && args[0] == "--rules-build-compare")
-            return RulesBuildCompare.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--combat-setup-compare")
-            return CombatSetupCompare.Run(args[1..]);
         if (args.Length > 0 && args[0] == "--combat-pilot-compare")
             return CombatPilotCompare.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--run-import-compare")
-            return RunImportCompare.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--map-step-compare")
-            return MapStepCompare.Run(args[1..]);
-        if (args.Length > 0 && args[0] == "--run-import-negative")
-            return RunImportNegative.Run();
-        if (args.Length == 1 && args[0] == "--first-combat-cancel")
-            return FirstCombatReference.CancelInCombat();
-        if (args.Length == 2 && args[0] == "--first-combat-negative")
-            return FirstCombatReference.Negative(args[1]);
-        if (args.Length > 0 && args[0] == "--first-combat-reference")
-            return FirstCombatReference.Run(args[1..]);
-        if (args.Length == 1 && args[0] == "--first-combat-contracts")
-            return FirstCombatReference.Contracts();
         if (args.Length == 1 && args[0] == "--potion-schedule-checks")
             return PotionScheduleTrial.Checks();
         string data = DefaultData;
@@ -1057,22 +1017,9 @@ internal static class Program
               dotnet Differential.dll --root <name> --recapture-root [--out <dir>]
               dotnet Differential.dll --all --jobs 1..8 --recapture-root [--out <dir>]
               dotnet Differential.dll --rules-table-check
-              dotnet Differential.dll --map-step-compare [--map-step-seeds N] [--map-step-jobs 1..4]
-                  [--map-step-shard i/n] [--map-step-acts 1..3] [--map-step-saves empty,all]
-                  [--map-step-tutorial both|on|off]
-              dotnet Differential.dll --run-reward-shop-compare
-              dotnet Differential.dll --run-decision-compare
-              dotnet Differential.dll --content-table-report
-              dotnet Differential.dll --rules-build-compare (--build-kind d1|natural|encounter [--build-seeds N]
-                  [--build-jobs 1..8] [--build-shard i/n] [--build-content])
-                  | --build-root <name> | --build-character <name> --build-ascension N --build-seed <text>
-                  | --build-encounter <id> [--build-seed <text>]
               dotnet Differential.dll --import-negative [--root <name>]
-              dotnet Differential.dll --combat-setup-compare --setup-kind natural|encounter|d1
-                  [--setup-seeds N] [--setup-jobs 1..8] [--setup-shard i/n]
-              dotnet Differential.dll --combat-setup-compare --setup-relic-matrix [--setup-jobs 1..8]
               dotnet Differential.dll --combat-pilot-compare [--pilot-root <name>]
-                  [--pilot-jobs 1..8] [--pilot-shard i/n]
+                  [--pilot-jobs 1..8] [--pilot-shard i n]
               dotnet Differential.dll --compare-only <newDir> <referenceDir>
               dotnet Differential.dll --all --compare <referenceDir>
               dotnet Differential.dll --live-compare <resultDir>

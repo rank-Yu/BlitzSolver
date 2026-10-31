@@ -2,7 +2,6 @@
 // at commit a62f1850 (MIT, Copyright (c) 2026 Torch1230 and contributors).
 // Adapted for the differential host: no CombatSolver assembly, no search-policy injection.
 using System.Reflection;
-using Sts2Solver.Simulation.Run;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -214,7 +213,7 @@ internal static class GameBootstrap
                 BindingFlags.Instance | BindingFlags.Public);
             if (method != null && method.DeclaringType != baseMethod?.DeclaringType)
             {
-                throw new ContentUnavailableException("alternative-hidden",
+                throw new NotSupportedException(
                     $"离线宿主禁止隐藏卡牌奖励 alternatives：{model.Id} 重写了 " +
                     "TryModifyCardRewardAlternatives。");
             }

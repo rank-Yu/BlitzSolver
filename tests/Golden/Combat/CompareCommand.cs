@@ -106,7 +106,7 @@ internal static class CompareCommand
         SearchVerificationHooks.VerifySearchEquivalence = verify;
 
         string[] paths = shards > 1
-            ? D2Verifier.BuildPlans(dataDirectory, shards)[shard].Selected
+            ? SearchVerifier.BuildPlans(dataDirectory, shards)[shard].Selected
                 .Select(static request => request.Path)
                 .Where(path => only == null
                     || Path.GetFileName(path).StartsWith(only, StringComparison.Ordinal))
