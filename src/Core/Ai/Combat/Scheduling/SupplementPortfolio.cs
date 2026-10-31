@@ -4,7 +4,7 @@ namespace Sts2Solver.Ai.Combat;
 internal static class SupplementPortfolio
 {
     internal static bool IsSupplement(SearchMember member)
-        => member.Evaluation is SearchEvaluation.QueenSetup or SearchEvaluation.Setup or SearchEvaluation.FocusedSetup
+        => member.Evaluation is SearchEvaluation.QueenSetup or SearchEvaluation.Setup or SearchEvaluation.FocusedSetup or SearchEvaluation.ContinuousSetup
             || member.Retention == SearchRetention.QueenKillTiming;
 
     internal static SearchMember[] AppendToStages(SearchMember[] members, SearchPlan plan, bool queen = true)
@@ -24,6 +24,8 @@ internal static class SupplementPortfolio
             }
             else if (queen)
                 result.Add(new(plan.BaselineWidth, SearchEvaluation.QueenSetup, SearchRetention.Standard, member.Potions));
+            if (plan.SetupStrategies && plan.ContinuousSetupStrategies && member.Potions == SearchPotionLimit.Allowed)
+                result.Add(new(plan.WideWidth, SearchEvaluation.ContinuousSetup, SearchRetention.Standard, member.Potions));
             if (queen)
                 result.Add(new(plan.NarrowWidth, SearchEvaluation.Standard, SearchRetention.QueenKillTiming, member.Potions));
         }

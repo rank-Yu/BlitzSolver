@@ -25,6 +25,7 @@ internal static class CombatSearchCoordinator
         if (plan.BaselineWidth <= 0 || plan.NarrowWidth <= 0 || plan.WideWidth <= 0
             || plan.OffensiveWidth <= 0 || plan.MillisecondsPerWidth < 0
             || !independent && plan.TotalMilliseconds <= 0 || plan.MemoryBytes <= 0
+            || plan.ContinuousSetupStrategies && (!independent || !plan.SetupStrategies)
             || plan.EndedKeepWidths < 2 || plan.EndedTriggerWidths <= plan.EndedKeepWidths)
             throw new ArgumentOutOfRangeException(nameof(request), "搜索参数无效。");
         SearchBudget budget = new(plan.TotalMilliseconds, reservePotionPhase: false, clock, independent);
@@ -45,6 +46,8 @@ internal static class CombatSearchCoordinator
         bool setup = plan.SetupStrategies && plan.CustomMembers.IsDefaultOrEmpty
             && initial.Options.Novelty is null && initial.Battles.Length == 1;
         SetupSearchPolicy? setupPolicy = setup ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules) : null;
+        SetupSearchPolicy? continuousSetup = setup && plan.ContinuousSetupStrategies
+            ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules, continuous: true) : null;
         SetupSearchPolicy? focusedSetup = setup && plan.LegacySetupPortfolio ? SetupSearchPolicy.Capture(initial.Battles[0], initial.Rules, focused: true) : null;
         if (setup || queen is not null && plan.QueenStrategies)
             members = SupplementPortfolio.AppendToStages(members, plan, queen is not null && plan.QueenStrategies);
@@ -169,7 +172,8 @@ internal static class CombatSearchCoordinator
                     queen: member.Evaluation == SearchEvaluation.QueenSetup ? queen
                         : member.Retention == SearchRetention.QueenKillTiming ? timing : null,
                     setup: member.Evaluation == SearchEvaluation.Setup ? setupPolicy
-                        : member.Evaluation == SearchEvaluation.FocusedSetup ? focusedSetup : null),
+                        : member.Evaluation == SearchEvaluation.FocusedSetup ? focusedSetup
+                        : member.Evaluation == SearchEvaluation.ContinuousSetup ? continuousSetup : null),
                 SecondRankBand = member.Retention == SearchRetention.SecondBand,
                 SecondRankBandWidth = member.Width,
                 AggressivePowerCommitment = member.Retention == SearchRetention.Power,

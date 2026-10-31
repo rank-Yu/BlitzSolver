@@ -743,7 +743,7 @@ internal sealed class Scorer
             StrategicEffectVector effect = EvaluateStrategic(rules.Kind, power.Amount, effectContext);
             strategicEffects += effect;
             if (SetupPolicy is { } setup)
-                setupPotentialHp += setup.ActivationHp(power, effect.RetentionValue);
+                setupPotentialHp += setup.PreferenceHp(power, effect.RetentionValue);
             offensivePersistentBuffValue += effect.DamagePotential + effect.ScalingPotential;
             persistentSetupTraits |= rules.Trait;
         }

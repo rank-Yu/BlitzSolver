@@ -15,10 +15,12 @@ internal static class CombatSearchCodec
         if (plan.MillisecondsPerWidth < 0 || plan.CustomMembers.Any(m => m.TimeLimitMilliseconds < 0
             || !independent && m.TimeLimitMilliseconds != 0))
             throw new InvalidDataException("成员时间配置无效。");
+        if (plan.ContinuousSetupStrategies && (!independent || !plan.SetupStrategies))
+            throw new InvalidDataException("连续增益补搜需要独立计时与能力补搜范围。");
         writer.Write(Magic);
         bool compact = request.Plan.UsesCompactOneStage;
         bool compactAllowed = request.Plan.DefaultPotionSchedule == DefaultPotionSchedule.CompactPotionPortfolio;
-        writer.Write(independent ? (ushort)12 : compactAllowed ? (ushort)11 : compact ? (ushort)10 : request.Plan.SetupStrategies ? (request.Plan.LegacySetupPortfolio ? (ushort)8 : (ushort)9) : request.Plan.QueenStrategies ? (ushort)7 : request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
+        writer.Write(plan.ContinuousSetupStrategies ? (ushort)13 : independent ? (ushort)12 : compactAllowed ? (ushort)11 : compact ? (ushort)10 : request.Plan.SetupStrategies ? (request.Plan.LegacySetupPortfolio ? (ushort)8 : (ushort)9) : request.Plan.QueenStrategies ? (ushort)7 : request.Plan.ExperimentalQueenSupplement ? (ushort)6 : Version);
         byte[] root = SearchCodec.EncodeRequest(request.Case);
         writer.Write(root.Length);
         writer.Write(root);
@@ -57,7 +59,7 @@ internal static class CombatSearchCodec
         if (reader.ReadUInt32() != Magic)
             throw new InvalidDataException("组合搜索请求魔数不符。");
         ushort version = reader.ReadUInt16();
-        if (version is not (1 or 2 or 3 or 4 or Version or 6 or 7 or 8 or 9 or 10 or 11 or 12))
+        if (version is not (1 or 2 or 3 or 4 or Version or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13))
             throw new InvalidDataException("组合搜索请求版本不受支持。");
         int length = Codec.ReadCount(reader, 1 << 28, "搜索根字节");
         byte[] root = reader.ReadBytes(length);
@@ -95,7 +97,8 @@ internal static class CombatSearchCodec
             ExperimentalQueenSupplement = version >= 6 && Codec.ReadBool(reader),
             QueenStrategies = version >= 7 && Codec.ReadBool(reader),
             SetupStrategies = version >= 8 && Codec.ReadBool(reader),
-            LegacySetupPortfolio = version == 8 || version >= 10 && Codec.ReadBool(reader) };
+            LegacySetupPortfolio = version == 8 || version >= 10 && Codec.ReadBool(reader),
+            ContinuousSetupStrategies = version >= 13 };
         if (version >= 12)
         {
             int millisecondsPerWidth = reader.ReadInt32();
@@ -103,6 +106,8 @@ internal static class CombatSearchCodec
                 throw new InvalidDataException("成员时间配置无效。");
             plan = plan with { MillisecondsPerWidth = millisecondsPerWidth };
         }
+        if (plan.ContinuousSetupStrategies && !plan.SetupStrategies)
+            throw new InvalidDataException("连续增益补搜范围无效。");
         searchCase = searchCase with { Options = searchCase.Options with
             { HasUnboundedGrowthTargets = unboundedGrowth, PoolStateBudgetBytes = poolStateBudget } };
         if (searchCase.Options.PotionFreeBaseline is { } baseline)

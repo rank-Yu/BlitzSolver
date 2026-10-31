@@ -622,6 +622,71 @@ internal static class SearchV2Checks
             && latestQueen.Count(m => m.Retention == SearchRetention.QueenKillTiming) == 3,
             "8+4+7 retains queen supplements in all stages");
 
+        SearchPlan continuous = compactAllowed with { ContinuousSetupStrategies = true,
+            MillisecondsPerWidth = 50, TotalMilliseconds = 0 };
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search, continuous), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members.Length == 17 && seen.Count == 17
+            && result.Members.Count(m => m.Member.Evaluation == SearchEvaluation.ContinuousSetup) == 1
+            && result.Members[^1].Member.Potions == SearchPotionLimit.Allowed
+            && result.Members[^1].Member.Width == continuous.WideWidth
+            && result.Members[^1].Member.TimeLimitMilliseconds == continuous.WideWidth * 50
+            && seen[^1].Scorer!.SetupPolicy!.Continuous,
+            "continuous gain is one wide independent-time supplement in Allowed only");
+        Assert(result.Members.Take(16).All(m => m.Member.Evaluation != SearchEvaluation.ContinuousSetup),
+            "existing searches remain intact");
+        byte[] continuousBytes = CombatSearchCodec.Encode(new(search, continuous));
+        Assert(BitConverter.ToUInt16(continuousBytes, 4) == 13
+            && CombatSearchCodec.Decode(continuousBytes).Plan.ContinuousSetupStrategies
+            && CombatSearchCodec.Encode(CombatSearchCodec.Decode(continuousBytes)).SequenceEqual(continuousBytes),
+            "v13 freezes continuous supplement");
+        Assert(!CombatSearchCodec.Decode(CombatSearchCodec.Encode(new(search,
+            continuous with { ContinuousSetupStrategies = false }))).Plan.ContinuousSetupStrategies,
+            "v12 replay does not acquire the new supplement");
+
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = options with {
+            Potions = options.Potions with { MaximumUses = 1 } } }, continuous), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(result.Members[^1].Ran && result.Members[^1].EffectivePotionLimit == 1
+            && seen[^1].Potions.MaximumUses == 1, "Allowed continuous search respects the user's one-potion cap");
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Options = forced with {
+            PowerCommitments = options.PowerCommitments } }, continuous), new(), Run,
+            CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(seen.Count == 7 && seen.All(o => o.EnforceForcedPotionDirectives)
+            && seen[^1].Scorer!.SetupPolicy!.Continuous, "forced potion requirements survive continuous ranking");
+        seen.Clear(); now = 0;
+        result = CombatSearchCoordinator.RunAsync(new(search with { Battles = [default] }, continuous),
+            new(), Run, CancellationToken.None, () => now).AsTask().GetAwaiter().GetResult();
+        Assert(!result.Members[^1].Ran && result.Members[^1].SkippedReason == "no-allowed-potions",
+            "continuous search skips when no potion can be used");
+
+        Registry.TryPower("STRENGTH_POWER", out ushort strength);
+        Battle starting = root;
+        starting.PowerCount = 1;
+        starting.Powers[0] = new Power { Id = strength, Owner = Limits.PlayerOwner, Amount = 2 };
+        SetupSearchPolicy continuousPolicy = SetupSearchPolicy.Capture(starting, rules, continuous: true);
+        Power gain = starting.Powers[0];
+        Assert(continuousPolicy.PreferenceHp(gain, 10) == 0, "starting buffs do not gain continuous credit");
+        gain.Amount = 3;
+        double partial = continuousPolicy.PreferenceHp(gain, 10);
+        Assert(partial > 0 && partial < 8
+            && SetupSearchPolicy.Capture(starting, rules).PreferenceHp(gain, 10) == 0,
+            "partial gain without a root power card is valued only by the continuous mode");
+        gain.Amount = 4;
+        Assert(continuousPolicy.PreferenceHp(gain, 10) > partial
+            && continuousPolicy.PreferenceHp(gain, 0) == 0, "continuous preference needs effective positive gain");
+        SearchCase continuousCase = search with { Battles = [starting], Options = options with {
+            Scorer = new(options.Scorer!.RulesForCodec, setup: continuousPolicy) } };
+        byte[] singleContinuous = SearchCodec.EncodeRequest(continuousCase);
+        Scorer restoredContinuous = SearchCodec.DecodeRequest(singleContinuous).Options.Scorer!;
+        Assert(restoredContinuous.SetupPolicy!.Continuous
+            && restoredContinuous.SetupPolicy.PreferenceHp(gain, 10) == continuousPolicy.PreferenceHp(gain, 10)
+            && SearchCodec.EncodeRequest(SearchCodec.DecodeRequest(singleContinuous)).SequenceEqual(singleContinuous),
+            "SUP2 preserves initial powers and the continuous mode");
+
         // The generic members replace QueenSetup; only kill-timing retention is retained.
         SearchMember[] queen = SupplementPortfolio.AppendToStages(
             PortfolioBuilder.Build(enabled, true, false), enabled, queen: true);

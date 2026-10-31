@@ -4,7 +4,7 @@ using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Ai.Combat;
 
-internal enum SearchEvaluation { Standard, Base, Offensive, QueenSetup, Setup, FocusedSetup }
+internal enum SearchEvaluation { Standard, Base, Offensive, QueenSetup, Setup, FocusedSetup, ContinuousSetup }
 internal enum SearchRetention { Standard, Power, SecondBand, QueenKillTiming }
 internal enum SearchPotionLimit { None = 0, One = 1, Allowed = 2, Two = 3, Three = 4 }
 
@@ -30,6 +30,9 @@ internal sealed record SearchPlan(int BaselineWidth, int NarrowWidth, int WideWi
 
     /// <summary>Generic setup members replace the historical QueenSetup member.</summary>
     public bool SetupStrategies { get; init; }
+
+    /// <summary>Wide continuous-gain supplement in the Allowed stage only.</summary>
+    public bool ContinuousSetupStrategies { get; init; }
 
     /// <summary>Historical v8 narrow/focused pair, retained only for replay.</summary>
     public bool LegacySetupPortfolio { get; init; }

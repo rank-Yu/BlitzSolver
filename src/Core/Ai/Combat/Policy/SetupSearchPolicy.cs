@@ -2,7 +2,7 @@ using Sts2Solver.Simulation.Combat;
 
 namespace Sts2Solver.Ai.Combat.Policy;
 
-/// <summary>Root-frozen activation milestones; only power-card effects earn setup preference.</summary>
+/// <summary>Root-frozen activation or continuous-gain preference for opt-in supplemental searches.</summary>
 internal sealed class SetupSearchPolicy
 {
     private readonly int[] _initialAmounts;
@@ -10,19 +10,26 @@ internal sealed class SetupSearchPolicy
     internal int FocusSlot { get; }
     private readonly uint _focusCombatId;
     internal bool Focused { get; }
+    internal bool Continuous { get; }
 
-    private SetupSearchPolicy(int[] initial, int[] activation, bool focused, int slot, uint combatId)
+    private SetupSearchPolicy(int[] initial, int[] activation, bool focused, int slot, uint combatId, bool continuous = false)
     {
+        Continuous = continuous;
         _initialAmounts = initial; _activationAmounts = activation;
         Focused = focused; FocusSlot = slot; _focusCombatId = combatId;
     }
 
-    internal static SetupSearchPolicy Capture(in Battle root, Rules rules, bool focused = false)
+    internal static SetupSearchPolicy Capture(in Battle root, Rules rules, bool focused = false, bool continuous = false)
     {
         int[] initial = new int[Registry.PowerCount], activation = new int[Registry.PowerCount];
         for (int i = 0; i < root.PowerCount; i++)
             if (root.Powers[i].Owner == Limits.PlayerOwner)
                 initial[root.Powers[i].Id] = Math.Max(0, root.Powers[i].Amount);
+        if (continuous)
+        {
+            if (focused) throw new ArgumentException("连续增益不能叠加目标偏好。");
+            return new(initial, activation, false, -1, 0, continuous: true);
+        }
         Dictionary<string, int> names = new(StringComparer.OrdinalIgnoreCase);
         for (int id = 0; id < activation.Length; id++)
             names.Add(Normalize(Registry.Power((ushort)id).NativeId), id);
@@ -52,7 +59,7 @@ internal sealed class SetupSearchPolicy
                 if (enemy.Creature.IsAlive && enemy.Creature.MaxHp > hp)
                 { slot = candidate; hp = enemy.Creature.MaxHp; }
             }
-        return new(initial, activation, focused, slot, slot < 0 ? 0 : root.Enemies[slot].CombatId);
+        return new(initial, activation, focused, slot, slot < 0 ? 0 : root.Enemies[slot].CombatId, continuous);
     }
 
     private static string Normalize(string value)
@@ -61,11 +68,18 @@ internal sealed class SetupSearchPolicy
         return name.EndsWith("Power", StringComparison.OrdinalIgnoreCase) ? name[..^5] : name;
     }
 
-    // Activation is a bounded exploration preference; ordinary scoring still values later stacks.
-    // The power evaluation must have an applicable payoff. A starting relic buff earns no credit.
-    internal double ActivationHp(in Power power, int potential)
-        => _activationAmounts[power.Id] > 0 && potential > 0
-            && (long)power.Amount - _initialAmounts[power.Id] >= _activationAmounts[power.Id] ? 8d : 0d;
+    // Both preferences are bounded ranking heuristics, not guaranteed HP savings.
+    // Continuous gain values the new share of each effective buff, including potion sources.
+    internal double PreferenceHp(in Power power, int potential)
+    {
+        if (!Continuous)
+            return _activationAmounts[power.Id] > 0 && potential > 0
+                && (long)power.Amount - _initialAmounts[power.Id] >= _activationAmounts[power.Id] ? 8d : 0d;
+        int initial = _initialAmounts[power.Id];
+        double addedShare = power.Amount <= initial ? 0 : (power.Amount - initial) / (double)power.Amount;
+        double value = potential * addedShare;
+        return value <= 0 ? 0 : 8d * value / (1d + value);
+    }
 
     internal int FocusHp(in Battle battle)
         => FocusSlot >= 0 && FocusSlot < battle.EnemyCount
@@ -80,7 +94,7 @@ internal sealed class SetupSearchPolicy
         writer.Write(Focused); writer.Write(FocusSlot); writer.Write(_focusCombatId);
     }
 
-    internal static SetupSearchPolicy Decode(BinaryReader reader)
+    internal static SetupSearchPolicy Decode(BinaryReader reader, bool continuous = false)
     {
         int count = Codec.ReadCount(reader, ushort.MaxValue + 1, "能力展开基线");
         if (count != Registry.PowerCount) throw new InvalidDataException("能力展开注册表不符。");
@@ -92,14 +106,14 @@ internal sealed class SetupSearchPolicy
         }
         bool focused = Codec.ReadBool(reader);
         int slot = reader.ReadInt32(); uint combatId = reader.ReadUInt32();
-        if (slot < -1 || slot >= Limits.Enemies || !focused && slot != -1)
+        if (slot < -1 || slot >= Limits.Enemies || !focused && slot != -1 || continuous && focused)
             throw new InvalidDataException("能力展开目标无效。");
-        return new(initial, activation, focused, slot, combatId);
+        return new(initial, activation, focused, slot, combatId, continuous);
     }
 
     internal void ValidateRoot(in Battle root, Rules rules)
     {
-        SetupSearchPolicy captured = Capture(root, rules, Focused);
+        SetupSearchPolicy captured = Capture(root, rules, Focused, Continuous);
         if (!_initialAmounts.AsSpan().SequenceEqual(captured._initialAmounts)
             || !_activationAmounts.AsSpan().SequenceEqual(captured._activationAmounts)
             || FocusSlot != captured.FocusSlot || _focusCombatId != captured._focusCombatId)

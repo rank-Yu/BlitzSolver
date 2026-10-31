@@ -52,7 +52,7 @@ public readonly record struct SearchPerformanceProfile(
         bool longEncounter = SearchPlan.IsLongEncounter(isBoss, isElite, actIndex);
         return new SearchPlan(BaselineWidth, NarrowWidth, WideWidth, OffensiveWidth,
             0, memoryBytes)
-            { QueenStrategies = true, SetupStrategies = longEncounter,
+            { QueenStrategies = true, SetupStrategies = longEncounter, ContinuousSetupStrategies = longEncounter,
                 MillisecondsPerWidth = MillisecondsPerWidth };
     }
 

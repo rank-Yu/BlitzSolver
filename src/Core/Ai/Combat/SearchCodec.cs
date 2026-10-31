@@ -166,7 +166,7 @@ internal static class SearchCodec
         {
             if (options.Scorer.QueenPolicy is not null)
                 throw new InvalidDataException("Setup and queen scoring cannot be combined.");
-            writer.Write(0x31505553u); // SUP1
+            writer.Write(options.Scorer.SetupPolicy!.Continuous ? 0x32505553u : 0x31505553u); // SUP2 continuous / SUP1 activation.
             options.Scorer.SetupPolicy!.Encode(writer);
         }
     }
@@ -244,9 +244,9 @@ internal static class SearchCodec
             uint extension = reader.ReadUInt32();
             if (scorer is null)
                 throw new InvalidDataException("Search extension requires a scorer.");
-            if (extension == 0x31505553u)
-                {
-                SetupSearchPolicy setup = SetupSearchPolicy.Decode(reader);
+            if (extension is 0x31505553u or 0x32505553u)
+            {
+                SetupSearchPolicy setup = SetupSearchPolicy.Decode(reader, continuous: extension == 0x32505553u);
                 scorer = new Scorer(scorer.RulesForCodec, baseOnly: setup.Focused, setup: setup);
             }
             else if (extension is 0x31505351u or 0x32505351u)
